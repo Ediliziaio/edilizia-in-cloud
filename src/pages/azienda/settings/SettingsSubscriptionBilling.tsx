@@ -148,17 +148,19 @@ function TabAbbonamenti() {
               ? `${Math.round(savingMonths)} mesi`
               : `${Math.round(yearlySaving)}€/anno`;
             return (
-              <div className="mt-5 rounded-xl border bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900 p-4 flex items-center gap-3 flex-wrap">
-                <div className="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
-                  <Gift className="h-5 w-5 text-emerald-600" />
+              <div className="mt-5 rounded-xl border bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="h-9 w-9 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+                    <Gift className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm">Risparmia {savingLabel} con l'annuale</p>
+                    <p className="text-xs text-muted-foreground">
+                      Passa al ciclo annuale dal portale Stripe — confermi tu il cambio prima del pagamento.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm">Risparmia {savingLabel} con l'annuale</p>
-                  <p className="text-xs text-muted-foreground">
-                    Passa al ciclo annuale dal portale Stripe — confermi tu il cambio prima del pagamento.
-                  </p>
-                </div>
-                <Button onClick={() => openPortal()} disabled={isPending}>
+                <Button onClick={() => openPortal()} disabled={isPending} className="w-full sm:w-auto shrink-0">
                   {isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
                   Passa all'annuale
                 </Button>

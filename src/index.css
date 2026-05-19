@@ -27,6 +27,20 @@
     min-width: 44px;
   }
 
+  /* v8.6.72 — Escludere checkbox/radio/switch dal min 44×44.
+     Radix Primitive renderizza questi controlli come <button role="checkbox"|radio|switch>
+     e la regola sopra li gonfiava a 44px (rendering forzato anche con h-4 w-4).
+     I tap target hit-area sono garantiti dal container/label, non dal control. */
+  button[role="checkbox"],
+  button[role="radio"],
+  button[role="switch"],
+  [role="checkbox"],
+  [role="radio"],
+  [role="switch"] {
+    min-height: 0;
+    min-width: 0;
+  }
+
   /* Smooth momentum scroll on iOS */
   .overflow-auto, .overflow-y-auto, .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
