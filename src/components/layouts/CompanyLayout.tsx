@@ -207,6 +207,10 @@ const SCOPRI_LOCKED_ROUTES = [
 // v8.6.93 — Module-level constants (no re-create per render)
 const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
 const CORE_MODULES_COUNT = 7;
+// Demo Azienda S.r.l. è la company-vetrina interna: deve mostrare la sidebar
+// PIENA senza badge DEMO indipendentemente dal piano DB (usata come reference
+// visiva per onboarding e supporto). UUID condiviso con src/lib/ai/models.config.ts.
+const DEMO_BASELINE_COMPANY_ID = "778a2c76-1253-49f2-a5e8-283363ac3e29";
 
 function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false, isFeaturePreview, isModuleDemo }: {
   area: MacroArea;
@@ -796,12 +800,17 @@ const CompanySidebar = memo(function CompanySidebar() {
   //   che richiede isImpersonationReady, quindi nessun leak privilege
   const isSuperAdminViewer = role === "super_admin";
 
+  // Demo Azienda S.r.l. = company-vetrina interna. Bypassa DEMO badges così
+  // la sidebar appare full-feature anche se il piano DB è parziale (è il caso
+  // reference che support/onboarding usano come "come dovrebbe apparire").
+  const isDemoBaseline = effectiveCompany?.id === DEMO_BASELINE_COMPANY_ID;
+
   // v8.6.83 — "Piano limitato": ha meno di tutti i 7 moduli core OPPURE
   // slug NON è in FULL_PLAN_SLUGS. Per questi piani le voci moduleKey non
   // incluse vengono mostrate come DEMO invece di nascoste.
   // (FULL_PLAN_SLUGS è module-level constant — vedi top of file)
   const isFullBySlug = !!currentPlan?.slug && FULL_PLAN_SLUGS.has(currentPlan.slug);
-  const isLimitedPlan = !isSuperAdminViewer && !isFullBySlug && (
+  const isLimitedPlan = !isSuperAdminViewer && !isDemoBaseline && !isFullBySlug && (
     (includedModules.length > 0 && includedModules.length < CORE_MODULES_COUNT) ||
     (!!currentPlan?.slug && !FULL_PLAN_SLUGS.has(currentPlan.slug))
   );
@@ -809,6 +818,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   /** Modulo in modalità demo: non incluso ma piano è "limited" (o no plan) → preview. */
   const isModuleDemo = (moduleKey: string): boolean => {
     if (isSuperAdminViewer) return false; // super_admin non vede mai badge DEMO
+    if (isDemoBaseline) return false;     // Demo Azienda = vetrina, no badge DEMO
     if (isModuleEnabled(moduleKey as never)) return false;
     // v8.6.95: fail-open senza plan → marca come DEMO finché non c'è chiarezza
     if (!currentPlan && !limitsLoading) return true;
@@ -965,13 +975,14 @@ const CompanySidebar = memo(function CompanySidebar() {
       // Module gate (v8.6.95 — fail-open per evitare flickering)
       if (item.moduleKey) {
         if (!isModuleEnabled(item.moduleKey)) {
-          // 4 casi fail-open:
+          // 5 casi fail-open:
+          //   - isDemoBaseline: Demo Azienda = vetrina, mostra tutto sempre
           //   - limitsLoading: query in volo → tieni visibile
           //   - !currentPlan: azienda senza piano (es. trial appena creato,
           //     super_admin loggato come sé stesso) → tieni visibile
           //   - isLimitedPlan: piano limited → mostra come DEMO
           //   - full plan + modulo non incluso → nascondi davvero
-          if (!isLimitedPlan && !limitsLoading && currentPlan) return false;
+          if (!isDemoBaseline && !isLimitedPlan && !limitsLoading && currentPlan) return false;
         }
       }
       // Feature gate
@@ -981,7 +992,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     });
-  }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, limitsLoading, currentPlan]);
+  }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan]);
 
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";

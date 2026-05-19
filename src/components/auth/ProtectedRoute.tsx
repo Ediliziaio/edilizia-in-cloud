@@ -24,6 +24,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       return;
     }
 
+    // Coerenza con i timeout di AuthContext:
+    //   AbortController fetchUserData = 20s
+    //   Promise.race fetchUserData    = 22s
+    // Se mostrassimo il fallback PRIMA di 22s avremmo un falso positivo:
+    // l'utente vede "Accesso ancora in verifica" mentre Supabase sta ancora
+    // rispondendo (cold-start free tier 10-30s) — ricarica → magari intanto
+    // si è svegliato → "torna come prima". Margine di 3s per evitare race.
     const timeoutId = window.setTimeout(() => {
       setLoadingTimedOut(true);
       logger.warn("[auth] ProtectedRoute: auth loading oltre soglia", {
@@ -31,9 +38,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       });
       captureVelocityError("auth.route_loading_timeout", new Error("Auth loading timeout"), {
         path: location.pathname,
-        timeoutMs: 18_000,
+        timeoutMs: 25_000,
       });
-    }, 18_000);
+    }, 25_000);
 
     return () => window.clearTimeout(timeoutId);
   }, [isLoading, location.pathname]);
@@ -44,7 +51,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         <LoadingTimeoutFallback
           title="Accesso ancora in verifica"
           description="La sessione non ha completato il caricamento. Può succedere con rete instabile o database lento: riprova senza restare bloccato sulla rotellina."
-          detail={`Verifica sessione oltre 18 secondi: ${location.pathname}`}
+          detail={`Verifica sessione oltre 25 secondi: ${location.pathname}`}
           homePath="/login"
         />
       );
