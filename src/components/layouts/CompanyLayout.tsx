@@ -54,6 +54,7 @@ import {
   AtSign,
   Banknote,
   QrCode,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { Button } from "@/components/ui/button";
@@ -1212,8 +1213,28 @@ export function CompanyLayout() {
             <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>
-            {/* AI: azioni proposte che richiedono OK utente (MP-AIE-03) */}
-            {deferredRealtimeReady && <ActionProposalsBadge />}
+            {/* v8.6.69 — Rotellina Impostazioni (mobile only): l'utente preferisce
+                un accesso veloce alle impostazioni qui invece del dropdown
+                "Vai a una sezione" dentro la pagina settings. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative h-9 w-9 shrink-0 md:hidden"
+              onClick={() => navigate("/azienda/impostazioni/profilo")}
+              title="Impostazioni"
+              aria-label="Impostazioni"
+            >
+              <SettingsIcon className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            {/* AI: azioni proposte che richiedono OK utente (MP-AIE-03)
+                v8.6.69 — Nascoste su mobile (icona inbox+badge); restano su md+.
+                Motivazione UX: header mobile sovraffollato, l'utente accede
+                alle proposte da pagina dedicata. */}
+            {deferredRealtimeReady && (
+              <div className="hidden md:block">
+                <ActionProposalsBadge />
+              </div>
+            )}
             {/* Silvio: cose da sapere proattive */}
             {deferredRealtimeReady && <SilvioBellPopover />}
             {deferredRealtimeReady && <NotificationsBellPopover />}

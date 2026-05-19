@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { SettingsSearch } from "@/components/layouts/SettingsSearch";
 
 // ─── Mappa URL → titolo + descrizione ───────────────────────────────────────
@@ -60,47 +60,9 @@ const DEFAULT_META: SectionMeta = {
   description: "Configura il tuo account e la tua azienda",
 };
 
-const MOBILE_SETTINGS_GROUPS = [
-  {
-    label: "Account",
-    items: [
-      { to: "/azienda/impostazioni/mio-profilo", label: "Il mio profilo" },
-      { to: "/azienda/impostazioni/sicurezza-privacy", label: "Sicurezza & privacy" },
-    ],
-  },
-  {
-    // v8.6.57 — "Piano abbonamento" + "Crediti & saldo" + "Fatturazione"
-    // (unificata) spostati qui dal vecchio gruppo "Marketing e integrazioni"
-    // perché l'utente li pensa come dati dell'azienda.
-    label: "Azienda",
-    items: [
-      { to: "/azienda/impostazioni/profilo", label: "Profilo aziendale" },
-      { to: "/azienda/impostazioni/sedi", label: "Sedi" },
-      { to: "/azienda/impostazioni/branding", label: "White-Label" },
-      { to: "/azienda/impostazioni/abbonamento", label: "Piano abbonamento" },
-      { to: "/azienda/impostazioni/fatturazione", label: "Fatturazione" },
-      { to: "/azienda/impostazioni/persone", label: "Persone & accessi" },
-    ],
-  },
-  {
-    label: "Vendite e operativo",
-    items: [
-      { to: "/azienda/impostazioni/listino", label: "Listino prodotti" },
-      { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte" },
-      { to: "/azienda/impostazioni/firma-elettronica", label: "Firma elettronica" },
-      { to: "/azienda/impostazioni/sopralluoghi", label: "Sopralluoghi" },
-      { to: "/azienda/impostazioni/finanziamenti", label: "Finanziamenti" },
-    ],
-  },
-  {
-    label: "Marketing e integrazioni",
-    items: [
-      { to: "/azienda/impostazioni/calendari", label: "Calendari marketing" },
-      { to: "/azienda/impostazioni/lead-forms", label: "Lead Facebook" },
-      { to: "/azienda/impostazioni/integrazioni", label: "Integrazioni" },
-    ],
-  },
-];
+// v8.6.69 — MOBILE_SETTINGS_GROUPS rimosso: il dropdown "Vai a una sezione"
+// che usava questa lista è stato eliminato. La navigazione mobile delle
+// impostazioni avviene ora via rotellina nell'header CompanyLayout.
 
 /** Estrae il segmento URL dopo /impostazioni/ — funzione pura, zero side effects */
 function getSectionMeta(pathname: string): SectionMeta {
@@ -112,13 +74,7 @@ function getSectionMeta(pathname: string): SectionMeta {
 // ─── Layout wrapper per tutte le route /azienda/impostazioni/* ───────────────
 export function SettingsLayout() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const { title, description } = getSectionMeta(pathname);
-  const currentMobileSection =
-    MOBILE_SETTINGS_GROUPS
-      .flatMap(group => group.items)
-      .find(item => pathname === item.to || pathname.startsWith(`${item.to}/`))
-      ?.to ?? "";
 
   return (
     <div className="flex flex-col min-h-full">
@@ -133,32 +89,10 @@ export function SettingsLayout() {
           <SettingsSearch />
         </div>
 
-        <div className="mt-4 md:hidden">
-          <label htmlFor="mobile-settings-nav" className="sr-only">
-            Vai a una sezione delle impostazioni
-          </label>
-          <select
-            id="mobile-settings-nav"
-            value={currentMobileSection}
-            onChange={(event) => {
-              if (event.target.value) navigate(event.target.value);
-            }}
-            className="h-11 w-full rounded-lg border bg-background px-3 text-sm font-medium shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <option value="" disabled>
-              Vai a una sezione...
-            </option>
-            {MOBILE_SETTINGS_GROUPS.map(group => (
-              <optgroup key={group.label} label={group.label}>
-                {group.items.map(item => (
-                  <option key={item.to} value={item.to}>
-                    {item.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
+        {/* v8.6.69 — Rimosso dropdown "Vai a una sezione..." su mobile.
+            L'utente ora naviga le impostazioni dalla rotellina nell'header
+            CompanyLayout (apre profilo) + dalla bottom-nav "App" che mostra
+            la griglia completa di tutte le funzioni. Dropdown ridondante. */}
       </div>
 
       {/* Contenuto della pagina figlia — larghezza piena */}
