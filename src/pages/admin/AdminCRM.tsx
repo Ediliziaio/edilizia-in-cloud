@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -98,6 +98,33 @@ function useAdminCRM(params: {
     },
     staleTime: 30_000,
     placeholderData: (prev) => prev,
+  });
+}
+
+/**
+ * Conteggio richieste per contatto (da marketing_contact_activities).
+ * Fa una sola query batched con IN clause sui contact_id della pagina corrente.
+ * Risposta è un map { contact_id: numero_richieste }.
+ */
+function useContactRequestCounts(contactIds: string[]) {
+  return useQuery({
+    queryKey: ["admin", "crm", "request-counts", contactIds.sort().join(",")],
+    queryFn: async () => {
+      if (contactIds.length === 0) return {} as Record<string, number>;
+      const { data, error } = await supabase
+        .from("marketing_contact_activities")
+        .select("contact_id")
+        .in("contact_id", contactIds)
+        .eq("activity_type", "site_lead_submitted");
+      if (error) throw new Error(error.message);
+      const counts: Record<string, number> = {};
+      for (const row of (data ?? []) as { contact_id: string }[]) {
+        counts[row.contact_id] = (counts[row.contact_id] ?? 0) + 1;
+      }
+      return counts;
+    },
+    enabled: contactIds.length > 0,
+    staleTime: 60_000,
   });
 }
 
@@ -465,6 +492,13 @@ export default function AdminCRM() {
     page, search, contactType, sortField, sortDesc,
   });
 
+  // Counter richieste per i contatti della pagina corrente (da activities log)
+  const contactIds = useMemo(
+    () => (data?.contacts ?? []).map((c) => c.id),
+    [data?.contacts]
+  );
+  const { data: requestCounts = {} } = useContactRequestCounts(contactIds);
+
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
 
   // Guard DOPO tutti gli hooks (Rules of Hooks)
@@ -624,6 +658,7 @@ export default function AdminCRM() {
                         Score<SortIcon field="score" />
                       </TableHead>
                       <TableHead>Sorgente</TableHead>
+                      <TableHead className="text-center" title="Numero di richieste totali fatte dal contatto (da marketing_contact_activities)">Richieste</TableHead>
                       <TableHead>Tag</TableHead>
                       <TableHead
                         className="cursor-pointer select-none"
@@ -642,7 +677,7 @@ export default function AdminCRM() {
                   <TableBody>
                     {(data?.contacts ?? []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                           Nessun contatto trovato
                         </TableCell>
                       </TableRow>
@@ -687,6 +722,15 @@ export default function AdminCRM() {
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {c.source ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {requestCounts[c.id] ? (
+                              <Badge variant={requestCounts[c.id] > 1 ? "default" : "secondary"} className="text-xs">
+                                {requestCounts[c.id]}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-1 flex-wrap max-w-[150px]">

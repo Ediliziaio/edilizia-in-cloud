@@ -1,7 +1,22 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
+
+// Destinatario notifica admin per ogni nuovo lead dal sito pubblico.
+// Hardcoded per affidabilità (in passato era un platform_setting → settori
+// dimenticati di configurarlo facevano perdere lead).
+const ADMIN_LEAD_NOTIFY_EMAIL = "flo.andriciuc@gmail.com";
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    c === "&" ? "&amp;" :
+    c === "<" ? "&lt;" :
+    c === ">" ? "&gt;" :
+    c === '"' ? "&quot;" : "&#39;"
+  );
+}
 
 type LeadPayload = {
   nome?: string;
@@ -52,11 +67,26 @@ Deno.serve(async (req) => {
     const renderSlug = cleanText(body.render_slug, 80).toLowerCase().replace(/[^a-z0-9-]/g, "");
     const pagePath = cleanText(body.page_path, 180);
     const contextLabel = cleanText(body.context_label, 180);
+    // Tag CRM puliti: prima ogni richiesta accumulava 4-6 tag con varianti
+    // slug-specifiche (richiesta-render-infissi, landing-render, modulo-render-
+    // in-page, ecc.) → su contatto con 5 richieste 25+ tag identici. Ora teniamo
+    // SOLO tag "tipologici" stabili. Il dettaglio (slug, pagina, modulo) resta
+    // tracciato in marketing_contact_activities.metadata.
+    const STABLE_TAG_WHITELIST = new Set([
+      "lead-sito",
+      "richiesta-demo",
+      "richiesta-render",
+      "richiesta-preventivo",
+      "richiesta-info",
+      "richiesta-contatto",
+    ]);
     const requestedTags = Array.isArray(body.tags)
-      ? body.tags.map((tag) => cleanText(tag, 80).toLowerCase()).filter(Boolean)
+      ? body.tags
+          .map((tag) => cleanText(tag, 80).toLowerCase())
+          .filter((tag) => tag && STABLE_TAG_WHITELIST.has(tag))
       : [];
     const renderTags = renderSlug.startsWith("render-")
-      ? ["richiesta-render", `richiesta-${renderSlug}`, "landing-render"]
+      ? ["richiesta-render"]  // unico tag tipologico, slug specifica resta in metadata
       : [];
 
     if (!nome || !email || !telefono || !azienda) {
@@ -195,6 +225,60 @@ Deno.serve(async (req) => {
         tags,
       },
     });
+
+    // ── Contatore richieste totali del contatto (per email + tag overview) ──
+    let totalRequests = 1;
+    try {
+      const { count } = await supabase
+        .from("marketing_contact_activities")
+        .select("id", { count: "exact", head: true })
+        .eq("contact_id", contactId)
+        .eq("activity_type", "site_lead_submitted");
+      if (typeof count === "number" && count > 0) totalRequests = count;
+    } catch (err) {
+      console.warn("[public-lead-submit] count requests failed:", err);
+    }
+
+    // ── Notifica admin (fire-and-forget) ────────────────────────────────────
+    // Email a flo.andriciuc@gmail.com per ogni nuova richiesta dal sito.
+    // Fail-soft: se l'invio fallisce loggiamo ma NON facciamo fallire il submit.
+    try {
+      const subjectLine = totalRequests > 1
+        ? `🔔 Lead ricorrente (${totalRequests}ª richiesta): ${nome}`
+        : `🔔 Nuovo lead sito: ${nome}`;
+      const ctxLabelEsc = contextLabel ? escapeHtml(contextLabel) : "";
+      const html = `
+        <div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;max-width:560px;margin:auto">
+          <h2 style="margin:0 0 16px;font-size:18px">${escapeHtml(subjectLine)}</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <tr><td style="padding:6px 0;color:#64748b">Nome</td><td style="padding:6px 0"><strong>${escapeHtml(nome)}</strong></td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Email</td><td style="padding:6px 0"><a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a></td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Telefono</td><td style="padding:6px 0"><a href="tel:${escapeHtml(telefono)}">${escapeHtml(telefono)}</a></td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Azienda</td><td style="padding:6px 0">${escapeHtml(azienda)}</td></tr>
+            ${contextLabel ? `<tr><td style="padding:6px 0;color:#64748b">Modulo</td><td style="padding:6px 0">${ctxLabelEsc}</td></tr>` : ""}
+            ${pagePath ? `<tr><td style="padding:6px 0;color:#64748b">Pagina</td><td style="padding:6px 0">${escapeHtml(pagePath)}</td></tr>` : ""}
+            ${renderSlug ? `<tr><td style="padding:6px 0;color:#64748b">Render</td><td style="padding:6px 0">${escapeHtml(renderSlug)}</td></tr>` : ""}
+            <tr><td style="padding:6px 0;color:#64748b">Richieste totali</td><td style="padding:6px 0"><strong>${totalRequests}</strong></td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Source</td><td style="padding:6px 0">${escapeHtml(source)}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">Marketing consent</td><td style="padding:6px 0">${marketingConsent ? "sì" : "no"}</td></tr>
+          </table>
+          ${messaggio ? `<div style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:6px"><div style="color:#64748b;font-size:12px;margin-bottom:4px">Messaggio</div>${escapeHtml(messaggio)}</div>` : ""}
+        </div>
+      `;
+      await sendEmailUnified({
+        companyId: null,
+        stream: "transactional",
+        to: ADMIN_LEAD_NOTIFY_EMAIL,
+        subject: subjectLine,
+        html,
+        text: `${subjectLine}\n\nEmail: ${email}\nTel: ${telefono}\nAzienda: ${azienda}\nRichieste totali: ${totalRequests}`,
+        templateName: "admin_new_lead_notification",
+        replyTo: email,
+        metadata: { contact_id: contactId, request_id: requestId, source, total_requests: totalRequests },
+      });
+    } catch (notifyErr) {
+      console.warn("[public-lead-submit] admin notify failed:", notifyErr);
+    }
 
     return jsonResponse(req, { ok: true, contact_id: contactId, request_id: requestId });
   } catch (error) {
