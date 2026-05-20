@@ -101,15 +101,16 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   // Flag per non sovrascrivere scelta manuale dell'utente
   const [vettoreManuallyChanged, setVettoreManuallyChanged] = useState(false);
 
-  // Query subappaltatori — caricato solo se serve
-  const { data: subappaltatori = [] } = useQuery<{ id: string; ragione_sociale: string; piva: string | null; responsabile: string | null; telefono: string | null }[]>({
-    queryKey: ["scarico-subappaltatori", companyId],
+  // Query subappaltatori — caricato solo se serve, con dati completi
+  // (P.IVA, indirizzo) per dare all'utente visibilità completa.
+  const { data: subappaltatori = [] } = useQuery<{ id: string; ragione_sociale: string; piva: string | null; responsabile: string | null; telefono: string | null; indirizzo: string | null }[]>({
+    queryKey: ["scarico-subappaltatori-full", companyId],
     enabled: !!companyId && vettoreTipo === "subappaltatore",
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subappaltatori")
-        .select("id, ragione_sociale, piva, responsabile, telefono")
+        .select("id, ragione_sociale, piva, responsabile, telefono, indirizzo")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .order("ragione_sociale", { ascending: true });
@@ -545,19 +546,48 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
               ))}
             </div>
             {vettoreTipo === "subappaltatore" && (
-              <Select value={vettoreSubId} onValueChange={(v) => { setVettoreSubId(v); setVettoreManuallyChanged(true); }}>
-                <SelectTrigger>
-                  <SelectValue placeholder={subappaltatori.length ? "Scegli subappaltatore" : "Nessun subappaltatore attivo"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {subappaltatori.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.ragione_sociale}
-                      {s.piva ? ` — ${s.piva}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Select value={vettoreSubId} onValueChange={(v) => { setVettoreSubId(v); setVettoreManuallyChanged(true); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={subappaltatori.length ? "Scegli subappaltatore dal registro" : "Nessun subappaltatore attivo"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subappaltatori.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className="font-medium">{s.ragione_sociale}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {s.piva ? `P.IVA ${s.piva}` : <span className="text-amber-600">⚠ P.IVA mancante</span>}
+                            {s.indirizzo ? ` · ${s.indirizzo}` : ""}
+                            {s.responsabile ? ` · Resp: ${s.responsabile}` : ""}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Hint warning se sub selezionato ha dati incompleti */}
+                {vettoreSubId && (() => {
+                  const sub = subappaltatori.find((s) => s.id === vettoreSubId);
+                  if (!sub) return null;
+                  const incomplete = !sub.piva || !sub.indirizzo;
+                  if (!incomplete) return null;
+                  return (
+                    <p className="text-[11px] text-amber-600">
+                      ⚠ Dati subappaltatore incompleti{!sub.piva ? " (manca P.IVA)" : ""}{!sub.indirizzo ? " (manca indirizzo)" : ""}.
+                      Completa nel registro per intestazione DDT corretta.
+                    </p>
+                  );
+                })()}
+                <a
+                  href="/azienda/impostazioni?tab=subappaltatori"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-primary hover:underline inline-block"
+                >
+                  Apri registro subappaltatori →
+                </a>
+              </div>
             )}
             {vettoreTipo === "terzo" && (
               <div className="grid grid-cols-2 gap-2">
