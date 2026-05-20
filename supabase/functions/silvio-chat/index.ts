@@ -521,18 +521,27 @@ serve(async (req: Request) => {
     ].join("\n");
 
     // ── 4.ter) Carica memoria long-term: facts azienda + sintesi recenti utente
+    // ATTENZIONE: p_max_summaries=5 (era 3) per dare a Silvio più continuità
+    // tra sessioni — l'utente può tornare dopo giorni e Silvio sa di cosa hanno
+    // parlato nelle ultime 5 conversazioni (non solo 3). Costo prompt: +~400
+    // token su msg medio, trascurabile.
     let memoryContextPrompt = "";
+    let memoryStats = { facts_count: 0, summaries_count: 0 };
     try {
       const { data: memCtx } = await supabaseAdmin.rpc("silvio_get_memory_context", {
         p_company_id: companyId,
         p_user_id: userId,
-        p_max_summaries: 3,
+        p_max_summaries: 5,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ctx = memCtx as any;
       const facts = (ctx?.facts ?? []) as Array<{ key: string; value: unknown; confidence: number }>;
       const summaries = (ctx?.recent_summaries ?? []) as Array<{ period: { start: string; end: string }; summary: string; topics?: string[] }>;
 
+      memoryStats = {
+        facts_count: facts.length,
+        summaries_count: summaries.length,
+      };
       if (facts.length > 0 || summaries.length > 0) {
         const lines: string[] = ["", "# MEMORIA LONG-TERM (uso interno, non mostrare all'utente direttamente)"];
         if (facts.length > 0) {
@@ -554,6 +563,8 @@ serve(async (req: Request) => {
     } catch (e) {
       console.warn("[silvio-chat] memory context fetch failed:", e);
     }
+    // memoryStats viene esposto nella response per UI badge "Silvio ricorda N conversazioni"
+    void memoryStats; // referenced in response builder below
 
     // ── MP-01: Pre-RAG automatico ─────────────────────────────────────
     // Carica top-K chunk universali + company brain pertinenti alla query
@@ -1383,6 +1394,9 @@ serve(async (req: Request) => {
       tokens_out: lastResult?.completionTokens,
       cost_billed_eur: lastResult?.costBilledEur,
       ledger_id: lastResult?.ledgerId,
+      // Memoria long-term applicata: badge UI lato client per mostrare
+      // all'utente che Silvio sta usando il contesto storico
+      memory_used: memoryStats,
       // Diagnostic AI Test Lab — solo demo company
       failed_attempts: failedAttemptsForDiag,
     }, 200, corsHeaders);
