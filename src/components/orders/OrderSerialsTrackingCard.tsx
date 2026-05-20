@@ -9,7 +9,7 @@
  * Le query per i seriali partono solo quando la Card viene espansa (lazy),
  * per non scatenare N query in parallelo al mount della pagina commessa.
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, ScanLine, Package } from "lucide-react";
 import { AssignSerialsDialog } from "@/components/warehouse/AssignSerialsDialog";
-import { useStockUnitsByOrderItem } from "@/hooks/warehouse/useStockUnits";
+import { useStockUnitsByOrderItemIds } from "@/hooks/warehouse/useStockUnits";
 import type { OrderItemData } from "@/lib/orderUtils";
 
 interface OrderSerialsTrackingCardProps {
@@ -36,7 +36,21 @@ export function OrderSerialsTrackingCard({
   const [expanded, setExpanded] = useState(false);
 
   // Filtra righe con quantity > 0 — niente da tracciare per qty=0
-  const trackableItems = orderItems.filter((it) => (it.quantity ?? 0) > 0);
+  const trackableItems = useMemo(
+    () => orderItems.filter((it) => (it.quantity ?? 0) > 0),
+    [orderItems],
+  );
+
+  // Batched fetch (1 sola query in.()) invece di N parallele per ogni riga.
+  // Parte SOLO se la Card è espansa (lazy). Senza, apri commessa con 20 righe
+  // → 20 query parallele a Supabase al primo expand.
+  const itemIds = useMemo(
+    () => trackableItems.map((it) => it.id),
+    [trackableItems],
+  );
+  const { data: serialsByItem = new Map() } = useStockUnitsByOrderItemIds(
+    expanded ? itemIds : [],
+  );
 
   if (trackableItems.length === 0) return null;
 
@@ -77,6 +91,7 @@ export function OrderSerialsTrackingCard({
               itemName={item.name}
               productCode={(item as unknown as { product_code?: string }).product_code ?? null}
               quantity={item.quantity ?? 0}
+              assignedCount={(serialsByItem.get(item.id) ?? []).length}
             />
           ))}
         </CardContent>
@@ -91,6 +106,8 @@ interface SerialsTrackingRowProps {
   itemName: string;
   productCode: string | null;
   quantity: number;
+  /** Counter assegnati passato dal parent (batched fetch, no N+1). */
+  assignedCount: number;
 }
 
 function SerialsTrackingRow({
@@ -99,11 +116,10 @@ function SerialsTrackingRow({
   itemName,
   productCode,
   quantity,
+  assignedCount,
 }: SerialsTrackingRowProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: units = [] } = useStockUnitsByOrderItem(orderItemId);
 
-  const assignedCount = units.length;
   const complete = assignedCount >= quantity;
   const partial = assignedCount > 0 && !complete;
 

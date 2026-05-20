@@ -88,8 +88,11 @@ export function StockUnitsDrilldownSheet({
       status: statusFilter,
       search,
       limit: 500,
+      // Fetch SOLO quando il Sheet è aperto. Senza, la query partiva al mount
+      // di /azienda/magazzino anche con Sheet chiuso → 500 row scaricati per nulla.
+      enabled: open,
     }),
-    [stockItemId, lottoFilter, statusFilter, search],
+    [stockItemId, lottoFilter, statusFilter, search, open],
   );
 
   const { data: units = [], isLoading } = useStockUnitsList(filters);

@@ -148,6 +148,48 @@ export function useStockUnitsMutations() {
 // Order-item link: assegnazione seriali a una RIGA commessa specifica
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Lista seriali assegnati a UN BATCH di righe commessa (per evitare N+1).
+ * Use case: OrderSerialsTrackingCard mostra N righe articolo, ognuna con
+ * counter "seriali assegnati". Senza batch: N query parallele. Con batch:
+ * 1 sola query con .in() e raggruppamento client-side via Map.
+ */
+export function useStockUnitsByOrderItemIds(orderItemIds: string[]) {
+  // queryKey ordinato per stabilità (stesso array shuffle → stessa key).
+  const sortedKey = [...orderItemIds].sort().join(",");
+  return useQuery<Map<string, StockUnit[]>>({
+    queryKey: ["warehouse", "stock-units-by-order-item-batch", sortedKey],
+    enabled: orderItemIds.length > 0,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const ids = Array.from(new Set(orderItemIds.filter(Boolean)));
+      if (ids.length === 0) return new Map();
+      // OR su reserved_order_item_id OPPURE delivered_order_item_id IN (...).
+      // Costruisco la sintassi PostgREST in.(...) escapata.
+      const inList = ids.join(",");
+      const { data, error } = await supabase
+        .from("stock_units")
+        .select("*")
+        .or(`reserved_order_item_id.in.(${inList}),delivered_order_item_id.in.(${inList})`)
+        .order("serial_number", { ascending: true })
+        .limit(2000);
+      if (error) throw error;
+      // Raggruppa per order_item_id (reserved o delivered).
+      const map = new Map<string, StockUnit[]>();
+      for (const raw of (data ?? []) as unknown as StockUnit[]) {
+        const r = (raw as unknown as { reserved_order_item_id: string | null }).reserved_order_item_id;
+        const d = (raw as unknown as { delivered_order_item_id: string | null }).delivered_order_item_id;
+        const key = d ?? r;
+        if (!key) continue;
+        const arr = map.get(key) ?? [];
+        arr.push(raw);
+        map.set(key, arr);
+      }
+      return map;
+    },
+  });
+}
+
 /** Lista seriali assegnati (riservati o consegnati) a una specifica riga commessa. */
 export function useStockUnitsByOrderItem(orderItemId: string | undefined) {
   return useQuery<StockUnit[]>({
@@ -297,6 +339,13 @@ export interface StockUnitsListFilters {
   status?: StockUnitStatus | "all";
   search?: string; // ricerca su serial_number
   limit?: number;
+  /**
+   * Se false la query NON parte (lazy). Da usare quando l'hook è in un
+   * componente sempre montato ma usato solo on-demand (es. Sheet drill-down
+   * aperto da bottone). Senza questo, fetchavamo 500 stock_units al mount
+   * di /azienda/magazzino anche con Sheet chiuso.
+   */
+  enabled?: boolean;
 }
 
 export interface StockUnitsListRow extends StockUnit {
@@ -326,7 +375,10 @@ export function useStockUnitsList(filters: StockUnitsListFilters) {
       filters.search ?? "",
       limit,
     ],
-    enabled: !!companyId,
+    // Lazy: se enabled passato esplicitamente come false, no fetch.
+    // Senza questo, /azienda/magazzino fetchava 500 stock_units al mount
+    // anche se l'utente non apriva mai il Sheet drill-down.
+    enabled: !!companyId && (filters.enabled ?? true),
     staleTime: 30_000,
     queryFn: async () => {
       let q = supabase

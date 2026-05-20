@@ -218,6 +218,10 @@ export default function WarehouseLottiTab() {
   });
 
   const handleCreate = async () => {
+    // Guard interno contro double-submit: prima il button era `disabled={isSaving}`
+    // ma tra il primo click e il setIsSaving(true) c'è una micro-finestra in cui
+    // un doppio click ravvicinato passa entrambi → crea 2 lotti duplicati.
+    if (isSaving) return;
     if (!form.codice_lotto.trim()) {
       toast.error("Inserisci il codice lotto");
       return;
