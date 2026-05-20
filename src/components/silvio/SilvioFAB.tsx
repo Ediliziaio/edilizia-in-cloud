@@ -12,6 +12,9 @@
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   MessageSquare,
   Brain,
@@ -20,6 +23,7 @@ import {
   X,
   Lightbulb,
   ArrowRight,
+  AlertTriangle,
   // 🆕 Icon set espansa
   Camera,
   Calculator,
@@ -82,9 +86,40 @@ interface Props {
   hidden?: boolean;
 }
 
+interface MorningBriefing {
+  id: string;
+  content: string;
+  key_points: Array<{ text: string; severity?: "info" | "attention" | "urgent"; action_hint?: string }>;
+  severity: "info" | "attention" | "urgent";
+  brief_date: string;
+  read_at: string | null;
+}
+
 export function SilvioFAB({ hidden = false }: Props) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
+
+  // Briefing del giorno generato dal cron silvio-morning-brief.
+  // Fetched solo se l'utente apre il FAB (enabled: open) per non sprecare
+  // bandwidth al boot. Refresh dopo 10 min staleTime.
+  const { data: morningBrief } = useQuery({
+    queryKey: ["silvio-morning-brief", user?.id],
+    enabled: !!user?.id && open,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async (): Promise<MorningBriefing | null> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("silvio_morning_briefings")
+        .select("id, content, key_points, severity, brief_date, read_at")
+        .eq("user_id", user!.id)
+        .gte("brief_date", new Date().toISOString().slice(0, 10))
+        .order("brief_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data as MorningBriefing | null) ?? null;
+    },
+  });
   const [smartImportOpen, setSmartImportOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   // Una volta aperta la prima volta, manteniamo SilvioChatSheet montato (anche
@@ -230,6 +265,37 @@ export function SilvioFAB({ hidden = false }: Props) {
 
           {/* Body scrollable */}
           <div className="p-3 space-y-3 overflow-y-auto flex-1">
+            {/* Morning brief proattivo — visibile solo se generato oggi dal
+                cron e l'utente non l'ha ancora marcato come letto. Banner
+                colorato in base a severity (urgent rosso, attention ambra,
+                info violet). */}
+            {morningBrief && !morningBrief.read_at && (
+              <div className={`rounded-lg border-l-4 p-3 ${
+                morningBrief.severity === "urgent"
+                  ? "border-l-rose-500 bg-rose-50"
+                  : morningBrief.severity === "attention"
+                    ? "border-l-amber-500 bg-amber-50"
+                    : "border-l-violet-500 bg-violet-50"
+              }`}>
+                <div className="flex items-start gap-2 mb-1.5">
+                  {morningBrief.severity === "urgent"
+                    ? <AlertTriangle className="h-3.5 w-3.5 text-rose-600 mt-0.5 shrink-0" />
+                    : <Sparkles className="h-3.5 w-3.5 text-violet-600 mt-0.5 shrink-0" />
+                  }
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                    Briefing del giorno · {new Date(morningBrief.brief_date).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
+                  </p>
+                </div>
+                {morningBrief.key_points.slice(0, 4).map((p, i) => (
+                  <p key={i} className="text-[12px] text-slate-700 leading-snug pl-5">
+                    {p.severity === "urgent" && <span className="text-rose-600 font-bold mr-1">•</span>}
+                    {p.severity !== "urgent" && <span className="text-slate-400 mr-1">•</span>}
+                    {p.text}
+                  </p>
+                ))}
+              </div>
+            )}
+
             {/* Sezione 1: chat principale (CTA primario, full width) */}
             <button
               type="button"
