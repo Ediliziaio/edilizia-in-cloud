@@ -394,6 +394,14 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   // Quando l'utente chiude lo scanner torniamo allo step "context" così può
   // continuare a modificare la lista articoli manuale (non perdiamo le entries).
   if (step === "scan") {
+    // Costruisce allowedOrderItems dal prefill: serve a BatchBarcodeScanner
+    // per validare che ogni scan corrisponda a una riga dell'ordine.
+    const allowedOrderItems = orderItemsPrefill.map((it) => ({
+      stockItemId: it.stock_item_id,
+      orderItemId: it.order_item_id,
+      itemName: it.name,
+      qtyRequired: it.quantity,
+    }));
     return (
       <Suspense fallback={null}>
         <BatchBarcodeScanner
@@ -407,6 +415,9 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
               ? `Ordine ${orderObj.order_code} · Da: ${warehouseObj.name}`
               : ""
           }
+          // Validation: solo se l'ordine ha righe collegate a magazzino.
+          // Se vuoto -> scanner permissivo (back-compat con scarico libero).
+          allowedOrderItems={allowedOrderItems.length > 0 ? allowedOrderItems : undefined}
           initialEntries={entries}
           onEntriesChange={setEntries}
           onConfirm={handleConfirm}

@@ -112,6 +112,15 @@ interface BatchBarcodeScannerProps {
   supplierUsesGs1?: boolean;
   /** Solo modalità oda_receive: filtra/valida scansioni contro queste righe. */
   allowedOdaItems?: Array<{ stockItemId: string | null; odaItemId: string; qtyPending: number }>;
+  /**
+   * mode='carico' (scarico verso ordine): valida che ogni scansione corrisponda
+   * a un articolo presente nelle righe ordine, e che la qty residua non sia
+   * gia completa. Se l'articolo non e in ordine -> toast warning + audio errore
+   * (l'entry NON viene aggiunta). Se la qty e completa -> stop.
+   * Quando questa prop e fornita, lo scanner si comporta come "vincolato".
+   * Quando undefined -> comportamento permissivo (carico libero).
+   */
+  allowedOrderItems?: Array<{ stockItemId: string; orderItemId: string; itemName: string; qtyRequired: number }>;
   /** Entries iniziali (per riapertura sheet). */
   initialEntries?: BatchScanEntry[];
   /** Callback ad ogni cambio entries (caller mantiene state). */
@@ -162,6 +171,7 @@ export function BatchBarcodeScanner({
   supplierId,
   supplierUsesGs1,
   allowedOdaItems,
+  allowedOrderItems,
   initialEntries,
   onEntriesChange,
   onConfirm,
@@ -335,6 +345,31 @@ export function BatchBarcodeScanner({
           return;
         }
 
+        // Validazione mode='carico' (scarico verso ordine): se allowedOrderItems
+        // e fornito, il seriale scansionato deve corrispondere a un articolo
+        // nelle righe ordine. Permette al magazziniere di rifiutare il pannello
+        // sbagliato sul DDT prima che venga aggiunto.
+        if (mode === "carico" && allowedOrderItems) {
+          const allowed = allowedOrderItems.find((a) => a.stockItemId === resolvedItemId);
+          if (!allowed) {
+            await errorFeedback();
+            toast.error("Articolo non in ordine", {
+              description: `${resolvedItemName ?? "Articolo"} non e presente nelle righe di questo ordine. Scansione rifiutata.`,
+            });
+            return;
+          }
+          const alreadyScannedQty = entries
+            .filter((entry) => entry.stockItemId === allowed.stockItemId)
+            .reduce((sum, entry) => sum + entry.quantity, 0);
+          if (alreadyScannedQty >= allowed.qtyRequired) {
+            await errorFeedback();
+            toast.warning("Quantita gia completa", {
+              description: `Hai gia scansionato ${alreadyScannedQty}/${allowed.qtyRequired} per ${allowed.itemName}.`,
+            });
+            return;
+          }
+        }
+
         // Validazione mode='oda_receive': l'articolo deve essere in allowedOdaItems.
         let odaItemId: string | null = null;
         if (mode === "oda_receive" && allowedOdaItems) {
@@ -374,6 +409,7 @@ export function BatchBarcodeScanner({
     },
     [
       allowedOdaItems,
+      allowedOrderItems,
       appendEntry,
       entries,
       lookup,
@@ -605,6 +641,44 @@ export function BatchBarcodeScanner({
             </form>
           )}
         </div>
+
+        {/* Progress bar ordine — visibile solo se allowedOrderItems fornito.
+            Mostra a colpo d'occhio quante unita restano da scansionare per
+            ogni articolo della commessa. Update live ad ogni scan. */}
+        {mode === "carico" && allowedOrderItems && allowedOrderItems.length > 0 && (
+          <div className="shrink-0 border-b bg-muted/30 px-3 py-2 space-y-1.5 max-h-[35vh] overflow-y-auto">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+              Avanzamento ordine
+            </p>
+            {allowedOrderItems.map((row) => {
+              const scanned = entries
+                .filter((e) => e.stockItemId === row.stockItemId)
+                .reduce((sum, e) => sum + e.quantity, 0);
+              const pct = row.qtyRequired > 0
+                ? Math.min(100, (scanned / row.qtyRequired) * 100)
+                : 0;
+              const done = scanned >= row.qtyRequired;
+              return (
+                <div key={row.orderItemId} className="space-y-0.5">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className={`truncate ${done ? "text-emerald-700 dark:text-emerald-400 font-medium" : ""}`}>
+                      {done ? "✅" : "🟡"} {row.itemName}
+                    </span>
+                    <span className={`tabular-nums shrink-0 ${done ? "text-emerald-700 dark:text-emerald-400 font-semibold" : "text-muted-foreground"}`}>
+                      {scanned}/{row.qtyRequired}
+                    </span>
+                  </div>
+                  <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${done ? "bg-emerald-500" : "bg-violet-500"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Risultato lookup single-shot / Entries list batch */}
         <ScrollArea className="flex-1 min-h-0">
