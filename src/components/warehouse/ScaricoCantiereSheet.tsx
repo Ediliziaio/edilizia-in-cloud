@@ -167,10 +167,14 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   const [orderPrefillApplied, setOrderPrefillApplied] = useState<string | null>(null);
   // Quando ordine + warehouse pronti + item prefill ricevuti → applica una sola
   // volta per ordineId. Se l'utente ha già entries manuali, NON sovrascrivo.
+  // Deps: usiamo orderItemsPrefill.length (number stabile) invece dell'array
+  // intero per evitare re-fire dell'effect ad ogni refetch react-query
+  // (es. su window focus quando i dati sono identici).
+  const prefillCount = orderItemsPrefill.length;
   useEffect(() => {
     if (!orderId || !warehouseId) return;
     if (orderPrefillApplied === orderId) return;
-    if (orderItemsPrefill.length === 0) return;
+    if (prefillCount === 0) return;
     if (entries.length > 0) {
       setOrderPrefillApplied(orderId);
       return;
@@ -187,7 +191,8 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
     } as BatchScanEntry));
     setEntries(prefillEntries);
     setOrderPrefillApplied(orderId);
-  }, [orderId, warehouseId, orderItemsPrefill, entries.length, orderPrefillApplied]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, warehouseId, prefillCount, entries.length, orderPrefillApplied]);
 
   const handleOrderChange = useCallback((id: string, order: OrderOption) => {
     setOrderId(id);
