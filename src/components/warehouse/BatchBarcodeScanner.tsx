@@ -498,6 +498,7 @@ export function BatchBarcodeScanner({
                 className="w-full aspect-video object-cover cursor-pointer"
                 playsInline
                 muted
+                autoPlay
                 onClick={handleTapFocus}
               />
               {/* Reticolo */}
