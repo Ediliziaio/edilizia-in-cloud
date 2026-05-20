@@ -55,6 +55,8 @@ import {
   AtSign,
   Banknote,
   QrCode,
+  Brain,
+  Bell,
   Settings as SettingsIcon,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
@@ -594,6 +596,16 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         // v8.6.59 — Solo "Piano abbonamento": "Crediti & Saldo" è ora il tab
         // "Portafoglio" interno alla dashboard Abbonamento (no duplicazione).
         { to: "/azienda/impostazioni/abbonamento",   label: "Piano abbonamento", icon: <Wallet className="h-4 w-4" />,       visible: isAdmin },
+      ],
+    },
+    {
+      // v8.6.72 — Nuovo gruppo "AI & Notifiche" — voci precedentemente
+      // raggiungibili solo da Cmd+K o dall'hub mobile (/azienda/impostazioni).
+      // Visibili a tutti gli utenti (la pagina interna gestisce permessi fini).
+      label: "AI & Notifiche",
+      items: [
+        { to: "/azienda/impostazioni/ai-memoria", label: "Memoria AI Personas", icon: <Brain className="h-4 w-4" />, visible: true },
+        { to: "/azienda/impostazioni/notifiche",  label: "Notifiche",           icon: <Bell className="h-4 w-4" />,  visible: true },
       ],
     },
     {
