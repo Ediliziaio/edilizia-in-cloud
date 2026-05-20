@@ -46,7 +46,6 @@ import {
   Settings,
   Calculator,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -198,7 +197,9 @@ export const macroAreas: MacroArea[] = [
     icon: Zap,
     items: [
       // TOP-LEVEL — sempre visibili anche con subcategory collassate
-      { title: "Personas AI", url: "/azienda/assistente-ai", icon: Sparkles },
+      // NOTA: "Personas AI" (/azienda/assistente-ai) rimossa dalla sidebar — confondeva con Silvio.
+      // Resta raggiungibile da: FAB Silvio (popover "Personas"), Cmd+K, link in AIMemoryPage.
+      // La fusione vera (selettore persona dentro Silvio) richiede merge backend silvio-chat + ai-orchestrator.
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni" },
       // ─── Canali comunicazione (subcategory collassabile) ───
       { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", featureKey: "email_marketing", groupLabel: "Comunicazione" },
