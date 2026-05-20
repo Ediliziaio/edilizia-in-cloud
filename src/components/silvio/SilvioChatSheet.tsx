@@ -270,6 +270,11 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   // UX ("riflette" → "analizza" → "ci sta mettendo troppo") senza far credere
   // all'utente che la chat sia bloccata. Reset a 0 ad ogni nuovo invio.
   const [sendingElapsed, setSendingElapsed] = useState(0);
+  // AbortController per cancellare DAVVERO la chiamata edge function
+  // quando l'utente clicca "Annulla attesa". Senza questo la promise
+  // continua server-side anche dopo aver sbloccato l'UI, consumando
+  // budget AI inutilmente.
+  const sendAbortRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   // Element 3: messaggi Silvio appena arrivati che devono ricevere effetto
@@ -890,6 +895,11 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       if (insertErr) throw new Error(`Invio: ${insertErr.message}`);
       qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
 
+      // Crea un nuovo AbortController per questa chiamata. Il pulsante
+      // "Annulla attesa" usa questo per interrompere realmente la fetch
+      // verso silvio-chat invece di lasciarla finire in background.
+      const ac = new AbortController();
+      sendAbortRef.current = ac;
       // Invoke Silvio with full attachments list
       const res = await supabase.functions.invoke("silvio-chat", {
         body: {
@@ -905,6 +915,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
           // (server-side è comunque gated, double safety).
           ...(aiSelector.showSelector ? { model: aiSelector.selectedModel } : {}),
         },
+        signal: ac.signal,
       });
       if (res.error) throw new Error(`Silvio: ${res.error.message}`);
       // AI Test Lab — toast warning se aiRouter ha fatto fallback automatico.
@@ -936,9 +947,14 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       // Draft + attachments già clearati ottimisticamente in mutationFn — qui no-op.
     },
     onError: (e: Error, _vars, context) => {
-      toast.error(humanizeSilvioError(e.message));
+      // AbortError silenzioso: è una cancellazione utente, NON un fail.
+      // Il toast.info("Invio annullato") è già stato emesso dal click handler.
+      const isAbort = e.name === "AbortError" || /aborted|abort/i.test(e.message);
+      if (!isAbort) {
+        toast.error(humanizeSilvioError(e.message));
+      }
       // Ripristina il draft se è stato clearato ottimisticamente — l'utente
-      // non perde il testo digitato in caso di errore di rete/server.
+      // non perde il testo digitato in caso di errore di rete/server (o abort).
       const restored = (context as { draft?: string } | undefined)?.draft;
       if (restored) setDraft((cur) => cur || restored);
     },
@@ -947,7 +963,10 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       // ripristinano (sono file utente già caricati, ricaricarli sarebbe peggio).
       return { draft };
     },
-    onSettled: () => setSending(false),
+    onSettled: () => {
+      sendAbortRef.current = null;
+      setSending(false);
+    },
   });
 
   const handleSend = () => {
@@ -1186,6 +1205,9 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
                   <button
                     type="button"
                     onClick={() => {
+                      // Aborta la fetch reale verso silvio-chat se ancora in corso.
+                      sendAbortRef.current?.abort();
+                      sendAbortRef.current = null;
                       sendMutation.reset();
                       setSending(false);
                       toast.info("Invio annullato. Puoi scrivere una nuova domanda.");
