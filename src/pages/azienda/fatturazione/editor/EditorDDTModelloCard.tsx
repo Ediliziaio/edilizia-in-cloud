@@ -1,26 +1,16 @@
 /**
- * EditorDDTModelloCard — selettore "Modello grafico" mostrato sul layout
- * DDT (replica di Fatture in Cloud). Per ora abbiamo un unico template
- * ufficiale (DPR 472/96 senza prezzi), quindi lo mostriamo readonly per
- * indicare all'utente quale template verrà usato — futuro: multi-template.
+ * EditorDDTModelloCard — micro-badge che indica il template PDF in uso.
+ * Era una card a tutta larghezza con un Select disabled (unica opzione,
+ * inutile finché non avremo multi-template). Ora una riga sottile in cima
+ * al layout DDT, non occupa più spazio.
  */
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileText } from "lucide-react";
 
 export function EditorDDTModelloCard() {
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
-      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-        Modello grafico
-      </Label>
-      <Select value="ddt_dpr_472" disabled>
-        <SelectTrigger className="h-8 text-xs mt-2">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="ddt_dpr_472">DDT senza prezzi — DPR 472/96</SelectItem>
-        </SelectContent>
-      </Select>
+    <div className="flex items-center gap-2 text-[11px] text-muted-foreground px-1">
+      <FileText className="h-3 w-3" />
+      <span>Modello PDF: <span className="font-medium text-foreground/80">DDT senza prezzi — DPR 472/96</span></span>
     </div>
   );
 }

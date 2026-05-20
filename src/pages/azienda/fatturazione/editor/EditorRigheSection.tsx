@@ -255,36 +255,8 @@ function SortableRow({
               />
             </div>
 
-            {/* Totale + actions */}
-            <div className="flex flex-col items-end gap-0.5 shrink-0 min-w-[5.5rem]">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-medium">Importo</span>
-              <span className="text-sm font-bold tabular-nums text-foreground leading-7">
-                {formatCurrency(riga.totale_riga)}
-              </span>
-            </div>
-          </div>
-
-          {/* ── BOTTOM LINE — Descrizione (textarea) | Sc.% | IVA ── */}
-          <div className="flex items-end gap-2 px-3 pb-2.5">
-            <div className="w-5 shrink-0" />
-            <div className="space-y-0.5 flex-1 min-w-0">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-medium">Descrizione estesa</span>
-              <Textarea
-                value={riga.descrizione.split("\n").slice(1).join("\n")}
-                onChange={(e) => {
-                  const firstLine = riga.descrizione.split("\n")[0] ?? "";
-                  const extra = e.target.value;
-                  onUpdate(index, "descrizione", extra ? `${firstLine}\n${extra}` : firstLine);
-                }}
-                className="text-xs resize-none min-h-[2rem]"
-                placeholder="Note aggiuntive (facoltativo)"
-                rows={1}
-                disabled={disabled}
-              />
-            </div>
-
             {/* Sc.% */}
-            <div className="space-y-0.5 shrink-0 w-14">
+            <div className="space-y-0.5 shrink-0 w-12">
               <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-medium">Sc.%</span>
               <Input
                 type="number"
@@ -298,7 +270,7 @@ function SortableRow({
             </div>
 
             {/* IVA */}
-            <div className="space-y-0.5 shrink-0 w-20 relative">
+            <div className="space-y-0.5 shrink-0 w-16 relative">
               <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-medium">IVA</span>
               <Select
                 value={ivaValueFromRiga(riga)}
@@ -350,7 +322,15 @@ function SortableRow({
               )}
             </div>
 
-            {/* Action buttons inline a destra */}
+            {/* Totale */}
+            <div className="flex flex-col items-end gap-0.5 shrink-0 min-w-[5.5rem]">
+              <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-medium">Importo</span>
+              <span className="text-sm font-bold tabular-nums text-foreground leading-7">
+                {formatCurrency(riga.totale_riga)}
+              </span>
+            </div>
+
+            {/* Actions inline */}
             {!disabled && (
               <div className="flex items-center gap-0.5 shrink-0 pb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <CollapsibleTrigger asChild>
@@ -374,6 +354,34 @@ function SortableRow({
               <span className="text-[10px] text-muted-foreground block ml-7">
                 {riga.natura_iva.replace("_", ".")} – {NATURE_IVA[riga.natura_iva as keyof typeof NATURE_IVA] ?? ""}
               </span>
+            </div>
+          )}
+
+          {/* Descrizione estesa: visibile SOLO se contenuto già presente o
+              quando l'utente apre il pannello dettagli (espanso). Per la
+              maggior parte delle righe non serve → niente spazio sprecato. */}
+          {(riga.descrizione.includes("\n") || expanded) && (
+            <div className="px-3 pb-2.5 -mt-1">
+              <div className="flex items-start gap-2">
+                <div className="w-5 shrink-0" />
+                <div className="space-y-0.5 flex-1 min-w-0">
+                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60 font-medium">
+                    Descrizione estesa
+                  </span>
+                  <Textarea
+                    value={riga.descrizione.split("\n").slice(1).join("\n")}
+                    onChange={(e) => {
+                      const firstLine = riga.descrizione.split("\n")[0] ?? "";
+                      const extra = e.target.value;
+                      onUpdate(index, "descrizione", extra ? `${firstLine}\n${extra}` : firstLine);
+                    }}
+                    className="text-xs resize-none min-h-[2rem]"
+                    placeholder="Note aggiuntive (facoltativo)"
+                    rows={2}
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
