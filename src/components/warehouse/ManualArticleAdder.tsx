@@ -211,10 +211,15 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                   value={search}
                   onValueChange={setSearch}
                 />
-                {/* Altezza compatta + scroll: il popover si apre SOTTO il
-                    trigger e mostra ~5-6 articoli, il resto scrolla. Evita
-                    apertura verso l'alto che invadeva tutto lo schermo. */}
-                <CommandList className="!max-h-[280px] overscroll-contain">
+                {/* Altezza compatta + scroll. Wheel handler manuale: dentro
+                    un Dialog, cmdk a volte intercetta gli eventi wheel per
+                    la navigazione frecce. Scrolliamo programmaticamente. */}
+                <CommandList
+                  className="!max-h-[280px] overscroll-contain"
+                  onWheel={(e) => {
+                    e.currentTarget.scrollTop += e.deltaY;
+                  }}
+                >
                   {isLoading ? (
                     <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin mr-2" />

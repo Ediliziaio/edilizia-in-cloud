@@ -311,7 +311,12 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
             </span>
           </div>
 
-          <CommandList className="max-h-[400px]">
+          <CommandList
+            className="max-h-[400px] overscroll-contain"
+            onWheel={(e) => {
+              e.currentTarget.scrollTop += e.deltaY;
+            }}
+          >
             {isLoading ? (
               <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
