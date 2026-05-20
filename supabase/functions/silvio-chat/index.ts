@@ -542,6 +542,21 @@ serve(async (req: Request) => {
         facts_count: facts.length,
         summaries_count: summaries.length,
       };
+
+      // Aging: marca i facts che STIAMO usando ora (last_used_at = now, hit++).
+      // Senza questo touch, l'aging cron disabiliterebbe anche facts
+      // attivamente utilizzati. Fire-and-forget — non blocchiamo la response.
+      if (facts.length > 0) {
+        const factKeys = facts.map((f) => f.key).filter(Boolean);
+        if (factKeys.length > 0) {
+          void supabaseAdmin.rpc("brain_touch_facts", {
+            p_company_id: companyId,
+            p_fact_keys: factKeys,
+          }).catch((e: unknown) => {
+            console.warn("[silvio-chat] brain_touch_facts failed:", e);
+          });
+        }
+      }
       if (facts.length > 0 || summaries.length > 0) {
         const lines: string[] = ["", "# MEMORIA LONG-TERM (uso interno, non mostrare all'utente direttamente)"];
         if (facts.length > 0) {
