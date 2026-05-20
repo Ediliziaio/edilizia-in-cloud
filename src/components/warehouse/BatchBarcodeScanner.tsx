@@ -189,6 +189,17 @@ export function BatchBarcodeScanner({
   const [manualMode, setManualMode] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
+  // v8.6.108 — GLS-style flash overlay: lampeggio verde/rosso 300ms su scan
+  const [flashFx, setFlashFx] = useState<"green" | "red" | null>(null);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerFlash = useCallback((kind: "green" | "red") => {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    setFlashFx(kind);
+    flashTimerRef.current = setTimeout(() => setFlashFx(null), 300);
+  }, []);
+  useEffect(() => () => {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+  }, []);
 
   const manualInputRef = useRef<HTMLInputElement>(null);
   const lookupInFlightRef = useRef(false);
@@ -260,7 +271,7 @@ export function BatchBarcodeScanner({
       if (mode !== "lookup") {
         const multi = tryParseMultiSerial(code);
         if (multi && multi.serials.length >= 2) {
-          await successFeedback();
+          await successFeedback(); triggerFlash("green");
           // Crea N entries no-match (una per ogni serial estratto)
           for (const serial of multi.serials) {
             const entry: BatchScanEntry = {
@@ -302,7 +313,7 @@ export function BatchBarcodeScanner({
           // L'utente vede il codice in lista come 'no match' e lo gestisce
           // a fine sessione (review step). Solo audio errore per feedback
           // tattile, niente popup che interrompono il flusso.
-          await errorFeedback();
+          await errorFeedback(); triggerFlash("red");
           if (mode === "lookup") {
             // In lookup mode (single-shot) un toast informativo serve:
             // l'utente ha cercato esplicitamente.
@@ -351,7 +362,7 @@ export function BatchBarcodeScanner({
           const itemId =
             action.kind === "accept_item" ? action.itemId : action.rows[0]?.stock_item_id;
           if (!itemId) {
-            await errorFeedback();
+            await errorFeedback(); triggerFlash("red");
             return;
           }
           resolvedItemId = itemId;
@@ -382,7 +393,7 @@ export function BatchBarcodeScanner({
 
         if (mode === "lookup") {
           setLookupResult(nextEntry);
-          await successFeedback();
+          await successFeedback(); triggerFlash("green");
           return;
         }
 
@@ -397,13 +408,13 @@ export function BatchBarcodeScanner({
           if (!allowed) {
             // v8.6.104 — GLS-STYLE: niente toast intermedio. Solo audio + entry
             // marked come extra. Review a fine sessione mostrera 'X extra'.
-            await errorFeedback();
+            await errorFeedback(); triggerFlash("red");
           } else {
             const alreadyScannedQty = entries
               .filter((entry) => entry.stockItemId === allowed.stockItemId)
               .reduce((sum, entry) => sum + entry.quantity, 0);
             if (alreadyScannedQty >= allowed.qtyRequired) {
-              await errorFeedback();
+              await errorFeedback(); triggerFlash("red");
               toast.warning("Quantita gia completa", {
                 description: `Hai gia scansionato ${alreadyScannedQty}/${allowed.qtyRequired} per ${allowed.itemName}.`,
               });
@@ -417,7 +428,7 @@ export function BatchBarcodeScanner({
         if (mode === "oda_receive" && allowedOdaItems) {
           const allowed = allowedOdaItems.find((a) => a.stockItemId === resolvedItemId);
           if (!allowed) {
-            await errorFeedback();
+            await errorFeedback(); triggerFlash("red");
             toast.warning("Articolo non incluso in questa ODA", {
               description: "Aggiunto come extra (oda_item_id=null)",
             });
@@ -428,7 +439,7 @@ export function BatchBarcodeScanner({
               .filter((entry) => entry.odaItemId === allowed.odaItemId)
               .reduce((sum, entry) => sum + entry.quantity, 0);
             if (alreadyScanned >= allowed.qtyPending) {
-              await errorFeedback();
+              await errorFeedback(); triggerFlash("red");
               toast.warning("Quantità ODA già completa", {
                 description: "Questa riga ha già raggiunto il residuo da ricevere.",
               });
@@ -439,9 +450,9 @@ export function BatchBarcodeScanner({
 
         mergeResolvedEntry(nextEntry, odaItemId);
 
-        await successFeedback();
+        await successFeedback(); triggerFlash("green");
       } catch (err) {
-        await errorFeedback();
+        await errorFeedback(); triggerFlash("red");
         toast.error("Errore lookup", {
           description: (err as Error)?.message ?? "Riprova",
         });
@@ -461,6 +472,7 @@ export function BatchBarcodeScanner({
       supplierId,
       supplierUsesGs1,
       trackDuplicate,
+      triggerFlash,
     ],
   );
 
@@ -520,7 +532,7 @@ export function BatchBarcodeScanner({
         const result = await onRequestCreateItem(target.rawCode);
         if (!result) return; // utente ha annullato il dialog
         promoteNoMatch(uuid, result);
-        await successFeedback();
+        await successFeedback(); triggerFlash("green");
         toast.success("Articolo creato e collegato alla scansione");
       } catch (err) {
         toast.error("Errore creazione articolo", {
@@ -530,7 +542,7 @@ export function BatchBarcodeScanner({
         setCreatingForUuid(null);
       }
     },
-    [entries, onRequestCreateItem, promoteNoMatch],
+    [entries, onRequestCreateItem, promoteNoMatch, triggerFlash],
   );
 
   /**
@@ -558,7 +570,7 @@ export function BatchBarcodeScanner({
       for (const entry of noMatchEntries) {
         promoteNoMatch(entry.clientUuid, result);
       }
-      await successFeedback();
+      await successFeedback(); triggerFlash("green");
       toast.success(`${noMatchEntries.length} scansioni collegate a "${result.itemName}"`);
     } catch (err) {
       toast.error("Errore creazione articolo", {
@@ -567,7 +579,7 @@ export function BatchBarcodeScanner({
     } finally {
       setCreatingForUuid(null);
     }
-  }, [entries, onRequestCreateItem, promoteNoMatch]);
+  }, [entries, onRequestCreateItem, promoteNoMatch, triggerFlash]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -615,6 +627,26 @@ export function BatchBarcodeScanner({
                 autoPlay
                 onClick={handleTapFocus}
               />
+              {/* v8.6.108 — Flash overlay GLS-style: lampeggio verde/rosso 300ms
+                  ad ogni scan. Pointer-events none per non bloccare tap-focus. */}
+              <div
+                className={`absolute inset-0 pointer-events-none transition-opacity duration-150 ${
+                  flashFx === "green"
+                    ? "bg-emerald-500/45 opacity-100"
+                    : flashFx === "red"
+                    ? "bg-red-500/45 opacity-100"
+                    : "opacity-0"
+                }`}
+              />
+              {/* v8.6.108 — Counter prominente in alto a sx (GLS-style).
+                  Mostra il contatore TOTALE pezzi scansionati, grosso e
+                  leggibile mentre stai inquadrando. */}
+              {mode !== "lookup" && totalScans > 0 && (
+                <div className="absolute top-2 left-2 bg-emerald-600/95 text-white rounded-lg px-3 py-1.5 shadow-lg pointer-events-none">
+                  <div className="text-2xl font-bold tabular-nums leading-none">{totalScans}</div>
+                  <div className="text-[9px] uppercase tracking-wider opacity-90 leading-tight">scansionati</div>
+                </div>
+              )}
               {/* Reticolo */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                 <div className="w-3/4 max-w-xs h-32 border-2 border-white/60 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
