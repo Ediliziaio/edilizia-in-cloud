@@ -37,7 +37,7 @@ export const BULK_SCHEDULE_TEMPLATES: BulkScheduleTemplate[] = [
   {
     id: "briefing_operai_mattutino",
     name: "Briefing operai mattutino",
-    description: "Ogni mattina lavorativa alle 7:00 manda a tutti gli operai il loro cantiere di oggi + ore previste.",
+    description: "Ogni mattina lavorativa alle 7:00 manda a tutti gli operai il loro cantiere di oggi + ore previste. Canali: Telegram (push gratis) + Silvio chat (fallback).",
     icon: "👷",
     category: "operativo",
     priority: 10,
@@ -45,8 +45,10 @@ export const BULK_SCHEDULE_TEMPLATES: BulkScheduleTemplate[] = [
       cron: "0 7 * * 1-5",
       timezone: "Europe/Rome",
       target: { type: "all_workers", value: null },
-      channels: [{ type: "silvio_chat" }],
-      use_fallback: false,
+      // Telegram come canale primario per push gratuita sul telefono in cantiere,
+      // Silvio chat come fallback per chi non ha legato il bot.
+      channels: [{ type: "telegram" }, { type: "silvio_chat" }],
+      use_fallback: true,
       template: {
         mode: "static",
         body: "Ciao {nome}, oggi {data_oggi}.\n📍 Cantiere: {cantiere_oggi}\n⏱ Ore: {ore_pianificate}\n🌤 Meteo: {meteo}\n\nBuona giornata!",

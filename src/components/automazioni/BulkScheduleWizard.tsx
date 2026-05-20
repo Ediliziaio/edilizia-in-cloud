@@ -111,8 +111,11 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
   // Step 2: target
   const [targetPreset, setTargetPreset] = useState<string>("all_workers");
 
-  // Step 3: channel (MVP solo silvio_chat)
+  // Step 3: channels (multi-select con preferred order per fallback)
   const [channelSilvioChat, setChannelSilvioChat] = useState(true);
+  const [channelTelegram, setChannelTelegram] = useState(false);
+  const [channelWhatsapp, setChannelWhatsapp] = useState(false);
+  const [channelEmail, setChannelEmail] = useState(false);
 
   // Step 4: template
   const [templateMode, setTemplateMode] = useState<"static" | "ai_generated">("static");
@@ -138,6 +141,9 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
     setCustomCron("");
     setTargetPreset("all_workers");
     setChannelSilvioChat(true);
+    setChannelTelegram(false);
+    setChannelWhatsapp(false);
+    setChannelEmail(false);
     setTemplateMode("static");
   };
 
@@ -160,8 +166,11 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
       (p) => p.target_type === t.config.target.type && p.target_value === t.config.target.value,
     );
     if (matchingTarget) setTargetPreset(matchingTarget.id);
-    // Channels MVP: solo silvio_chat
+    // Channels: applica preset dal template
     setChannelSilvioChat(t.config.channels.some((c) => c.type === "silvio_chat"));
+    setChannelTelegram(t.config.channels.some((c) => c.type === "telegram"));
+    setChannelWhatsapp(t.config.channels.some((c) => c.type === "whatsapp"));
+    setChannelEmail(t.config.channels.some((c) => c.type === "email"));
     // Template
     setTemplateMode(t.config.template.mode);
     if (t.config.template.body) setTemplateBody(t.config.template.body);
@@ -195,8 +204,13 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
         },
         channels: [
           ...(channelSilvioChat ? [{ type: "silvio_chat" }] : []),
+          ...(channelTelegram ? [{ type: "telegram" }] : []),
+          ...(channelWhatsapp ? [{ type: "whatsapp" }] : []),
+          ...(channelEmail ? [{ type: "email" }] : []),
         ],
-        use_fallback: false,
+        // Se l'utente seleziona più canali, attiva il fallback chain:
+        // il runner prova il prossimo se uno fallisce.
+        use_fallback: [channelSilvioChat, channelTelegram, channelWhatsapp, channelEmail].filter(Boolean).length > 1,
         template: {
           mode: templateMode,
           body: templateMode === "static" ? templateBody.trim() : "",
@@ -357,49 +371,42 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
         {step === 3 && (
           <div className="space-y-4">
             <Label className="flex items-center gap-2 mb-2">
-              <MessageSquare className="h-4 w-4" /> Su quale canale?
+              <MessageSquare className="h-4 w-4" /> Su quali canali?
             </Label>
+            <p className="text-xs text-slate-500 -mt-2">
+              Se selezioni più canali, il sistema usa quello preferito dall'utente. Se non disponibile,
+              fa fallback sul successivo nella sua preferred chain (configurabile in
+              /azienda/impostazioni/notifiche).
+            </p>
             <div className="space-y-2">
-              <label className="flex items-center justify-between rounded-lg border border-orange-400 bg-orange-50 p-3 cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">💬</span>
-                  <div>
-                    <p className="font-medium text-sm">Chat Silvio (in-app)</p>
-                    <p className="text-xs text-slate-500">Il messaggio appare nella chat con Silvio dell'utente</p>
+              {([
+                { key: "silvio_chat", emoji: "💬", label: "Chat Silvio (in-app)", desc: "Messaggio nella chat con Silvio. Sempre disponibile per gli utenti dell'app.", checked: channelSilvioChat, setter: setChannelSilvioChat, recommended: true },
+                { key: "telegram", emoji: "📱", label: "Telegram", desc: "Notifica push via bot Telegram. L'utente deve aver legato il proprio account al bot aziendale.", checked: channelTelegram, setter: setChannelTelegram, recommended: false },
+                { key: "whatsapp", emoji: "💚", label: "WhatsApp", desc: "Via WhatsApp Business. Richiede company config (whatsapp-send edge function).", checked: channelWhatsapp, setter: setChannelWhatsapp, recommended: false },
+                { key: "email", emoji: "📧", label: "Email", desc: "Email all'indirizzo del profilo (o override personale).", checked: channelEmail, setter: setChannelEmail, recommended: false },
+              ] as const).map((ch) => (
+                <label
+                  key={ch.key}
+                  className={cn(
+                    "flex items-center justify-between rounded-lg border p-3 cursor-pointer",
+                    ch.checked ? "border-orange-400 bg-orange-50" : "border-slate-200 hover:bg-slate-50",
+                  )}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-xl shrink-0">{ch.emoji}</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm flex items-center gap-1.5">
+                        {ch.label}
+                        {ch.recommended && (
+                          <Badge variant="outline" className="text-[9px] h-4 bg-emerald-50 text-emerald-700 border-emerald-300">consigliato</Badge>
+                        )}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-snug">{ch.desc}</p>
+                    </div>
                   </div>
-                </div>
-                <Switch checked={channelSilvioChat} onCheckedChange={setChannelSilvioChat} />
-              </label>
-              <label className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 cursor-not-allowed opacity-60">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📱</span>
-                  <div>
-                    <p className="font-medium text-sm">Telegram <Badge variant="outline" className="text-[10px] ml-1">Prossimamente</Badge></p>
-                    <p className="text-xs text-slate-500">Notifica push gratuita via bot Telegram</p>
-                  </div>
-                </div>
-                <Switch checked={false} disabled />
-              </label>
-              <label className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 cursor-not-allowed opacity-60">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">💚</span>
-                  <div>
-                    <p className="font-medium text-sm">WhatsApp <Badge variant="outline" className="text-[10px] ml-1">Prossimamente</Badge></p>
-                    <p className="text-xs text-slate-500">Via WhatsApp Business (richiede setup)</p>
-                  </div>
-                </div>
-                <Switch checked={false} disabled />
-              </label>
-              <label className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3 cursor-not-allowed opacity-60">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📧</span>
-                  <div>
-                    <p className="font-medium text-sm">Email <Badge variant="outline" className="text-[10px] ml-1">Prossimamente</Badge></p>
-                    <p className="text-xs text-slate-500">Email all'indirizzo del profilo</p>
-                  </div>
-                </div>
-                <Switch checked={false} disabled />
-              </label>
+                  <Switch checked={ch.checked} onCheckedChange={ch.setter} />
+                </label>
+              ))}
             </div>
           </div>
         )}
@@ -494,7 +501,7 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
           {step > 0 && step < 4 && (
             <Button onClick={() => setStep((s) => s + 1)} disabled={
               (step === 1 && (!name.trim() || (schedulePreset === "custom" && !customCron.trim()))) ||
-              (step === 3 && !channelSilvioChat)
+              (step === 3 && !channelSilvioChat && !channelTelegram && !channelWhatsapp && !channelEmail)
             }>
               Avanti <ChevronRight className="h-4 w-4 ml-1" />
             </Button>

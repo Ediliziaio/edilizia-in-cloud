@@ -19,6 +19,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { isInternalRequest, requireInternalSecret } from "../_shared/auth.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Cron expression → next fire date. cron-parser è la lib standard.
 import cronParser from "https://esm.sh/cron-parser@4.9.0";
@@ -214,12 +215,32 @@ async function sendToUser(supabase: any, flow: FlowToRun, user: TargetUser): Pro
     messageBody = renderTemplate(config.template.body, variables);
   }
 
-  // 3. Carica preferred order dell'utente (o usa default)
+  // 3. Carica preferred order + tutte le credenziali canale dell'utente
   const { data: prefs } = await supabase
     .from("user_messaging_channels")
-    .select("preferred_order, silvio_chat_enabled, telegram_chat_id, whatsapp_phone, email_enabled, email_override")
+    .select("preferred_order, silvio_chat_enabled, telegram_chat_id, telegram_verified_at, whatsapp_phone, whatsapp_verified_at, email_enabled, email_override, quiet_from, quiet_to, quiet_timezone")
     .eq("user_id", user.user_id)
     .maybeSingle();
+
+  // 3.a Quiet hours: se l'utente ha impostato un range silenzio e siamo dentro,
+  // skippiamo questo target SENZA marcare come failed. È una preferenza esplicita.
+  if (prefs?.quiet_from && prefs?.quiet_to) {
+    const now = new Date();
+    const tz = prefs.quiet_timezone || "Europe/Rome";
+    // Estrae HH:MM nel tz utente
+    const fmt = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
+    });
+    const nowHM = fmt.format(now); // "HH:MM"
+    const from = prefs.quiet_from as string;
+    const to = prefs.quiet_to as string;
+    const inQuiet = from <= to
+      ? nowHM >= from && nowHM < to              // range normale es. 22:00-07:00 sarebbe inverso
+      : nowHM >= from || nowHM < to;             // range che attraversa mezzanotte
+    if (inQuiet) {
+      throw new Error(`In quiet hours (${from}-${to} ${tz})`);
+    }
+  }
 
   const flowChannels = (config.channels ?? []).map((c) => c.type);
   const userOrder: string[] = (prefs?.preferred_order as string[]) ?? ["silvio_chat", "email"];
@@ -242,14 +263,25 @@ async function sendToUser(supabase: any, flow: FlowToRun, user: TargetUser): Pro
 }
 
 /**
- * Send via canale specifico. MVP supporta solo silvio_chat. Telegram/WhatsApp/
- * email aggiunti in iterazioni successive.
+ * Send via canale specifico. Supporta:
+ *   - silvio_chat: insert in internal_chat_messages
+ *   - email: sendEmailUnified (Resend/SendGrid/Elastic + billing)
+ *   - whatsapp: invoke whatsapp-send edge function via x-cron-secret
+ *   - telegram: POST direct su api.telegram.org/bot<token>/sendMessage
+ *
+ * Ogni canale fa pre-check di disponibilità e throw se manca il routing:
+ *   - email: serve email valida
+ *   - whatsapp: serve whatsapp_phone in user_messaging_channels + verified
+ *   - telegram: serve telegram_user_mapping verified + bot_config attivo
+ *
+ * In caso di throw, il chiamante (sendToUser) prova il prossimo canale
+ * in `preferred_order` se use_fallback=true.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function sendViaChannel(supabase: any, flow: FlowToRun, user: TargetUser, prefs: any, channel: string, body: string): Promise<void> {
+  // ── SILVIO CHAT (in-app) ──────────────────────────────────────────────
   if (channel === "silvio_chat") {
     if (prefs && prefs.silvio_chat_enabled === false) throw new Error("silvio_chat disabilitato per utente");
-    // Trova il channel silvio dell'utente (idempotent — lo crea se non esiste)
     const { data: channelId, error: chanErr } = await supabase.rpc("ensure_user_silvio_channel", {
       p_user_id: user.user_id,
     });
@@ -267,8 +299,117 @@ async function sendViaChannel(supabase: any, flow: FlowToRun, user: TargetUser, 
     return;
   }
 
-  // MVP: altri canali stub — log e skip
-  throw new Error(`Canale ${channel} non supportato nel MVP (solo silvio_chat)`);
+  // ── EMAIL ─────────────────────────────────────────────────────────────
+  if (channel === "email") {
+    if (prefs && prefs.email_enabled === false) throw new Error("email disabilitata per utente");
+    const toEmail = prefs?.email_override?.trim() || user.email;
+    if (!toEmail) throw new Error("email destinatario mancante");
+    // Plain text → HTML semplice (preserva newline + escape minimo).
+    const html = `<div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #1e293b; line-height: 1.5;">
+  <h2 style="color: #f97316; margin-bottom: 12px;">📅 ${escapeHtml(flow.flow_name)}</h2>
+  <div style="white-space: pre-wrap; font-size: 14px;">${escapeHtml(body)}</div>
+  <hr style="margin-top: 24px; border: none; border-top: 1px solid #e2e8f0;">
+  <p style="font-size: 11px; color: #94a3b8;">Messaggio automatico — preferenze in /azienda/impostazioni/notifiche</p>
+</div>`;
+    const result = await sendEmailUnified({
+      companyId: flow.company_id,
+      stream: "transactional",
+      to: toEmail,
+      subject: flow.flow_name,
+      html,
+      text: body,
+      templateName: "bulk_scheduler_message",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      adminClient: supabase as any,
+      metadata: { flow_id: flow.flow_id, recipient_user_id: user.user_id },
+    });
+    if (!result.success) throw new Error(`email send fail: ${result.error ?? "unknown"}`);
+    return;
+  }
+
+  // ── WHATSAPP ──────────────────────────────────────────────────────────
+  if (channel === "whatsapp") {
+    const phone = prefs?.whatsapp_phone?.trim();
+    if (!phone) throw new Error("WhatsApp phone non configurato per utente");
+    if (!prefs?.whatsapp_verified_at) throw new Error("WhatsApp non verificato per utente");
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const cronSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
+    const resp = await fetch(`${supabaseUrl}/functions/v1/whatsapp-send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-cron-secret": cronSecret,
+      },
+      body: JSON.stringify({
+        company_id: flow.company_id,
+        to: phone,
+        type: "text",
+        text: { body: `📅 ${flow.flow_name}\n\n${body}` },
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      throw new Error(`whatsapp-send ${resp.status}: ${errText.slice(0, 200)}`);
+    }
+    return;
+  }
+
+  // ── TELEGRAM ──────────────────────────────────────────────────────────
+  if (channel === "telegram") {
+    // Lookup user mapping: serve verified=true + bot_config_id attivo
+    const { data: mapping, error: mapErr } = await supabase
+      .from("telegram_user_mappings")
+      .select("telegram_user_id, is_verified, bot_config_id")
+      .eq("user_id", user.user_id)
+      .eq("company_id", flow.company_id)
+      .eq("is_verified", true)
+      .maybeSingle();
+    if (mapErr) throw new Error(`telegram mapping query: ${mapErr.message}`);
+    if (!mapping?.telegram_user_id) throw new Error("Telegram non legato per utente");
+
+    // Bot config: bot_token per chiamare Telegram API
+    const { data: botCfg, error: botErr } = await supabase
+      .from("telegram_bot_configs")
+      .select("bot_token, enabled")
+      .eq("id", mapping.bot_config_id)
+      .maybeSingle();
+    if (botErr) throw new Error(`telegram bot_config query: ${botErr.message}`);
+    if (!botCfg?.bot_token) throw new Error("Bot Telegram non configurato");
+    if (botCfg.enabled === false) throw new Error("Bot Telegram disabilitato");
+
+    const resp = await fetch(`https://api.telegram.org/bot${botCfg.bot_token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: mapping.telegram_user_id,
+        text: `📅 *${escapeTelegramMd(flow.flow_name)}*\n\n${body}`,
+        parse_mode: "Markdown",
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      throw new Error(`telegram sendMessage ${resp.status}: ${errText.slice(0, 200)}`);
+    }
+    return;
+  }
+
+  throw new Error(`Canale "${channel}" sconosciuto`);
+}
+
+/** HTML escape minimo per body email. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Escape caratteri Markdown V1 per Telegram (sottoscritto a _ * ` [). */
+function escapeTelegramMd(s: string): string {
+  return s.replace(/[_*`[\]]/g, (m) => `\\${m}`);
 }
 
 /**

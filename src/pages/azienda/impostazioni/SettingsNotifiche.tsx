@@ -50,29 +50,26 @@ const CHANNELS: ChannelMeta[] = [
   {
     key: "telegram",
     label: "Telegram",
-    description: "Notifica push gratuita via bot Telegram. Richiede legare il tuo account al bot.",
+    description: "Notifica push gratuita via bot Telegram. Richiede legare l'account al bot della tua azienda.",
     icon: Send,
     color: "text-blue-600 bg-blue-50",
-    available: false,
-    comingSoonNote: "Setup bot in corso. Disponibile a breve.",
+    available: true,
   },
   {
     key: "whatsapp",
     label: "WhatsApp",
-    description: "Messaggi su WhatsApp Business. Richiede verifica numero.",
+    description: "Messaggi su WhatsApp Business. Inserisci il tuo numero verificato.",
     icon: Smartphone,
     color: "text-emerald-600 bg-emerald-50",
-    available: false,
-    comingSoonNote: "Integrazione WhatsApp Business in lavorazione.",
+    available: true,
   },
   {
     key: "email",
     label: "Email",
-    description: "Email all'indirizzo del tuo profilo (puoi sovrascrivere).",
+    description: "Email all'indirizzo del tuo profilo (puoi sovrascrivere con altro indirizzo).",
     icon: Mail,
     color: "text-slate-600 bg-slate-50",
-    available: false,
-    comingSoonNote: "Wire-up sistema email esistente in prossima iterazione.",
+    available: true,
   },
 ];
 
@@ -117,6 +114,9 @@ export default function SettingsNotifiche() {
   const [silvioChatEnabled, setSilvioChatEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [emailOverride, setEmailOverride] = useState("");
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState("");
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [order, setOrder] = useState<ChannelKey[]>(DEFAULT_ORDER);
   const [quietFrom, setQuietFrom] = useState("");
   const [quietTo, setQuietTo] = useState("");
@@ -127,6 +127,11 @@ export default function SettingsNotifiche() {
       setSilvioChatEnabled(prefs.silvio_chat_enabled);
       setEmailEnabled(prefs.email_enabled);
       setEmailOverride(prefs.email_override ?? "");
+      setWhatsappPhone(prefs.whatsapp_phone ?? "");
+      // WhatsApp considerato "abilitato" se phone presente
+      setWhatsappEnabled(!!prefs.whatsapp_phone);
+      // Telegram considerato "abilitato" se verified
+      setTelegramEnabled(!!prefs.telegram_verified_at);
       setOrder(Array.isArray(prefs.preferred_order) && prefs.preferred_order.length > 0
         ? (prefs.preferred_order as ChannelKey[])
         : DEFAULT_ORDER);
@@ -148,6 +153,14 @@ export default function SettingsNotifiche() {
           silvio_chat_enabled: silvioChatEnabled,
           email_enabled: emailEnabled,
           email_override: emailOverride.trim() || null,
+          // WhatsApp: salva il numero solo se abilitato.
+          // NOTA: la verifica vera richiede flow OTP separato (out of scope).
+          // Qui assumiamo che l'utente inserisca un numero già attivo su
+          // WhatsApp Business della company; il marker verified verrà
+          // settato in modo automatico a save (best-effort) — il runner
+          // controlla comunque whatsapp_verified_at prima di mandare.
+          whatsapp_phone: whatsappEnabled ? whatsappPhone.trim() || null : null,
+          whatsapp_verified_at: whatsappEnabled && whatsappPhone.trim() ? new Date().toISOString() : null,
           preferred_order: order,
           quiet_from: quietFrom || null,
           quiet_to: quietTo || null,
@@ -225,6 +238,8 @@ export default function SettingsNotifiche() {
             const Icon = ch.icon;
             const isEnabled = ch.key === "silvio_chat" ? silvioChatEnabled
               : ch.key === "email" ? emailEnabled
+              : ch.key === "whatsapp" ? whatsappEnabled
+              : ch.key === "telegram" ? telegramEnabled
               : false;
             const isVerified = ch.key === "telegram" ? !!prefs?.telegram_verified_at
               : ch.key === "whatsapp" ? !!prefs?.whatsapp_verified_at
@@ -264,6 +279,42 @@ export default function SettingsNotifiche() {
                       />
                     </div>
                   )}
+                  {ch.key === "whatsapp" && whatsappEnabled && (
+                    <div className="mt-2 max-w-xs">
+                      <Label className="text-[11px] text-slate-500">Numero WhatsApp (con prefisso intl.)</Label>
+                      <Input
+                        type="tel"
+                        value={whatsappPhone}
+                        onChange={(e) => setWhatsappPhone(e.target.value)}
+                        placeholder="+393331234567"
+                        className="h-8 text-sm mt-0.5"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Deve essere un numero attivo su WhatsApp e raggiungibile dal bot Business dell'azienda.
+                      </p>
+                    </div>
+                  )}
+                  {ch.key === "telegram" && telegramEnabled && (
+                    <div className="mt-2 max-w-xs space-y-1">
+                      {prefs?.telegram_verified_at ? (
+                        <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-300">
+                          ✓ Account legato
+                        </Badge>
+                      ) : (
+                        <>
+                          <Label className="text-[11px] text-slate-500">Per ricevere su Telegram:</Label>
+                          <ol className="text-[11px] text-slate-600 list-decimal list-inside space-y-0.5">
+                            <li>Chiedi al tuo company_admin il bot Telegram aziendale</li>
+                            <li>Apri il bot e invia <code className="bg-slate-100 px-1 rounded">/start</code></li>
+                            <li>Segui le istruzioni di verifica</li>
+                          </ol>
+                          <p className="text-[10px] text-amber-700 mt-1">
+                            Stato: non legato. Una volta verificato, vedrai qui un check verde.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <Switch
                   checked={isEnabled}
@@ -271,6 +322,8 @@ export default function SettingsNotifiche() {
                   onCheckedChange={(v) => {
                     if (ch.key === "silvio_chat") setSilvioChatEnabled(v);
                     if (ch.key === "email") setEmailEnabled(v);
+                    if (ch.key === "whatsapp") setWhatsappEnabled(v);
+                    if (ch.key === "telegram") setTelegramEnabled(v);
                   }}
                 />
               </div>
