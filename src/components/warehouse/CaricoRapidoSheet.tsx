@@ -141,6 +141,10 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   const [orderSearch, setOrderSearch] = useState("");
   const [ddtFile, setDdtFile] = useState<File | null>(null);
   const [notes, setNotes] = useState("");
+  // Lotto opzionale: se l'utente compila il codice, dopo il carico tutti i
+  // stock_units (serializzati) appena creati verranno raggruppati sotto questo
+  // lotto. Caso d'uso fotovoltaico/impiantistica: 1 bancale = 1 lotto.
+  const [lottoCode, setLottoCode] = useState("");
   const [productPhotos, setProductPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
   const [insertedAt, setInsertedAt] = useState(() => new Date());
@@ -381,12 +385,91 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
         : "";
     const mergedNotes = [notes.trim(), ddtNote, linkedOrdersNote, photoNote].filter(Boolean).join("\n");
     try {
-      await batchCarico.mutateAsync({
+      const result = await batchCarico.mutateAsync({
         warehouseId,
         supplierId,
         entries,
         notes: mergedNotes || undefined,
       });
+
+      // ── Auto-create lotto se l'utente ha compilato lottoCode ────────────
+      // I seriali appena creati (status='available', purchase_date=today)
+      // vengono raggruppati sotto un nuovo stock_lotti. Best-effort: se la
+      // creazione del lotto fallisce, il carico è già committato → non perdiamo
+      // i seriali, l'utente può creare il lotto manualmente dopo.
+      const trimmedLottoCode = lottoCode.trim();
+      if (trimmedLottoCode && result.created_units > 0 && effectiveCompany?.id) {
+        try {
+          // Raccolgo i seriali appena scansionati dalle entries (sono quelli
+          // che l'RPC ha appena inserito in stock_units).
+          const scannedSerials = entries
+            .filter((e) => e.trackingMode === "serialized")
+            .flatMap((e) => e.serialNumbers ?? []);
+
+          if (scannedSerials.length > 0) {
+            // Articolo: se tutte le entry serialized hanno lo stesso stockItemId,
+            // useremo quello come stock_item_id del lotto (drill-down preciso).
+            const serializedItems = entries.filter(
+              (e) => e.trackingMode === "serialized" && e.stockItemId,
+            );
+            const uniqueStockItemIds = Array.from(
+              new Set(serializedItems.map((e) => e.stockItemId!).filter(Boolean)),
+            );
+            const singleStockItemId =
+              uniqueStockItemIds.length === 1 ? uniqueStockItemIds[0] : null;
+            const articoloNome = singleStockItemId
+              ? serializedItems.find((e) => e.stockItemId === singleStockItemId)?.itemName ?? null
+              : null;
+
+            const { data: lottoRow, error: lottoErr } = await supabase
+              .from("stock_lotti")
+              .insert({
+                company_id: effectiveCompany.id,
+                codice_lotto: trimmedLottoCode,
+                articolo: articoloNome ?? trimmedLottoCode,
+                descrizione: articoloNome ?? trimmedLottoCode,
+                stock_item_id: singleStockItemId,
+                supplier_id: supplierId,
+                fornitore: supplierObj?.name ?? null,
+                warehouse_id: warehouseId,
+                quantita: scannedSerials.length,
+                unita_misura: "pz",
+                note: `Creato da carico rapido il ${insertedAt.toLocaleString("it-IT")}`,
+              })
+              .select("id")
+              .single();
+
+            if (lottoErr) {
+              toast.warning("Lotto NON creato", {
+                description: `${lottoErr.message}. Seriali importati comunque.`,
+              });
+            } else if (lottoRow?.id) {
+              // Lega i nuovi stock_units al lotto via UPDATE batch sui seriali
+              // appena inseriti (filtro per company + supplier + serial IN).
+              const { error: updErr } = await supabase
+                .from("stock_units")
+                .update({ lotto_id: lottoRow.id })
+                .eq("company_id", effectiveCompany.id)
+                .in("serial_number", scannedSerials)
+                .is("lotto_id", null); // safety: aggiorna solo se non già in altro lotto
+              if (updErr) {
+                toast.warning("Lotto creato ma seriali non collegati", {
+                  description: updErr.message,
+                });
+              } else {
+                toast.success(`Lotto ${trimmedLottoCode} creato con ${scannedSerials.length} seriali`);
+                queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list-full"] });
+                queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list"] });
+              }
+            }
+          }
+        } catch (lottoCreationErr) {
+          toast.warning("Errore creazione lotto", {
+            description: (lottoCreationErr as Error)?.message ?? "Seriali importati comunque",
+          });
+        }
+      }
+
       // success → close sheet (tutto in sequenza già gestito dal hook con toast)
       onOpenChange(false);
     } catch {
@@ -704,6 +787,25 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 </SelectContent>
               </Select>
             )}
+          </div>
+
+          {/* Codice lotto opzionale */}
+          <div className="space-y-2">
+            <Label htmlFor="cr-lotto" className="text-xs">
+              Codice lotto / bancale (opzionale)
+            </Label>
+            <Input
+              id="cr-lotto"
+              value={lottoCode}
+              onChange={(e) => setLottoCode(e.target.value)}
+              placeholder="LOT-2026-001 — utile per fotovoltaico/impiantistica"
+              className="font-mono text-xs"
+              maxLength={80}
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Se compilato, tutti i seriali scansionati verranno raggruppati sotto questo lotto
+              (utile per garanzie individuali su bancali di pannelli o componenti).
+            </p>
           </div>
 
           {/* Note opzionali */}
