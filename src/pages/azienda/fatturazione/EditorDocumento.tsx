@@ -204,15 +204,86 @@ export default function EditorDocumento() {
     );
   }, [state, createMutation, navigate]);
 
+  // ── Auto-cleanup draft "vuote" ─────────────────────────────────
+  //
+  // L'editor crea sempre un draft su mount per assegnare l'ID. Se l'utente
+  // esce senza compilare niente (no cliente + no righe + no causale ecc.),
+  // il documento è di fatto rifiuti che brucia la numerazione. Lo
+  // eliminiamo silenziosamente sia su back che su unmount (cambio rotta).
+  const isEmpty = useMemo(() => {
+    if (!state || !state._initialized) return false;
+    const cs = (state.cliente_snapshot ?? {}) as Record<string, unknown>;
+    const hasCliente =
+      !!state.anagrafica_id ||
+      !!(cs.ragione_sociale || cs.business_name || cs.name || cs.nome || cs.cognome);
+    const hasRighe = (state.righe ?? []).some((r) =>
+      !!(r?.descrizione?.trim?.()) || (r?.quantita ?? 0) > 0 || (r?.prezzo_unitario ?? 0) > 0,
+    );
+    const hasDdtFields =
+      !!state.ddt_causale_trasporto ||
+      !!state.ddt_aspetto_beni ||
+      !!state.ddt_mezzo_trasporto ||
+      !!state.ddt_peso ||
+      !!(state.ddt_numero_colli && state.ddt_numero_colli > 0) ||
+      !!state.note_documento;
+    return !hasCliente && !hasRighe && !hasDdtFields;
+  }, [state]);
+
+  // Ref per cleanup di unmount — useEffect cleanup non vede lo state corrente.
+  const cleanupRef = useRef({ id: null as string | null, isEmpty: false, isBozza: false });
+  useEffect(() => {
+    cleanupRef.current = { id: state.id ?? null, isEmpty, isBozza };
+  }, [state.id, isEmpty, isBozza]);
+
+  // Cleanup di un draft vuoto: tenta RPC `rilascia_numero_documento` per
+  // restituire il numero al counter (se era l'ultimo emesso), altrimenti
+  // fallback a delete diretto. In entrambi i casi il doc viene cancellato.
+  const releaseEmptyDraft = useCallback(async (docId: string) => {
+    try {
+      const { error } = await (supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ error: { code?: string; message: string } | null }>)(
+        "rilascia_numero_documento",
+        { p_documento_id: docId },
+      );
+      if (!error) return;
+      // RPC non disponibile (migration non applicata) → fallback delete diretto
+      if (error.code === "PGRST202" || /function .* does not exist/i.test(error.message)) {
+        await supabase.from("documenti_fiscali").delete().eq("id", docId);
+        return;
+      }
+      console.warn("[EditorDocumento] rilascia_numero_documento errore", error);
+    } catch (e) {
+      console.warn("[EditorDocumento] cleanup draft vuoto fallito", e);
+    }
+  }, []);
+
+  // Cleanup su unmount: se la bozza è ancora vuota, eliminala (best-effort).
+  useEffect(() => {
+    return () => {
+      const { id, isEmpty: empty, isBozza: bozza } = cleanupRef.current;
+      if (id && empty && bozza) {
+        void releaseEmptyDraft(id);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Handle navigation when leaving with unsaved changes
   const handleBack = useCallback(() => {
+    // Draft vuoto → elimina silenziosamente senza dialog (no spreco numerazione)
+    if (state.id && isEmpty && isBozza) {
+      void releaseEmptyDraft(state.id).finally(() => navigate("/azienda/documenti"));
+      return;
+    }
     if (isDirty && isBozza) {
       setPendingNavigation("/azienda/documenti");
       setShowLeaveDialog(true);
     } else {
       navigate("/azienda/documenti");
     }
-  }, [isDirty, isBozza, navigate]);
+  }, [state.id, isEmpty, isDirty, isBozza, navigate, releaseEmptyDraft]);
 
   const validationErrors = useMemo(
     () => validateDocumento(state),
