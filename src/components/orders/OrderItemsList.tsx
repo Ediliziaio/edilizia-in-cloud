@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X } from "lucide-react";
+import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Search, Check, PackageCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +38,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
@@ -226,21 +234,55 @@ export function OrderItemsList({
     enabled: !!companyId,
   });
 
-  // Fetch warehouse stock for picking
+  // Fetch warehouse stock for picking — include nome magazzino per UX,
+  // mostra TUTTI gli articoli (anche giacenza 0) marcati come esauriti.
   const { data: stockItems = [] } = useQuery({
-    queryKey: ["warehouse-stock", companyId],
+    queryKey: ["warehouse-stock-with-wh", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_stock")
-        .select("*")
+        .select("*, warehouse:warehouse_id(id, name)")
         .eq("company_id", companyId!)
-        .gt("quantity", 0)
+        .order("quantity", { ascending: false })
         .order("name");
       if (error) throw error;
-      return data as StockItem[];
+      return data as Array<StockItem & { warehouse?: { id: string; name: string } | null }>;
     },
     enabled: !!companyId,
   });
+
+  // Search testuale debounced
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockSearchDebounced, setStockSearchDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setStockSearchDebounced(stockSearch.trim().toLowerCase()), 200);
+    return () => clearTimeout(t);
+  }, [stockSearch]);
+
+  // Filter + group per warehouse
+  const stockItemsFiltered = useMemo(() => {
+    let list = stockItems;
+    if (stockSearchDebounced) {
+      list = list.filter((s) =>
+        s.name.toLowerCase().includes(stockSearchDebounced) ||
+        (s.internal_code && s.internal_code.toLowerCase().includes(stockSearchDebounced)) ||
+        (s.barcode && s.barcode.toLowerCase().includes(stockSearchDebounced))
+      );
+    }
+    return list;
+  }, [stockItems, stockSearchDebounced]);
+
+  const stockGroups = useMemo(() => {
+    const map = new Map<string, typeof stockItemsFiltered>();
+    for (const s of stockItemsFiltered) {
+      const whName = s.warehouse?.name ?? "Senza magazzino";
+      const existing = map.get(whName);
+      if (existing) existing.push(s);
+      else map.set(whName, [s]);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [stockItemsFiltered]);
+  const [stockPickerOpen, setStockPickerOpen] = useState(false);
 
   // v8.6.35 — Fetch ODA (purchase_orders) esistenti per questa company,
   // opzionalmente filtrabile per fornitore selezionato nel dialog.
@@ -1348,18 +1390,91 @@ export function OrderItemsList({
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Articolo da Magazzino *</Label>
-                      <Select value={selectedStockItem} onValueChange={setSelectedStockItem}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleziona articolo..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {stockItems.map((stock) => (
-                            <SelectItem key={stock.id} value={stock.id}>
-                              {stock.name} — Disp: {stock.quantity} — {formatCurrency(stock.unit_cost)}/pz
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={stockPickerOpen} onOpenChange={setStockPickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between text-left font-normal h-9"
+                          >
+                            {selectedStockItem ? (() => {
+                              const s = stockItems.find((it) => it.id === selectedStockItem);
+                              if (!s) return "Seleziona articolo…";
+                              return (
+                                <span className="truncate">
+                                  {s.name}
+                                  <span className="text-muted-foreground text-xs ml-2">· {s.warehouse?.name ?? "—"} · {s.quantity} pz</span>
+                                </span>
+                              );
+                            })() : (
+                              <span className="text-muted-foreground">Seleziona articolo… (cerca per nome o codice)</span>
+                            )}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[var(--radix-popover-trigger-width)] p-0"
+                          align="start"
+                          side="bottom"
+                          sideOffset={4}
+                          avoidCollisions={false}
+                        >
+                          <Command shouldFilter={false}>
+                            <CommandInput
+                              placeholder="Filtra per nome, codice o barcode…"
+                              value={stockSearch}
+                              onValueChange={setStockSearch}
+                            />
+                            <CommandList
+                              className="!max-h-[320px] overscroll-contain"
+                              onWheel={(e) => { e.currentTarget.scrollTop += e.deltaY; }}
+                            >
+                              {stockGroups.length === 0 ? (
+                                <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
+                                  {stockSearchDebounced
+                                    ? `Nessun articolo trovato per "${stockSearchDebounced}"`
+                                    : "Nessun articolo in magazzino"}
+                                </CommandEmpty>
+                              ) : (
+                                stockGroups.map(([whName, items]) => (
+                                  <CommandGroup key={whName} heading={`📦 ${whName} (${items.length})`}>
+                                    {items.map((s) => {
+                                      const noStock = s.quantity <= 0;
+                                      return (
+                                        <CommandItem
+                                          key={s.id}
+                                          value={s.id}
+                                          onSelect={() => {
+                                            setSelectedStockItem(s.id);
+                                            setStockPickerOpen(false);
+                                          }}
+                                          className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
+                                        >
+                                          <div className="flex items-center gap-2 w-full">
+                                            <Check className={cn("h-3.5 w-3.5 shrink-0", selectedStockItem === s.id ? "opacity-100" : "opacity-0")} />
+                                            <span className={cn("font-medium text-sm truncate", noStock && "text-muted-foreground")}>{s.name}</span>
+                                            {s.internal_code && (
+                                              <Badge variant="outline" className="text-[10px] h-4 shrink-0 ml-auto">{s.internal_code}</Badge>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2 pl-5 text-[11px]">
+                                            <PackageCheck className={cn("h-2.5 w-2.5", noStock ? "text-destructive" : "text-emerald-600")} />
+                                            <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
+                                              Disp: <span className="font-semibold tabular-nums">{s.quantity}</span> pz
+                                            </span>
+                                            <span className="text-muted-foreground">· {formatCurrency(s.unit_cost)}/pz</span>
+                                            {noStock && <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>}
+                                          </div>
+                                        </CommandItem>
+                                      );
+                                    })}
+                                  </CommandGroup>
+                                ))
+                              )}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     {selectedStockItem && (() => {
                       const stock = stockItems.find((s) => s.id === selectedStockItem);
