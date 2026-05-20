@@ -187,8 +187,8 @@ function SortableRow({
 
             {/* Contenuto principale — grid stabile, no flex-wrap */}
             <div className="flex-1 min-w-0 space-y-3">
-              {/* TOP ROW — grid 5 colonne fisse, sempre allineate */}
-              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_4.5rem_5rem_5.5rem] gap-2">
+              {/* TOP ROW — grid 6 colonne fisse, sempre visibile (anche espanso) */}
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_4rem_4.5rem_5rem_5.5rem] gap-2">
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground font-normal">Codice</Label>
                   <Input
@@ -256,10 +256,16 @@ function SortableRow({
                     disabled={disabled}
                   />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground font-normal">Importo</Label>
+                  <div className="h-8 px-2 flex items-center justify-end text-sm font-semibold tabular-nums rounded-md border bg-muted/40">
+                    {formatCurrency(riga.totale_riga)}
+                  </div>
+                </div>
               </div>
 
               {expanded && (<>
-              {/* MIDDLE ROW — grid 2 col: Descrizione (1fr) | sidebar fixed 10rem */}
+              {/* MIDDLE ROW — grid 2 col: Descrizione (1fr) | Sc% IVA stacked */}
               <div className="grid grid-cols-[minmax(0,1fr)_10rem] gap-3">
                 <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Descrizione</Label>
@@ -342,12 +348,6 @@ function SortableRow({
                       )}
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground font-normal">Importo totale</Label>
-                    <div className="h-8 px-2 flex items-center justify-end text-sm font-semibold tabular-nums rounded-md border bg-muted/40">
-                      {formatCurrency(riga.totale_riga)}
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -391,13 +391,10 @@ function SortableRow({
               </div>
               </>)}
 
-              {/* Riga compatta quando collapsed: mostra solo l'importo */}
-              {!expanded && (
-                <div className="flex items-center justify-end gap-3 text-xs text-muted-foreground pt-1">
-                  <span>Sc.% {riga.sconto_percentuale ?? 0} · IVA {ivaDisplayLabel(riga)}</span>
-                  <span className="text-sm font-semibold tabular-nums text-foreground">
-                    {formatCurrency(riga.totale_riga)}
-                  </span>
+              {/* Hint compatto Sc.% / IVA quando collapsed (info read-only) */}
+              {!expanded && (riga.sconto_percentuale || ivaDisplayLabel(riga) !== "22%") && (
+                <div className="text-[10px] text-muted-foreground/70">
+                  Sc.% {riga.sconto_percentuale ?? 0} · IVA {ivaDisplayLabel(riga)}
                 </div>
               )}
             </div>
