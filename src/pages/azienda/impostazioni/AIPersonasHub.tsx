@@ -27,6 +27,7 @@ import { Brain, MessageSquare, History } from "lucide-react";
 
 const AssistenteAIPage = lazy(() => import("@/pages/azienda/AssistenteAIPage"));
 const AIMemoryPage = lazy(() => import("@/pages/azienda/AIMemoryPage"));
+const AIPersonasSessionsTab = lazy(() => import("./AIPersonasSessionsTab"));
 
 const VALID_TABS = ["chat", "memoria", "sessioni"] as const;
 type TabKey = (typeof VALID_TABS)[number];
@@ -77,15 +78,9 @@ export default function AIPersonasHub() {
         </TabsContent>
 
         <TabsContent value="sessioni" className="mt-4">
-          <div className="border rounded-lg p-8 text-center text-muted-foreground bg-muted/20">
-            <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-medium">Storico sessioni — in arrivo</p>
-            <p className="text-xs mt-1 max-w-md mx-auto">
-              Qui vedrai tutte le conversazioni passate con le 18 personas, raggruppate
-              per persona, con possibilità di "promuovere a memoria" i passaggi più utili.
-              Per ora puoi vedere le tue sessioni nella tab <strong>Chat</strong> (colonna sinistra).
-            </p>
-          </div>
+          <Suspense fallback={<TabSkeleton />}>
+            <AIPersonasSessionsTab />
+          </Suspense>
         </TabsContent>
       </Tabs>
     </div>
