@@ -101,21 +101,33 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   // Flag per non sovrascrivere scelta manuale dell'utente
   const [vettoreManuallyChanged, setVettoreManuallyChanged] = useState(false);
 
-  // Query subappaltatori — caricato solo se serve, con dati completi
-  // (P.IVA, indirizzo) per dare all'utente visibilità completa.
+  // Query subappaltatori dalla vista usata anche da /azienda/subappaltatori,
+  // così l'utente vede LA STESSA lista in entrambi i posti. La vista può
+  // duplicare il subappaltatore per ogni contratto → dedup client-side per id.
   const { data: subappaltatori = [] } = useQuery<{ id: string; ragione_sociale: string; piva: string | null; responsabile: string | null; telefono: string | null; indirizzo: string | null }[]>({
-    queryKey: ["scarico-subappaltatori-full", companyId],
+    queryKey: ["scarico-subappaltatori-from-view", companyId],
     enabled: !!companyId && vettoreTipo === "subappaltatore",
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("subappaltatori")
+      const { data, error } = await (supabase as unknown as {
+        from: (n: string) => {
+          select: (s: string) => {
+            eq: (k: string, v: string) => Promise<{ data: Array<{ id: string; ragione_sociale: string; piva: string | null; responsabile: string | null; telefono: string | null; indirizzo: string | null }> | null; error: { message: string } | null }>;
+          };
+        };
+      }).from("v_subappaltatori_dashboard")
         .select("id, ragione_sociale, piva, responsabile, telefono, indirizzo")
-        .eq("company_id", companyId!)
-        .eq("is_active", true)
-        .order("ragione_sociale", { ascending: true });
+        .eq("company_id", companyId!);
       if (error) throw error;
-      return data ?? [];
+      // Dedup per id (la vista ha 1 riga per contratto, vogliamo 1 riga per sub)
+      const seen = new Set<string>();
+      const unique = (data ?? []).filter((s) => {
+        if (seen.has(s.id)) return false;
+        seen.add(s.id);
+        return true;
+      });
+      unique.sort((a, b) => a.ragione_sociale.localeCompare(b.ragione_sociale));
+      return unique;
     },
   });
 
