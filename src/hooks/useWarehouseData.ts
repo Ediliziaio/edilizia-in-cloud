@@ -29,6 +29,7 @@ export function useWarehouseData() {
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [sectionFilter, setSectionFilter] = useState("all");
   const [warehouseFilter, setWarehouseFilter] = useState<string | null>(null);
+  const [lottoFilter, setLottoFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("order");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("active");
   const [page, setPage] = useState(0);
@@ -51,6 +52,7 @@ export function useWarehouseData() {
   const setSectionFilterWithReset = useCallback((v: string) => { setSectionFilter(v); setPage(0); }, []);
   const setWarehouseFilterWithReset = useCallback((v: string | null) => { setWarehouseFilter(v); setPage(0); }, []);
   const setQuickFilterWithReset = useCallback((v: QuickFilter) => { setQuickFilter(v); setPage(0); }, []);
+  const setLottoFilterWithReset = useCallback((v: string) => { setLottoFilter(v); setPage(0); }, []);
 
   // Fetch suppliers
   const {
@@ -78,6 +80,32 @@ export function useWarehouseData() {
     () => new Map(suppliers.map(s => [s.id, s.name])),
     [suppliers]
   );
+
+  // Fetch lotti (per popolare il dropdown filtro lotto).
+  // Lista compatta: solo id + codice + descrizione + scadenza, no quantita
+  // (quella la calcoliamo lato join se serve). staleTime alto: i lotti
+  // cambiano raramente, no senso refetch frequente.
+  const { data: lotti = [] } = useQuery({
+    queryKey: ["warehouse-lotti-list", companyId],
+    enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("stock_lotti")
+        .select("id, codice_lotto, descrizione, data_scadenza")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        codice_lotto: string;
+        descrizione: string | null;
+        data_scadenza: string | null;
+      }>;
+    },
+  });
 
   // Fetch stock items for matching
   const { data: stockItems = [] } = useQuery({
@@ -137,7 +165,7 @@ export function useWarehouseData() {
     isError: isErrorItems,
     refetch: refetchItems,
   } = useQuery({
-    queryKey: queryKeys.warehouse.items(companyId, searchQuery, statusFilter, orderFilter, supplierFilter, sectionFilter, quickFilter, page, warehouseFilter),
+    queryKey: [...queryKeys.warehouse.items(companyId, searchQuery, statusFilter, orderFilter, supplierFilter, sectionFilter, quickFilter, page, warehouseFilter), lottoFilter],
     queryFn: async () => {
       if (!companyId) return { items: [] as WarehouseItem[], totalCount: 0 };
 
@@ -176,7 +204,19 @@ export function useWarehouseData() {
       }
 
       if (searchQuery) {
-        query = query.ilike("name", `%${searchQuery}%`);
+        // Multi-field search: nome + product_code (codice articolo della riga
+        // commessa). NOTA: questa query parte da order_items, non da
+        // warehouse_stock — quindi internal_code/barcode del catalogo magazzino
+        // non sono qui. Per cercare per codice articolo del catalogo o seriale,
+        // l'utente userà /azienda/magazzino-manager (con WarehouseManager + ricerca
+        // catalogo). Qui invece cerchiamo nelle righe commessa.
+        // Escape virgola/parentesi per evitare injection sintassi PostgREST.
+        const escaped = searchQuery.replace(/[(),]/g, " ").trim();
+        if (escaped) {
+          query = query.or(
+            `name.ilike.%${escaped}%,product_code.ilike.%${escaped}%`,
+          );
+        }
       }
 
       if (supplierFilter !== "all") {
@@ -194,6 +234,31 @@ export function useWarehouseData() {
       // Warehouse filter
       if (warehouseFilter) {
         query = query.eq("destination_warehouse_id", warehouseFilter);
+      }
+
+      // Lotto filter: order_items NON ha lotto_id direttamente — il lotto vive
+      // su stock_units. Risolviamo via 2-step: trova gli stock_item_id che
+      // contengono unità del lotto selezionato, poi filtra order_items.
+      // Caso d'uso fotovoltaico: utente cerca "tutti gli articoli del bancale
+      // ricevuto a giugno (lotto LOT-2026-0042)".
+      if (lottoFilter !== "all") {
+        const { data: unitsInLotto } = await supabase
+          .from("stock_units")
+          .select("stock_item_id")
+          .eq("company_id", companyId)
+          .eq("lotto_id", lottoFilter);
+        const stockItemIds = Array.from(
+          new Set(
+            (unitsInLotto ?? [])
+              .map((u: { stock_item_id: string | null }) => u.stock_item_id)
+              .filter((id): id is string => !!id),
+          ),
+        );
+        if (stockItemIds.length === 0) {
+          // Nessuna unità in quel lotto → nessun match possibile
+          return { items: [] as WarehouseItem[], totalCount: 0 };
+        }
+        query = query.in("stock_item_id", stockItemIds);
       }
 
       // Quick filters that exclude statuses
@@ -529,11 +594,12 @@ export function useWarehouseData() {
     setSupplierFilter("all");
     setSectionFilter("all");
     setQuickFilter("all");
+    setLottoFilter("all");
     setPage(0);
   };
 
   const hasActiveFilters =
-    searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all" || sectionFilter !== "all" || quickFilter !== "all";
+    searchQuery || statusFilter !== "all" || orderFilter !== "all" || supplierFilter !== "all" || sectionFilter !== "all" || quickFilter !== "all" || lottoFilter !== "all";
 
   const exportToCSV = () => {
     const columns = [
@@ -623,6 +689,9 @@ export function useWarehouseData() {
     setGroupBy,
     quickFilter,
     setQuickFilter: setQuickFilterWithReset,
+    lottoFilter,
+    setLottoFilter: setLottoFilterWithReset,
+    lotti,
     // Status
     isLoading,
     isError,

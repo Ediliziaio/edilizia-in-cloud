@@ -218,6 +218,9 @@ export default function Warehouse() {
     setGroupBy,
     quickFilter,
     setQuickFilter,
+    lottoFilter,
+    setLottoFilter,
+    lotti,
     isLoading,
     isError,
     isUpdating,
@@ -1216,6 +1219,31 @@ export default function Warehouse() {
                     {sections.map((section) => (
                       <SelectItem key={section.id} value={section.id}>
                         {section.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Filtro lotto: mostrato solo se ci sono lotti registrati per la
+                company. Utile per fotovoltaico/impiantistica → "mostrami solo
+                gli articoli del bancale ricevuto a giugno (LOT-2026-0042)". */}
+            {lotti.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Lotto / Bancale
+                </label>
+                <Select value={lottoFilter} onValueChange={setLottoFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Lotto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti i lotti</SelectItem>
+                    {lotti.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.codice_lotto}
+                        {l.descrizione ? ` · ${l.descrizione}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
