@@ -181,17 +181,23 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+            <PopoverContent
+              className="w-[var(--radix-popover-trigger-width)] p-0"
+              align="start"
+              side="bottom"
+              sideOffset={4}
+              avoidCollisions={false}
+            >
               <Command shouldFilter={false}>
                 <CommandInput
                   placeholder="Cerca articolo nel magazzino..."
                   value={search}
                   onValueChange={setSearch}
                 />
-                {/* max-h "60vh" sfrutta tutta l'altezza disponibile della viewport
-                    (con margine), così lo scroll dell'utente è naturale e
-                    mostra molti più articoli prima di dover scrollare. */}
-                <CommandList className="!max-h-[60vh] overscroll-contain">
+                {/* Altezza compatta + scroll: il popover si apre SOTTO il
+                    trigger e mostra ~5-6 articoli, il resto scrolla. Evita
+                    apertura verso l'alto che invadeva tutto lo schermo. */}
+                <CommandList className="!max-h-[280px] overscroll-contain">
                   {isLoading ? (
                     <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin mr-2" />
