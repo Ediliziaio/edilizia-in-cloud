@@ -313,11 +313,20 @@ export default function DDTRicezioneDetail() {
 
   const submitReceive = () => {
     if (!ddt || !selectedItem) return;
-    const qty = parseFloat(receiveQty);
-    if (!qty || qty <= 0) {
+    const rawQty = parseFloat(receiveQty);
+    if (!rawQty || rawQty <= 0) {
       toast.error("La quantità deve essere maggiore di zero");
       return;
     }
+    // Validation hardening: cap realistic + arrotonda a 2 decimali per
+    // evitare float precision artifacts (es. 1.999999999 → 2.00). Senza
+    // questi check si potevano inserire valori abnormi (999999999) o
+    // accumulare errori di virgola mobile su goods_receipts successivi.
+    if (rawQty > 999999) {
+      toast.error("Quantità troppo alta (max 999.999). Controlla il valore.");
+      return;
+    }
+    const qty = Math.round(rawQty * 100) / 100;
     if (!selectedItem.order_item_id) {
       toast.error("order_item_id mancante");
       return;
