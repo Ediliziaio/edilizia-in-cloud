@@ -62,7 +62,8 @@ GRANT SELECT, UPDATE ON public.silvio_morning_briefings TO authenticated;
 GRANT ALL ON public.silvio_morning_briefings TO service_role;
 
 -- RPC: lista utenti attivi per i quali generare briefing
--- "attivo" = ha almeno una sessione chat o login negli ultimi 14gg
+-- "attivo" = profilo con last_login_at recente (negli ultimi N giorni)
+-- Filtro role: usa user_roles (tabella separata, schema profiles non ha .role)
 CREATE OR REPLACE FUNCTION public.silvio_users_for_morning_brief(
   p_lookback_days int DEFAULT 14
 )
@@ -76,18 +77,15 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  -- Profili attivi: amministratori company con login recente
   SELECT DISTINCT
     p.id as user_id,
     p.company_id,
-    GREATEST(
-      COALESCE(p.last_sign_in_at, p.updated_at, p.created_at)
-    ) as last_seen
+    COALESCE(p.last_login_at, p.updated_at, p.created_at) as last_seen
   FROM public.profiles p
+  INNER JOIN public.user_roles ur ON ur.user_id = p.id
   WHERE p.company_id IS NOT NULL
-    AND p.role IN ('company_admin', 'super_admin', 'company_staff')
-    AND COALESCE(p.last_sign_in_at, p.updated_at, p.created_at) > NOW() - (p_lookback_days || ' days')::interval
-    -- Solo utenti che non hanno già il briefing di oggi
+    AND ur.role::text IN ('company_admin', 'super_admin', 'company_staff')
+    AND COALESCE(p.last_login_at, p.updated_at, p.created_at) > NOW() - (p_lookback_days || ' days')::interval
     AND NOT EXISTS (
       SELECT 1 FROM public.silvio_morning_briefings smb
       WHERE smb.user_id = p.id AND smb.brief_date = CURRENT_DATE

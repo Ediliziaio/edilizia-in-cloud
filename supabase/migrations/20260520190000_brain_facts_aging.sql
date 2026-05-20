@@ -117,6 +117,7 @@ AS $$
 DECLARE
   v_decayed int := 0;
   v_disabled int := 0;
+  v_count int := 0;
 BEGIN
   -- Decay 1: facts mai usati creati >60gg fa
   UPDATE public.ai_brain_facts
@@ -125,7 +126,8 @@ BEGIN
     AND last_used_at IS NULL
     AND created_at < NOW() - INTERVAL '60 days'
     AND (p_company_id IS NULL OR company_id = p_company_id);
-  GET DIAGNOSTICS v_decayed = ROW_COUNT;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  v_decayed := v_decayed + v_count;
 
   -- Decay 2: facts usati ma stale (>90gg dall'ultimo uso)
   UPDATE public.ai_brain_facts
@@ -133,7 +135,8 @@ BEGIN
   WHERE enabled = true
     AND last_used_at < NOW() - INTERVAL '90 days'
     AND (p_company_id IS NULL OR company_id = p_company_id);
-  GET DIAGNOSTICS v_decayed = v_decayed + ROW_COUNT;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  v_decayed := v_decayed + v_count;
 
   -- Soft-delete: confidence troppo bassa
   UPDATE public.ai_brain_facts
