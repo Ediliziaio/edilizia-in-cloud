@@ -1,9 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { EditorState } from "./useEditorState";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -26,17 +24,6 @@ interface SubappaltatoreOption {
   telefono: string | null;
   responsabile: string | null;
 }
-
-const CAUSALI_TRASPORTO = [
-  { value: "vendita", label: "Vendita" },
-  { value: "reso", label: "Reso" },
-  { value: "omaggio", label: "Omaggio" },
-  { value: "conto_lavoro", label: "Conto lavoro" },
-  { value: "deposito", label: "Deposito" },
-  { value: "esposizione", label: "Esposizione" },
-  { value: "riparazione", label: "Riparazione" },
-  { value: "altro", label: "Altro" },
-];
 
 export function EditorDDTSection({ state, dispatch, disabled }: Props) {
   const { effectiveCompany } = useAuth();
@@ -75,60 +62,29 @@ export function EditorDDTSection({ state, dispatch, disabled }: Props) {
     [state.ddt_vettore, dispatch],
   );
 
-  const handleVettoreTipoChange = useCallback(
-    (v: string) => {
-      const tipo = v as VettoreTipo;
-      const current = (state.ddt_vettore as Record<string, unknown> | null | undefined) ?? {};
-      const next: Record<string, unknown> = { ...current, tipo };
-      if (tipo !== "subappaltatore") next.subappaltatore_id = null;
-      dispatch({ type: "SET_FIELD", field: "ddt_vettore", value: next });
-    },
-    [state.ddt_vettore, dispatch],
-  );
-
+  // Solo summary read-only del subappaltatore selezionato — la selezione
+  // avviene in EditorDDTOpzioniCard, qui mostriamo solo i dettagli per
+  // confermare la scelta dell'utente.
+  const selectedSubId = (state.ddt_vettore as Record<string, unknown> | null | undefined)?.subappaltatore_id as string | undefined;
   const { data: subappaltatori = [] } = useQuery<SubappaltatoreOption[]>({
-    queryKey: ["subappaltatori-ddt-vettore", effectiveCompany?.id],
-    enabled: !!effectiveCompany?.id && vettoreTipo === "subappaltatore",
+    queryKey: ["subappaltatori-ddt-section", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id && vettoreTipo === "subappaltatore" && !!selectedSubId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subappaltatori")
         .select("id, ragione_sociale, piva, indirizzo, telefono, responsabile")
         .eq("company_id", effectiveCompany!.id)
-        .eq("is_active", true)
-        .order("ragione_sociale", { ascending: true });
+        .eq("is_active", true);
       if (error) throw error;
       return (data ?? []) as SubappaltatoreOption[];
     },
   });
 
-  // Deps minimizzate — re-compute solo quando subappaltatore_id cambia,
-  // non ad ogni keystroke sui campi conducente/targa/ecc.
-  const selectedSubId = (state.ddt_vettore as Record<string, unknown> | null | undefined)?.subappaltatore_id as string | undefined;
   const selectedSub = useMemo(() => {
     if (!selectedSubId) return null;
     return subappaltatori.find((s) => s.id === selectedSubId) ?? null;
   }, [subappaltatori, selectedSubId]);
-
-  const handleSelectSub = useCallback(
-    (id: string) => {
-      const sub = subappaltatori.find((s) => s.id === id);
-      if (!sub) return;
-      const current = (state.ddt_vettore as Record<string, unknown> | null | undefined) ?? {};
-      const patch: Record<string, unknown> = {
-        ...current,
-        subappaltatore_id: sub.id,
-        ragione_sociale: sub.ragione_sociale,
-        vat_number: sub.piva,
-        address: sub.indirizzo,
-      };
-      // Prefill conducente solo se non già compilato
-      if (!current.conducente_nome) patch.conducente_nome = sub.responsabile ?? null;
-      if (!current.conducente_telefono) patch.conducente_telefono = sub.telefono ?? null;
-      dispatch({ type: "SET_FIELD", field: "ddt_vettore", value: patch });
-    },
-    [subappaltatori, state.ddt_vettore, dispatch],
-  );
 
   return (
     <div className="space-y-4">
@@ -215,187 +171,68 @@ export function EditorDDTSection({ state, dispatch, disabled }: Props) {
         )}
       </Card>
 
-      {/* Trasporto */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Informazioni Trasporto</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Causale trasporto</Label>
-              <Select
-                value={state.ddt_causale_trasporto ?? ""}
-                onValueChange={(v) => setField("ddt_causale_trasporto", v)}
-                disabled={disabled}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleziona causale" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CAUSALI_TRASPORTO.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Aspetto dei beni</Label>
-              <Input
-                placeholder="es. Scatola, Bancale..."
-                value={state.ddt_aspetto_beni ?? ""}
-                onChange={(e) => setField("ddt_aspetto_beni", e.target.value)}
-                disabled={disabled}
-              />
-            </div>
-          </div>
+      {/* Dettagli vettore avanzati: solo conducente/targa/P.IVA terzo
+          + Data consegna. I campi base (Causale/Aspetto/Porto/Colli/Peso/
+          Mezzo + radio Vettore principale + Select subappaltatore) sono
+          ora nella card "Opzioni avanzate" sopra. */}
+      {(vettoreTipo === "subappaltatore" || vettoreTipo === "terzo") && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">
+              Dati vettore — {vettoreTipo === "subappaltatore" ? "subappaltatore" : "terzo"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {vettoreTipo === "terzo" && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Denominazione vettore</Label>
+                  <Input
+                    placeholder="Ragione sociale"
+                    value={
+                      (state.ddt_vettore as Record<string, unknown> | null | undefined)?.ragione_sociale as string ||
+                      (state.ddt_vettore as Record<string, unknown> | null | undefined)?.denominazione as string ||
+                      ""
+                    }
+                    onChange={(e) => setVettoreField({ ragione_sociale: e.target.value })}
+                    disabled={disabled}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">P.IVA vettore</Label>
+                  <Input
+                    placeholder="P.IVA"
+                    value={
+                      (state.ddt_vettore as Record<string, unknown> | null | undefined)?.vat_number as string ||
+                      (state.ddt_vettore as Record<string, unknown> | null | undefined)?.partita_iva as string ||
+                      ""
+                    }
+                    onChange={(e) => setVettoreField({ vat_number: e.target.value })}
+                    disabled={disabled}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-xs">Indirizzo vettore</Label>
+                  <Input
+                    placeholder="Via, comune"
+                    value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.address as string ?? ""}
+                    onChange={(e) => setVettoreField({ address: e.target.value })}
+                    disabled={disabled}
+                  />
+                </div>
+              </div>
+            )}
 
-          <div>
-            <Label className="text-xs mb-2 block">Porto</Label>
-            <RadioGroup
-              value={state.ddt_porto ?? "Franco"}
-              onValueChange={(v) => setField("ddt_porto", v)}
-              className="flex gap-4"
-              disabled={disabled}
-            >
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="Franco" id="porto-franco" />
-                <Label htmlFor="porto-franco" className="text-sm">Franco</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="Assegnato" id="porto-assegnato" />
-                <Label htmlFor="porto-assegnato" className="text-sm">Assegnato</Label>
-              </div>
-            </RadioGroup>
-          </div>
+            {selectedSub?.indirizzo && vettoreTipo === "subappaltatore" && (
+              <p className="text-xs text-muted-foreground">{selectedSub.ragione_sociale} · {selectedSub.indirizzo}</p>
+            )}
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label className="text-xs">N. colli</Label>
-              <Input
-                type="number"
-                min={0}
-                value={state.ddt_numero_colli ?? ""}
-                onChange={(e) => setField("ddt_numero_colli", e.target.value ? Number(e.target.value) : null)}
-                disabled={disabled}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Peso (kg)</Label>
-              <Input
-                placeholder="0.00"
-                value={state.ddt_peso ?? ""}
-                onChange={(e) => setField("ddt_peso", e.target.value)}
-                disabled={disabled}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Mezzo trasporto</Label>
-              <Input
-                placeholder="es. Furgone"
-                value={state.ddt_mezzo_trasporto ?? ""}
-                onChange={(e) => setField("ddt_mezzo_trasporto", e.target.value)}
-                disabled={disabled}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-xs mb-2 block">Vettore</Label>
-            <RadioGroup
-              value={vettoreTipo}
-              onValueChange={handleVettoreTipoChange}
-              className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3"
-              disabled={disabled}
-            >
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="mittente" id="vett-mitt" />
-                <Label htmlFor="vett-mitt" className="text-sm">Mittente</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="destinatario" id="vett-dest" />
-                <Label htmlFor="vett-dest" className="text-sm">Destinatario</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="subappaltatore" id="vett-sub" />
-                <Label htmlFor="vett-sub" className="text-sm">Subappaltatore</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="terzo" id="vett-terzo" />
-                <Label htmlFor="vett-terzo" className="text-sm">Vettore terzo</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {vettoreTipo === "subappaltatore" && (
-            <div className="space-y-3 p-3 bg-muted/50 rounded-md">
-              <div>
-                <Label className="text-xs">Seleziona subappaltatore</Label>
-                <Select
-                  value={((state.ddt_vettore as any)?.subappaltatore_id as string) ?? ""}
-                  onValueChange={handleSelectSub}
-                  disabled={disabled}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={subappaltatori.length ? "Scegli dal registro" : "Nessun subappaltatore attivo"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subappaltatori.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.ragione_sociale}
-                        {s.piva ? ` — P.IVA ${s.piva}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedSub?.indirizzo && (
-                  <p className="text-xs text-muted-foreground mt-1">{selectedSub.indirizzo}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {vettoreTipo === "terzo" && (
-            <div className="grid grid-cols-2 gap-3 p-3 bg-muted/50 rounded-md">
-              <div>
-                <Label className="text-xs">Denominazione vettore</Label>
-                <Input
-                  placeholder="Ragione sociale"
-                  value={(state.ddt_vettore as any)?.ragione_sociale ?? (state.ddt_vettore as any)?.denominazione ?? ""}
-                  onChange={(e) => setVettoreField({ ragione_sociale: e.target.value })}
-                  disabled={disabled}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">P.IVA vettore</Label>
-                <Input
-                  placeholder="P.IVA"
-                  value={(state.ddt_vettore as any)?.vat_number ?? (state.ddt_vettore as any)?.partita_iva ?? ""}
-                  onChange={(e) => setVettoreField({ vat_number: e.target.value })}
-                  disabled={disabled}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label className="text-xs">Indirizzo vettore</Label>
-                <Input
-                  placeholder="Via, comune"
-                  value={(state.ddt_vettore as any)?.address ?? ""}
-                  onChange={(e) => setVettoreField({ address: e.target.value })}
-                  disabled={disabled}
-                />
-              </div>
-            </div>
-          )}
-
-          {(vettoreTipo === "subappaltatore" || vettoreTipo === "terzo") && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Conducente — nome</Label>
                 <Input
                   placeholder="Nome e cognome"
-                  value={(state.ddt_vettore as any)?.conducente_nome ?? ""}
+                  value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.conducente_nome as string ?? ""}
                   onChange={(e) => setVettoreField({ conducente_nome: e.target.value })}
                   disabled={disabled}
                 />
@@ -404,7 +241,7 @@ export function EditorDDTSection({ state, dispatch, disabled }: Props) {
                 <Label className="text-xs">Conducente — telefono</Label>
                 <Input
                   placeholder="+39…"
-                  value={(state.ddt_vettore as any)?.conducente_telefono ?? ""}
+                  value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.conducente_telefono as string ?? ""}
                   onChange={(e) => setVettoreField({ conducente_telefono: e.target.value })}
                   disabled={disabled}
                 />
@@ -413,7 +250,7 @@ export function EditorDDTSection({ state, dispatch, disabled }: Props) {
                 <Label className="text-xs">Targa mezzo</Label>
                 <Input
                   placeholder="AB123CD"
-                  value={(state.ddt_vettore as any)?.targa_mezzo ?? ""}
+                  value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.targa_mezzo as string ?? ""}
                   onChange={(e) => setVettoreField({ targa_mezzo: e.target.value.toUpperCase() })}
                   disabled={disabled}
                 />
@@ -422,23 +259,28 @@ export function EditorDDTSection({ state, dispatch, disabled }: Props) {
                 <Label className="text-xs">N. patente</Label>
                 <Input
                   placeholder="Patente"
-                  value={(state.ddt_vettore as any)?.patente ?? ""}
+                  value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.patente as string ?? ""}
                   onChange={(e) => setVettoreField({ patente: e.target.value })}
                   disabled={disabled}
                 />
               </div>
             </div>
-          )}
+          </CardContent>
+        </Card>
+      )}
 
-          <div>
-            <Label className="text-xs">Data/Ora consegna</Label>
-            <Input
-              type="datetime-local"
-              value={state.ddt_data_ora_consegna ?? ""}
-              onChange={(e) => setField("ddt_data_ora_consegna", e.target.value)}
-              disabled={disabled}
-            />
-          </div>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-medium">Data/Ora consegna</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Input
+            type="datetime-local"
+            value={state.ddt_data_ora_consegna ?? ""}
+            onChange={(e) => setField("ddt_data_ora_consegna", e.target.value)}
+            disabled={disabled}
+            className="max-w-xs"
+          />
         </CardContent>
       </Card>
     </div>

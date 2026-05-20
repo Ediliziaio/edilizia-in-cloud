@@ -389,23 +389,21 @@ export default function EditorDocumento() {
           )}
 
           {state.tipo === "ddt" ? (
-            /* ═══ DDT LAYOUT — replica Fatture in Cloud (compatto, 3 card) ═══ */
+            /* ═══ DDT LAYOUT — replica Fatture in Cloud (compatto) ═══ */
             <>
+              {/* Modello grafico in cima */}
+              <EditorDDTModelloCard />
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
                 <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
                 <EditorDDTOpzioniCard state={state} dispatch={dispatch} disabled={!isBozza} />
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-                <EditorDDTModelloCard />
-                <div />
-              </div>
-
-              {/* Dettagli trasporto avanzati (subappaltatore + conducente + targa) */}
+              {/* Dettagli vettore/destinazione (solo conducente, targa, P.IVA terzo) */}
               <Collapsible defaultOpen={false}>
                 <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-sm font-medium hover:bg-muted/40 transition">
-                  <span>Dettagli trasporto avanzati (vettore, conducente, targa)</span>
+                  <span>Dettagli trasporto avanzati (conducente, targa, destinazione)</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-3">
