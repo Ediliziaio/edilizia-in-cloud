@@ -69,6 +69,7 @@ import {
 } from "@/hooks/warehouse/useBatchScannerEntries";
 import { useBatchScannerSubmit } from "@/hooks/warehouse/useBatchScannerSubmit";
 import { toast } from "sonner";
+import { tryParseMultiSerial } from "@/lib/barcode/multiSerialParser";
 
 // ────────────────────────────────────────────────────────────
 // Tipi pubblici
@@ -250,6 +251,41 @@ export function BatchBarcodeScanner({
       // Throttle duplicati: stesso codice in <2s viene ignorato silenziosamente.
       const now = Date.now();
       if (trackDuplicate(code, now)) return;
+
+      // v8.6.106 — MULTI-SERIAL: rileva QR/barcode che contengono LISTA di
+      // seriali (es. QR pallet fotovoltaico con 30 seriali dentro). In quel
+      // caso espandiamo in N entries no-match in 1 colpo. Il banner "Crea
+      // articolo unico per N scansioni" gestisce poi il collegamento.
+      // NB: skip in mode='lookup' (single-shot search) - irrilevante li.
+      if (mode !== "lookup") {
+        const multi = tryParseMultiSerial(code);
+        if (multi && multi.serials.length >= 2) {
+          await successFeedback();
+          // Crea N entries no-match (una per ogni serial estratto)
+          for (const serial of multi.serials) {
+            const entry: BatchScanEntry = {
+              clientUuid: newBatchScanClientUuid(),
+              rawCode: serial,
+              scanFormat: `multi/${multi.format}`,
+              stockItemId: null,
+              itemName: null,
+              trackingMode: null,
+              quantity: 1,
+              serialNumbers: [],
+              scannedAt: now,
+            };
+            appendEntry(entry);
+          }
+          // Toast informativo (unico, NON N volte)
+          toast.success(`${multi.serials.length} seriali estratti dal lotto`, {
+            description: multi.gtin
+              ? `Formato ${multi.format} · GTIN ${multi.gtin} rilevato`
+              : `Formato ${multi.format}. Usa "Crea articolo unico" per collegarli a un prodotto.`,
+            duration: 4000,
+          });
+          return;
+        }
+      }
 
       lookupInFlightRef.current = true;
       try {
