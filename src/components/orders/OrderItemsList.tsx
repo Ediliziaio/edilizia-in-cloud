@@ -1463,6 +1463,9 @@ export function OrderItemsList({
                                               Disp: <span className="font-semibold tabular-nums">{s.quantity}</span> pz
                                             </span>
                                             <span className="text-muted-foreground">· {formatCurrency(s.unit_cost)}/pz</span>
+                                            {s.tracking_mode === "serialized" && (
+                                              <Badge variant="secondary" className="text-[9px] h-4" title="Articolo serializzato — ogni unità ha un codice univoco">SN</Badge>
+                                            )}
                                             {noStock && <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>}
                                           </div>
                                         </CommandItem>
