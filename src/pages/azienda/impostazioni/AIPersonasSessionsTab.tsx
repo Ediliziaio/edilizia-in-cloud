@@ -239,10 +239,13 @@ export default function AIPersonasSessionsTab() {
   // Se la RPC non esiste (migration non eseguita), facciamo fallback su query
   // dirette: count + select aggregato client-side sulla prima pagina. Non
   // perfetto ma evita la pagina con "—" dappertutto.
+  // PERF: staleTime 30s -> evita refetch costosi su tab switch / window focus.
+  // Le stats vengono comunque invalidate da archiveMut/bulkArchiveMut.onSuccess.
   const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ["ai-persona-sessions-stats", user?.id, filterPersona, filterPeriod, showArchived],
     enabled: !!user?.id,
     retry: false, // se RPC mancante, no retry inutili
+    staleTime: 30_000,
     queryFn: async (): Promise<StatsRow> => {
       // Tentativo RPC (path ottimale)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -341,21 +344,26 @@ export default function AIPersonasSessionsTab() {
   );
 
   // ── Infinite scroll trigger via IntersectionObserver ──────────────────────
+  // PERF: dipendiamo SOLO dai campi necessari (hasNextPage, isFetchingNextPage,
+  // fetchNextPage). Se mettessimo l'intero `sessionsQ` come dep, l'observer
+  // verrebbe ricreato ad ogni render (l'oggetto query cambia identita), con
+  // overhead e potenziali race. fetchNextPage e' stabile per design react-query.
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = sessionsQ;
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && sessionsQ.hasNextPage && !sessionsQ.isFetchingNextPage) {
-          void sessionsQ.fetchNextPage();
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage();
         }
       },
       { rootMargin: "200px" },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [sessionsQ]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // ── Reset selezione quando filtri cambiano ────────────────────────────────
   useEffect(() => {
@@ -363,9 +371,13 @@ export default function AIPersonasSessionsTab() {
   }, [filterPersona, filterPeriod, showArchived, debouncedSearch]);
 
   // ── Open session messages (lazy on drawer open) ───────────────────────────
+  // PERF: i messaggi sono IMMUTABILI dopo creazione -> staleTime Infinity.
+  // Riaprire il drawer non rifa fetch. Memoria sotto controllo perche gcTime
+  // default (5min) ripulisce le sessioni non aperte da tempo.
   const { data: openMessages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["ai-persona-session-messages", openSessionId],
     enabled: !!openSessionId,
+    staleTime: Infinity,
     queryFn: async (): Promise<MessageRow[]> => {
       const { data, error } = await supabase
         .from("ai_persona_messages" as never)
@@ -525,7 +537,11 @@ export default function AIPersonasSessionsTab() {
     setSelectionPopover(null);
   }, [selectionPopover, openSession]);
 
-  // Listen for text selection inside the drawer (assistant bubbles only)
+  // ── Selezione testo → "Promuovi selezione" popover ────────────────────────
+  // PERF: usiamo 'mouseup' (1 fire per drag completo) anziche 'selectionchange'
+  // (decine di fire al secondo durante un drag). Per selezione via tastiera
+  // (Shift+Arrow) aggiungiamo 'keyup'. Early bail-out: se non c'e selezione o
+  // < 12 char, niente DOM walk costoso (getBoundingClientRect + parentNode loop).
   useEffect(() => {
     if (!openSessionId) {
       setSelectionPopover(null);
@@ -533,14 +549,17 @@ export default function AIPersonasSessionsTab() {
     }
     const handler = () => {
       const sel = window.getSelection();
-      const text = sel?.toString().trim() ?? "";
-      if (!text || text.length < 12) {
-        setSelectionPopover(null);
+      if (!sel || sel.isCollapsed) {
+        // niente selezione: clear solo se serve (evita re-render inutili)
+        setSelectionPopover((prev) => (prev === null ? prev : null));
         return;
       }
-      // Verifica che la selezione sia DENTRO un bubble assistant del drawer
-      const anchorNode = sel?.anchorNode;
-      const focusNode = sel?.focusNode;
+      const text = sel.toString().trim();
+      if (text.length < 12) {
+        setSelectionPopover((prev) => (prev === null ? prev : null));
+        return;
+      }
+      // DOM walk (max ~10 livelli, costo trascurabile a questo punto)
       const findBubble = (n: Node | null | undefined): HTMLElement | null => {
         let cur: Node | null = n ?? null;
         while (cur) {
@@ -551,15 +570,14 @@ export default function AIPersonasSessionsTab() {
         }
         return null;
       };
-      const bubble = findBubble(anchorNode) ?? findBubble(focusNode);
+      const bubble = findBubble(sel.anchorNode) ?? findBubble(sel.focusNode);
       if (!bubble) {
-        setSelectionPopover(null);
+        setSelectionPopover((prev) => (prev === null ? prev : null));
         return;
       }
       const messageId = bubble.dataset.messageId;
       if (!messageId) return;
-      const range = sel!.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
       setSelectionPopover({
         x: rect.left + rect.width / 2,
         y: rect.top,
@@ -567,8 +585,12 @@ export default function AIPersonasSessionsTab() {
         messageId,
       });
     };
-    document.addEventListener("selectionchange", handler);
-    return () => document.removeEventListener("selectionchange", handler);
+    document.addEventListener("mouseup", handler);
+    document.addEventListener("keyup", handler);
+    return () => {
+      document.removeEventListener("mouseup", handler);
+      document.removeEventListener("keyup", handler);
+    };
   }, [openSessionId]);
 
   // ─── RENDER ──────────────────────────────────────────────────────────────

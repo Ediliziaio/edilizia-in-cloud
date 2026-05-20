@@ -137,6 +137,9 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
       if (error) throw error;
       return (data ?? []) as unknown as Persona[];
     },
+    // PERF: catalogo personas cambia raramente (deploy-time). 5 min e' ampio.
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
   });
 
   // ─── DATA: sessioni utente ─────────────────────────────────────────────
@@ -152,6 +155,10 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
       if (error) throw error;
       return (data ?? []) as unknown as ChatSession[];
     },
+    // PERF: sidebar sessioni si aggiorna comunque dopo ogni invio via
+    // invalidate in sendMut.onSuccess -> staleTime ampio evita refetch
+    // su window focus.
+    staleTime: 60_000,
   });
 
   // ─── DATA: messaggi della sessione attiva ──────────────────────────────
@@ -168,6 +175,9 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
       return (data ?? []) as unknown as ChatMessage[];
     },
     enabled: !!activeSessionId,
+    // PERF: messaggi non cambiano dopo create (immutabili). Invalidate
+    // esplicita dopo sendMut.onSuccess -> niente refetch su focus.
+    staleTime: 5 * 60 * 1000,
   });
 
   // ─── MUTATION: invio messaggio ─────────────────────────────────────────

@@ -17,6 +17,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -96,6 +97,8 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
   const [filterPersona, setFilterPersona] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
+  // PERF: debounce search per evitare filter() ad ogni keystroke su liste grandi
+  const debouncedSearch = useDebounce(search.trim().toLowerCase(), 200);
   const [showDisabled, setShowDisabled] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
@@ -135,10 +138,18 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       if (error) throw error;
       return (data ?? []) as MemoryRow[];
     },
+    // PERF: memorie aziendali cambiano raramente (refresh viene dal realtime)
+    // -> 30s staleTime evita refetch inutili a ogni re-mount/focus.
+    staleTime: 30_000,
   });
 
-  const filteredMemories = memories.filter((m) =>
-    !search || m.content.toLowerCase().includes(search.toLowerCase())
+  // PERF: memoizzato per non ricalcolare ad ogni render (e mantenere identita
+  // referenziale stabile -> children non si re-renderizzano inutilmente).
+  const filteredMemories = useMemo(
+    () => debouncedSearch
+      ? memories.filter((m) => m.content.toLowerCase().includes(debouncedSearch))
+      : memories,
+    [memories, debouncedSearch],
   );
 
   // ── Realtime subscription: aggiorna la lista quando memorie vengono
