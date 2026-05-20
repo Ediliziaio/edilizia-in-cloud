@@ -325,7 +325,21 @@ serve(async (req: Request) => {
     const userScope = roleScopeMap[primaryRole] ?? "Accesso limitato — chiedi conferma per dati sensibili.";
 
     // ── 5) System prompt arricchito con contesto utente + tool guidance ─
+    // Data corrente esplicita: senza questo l'AI usa la data del training
+    // cut-off e mappa male "mese scorso" → year/month sbagliati nei tool
+    // periodici (get_monthly_performance, ecc.).
+    const _now = new Date();
+    const _months = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+    const _todayIt = `${_now.getDate().toString().padStart(2, "0")}/${(_now.getMonth() + 1).toString().padStart(2, "0")}/${_now.getFullYear()}`;
+    const _lastMonth = _now.getMonth() === 0
+      ? { y: _now.getFullYear() - 1, m: 12 }
+      : { y: _now.getFullYear(), m: _now.getMonth() };
     const userContextPrompt = [
+      "",
+      "# CONTESTO TEMPORALE",
+      `- Oggi è ${_todayIt} (${_months[_now.getMonth()]} ${_now.getFullYear()}).`,
+      `- "Mese corrente" = ${_months[_now.getMonth()]} ${_now.getFullYear()} (year=${_now.getFullYear()}, month=${_now.getMonth() + 1}).`,
+      `- "Mese scorso" = ${_months[_lastMonth.m - 1]} ${_lastMonth.y} (year=${_lastMonth.y}, month=${_lastMonth.m}).`,
       "",
       "# CONTESTO UTENTE CORRENTE (CRITICO per RBAC e personalizzazione)",
       `- Nome: ${userName}`,
@@ -343,6 +357,7 @@ serve(async (req: Request) => {
       "8. Se un tool ritorna priorita_recupero o campi priorita, usa quell'ordine per dire chi/cosa fare prima.",
       "9. Non nominare mai personas/consulenti interni nella risposta finale: rispondi come una sola regia, Silvio.",
       "10. Se un tool ritorna proposalId, _proposal o riskLevel yellow/red, l'azione NON è conclusa: dì che è pronta/in attesa di conferma, non che è stata eseguita.",
+      "11. PERIODI TEMPORALI: per domande su un MESE SPECIFICO passato ('mese scorso', 'aprile', 'come è andato marzo', 'fatturato di X mese', 'confronto vs mese precedente'), usa SEMPRE get_monthly_performance(year, month). Per 'mese scorso' calcola year/month dalla data corrente meno 1 mese. NON dire 'dati non disponibili' senza prima aver provato questo tool.",
       "",
       "# REGOLA FORMATO",
       "- Numeri sempre formato italiano: € 1.234,56",

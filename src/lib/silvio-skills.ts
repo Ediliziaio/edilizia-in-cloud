@@ -35,6 +35,9 @@ export const SILVIO_SKILLS: SilvioSkill[] = [
   { id: "magazzino",  emoji: "📦", label: "Magazzino sotto soglia", hint: "Articoli da riordinare",
     template: "Cosa devo riordinare in magazzino? Quali articoli sono sotto soglia minima?",
     category: "data" },
+  { id: "mese-scorso", emoji: "📅", label: "Bilancio mese scorso", hint: "Fatturato + incassi + spese + confronto",
+    template: "Com'è andato il mese scorso? Voglio fatturato emesso, incassi reali, spese, margine cash, top clienti e confronto vs mese precedente.",
+    category: "data" },
 
   // 📄 Documenti
   { id: "ddt",        emoji: "🚚", label: "Analizza DDT",          hint: "Carica foto/PDF di un DDT",

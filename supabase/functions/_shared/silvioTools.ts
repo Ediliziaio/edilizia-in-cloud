@@ -531,7 +531,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_executive_snapshot",
-        description: "Snapshot completo C-level: orders attivi, revenue YTD/mese, cashflow forecast, team cost, alerts open, LTV totale, top cliente. Usa per 'come va l'azienda', 'situazione generale', 'briefing'.",
+        description: "Snapshot completo C-level del MESE CORRENTE + YTD: orders attivi, revenue YTD/mese corrente, cashflow forecast, team cost, alerts open, LTV totale, top cliente. Usa per 'come va l'azienda OGGI', 'situazione generale', 'briefing'. NON USARE per mesi specifici passati: per quello usa get_monthly_performance.",
         parameters: { type: "object", properties: {}, required: [] },
       },
     },
@@ -543,6 +543,45 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile", "telegram"],
     riskLevel: "safe",
     domain: "kpi",
+  },
+
+  get_monthly_performance: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_monthly_performance",
+        description: "Performance aziendale di UN MESE SPECIFICO (year + month). Ritorna: fatturato emesso, incassi reali, spese, margine cash, ordini creati, top 5 clienti del mese, confronto vs mese precedente. USA SEMPRE per domande tipo 'com'è andato il mese scorso', 'fatturato di aprile', 'incassi di marzo', 'come è stato marzo vs aprile', 'andamento ultimo mese'. Per il mese CORRENTE usa get_executive_snapshot. Per YTD usa get_company_kpi.",
+        parameters: {
+          type: "object",
+          properties: {
+            year: {
+              type: "integer",
+              minimum: 2020,
+              maximum: 2100,
+              description: "Anno del mese richiesto (es. 2026)",
+            },
+            month: {
+              type: "integer",
+              minimum: 1,
+              maximum: 12,
+              description: "Numero del mese 1-12 (1=Gennaio, 12=Dicembre). Per 'mese scorso' calcola = mese corrente - 1 (gestendo il rollback a dicembre dell'anno precedente).",
+            },
+          },
+          required: ["year", "month"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_monthly_performance", {
+      p_company_id: ctx.companyId,
+      p_year: args?.year,
+      p_month: args?.month,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "kpi",
+    resultContract: "Riporta il fatturato emesso, incassi, spese e margine cash del mese richiesto. Confronta col mese precedente (delta % se >0). Cita i top 3 clienti. Se data_quality.warnings non vuoto, dichiara esplicitamente i limiti del dato.",
   },
 
   detect_frodi_anomalie: {
