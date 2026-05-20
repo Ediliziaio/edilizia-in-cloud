@@ -18,7 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -258,7 +258,10 @@ export function SilvioAlertsPanel({
             <CardTitle className="text-base flex items-center gap-2">
               <Bell className="h-4 w-4 text-violet-600" /> Cose da sapere
             </CardTitle>
-            <CardDescription className="text-xs mt-0.5">
+            {/* NB: <div> e non CardDescription (che renderizza <p>): Badge è un
+                <div>, mettere <div> in <p> viola HTML5 e causa hydration warning
+                (validateDOMNesting). Stesso styling muted+text-xs di CardDescription. */}
+            <div className="text-xs text-muted-foreground mt-0.5">
               {(stats?.critical ?? 0) > 0 && (
                 <Badge variant="destructive" className="mr-1.5">{stats!.critical} critici</Badge>
               )}
@@ -271,7 +274,7 @@ export function SilvioAlertsPanel({
                 <Badge variant="outline" className="mr-1.5">{stats!.info} info</Badge>
               )}
               {totalOpen === 0 && "Nessun problema"}
-            </CardDescription>
+            </div>
           </div>
           <Button
             size="icon" variant="ghost"

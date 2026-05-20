@@ -389,10 +389,11 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   // dell'ultimo messaggio cresce ma messages.length resta uguale, quindi
   // l'auto-scroll non scattava. Ora dipendiamo anche dal contenuto del
   // messaggio più recente per seguire la risposta in tempo reale.
+  const lastMessageContent = messages[messages.length - 1]?.content;
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages.length, messages[messages.length - 1]?.content]);
+  }, [messages.length, lastMessageContent]);
 
   // Element 3: quando arrivano messaggi nuovi di Silvio, marcali come streaming
   // (effetto typewriter). I messaggi già visti restano statici.
@@ -666,6 +667,18 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
         throw new Error("Allegati ancora in upload, attendi");
       }
 
+      // UX: clear draft + attachments SUBITO dopo lo snapshot, prima del round-trip
+      // verso silvio-chat (3-10s). Senza questo il textarea resta popolato durante
+      // tutta l'attesa e l'utente non capisce se l'invio è andato. In caso di
+      // errore, onError ripristina il draft. Le variabili `trimmed` e
+      // `readyAttachments` sopra catturano i valori da inviare via closure,
+      // quindi il clear della UI non impatta il payload.
+      setDraft("");
+      setAttachments((prev) => {
+        prev.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+        return [];
+      });
+
       // Build content per la riga di chat (visibile all'utente)
       let displayContent = trimmed;
       if (!trimmed && readyAttachments.length > 0) {
@@ -753,13 +766,20 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
     },
     onSuccess: () => {
-      setDraft("");
-      setAttachments((prev) => {
-        prev.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
-        return [];
-      });
+      // Draft + attachments già clearati ottimisticamente in mutationFn — qui no-op.
     },
-    onError: (e: Error) => toast.error(humanizeSilvioError(e.message)),
+    onError: (e: Error, _vars, context) => {
+      toast.error(humanizeSilvioError(e.message));
+      // Ripristina il draft se è stato clearato ottimisticamente — l'utente
+      // non perde il testo digitato in caso di errore di rete/server.
+      const restored = (context as { draft?: string } | undefined)?.draft;
+      if (restored) setDraft((cur) => cur || restored);
+    },
+    onMutate: () => {
+      // Snapshot pre-clear per ripristino in onError. Le attachments NON si
+      // ripristinano (sono file utente già caricati, ricaricarli sarebbe peggio).
+      return { draft };
+    },
     onSettled: () => setSending(false),
   });
 
