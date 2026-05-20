@@ -54,7 +54,6 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBatchCarico } from "@/hooks/warehouse/useBatchCarico";
 import { uploadWarehouseDDTToOrders, uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
@@ -87,7 +86,27 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const { data: warehouses = [], isLoading: warehousesLoading } = useWarehouses(true);
+  // BUG FIX (mobile UX): useWarehouses(true) faceva INNER JOIN con
+  // warehouse_assignments -> utenti senza assignment vedevano dropdown vuoto e
+  // non potevano registrare arrivo merce. Stesso pattern di ScaricoCantiereSheet:
+  // query diretta su warehouses attivi della company, niente filtro per ruolo.
+  // I permessi RBAC sui CRUD restano gestiti dalle RLS lato DB.
+  const { data: warehouses = [], isLoading: warehousesLoading } = useQuery({
+    queryKey: ["carico-rapido-warehouses", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouses")
+        .select("id, name, is_default")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .order("position", { ascending: true })
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string; is_default: boolean }>;
+    },
+  });
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery<SupplierOption[]>({
     queryKey: queryKeys.suppliers.list(companyId),
     queryFn: async () => {
