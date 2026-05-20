@@ -13,7 +13,7 @@
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, X, Search, Loader2, PackageCheck } from "lucide-react";
+import { Plus, X, Search, Loader2, PackageCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -163,24 +163,41 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
         <div className="space-y-1">
           <Label className="text-xs">Articolo</Label>
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                className="w-full justify-start text-left font-normal h-9 truncate"
-              >
-                {pendingItem ? (
-                  <span className="truncate">{pendingItem.name}</span>
-                ) : (
-                  <>
-                    <Search className="h-3.5 w-3.5 mr-2 opacity-50 shrink-0" />
-                    <span className="text-muted-foreground truncate">
-                      Cerca per nome o codice…
-                    </span>
-                  </>
-                )}
-              </Button>
-            </PopoverTrigger>
+            <div className="relative">
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-start text-left font-normal h-9 truncate pr-9"
+                >
+                  {pendingItem ? (
+                    <span className="truncate">{pendingItem.name}</span>
+                  ) : (
+                    <>
+                      <Search className="h-3.5 w-3.5 mr-2 opacity-50 shrink-0" />
+                      <span className="text-muted-foreground truncate">
+                        Cerca per nome o codice…
+                      </span>
+                    </>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              {pendingItem && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPendingItem(null);
+                    setPendingQty("1");
+                    setSearch("");
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
+                  aria-label="Cancella selezione"
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <PopoverContent
               className="w-[var(--radix-popover-trigger-width)] p-0"
               align="start"
