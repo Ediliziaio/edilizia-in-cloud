@@ -174,9 +174,9 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                     <span className="truncate">{pendingItem.name}</span>
                   ) : (
                     <>
-                      <Search className="h-3.5 w-3.5 mr-2 opacity-50 shrink-0" />
+                      <Plus className="h-3.5 w-3.5 mr-2 opacity-50 shrink-0" />
                       <span className="text-muted-foreground truncate">
-                        Cerca per nome o codice…
+                        Seleziona articolo dal magazzino…
                       </span>
                     </>
                   )}
@@ -207,7 +207,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             >
               <Command shouldFilter={false}>
                 <CommandInput
-                  placeholder="Cerca articolo nel magazzino..."
+                  placeholder="Filtra per nome o codice…"
                   value={search}
                   onValueChange={setSearch}
                 />
