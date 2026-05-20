@@ -29,33 +29,13 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  Send, Plus, Wallet, Calculator, FileText, BookOpen, HardHat, Construction, Ruler,
-  ShoppingCart, TrendingUp, Briefcase, UserCheck, Headphones, Megaphone,
-  Users, ShieldCheck, Scale, Crown, Brain, Bot, MessageSquare, Coins,
-  AlertTriangle, Loader2, Search, ArrowLeft,
+  Send, Plus, Bot, MessageSquare, Coins, AlertTriangle, Loader2, Search, ArrowLeft,
 } from "lucide-react";
+import { PERSONA_ICON_MAP, PERSONA_COLOR_RING } from "@/lib/personaVisuals";
 
-const ICON_MAP: Record<string, typeof Bot> = {
-  Wallet, Calculator, FileText, BookOpen, HardHat, Construction, Ruler,
-  ShoppingCart, TrendingUp, Briefcase, UserCheck, Headphones, Megaphone,
-  Users, ShieldCheck, Scale, Crown, Brain, Bot,
-};
-
-const COLOR_RING: Record<string, string> = {
-  emerald: "ring-emerald-200 bg-emerald-50 text-emerald-700",
-  amber:   "ring-amber-200 bg-amber-50 text-amber-700",
-  blue:    "ring-blue-200 bg-blue-50 text-blue-700",
-  purple:  "ring-purple-200 bg-purple-50 text-purple-700",
-  orange:  "ring-orange-200 bg-orange-50 text-orange-700",
-  cyan:    "ring-cyan-200 bg-cyan-50 text-cyan-700",
-  green:   "ring-green-200 bg-green-50 text-green-700",
-  pink:    "ring-pink-200 bg-pink-50 text-pink-700",
-  rose:    "ring-rose-200 bg-rose-50 text-rose-700",
-  indigo:  "ring-indigo-200 bg-indigo-50 text-indigo-700",
-  red:     "ring-red-200 bg-red-50 text-red-700",
-  violet:  "ring-violet-200 bg-violet-50 text-violet-700",
-  slate:   "ring-slate-200 bg-slate-50 text-slate-700",
-};
+// Alias locali per minimizzare diff con il resto del file.
+const ICON_MAP = PERSONA_ICON_MAP;
+const COLOR_RING = PERSONA_COLOR_RING;
 
 const CATEGORY_LABEL: Record<string, string> = {
   finance: "Finanza",

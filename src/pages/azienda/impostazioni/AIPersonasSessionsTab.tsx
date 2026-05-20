@@ -46,10 +46,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getPersonaIcon, getPersonaColorRing } from "@/lib/personaVisuals";
 import {
-  Search, Archive, ArchiveRestore, Download, MessageSquare, Brain, Sparkles,
-  History, Coins, ChevronRight, Loader2, ExternalLink, BotIcon, UserIcon,
-  CheckSquare, X,
+  Search, Archive, ArchiveRestore, Download, MessageSquare, Brain,
+  History, Coins, ChevronRight, Loader2, ExternalLink, UserIcon,
+  CheckSquare, X, Sparkles,
 } from "lucide-react";
 
 // ─── Constants & helpers ─────────────────────────────────────────────────────
@@ -234,25 +235,68 @@ export default function AIPersonasSessionsTab() {
     return m;
   }, [personas]);
 
-  // ── Stats globali (RPC) ───────────────────────────────────────────────────
-  const { data: stats } = useQuery({
+  // ── Stats globali (RPC) con fallback graceful se non deployata ────────────
+  // Se la RPC non esiste (migration non eseguita), facciamo fallback su query
+  // dirette: count + select aggregato client-side sulla prima pagina. Non
+  // perfetto ma evita la pagina con "—" dappertutto.
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ["ai-persona-sessions-stats", user?.id, filterPersona, filterPeriod, showArchived],
     enabled: !!user?.id,
+    retry: false, // se RPC mancante, no retry inutili
     queryFn: async (): Promise<StatsRow> => {
+      // Tentativo RPC (path ottimale)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("ai_persona_sessions_stats", {
+      const rpcResult = await (supabase as any).rpc("ai_persona_sessions_stats", {
         p_persona_key: filterPersona === "all" ? null : filterPersona,
         p_period_days: periodToDays(filterPeriod),
         p_include_archived: showArchived,
       });
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
+
+      if (!rpcResult.error) {
+        const row = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
+        return {
+          sessions_count: Number(row?.sessions_count ?? 0),
+          messages_count: Number(row?.messages_count ?? 0),
+          total_cost_eur: Number(row?.total_cost_eur ?? 0),
+          top_persona_key: row?.top_persona_key ?? null,
+          top_persona_count: Number(row?.top_persona_count ?? 0),
+        };
+      }
+
+      // ⚠ FALLBACK: RPC non disponibile → calcolo client su tutte le sessioni
+      // del filtro (con limite di sicurezza 500 per non saturare il browser).
+      // Questo è il path "migration non ancora deployata" — degradiamo grazia.
+      let q = supabase
+        .from("ai_persona_sessions" as never)
+        .select("persona_key, message_count, total_cost_billed_eur")
+        .limit(500);
+      if (filterPersona !== "all") q = q.eq("persona_key", filterPersona);
+      if (!showArchived) q = q.eq("archived", false);
+      const cutoff = periodToCutoffIso(filterPeriod);
+      if (cutoff) q = q.gte("last_message_at", cutoff);
+
+      const { data: rows, error: fallbackErr } = await q;
+      if (fallbackErr) throw fallbackErr;
+
+      type Lite = { persona_key: string; message_count: number; total_cost_billed_eur: number };
+      const list = (rows ?? []) as unknown as Lite[];
+      let messages = 0;
+      let cost = 0;
+      const byPersona = new Map<string, number>();
+      for (const r of list) {
+        messages += Number(r.message_count) || 0;
+        cost += Number(r.total_cost_billed_eur) || 0;
+        byPersona.set(r.persona_key, (byPersona.get(r.persona_key) ?? 0) + 1);
+      }
+      let topKey: string | null = null;
+      let topCount = 0;
+      byPersona.forEach((c, k) => { if (c > topCount) { topCount = c; topKey = k; } });
       return {
-        sessions_count: Number(row?.sessions_count ?? 0),
-        messages_count: Number(row?.messages_count ?? 0),
-        total_cost_eur: Number(row?.total_cost_eur ?? 0),
-        top_persona_key: row?.top_persona_key ?? null,
-        top_persona_count: Number(row?.top_persona_count ?? 0),
+        sessions_count: list.length,
+        messages_count: messages,
+        total_cost_eur: cost,
+        top_persona_key: topKey,
+        top_persona_count: topCount,
       };
     },
   });
@@ -359,13 +403,22 @@ export default function AIPersonasSessionsTab() {
 
   const bulkArchiveMut = useMutation({
     mutationFn: async ({ ids, archived }: { ids: string[]; archived: boolean }) => {
+      // Path 1: RPC bulk (1 UPDATE, ottimale)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("ai_persona_sessions_bulk_archive", {
+      const rpcResult = await (supabase as any).rpc("ai_persona_sessions_bulk_archive", {
         p_session_ids: ids,
         p_archived: archived,
       });
+      if (!rpcResult.error) return Number(rpcResult.data ?? ids.length);
+
+      // Path 2: fallback su UPDATE diretto con .in("id", ids) — la RLS owner
+      // garantisce comunque che si tocchino solo le proprie sessioni.
+      const { error } = await supabase
+        .from("ai_persona_sessions" as never)
+        .update({ archived })
+        .in("id", ids);
       if (error) throw error;
-      return Number(data ?? 0);
+      return ids.length;
     },
     onSuccess: (count, vars) => {
       toast.success(
@@ -522,37 +575,59 @@ export default function AIPersonasSessionsTab() {
 
   return (
     <div className="space-y-4">
-      {/* Stats banner — sempre globale, non sul paginato */}
+      {/* Stats banner — sempre globale, non sul paginato. Skeleton durante load. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        <StatCard
-          label="Sessioni"
-          value={String(stats?.sessions_count ?? "—")}
-          icon={<History className="h-3.5 w-3.5" />}
-          subtitle={showArchived ? "incl. archiviate" : "solo attive"}
-        />
-        <StatCard
-          label="Messaggi"
-          value={String(stats?.messages_count ?? "—")}
-          icon={<MessageSquare className="h-3.5 w-3.5" />}
-          subtitle={
-            stats && stats.sessions_count > 0
-              ? `media ${Math.round(stats.messages_count / stats.sessions_count)}/sess`
-              : "—"
-          }
-        />
-        <StatCard
-          label="Costo periodo"
-          value={fmtEur(stats?.total_cost_eur ?? 0, 3)}
-          icon={<Coins className="h-3.5 w-3.5" />}
-          subtitle="scalato dal saldo AI"
-        />
-        <StatCard
-          label="Persona top"
-          value={stats?.top_persona_key ? personaByKey.get(stats.top_persona_key)?.display_name ?? stats.top_persona_key : "—"}
-          icon={<Sparkles className="h-3.5 w-3.5" />}
-          subtitle={stats && stats.top_persona_count > 0 ? `${stats.top_persona_count} sessioni` : "nessuna chat ancora"}
-        />
+        {statsLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-lg border bg-card p-3 space-y-1.5">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-6 w-12" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          ))
+        ) : (
+          <>
+            <StatCard
+              label="Sessioni"
+              value={String(stats?.sessions_count ?? 0)}
+              icon={<History className="h-3.5 w-3.5" />}
+              subtitle={showArchived ? "incl. archiviate" : "solo attive"}
+              accent="emerald"
+            />
+            <StatCard
+              label="Messaggi"
+              value={String(stats?.messages_count ?? 0)}
+              icon={<MessageSquare className="h-3.5 w-3.5" />}
+              subtitle={
+                stats && stats.sessions_count > 0
+                  ? `media ${Math.round(stats.messages_count / stats.sessions_count)}/sess`
+                  : "nessuna chat ancora"
+              }
+              accent="blue"
+            />
+            <StatCard
+              label="Costo periodo"
+              value={fmtEur(stats?.total_cost_eur ?? 0, 3)}
+              icon={<Coins className="h-3.5 w-3.5" />}
+              subtitle="scalato dal saldo AI"
+              accent="amber"
+            />
+            <StatCard
+              label="Persona top"
+              value={stats?.top_persona_key ? personaByKey.get(stats.top_persona_key)?.display_name ?? stats.top_persona_key : "—"}
+              icon={<Sparkles className="h-3.5 w-3.5" />}
+              subtitle={stats && stats.top_persona_count > 0 ? `${stats.top_persona_count} sessioni` : "—"}
+              accent="violet"
+            />
+          </>
+        )}
       </div>
+
+      {statsError && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded px-2 py-1">
+          Statistiche non disponibili (RPC non deployata). I numeri possono essere parziali.
+        </p>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
@@ -888,16 +963,25 @@ export default function AIPersonasSessionsTab() {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
+const ACCENT_CLS: Record<string, string> = {
+  emerald: "border-l-emerald-500",
+  blue: "border-l-blue-500",
+  amber: "border-l-amber-500",
+  violet: "border-l-violet-500",
+};
+
 function StatCard({
-  label, value, icon, subtitle,
+  label, value, icon, subtitle, accent,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   subtitle?: string;
+  accent?: keyof typeof ACCENT_CLS;
 }) {
+  const accentCls = accent ? ACCENT_CLS[accent] : "border-l-slate-300";
   return (
-    <div className="rounded-lg border bg-card p-3">
+    <div className={cn("rounded-lg border border-l-4 bg-card p-3 transition-colors", accentCls)}>
       <div className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
         {icon}
         {label}
@@ -945,9 +1029,15 @@ function SessionCard({
           onClick={hasAnySelection ? onToggleSelect : onOpen}
           className="flex-1 text-left flex items-start gap-3 min-w-0"
         >
-          <div className="shrink-0 h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-            <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-          </div>
+          {(() => {
+            const PIcon = getPersonaIcon(persona?.icon);
+            const colorCls = getPersonaColorRing(persona?.color);
+            return (
+              <div className={cn("shrink-0 h-9 w-9 rounded-lg ring-1 flex items-center justify-center", colorCls)}>
+                <PIcon className="h-4 w-4" />
+              </div>
+            );
+          })()}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium truncate">{session.title}</span>
@@ -1005,20 +1095,26 @@ function SessionMessageBubble({
   onPromote: () => void;
 }) {
   const isUser = message.role === "user";
+  const PIcon = getPersonaIcon(persona?.icon);
+  const personaColorCls = getPersonaColorRing(persona?.color);
   return (
     <div className={cn("flex gap-2", isUser && "flex-row-reverse")}>
       <div className={cn(
-        "shrink-0 h-7 w-7 rounded-md flex items-center justify-center",
-        isUser ? "bg-violet-600 text-white" : "bg-violet-100 text-violet-700",
+        "shrink-0 h-7 w-7 rounded-md flex items-center justify-center ring-1",
+        isUser
+          ? "bg-slate-700 text-white ring-slate-600"
+          : personaColorCls,
       )}>
-        {isUser ? <UserIcon className="h-3.5 w-3.5" /> : <BotIcon className="h-3.5 w-3.5" />}
+        {isUser ? <UserIcon className="h-3.5 w-3.5" /> : <PIcon className="h-3.5 w-3.5" />}
       </div>
       <div
         data-bubble-role={isUser ? "user" : "assistant"}
         data-message-id={message.id}
         className={cn(
           "rounded-lg px-3 py-2 max-w-[85%] text-sm whitespace-pre-wrap break-words",
-          isUser ? "bg-violet-600 text-white" : "bg-muted",
+          isUser
+            ? "bg-slate-800 text-slate-50 dark:bg-slate-700"
+            : "bg-muted",
         )}
       >
         <div className="text-[10px] opacity-70 mb-1">
