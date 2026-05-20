@@ -263,7 +263,17 @@ export default function PianificaMigrazione() {
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (submitting) return;
-    if (!validate()) return;
+    if (!validate()) {
+      // UX: scroll + focus al primo campo invalido (vedi Demo.tsx).
+      requestAnimationFrame(() => {
+        const firstInvalid = document.querySelector<HTMLElement>('form [aria-invalid="true"]');
+        if (firstInvalid) {
+          firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+          (firstInvalid as HTMLInputElement).focus?.({ preventScroll: true });
+        }
+      });
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {

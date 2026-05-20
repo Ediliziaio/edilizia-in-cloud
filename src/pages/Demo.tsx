@@ -120,7 +120,19 @@ export default function Demo() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    if (!validate()) return;
+    if (!validate()) {
+      // UX: porta il focus al primo campo con errore così l'utente vede subito
+      // cosa correggere invece di dover scrollare manualmente. requestAnimationFrame
+      // garantisce che il DOM abbia già renderizzato lo stato errors aggiornato.
+      requestAnimationFrame(() => {
+        const firstInvalid = document.querySelector<HTMLElement>('form [aria-invalid="true"]');
+        if (firstInvalid) {
+          firstInvalid.scrollIntoView({ behavior: "smooth", block: "center" });
+          (firstInvalid as HTMLInputElement).focus?.({ preventScroll: true });
+        }
+      });
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
