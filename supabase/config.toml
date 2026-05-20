@@ -392,3 +392,8 @@ verify_jwt = true
 # v8.6.59 — Stripe payment method lookup (brand/last4/exp) per dashboard abbonamento
 [functions.stripe-payment-method]
 verify_jwt = false
+
+# Silvio Morning Brief — chiamata da pg_cron via x-cron-secret header
+# (requireInternalSecret valida dentro la function)
+[functions.silvio-morning-brief]
+verify_jwt = false

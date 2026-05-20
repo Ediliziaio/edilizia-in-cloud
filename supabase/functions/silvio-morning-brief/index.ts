@@ -20,7 +20,9 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
-import { executeToolWithRouting, type ToolContext } from "../_shared/silvioTools.ts";
+import { type ToolContext } from "../_shared/silvioTools.ts";
+import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
+import { isInternalRequest, requireInternalSecret, requireAuth } from "../_shared/auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const MAX_USERS_PER_RUN = 50;
@@ -35,6 +37,16 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
+    // Auth: accetta solo richieste interne (cron) o super_admin auth.
+    // Senza questo check qualunque utente potrebbe far girare il batch.
+    if (isInternalRequest(req)) {
+      requireInternalSecret(req, cors);
+    } else {
+      // Debug manuale: super_admin può triggerare modalità 'user'.
+      const auth = await requireAuth(req, cors);
+      void auth;
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,6 +93,9 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ ok: true, generated: ok, failed, errors: errors.slice(0, 5) }, cors);
 
   } catch (e) {
+    // requireAuth/requireInternalSecret throwano Response per UX consistente
+    // con altre edge function. Restituiamole direttamente.
+    if (e instanceof Response) return e;
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[morning-brief] fatal", msg);
     return errorResponse(`Fatal: ${msg}`, 500, cors);
