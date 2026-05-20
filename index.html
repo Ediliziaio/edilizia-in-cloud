@@ -459,6 +459,35 @@
         setTimeout(loadGA, 3500);
       })();
     </script>
+    <!-- v8.6.109 — Critical CSS inline minimo per above-the-fold landing.
+         Evita FOUC mentre il bundle index-*.css carica async (preload+onload).
+         Solo regole base: font, body bg, layout, h1 hero. <2KB. -->
+    <style>
+      html,body{margin:0;padding:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#ffffff;color:#111111;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+      body{min-height:100vh;overflow-x:hidden}
+      img{max-width:100%;height:auto;display:block}
+      h1{font-size:clamp(1.75rem,5vw,3.5rem);font-weight:800;line-height:1.1;margin:0}
+      h2{font-size:clamp(1.25rem,3.5vw,2rem);font-weight:700;line-height:1.2;margin:0}
+      .min-h-screen{min-height:100vh}
+      .bg-white{background:#fff}
+      .text-white{color:#fff}
+      .text-center{text-align:center}
+      .container{width:100%;max-width:1280px;margin:0 auto;padding:0 1rem}
+      .pt-20{padding-top:5rem}
+      .pb-14{padding-bottom:3.5rem}
+      .relative{position:relative}
+      .absolute{position:absolute}
+      .inset-0{top:0;right:0;bottom:0;left:0}
+      .w-full{width:100%}
+      .h-full{height:100%}
+      .object-cover{object-fit:cover}
+      .overflow-hidden{overflow:hidden}
+      .pointer-events-none{pointer-events:none}
+      .select-none{user-select:none}
+      /* Spinner per fallback se JS ancora caricando */
+      @keyframes eic-spin{to{transform:rotate(360deg)}}
+      .eic-spin{animation:eic-spin 1s linear infinite}
+    </style>
   </head>
 
   <body>

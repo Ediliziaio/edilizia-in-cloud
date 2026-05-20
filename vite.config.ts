@@ -18,6 +18,28 @@ export default defineConfig(() => ({
   },
   plugins: [
     react(),
+    // v8.6.109 — Defer del CSS principale per migliorare FCP/LCP mobile.
+    // Il bundle CSS index-*.css e' ~382KB (~50KB gzip) e blocca il rendering
+    // iniziale (PSI flaggava 'Richieste di blocco del rendering' -160ms).
+    // Plugin custom che trasforma <link rel="stylesheet"> in:
+    //   <link rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    // + <noscript> fallback per safety.
+    // Skippa CSS gia minimal o critici (non c'e nessuno per ora, ma e' future-proof).
+    {
+      name: "defer-non-critical-css",
+      apply: "build",
+      transformIndexHtml: {
+        order: "post" as const,
+        handler(html: string) {
+          // Converte ogni <link rel="stylesheet"> in preload non-blocking.
+          // Manteniamo l'attributo crossorigin se presente.
+          return html.replace(
+            /<link\s+rel="stylesheet"\s+crossorigin\s+href="([^"]+)"\s*\/?>/g,
+            (_match, href) => `<link rel="preload" as="style" crossorigin href="${href}" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" crossorigin href="${href}"></noscript>`,
+          );
+        },
+      },
+    },
     ...(isMobile ? [] : [VitePWA({
       registerType: "autoUpdate",
       // Do not inject /registerSW.js. With the current Vite/Rolldown build the
