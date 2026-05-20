@@ -43,11 +43,13 @@ import { classifyQuery, type QueryClassification } from "../_shared/queryClassif
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 const PERSONA_KEY = "silvio";
 const MAX_HISTORY = 12;
-// FIX 18 (A5): aumentato 4 → 6. Workflow complessi (es. "estrai DDT, cerca
-// fornitore, controlla saldo, proponi azione") richiedono ≥5 tool sequenziali.
-// Limite alzato cautamente: con MAX 6 iterazioni il modello ha più spazio per
-// catene di reasoning, ma resta protetto contro loop infiniti.
-const MAX_TOOL_ITERATIONS = 6;
+// FIX 18 (A5): 4 → 6 → 12. Workflow agentic complessi richiedono catene di
+// 8-10 tool: "crea preventivo bagno Mario Rossi" → search anagrafica → crea
+// anagrafica se manca → fetch template → applica margine → calcola IVA →
+// salva quote → log proposal → notifica. Tutti questi step richiedono N>6.
+// MAX 12 dà aria sufficiente, resta protetto contro loop infiniti via
+// safety check 6.b (sequenza identica ripetuta = abort).
+const MAX_TOOL_ITERATIONS = 12;
 
 interface ChatAttachment {
   /** Path nel bucket silvio-uploads (es. "<company>/<user>/<ts>-foto.jpg") */
@@ -1003,6 +1005,16 @@ serve(async (req: Request) => {
       const toolCalls = rawChoice?.message?.tool_calls ?? [];
 
       if (toolCalls.length > 0) {
+        // Anti-loop guard (necessario dopo aver alzato MAX_TOOL_ITERATIONS a 12):
+        // se le ultime 3 iterazioni hanno la stessa firma di tool calls, l'LLM
+        // sta loopando e va bloccato. La firma è "nome_tool_1|nome_tool_2|...".
+        const currentSig = toolCalls.map((t) => t.function?.name).filter(Boolean).sort().join("|");
+        const recentSigs = toolCallsLog.slice(-2).map((log) => log.name).join("|");
+        if (currentSig && currentSig === recentSigs && iteration > 3) {
+          console.warn(`[silvio-chat] loop detected at iteration ${iteration} sig=${currentSig}, aborting`);
+          finalContent = "Sto avendo difficoltà a completare la richiesta — sembra che stia ripetendo la stessa operazione. Riformula la domanda in modo più specifico, o dividila in passi più semplici.";
+          break;
+        }
         // L'LLM vuole chiamare uno o più tool
         // Aggiungi assistant message con tool_calls a messages[]
         messages.push({
