@@ -227,18 +227,21 @@
          - Crawler no-JS sconosciuti: nessun canonical → Google deduce dalla
            sitemap (preferibile a un canonical sbagliato).
     -->
-    <!-- Preconnect per risorse critiche -->
+    <!-- Preconnect per risorse critiche.
+         v8.6.109 — Ridotti a 3 (PSI Lighthouse warning '>4 preconnect').
+         Mantenuti solo: supabase (API), fonts.gstatic (font binari).
+         Rimossi: fonts.googleapis (preload del CSS bastian), dns-prefetch
+         supabase (duplicato vs preconnect), r2.dev (non sulla critical path
+         landing). -->
     <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co">
-    <link rel="dns-prefetch" href="https://rsbrguhkodgnqfomrevo.supabase.co">
-    <link rel="dns-prefetch" href="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
     <!-- Inter font (Google Fonts) — caricato PRIMA del CSS bundle.
          Prima era @import dentro src/index.css → richiesta serializzata di
          750ms render-blocking (rilevato da PageSpeed mobile). Spostandolo qui
          con preconnect + stylesheet asincrono (onload pattern), il font può
          scaricare in parallelo agli script senza bloccare il First Contentful Paint. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
     <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"></noscript>
