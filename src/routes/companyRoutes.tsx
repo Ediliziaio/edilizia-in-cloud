@@ -429,8 +429,9 @@ export function companyRoutes() {
         <Route path="impostazioni/serramenti" element={<Navigate to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti" replace />} />
         {/* 🆕 GAP 7b: callback OAuth Gmail/Outlook */}
         <Route path="impostazioni/integrazioni/email-callback" element={<EmailOAuthCallbackPage />} />
-        {/* 🆕 GAP 9b: gestione memoria AI personas */}
-        <Route path="ai-memoria" element={<AIMemoryPage />} />
+        {/* GAP 9b legacy: ai-memoria stand-alone → ora vive in impostazioni.
+            Mantengo redirect 301 lato client per non rompere bookmark esistenti. */}
+        <Route path="ai-memoria" element={<Navigate to="/azienda/impostazioni/ai-memoria" replace />} />
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
         <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />
@@ -648,6 +649,8 @@ export function companyRoutes() {
           <Route index element={<SettingsIndexRoute />} />
           {/* ── Il mio account (accessibile a tutti) ── */}
           <Route path="mio-profilo" element={<MioProfilo />} />
+          {/* ── Memoria AI Personas (gestione cose che le AI ricordano dell'azienda) ── */}
+          <Route path="ai-memoria" element={withCompanyPermission("canViewSettingsCustomization", <AIMemoryPage />)} />
           {/* ── Impostazioni azienda (solo admin/permessi) ── */}
           <Route path="profilo" element={withCompanyPermission("canViewSettingsProfile", <SettingsProfile />)} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />

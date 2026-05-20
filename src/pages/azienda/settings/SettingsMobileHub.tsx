@@ -25,6 +25,7 @@ import {
   UserCircle, ShieldCheck, Building2, MapPin, Paintbrush, Wallet, Receipt,
   Users, ListOrdered, FolderOpen, FileText, FileSignature, Truck, ScrollText,
   Banknote, Plug, Calendar, Mail, Tag, Settings as SettingsIcon, LogOut,
+  Brain,
 } from "lucide-react";
 
 interface SectionItem {
@@ -82,6 +83,12 @@ const SECTIONS: Section[] = [
       { to: "/azienda/impostazioni/calendari",     label: "Calendari marketing", icon: Calendar, iconColor: "text-blue-600" },
       { to: "/azienda/impostazioni/lead-forms",    label: "Lead Facebook",       icon: Mail,     iconColor: "text-cyan-600" },
       { to: "/azienda/impostazioni/integrazioni",  label: "Integrazioni",        icon: Plug,     iconColor: "text-violet-600" },
+    ],
+  },
+  {
+    label: "AI",
+    items: [
+      { to: "/azienda/impostazioni/ai-memoria",    label: "Memoria AI Personas", icon: Brain,    iconColor: "text-violet-600" },
     ],
   },
 ];

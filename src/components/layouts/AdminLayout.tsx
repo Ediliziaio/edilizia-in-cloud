@@ -43,6 +43,7 @@ import {
   AlertTriangle,
   CheckSquare,
   MessagesSquare,
+  Brain,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -133,6 +134,8 @@ const allNavItems: AdminNavItem[] = [
   { title: "AI · Monitor", url: "/admin/ai-monitor", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_ai" },
   // Operate: approvals, queue, policies, missions, chief, memory, learning
   { title: "AI · Operate", url: "/admin/ai-operate", icon: Bot, permission: "can_view_platform_stats", subcategory: "sa_ai" },
+  // Memoria cross-company: vista super_admin di TUTTE le memorie AI persona
+  { title: "AI · Memoria", url: "/admin/ai-memoria", icon: Brain, permission: "can_view_platform_stats", subcategory: "sa_ai" },
   // ─── CUSTOMER SUCCESS ───────────────────────────────────────────────
   { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
   { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },

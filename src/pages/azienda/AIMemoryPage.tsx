@@ -13,12 +13,12 @@
  *
  * Filtri: persona, memory_type, search content.
  */
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  Card, CardContent, CardHeader, CardTitle, CardDescription,
+  Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,6 +135,67 @@ export default function AIMemoryPage() {
     !search || m.content.toLowerCase().includes(search.toLowerCase())
   );
 
+  // ── Realtime subscription: aggiorna la lista quando memorie vengono
+  // create/aggiornate/eliminate (sia da utente in un'altra tab che dal
+  // feedback loop AI server-side). Senza questo la pagina mostrerebbe
+  // dati stantii finché l'utente non ricarica.
+  useEffect(() => {
+    if (!effectiveCompany?.id) return;
+    const ch = supabase
+      .channel(`ai-persona-memory-rt-${effectiveCompany.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ai_persona_memory",
+          filter: `company_id=eq.${effectiveCompany.id}`,
+        },
+        () => {
+          void qc.invalidateQueries({ queryKey: ["ai-persona-memory"] });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, [effectiveCompany?.id, qc]);
+
+  // ── Statistiche aggregate (header dashboard) ───────────────────────────
+  // Calcolate sul subset filtrato dal server (filterPersona/filterType/
+  // showDisabled): mostrano sempre quello che l'utente sta VEDENDO.
+  // - byType: distribuzione tra fact/preference/decision/pattern/avoid
+  // - bySource: quante auto-popolate vs manuali (capire se l'AI sta
+  //   effettivamente imparando)
+  // - hits: somma hit count = quante volte le memorie sono state usate
+  // - latestAdd: timestamp ultima memoria creata (heartbeat del sistema)
+  const stats = useMemo(() => {
+    const byType: Record<MemoryRow["memory_type"], number> = {
+      fact: 0, preference: 0, decision: 0, pattern: 0, avoid: 0,
+    };
+    let manual = 0;
+    let auto = 0;
+    let hits = 0;
+    let latestAddTs = 0;
+    for (const m of memories) {
+      byType[m.memory_type] = (byType[m.memory_type] ?? 0) + 1;
+      const isManual = !m.source || m.source === "user_explicit" || m.source === "manual";
+      if (isManual) manual++;
+      else auto++;
+      hits += m.hits_count ?? 0;
+      const ts = m.created_at ? new Date(m.created_at).getTime() : 0;
+      if (ts > latestAddTs) latestAddTs = ts;
+    }
+    return {
+      total: memories.length,
+      byType,
+      manual,
+      auto,
+      hits,
+      latestAdd: latestAddTs > 0 ? new Date(latestAddTs) : null,
+    };
+  }, [memories]);
+
   // Mutations
   const upsertMut = useMutation({
     mutationFn: async (data: FormData) => {
@@ -245,7 +306,10 @@ export default function AIMemoryPage() {
             <Sparkles className="h-4 w-4 text-violet-600" />
             Come funziona
           </CardTitle>
-          <CardDescription className="text-xs space-y-1">
+          {/* NB: <div> e non CardDescription (renderizza <p>) per evitare
+              <p> dentro <p> validateDOMNesting warning (i 3 paragrafi sotto
+              sono semanticamente discorsivi e meritano <p>). */}
+          <div className="text-xs text-muted-foreground space-y-1">
             <p>
               Ogni volta che chiedi qualcosa a una persona AI (es. CFO), il sistema carica le sue
               top-5 memory rilevanti e le inietta nel prompt come "Cose che sai dell'utente".
@@ -258,9 +322,50 @@ export default function AIMemoryPage() {
               <strong>Hits count:</strong> quante volte una memory è stata caricata. Le più usate
               hanno priorità nella selezione top-5.
             </p>
-          </CardDescription>
+          </div>
         </CardHeader>
       </Card>
+
+      {/* Stats dashboard — aggiornate in realtime via Supabase subscription */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Totale memorie</div>
+          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.total}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {stats.manual} manuali · {stats.auto} auto-popolate
+          </div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Utilizzi totali</div>
+          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.hits}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            quante volte caricate nei prompt AI
+          </div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Per tipo</div>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {Object.entries(stats.byType).filter(([, n]) => n > 0).map(([t, n]) => (
+              <Badge key={t} variant="outline" className={cn("text-[10px] h-5 px-1.5", TYPE_LABEL[t as MemoryRow["memory_type"]].color)}>
+                {TYPE_LABEL[t as MemoryRow["memory_type"]].label}: {n}
+              </Badge>
+            ))}
+            {stats.total === 0 && <span className="text-xs text-muted-foreground">—</span>}
+          </div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Ultima aggiunta</div>
+          <div className="text-sm font-semibold mt-0.5">
+            {stats.latestAdd
+              ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(stats.latestAdd)
+              : "—"}
+          </div>
+          <div className="text-[11px] text-emerald-600 mt-0.5 flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Aggiornamento live
+          </div>
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">

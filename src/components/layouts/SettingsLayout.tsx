@@ -55,6 +55,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   // v8.6.57 — Voce unica "Fatturazione" con 2 tab interni (esterna vs nativa)
   fatturazione:           { title: "Fatturazione",             description: "Provider esterni (Fatture in Cloud, Aruba, ecc.) o configurazione SDI nativa" },
   "fatturazione-nativa":  { title: "Fatturazione",             description: "Provider esterni o configurazione SDI nativa" },
+  "ai-memoria":           { title: "Memoria AI Personas",      description: "Gestisci cosa le 18 AI personas ricordano della tua azienda — fatti, preferenze, decisioni" },
 };
 
 const DEFAULT_META: SectionMeta = {

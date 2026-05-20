@@ -87,6 +87,9 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { group: "Branding", title: "White-Label", url: "/azienda/impostazioni/branding", keywords: ["brand", "logo", "colori", "personalizzazione"] },
   { group: "Branding", title: "Dominio email", url: "/azienda/impostazioni/dominio-email", keywords: ["dominio", "smtp", "spf", "dkim", "email"] },
   { group: "Branding", title: "Numeri virtuali", url: "/azienda/impostazioni/numeri-telefono", keywords: ["telefono", "numero virtuale", "twilio"] },
+
+  // ── AI ──
+  { group: "AI", title: "Memoria AI Personas", url: "/azienda/impostazioni/ai-memoria", keywords: ["ai", "memoria", "personas", "silvio", "ricordo", "fact", "preferenza", "decisione"] },
 ];
 
 interface SettingsSearchProps {

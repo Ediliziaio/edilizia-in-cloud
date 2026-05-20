@@ -34,6 +34,7 @@ const SilvioApprovalsPage = lazy(() => import("@/pages/admin/SilvioApprovalsPage
 const AIConfigPage = lazy(() => import("@/pages/admin/ai/AIConfigPage"));
 const AIMonitorPage = lazy(() => import("@/pages/admin/ai/AIMonitorPage"));
 const AIOperatePage = lazy(() => import("@/pages/admin/ai/AIOperatePage"));
+const AdminAIMemoryPage = lazy(() => import("@/pages/admin/ai/AdminAIMemoryPage"));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const PlanDetail = lazy(() => import("@/pages/admin/PlanDetail"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
@@ -202,6 +203,7 @@ export function adminRoutes() {
         <Route path="ai-config" element={<RequireSuperAdmin><AIConfigPage /></RequireSuperAdmin>} />
         <Route path="ai-monitor" element={<RequireSuperAdmin><AIMonitorPage /></RequireSuperAdmin>} />
         <Route path="ai-operate" element={<RequireSuperAdmin><AIOperatePage /></RequireSuperAdmin>} />
+        <Route path="ai-memoria" element={<RequireSuperAdmin><AdminAIMemoryPage /></RequireSuperAdmin>} />
 
         {/* Redirect dalle VECCHIE route → nuove pagine (backward-compat bookmark) */}
         <Route path="impostazioni/agenti-ai" element={<Navigate to="/admin/ai-config" replace />} />
