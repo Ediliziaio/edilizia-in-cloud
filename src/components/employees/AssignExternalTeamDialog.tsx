@@ -66,19 +66,38 @@ export function AssignExternalTeamDialog({
   const [paymentDate, setPaymentDate] = useState<Date | undefined>();
   const [notes, setNotes] = useState("");
 
-  // Fetch available teams
+  // Fetch available teams — UNIONE di external_teams + subappaltatori
+  // Per coerenza con /azienda/subappaltatori, mostriamo anche i subappaltatori
+  // del registro. Quando l'utente seleziona un sub creiamo un record shadow
+  // in external_teams (idempotente per nome) per soddisfare la FK.
   const { data: teams = [] } = useQuery({
-    queryKey: queryKeys.externalTeams.list(effectiveCompanyId),
+    queryKey: ["external-teams-and-subs", effectiveCompanyId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("external_teams")
-        .select("id, name, vat_rate")
-        .eq("company_id", effectiveCompanyId!)
-        .eq("is_active", true)
-        .order("name");
-
-      if (error) throw error;
-      return data as ExternalTeam[];
+      const [externalRes, subRes] = await Promise.all([
+        supabase
+          .from("external_teams")
+          .select("id, name, vat_rate")
+          .eq("company_id", effectiveCompanyId!)
+          .eq("is_active", true)
+          .order("name"),
+        (supabase as unknown as { from: (n: string) => { select: (s: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ id: string; ragione_sociale: string }> | null }> } } })
+          .from("v_subappaltatori_dashboard")
+          .select("id, ragione_sociale")
+          .eq("company_id", effectiveCompanyId!),
+      ]);
+      const external: ExternalTeam[] = (externalRes.data ?? []) as ExternalTeam[];
+      const externalNames = new Set(external.map((t) => t.name.toLowerCase()));
+      const seen = new Set<string>();
+      const subs: ExternalTeam[] = [];
+      for (const s of subRes.data ?? []) {
+        const key = s.id;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // Non aggiungere se già esiste un external_teams con stesso nome
+        if (externalNames.has(s.ragione_sociale.toLowerCase())) continue;
+        subs.push({ id: `sub:${s.id}`, name: s.ragione_sociale, vat_rate: 22 } as ExternalTeam);
+      }
+      return [...external, ...subs.sort((a, b) => a.name.localeCompare(b.name))];
     },
     enabled: !!effectiveCompanyId && open,
   });
@@ -108,9 +127,41 @@ export function AssignExternalTeamDialog({
 
   const assignMutation = useMutation({
     mutationFn: async () => {
+      // Se l'utente ha selezionato un subappaltatore (prefix "sub:"),
+      // creiamo (o riusiamo per nome) un record shadow in external_teams
+      // per soddisfare la FK su order_external_teams.external_team_id.
+      let effectiveTeamId = selectedTeamId;
+      if (selectedTeamId.startsWith("sub:")) {
+        const subId = selectedTeamId.slice(4);
+        const team = teams.find((t) => t.id === selectedTeamId);
+        const name = team?.name ?? "Subappaltatore";
+        // Idempotent: cerca un external_teams con stesso nome+company
+        const { data: existing } = await supabase
+          .from("external_teams")
+          .select("id")
+          .eq("company_id", effectiveCompanyId!)
+          .eq("name", name)
+          .maybeSingle();
+        if (existing?.id) {
+          effectiveTeamId = existing.id;
+        } else {
+          const { data: created, error: cErr } = await supabase
+            .from("external_teams")
+            .insert({
+              company_id: effectiveCompanyId!,
+              name,
+              notes: `Collegato a subappaltatore (${subId})`,
+              is_active: true,
+            })
+            .select("id")
+            .single();
+          if (cErr) throw cErr;
+          effectiveTeamId = created.id;
+        }
+      }
       const { error } = await supabase.from("order_external_teams").insert({
         order_id: orderId,
-        external_team_id: selectedTeamId,
+        external_team_id: effectiveTeamId,
         total_cost: parseFloat(totalCost),
         vat_rate: vatRate,
         payment_date: paymentDate ? format(paymentDate, "yyyy-MM-dd") : null,
