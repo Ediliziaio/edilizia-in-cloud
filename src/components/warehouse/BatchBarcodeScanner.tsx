@@ -346,27 +346,31 @@ export function BatchBarcodeScanner({
         }
 
         // Validazione mode='carico' (scarico verso ordine): se allowedOrderItems
-        // e fornito, il seriale scansionato deve corrispondere a un articolo
-        // nelle righe ordine. Permette al magazziniere di rifiutare il pannello
-        // sbagliato sul DDT prima che venga aggiunto.
+        // e fornito, controlliamo il match con le righe ordine.
+        // Pattern uguale a oda_receive (linea sotto): warning + accept-as-extra.
+        // Non bloccante perche righe ordine possono avere stock_item_id NULL
+        // (non ancora linkate a magazzino) -> falso negativo possibile.
+        // Il magazziniere ha sempre l'ultima parola.
         if (mode === "carico" && allowedOrderItems) {
           const allowed = allowedOrderItems.find((a) => a.stockItemId === resolvedItemId);
           if (!allowed) {
             await errorFeedback();
-            toast.error("Articolo non in ordine", {
-              description: `${resolvedItemName ?? "Articolo"} non e presente nelle righe di questo ordine. Scansione rifiutata.`,
+            toast.warning("Articolo non nelle righe ordine", {
+              description: `${resolvedItemName ?? "Articolo"}: aggiunto come extra. Verifica prima di confermare il DDT.`,
             });
-            return;
-          }
-          const alreadyScannedQty = entries
-            .filter((entry) => entry.stockItemId === allowed.stockItemId)
-            .reduce((sum, entry) => sum + entry.quantity, 0);
-          if (alreadyScannedQty >= allowed.qtyRequired) {
-            await errorFeedback();
-            toast.warning("Quantita gia completa", {
-              description: `Hai gia scansionato ${alreadyScannedQty}/${allowed.qtyRequired} per ${allowed.itemName}.`,
-            });
-            return;
+            // proseguiamo comunque: l'entry viene aggiunta, l'utente vede
+            // la warning, puo rimuovere dalla review se errato.
+          } else {
+            const alreadyScannedQty = entries
+              .filter((entry) => entry.stockItemId === allowed.stockItemId)
+              .reduce((sum, entry) => sum + entry.quantity, 0);
+            if (alreadyScannedQty >= allowed.qtyRequired) {
+              await errorFeedback();
+              toast.warning("Quantita gia completa", {
+                description: `Hai gia scansionato ${alreadyScannedQty}/${allowed.qtyRequired} per ${allowed.itemName}.`,
+              });
+              return;
+            }
           }
         }
 
@@ -715,18 +719,34 @@ export function BatchBarcodeScanner({
                 )}
               </div>
             ) : (
-              entries.map((entry) => (
+              entries.map((entry) => {
+                // BUG FIX (audit v8.6.103): l'incremento manuale [+] bypassava
+                // la validation allowedOrderItems per mode='carico'. Ora il
+                // check tiene conto della qty residua sia per oda_receive sia
+                // per carico verso ordine.
+                let canIncrement = true;
+                if (mode === "oda_receive" && entry.odaItemId && allowedOdaItems) {
+                  const max = allowedOdaItems.find((item) => item.odaItemId === entry.odaItemId)?.qtyPending ?? Infinity;
+                  canIncrement = entry.quantity < max;
+                } else if (mode === "carico" && allowedOrderItems) {
+                  const allowed = allowedOrderItems.find((a) => a.stockItemId === entry.stockItemId);
+                  if (allowed) {
+                    // Conto le quantita gia presenti su questo stockItemId
+                    // (non sommo tutte le entries, sommo le entries dello
+                    // stesso articolo - puo esserci una sola entry aggregata).
+                    const totalForItem = entries
+                      .filter((e) => e.stockItemId === entry.stockItemId)
+                      .reduce((sum, e) => sum + e.quantity, 0);
+                    canIncrement = totalForItem < allowed.qtyRequired;
+                  }
+                }
+                return (
                 <EntryRow
                   key={entry.clientUuid}
                   entry={entry}
                   onIncrement={() => updateEntryQty(entry.clientUuid, +1)}
                   onDecrement={() => updateEntryQty(entry.clientUuid, -1)}
-                  canIncrement={
-                    mode !== "oda_receive" ||
-                    !entry.odaItemId ||
-                    entry.quantity <
-                      (allowedOdaItems?.find((item) => item.odaItemId === entry.odaItemId)?.qtyPending ?? Infinity)
-                  }
+                  canIncrement={canIncrement}
                   onRemove={() => removeEntry(entry.clientUuid)}
                   onCreateFromNoMatch={
                     onRequestCreateItem
@@ -735,7 +755,8 @@ export function BatchBarcodeScanner({
                   }
                   creating={creatingForUuid === entry.clientUuid}
                 />
-              ))
+                );
+              })
             )}
           </div>
         </ScrollArea>

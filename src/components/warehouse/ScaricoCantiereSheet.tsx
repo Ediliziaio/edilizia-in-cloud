@@ -194,17 +194,24 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
     enabled: !!orderId && !!warehouseId,
     staleTime: 60_000,
     queryFn: async () => {
+      // BUG FIX (audit v8.6.103): non filtriamo piu .not("stock_item_id", "is", null).
+      // Prima escludevamo le righe ordine senza link a magazzino, causando falsi
+      // 'Articolo non in ordine' quando il sistema risolveva il barcode a un
+      // stock_item_id non ancora linkato all'order_item. Ora carichiamo tutte
+      // le righe e proviamo il match per stock_item_id quando c'e, altrimenti
+      // per nome articolo (fallback fuzzy).
       const { data, error } = await supabase
         .from("order_items")
         .select("id, stock_item_id, name, product_code, quantity, fulfillment_status")
-        .eq("order_id", orderId!)
-        .not("stock_item_id", "is", null);
+        .eq("order_id", orderId!);
       if (error) throw error;
 
       const stockItemIds = (data ?? [])
         .map((r) => r.stock_item_id)
         .filter((v): v is string => !!v);
-      if (stockItemIds.length === 0) return [];
+      // Se nessun item ha stock link, lasciamo che il caller produca un array
+      // basato solo su nome (no validation stock-side ma comunque utile per
+      // progress bar). Non bloccarci sul return [].
 
       const { data: stockData } = await supabase
         .from("warehouse_stock")
