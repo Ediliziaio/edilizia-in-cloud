@@ -40,9 +40,10 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Package, Loader2, AlertTriangle, Clock, ListPlus, Eye } from "lucide-react";
+import { Plus, Trash2, Package, Loader2, AlertTriangle, Clock, ListPlus, Eye, ScanLine } from "lucide-react";
 import { differenceInDays, parseISO, format } from "date-fns";
 import { StockUnitsDrilldownSheet } from "@/components/warehouse/StockUnitsDrilldownSheet";
+import { AssignSerialsToLottoDialog } from "@/components/warehouse/AssignSerialsToLottoDialog";
 
 interface Lotto {
   id: string;
@@ -114,6 +115,7 @@ export default function WarehouseLottiTab() {
   const [form, setForm] = useState<LottoForm>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
   const [drilldownLottoId, setDrilldownLottoId] = useState<string | null>(null);
+  const [assignLottoId, setAssignLottoId] = useState<string | null>(null);
 
   // ── Lista lotti ─────────────────────────────────────────────────────────
   const { data: lotti = [], isLoading } = useQuery({
@@ -191,6 +193,10 @@ export default function WarehouseLottiTab() {
   const drilldownLotto = useMemo(
     () => lotti.find((l) => l.id === drilldownLottoId),
     [lotti, drilldownLottoId],
+  );
+  const assignLotto = useMemo(
+    () => lotti.find((l) => l.id === assignLottoId),
+    [lotti, assignLottoId],
   );
 
   // ── Mutations ────────────────────────────────────────────────────────────
@@ -375,6 +381,16 @@ export default function WarehouseLottiTab() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setAssignLottoId(lotto.id)}
+                          aria-label="Assegna seriali al lotto"
+                          title="Assegna seriali al lotto"
+                        >
+                          <ScanLine className="h-3.5 w-3.5 text-orange-600" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -663,6 +679,17 @@ export default function WarehouseLottiTab() {
         // l'utente può poi aggiungere ulteriori filtri.
         stockItemId={drilldownLotto?.stock_item_id ?? undefined}
       />
+
+      {/* Assegna nuovi seriali al lotto */}
+      {assignLottoId && (
+        <AssignSerialsToLottoDialog
+          open={!!assignLottoId}
+          onOpenChange={(o) => !o && setAssignLottoId(null)}
+          lottoId={assignLottoId}
+          lottoCode={assignLotto?.codice_lotto}
+          articolo={assignLotto?.articolo}
+        />
+      )}
     </>
   );
 }

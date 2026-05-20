@@ -354,6 +354,104 @@ export function useStockUnitsList(filters: StockUnitsListFilters) {
   });
 }
 
+/**
+ * Assegna N seriali a un LOTTO (stock_lotti.id). Pattern simile a
+ * useAssignSerialsToOrderItem ma il target è il lotto, non l'order_item.
+ * Use case: utente crea lotto "LOT-2026-001 — Pannelli SunPower", poi
+ * scansiona/digita i 12 seriali ricevuti e li raggruppa sotto questo lotto.
+ *
+ * Differenza chiave: NON cambia status del seriale (resta available/etc.),
+ * setta solo lotto_id. Un lotto è "tagging" → un seriale può essere
+ * available+lotto, reserved+lotto, shipped+lotto, ecc.
+ */
+export function useAssignSerialsToLotto() {
+  const { effectiveCompany } = useAuth();
+  const qc = useQueryClient();
+
+  return useMutation<
+    AssignSerialsResult,
+    Error,
+    { lottoId: string; serials: string[] }
+  >({
+    mutationFn: async ({ lottoId, serials }) => {
+      if (!effectiveCompany?.id) throw new Error("Nessuna azienda attiva");
+      const clean = Array.from(
+        new Set(serials.map((s) => s.trim()).filter(Boolean)),
+      );
+      if (clean.length === 0) {
+        return { assigned: [], notFound: [], alreadyReserved: [] };
+      }
+
+      const { data: foundUnits, error: lookupErr } = await supabase
+        .from("stock_units")
+        .select("id, serial_number, status, lotto_id, stock_item_id")
+        .eq("company_id", effectiveCompany.id)
+        .in("serial_number", clean);
+      if (lookupErr) throw lookupErr;
+
+      const foundMap = new Map(
+        ((foundUnits ?? []) as Array<{
+          id: string;
+          serial_number: string;
+          lotto_id: string | null;
+        }>).map((u) => [u.serial_number, u]),
+      );
+
+      const notFound: string[] = [];
+      const alreadyReserved: { serial: string; reservedToOrderId: string | null }[] = [];
+      const toAssign: string[] = [];
+
+      for (const serial of clean) {
+        const unit = foundMap.get(serial);
+        if (!unit) {
+          notFound.push(serial);
+          continue;
+        }
+        // Se è già in un ALTRO lotto, lo notifichiamo come "alreadyReserved"
+        // (riusiamo il tipo dell'interfaccia per non duplicare).
+        if (unit.lotto_id && unit.lotto_id !== lottoId) {
+          alreadyReserved.push({ serial, reservedToOrderId: unit.lotto_id });
+          continue;
+        }
+        toAssign.push(unit.id);
+      }
+
+      let assigned: StockUnit[] = [];
+      if (toAssign.length > 0) {
+        const { data: updated, error: updateErr } = await supabase
+          .from("stock_units")
+          .update({ lotto_id: lottoId })
+          .in("id", toAssign)
+          .select();
+        if (updateErr) throw updateErr;
+        assigned = (updated ?? []) as unknown as StockUnit[];
+      }
+
+      return { assigned, notFound, alreadyReserved };
+    },
+    onSuccess: (result, vars) => {
+      qc.invalidateQueries({ queryKey: ["warehouse-lotti-list-full"] });
+      qc.invalidateQueries({ queryKey: ["warehouse", "stock-units-list"] });
+      qc.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
+      const n = result.assigned.length;
+      if (n > 0) {
+        toast.success(`${n} ${n === 1 ? "seriale aggiunto" : "seriali aggiunti"} al lotto`);
+      }
+      if (result.notFound.length > 0) {
+        toast.warning(`${result.notFound.length} seriali non trovati in magazzino`);
+      }
+      if (result.alreadyReserved.length > 0) {
+        toast.warning(
+          `${result.alreadyReserved.length} seriali già in altri lotti (non spostati)`,
+        );
+      }
+      // Linea silente per evitare warning eslint su vars non usata
+      void vars;
+    },
+    onError: (e) => toast.error(e.message || "Errore assegnazione seriali al lotto"),
+  });
+}
+
 /** Libera un seriale dalla riserva (utile se l'utente sbaglia assegnazione). */
 export function useUnassignSerial() {
   const qc = useQueryClient();

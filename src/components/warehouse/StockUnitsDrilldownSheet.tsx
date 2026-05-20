@@ -21,7 +21,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Package, Filter } from "lucide-react";
+import { Loader2, Search, Package, Filter, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -34,6 +35,7 @@ import {
   type StockUnitStatus,
   type StockUnitsListRow,
 } from "@/hooks/warehouse/useStockUnits";
+import { WarrantyExportDialog, type WarrantyExportItem } from "@/components/warehouse/WarrantyExportDialog";
 
 interface StockUnitsDrilldownSheetProps {
   open: boolean;
@@ -77,6 +79,7 @@ export function StockUnitsDrilldownSheet({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StockUnitStatus | "all">("all");
   const [lottoFilter, setLottoFilter] = useState<string>("all");
+  const [exportOpen, setExportOpen] = useState(false);
 
   const filters = useMemo(
     () => ({
@@ -125,6 +128,21 @@ export function StockUnitsDrilldownSheet({
             )}
           </SheetDescription>
         </SheetHeader>
+
+        {/* Action bar: export garanzie quando ci sono risultati */}
+        {units.length > 0 && (
+          <div className="flex justify-end mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportOpen(true)}
+              title="Esporta lista per registrazione garanzia fornitore"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
+              Esporta per garanzia ({units.length})
+            </Button>
+          </div>
+        )}
 
         {/* Filtri */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
@@ -207,6 +225,19 @@ export function StockUnitsDrilldownSheet({
           )}
         </div>
       </SheetContent>
+
+      <WarrantyExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        items={units.map<WarrantyExportItem>((u) => ({
+          serial_number: u.serial_number,
+          articolo: u.stock_item?.name ?? null,
+          internal_code: u.stock_item?.internal_code ?? null,
+          lotto_codice: u.lotto?.codice_lotto ?? null,
+          purchase_date: (u as unknown as { purchase_date?: string | null }).purchase_date ?? null,
+          warranty_months: (u as unknown as { warranty_months?: number | null }).warranty_months ?? null,
+        }))}
+      />
     </Sheet>
   );
 }
