@@ -748,10 +748,23 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       setRecording(true);
       setRecordingMs(0);
       recordingMsRef.current = 0;
+      // Hard cap a 5 min (300s). Sopra quella durata la trascrizione
+      // è lenta + costosa + spesso significa che l'utente si è
+      // dimenticato il mic acceso. Auto-stop con toast.
+      const MAX_AUDIO_MS = 5 * 60 * 1000;
       recordTimerRef.current = setInterval(() => {
         setRecordingMs((ms) => {
           const next = ms + 100;
           recordingMsRef.current = next;
+          if (next >= MAX_AUDIO_MS) {
+            // Stop programmatico tramite il recorder. Triggera onstop
+            // che pulisce il timer e setRecording(false).
+            const r = mediaRecorderRef.current;
+            if (r && r.state !== "inactive") r.stop();
+            toast.info("Registrazione fermata automaticamente (max 5 minuti).", {
+              description: "Per audio più lunghi caricali come file.",
+            });
+          }
           return next;
         });
       }, 100);
@@ -1527,7 +1540,8 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
           <div className="flex items-center justify-between mt-2 px-1">
             <p className="text-[10px] text-muted-foreground">
               📎 file · 🎙 vocale · ⏎ invio
-              {recordingSeconds >= 60 && " · audio max 5 min consigliato"}
+              {recordingSeconds >= 60 && recordingSeconds < 240 && " · audio max 5 min"}
+              {recordingSeconds >= 240 && recordingSeconds < 300 && ` · stop auto tra ${300 - recordingSeconds}s`}
             </p>
             <button
               type="button"
