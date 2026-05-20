@@ -91,6 +91,29 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   const [insertedAt, setInsertedAt] = useState(() => new Date());
   const insertedBy = user?.email ?? "utente corrente";
 
+  // Trasportatore: mittente (default) / subappaltatore / vettore terzo
+  type VettoreTipo = "mittente" | "subappaltatore" | "terzo";
+  const [vettoreTipo, setVettoreTipo] = useState<VettoreTipo>("mittente");
+  const [vettoreSubId, setVettoreSubId] = useState<string | undefined>();
+  const [vettoreTerzoNome, setVettoreTerzoNome] = useState("");
+
+  // Query subappaltatori — caricato solo se serve
+  const { data: subappaltatori = [] } = useQuery<{ id: string; ragione_sociale: string; piva: string | null; responsabile: string | null; telefono: string | null }[]>({
+    queryKey: ["scarico-subappaltatori", companyId],
+    enabled: !!companyId && vettoreTipo === "subappaltatore",
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subappaltatori")
+        .select("id, ragione_sociale, piva, responsabile, telefono")
+        .eq("company_id", companyId!)
+        .eq("is_active", true)
+        .order("ragione_sociale", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   // ── Warehouses: query DIRETTA senza filtro warehouse_assignments ────
   // Il filtro per assignments serve in altri contesti (es. lista warehouse
   // operativi), ma per lo scarico verso ordine vogliamo SEMPRE mostrare
@@ -224,6 +247,9 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
       setWarehouseId(undefined);
       setLoadedGoodsPhotos([]);
       setEntries([]);
+      setVettoreTipo("mittente");
+      setVettoreSubId(undefined);
+      setVettoreTerzoNome("");
       shipment.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,7 +266,7 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   const canProceedToScan = !!warehouseId;
 
   async function handleConfirm() {
-    if (!orderId || !warehouseId) return;
+    if (!warehouseId) return; // ordine ora opzionale, solo magazzino obbligatorio
 
     // Upload foto merce (best-effort, non blocca creazione DDT)
     let uploadedPhotoPaths: string[] = [];
@@ -261,21 +287,43 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
       }
     }
 
-    // ddtExtra minimale: solo metadati foto. Tutto il resto si compila
-    // nell'editor DDT dopo la generazione (causale, vettore, conducente,
-    // targa, peso, colli, destinazione strutturata).
+    // Costruisci ddt_vettore JSONB se il trasportatore è stato specificato
+    let vettoreJson: string | undefined;
+    if (vettoreTipo === "subappaltatore" && vettoreSubId) {
+      const sub = subappaltatori.find((s) => s.id === vettoreSubId);
+      if (sub) {
+        vettoreJson = JSON.stringify({
+          tipo: "subappaltatore",
+          subappaltatore_id: sub.id,
+          ragione_sociale: sub.ragione_sociale,
+          vat_number: sub.piva,
+          conducente_nome: sub.responsabile,
+          conducente_telefono: sub.telefono,
+        });
+      }
+    } else if (vettoreTipo === "terzo" && vettoreTerzoNome.trim()) {
+      vettoreJson = JSON.stringify({
+        tipo: "terzo",
+        ragione_sociale: vettoreTerzoNome.trim(),
+      });
+    } else if (vettoreTipo === "mittente") {
+      vettoreJson = JSON.stringify({ tipo: "mittente" });
+    }
+
     const photoNote =
       loadedGoodsPhotos.length > 0
         ? `Foto merce caricata: ${loadedGoodsPhotos.length} immagini${uploadedPhotoPaths.length > 0 ? ` (${uploadedPhotoPaths.length} salvate)` : ""}`
         : "";
-    const ddtExtra = photoNote ? { note_documento: photoNote } : undefined;
+    const ddtExtra: { note_documento?: string; vettore?: string } = {};
+    if (photoNote) ddtExtra.note_documento = photoNote;
+    if (vettoreJson) ddtExtra.vettore = vettoreJson;
 
     try {
       const res = await shipment.mutateAsync({
         orderId,
         warehouseId,
         entries,
-        ddtExtra,
+        ddtExtra: Object.keys(ddtExtra).length > 0 ? ddtExtra : undefined,
       });
       onOpenChange(false);
       // Naviga all'editor DDT — qui l'utente completa causale, vettore,
@@ -425,6 +473,55 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
             <p className="text-[11px] text-muted-foreground">
               Aggiungi articoli cercandoli per nome qui sopra, oppure clicca <strong>"Scansiona articoli"</strong> per
               usare la fotocamera/scanner barcode.
+            </p>
+          </div>
+
+          {/* Trasportatore — chi porta la merce. Opzionale (default: mittente azienda) */}
+          <div className="space-y-2">
+            <Label>Trasportatore <span className="text-muted-foreground font-normal">(opzionale)</span></Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["mittente", "subappaltatore", "terzo"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setVettoreTipo(t)}
+                  className={`text-xs px-3 py-2 rounded-md border transition-colors ${
+                    vettoreTipo === t
+                      ? "bg-primary text-primary-foreground border-primary font-medium"
+                      : "bg-card hover:bg-muted text-foreground"
+                  }`}
+                >
+                  {t === "mittente" && "Mittente (azienda)"}
+                  {t === "subappaltatore" && "Subappaltatore"}
+                  {t === "terzo" && "Vettore terzo"}
+                </button>
+              ))}
+            </div>
+            {vettoreTipo === "subappaltatore" && (
+              <Select value={vettoreSubId} onValueChange={setVettoreSubId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={subappaltatori.length ? "Scegli subappaltatore" : "Nessun subappaltatore attivo"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {subappaltatori.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.ragione_sociale}
+                      {s.piva ? ` — ${s.piva}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {vettoreTipo === "terzo" && (
+              <Input
+                value={vettoreTerzoNome}
+                onChange={(e) => setVettoreTerzoNome(e.target.value)}
+                placeholder="Ragione sociale del vettore terzo"
+                maxLength={120}
+              />
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Conducente, targa e dettagli si completano nell'editor DDT dopo la generazione.
             </p>
           </div>
 
