@@ -1,19 +1,17 @@
 /**
- * SettingsIndexRoute — v8.6.70
+ * SettingsIndexRoute — v8.6.70 (rev. 2026-05-20)
  *
  * Component renderizzato dalla route index di /azienda/impostazioni.
- * - Mobile: mostra <SettingsMobileHub /> (griglia di icone per scegliere sezione)
- * - Desktop/tablet: redirect automatico a /mio-profilo (come prima)
+ * MOBILE + DESKTOP: mostra la griglia di icone (SettingsMobileHub) per
+ * scegliere la sezione. Prima il desktop redirect automatico a /mio-profilo
+ * nascondeva le sezioni meno comuni (Memoria AI, Notifiche, ecc.) ai nuovi
+ * utenti — il hub griglia rende tutto scopribile senza Cmd+K.
  *
- * Mantiene la rotta principale "viva" per il deep-link mobile della rotellina
- * senza forzare la pagina profilo a chi entra da desktop.
+ * Per chi vuole tornare diretto a mio-profilo: la card "Il mio profilo" è
+ * prima nel hub. 1 click in più, ma -infinite confusione per esplorazione.
  */
-import { Navigate } from "react-router-dom";
-import { useIsMobile } from "@/hooks/use-mobile";
 import SettingsMobileHub from "./SettingsMobileHub";
 
 export default function SettingsIndexRoute() {
-  const isMobile = useIsMobile();
-  if (isMobile) return <SettingsMobileHub />;
-  return <Navigate to="mio-profilo" replace />;
+  return <SettingsMobileHub />;
 }

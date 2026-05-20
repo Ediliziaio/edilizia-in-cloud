@@ -197,18 +197,18 @@ export const macroAreas: MacroArea[] = [
     title: "Automazioni & AI",
     icon: Zap,
     items: [
-      // ─── Canali comunicazione ───
+      // TOP-LEVEL — sempre visibili anche con subcategory collassate
+      { title: "Personas AI", url: "/azienda/assistente-ai", icon: Sparkles },
+      { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni" },
+      // ─── Canali comunicazione (subcategory collassabile) ───
       { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", featureKey: "email_marketing", groupLabel: "Comunicazione" },
       // MP-CLN-001: rinominati per chiarezza utente (SMS Marketing → "Campagne", SMS Transazionale → "Singolo")
       { title: "SMS Campagne", url: "/azienda/sms-marketing", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
       { title: "SMS Singolo", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
       { title: "WhatsApp", url: "/azienda/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", featureKey: "whatsapp" },
-      // ─── Automazione ───
-      { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni", groupLabel: "Automazione" },
-      { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents" },
+      // ─── Altri tool AI ───
+      { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents", groupLabel: "Altri tool AI" },
       { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewRenderAi", featureKey: "render_ai" },
-      // ─── Hub AI Personas (le 18 personas + memoria) ───
-      { title: "Personas AI", url: "/azienda/assistente-ai", icon: Sparkles, groupLabel: "AI" },
     ],
   },
 ];

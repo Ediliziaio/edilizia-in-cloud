@@ -398,6 +398,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                         {group.label ? (
                           <SidebarSubcategory
                             label={group.label}
+                            badge={group.items.length}
                             isOpen={isGroupOpen(group.label)}
                             onToggle={() => toggleGroup(group.label!)}
                           >
