@@ -273,6 +273,13 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   // dopo render iniziale, restano "freschi" finché l'animazione finisce.
   const [streamingMessageIds, setStreamingMessageIds] = useState<Set<string>>(new Set());
   const seenMessageIdsRef = useRef<Set<string>>(new Set());
+  // hasHydratedRef: la prima volta che messages si popola (initial load di 30
+  // msg storici) NON vogliamo animarli. Solo i messaggi che arrivano DOPO il
+  // mount via realtime devono attivare il typewriter.
+  const hasHydratedRef = useRef(false);
+  // mountTimeRef: cutoff per distinguere messaggi storici (created_at <)
+  // da messaggi davvero "live" (created_at >=). Resettato sul cambio canale.
+  const mountTimeRef = useRef<string>(new Date().toISOString());
 
   // Recording state
   const [recording, setRecording] = useState(false);
@@ -358,10 +365,16 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMoreOlder, setHasMoreOlder] = useState(true);
 
-  // Reset paginazione quando cambia canale o si chiude la sheet
+  // Reset paginazione + tracking typewriter quando cambia canale o si chiude
+  // la sheet. Senza il reset di hasHydratedRef/mountTimeRef, riaprire la
+  // sheet con la cache già piena animerebbe di nuovo TUTTI i messaggi
+  // storici come "live".
   useEffect(() => {
     setOlderMessages([]);
     setHasMoreOlder(true);
+    seenMessageIdsRef.current = new Set();
+    hasHydratedRef.current = false;
+    mountTimeRef.current = new Date().toISOString();
   }, [channelId, open]);
 
   // Combina: messaggi storici (paginati) + live (cache condivisa con realtime).
@@ -467,16 +480,34 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
 
   // Element 3: quando arrivano messaggi nuovi di Silvio, marcali come streaming
   // (effetto typewriter). I messaggi già visti restano statici.
+  //
+  // BUG FIX: prima la "prima hydration" (apertura sheet + arrivo dei 30 msg
+  // iniziali) trattava TUTTI i messaggi storici come nuovi → typewriter su
+  // ogni risposta Silvio storica. Stesso problema con paginazione backward
+  // (Carica messaggi più vecchi): i 30 messaggi vecchi appena prepended
+  // ripartivano in animazione.
+  // Fix: animare SOLO messaggi davvero arrivati DOPO il mount (created_at >=
+  // mountTime). Initial load + paginazione storica → no animazione.
   useEffect(() => {
     const newSilvioIds: string[] = [];
+    const isFirstHydration = !hasHydratedRef.current && messages.length > 0;
     for (const m of messages) {
       if (!seenMessageIdsRef.current.has(m.id)) {
-        if (m.sender_id === SILVIO_SENDER_ID && m.content && m.content.trim().length > 0) {
+        // Anima solo se: Silvio + ha contenuto + creato dopo il mount + non è
+        // la prima hydration di una pagina già esistente.
+        if (
+          !isFirstHydration &&
+          m.sender_id === SILVIO_SENDER_ID &&
+          m.content &&
+          m.content.trim().length > 0 &&
+          m.created_at >= mountTimeRef.current
+        ) {
           newSilvioIds.push(m.id);
         }
         seenMessageIdsRef.current.add(m.id);
       }
     }
+    if (isFirstHydration) hasHydratedRef.current = true;
     if (newSilvioIds.length === 0) return;
     setStreamingMessageIds((prev) => {
       const next = new Set(prev);
