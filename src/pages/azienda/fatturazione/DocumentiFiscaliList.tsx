@@ -319,6 +319,17 @@ function DocumentiFiscaliListInner() {
           toast.error(getErrorMessage(e));
         }
         break;
+      case "save_pdf":
+        try {
+          if (doc.tipo === "ddt") {
+            await ddtPdf.uploadAndAttach(doc.id);
+          } else {
+            toast.error("Salvataggio PDF disponibile solo per DDT");
+          }
+        } catch (e: unknown) {
+          toast.error(getErrorMessage(e));
+        }
+        break;
       case "xml":
         try {
           if (!azienda) {
@@ -793,6 +804,14 @@ function DocumentiFiscaliListInner() {
                                 <DropdownMenuItem onClick={() => handleAction("pdf", doc)}>
                                   <Download className="h-4 w-4 mr-2" /> Scarica PDF
                                 </DropdownMenuItem>
+                                {doc.tipo === "ddt" && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleAction("save_pdf", doc)}
+                                    disabled={ddtPdf.isUploading}
+                                  >
+                                    <FileText className="h-4 w-4 mr-2" /> Salva PDF su documento
+                                  </DropdownMenuItem>
+                                )}
                                 {!["ddt", "proforma", "preventivo"].includes(doc.tipo) && (
                                   <DropdownMenuItem onClick={() => handleAction("xml", doc)}>
                                     <FileText className="h-4 w-4 mr-2" /> Scarica XML

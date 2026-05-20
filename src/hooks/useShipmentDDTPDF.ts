@@ -115,9 +115,179 @@ function downloadBlob(blob: Blob, filename: string) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+interface BuildResult {
+  blob: Blob;
+  numero: string;
+  companyId: string;
+  documentoId: string;
+}
+
 export function useShipmentDDTPDF() {
   const { effectiveCompany } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Estraibile: build del PDF blob — usato sia da generate che da uploadAndAttach.
+  const buildBlob = useCallback(
+    async (documentoId: string): Promise<BuildResult> => {
+      if (!effectiveCompany?.id) throw new Error("Nessuna azienda attiva");
+      const { data: ddt, error: ddtErr } = await supabase
+        .from("documenti_fiscali")
+        .select(
+          "id, numero, serie, data_emissione, data_consegna, cliente_snapshot, righe, ddt_causale_trasporto, ddt_aspetto_beni, ddt_numero_colli, ddt_peso, ddt_mezzo_trasporto, ddt_porto, ddt_data_ora_consegna, ddt_indirizzo_consegna, ddt_vettore, note_documento, tipo, company_id",
+        )
+        .eq("id", documentoId)
+        .eq("company_id", effectiveCompany.id)
+        .eq("tipo", "ddt")
+        .maybeSingle();
+      if (ddtErr) throw ddtErr;
+      if (!ddt) throw new Error("DDT non trovato");
+      const ddtRec = ddt as unknown as DdtRecord & { company_id: string };
+
+      const { data: comp, error: compErr } = await supabase
+        .from("companies")
+        .select(
+          "id, name, vat_number, fiscal_code, address, city, postal_code, province, phone, email, pec, logo_url",
+        )
+        .eq("id", effectiveCompany.id)
+        .maybeSingle();
+      if (compErr) throw compErr;
+      const company = (comp ?? { id: effectiveCompany.id, name: effectiveCompany.name ?? "—" }) as unknown as CompanyRecord;
+
+      const mittente: DDTCompanyMittente = {
+        name: company.name ?? "—",
+        vat_number: company.vat_number,
+        fiscal_code: company.fiscal_code,
+        address: company.address,
+        city: company.city,
+        postal_code: company.postal_code,
+        province: company.province,
+        phone: company.phone,
+        email: company.email,
+        pec: company.pec,
+        logo_url: company.logo_url,
+      };
+
+      const cs = (ddtRec.cliente_snapshot ?? {}) as Record<string, unknown>;
+      const destinatario: DDTDestinatario = {
+        ragione_sociale: asString(cs.ragione_sociale) ?? asString(cs.business_name) ?? asString(cs.name),
+        nome: asString(cs.nome) ?? asString(cs.first_name),
+        cognome: asString(cs.cognome) ?? asString(cs.last_name),
+        vat_number: asString(cs.vat_number) ?? asString(cs.piva),
+        fiscal_code: asString(cs.fiscal_code) ?? asString(cs.cf) ?? asString(cs.codice_fiscale),
+        address: asString(cs.address) ?? asString(cs.indirizzo),
+        city: asString(cs.city) ?? asString(cs.citta),
+        postal_code: asString(cs.postal_code) ?? asString(cs.cap),
+        province: asString(cs.province) ?? asString(cs.provincia),
+        codice_destinatario_sdi: asString(cs.codice_destinatario_sdi) ?? asString(cs.sdi_code),
+        pec: asString(cs.pec),
+      };
+
+      const ic = ddtRec.ddt_indirizzo_consegna ?? null;
+      const indirizzo_consegna: DDTIndirizzoConsegna | null = ic
+        ? {
+            address: asString((ic as Record<string, unknown>).address) ?? asString((ic as Record<string, unknown>).indirizzo) ?? asString((ic as Record<string, unknown>).via),
+            city: asString((ic as Record<string, unknown>).city) ?? asString((ic as Record<string, unknown>).citta) ?? asString((ic as Record<string, unknown>).comune),
+            postal_code: asString((ic as Record<string, unknown>).postal_code) ?? asString((ic as Record<string, unknown>).cap),
+            province: asString((ic as Record<string, unknown>).province) ?? asString((ic as Record<string, unknown>).provincia),
+            riferimento: asString((ic as Record<string, unknown>).riferimento) ?? asString((ic as Record<string, unknown>).descrizione),
+          }
+        : null;
+
+      const dv = (ddtRec.ddt_vettore ?? {}) as Record<string, unknown>;
+      const tipo = (asString(dv.tipo) ?? "azienda") as DDTVettore["tipo"];
+      let subRecord: { ragione_sociale?: string | null; piva?: string | null; indirizzo?: string | null; telefono?: string | null } | null = null;
+      const subId = asString(dv.subappaltatore_id) ?? asString(dv.supplier_id);
+      if (tipo === "subappaltatore" && subId) {
+        const { data: sub } = await supabase
+          .from("subappaltatori")
+          .select("ragione_sociale, piva, indirizzo, telefono")
+          .eq("id", subId)
+          .maybeSingle();
+        if (sub) subRecord = sub as { ragione_sociale?: string | null; piva?: string | null; indirizzo?: string | null; telefono?: string | null };
+      }
+      const vettore: DDTVettore = {
+        tipo,
+        ragione_sociale:
+          asString(dv.ragione_sociale) ?? asString(dv.denominazione) ?? subRecord?.ragione_sociale ?? null,
+        vat_number: asString(dv.vat_number) ?? asString(dv.partita_iva) ?? subRecord?.piva ?? null,
+        address: asString(dv.address) ?? subRecord?.indirizzo ?? null,
+        city: asString(dv.city),
+        conducente_nome: asString(dv.conducente_nome) ?? asString(dv.driver_name),
+        conducente_telefono:
+          asString(dv.conducente_telefono) ?? asString(dv.driver_phone) ?? subRecord?.telefono ?? null,
+        targa_mezzo: asString(dv.targa_mezzo) ?? asString(dv.plate),
+        patente: asString(dv.patente),
+      };
+
+      const fdRaw = (dv.firma_digitale ?? cs.firma_digitale) as Record<string, unknown> | undefined;
+      const firma_digitale: DDTFirmaDigitale | null = fdRaw?.firmato
+        ? {
+            firmato: true,
+            data: asString(fdRaw.data) ?? asString(fdRaw.signed_at),
+            firmatario_nome: asString(fdRaw.firmatario_nome) ?? asString(fdRaw.signer_name),
+            metodo: asString(fdRaw.metodo) ?? asString(fdRaw.method),
+          }
+        : null;
+
+      const blob = await pdf(
+        ShipmentDDTPDF({
+          numero: ddtRec.numero,
+          serie: ddtRec.serie,
+          data_emissione: ddtRec.data_emissione,
+          data_trasporto: ddtRec.ddt_data_ora_consegna ?? ddtRec.data_consegna,
+          mittente,
+          destinatario,
+          indirizzo_consegna,
+          causale_trasporto: ddtRec.ddt_causale_trasporto,
+          aspetto_beni: ddtRec.ddt_aspetto_beni,
+          numero_colli: asNumber(ddtRec.ddt_numero_colli),
+          peso: ddtRec.ddt_peso,
+          porto: ddtRec.ddt_porto,
+          mezzo_trasporto: ddtRec.ddt_mezzo_trasporto,
+          vettore,
+          righe: normalizeRighe(ddtRec.righe ?? []),
+          note: ddtRec.note_documento,
+          firma_digitale,
+        }),
+      ).toBlob();
+
+      return { blob, numero: ddtRec.numero, companyId: ddtRec.company_id, documentoId: ddtRec.id };
+    },
+    [effectiveCompany?.id, effectiveCompany?.name],
+  );
+
+  const uploadAndAttach = useCallback(
+    async (documentoId: string): Promise<string | null> => {
+      if (!effectiveCompany?.id) {
+        toast.error("Nessuna azienda attiva");
+        return null;
+      }
+      if (isUploading) return null;
+      setIsUploading(true);
+      try {
+        const { blob, numero, companyId, documentoId: docId } = await buildBlob(documentoId);
+        const filePath = `${companyId}/${docId}/DDT-${numero}.pdf`;
+        const { error: upErr } = await supabase.storage
+          .from("documenti-fiscali")
+          .upload(filePath, blob, { upsert: true, contentType: "application/pdf" });
+        if (upErr) throw upErr;
+        const { error: updErr } = await supabase
+          .from("documenti_fiscali")
+          .update({ pdf_url: filePath })
+          .eq("id", docId);
+        if (updErr) throw updErr;
+        toast.success("PDF salvato", { description: `DDT-${numero}.pdf allegato al documento` });
+        return filePath;
+      } catch (e) {
+        toast.error("Errore upload PDF", { description: (e as Error)?.message ?? "Riprova" });
+        return null;
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [effectiveCompany?.id, isUploading, buildBlob],
+  );
 
   const generate = useCallback(
     async (documentoId: string) => {
@@ -128,146 +298,17 @@ export function useShipmentDDTPDF() {
       if (isGenerating) return;
       setIsGenerating(true);
       try {
-        const { data: ddt, error: ddtErr } = await supabase
-          .from("documenti_fiscali")
-          .select(
-            "id, numero, serie, data_emissione, data_consegna, cliente_snapshot, righe, ddt_causale_trasporto, ddt_aspetto_beni, ddt_numero_colli, ddt_peso, ddt_mezzo_trasporto, ddt_porto, ddt_data_ora_consegna, ddt_indirizzo_consegna, ddt_vettore, note_documento, tipo",
-          )
-          .eq("id", documentoId)
-          .eq("company_id", effectiveCompany.id)
-          .eq("tipo", "ddt")
-          .maybeSingle();
-        if (ddtErr) throw ddtErr;
-        if (!ddt) throw new Error("DDT non trovato");
-        const ddtRec = ddt as unknown as DdtRecord;
-
-        const { data: comp, error: compErr } = await supabase
-          .from("companies")
-          .select(
-            "id, name, vat_number, fiscal_code, address, city, postal_code, province, phone, email, pec, logo_url",
-          )
-          .eq("id", effectiveCompany.id)
-          .maybeSingle();
-        if (compErr) throw compErr;
-        const company = (comp ?? { id: effectiveCompany.id, name: effectiveCompany.name ?? "—" }) as unknown as CompanyRecord;
-
-        // ── Build mittente ─────────────────────────────────────────────
-        const mittente: DDTCompanyMittente = {
-          name: company.name ?? "—",
-          vat_number: company.vat_number,
-          fiscal_code: company.fiscal_code,
-          address: company.address,
-          city: company.city,
-          postal_code: company.postal_code,
-          province: company.province,
-          phone: company.phone,
-          email: company.email,
-          pec: company.pec,
-          logo_url: company.logo_url,
-        };
-
-        // ── Build destinatario da cliente_snapshot ─────────────────────
-        const cs = (ddtRec.cliente_snapshot ?? {}) as Record<string, unknown>;
-        const destinatario: DDTDestinatario = {
-          ragione_sociale: asString(cs.ragione_sociale) ?? asString(cs.business_name) ?? asString(cs.name),
-          nome: asString(cs.nome) ?? asString(cs.first_name),
-          cognome: asString(cs.cognome) ?? asString(cs.last_name),
-          vat_number: asString(cs.vat_number) ?? asString(cs.piva),
-          fiscal_code: asString(cs.fiscal_code) ?? asString(cs.cf) ?? asString(cs.codice_fiscale),
-          address: asString(cs.address) ?? asString(cs.indirizzo),
-          city: asString(cs.city) ?? asString(cs.citta),
-          postal_code: asString(cs.postal_code) ?? asString(cs.cap),
-          province: asString(cs.province) ?? asString(cs.provincia),
-          codice_destinatario_sdi: asString(cs.codice_destinatario_sdi) ?? asString(cs.sdi_code),
-          pec: asString(cs.pec),
-        };
-
-        // ── Indirizzo consegna (opzionale) ─────────────────────────────
-        const ic = ddtRec.ddt_indirizzo_consegna ?? null;
-        const indirizzo_consegna: DDTIndirizzoConsegna | null = ic
-          ? {
-              address: asString((ic as Record<string, unknown>).address) ?? asString((ic as Record<string, unknown>).indirizzo),
-              city: asString((ic as Record<string, unknown>).city) ?? asString((ic as Record<string, unknown>).citta),
-              postal_code: asString((ic as Record<string, unknown>).postal_code) ?? asString((ic as Record<string, unknown>).cap),
-              province: asString((ic as Record<string, unknown>).province) ?? asString((ic as Record<string, unknown>).provincia),
-              riferimento: asString((ic as Record<string, unknown>).riferimento) ?? asString((ic as Record<string, unknown>).descrizione),
-            }
-          : null;
-
-        // ── Build vettore (da ddt_vettore JSONB) ───────────────────────
-        const dv = (ddtRec.ddt_vettore ?? {}) as Record<string, unknown>;
-        const tipo = (asString(dv.tipo) ?? "azienda") as DDTVettore["tipo"];
-        // Se vettore è subappaltatore e c'è subappaltatore_id, enriching da suppliers.
-        let subRecord: { name?: string | null; vat_number?: string | null; address?: string | null } | null = null;
-        const subId = asString(dv.subappaltatore_id) ?? asString(dv.supplier_id);
-        if (tipo !== "azienda" && subId) {
-          const { data: sub } = await supabase
-            .from("suppliers")
-            .select("name, vat_number, address")
-            .eq("id", subId)
-            .maybeSingle();
-          if (sub) subRecord = sub as { name?: string | null; vat_number?: string | null; address?: string | null };
-        }
-        const vettore: DDTVettore = {
-          tipo,
-          ragione_sociale: asString(dv.ragione_sociale) ?? subRecord?.name ?? null,
-          vat_number: asString(dv.vat_number) ?? subRecord?.vat_number ?? null,
-          address: asString(dv.address) ?? subRecord?.address ?? null,
-          city: asString(dv.city),
-          conducente_nome: asString(dv.conducente_nome) ?? asString(dv.driver_name),
-          conducente_telefono: asString(dv.conducente_telefono) ?? asString(dv.driver_phone),
-          targa_mezzo: asString(dv.targa_mezzo) ?? asString(dv.plate),
-          patente: asString(dv.patente),
-        };
-
-        // ── Firma digitale (se presente nel JSONB ddt_vettore o snapshot) ─
-        const fdRaw = (dv.firma_digitale ?? cs.firma_digitale) as Record<string, unknown> | undefined;
-        const firma_digitale: DDTFirmaDigitale | null = fdRaw?.firmato
-          ? {
-              firmato: true,
-              data: asString(fdRaw.data) ?? asString(fdRaw.signed_at),
-              firmatario_nome: asString(fdRaw.firmatario_nome) ?? asString(fdRaw.signer_name),
-              metodo: asString(fdRaw.metodo) ?? asString(fdRaw.method),
-            }
-          : null;
-
-        // ── Render PDF ─────────────────────────────────────────────────
-        const blob = await pdf(
-          ShipmentDDTPDF({
-            numero: ddtRec.numero,
-            serie: ddtRec.serie,
-            data_emissione: ddtRec.data_emissione,
-            data_trasporto: ddtRec.ddt_data_ora_consegna ?? ddtRec.data_consegna,
-            mittente,
-            destinatario,
-            indirizzo_consegna,
-            causale_trasporto: ddtRec.ddt_causale_trasporto,
-            aspetto_beni: ddtRec.ddt_aspetto_beni,
-            numero_colli: asNumber(ddtRec.ddt_numero_colli),
-            peso: ddtRec.ddt_peso,
-            porto: ddtRec.ddt_porto,
-            mezzo_trasporto: ddtRec.ddt_mezzo_trasporto,
-            vettore,
-            righe: normalizeRighe(ddtRec.righe ?? []),
-            note: ddtRec.note_documento,
-            firma_digitale,
-          }),
-        ).toBlob();
-
-        downloadBlob(blob, `DDT-${ddtRec.numero}.pdf`);
-        toast.success("DDT generato", {
-          description: `DDT-${ddtRec.numero}.pdf scaricato`,
-        });
+        const { blob, numero } = await buildBlob(documentoId);
+        downloadBlob(blob, `DDT-${numero}.pdf`);
+        toast.success("DDT generato", { description: `DDT-${numero}.pdf scaricato` });
       } catch (e) {
-        toast.error("Errore generazione DDT", {
-          description: (e as Error)?.message ?? "Riprova",
-        });
+        toast.error("Errore generazione DDT", { description: (e as Error)?.message ?? "Riprova" });
       } finally {
         setIsGenerating(false);
       }
     },
-    [effectiveCompany?.id, effectiveCompany?.name, isGenerating],
+    [effectiveCompany?.id, isGenerating, buildBlob],
   );
 
-  return { generate, isGenerating };
+  return { generate, isGenerating, uploadAndAttach, isUploading };
 }
