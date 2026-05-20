@@ -190,14 +190,29 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
         if (iErr) throw iErr;
 
         // Aggiorna warehouse_stock: scarica dal magazzino sorgente
+        // OPTIMISTIC LOCK: la WHERE clause include `.eq("quantity", current)`
+        // → l'UPDATE scatta SOLO se nessun'altra mutazione ha cambiato la
+        // quantity nel frattempo. Senza questo, 2 transfer concorrenti
+        // potevano leggere stesso valore stale e sovrascriversi (lost update,
+        // stock sballato). Con il check, il secondo update affected_rows=0
+        // e lanciamo errore → utente fa retry.
         for (const item of items) {
           // Decrementa from_warehouse
           const src = stockItems.find((s) => s.id === item.stock_item_id);
           if (src) {
-            await supabase
+            const newSrcQty = Math.max(0, src.quantity - item.quantity);
+            const { data: srcUpdated, error: srcErr } = await supabase
               .from("warehouse_stock")
-              .update({ quantity: Math.max(0, src.quantity - item.quantity) } as any)
-              .eq("id", src.id);
+              .update({ quantity: newSrcQty } as any)
+              .eq("id", src.id)
+              .eq("quantity", src.quantity)
+              .select("id");
+            if (srcErr) throw srcErr;
+            if (!srcUpdated || srcUpdated.length === 0) {
+              throw new Error(
+                `Stock "${src.name}" è stato modificato in parallelo da un altro utente. Ricarica e riprova.`,
+              );
+            }
           }
 
           // Incrementa nel magazzino destinazione (cerca o crea)
@@ -211,10 +226,18 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
 
           let destinationStockItemId: string | null = destStock?.id ?? null;
           if (destStock) {
-            await supabase
+            const { data: destUpdated, error: destErr } = await supabase
               .from("warehouse_stock")
               .update({ quantity: destStock.quantity + item.quantity } as any)
-              .eq("id", destStock.id);
+              .eq("id", destStock.id)
+              .eq("quantity", destStock.quantity)
+              .select("id");
+            if (destErr) throw destErr;
+            if (!destUpdated || destUpdated.length === 0) {
+              throw new Error(
+                `Stock destinazione modificato in parallelo. Ricarica e riprova.`,
+              );
+            }
           } else if (src) {
             // Articolo non esiste nel magazzino destinazione → crealo
             const { data: insertedDest, error: insertDestError } = await supabase
@@ -271,7 +294,11 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
     },
     onSuccess: () => {
       toast.success("Trasferimento creato");
-      queryClient.invalidateQueries({ queryKey: ["warehouse"] });
+      // Invalidate mirate: prima ["warehouse"] era prefix broad che colpiva
+      // 20+ queries (kanban/list/stats/calendar) → refetch storm.
+      // Ora solo lo stock + i 2 set transfer-specifici.
+      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-movements"] });
       queryClient.invalidateQueries({ queryKey: ["warehouse-transfers"] });
       queryClient.invalidateQueries({ queryKey: ["warehouse-stock-for-transfer"] });
       resetForm();

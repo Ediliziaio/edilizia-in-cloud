@@ -322,16 +322,20 @@ export function useDDTRicezioneMutations(poId?: string | null) {
   const companyId = effectiveCompany?.id;
 
   const invalidateAll = () => {
+    // Performance: invalidazioni minimali e mirate.
+    // Prima: 8 invalidateQueries con duplicati (`ddtRicezione.all` == `["ddt-ricezione"]`)
+    // e prefix troppo broad (`["warehouse"]` matcha 20+ query del magazzino,
+    // tutte quelle del kanban/list/stats/calendar) → cascade refetch storm
+    // ad ogni create/update/delete DDT.
+    // Ora: 1 prefix DDT + 2 prefix warehouse specifici + PO detail mirati.
+    // staleTime dei consumer copre il resto senza forzare refetch immediato.
     queryClient.invalidateQueries({ queryKey: queryKeys.ddtRicezione.all });
-    queryClient.invalidateQueries({ queryKey: ["ddt-ricezione"] });
-    queryClient.invalidateQueries({ queryKey: ["warehouse"] });
     queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
     queryClient.invalidateQueries({ queryKey: ["warehouse-movements"] });
     if (poId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.detail(poId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.items(poId) });
     }
-    queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all });
   };
 
   const createDDT = useMutation({

@@ -120,13 +120,16 @@ export function PostReceiptDDTPrompt({
     }
   }, [hasExisting, existingDdts, selectedDdtId]);
 
-  // Reset on close
+  // Reset on close (con cleanup: senza il return clearTimeout, se il componente
+  // smonta nei 200ms tra dialog close e timeout fire, setState scatta su
+  // componente unmounted → warning React + leak timer handle).
   useEffect(() => {
     if (!open) {
-      setTimeout(() => {
+      const timerId = window.setTimeout(() => {
         setSelectedDdtId("");
         setIsAttaching(false);
       }, 200);
+      return () => window.clearTimeout(timerId);
     }
   }, [open]);
 
