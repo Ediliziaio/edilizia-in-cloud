@@ -119,9 +119,86 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
     if (selectedOrder.default_warehouse_id) setWarehouseId(selectedOrder.default_warehouse_id);
   }, [orderId, selectedOrder, warehouseId]);
 
+  // Auto-popola entries dagli order_items dell'ordine selezionato.
+  // Carica solo gli articoli con stock_item_id valido (collegati a magazzino).
+  const { data: orderItemsPrefill = [] } = useQuery({
+    queryKey: ["scarico-order-items-prefill", orderId, warehouseId],
+    enabled: !!orderId && !!warehouseId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_items")
+        .select("id, stock_item_id, name, product_code, quantity, fulfillment_status")
+        .eq("order_id", orderId!)
+        .not("stock_item_id", "is", null);
+      if (error) throw error;
+
+      const stockItemIds = (data ?? [])
+        .map((r) => r.stock_item_id)
+        .filter((v): v is string => !!v);
+      if (stockItemIds.length === 0) return [];
+
+      const { data: stockData } = await supabase
+        .from("warehouse_stock")
+        .select("id, name, quantity, tracking_mode")
+        .in("id", stockItemIds)
+        .eq("warehouse_id", warehouseId!);
+
+      const stockMap = new Map((stockData ?? []).map((s) => [s.id, s]));
+
+      return (data ?? [])
+        .filter((r) => r.stock_item_id && stockMap.has(r.stock_item_id))
+        .filter((r) => r.fulfillment_status !== "delivered")
+        .map((r) => {
+          const stock = stockMap.get(r.stock_item_id!)!;
+          return {
+            order_item_id: r.id,
+            stock_item_id: r.stock_item_id!,
+            name: stock.name ?? r.name ?? "—",
+            quantity: r.quantity || 1,
+            tracking_mode: stock.tracking_mode as "fungible" | "serialized",
+            product_code: r.product_code ?? "",
+            available_in_warehouse: stock.quantity || 0,
+          };
+        });
+    },
+  });
+
+  const [orderPrefillApplied, setOrderPrefillApplied] = useState<string | null>(null);
+  // Quando ordine + warehouse pronti + item prefill ricevuti → applica una sola
+  // volta per ordineId. Se l'utente ha già entries manuali, NON sovrascrivo.
+  useEffect(() => {
+    if (!orderId || !warehouseId) return;
+    if (orderPrefillApplied === orderId) return;
+    if (orderItemsPrefill.length === 0) return;
+    if (entries.length > 0) {
+      setOrderPrefillApplied(orderId);
+      return;
+    }
+    const prefillEntries: BatchScanEntry[] = orderItemsPrefill.map((it) => ({
+      id: crypto.randomUUID(),
+      stockItemId: it.stock_item_id,
+      itemName: it.name,
+      quantity: Math.min(it.quantity, it.available_in_warehouse || it.quantity),
+      serialNumbers: [],
+      rawCode: it.product_code,
+      trackingMode: it.tracking_mode,
+      resolutionStatus: "matched",
+    } as BatchScanEntry));
+    setEntries(prefillEntries);
+    setOrderPrefillApplied(orderId);
+  }, [orderId, warehouseId, orderItemsPrefill, entries.length, orderPrefillApplied]);
+
   const handleOrderChange = useCallback((id: string, order: OrderOption) => {
     setOrderId(id);
     setSelectedOrder(order);
+    setOrderPrefillApplied(null); // reset così il nuovo ordine può prefillarsi
+  }, []);
+
+  const handleClearOrder = useCallback(() => {
+    setOrderId(undefined);
+    setSelectedOrder(null);
+    setOrderPrefillApplied(null);
   }, []);
 
   useEffect(() => {
@@ -153,7 +230,9 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
     [warehouses, warehouseId],
   );
 
-  const canProceedToScan = !!orderId && !!warehouseId;
+  // Solo il magazzino è obbligatorio. Il DDT può essere generato anche
+  // senza ordine collegato (resi, spostamenti, consegne spot).
+  const canProceedToScan = !!warehouseId;
 
   async function handleConfirm() {
     if (!orderId || !warehouseId) return;
@@ -257,15 +336,38 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
             </p>
           </div>
 
-          {/* Ordine destinazione — Combobox con ricerca, filtri e ordinamento per data lavori */}
+          {/* Ordine destinazione — OPZIONALE. Se presente, gli articoli ordinati
+              vengono auto-caricati e cliente_snapshot popolato. Se assente, è
+              un DDT spot (reso, spostamento, consegna libera). */}
           <div className="space-y-2">
-            <Label>Ordine destinazione *</Label>
+            <div className="flex items-center justify-between">
+              <Label>Ordine destinazione <span className="text-muted-foreground font-normal">(opzionale)</span></Label>
+              {orderId && (
+                <button
+                  type="button"
+                  onClick={handleClearOrder}
+                  className="text-[11px] text-muted-foreground hover:text-foreground underline"
+                >
+                  Rimuovi ordine
+                </button>
+              )}
+            </div>
             <OrderSelectCombobox
               companyId={companyId}
               value={orderId}
               onChange={handleOrderChange}
-              placeholder="Cerca per codice, cliente o indirizzo..."
+              placeholder="Cerca per codice, cliente o indirizzo... oppure lascia vuoto"
             />
+            {orderId && orderItemsPrefill.length > 0 && (
+              <p className="text-[11px] text-emerald-600">
+                ✓ {orderItemsPrefill.length} articoli pre-caricati dall'ordine — controlla quantità e aggiungi/rimuovi se serve.
+              </p>
+            )}
+            {!orderId && (
+              <p className="text-[11px] text-muted-foreground">
+                Senza ordine: il DDT esce in bozza e completi cliente, causale e dettagli nell'editor.
+              </p>
+            )}
           </div>
 
           {/* Magazzino sorgente */}

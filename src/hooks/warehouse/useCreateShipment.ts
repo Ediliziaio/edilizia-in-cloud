@@ -18,7 +18,9 @@ import { toast } from "sonner";
 import type { BatchScanEntry } from "@/components/warehouse/BatchBarcodeScanner";
 
 export interface CreateShipmentInput {
-  orderId: string;
+  /** Ordine collegato. Opzionale: DDT può essere generato anche senza ordine
+      (per resi, spostamenti tra cantieri, consegne spot). */
+  orderId?: string | null;
   warehouseId: string;
   entries: BatchScanEntry[];
   /** Campi opzionali per pre-popolare il DDT. Tutti facoltativi. */
@@ -64,7 +66,7 @@ export function useCreateShipment() {
         throw new Error("Nessuna entry valida da scaricare");
       }
       const { data, error } = await supabase.rpc("create_shipment_atomic", {
-        p_order_id: input.orderId,
+        p_order_id: input.orderId ?? null,
         p_warehouse_id: input.warehouseId,
         p_scans: payload,
         p_ddt_extra: input.ddtExtra ?? null,
