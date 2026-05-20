@@ -294,10 +294,18 @@ export default function AIMemoryPage() {
             Cose che le 18 AI personas ricordano della tua azienda. Auto-popolate dal feedback loop o aggiunte manualmente.
           </p>
         </div>
-        <Button onClick={openCreate} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Aggiungi memoria
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" asChild className="gap-2">
+            <a href="/azienda/assistente-ai">
+              <Sparkles className="h-4 w-4" />
+              Apri le 18 Personas
+            </a>
+          </Button>
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Aggiungi memoria
+          </Button>
+        </div>
       </div>
 
       <Card className="bg-violet-50/40 dark:bg-violet-950/20 border-violet-200 dark:border-violet-900">

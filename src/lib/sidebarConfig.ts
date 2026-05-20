@@ -46,6 +46,7 @@ import {
   Settings,
   Calculator,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -206,6 +207,8 @@ export const macroAreas: MacroArea[] = [
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni", groupLabel: "Automazione" },
       { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents" },
       { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewRenderAi", featureKey: "render_ai" },
+      // ─── Hub AI Personas (le 18 personas + memoria) ───
+      { title: "Personas AI", url: "/azienda/assistente-ai", icon: Sparkles, groupLabel: "AI" },
     ],
   },
 ];

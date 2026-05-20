@@ -13,6 +13,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -24,7 +25,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   Bell, MessageSquare, Send, Mail, Smartphone, MoonStar, ArrowUp, ArrowDown, Save, Info,
+  CalendarClock, Plus, Pause, Play, Trash2,
 } from "lucide-react";
+import { BulkScheduleWizard } from "@/components/automazioni/BulkScheduleWizard";
 
 type ChannelKey = "silvio_chat" | "telegram" | "whatsapp" | "email";
 
@@ -93,7 +96,70 @@ const DEFAULT_ORDER: ChannelKey[] = ["silvio_chat", "telegram", "whatsapp", "ema
 
 export default function SettingsNotifiche() {
   const { user, effectiveCompany } = useAuth();
+  const { isAdmin } = usePermissions();
   const qc = useQueryClient();
+
+  // Wizard "Nuovo messaggio programmato" — solo per admin azienda. Apre il
+  // BulkScheduleWizard riutilizzato da /azienda/automazioni.
+  const [bulkWizardOpen, setBulkWizardOpen] = useState(false);
+
+  // Lista flow bulk_scheduler della company (solo se admin)
+  interface CompanyBulkFlow {
+    id: string;
+    name: string;
+    status: "draft" | "published" | "archived";
+    bulk_trigger_config: {
+      cron: string;
+      target: { type: string; value: string | null };
+      channels: Array<{ type: string }>;
+      template: { mode: string };
+      next_run_at: string | null;
+      last_run_at: string | null;
+    };
+  }
+  const { data: companyFlows = [] } = useQuery({
+    queryKey: ["settings-notifiche-bulk-flows", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id && isAdmin,
+    queryFn: async (): Promise<CompanyBulkFlow[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("automation_flows")
+        .select("id, name, status, bulk_trigger_config")
+        .eq("company_id", effectiveCompany!.id)
+        .not("bulk_trigger_config", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(20);
+      return (data ?? []) as CompanyBulkFlow[];
+    },
+  });
+
+  // Toggle status flow (pause/resume)
+  const toggleFlowMut = useMutation({
+    mutationFn: async ({ id, newStatus }: { id: string; newStatus: string }) => {
+      const { error } = await supabase
+        .from("automation_flows")
+        .update({ status: newStatus })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Stato aggiornato");
+      void qc.invalidateQueries({ queryKey: ["settings-notifiche-bulk-flows"] });
+    },
+    onError: (e: Error) => toast.error("Errore", { description: e.message }),
+  });
+
+  const deleteFlowMut = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("automation_flows").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Messaggio programmato eliminato");
+      void qc.invalidateQueries({ queryKey: ["settings-notifiche-bulk-flows"] });
+    },
+    onError: (e: Error) => toast.error("Errore", { description: e.message }),
+  });
 
   // Carica preferenze esistenti (può essere null → defaults)
   const { data: prefs, isLoading } = useQuery({
@@ -215,6 +281,118 @@ export default function SettingsNotifiche() {
           </p>
         </div>
       </div>
+
+      {/* ── SEZIONE COMPANY_ADMIN: notifiche AZIENDALI ──────────────────
+          Solo visibile a chi è admin. Sopra alle preferenze personali
+          perché l'admin gestisce PRIMA le notifiche per gli altri,
+          POI le sue. */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CalendarClock className="h-4 w-4 text-violet-600" />
+                  Notifiche aziendali (admin)
+                </CardTitle>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Messaggi automatici programmati che invii ai tuoi utenti — operai, staff, admin.
+                  Visibili anche in /azienda/automazioni con il builder avanzato.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setBulkWizardOpen(true)}
+                className="gap-1.5 shrink-0 bg-violet-600 hover:bg-violet-700"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Nuovo
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {companyFlows.length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground">
+                <CalendarClock className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p>Nessun messaggio programmato.</p>
+                <p className="text-xs mt-1">Click su <strong>Nuovo</strong> per creare il primo.</p>
+              </div>
+            ) : (
+              companyFlows.map((f) => {
+                const cfg = f.bulk_trigger_config;
+                const isActive = f.status === "published";
+                return (
+                  <div key={f.id} className={cn(
+                    "flex items-start justify-between gap-2 rounded-lg border p-2.5",
+                    !isActive && "opacity-60 bg-slate-50/50",
+                  )}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-sm">{f.name}</span>
+                        {isActive ? (
+                          <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-300">attivo</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">{f.status}</Badge>
+                        )}
+                        {cfg.template.mode === "ai_generated" && (
+                          <Badge variant="outline" className="text-[10px] bg-violet-50 text-violet-700 border-violet-200">AI</Badge>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap gap-2">
+                        <code className="font-mono text-[10px]">{cfg.cron}</code>
+                        <span>·</span>
+                        <span>{cfg.target.type === "role" ? `${cfg.target.value}` : cfg.target.type}</span>
+                        <span>·</span>
+                        <span>{cfg.channels.map((c) => c.type).join(", ") || "—"}</span>
+                      </div>
+                      {cfg.next_run_at && isActive && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Prossima esecuzione: {new Date(cfg.next_run_at).toLocaleString("it-IT")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Button
+                        size="icon" variant="ghost" className="h-7 w-7"
+                        title={isActive ? "Disabilita" : "Riabilita"}
+                        onClick={() => toggleFlowMut.mutate({ id: f.id, newStatus: isActive ? "draft" : "published" })}
+                      >
+                        {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button
+                        size="icon" variant="ghost" className="h-7 w-7 text-rose-600"
+                        title="Elimina"
+                        onClick={() => {
+                          if (confirm(`Eliminare "${f.name}"? L'azione è irreversibile.`)) {
+                            deleteFlowMut.mutate(f.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <p className="text-[11px] text-slate-400 mt-2">
+              Esempi: briefing operai mattutino, reminder DURC mensile, riepilogo settimanale.
+              <a href="/azienda/automazioni" className="text-violet-600 hover:underline ml-1">
+                Apri builder avanzato →
+              </a>
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Separator per chiarezza tra sezione admin e personale */}
+      {isAdmin && (
+        <div className="flex items-center gap-3 my-1">
+          <div className="flex-1 h-px bg-slate-200" />
+          <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Le tue preferenze personali</span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>
+      )}
 
       {/* Info box */}
       <Card className="bg-violet-50/40 border-violet-200">
@@ -421,6 +599,13 @@ export default function SettingsNotifiche() {
           {saveMut.isPending ? "Salvataggio..." : "Salva preferenze"}
         </Button>
       </div>
+
+      {/* Wizard nuovo messaggio programmato — montato qui per riuso, gestito
+          via stato bulkWizardOpen + chiamato dal pulsante Nuovo in cima */}
+      <BulkScheduleWizard
+        open={bulkWizardOpen}
+        onClose={() => setBulkWizardOpen(false)}
+      />
     </div>
   );
 }
