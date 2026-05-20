@@ -16,6 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSilvioPageContext } from "@/hooks/useSilvioPageContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -253,6 +254,9 @@ function fmtBytes(n: number): string {
 
 export function SilvioChatSheet({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
+  // Context pagina corrente: passato a silvio-chat come HINT (non filtro).
+  // Vedi useSilvioPageContext per le route mappate.
+  const pageContext = useSilvioPageContext();
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
@@ -924,6 +928,11 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
             file_name: a.file.name,
             kind: a.kind,
           })),
+          // Page-aware context: Silvio sa cosa l'utente stava guardando quando
+          // ha aperto la chat. Usato come HINT nel system prompt — Silvio
+          // sceglie se applicarlo (domande vaghe) o ignorarlo (domande
+          // esplicite su altra entità).
+          ...(pageContext ? { current_context: pageContext } : {}),
           // AI Test Lab — passa il modello selezionato SOLO se demo
           // (server-side è comunque gated, double safety).
           ...(aiSelector.showSelector ? { model: aiSelector.selectedModel } : {}),
@@ -1015,9 +1024,11 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
             <div className="flex-1 text-left min-w-0">
               <p className="text-sm font-semibold text-slate-800 truncate">Chat con Silvio</p>
               <p className="text-[11px] text-slate-500 font-normal truncate">
-                {messages.length > 0
-                  ? `${messages.length} messaggi · live · multimodal`
-                  : "Analizza testi, foto, PDF, DDT e vocali"}
+                {pageContext
+                  ? `Sai che sto guardando: ${pageContext.route_label}`
+                  : messages.length > 0
+                    ? `${messages.length} messaggi · live · multimodal`
+                    : "Analizza testi, foto, PDF, DDT e vocali"}
               </p>
             </div>
             {/* 🆕 Bottoni azione header */}

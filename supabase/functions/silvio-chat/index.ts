@@ -60,6 +60,24 @@ interface ChatAttachment {
   kind: "image" | "pdf" | "audio" | "text-doc" | "office-doc" | "other";
 }
 
+interface CurrentPageContext {
+  entity_type:
+    | "order"
+    | "customer"
+    | "invoice"
+    | "quote"
+    | "employee"
+    | "supplier"
+    | "warehouse_overview"
+    | "bank_overview"
+    | "cantiere_overview"
+    | "marketing_overview"
+    | "personale_overview";
+  entity_id: string | null;
+  route_label: string;
+  route_path: string;
+}
+
 interface ChatPayload {
   channel_id: string;
   message: string;
@@ -69,6 +87,12 @@ interface ChatPayload {
    * Validato server-side via isModelAllowed regex; ignorato se non demo.
    */
   model?: string;
+  /**
+   * Page-aware context: pagina/entità che l'utente stava guardando
+   * quando ha aperto la chat. HINT al system prompt — Silvio sceglie
+   * se usarlo o ignorarlo in base alla domanda.
+   */
+  current_context?: CurrentPageContext;
 }
 
 // AI Test Lab — gating server-side
@@ -148,6 +172,112 @@ function attachmentLogLabel(storagePath: string): string {
   return clean.split("/").pop()?.slice(0, 80) || "allegato";
 }
 
+/**
+ * buildPageContextSummary — costruisce una stringa breve descrittiva
+ * dell'entità che l'utente sta guardando. Iniettata nel system prompt come
+ * HINT. Una sola SELECT per entity_type, tutti con filtro company_id per
+ * sicurezza RLS-like (l'admin client bypassa RLS ma noi imponiamo la
+ * gerarchia company esplicitamente).
+ *
+ * Ritorna stringa vuota se l'entità non esiste, non appartiene alla company
+ * corrente, o il fetch fallisce. Mai throw — Silvio risponde senza context.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buildPageContextSummary(supabaseAdmin: any, companyId: string, ctx: CurrentPageContext): Promise<string> {
+  const { entity_type, entity_id, route_label } = ctx;
+  if (!entity_type) return "";
+
+  // ── Overview pages (no ID): solo il route label ─────────────────────
+  if (!entity_id) {
+    const overviewLabels: Record<string, string> = {
+      warehouse_overview:  "Sta guardando la pagina Magazzino (lista articoli, giacenze, DDT, lotti).",
+      bank_overview:       "Sta guardando la pagina Cassa & banca (movimenti, saldi, riconciliazioni).",
+      cantiere_overview:   "Sta guardando la lista Commesse/Cantieri.",
+      marketing_overview:  "Sta guardando l'area Marketing & vendita.",
+      personale_overview:  "Sta guardando la pagina Personale (dipendenti, presenze).",
+    };
+    return overviewLabels[entity_type] ?? `Sta guardando: ${route_label}`;
+  }
+
+  // ── Specific entity (con UUID): una query mirata ────────────────────
+  try {
+    if (entity_type === "order") {
+      const { data, error } = await supabaseAdmin
+        .from("orders")
+        .select("id, description, total_amount, deposit_amount, balance_amount, balance_paid, expected_date, cliente_snapshot:customer_id(id, profile_data)")
+        .eq("id", entity_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error || !data) return "";
+      const cliente = (data.cliente_snapshot?.profile_data as { full_name?: string; ragione_sociale?: string } | undefined)?.full_name
+        ?? (data.cliente_snapshot?.profile_data as { ragione_sociale?: string } | undefined)?.ragione_sociale
+        ?? "cliente sconosciuto";
+      const stato = data.balance_paid ? "saldata" : "aperta";
+      return `Sta guardando la commessa ${data.id.slice(0, 8)} di ${cliente}, descrizione: "${data.description?.slice(0, 80) ?? ""}", importo totale €${data.total_amount}, stato: ${stato}, scadenza prevista ${data.expected_date ?? "non definita"}.`;
+    }
+    if (entity_type === "customer") {
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .select("id, profile_data, role")
+        .eq("id", entity_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error || !data) return "";
+      const pd = (data.profile_data ?? {}) as { full_name?: string; ragione_sociale?: string; email?: string };
+      const nome = pd.full_name ?? pd.ragione_sociale ?? "Cliente senza nome";
+      return `Sta guardando il cliente "${nome}"${pd.email ? ` (${pd.email})` : ""}.`;
+    }
+    if (entity_type === "invoice") {
+      const { data, error } = await supabaseAdmin
+        .from("documenti_fiscali")
+        .select("id, tipo, numero, anno, data_emissione, totale_documento, stato, cliente_snapshot")
+        .eq("id", entity_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error || !data) return "";
+      const cs = (data.cliente_snapshot ?? {}) as { ragione_sociale?: string; nome?: string; cognome?: string };
+      const cliente = cs.ragione_sociale ?? `${cs.nome ?? ""} ${cs.cognome ?? ""}`.trim() ?? "cliente sconosciuto";
+      return `Sta guardando il documento fiscale ${data.tipo} n. ${data.numero}/${data.anno} a ${cliente}, importo €${data.totale_documento}, stato: ${data.stato}, emesso il ${data.data_emissione}.`;
+    }
+    if (entity_type === "quote") {
+      const { data, error } = await supabaseAdmin
+        .from("quotes")
+        .select("id, title, total_amount, status, customer_id, created_at")
+        .eq("id", entity_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error || !data) return "";
+      return `Sta guardando il preventivo "${data.title ?? data.id.slice(0, 8)}", importo €${data.total_amount}, stato: ${data.status}, creato il ${data.created_at?.split("T")[0]}.`;
+    }
+    if (entity_type === "employee") {
+      const { data, error } = await supabaseAdmin
+        .from("profiles")
+        .select("id, profile_data, role")
+        .eq("id", entity_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error || !data) return "";
+      const pd = (data.profile_data ?? {}) as { full_name?: string };
+      return `Sta guardando il dipendente "${pd.full_name ?? "senza nome"}" (ruolo: ${data.role}).`;
+    }
+    if (entity_type === "supplier") {
+      // Subappaltatore: leggiamo dalla view dashboard se disponibile, fallback su anagrafiche_native
+      const { data } = await supabaseAdmin
+        .from("v_subappaltatori_dashboard")
+        .select("id, ragione_sociale, piva, telefono")
+        .eq("id", entity_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (!data) return "";
+      return `Sta guardando il subappaltatore "${data.ragione_sociale}"${data.piva ? ` (P.IVA ${data.piva})` : ""}.`;
+    }
+  } catch (e) {
+    console.warn("[silvio-chat] buildPageContextSummary error", entity_type, e);
+    return "";
+  }
+  return "";
+}
+
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -163,6 +293,7 @@ serve(async (req: Request) => {
     const channelId = body?.channel_id?.trim();
     const userMessage = body?.message?.trim() ?? "";
     const attachments: ChatAttachment[] = Array.isArray(body?.attachments) ? body.attachments : [];
+    const pageContext = body?.current_context;
 
     // ── AI Test Lab — accept body.model SOLO per Demo Azienda + utente demo ──
     // Per tutti gli altri tenant il campo viene ignorato (sicurezza server-side).
@@ -334,6 +465,22 @@ serve(async (req: Request) => {
     const _lastMonth = _now.getMonth() === 0
       ? { y: _now.getFullYear() - 1, m: 12 }
       : { y: _now.getFullYear(), m: _now.getMonth() };
+
+    // ── Page-aware context: fetcha sintesi dell'entità che l'utente stava
+    //    guardando quando ha aperto la chat. Iniettata nel system prompt come
+    //    HINT (Silvio sceglie se applicarlo o ignorarlo). RLS-safe perché
+    //    filtriamo sempre per company del channel + l'admin client rispetta
+    //    le policy. Una sola query mirata per evitare bloat e latency. ─────
+    let pageContextSummary = "";
+    if (pageContext?.entity_type && companyId) {
+      try {
+        pageContextSummary = await buildPageContextSummary(supabaseAdmin, companyId, pageContext);
+      } catch (e) {
+        console.warn("[silvio-chat] page context fetch failed", e);
+        // Non bloccare: Silvio risponde senza context aggiuntivo
+      }
+    }
+
     const userContextPrompt = [
       "",
       "# CONTESTO TEMPORALE",
@@ -346,6 +493,14 @@ serve(async (req: Request) => {
       `- Ruolo: ${primaryRole}`,
       `- Perimetro: ${userScope}`,
       "",
+      // Page-aware: se pageContextSummary è valorizzato, contiene una stringa
+      // pronta tipo "Sta guardando: Commessa ORD-2026-024 (Mario Rossi, €18.400, in ritardo 3gg)"
+      ...(pageContextSummary ? [
+        "# PAGINA CHE L'UTENTE STA GUARDANDO (HINT — NON FILTRO)",
+        pageContextSummary,
+        "REGOLA: Usa questo context per default se la domanda è VAGA o si riferisce a 'questo/questa/questi'. Se la domanda nomina ESPLICITAMENTE altra entità (es. 'commessa ORD-X', 'cliente Bianchi'), IGNORA il context corrente e rispondi alla domanda esplicita.",
+        "",
+      ] : []),
       "# REGOLE DUE-DILIGENCE NEI DATI",
       "1. PRIMA di rispondere a domande SU DATI AZIENDALI (commesse, fatture, cashflow, clienti, ecc), DEVI invocare il tool appropriato. NON inventare numeri.",
       "2. Se un tool ritorna un errore o dati vuoti, dillo esplicitamente.",
