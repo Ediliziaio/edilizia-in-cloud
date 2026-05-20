@@ -287,6 +287,73 @@ export function useAssignSerialsToOrderItem() {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Lista paginata + filtrabile (drill-down magazzino)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface StockUnitsListFilters {
+  stockItemId?: string;
+  lottoId?: string;
+  status?: StockUnitStatus | "all";
+  search?: string; // ricerca su serial_number
+  limit?: number;
+}
+
+export interface StockUnitsListRow extends StockUnit {
+  stock_item?: { id: string; name: string; internal_code: string | null } | null;
+  lotto?: { id: string; codice_lotto: string } | null;
+}
+
+/**
+ * Lista seriali con filtri server-side per UI drill-down.
+ * Usa join leggeri su warehouse_stock + stock_lotti per mostrare contesto.
+ * Cap default 200: per drill-down su singolo articolo basta; per "vedi tutti
+ * i seriali della company" si può aumentare via prop limit.
+ */
+export function useStockUnitsList(filters: StockUnitsListFilters) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const limit = filters.limit ?? 200;
+
+  return useQuery<StockUnitsListRow[]>({
+    queryKey: [
+      "warehouse",
+      "stock-units-list",
+      companyId,
+      filters.stockItemId ?? null,
+      filters.lottoId ?? null,
+      filters.status ?? "all",
+      filters.search ?? "",
+      limit,
+    ],
+    enabled: !!companyId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      let q = supabase
+        .from("stock_units")
+        .select(
+          "*, stock_item:warehouse_stock!stock_units_stock_item_id_fkey(id, name, internal_code), lotto:stock_lotti!stock_units_lotto_id_fkey(id, codice_lotto)",
+        )
+        .eq("company_id", companyId!)
+        .order("serial_number", { ascending: true })
+        .limit(limit);
+
+      if (filters.stockItemId) q = q.eq("stock_item_id", filters.stockItemId);
+      if (filters.lottoId) q = q.eq("lotto_id", filters.lottoId);
+      if (filters.status && filters.status !== "all") {
+        q = q.eq("status", filters.status);
+      }
+      if (filters.search?.trim()) {
+        q = q.ilike("serial_number", `%${filters.search.trim()}%`);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as unknown as StockUnitsListRow[];
+    },
+  });
+}
+
 /** Libera un seriale dalla riserva (utile se l'utente sbaglia assegnazione). */
 export function useUnassignSerial() {
   const qc = useQueryClient();

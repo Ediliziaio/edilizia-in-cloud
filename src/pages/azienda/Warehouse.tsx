@@ -38,6 +38,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
+import { StockUnitsDrilldownSheet } from "@/components/warehouse/StockUnitsDrilldownSheet";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -246,6 +247,7 @@ export default function Warehouse() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+  const [serialsSheetOpen, setSerialsSheetOpen] = useState(false);
   const [stockActionRequest, setStockActionRequest] = useState<StockActionRequest>(null);
   const [metricsDialogOpen, setMetricsDialogOpen] = useState(false);
   const [metricPreferences, setMetricPreferences] = useState<MetricPreferences>(DEFAULT_METRIC_PREFERENCES);
@@ -1123,9 +1125,19 @@ export default function Warehouse() {
                       orderFilter !== "all",
                       supplierFilter !== "all",
                       sectionFilter !== "all",
+                      lottoFilter !== "all",
                     ].filter(Boolean).length}
                   </Badge>
                 )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setSerialsSheetOpen(true)}
+                className="shrink-0 gap-2"
+                title="Cerca tra tutti i seriali del magazzino"
+              >
+                <Package className="h-4 w-4" />
+                <span className="hidden sm:inline">Seriali</span>
               </Button>
             </div>
             )}
@@ -1449,6 +1461,12 @@ export default function Warehouse() {
       <WarehouseTransferPanel
         open={transferOpen}
         onOpenChange={setTransferOpen}
+      />
+
+      <StockUnitsDrilldownSheet
+        open={serialsSheetOpen}
+        onOpenChange={setSerialsSheetOpen}
+        lotti={lotti}
       />
     </div>
   );
