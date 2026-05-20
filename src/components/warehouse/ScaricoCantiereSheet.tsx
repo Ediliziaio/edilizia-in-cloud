@@ -96,6 +96,10 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   const [vettoreTipo, setVettoreTipo] = useState<VettoreTipo>("mittente");
   const [vettoreSubId, setVettoreSubId] = useState<string | undefined>();
   const [vettoreTerzoNome, setVettoreTerzoNome] = useState("");
+  const [vettoreTerzoPiva, setVettoreTerzoPiva] = useState("");
+  const [vettoreTerzoIndirizzo, setVettoreTerzoIndirizzo] = useState("");
+  // Flag per non sovrascrivere scelta manuale dell'utente
+  const [vettoreManuallyChanged, setVettoreManuallyChanged] = useState(false);
 
   // Query subappaltatori — caricato solo se serve
   const { data: subappaltatori = [] } = useQuery<{ id: string; ragione_sociale: string; piva: string | null; responsabile: string | null; telefono: string | null }[]>({
@@ -113,6 +117,34 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
       return data ?? [];
     },
   });
+
+  // Contratto subappalto attivo per l'ordine selezionato (se esiste).
+  // Permette auto-fill del trasportatore se la commessa è già associata
+  // a un subappaltatore tramite contratto.
+  const { data: orderContract } = useQuery<{ subappaltatore_id: string } | null>({
+    queryKey: ["scarico-order-contract", orderId],
+    enabled: !!orderId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("contratti_subappalto")
+        .select("subappaltatore_id")
+        .eq("order_id", orderId!)
+        .in("stato", ["attivo", "bozza"])
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  // Auto-fill trasportatore dal contratto subappalto della commessa.
+  // Only fires once per orderId, e SOLO se l'utente non ha cambiato manualmente.
+  useEffect(() => {
+    if (!orderId || vettoreManuallyChanged) return;
+    if (!orderContract?.subappaltatore_id) return;
+    setVettoreTipo("subappaltatore");
+    setVettoreSubId(orderContract.subappaltatore_id);
+  }, [orderId, orderContract?.subappaltatore_id, vettoreManuallyChanged]);
 
   // ── Warehouses: query DIRETTA senza filtro warehouse_assignments ────
   // Il filtro per assignments serve in altri contesti (es. lista warehouse
@@ -221,12 +253,16 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
     setOrderId(id);
     setSelectedOrder(order);
     setOrderPrefillApplied(null); // reset così il nuovo ordine può prefillarsi
+    setVettoreManuallyChanged(false); // permette auto-fill da contratto nuovo
   }, []);
 
   const handleClearOrder = useCallback(() => {
     setOrderId(undefined);
     setSelectedOrder(null);
     setOrderPrefillApplied(null);
+    setVettoreTipo("mittente");
+    setVettoreSubId(undefined);
+    setVettoreManuallyChanged(false);
   }, []);
 
   useEffect(() => {
@@ -250,6 +286,9 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
       setVettoreTipo("mittente");
       setVettoreSubId(undefined);
       setVettoreTerzoNome("");
+      setVettoreTerzoPiva("");
+      setVettoreTerzoIndirizzo("");
+      setVettoreManuallyChanged(false);
       shipment.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -305,6 +344,8 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
       vettoreJson = JSON.stringify({
         tipo: "terzo",
         ragione_sociale: vettoreTerzoNome.trim(),
+        vat_number: vettoreTerzoPiva.trim() || null,
+        address: vettoreTerzoIndirizzo.trim() || null,
       });
     } else if (vettoreTipo === "mittente") {
       vettoreJson = JSON.stringify({ tipo: "mittente" });
@@ -476,15 +517,21 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
             </p>
           </div>
 
-          {/* Trasportatore — chi porta la merce. Opzionale (default: mittente azienda) */}
+          {/* Trasportatore — chi porta la merce. Opzionale (default: mittente azienda).
+              Auto-fill da contratto subappalto della commessa, se presente. */}
           <div className="space-y-2">
-            <Label>Trasportatore <span className="text-muted-foreground font-normal">(opzionale)</span></Label>
+            <div className="flex items-center justify-between">
+              <Label>Trasportatore <span className="text-muted-foreground font-normal">(opzionale)</span></Label>
+              {orderContract?.subappaltatore_id && vettoreTipo === "subappaltatore" && !vettoreManuallyChanged && (
+                <span className="text-[10px] text-emerald-600">✓ Auto-fill dalla commessa</span>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {(["mittente", "subappaltatore", "terzo"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setVettoreTipo(t)}
+                  onClick={() => { setVettoreTipo(t); setVettoreManuallyChanged(true); }}
                   className={`text-xs px-3 py-2 rounded-md border transition-colors ${
                     vettoreTipo === t
                       ? "bg-primary text-primary-foreground border-primary font-medium"
@@ -498,7 +545,7 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
               ))}
             </div>
             {vettoreTipo === "subappaltatore" && (
-              <Select value={vettoreSubId} onValueChange={setVettoreSubId}>
+              <Select value={vettoreSubId} onValueChange={(v) => { setVettoreSubId(v); setVettoreManuallyChanged(true); }}>
                 <SelectTrigger>
                   <SelectValue placeholder={subappaltatori.length ? "Scegli subappaltatore" : "Nessun subappaltatore attivo"} />
                 </SelectTrigger>
@@ -513,15 +560,31 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
               </Select>
             )}
             {vettoreTipo === "terzo" && (
-              <Input
-                value={vettoreTerzoNome}
-                onChange={(e) => setVettoreTerzoNome(e.target.value)}
-                placeholder="Ragione sociale del vettore terzo"
-                maxLength={120}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="col-span-2">
+                  <Input
+                    value={vettoreTerzoNome}
+                    onChange={(e) => setVettoreTerzoNome(e.target.value)}
+                    placeholder="Ragione sociale vettore terzo"
+                    maxLength={120}
+                  />
+                </div>
+                <Input
+                  value={vettoreTerzoPiva}
+                  onChange={(e) => setVettoreTerzoPiva(e.target.value)}
+                  placeholder="P.IVA"
+                  maxLength={20}
+                />
+                <Input
+                  value={vettoreTerzoIndirizzo}
+                  onChange={(e) => setVettoreTerzoIndirizzo(e.target.value)}
+                  placeholder="Sede legale (via, città)"
+                  maxLength={200}
+                />
+              </div>
             )}
             <p className="text-[11px] text-muted-foreground">
-              Conducente, targa e dettagli si completano nell'editor DDT dopo la generazione.
+              Conducente, targa e altri dettagli si completano nell'editor DDT dopo la generazione.
             </p>
           </div>
 
