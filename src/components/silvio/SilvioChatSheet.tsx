@@ -430,8 +430,14 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   }, [channelId, loadingOlder, hasMoreOlder, messages]);
 
   // ── 2.b Realtime subscription per nuovi messaggi (Sprint AI Uploads #4)
+  // PERF FIX: prima ogni INSERT/UPDATE triggerava invalidateQueries → refetch
+  // di 30 messaggi via select("*"). Durante lo streaming Silvio (UPDATE
+  // token-per-token, ~30 update/messaggio) significava ~900 query Supabase
+  // wasteful per una sola risposta AI. Ora applichiamo il payload Postgres
+  // changes direttamente alla cache React Query (`setQueryData`).
   useEffect(() => {
     if (!channelId || !open) return;
+    const queryKey = ["internal-chat-messages", channelId];
     const channel = supabase
       .channel(`silvio-chat-rt-${channelId}`)
       .on(
@@ -442,8 +448,17 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
           table: "internal_chat_messages",
           filter: `channel_id=eq.${channelId}`,
         },
-        () => {
-          qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
+        (payload) => {
+          const newMsg = payload.new as SilvioMessage | undefined;
+          if (!newMsg?.id) {
+            qc.invalidateQueries({ queryKey });
+            return;
+          }
+          qc.setQueryData<SilvioMessage[]>(queryKey, (prev) => {
+            if (!prev) return [newMsg];
+            if (prev.some((m) => m.id === newMsg.id)) return prev; // dedup
+            return [...prev, newMsg];
+          });
         },
       )
       .on(
@@ -454,10 +469,23 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
           table: "internal_chat_messages",
           filter: `channel_id=eq.${channelId}`,
         },
-        () => {
-          // Used dallo streaming Silvio (vedi Element 3): aggiorna mentre il
-          // testo cresce token-per-token sul record di Silvio.
-          qc.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
+        (payload) => {
+          // Streaming Silvio (vedi Element 3): UPDATE arriva ad ogni token.
+          // Patch in-place via setQueryData → no refetch, no flicker.
+          const updMsg = payload.new as SilvioMessage | undefined;
+          if (!updMsg?.id) {
+            qc.invalidateQueries({ queryKey });
+            return;
+          }
+          qc.setQueryData<SilvioMessage[]>(queryKey, (prev) => {
+            if (!prev) return [updMsg];
+            const idx = prev.findIndex((m) => m.id === updMsg.id);
+            if (idx === -1) return [...prev, updMsg];
+            // Replace inplace senza ricostruire l'intero array (perf)
+            const next = prev.slice();
+            next[idx] = updMsg;
+            return next;
+          });
         },
       )
       .subscribe();
