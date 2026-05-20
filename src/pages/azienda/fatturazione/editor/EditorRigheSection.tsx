@@ -176,12 +176,11 @@ function SortableRow({
               <span className="text-[10px] font-medium text-muted-foreground/60">{index + 1}</span>
             </div>
 
-            {/* Contenuto principale: top row (Codice/Nome + Qtà/UM/Prezzo)
-                + middle row (Descrizione | Sc%/IVA/Importo) */}
+            {/* Contenuto principale — grid stabile, no flex-wrap */}
             <div className="flex-1 min-w-0 space-y-3">
-              {/* TOP ROW: Codice + Nome prodotto (sx) | Qtà + UM + Prezzo (dx) */}
-              <div className="flex flex-wrap items-start gap-3">
-                <div className="space-y-1 w-24 shrink-0">
+              {/* TOP ROW — grid 5 colonne fisse, sempre allineate */}
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_4.5rem_5rem_5.5rem] gap-2">
+                <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground font-normal">Codice</Label>
                   <Input
                     value={riga.codice_articolo ?? ""}
@@ -190,7 +189,7 @@ function SortableRow({
                     disabled={disabled}
                   />
                 </div>
-                <div className="space-y-1 flex-1 min-w-[200px]">
+                <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Nome prodotto</Label>
                   <Input
                     value={riga.descrizione.split("\n")[0] ?? ""}
@@ -199,11 +198,11 @@ function SortableRow({
                       lines[0] = e.target.value;
                       onUpdate(index, "descrizione", lines.join("\n"));
                     }}
-                    className="h-8 text-sm"
+                    className="h-8 text-sm w-full"
                     disabled={disabled}
                   />
                 </div>
-                <div className="space-y-1 w-20 shrink-0">
+                <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground font-normal">Quantità</Label>
                   <Input
                     type="number"
@@ -213,8 +212,8 @@ function SortableRow({
                     disabled={disabled}
                   />
                 </div>
-                <div className="space-y-1 w-24 shrink-0">
-                  <Label className="text-[10px] text-muted-foreground font-normal">Un. di misura</Label>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground font-normal">U.M.</Label>
                   <Select
                     value={riga.unita_misura || "pz"}
                     onValueChange={(v) => onUpdate(index, "unita_misura", v)}
@@ -230,10 +229,8 @@ function SortableRow({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1 w-24 shrink-0">
-                  <Label className="text-[10px] text-muted-foreground font-normal">
-                    {prezziLordi ? "Prezzo lordo" : "Prezzo netto"}
-                  </Label>
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground font-normal">{prezziLordi ? "Lordo" : "Prezzo"}</Label>
                   <Input
                     type="number"
                     step="0.0001"
@@ -252,9 +249,9 @@ function SortableRow({
                 </div>
               </div>
 
-              {/* MIDDLE ROW: Descrizione (sx, grande) | Sc.% + IVA + Importo totale (dx) */}
-              <div className="flex flex-wrap items-start gap-3">
-                <div className="space-y-1 flex-1 min-w-[280px]">
+              {/* MIDDLE ROW — grid 2 col: Descrizione (1fr) | sidebar fixed 10rem */}
+              <div className="grid grid-cols-[minmax(0,1fr)_10rem] gap-3">
+                <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Descrizione</Label>
                   <Textarea
                     value={riga.descrizione.split("\n").slice(1).join("\n")}
@@ -263,15 +260,15 @@ function SortableRow({
                       const extra = e.target.value;
                       onUpdate(index, "descrizione", extra ? `${firstLine}\n${extra}` : firstLine);
                     }}
-                    className="text-xs resize-y min-h-[4.5rem]"
+                    className="text-xs resize-y min-h-[4.5rem] w-full"
                     placeholder="Note aggiuntive sulla riga…"
                     rows={3}
                     disabled={disabled}
                   />
                 </div>
-                <div className="flex flex-col gap-2 w-44 shrink-0">
-                  <div className="flex gap-2">
-                    <div className="space-y-1 w-16">
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
                       <Label className="text-[10px] text-muted-foreground font-normal">Sconto %</Label>
                       <Input
                         type="number"
@@ -283,7 +280,7 @@ function SortableRow({
                         disabled={disabled}
                       />
                     </div>
-                    <div className="space-y-1 flex-1 relative">
+                    <div className="space-y-1 relative">
                       <Label className="text-[10px] text-muted-foreground font-normal">IVA</Label>
                       <Select
                         value={ivaValueFromRiga(riga)}
@@ -351,9 +348,9 @@ function SortableRow({
                 </span>
               )}
 
-              {/* FOOTER: checkbox articolo non imponibile + categoria */}
-              <div className="flex flex-wrap items-end gap-3">
-                <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+              {/* FOOTER ROW — grid 2 col: checkbox (auto) | Categoria (1fr) */}
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 items-end">
+                <label className="flex items-center gap-2 text-xs cursor-pointer select-none pb-2">
                   <input
                     type="checkbox"
                     checked={isAnticipazione}
@@ -369,14 +366,14 @@ function SortableRow({
                     className="h-3.5 w-3.5 rounded border-input"
                     disabled={disabled}
                   />
-                  <span className="text-muted-foreground">Articolo non imponibile (anticipazione)</span>
+                  <span className="text-muted-foreground whitespace-nowrap">Articolo non imponibile (anticipazione)</span>
                 </label>
-                <div className="space-y-1 flex-1 min-w-[200px]">
+                <div className="space-y-1 min-w-0">
                   <Label className="text-[10px] text-muted-foreground font-normal">Categoria</Label>
                   <Input
                     value={riga.riferimento_amministrazione ?? ""}
                     onChange={(e) => onUpdate(index, "riferimento_amministrazione", e.target.value)}
-                    className="h-8 text-sm"
+                    className="h-8 text-sm w-full"
                     placeholder="—"
                     disabled={disabled}
                   />
