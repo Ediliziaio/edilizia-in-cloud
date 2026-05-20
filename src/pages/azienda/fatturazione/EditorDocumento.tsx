@@ -441,7 +441,7 @@ export default function EditorDocumento() {
           )}
 
           {/* ═══ RIGHE + RIEPILOGO ═══ */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-4">
             <EditorRigheSection state={state} dispatch={dispatch} disabled={!isBozza} />
             <EditorTotaliSection state={state} dispatch={dispatch} disabled={!isBozza} />
           </div>
