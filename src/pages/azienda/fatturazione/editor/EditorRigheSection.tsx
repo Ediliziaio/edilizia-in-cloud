@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, memo } from "react";
 import { Plus, Trash2, PackageSearch, Copy, ChevronDown, GripVertical, AlertTriangle, Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,16 +114,11 @@ function ivaDisplayLabel(riga: RigaDocumento): string {
 }
 
 // ─── Sortable Row ────────────────────────────────────────────
+// Memoizzato — evita re-render di TUTTE le righe quando UNA cambia.
+// Con 10+ righe questo era il principale costo di re-render durante typing.
+// Handlers stabili tramite useCallback nel parent (vedi EditorRigheSection).
 
-function SortableRow({
-  riga,
-  index,
-  disabled,
-  onUpdate,
-  onRemove,
-  onDuplicate,
-  prezziLordi,
-}: {
+interface SortableRowProps {
   riga: RigaDocumento;
   index: number;
   disabled?: boolean;
@@ -131,7 +126,17 @@ function SortableRow({
   onRemove: (index: number) => void;
   onDuplicate: (index: number) => void;
   prezziLordi?: boolean;
-}) {
+}
+
+function SortableRowImpl({
+  riga,
+  index,
+  disabled,
+  onUpdate,
+  onRemove,
+  onDuplicate,
+  prezziLordi,
+}: SortableRowProps) {
   // Default collapsed: mostra solo TOP row (Codice + Nome + Qtà + UM + Prezzo).
   // L'utente espande per vedere/modificare Descrizione + Sc% + IVA + Importo
   // + checkbox + Categoria. Auto-espanso se contiene descrizione multiline o
@@ -429,6 +434,38 @@ function SortableRow({
   );
 }
 
+/**
+ * SortableRow — wrapped in memo per skip render quando le props non cambiano.
+ * Custom equality: ignora il riferimento di `riga` se i campi rilevanti sono
+ * uguali (l'autosave nel reducer ricrea sempre l'array, ma molti dei suoi
+ * elementi restano identici a livello di valori).
+ */
+const SortableRow = memo(SortableRowImpl, (prev, next) => {
+  if (prev.index !== next.index) return false;
+  if (prev.disabled !== next.disabled) return false;
+  if (prev.prezziLordi !== next.prezziLordi) return false;
+  if (prev.onUpdate !== next.onUpdate) return false;
+  if (prev.onRemove !== next.onRemove) return false;
+  if (prev.onDuplicate !== next.onDuplicate) return false;
+  // Riga è oggetto: confronta i campi chiave (escludendo proprietà interne)
+  const a = prev.riga;
+  const b = next.riga;
+  return (
+    a.id === b.id &&
+    a.codice_articolo === b.codice_articolo &&
+    a.descrizione === b.descrizione &&
+    a.quantita === b.quantita &&
+    a.unita_misura === b.unita_misura &&
+    a.prezzo_unitario === b.prezzo_unitario &&
+    a.sconto_percentuale === b.sconto_percentuale &&
+    a.aliquota_iva === b.aliquota_iva &&
+    a.natura_iva === b.natura_iva &&
+    a.totale_riga === b.totale_riga &&
+    a.riferimento_amministrazione === b.riferimento_amministrazione
+  );
+});
+SortableRow.displayName = "SortableRow";
+
 // ─── Main Component ──────────────────────────────────────────
 
 export function EditorRigheSection({ state, dispatch, disabled }: Props) {
@@ -489,9 +526,25 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
     setCatalogSearch("");
   }
 
-  function updateField(index: number, field: keyof RigaDocumento, value: unknown) {
-    dispatch({ type: "UPDATE_RIGA", index, riga: { [field]: value } });
-  }
+  // Handlers stabili — dipendono solo da `dispatch` (stable di useReducer) e
+  // righe (per remove/duplicate). Stabilizzati per consentire a SortableRow
+  // (memoizzato) di skippare i re-render quando le props non cambiano.
+  const updateField = useCallback(
+    (index: number, field: keyof RigaDocumento, value: unknown) => {
+      dispatch({ type: "UPDATE_RIGA", index, riga: { [field]: value } });
+    },
+    [dispatch],
+  );
+
+  const removeRiga = useCallback(
+    (index: number) => dispatch({ type: "REMOVE_RIGA", index }),
+    [dispatch],
+  );
+
+  const duplicateRiga = useCallback(
+    (index: number) => dispatch({ type: "DUPLICATE_RIGA", index }),
+    [dispatch],
+  );
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -583,8 +636,8 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                   index={i}
                   disabled={disabled}
                   onUpdate={updateField}
-                  onRemove={(idx) => dispatch({ type: "REMOVE_RIGA", index: idx })}
-                  onDuplicate={(idx) => dispatch({ type: "DUPLICATE_RIGA", index: idx })}
+                  onRemove={removeRiga}
+                  onDuplicate={duplicateRiga}
                   prezziLordi={usePrezziLordi}
                 />
               ))}

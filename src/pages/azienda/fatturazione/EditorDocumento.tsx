@@ -83,40 +83,47 @@ export default function EditorDocumento() {
   const emittiMutation = useEmittiDocumento();
   const deleteMutation = useDeleteDocumento();
 
-  // Auto-create on mount for /nuovo
+  // Ref alla mutation per evitare deps instabili (la reference di
+  // createMutation cambia ad ogni render del componente parent ma il suo
+  // .mutate è stabile; usiamo il ref per leggere l'ultima istanza senza
+  // far re-fire l'effect).
+  const createMutationRef = useRef(createMutation);
+  createMutationRef.current = createMutation;
+
+  // Auto-create on mount for /nuovo. Deps minimizzate: solo i flag che
+  // davvero determinano se procedere. createMutation viene letta dal ref.
   useEffect(() => {
-    if (isCreate && !createdRef.current) {
-      // If ordine param specified, wait until the query has completed (success OR error)
-      // but don't block forever — proceed after fetch attempt
-      if (ordineParam && !ordineDataFetched) return;
+    if (!isCreate || createdRef.current) return;
+    // If ordine param specified, wait until the query has completed (success OR error)
+    // but don't block forever — proceed after fetch attempt
+    if (ordineParam && !ordineDataFetched) return;
 
-      createdRef.current = true;
+    createdRef.current = true;
 
-      // Build prefilled data from order if available
-      const mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled };
-      if (ordineData && !mergedPrefill.note_documento) {
-        mergedPrefill.note_documento = ordineData.description || undefined;
-      }
-
-      createMutation.mutate(
-        { tipo: tipoParam, ...mergedPrefill },
-        {
-          onSuccess: (doc) => {
-            const newUrl = ordineParam
-              ? `/azienda/documenti/${doc.id}?ordine_link=${ordineParam}`
-              : `/azienda/documenti/${doc.id}`;
-            navigate(newUrl, { replace: true });
-          },
-          onError: (err) => {
-            console.error("[EditorDocumento] Create mutation failed:", err);
-            // Reset flag so user can retry, and navigate back
-            createdRef.current = false;
-            navigate(-1);
-          },
-        }
-      );
+    // Build prefilled data from order if available
+    const mergedPrefill: Partial<DocumentoFiscale> = { ...prefilled };
+    if (ordineData && !mergedPrefill.note_documento) {
+      mergedPrefill.note_documento = ordineData.description || undefined;
     }
-  }, [isCreate, tipoParam, createMutation, navigate, ordineParam, ordineData, ordineDataFetched]);
+
+    createMutationRef.current.mutate(
+      { tipo: tipoParam, ...mergedPrefill },
+      {
+        onSuccess: (doc) => {
+          const newUrl = ordineParam
+            ? `/azienda/documenti/${doc.id}?ordine_link=${ordineParam}`
+            : `/azienda/documenti/${doc.id}`;
+          navigate(newUrl, { replace: true });
+        },
+        onError: (err) => {
+          console.error("[EditorDocumento] Create mutation failed:", err);
+          createdRef.current = false;
+          navigate(-1);
+        },
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCreate, tipoParam, ordineParam, ordineDataFetched]);
 
   const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
