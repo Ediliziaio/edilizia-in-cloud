@@ -177,6 +177,13 @@ export function useDDTRicezioneList(filters?: {
         q = q.lte("data_ricezione", filters.toDate);
       }
 
+      // Safety cap: prima NESSUN limit → su azienda con >1000 DDT caricava
+      // tutto con join 4-tabelle (PO + suppliers + orders + warehouses) →
+      // payload enorme + parsing/render slow + RAM spike.
+      // Ordine già DESC su data_ricezione → tieni i 500 più recenti.
+      // Per storici > 500 servirà infinite scroll dedicato (TODO future).
+      q = q.limit(500);
+
       const { data, error } = await q;
       if (error) throw error;
 
@@ -203,11 +210,15 @@ export function useDDTByPurchaseOrder(poId: string | null | undefined) {
   return useQuery<DDTRicezione[]>({
     queryKey: queryKeys.ddtRicezione.byPurchaseOrder(poId),
     queryFn: async () => {
+      // Safety cap: un PO ha tipicamente 1-5 DDT (consegne parziali), ma in
+      // casi patologici (importazioni storiche) può averne molti. Limite 200
+      // → copre 100% dei casi reali senza scaricare payload inutili.
       const { data, error } = await supabase
         .from("ddt_ricezione")
         .select("*")
         .eq("purchase_order_id", poId!)
-        .order("data_ricezione", { ascending: false });
+        .order("data_ricezione", { ascending: false })
+        .limit(200);
       if (error) throw error;
       return (data || []) as unknown as DDTRicezione[];
     },
