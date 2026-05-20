@@ -14,7 +14,7 @@
  *   - Render messaggi con allegati (anteprima immagine inline, link PDF,
  *     player audio).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -323,22 +323,24 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
     staleTime: 60_000,
   });
 
-  // ── 2. Carica ultimi 30 messaggi (Element 4 Sprint AI Uploads:
+  // ── 2. Carica gli ULTIMI N messaggi (Element 4 Sprint AI Uploads:
   //       Supabase Realtime invece di polling — risparmio batteria mobile
-  //       e latency immediata) ─────────────────────────────────────────────
-  const { data: messages = [] } = useQuery({
+  //       e latency immediata). FIX BUG: prima `order ASC limit 30` caricava
+  //       i 30 più VECCHI; ora DESC + reverse client-side per latest-N
+  //       (stesso pattern di InternalChat.tsx) e cache compatibile. ────────
+  const MESSAGES_PAGE_SIZE = 30;
+  const { data: liveMessages = [] } = useQuery({
     queryKey: ["internal-chat-messages", channelId],
     queryFn: async (): Promise<SilvioMessage[]> => {
       if (!channelId) return [];
-      // select("*") per condividere la cache React Query con InternalChat
-      // (stesso queryKey "internal-chat-messages") senza schema drift
       const { data } = await supabase
         .from("internal_chat_messages")
         .select("*")
         .eq("channel_id", channelId)
-        .order("created_at", { ascending: true })
-        .limit(30);
-      return (data ?? []) as SilvioMessage[];
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE);
+      // Reverse client-side: ordine ASC per render UI (più vecchio in alto).
+      return ((data ?? []) as SilvioMessage[]).slice().reverse();
     },
     enabled: !!channelId && open,
     // staleTime alto: il refresh viene pilotato dal realtime listener qui sotto
@@ -346,6 +348,69 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
     // gcTime alto: la cache sopravvive a chiusura/riapertura sheet senza fetch
     gcTime: 60 * 60 * 1000,
   });
+
+  // ── 2.a Paginazione backward — "Carica messaggi più vecchi" ──────────
+  // Quando l'utente vuole vedere conversazioni storiche oltre i 30 caricati,
+  // clicca il pulsante in cima e carichiamo 30 messaggi PRIMA del più vecchio
+  // già visibile. Stato locale (non shared cache) per non interferire con
+  // InternalChat che usa lo stesso queryKey.
+  const [olderMessages, setOlderMessages] = useState<SilvioMessage[]>([]);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+
+  // Reset paginazione quando cambia canale o si chiude la sheet
+  useEffect(() => {
+    setOlderMessages([]);
+    setHasMoreOlder(true);
+  }, [channelId, open]);
+
+  // Combina: messaggi storici (paginati) + live (cache condivisa con realtime).
+  // Dedup safety: se realtime invalidate carica un messaggio che era in
+  // olderMessages, lo skippiamo dalla lista storica via Set di ID.
+  const messages = useMemo(() => {
+    const liveIds = new Set(liveMessages.map((m) => m.id));
+    return [...olderMessages.filter((m) => !liveIds.has(m.id)), ...liveMessages];
+  }, [olderMessages, liveMessages]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!channelId || loadingOlder || !hasMoreOlder) return;
+    const oldestLoaded = messages[0];
+    if (!oldestLoaded) return;
+    setLoadingOlder(true);
+    // Preserva la scroll position: dopo il prepend, il browser sposterebbe
+    // il viewport. Manteniamo l'utente sulla stessa "ancora" visiva.
+    const scrollEl = scrollRef.current;
+    const beforeAnchorTop = scrollEl?.scrollTop ?? 0;
+    const beforeAnchorHeight = scrollEl?.scrollHeight ?? 0;
+    try {
+      const { data } = await supabase
+        .from("internal_chat_messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .lt("created_at", oldestLoaded.created_at)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE);
+      const fetched = ((data ?? []) as SilvioMessage[]).slice().reverse();
+      if (fetched.length === 0) {
+        setHasMoreOlder(false);
+      } else {
+        if (fetched.length < MESSAGES_PAGE_SIZE) setHasMoreOlder(false);
+        setOlderMessages((prev) => [...fetched, ...prev]);
+        // Restore scroll: dopo il rendering del prepend, riposiziona così
+        // l'utente resta sull'elemento che stava guardando.
+        requestAnimationFrame(() => {
+          if (!scrollEl) return;
+          const delta = scrollEl.scrollHeight - beforeAnchorHeight;
+          scrollEl.scrollTop = beforeAnchorTop + delta;
+        });
+      }
+    } catch (err) {
+      toast.error("Errore nel caricare messaggi più vecchi");
+      console.error("[silvio] loadOlder error", err);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [channelId, loadingOlder, hasMoreOlder, messages]);
 
   // ── 2.b Realtime subscription per nuovi messaggi (Sprint AI Uploads #4)
   useEffect(() => {
@@ -389,11 +454,16 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   // dell'ultimo messaggio cresce ma messages.length resta uguale, quindi
   // l'auto-scroll non scattava. Ora dipendiamo anche dal contenuto del
   // messaggio più recente per seguire la risposta in tempo reale.
-  const lastMessageContent = messages[messages.length - 1]?.content;
+  // Paginazione fix: tracciamo l'ID dell'ultimo messaggio LIVE (non storico).
+  // Se cambia l'ultimo live → nuovo messaggio in arrivo → scroll bottom.
+  // Se cresce solo `olderMessages` (paginazione) → NON scrollare (loadOlder
+  // restaura già la scroll position via scrollTop+delta).
+  const liveLength = liveMessages.length;
+  const lastLiveContent = liveMessages[liveLength - 1]?.content;
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages.length, lastMessageContent]);
+  }, [liveLength, lastLiveContent]);
 
   // Element 3: quando arrivano messaggi nuovi di Silvio, marcali come streaming
   // (effetto typewriter). I messaggi già visti restano statici.
@@ -953,6 +1023,30 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
             </div>
           ) : (
             <AnimatePresence initial={false}>
+              {/* Pulsante per caricare conversazioni storiche oltre i 30 messaggi
+                  iniziali. Mostrato solo se non sappiamo già che siamo arrivati
+                  al primo messaggio del canale (hasMoreOlder=false dopo che una
+                  fetch ha restituito 0 risultati). */}
+              {hasMoreOlder && messages.length >= MESSAGES_PAGE_SIZE && (
+                <div className="flex justify-center pb-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={loadOlderMessages}
+                    disabled={loadingOlder}
+                    className="text-xs text-slate-500 hover:text-orange-600 hover:bg-orange-50"
+                  >
+                    {loadingOlder ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                        Caricamento…
+                      </>
+                    ) : (
+                      <>↑ Carica messaggi più vecchi</>
+                    )}
+                  </Button>
+                </div>
+              )}
               {messages.map((m) => (
                 <MessageBubble
                   key={m.id}
