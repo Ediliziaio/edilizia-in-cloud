@@ -18,7 +18,7 @@
  * Auto-navigazione al DDT editor dopo successo.
  */
 
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+// Note: Select imports are still used for the Magazzino sorgente dropdown.
 import {
   ArrowUpFromLine,
   ArrowRight,
@@ -55,6 +56,7 @@ import { useCreateShipment } from "@/hooks/warehouse/useCreateShipment";
 import { uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
 import { supabase } from "@/integrations/supabase/client";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
+import { OrderSelectCombobox, type OrderOption } from "./OrderSelectCombobox";
 
 const BatchBarcodeScanner = lazy(() =>
   import("./BatchBarcodeScanner").then((m) => ({ default: m.BatchBarcodeScanner })),
@@ -63,13 +65,6 @@ const BatchBarcodeScanner = lazy(() =>
 interface ScaricoCantiereSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-interface OrderRow {
-  id: string;
-  order_code: string;
-  customer_name: string | null;
-  default_warehouse_id: string | null;
 }
 
 interface WarehouseRow {
@@ -88,6 +83,7 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
 
   const [step, setStep] = useState<Step>("context");
   const [orderId, setOrderId] = useState<string | undefined>();
+  const [selectedOrder, setSelectedOrder] = useState<OrderOption | null>(null);
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [loadedGoodsPhotos, setLoadedGoodsPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
@@ -116,49 +112,16 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
     },
   });
 
-  // Lista ordini "aperti" — quelli per cui ha senso fare scarico cantiere.
-  const { data: orders = [], isLoading: ordersLoading } = useQuery<OrderRow[]>({
-    queryKey: ["scarico-cantiere-orders", companyId],
-    queryFn: async () => {
-      if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("orders")
-        .select(`
-          id, order_code, client_name,
-          order_items ( destination_warehouse_id )
-        `)
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      type RawRow = {
-        id: string;
-        order_code: string | null;
-        client_name: string | null;
-        order_items?: Array<{ destination_warehouse_id: string | null }> | null;
-      };
-      return ((data ?? []) as unknown as RawRow[]).map((o) => {
-        const defaultWh =
-          o.order_items?.find((i) => i.destination_warehouse_id)?.destination_warehouse_id ??
-          null;
-        return {
-          id: o.id,
-          order_code: o.order_code ?? "—",
-          customer_name: o.client_name,
-          default_warehouse_id: defaultWh,
-        };
-      });
-    },
-    enabled: !!companyId,
-    staleTime: 60_000,
-  });
-
   // Pre-selezione magazzino: prima default dell'ordine, poi default azienda
   useEffect(() => {
-    if (!orderId || warehouseId) return;
-    const order = orders.find((o) => o.id === orderId);
-    if (order?.default_warehouse_id) setWarehouseId(order.default_warehouse_id);
-  }, [orderId, orders, warehouseId]);
+    if (!orderId || warehouseId || !selectedOrder) return;
+    if (selectedOrder.default_warehouse_id) setWarehouseId(selectedOrder.default_warehouse_id);
+  }, [orderId, selectedOrder, warehouseId]);
+
+  const handleOrderChange = useCallback((id: string, order: OrderOption) => {
+    setOrderId(id);
+    setSelectedOrder(order);
+  }, []);
 
   useEffect(() => {
     if (warehouseId || warehouses.length === 0) return;
@@ -174,6 +137,7 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
     if (!open) {
       setStep("context");
       setOrderId(undefined);
+      setSelectedOrder(null);
       setWarehouseId(undefined);
       setLoadedGoodsPhotos([]);
       setEntries([]);
@@ -182,7 +146,7 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const orderObj = useMemo(() => orders.find((o) => o.id === orderId), [orders, orderId]);
+  const orderObj = selectedOrder;
   const warehouseObj = useMemo(
     () => warehouses.find((w) => w.id === warehouseId),
     [warehouses, warehouseId],
@@ -290,37 +254,15 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
             </p>
           </div>
 
-          {/* Ordine destinazione */}
+          {/* Ordine destinazione — Combobox con ricerca, filtri e ordinamento per data lavori */}
           <div className="space-y-2">
-            <Label htmlFor="sc-order">Ordine destinazione *</Label>
-            {ordersLoading ? (
-              <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
-                <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                Caricamento ordini...
-              </div>
-            ) : (
-              <Select value={orderId} onValueChange={setOrderId}>
-                <SelectTrigger id="sc-order">
-                  <SelectValue placeholder="Scegli un ordine..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {orders.length === 0 ? (
-                    <div className="p-2 text-xs text-muted-foreground">
-                      Nessun ordine recente.
-                    </div>
-                  ) : (
-                    orders.map((o) => (
-                      <SelectItem key={o.id} value={o.id}>
-                        <span className="font-medium">{o.order_code}</span>
-                        {o.customer_name && (
-                          <span className="text-muted-foreground"> · {o.customer_name}</span>
-                        )}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            )}
+            <Label>Ordine destinazione *</Label>
+            <OrderSelectCombobox
+              companyId={companyId}
+              value={orderId}
+              onChange={handleOrderChange}
+              placeholder="Cerca per codice, cliente o indirizzo..."
+            />
           </div>
 
           {/* Magazzino sorgente */}
