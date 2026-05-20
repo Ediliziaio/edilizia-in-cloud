@@ -90,6 +90,9 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
 
   // ── AI ──
   { group: "AI", title: "Memoria AI Personas", url: "/azienda/impostazioni/ai-memoria", keywords: ["ai", "memoria", "personas", "silvio", "ricordo", "fact", "preferenza", "decisione"] },
+
+  // ── Notifiche ──
+  { group: "Notifiche", title: "Preferenze notifiche", url: "/azienda/impostazioni/notifiche", keywords: ["notifiche", "telegram", "whatsapp", "email", "silvio chat", "canale", "fallback", "quiet hours", "silenzio"] },
 ];
 
 interface SettingsSearchProps {

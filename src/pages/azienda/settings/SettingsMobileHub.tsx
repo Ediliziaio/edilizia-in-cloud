@@ -25,7 +25,7 @@ import {
   UserCircle, ShieldCheck, Building2, MapPin, Paintbrush, Wallet, Receipt,
   Users, ListOrdered, FolderOpen, FileText, FileSignature, Truck, ScrollText,
   Banknote, Plug, Calendar, Mail, Tag, Settings as SettingsIcon, LogOut,
-  Brain,
+  Brain, Bell,
 } from "lucide-react";
 
 interface SectionItem {
@@ -86,9 +86,10 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    label: "AI",
+    label: "AI & Notifiche",
     items: [
       { to: "/azienda/impostazioni/ai-memoria",    label: "Memoria AI Personas", icon: Brain,    iconColor: "text-violet-600" },
+      { to: "/azienda/impostazioni/notifiche",     label: "Preferenze notifiche", icon: Bell,     iconColor: "text-rose-600" },
     ],
   },
 ];

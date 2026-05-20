@@ -200,6 +200,8 @@ const SettingsSopralluoghi = lazy(() => import("@/pages/azienda/impostazioni/Set
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
 // 🆕 GAP 9b: pagina gestione memoria AI personas
 const AIMemoryPage = lazy(() => import("@/pages/azienda/AIMemoryPage"));
+// Preferenze canale notifiche personali (parte del bulk scheduler)
+const SettingsNotifiche = lazy(() => import("@/pages/azienda/impostazioni/SettingsNotifiche"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
 const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
 const FirmaElettronicaHub = lazy(() => import("@/pages/azienda/firma-elettronica/index"));
@@ -651,6 +653,8 @@ export function companyRoutes() {
           <Route path="mio-profilo" element={<MioProfilo />} />
           {/* ── Memoria AI Personas (gestione cose che le AI ricordano dell'azienda) ── */}
           <Route path="ai-memoria" element={withCompanyPermission("canViewSettingsCustomization", <AIMemoryPage />)} />
+          {/* ── Preferenze canale notifiche personali (bulk scheduler routing) ── */}
+          <Route path="notifiche" element={<SettingsNotifiche />} />
           {/* ── Impostazioni azienda (solo admin/permessi) ── */}
           <Route path="profilo" element={withCompanyPermission("canViewSettingsProfile", <SettingsProfile />)} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />

@@ -56,6 +56,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   fatturazione:           { title: "Fatturazione",             description: "Provider esterni (Fatture in Cloud, Aruba, ecc.) o configurazione SDI nativa" },
   "fatturazione-nativa":  { title: "Fatturazione",             description: "Provider esterni o configurazione SDI nativa" },
   "ai-memoria":           { title: "Memoria AI Personas",      description: "Gestisci cosa le 18 AI personas ricordano della tua azienda — fatti, preferenze, decisioni" },
+  notifiche:              { title: "Notifiche",                description: "Scegli su quali canali ricevere i messaggi automatici (chat Silvio, Telegram, WhatsApp, email)" },
 };
 
 const DEFAULT_META: SectionMeta = {
