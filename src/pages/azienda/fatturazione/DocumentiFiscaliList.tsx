@@ -7,6 +7,7 @@ import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { useMonthlyTimeline } from "@/hooks/billing/useMonthlyTimeline";
 import { useDocumentCounts } from "@/hooks/billing/useDocumentCounts";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
+import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
 import { generateFatturaPAXML } from "@/lib/fatturazione/generateXML";
 import { creaNotaCredito } from "@/lib/fatturazione/noteCredito";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
@@ -95,6 +96,7 @@ function DocumentiFiscaliListInner() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tipo") ?? "fattura";
+  const ddtPdf = useShipmentDDTPDF();
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [timelineYear, setTimelineYear] = useState(new Date().getFullYear());
@@ -301,8 +303,18 @@ function DocumentiFiscaliListInner() {
         break;
       case "pdf":
         try {
-          await downloadNativePDF(doc.id, doc.numero);
-          toast.success("PDF scaricato");
+          if (doc.tipo === "ddt") {
+            // DDT usa template @react-pdf/renderer dedicato (layout standard
+            // italiano DPR 472/96, senza prezzi, con sezione vettore +
+            // subappaltatore + seriali per garanzia). Il toast di successo
+            // è gestito dentro l'hook.
+            await ddtPdf.generate(doc.id);
+          } else {
+            // Tutti gli altri tipi (fattura, NC, proforma, ecc.) usano la
+            // edge function generate-native-pdf che produce HTML stampabile.
+            await downloadNativePDF(doc.id, doc.numero);
+            toast.success("PDF scaricato");
+          }
         } catch (e: unknown) {
           toast.error(getErrorMessage(e));
         }
