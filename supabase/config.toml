@@ -397,3 +397,7 @@ verify_jwt = false
 # (requireInternalSecret valida dentro la function)
 [functions.silvio-morning-brief]
 verify_jwt = false
+
+# Automation Bulk Scheduler Runner — chiamato da pg_cron via x-cron-secret
+[functions.automation-bulk-scheduler-runner]
+verify_jwt = false

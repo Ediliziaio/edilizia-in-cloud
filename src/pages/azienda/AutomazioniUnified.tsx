@@ -17,6 +17,8 @@ import {
 import { AutomationFlowsList } from "@/components/marketing/automations/AutomationFlowsList";
 import { AutomationOverviewStats } from "@/components/marketing/automations/AutomationOverviewStats";
 import { AutomazioniTemplateGallery } from "@/components/automazioni/AutomazioniTemplateGallery";
+import { BulkScheduleWizard } from "@/components/automazioni/BulkScheduleWizard";
+import { CalendarClock } from "lucide-react";
 import type { ReactNode } from "react";
 
 type CategoriaFiltro = "tutte" | "crm" | "marketing" | "cantieri" | "task" | "generale" | "notifiche" | "preventivi" | "fatturazione" | "assistenza" | "ordini" | "magazzino" | "hr";
@@ -46,6 +48,7 @@ export default function AutomazioniUnified() {
   const [searchQuery, setSearchQuery] = useState("");
   const [vistaTemplates, setVistaTemplates] = useState(false);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
+  const [bulkScheduleWizardOpen, setBulkScheduleWizardOpen] = useState(false);
 
   const createFolderMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -102,6 +105,10 @@ export default function AutomazioniUnified() {
             <Button variant="outline" className="border-orange-200 bg-white/80 text-orange-700 hover:bg-orange-50" onClick={() => navigate(`${routePrefix}/automazioni/nuova?panel=ai`)}>
               <Sparkles className="w-4 h-4 mr-1.5" />
               Crea tramite AI
+            </Button>
+            <Button variant="outline" className="border-violet-200 bg-white/80 text-violet-700 hover:bg-violet-50" onClick={() => setBulkScheduleWizardOpen(true)} disabled={!effectiveCompany?.id}>
+              <CalendarClock className="w-4 h-4 mr-1.5" />
+              Messaggio programmato
             </Button>
             <Button className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => navigate(`${routePrefix}/automazioni/nuova`)}>
               <Plus className="w-4 h-4 mr-1.5" />
@@ -185,6 +192,11 @@ export default function AutomazioniUnified() {
         onOpenChange={setFolderDialogOpen}
         onConfirm={(name) => createFolderMutation.mutate(name)}
         isPending={createFolderMutation.isPending}
+      />
+
+      <BulkScheduleWizard
+        open={bulkScheduleWizardOpen}
+        onClose={() => setBulkScheduleWizardOpen(false)}
       />
     </div>
   );
