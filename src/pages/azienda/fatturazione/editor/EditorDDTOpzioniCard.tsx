@@ -146,6 +146,16 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
     [subappaltatori, state.ddt_vettore, dispatch],
   );
 
+  const setVettoreField = useCallback(
+    (patch: Record<string, unknown>) => {
+      const current = (state.ddt_vettore as Record<string, unknown> | null | undefined) ?? {};
+      dispatch({ type: "SET_FIELD", field: "ddt_vettore", value: { ...current, ...patch } });
+    },
+    [state.ddt_vettore, dispatch],
+  );
+
+  const vettoreNeedsDetails = vettoreTipo === "subappaltatore" || vettoreTipo === "terzo";
+
   // Riassunto a sola lettura dei dati del vettore selezionato
   const vettoreSummary = useMemo(() => {
     const dv = (state.ddt_vettore ?? null) as Record<string, unknown> | null;
@@ -310,14 +320,108 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
           </Select>
         )}
 
-        {vettoreSummary && (
-          <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug">
-            {vettoreSummary}
-          </p>
+        {vettoreTipo === "terzo" && (
+          <div className="grid grid-cols-2 gap-2 mt-2 p-2 rounded bg-muted/40">
+            <div className="col-span-2">
+              <Label className="text-[10px] text-muted-foreground">Denominazione vettore</Label>
+              <Input
+                placeholder="Ragione sociale"
+                value={
+                  (state.ddt_vettore as Record<string, unknown> | null | undefined)?.ragione_sociale as string ||
+                  (state.ddt_vettore as Record<string, unknown> | null | undefined)?.denominazione as string ||
+                  ""
+                }
+                onChange={(e) => setVettoreField({ ragione_sociale: e.target.value })}
+                disabled={disabled}
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">P.IVA</Label>
+              <Input
+                placeholder="P.IVA"
+                value={
+                  (state.ddt_vettore as Record<string, unknown> | null | undefined)?.vat_number as string ||
+                  (state.ddt_vettore as Record<string, unknown> | null | undefined)?.partita_iva as string ||
+                  ""
+                }
+                onChange={(e) => setVettoreField({ vat_number: e.target.value })}
+                disabled={disabled}
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Indirizzo</Label>
+              <Input
+                placeholder="Via, comune"
+                value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.address as string ?? ""}
+                onChange={(e) => setVettoreField({ address: e.target.value })}
+                disabled={disabled}
+                className="h-7 text-xs"
+              />
+            </div>
+          </div>
         )}
-        <p className="text-[10px] text-muted-foreground/70 mt-1">
-          Conducente, targa, P.IVA vettore terzo → vedi "Dettagli trasporto avanzati"
-        </p>
+
+        {vettoreNeedsDetails && (
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Conducente</Label>
+              <Input
+                placeholder="Nome e cognome"
+                value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.conducente_nome as string ?? ""}
+                onChange={(e) => setVettoreField({ conducente_nome: e.target.value })}
+                disabled={disabled}
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Telefono</Label>
+              <Input
+                placeholder="+39…"
+                value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.conducente_telefono as string ?? ""}
+                onChange={(e) => setVettoreField({ conducente_telefono: e.target.value })}
+                disabled={disabled}
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">Targa</Label>
+              <Input
+                placeholder="AB123CD"
+                value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.targa_mezzo as string ?? ""}
+                onChange={(e) => setVettoreField({ targa_mezzo: e.target.value.toUpperCase() })}
+                disabled={disabled}
+                className="h-7 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground">N. patente</Label>
+              <Input
+                placeholder="Patente"
+                value={(state.ddt_vettore as Record<string, unknown> | null | undefined)?.patente as string ?? ""}
+                onChange={(e) => setVettoreField({ patente: e.target.value })}
+                disabled={disabled}
+                className="h-7 text-xs"
+              />
+            </div>
+          </div>
+        )}
+
+        {!vettoreNeedsDetails && vettoreSummary && (
+          <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug">{vettoreSummary}</p>
+        )}
+      </div>
+
+      <div>
+        <Label className="text-[10px] text-muted-foreground">Data/Ora consegna</Label>
+        <Input
+          type="datetime-local"
+          value={state.ddt_data_ora_consegna ?? ""}
+          onChange={(e) => setField("ddt_data_ora_consegna", e.target.value)}
+          disabled={disabled}
+          className="h-7 text-xs"
+        />
       </div>
 
       <div>

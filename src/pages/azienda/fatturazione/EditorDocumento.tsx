@@ -31,11 +31,8 @@ import { EditorTotaliSection } from "./editor/EditorTotaliSection";
 import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { EditorPreviewDialog } from "./editor/EditorPreviewDialog";
-import { EditorDDTSection } from "./editor/EditorDDTSection";
 import { EditorDDTOpzioniCard } from "./editor/EditorDDTOpzioniCard";
 import { EditorDDTModelloCard } from "./editor/EditorDDTModelloCard";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
 import { EditorOrdineSection } from "./editor/EditorOrdineSection";
 import { EditorFatturazioneElettronicaSection } from "./editor/EditorFatturazioneElettronicaSection";
 import { EditorOpzioniAvanzateSection } from "./editor/EditorOpzioniAvanzateSection";
@@ -389,9 +386,10 @@ export default function EditorDocumento() {
           )}
 
           {state.tipo === "ddt" ? (
-            /* ═══ DDT LAYOUT — replica Fatture in Cloud (compatto) ═══ */
+            // DDT layout compatto: 3 card. Opzioni Avanzate contiene tutti i
+            // campi trasporto (Causale, Aspetto, Mezzo, Porto, Colli, Peso,
+            // Luogo, Vettore + conducente/targa, Data consegna, Annotazioni).
             <>
-              {/* Modello grafico in cima */}
               <EditorDDTModelloCard />
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -399,17 +397,6 @@ export default function EditorDocumento() {
                 <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
                 <EditorDDTOpzioniCard state={state} dispatch={dispatch} disabled={!isBozza} />
               </div>
-
-              {/* Dettagli vettore/destinazione (solo conducente, targa, P.IVA terzo) */}
-              <Collapsible defaultOpen={false}>
-                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-sm font-medium hover:bg-muted/40 transition">
-                  <span>Dettagli trasporto avanzati (conducente, targa, destinazione)</span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-3">
-                  <EditorDDTSection state={state} dispatch={dispatch} disabled={!isBozza} />
-                </CollapsibleContent>
-              </Collapsible>
 
               {(state.ordine_id || searchParams.get("ordine_link")) && (
                 <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
