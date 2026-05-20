@@ -24,6 +24,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { OrderItem } from "@/components/orders/OrderItemsList";
+import { OrderSerialsTrackingCard } from "@/components/orders/OrderSerialsTrackingCard";
 import { PaymentType } from "@/components/orders/FinancialSummary";
 import { OrderErrors } from "@/components/orders/OrderErrors";
 import { ContrattoAIDialog } from "@/components/orders/ContrattoAIDialog";
@@ -1068,6 +1069,7 @@ function OrderDetailInner() {
                 onItemUpdate={handleItemUpdate}
                 onAttachmentsRefresh={handleAttachmentsRefresh}
               />
+              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
             </TabsContent>
 
             {/* Tab 3: Finanza */}
