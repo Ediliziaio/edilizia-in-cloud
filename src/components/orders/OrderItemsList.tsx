@@ -234,21 +234,25 @@ export function OrderItemsList({
     enabled: !!companyId,
   });
 
-  // Fetch warehouse stock for picking — include nome magazzino per UX,
-  // mostra TUTTI gli articoli (anche giacenza 0) marcati come esauriti.
+  // Fetch warehouse stock for picking — lazy (solo se dialog aperto +
+  // tab "Da Magazzino" selezionata). Select solo le colonne usate, limit
+  // 500 per scalare con cataloghi grossi (utente cerca via search per
+  // trovare oltre i 500 più frequenti).
   const { data: stockItems = [] } = useQuery({
     queryKey: ["warehouse-stock-with-wh", companyId],
+    enabled: !!companyId && dialogOpen,
+    staleTime: 2 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_stock")
-        .select("*, warehouse:warehouse_id(id, name)")
+        .select("id, name, quantity, unit_cost, tracking_mode, internal_code, barcode, description, warehouse:warehouse_id(id, name)")
         .eq("company_id", companyId!)
         .order("quantity", { ascending: false })
-        .order("name");
+        .order("name")
+        .limit(500);
       if (error) throw error;
       return data as Array<StockItem & { warehouse?: { id: string; name: string } | null }>;
     },
-    enabled: !!companyId,
   });
 
   // Search testuale debounced

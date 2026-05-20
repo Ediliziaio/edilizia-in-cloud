@@ -100,6 +100,7 @@ export function AssignExternalTeamDialog({
       return [...external, ...subs.sort((a, b) => a.name.localeCompare(b.name))];
     },
     enabled: !!effectiveCompanyId && open,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Filter out already assigned teams

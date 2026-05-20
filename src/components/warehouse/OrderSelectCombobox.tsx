@@ -182,6 +182,7 @@ export function OrderSelectCombobox({ companyId, value, onChange, disabled, plac
   const { data: standaloneOrder } = useQuery<OrderOption | null>({
     queryKey: ["scarico-order-lookup", value],
     enabled: !!value && !selectedOrder,
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       if (!value) return null;
       const { data } = await supabase
