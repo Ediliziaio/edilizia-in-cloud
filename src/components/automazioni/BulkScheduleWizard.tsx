@@ -31,6 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Sparkles, Users, Clock, MessageSquare, Send, ChevronRight, ChevronLeft, Bot } from "lucide-react";
+import { BulkScheduleTemplateGallery } from "./BulkScheduleTemplateGallery";
+import type { BulkScheduleTemplate } from "@/lib/automations/bulkScheduleTemplates";
 
 // ─── Costanti ───────────────────────────────────────────────────────────
 
@@ -97,7 +99,9 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
   const { effectiveCompany, user } = useAuth();
   const qc = useQueryClient();
 
-  const [step, setStep] = useState(1);
+  // Step 0 = scelta template (opzionale, sempre prima)
+  // Step 1-4 = wizard normale
+  const [step, setStep] = useState(0);
   const [name, setName] = useState("");
 
   // Step 1: schedule
@@ -128,13 +132,44 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
   const selectedTarget = TARGET_PRESETS.find((t) => t.id === targetPreset)!;
 
   const reset = () => {
-    setStep(1);
+    setStep(0);
     setName("");
     setSchedulePreset("every_workday_7");
     setCustomCron("");
     setTargetPreset("all_workers");
     setChannelSilvioChat(true);
     setTemplateMode("static");
+  };
+
+  /**
+   * Applica un template pre-fatto allo stato del wizard, poi salta allo step 1
+   * (l'utente può rivedere/personalizzare prima del submit).
+   */
+  const applyTemplate = (t: BulkScheduleTemplate) => {
+    setName(t.name);
+    // Trova il preset matching della cron, altrimenti usa custom
+    const matchingPreset = SCHEDULE_PRESETS.find((p) => p.cron === t.config.cron);
+    if (matchingPreset) {
+      setSchedulePreset(matchingPreset.id);
+    } else {
+      setSchedulePreset("custom");
+      setCustomCron(t.config.cron);
+    }
+    // Target
+    const matchingTarget = TARGET_PRESETS.find(
+      (p) => p.target_type === t.config.target.type && p.target_value === t.config.target.value,
+    );
+    if (matchingTarget) setTargetPreset(matchingTarget.id);
+    // Channels MVP: solo silvio_chat
+    setChannelSilvioChat(t.config.channels.some((c) => c.type === "silvio_chat"));
+    // Template
+    setTemplateMode(t.config.template.mode);
+    if (t.config.template.body) setTemplateBody(t.config.template.body);
+    if (t.config.template.ai_prompt) setAiPrompt(t.config.template.ai_prompt);
+    setStep(1);
+    toast.success(`Template "${t.name}" caricato`, {
+      description: "Personalizza nei prossimi step o clicca direttamente Crea.",
+    });
   };
 
   const createMut = useMutation({
@@ -208,16 +243,28 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Progress dots */}
-        <div className="flex items-center gap-2 my-2">
-          {[1, 2, 3, 4].map((s) => (
-            <div key={s} className={cn(
-              "flex-1 h-1.5 rounded-full transition-colors",
-              s <= step ? "bg-orange-500" : "bg-slate-200",
-            )} />
-          ))}
-        </div>
-        <div className="text-xs text-slate-500 -mt-1">Step {step} di 4</div>
+        {/* Progress dots — visibili solo dopo lo step 0 (galleria template) */}
+        {step > 0 && (
+          <>
+            <div className="flex items-center gap-2 my-2">
+              {[1, 2, 3, 4].map((s) => (
+                <div key={s} className={cn(
+                  "flex-1 h-1.5 rounded-full transition-colors",
+                  s <= step ? "bg-orange-500" : "bg-slate-200",
+                )} />
+              ))}
+            </div>
+            <div className="text-xs text-slate-500 -mt-1">Step {step} di 4</div>
+          </>
+        )}
+
+        {/* ────────── STEP 0: GALLERIA TEMPLATE ────────── */}
+        {step === 0 && (
+          <BulkScheduleTemplateGallery
+            onSelect={applyTemplate}
+            onSkip={() => setStep(1)}
+          />
+        )}
 
         {/* ────────── STEP 1: NOME + QUANDO ────────── */}
         {step === 1 && (
@@ -438,8 +485,13 @@ export function BulkScheduleWizard({ open, onClose }: Props) {
               <ChevronLeft className="h-4 w-4 mr-1" /> Indietro
             </Button>
           )}
+          {step === 1 && (
+            <Button variant="ghost" onClick={() => setStep(0)} disabled={createMut.isPending}>
+              <ChevronLeft className="h-4 w-4 mr-1" /> Template
+            </Button>
+          )}
           <div className="flex-1" />
-          {step < 4 && (
+          {step > 0 && step < 4 && (
             <Button onClick={() => setStep((s) => s + 1)} disabled={
               (step === 1 && (!name.trim() || (schedulePreset === "custom" && !customCron.trim()))) ||
               (step === 3 && !channelSilvioChat)
