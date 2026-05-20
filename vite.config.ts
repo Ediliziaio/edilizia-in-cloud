@@ -185,32 +185,46 @@ export default defineConfig(() => ({
     // li importa viene montata (lazy(() => import(...))).
     // ─────────────────────────────────────────────────────────────
     modulePreload: {
+      // v8.6.101 — WHITELIST strict modulePreload.
+      // Prima il pattern era blacklist (escludere chunk heavy): risultato
+      // 207 modulepreload nel <head> di index.html — la quasi totalita
+      // erano icone Lucide (un chunk per icona ESM tree-shaken), dialoghi
+      // Radix interattivi, e route secondarie. Il browser scaricava ~1MB
+      // gzip al boot, parser bloccato 800ms+ (PSI mobile score 40, LCP 11.8s).
+      //
+      // Ora teniamo SOLO i chunk strettamente necessari al first paint
+      // della Home (root /). Tutto il resto verra fetchato on-demand quando
+      // il modulo che li importa entra nel grafo (es. click su un dialog ->
+      // dynamic import del chunk del dialog).
+      //
+      // Pattern KEEP: framework + provider sempre montati + utility shared
+      // + chunk del routing entry. Niente icone, niente route lazy, niente
+      // componenti UI interattivi pesanti.
       resolveDependencies: (_filename, deps) => {
-        // v8.6.100 — Filtro AGGRESSIVO modulePreload.
-        // Prima: solo vendor heavy esclusi. Risultato: la pagina /login
-        // preloadava tutta la Home + 30 chunk landing (PainPoints, Solution,
-        // Modules, Pricing, FAQ, Testimonials, Footer, GSAP, ScrollTrigger,
-        // FloatingIcons, ecc.) → 91 chunk HTTP al boot.
-        //
-        // Ora: escludo TUTTO ciò che è "landing-only" o "page-specific":
-        // i lazy chunk dei singoli componenti landing si caricheranno
-        // SOLO quando l'utente naviga davvero alla Home.
-        const EXCLUDE_PATTERNS = [
-          /vendor-(pdf|charts|flow|maps|qr|excel|tiptap)/,
-          // Landing page (Home + sue sezioni)
-          /Home-/,
-          /Landing(Navbar|Footer)/,
-          /(PainPoints|Solution|Modules|Testimonials|Guarantee|Pricing|FAQ|FinalCta|AISystemShowcase)Section/,
-          /FloatingEdiliziaIcons/,
-          /StickyBottomBar/,
-          /QuickContactModal/,
-          // GSAP heavy (solo landing)
-          /(gsap|ScrollTrigger)/,
-          // SiteChatWidget (lazy public chat)
-          /SiteChatWidget/,
-          /PublicChatWidget/,
+        const KEEP_PATTERNS = [
+          // Runtime & React core
+          /\/rolldown-runtime-/,
+          /\/client-/,  // react-dom client
+          // Error tracking essenziale (deve essere attivo dal boot)
+          /\/sentry-/,
+          // Provider sempre montati (App.tsx li wrappa)
+          /\/QueryClientProvider-/,
+          /\/AuthContext-/,
+          /\/ErrorBoundary-/,
+          // Shared utility usate ovunque (clsx, tailwind-merge, zod base)
+          /\/vendor-shared-/,
+          /\/utils-/,
+          // Lucide icon factory base (le singole icone NO -> lazy on first use)
+          /\/createLucideIcon-/,
+          // ─── Above-the-fold della Home (lazy ma critical per LCP) ───
+          // Senza questi, waterfall: index.js -> scopre Home -> scopre HeroSection
+          // -> scopre LandingNavbar = 4 round trip prima del first paint.
+          /\/Home-/,
+          /\/LandingNavbar-/,
+          /\/HeroSection-/,
+          /\/StatsSection-/,
         ];
-        return deps.filter((d) => !EXCLUDE_PATTERNS.some((re) => re.test(d)));
+        return deps.filter((d) => KEEP_PATTERNS.some((re) => re.test(d)));
       },
     },
     rollupOptions: {

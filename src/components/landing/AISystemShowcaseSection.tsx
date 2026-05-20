@@ -541,9 +541,14 @@ function FieldIntelligenceVisual() {
           <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 md:mt-8">
             <img
               src="/images/ai-edilizia/squadra-cantiere-ai.jpg"
+              srcSet="/images/ai-edilizia/squadra-cantiere-ai-540.jpg 540w, /images/ai-edilizia/squadra-cantiere-ai.jpg 800w"
+              sizes="(max-width: 768px) 100vw, 50vw"
               alt="Squadra edile in cantiere con flusso digitale e AI"
               className="h-36 w-full object-cover opacity-85 transition duration-700 hover:scale-105 md:h-44"
               loading="lazy"
+              decoding="async"
+              width={800}
+              height={450}
             />
           </div>
         </div>

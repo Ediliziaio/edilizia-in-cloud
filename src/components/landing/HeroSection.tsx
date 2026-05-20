@@ -435,12 +435,16 @@ export default function HeroSection() {
           Mobile (≤640px) carica 640w WebP ~30KB invece di 1920w JPEG ~387KB. */}
       <img
         ref={backgroundRef}
-        src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1280&q=70"
+        // v8.6.101 — quality drasticamente ridotta perche l'immagine e' coperta
+        // dal gradient overlay del 88-92% (vedi sotto). Risparmio LCP ~60 KiB su
+        // mobile (q60->q40) senza differenza visiva percepibile sotto overlay.
+        src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1024&q=50"
         srcSet="
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=640&q=60 640w,
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1024&q=65 1024w,
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1280&q=70 1280w,
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1920&q=75 1920w
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=480&q=40 480w,
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=768&q=45 768w,
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1024&q=50 1024w,
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1440&q=55 1440w,
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1920&q=60 1920w
         "
         sizes="100vw"
         alt="Cantiere edile italiano gestito con Edilizia in Cloud"
