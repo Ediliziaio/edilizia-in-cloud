@@ -262,13 +262,18 @@ export function BatchBarcodeScanner({
         const action = result.action;
 
         if (action.kind === "offer_create_new") {
+          // v8.6.104 — GLS-STYLE: NIENTE toast warning durante scan continuo.
+          // L'utente vede il codice in lista come 'no match' e lo gestisce
+          // a fine sessione (review step). Solo audio errore per feedback
+          // tattile, niente popup che interrompono il flusso.
           await errorFeedback();
-          toast.warning("Codice non riconosciuto", {
-            description:
-              mode === "lookup"
-                ? "Puoi creare subito un nuovo articolo con questo codice."
-                : `${code.slice(0, 32)} — verrà aggiunto come "no match"`,
-          });
+          if (mode === "lookup") {
+            // In lookup mode (single-shot) un toast informativo serve:
+            // l'utente ha cercato esplicitamente.
+            toast.warning("Codice non riconosciuto", {
+              description: "Puoi creare subito un nuovo articolo con questo codice.",
+            });
+          }
           const noMatchEntry: BatchScanEntry = {
             clientUuid: newBatchScanClientUuid(),
             rawCode: code,
@@ -354,12 +359,9 @@ export function BatchBarcodeScanner({
         if (mode === "carico" && allowedOrderItems) {
           const allowed = allowedOrderItems.find((a) => a.stockItemId === resolvedItemId);
           if (!allowed) {
+            // v8.6.104 — GLS-STYLE: niente toast intermedio. Solo audio + entry
+            // marked come extra. Review a fine sessione mostrera 'X extra'.
             await errorFeedback();
-            toast.warning("Articolo non nelle righe ordine", {
-              description: `${resolvedItemName ?? "Articolo"}: aggiunto come extra. Verifica prima di confermare il DDT.`,
-            });
-            // proseguiamo comunque: l'entry viene aggiunta, l'utente vede
-            // la warning, puo rimuovere dalla review se errato.
           } else {
             const alreadyScannedQty = entries
               .filter((entry) => entry.stockItemId === allowed.stockItemId)
@@ -494,6 +496,42 @@ export function BatchBarcodeScanner({
     },
     [entries, onRequestCreateItem, promoteNoMatch],
   );
+
+  /**
+   * v8.6.104 — BATCH create articolo per TUTTI i no-match in 1 colpo.
+   * Caso d'uso fotovoltaico: arrivano 30 pannelli nuovi -> 30 'no match' (perche
+   * il modello non e mai stato a listino) -> apri 30 dialog 'crea articolo'?
+   * No grazie. Apri 1 solo dialog, crei l'articolo, e tutti i 30 codici scansionati
+   * vengono promossi come SERIALI di quel singolo articolo.
+   *
+   * Logica: prendiamo il primo no-match come 'pilot' per l'apertura del dialog,
+   * poi su success promuoviamo TUTTE le entry no-match al nuovo stockItemId
+   * (con il rawCode di ognuna come serial number).
+   */
+  const handleCreateUnicoFromAllNoMatch = useCallback(async () => {
+    if (!onRequestCreateItem) return;
+    const noMatchEntries = entries.filter((e) => e.stockItemId === null);
+    if (noMatchEntries.length === 0) return;
+    const pilot = noMatchEntries[0];
+    setCreatingForUuid(pilot.clientUuid);
+    try {
+      const result = await onRequestCreateItem(pilot.rawCode);
+      if (!result) return; // utente ha annullato
+      // Promuovi TUTTE le entry no-match al nuovo articolo. Ognuna mantiene
+      // il suo rawCode come serial (se il tracking e' serialized).
+      for (const entry of noMatchEntries) {
+        promoteNoMatch(entry.clientUuid, result);
+      }
+      await successFeedback();
+      toast.success(`${noMatchEntries.length} scansioni collegate a "${result.itemName}"`);
+    } catch (err) {
+      toast.error("Errore creazione articolo", {
+        description: (err as Error)?.message ?? "Riprova",
+      });
+    } finally {
+      setCreatingForUuid(null);
+    }
+  }, [entries, onRequestCreateItem, promoteNoMatch]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -719,7 +757,40 @@ export function BatchBarcodeScanner({
                 )}
               </div>
             ) : (
-              entries.map((entry) => {
+              <>
+              {/* v8.6.104 — BATCH banner: se ci sono no-match e supportiamo
+                  inline create, proponi 1 sola creazione articolo per TUTTI.
+                  Caso d'uso: 30 pannelli fotovoltaici nuovi -> 1 click invece
+                  di 30 dialog 'crea articolo'. */}
+              {noMatchCount >= 2 && onRequestCreateItem && (
+                <div className="rounded-lg border-2 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3 mb-2 flex items-start gap-3">
+                  <PackagePlus className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                      {noMatchCount} scansioni non riconosciute
+                    </p>
+                    <p className="text-xs text-amber-800 dark:text-amber-200 mt-0.5">
+                      Probabilmente sono tutti seriali dello stesso modello (es. pannelli SPR-P7).
+                      Crea 1 articolo unico → li collego tutti.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleCreateUnicoFromAllNoMatch}
+                      disabled={creatingForUuid !== null}
+                      className="mt-2 h-8 gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+                    >
+                      {creatingForUuid !== null ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <PackagePlus className="h-3.5 w-3.5" />
+                      )}
+                      Crea articolo unico per {noMatchCount} scansioni
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {entries.map((entry) => {
                 // BUG FIX (audit v8.6.103): l'incremento manuale [+] bypassava
                 // la validation allowedOrderItems per mode='carico'. Ora il
                 // check tiene conto della qty residua sia per oda_receive sia
@@ -756,7 +827,8 @@ export function BatchBarcodeScanner({
                   creating={creatingForUuid === entry.clientUuid}
                 />
                 );
-              })
+              })}
+              </>
             )}
           </div>
         </ScrollArea>

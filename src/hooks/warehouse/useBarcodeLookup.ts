@@ -48,13 +48,27 @@ export function useBarcodeLookup() {
     mutationFn: async (input: LookupInput): Promise<LookupResult> => {
       const norm = normalizeScanForLookup(input.rawScan, input.supplierUsesGs1);
 
-      const { data, error } = await supabase.rpc("warehouse_scan_lookup", {
+      // v8.6.104 — DUAL LOOKUP per QR fotovoltaico/industriale dove ogni
+      // pezzo ha serial UNICO ma GTIN COMUNE per modello. Prima il primo
+      // arrivo di un modello nuovo generava 'Codice non riconosciuto' per
+      // OGNI scan -> UX disastrosa (30 popup per 30 pannelli).
+      // Ora: 1) tenta serial, 2) se vuoto e c'e' GTIN -> retry con GTIN.
+      const { data: data1, error: err1 } = await supabase.rpc("warehouse_scan_lookup", {
         p_code: norm.primary,
         p_supplier_id: input.supplierId ?? null,
       });
-      if (error) throw error;
+      if (err1) throw err1;
+      let rows = ((data1 ?? []) as unknown as RawMatchRow[]) ?? [];
 
-      const rows = ((data ?? []) as unknown as RawMatchRow[]) ?? [];
+      if (rows.length === 0 && norm.gs1?.gtin && norm.gs1.gtin !== norm.primary) {
+        const { data: data2 } = await supabase.rpc("warehouse_scan_lookup", {
+          p_code: norm.gs1.gtin,
+          p_supplier_id: input.supplierId ?? null,
+        });
+        const fallbackRows = (data2 as unknown as RawMatchRow[]) ?? [];
+        if (fallbackRows.length > 0) rows = fallbackRows;
+      }
+
       const action = decideUiAction(rows);
 
       return {
