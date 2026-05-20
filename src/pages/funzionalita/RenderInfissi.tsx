@@ -1136,7 +1136,7 @@ export default function RenderInfissi() {
           <p>
             <strong>Provala con onboarding 1-a-1 incluso.</strong>
             <a href="#render-request">Richiedi informazioni</a> ·
-            <a href="/per/serramentisti">Software per Serramentisti</a> ·
+            <a href="/per/serramentisti/">Software per Serramentisti</a> ·
             <a href="/funzionalita/">Tutte le funzionalità</a> ·
             <a href="/prezzi/">Prezzi</a>
           </p>

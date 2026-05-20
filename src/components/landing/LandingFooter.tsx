@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import logo from "@/assets/edilizia-in-cloud-logo.webp";
+import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
 
 /**
  * v8.6.49 — Footer ristrutturato per SEO crawl budget:

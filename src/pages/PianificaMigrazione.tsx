@@ -856,7 +856,7 @@ export default function PianificaMigrazione() {
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input type="checkbox" name="privacy" checked={form.privacy} onChange={handleChange} className="mt-1 accent-[#F97415]" />
                   <span className="text-xs text-[#111111]/70 leading-relaxed">
-                    Ho letto la <Link to="/privacy" className="underline font-semibold">Privacy Policy</Link> (art. 13 GDPR) e
+                    Ho letto la <Link to="/privacy-policy/" className="underline font-semibold">Privacy Policy</Link> (art. 13 GDPR) e
                     autorizzo Domus Group S.r.l. al trattamento dei dati per la valutazione della migrazione (base giuridica: art. 6.1.b GDPR — pre-contrattuale). *
                   </span>
                 </label>

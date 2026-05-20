@@ -1,6 +1,6 @@
 import { Facebook, Instagram, Linkedin, Youtube } from "lucide-react";
 import { Link } from "react-router-dom";
-import logo from "@/assets/edilizia-in-cloud-logo.webp";
+import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
 import { footer } from "../content";
 
 function FooterList({ title, items }: { title: string; items: string[] }) {

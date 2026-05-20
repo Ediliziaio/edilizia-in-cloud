@@ -2011,25 +2011,30 @@ export async function onRequest({ request, next }) {
     const path = url.pathname;
     const isFile = ASSET_EXT_RE.test(path) || /\.[a-z0-9]{2,8}$/i.test(path);
 
-    // 1) /home (legacy) → /
-    if (isMain && (path === "/home" || path === "/home/")) {
-      return Response.redirect(`https://www.ediliziaincloud.com/${url.search}`, 301);
+    // Calcola in un solo passaggio il path normalizzato (trailing slash + /home)
+    // così le redirect host/protocol non producono catene a due hop (es.
+    // http://ediliziaincloud.com/blog → https://www.ediliziaincloud.com/blog
+    // → https://www.ediliziaincloud.com/blog/). Google penalizza i redirect
+    // chain e GSC li segnala come "Pagina con reindirizzamento".
+    let normalizedPath = path;
+    if (isMain) {
+      // /home (legacy) → /
+      if (normalizedPath === "/home" || normalizedPath === "/home/") {
+        normalizedPath = "/";
+      } else if (!isFile && normalizedPath !== "/" && !normalizedPath.endsWith("/")) {
+        // Trailing slash normalization (skip root e file con estensione).
+        // Le SPA route HTML devono terminare con "/" per matchare la canonical
+        // dichiarata in <link rel="canonical"> e nel sitemap.xml.
+        normalizedPath = `${normalizedPath}/`;
+      }
     }
 
-    // 2) Host/protocol normalization: apex + http → https + www
-    if (isMain && (url.protocol !== "https:" || host !== "www.ediliziaincloud.com")) {
-      return Response.redirect(
-        `https://www.ediliziaincloud.com${path}${url.search}`,
-        301,
-      );
-    }
+    const needsHostFix = isMain && (url.protocol !== "https:" || host !== "www.ediliziaincloud.com");
+    const needsPathFix = isMain && normalizedPath !== path;
 
-    // 3) Trailing slash normalization (skip root e file con estensione).
-    //    Le SPA route HTML devono terminare con "/" per matchare la canonical
-    //    dichiarata in <link rel="canonical"> e nel sitemap.xml.
-    if (isMain && !isFile && path !== "/" && !path.endsWith("/")) {
+    if (needsHostFix || needsPathFix) {
       return Response.redirect(
-        `https://www.ediliziaincloud.com${path}/${url.search}`,
+        `https://www.ediliziaincloud.com${normalizedPath}${url.search}`,
         301,
       );
     }

@@ -8,7 +8,7 @@
   <!-- ── Core pages ──────────────────────────────────────────── -->
   <url>
     <loc>https://www.ediliziaincloud.com/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/"/>
@@ -16,7 +16,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/funzionalita/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/funzionalita/"/>
@@ -56,7 +56,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/pianifica-migrazione/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/pianifica-migrazione/"/>
@@ -633,7 +633,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/blog/come-trovare-clienti-serramentisti/</loc>
-    <lastmod>2026-05-04</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/come-trovare-clienti-serramentisti/"/>
@@ -677,7 +677,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/blog/fattura-corretta-serramentisti/</loc>
-    <lastmod>2026-05-04</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/fattura-corretta-serramentisti/"/>
@@ -1197,7 +1197,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/funzionalita/calendario-lavori/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.75</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/funzionalita/calendario-lavori/"/>
@@ -1460,7 +1460,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-messina/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-messina/"/>
@@ -1548,7 +1548,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-ferrara/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-ferrara/"/>
@@ -1558,7 +1558,7 @@
   <!-- ── Hub pages ──────────────────────────────────────────────── -->
   <url>
     <loc>https://www.ediliziaincloud.com/integrazioni/</loc>
-    <lastmod>2026-05-18</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/integrazioni/"/>
@@ -1618,7 +1618,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/avviso-legale/</loc>
-    <lastmod>2026-05-11</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/avviso-legale/"/>
@@ -1642,7 +1642,7 @@
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/dpa/</loc>
-    <lastmod>2026-04-27</lastmod>
+    <lastmod>2026-05-20</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/dpa/"/>

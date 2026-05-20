@@ -1264,11 +1264,11 @@ export default function Prezzi() {
             <strong className="text-[#111111]">Domus Group S.r.l.</strong> — P.IVA IT13132010961 — Sede legale: Lombardia.
             <br />
             Per condizioni complete:{" "}
-            <Link to="/termini" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+            <Link to="/termini-e-condizioni/" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
               Termini e Condizioni
             </Link>
             ,{" "}
-            <Link to="/privacy" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
+            <Link to="/privacy-policy/" className="text-[#F97415] hover:text-[#C94F06] underline font-semibold">
               Privacy Policy
             </Link>
             ,{" "}

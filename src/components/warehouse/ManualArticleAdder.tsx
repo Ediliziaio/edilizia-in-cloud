@@ -13,7 +13,7 @@
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, X, Search, Loader2, PackageCheck, XCircle } from "lucide-react";
+import { Plus, X, Loader2, PackageCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

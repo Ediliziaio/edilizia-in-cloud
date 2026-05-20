@@ -100,7 +100,7 @@ export default function TerminiServizio() {
         </li>
         <li>
           <strong>Privacy Policy:</strong> l'informativa privacy disponibile all'indirizzo{" "}
-          <a href="/privacy-policy">/privacy-policy</a>.
+          <a href="/privacy-policy/">/privacy-policy/</a>.
         </li>
       </ul>
 
@@ -762,7 +762,7 @@ export default function TerminiServizio() {
         professionisti del Cliente), il Cliente agisce come Titolare del trattamento e la Società
         come Responsabile del trattamento ai sensi dell'art. 28 GDPR. Le condizioni di tale
         trattamento sono disciplinate dal Data Processing Agreement (DPA), accessibile all'indirizzo{" "}
-        <a href="/dpa">/dpa</a>, che costituisce parte integrante delle presenti Condizioni e si
+        <a href="/dpa/">/dpa/</a>, che costituisce parte integrante delle presenti Condizioni e si
         intende sottoscritto contestualmente all'accettazione delle stesse.
       </p>
       <p>

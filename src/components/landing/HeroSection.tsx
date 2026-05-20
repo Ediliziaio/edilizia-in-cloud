@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useGSAP } from "@gsap/react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+// GSAP + ScrollTrigger ora lazy: PageSpeed desktop flaggava 90KB di
+// JS + 2.7s di Script Evaluation per animazioni decorative non critiche
+// al LCP (testo "Aumenta margini..."). L'effetto è eseguito dopo il primo
+// paint senza bloccare il TBT iniziale.
 import {
   Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon,
   LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings,
@@ -189,8 +190,6 @@ const dashboardAreas = [
   },
 ];
 
-gsap.registerPlugin(useGSAP, ScrollTrigger);
-
 function DashboardMockup() {
   const [activeArea, setActiveArea] = useState(dashboardAreas[0]);
 
@@ -362,69 +361,92 @@ export default function HeroSection() {
     return () => clearInterval(interval);
   }, []);
 
-  useGSAP(() => {
-    const motion = gsap.matchMedia();
+  // GSAP caricato dopo il primo paint via dynamic import.
+  // PERF: Prima import statico a top-level caricava ~90KB sincronicamente
+  // bloccando il main thread (TBT). Ora le entrance animations partono solo
+  // se l'utente non ha prefers-reduced-motion E quando il browser è idle.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    motion.add("(prefers-reduced-motion: reduce)", () => {
-      gsap.set(".gsap-hero-item, .gsap-dashboard, .gsap-card", { opacity: 1, y: 0, scale: 1, clearProps: "transform" });
-    });
+    let mounted = true;
+    let revert: (() => void) | null = null;
 
-    motion.add("(prefers-reduced-motion: no-preference)", () => {
-      const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
-
-      timeline
-        .from(".gsap-hero-item", {
-          opacity: 0,
-          y: 28,
-          duration: 0.72,
-          stagger: 0.09,
-          clearProps: "opacity,transform",
-        })
-        .from(".gsap-dashboard", {
-          opacity: 0,
-          y: 42,
-          scale: 0.97,
-          duration: 0.9,
-          clearProps: "opacity,transform",
-        }, 0.18)
-        .from(".gsap-card", {
-          opacity: 0,
-          y: 14,
-          duration: 0.42,
-          stagger: 0.035,
-          clearProps: "opacity,transform",
-        }, 0.55);
-
-      if (backgroundRef.current && sectionRef.current) {
-        gsap.to(backgroundRef.current, {
-          yPercent: 9,
-          ease: "none",
-          scrollTrigger: {
-            trigger: sectionRef.current,
-            start: "top top",
-            end: "bottom top",
-            scrub: 0.7,
-          },
-        });
+    const idle = (cb: () => void) => {
+      type IdleCallbackWindow = Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number };
+      const w = window as IdleCallbackWindow;
+      if (typeof w.requestIdleCallback === "function") {
+        w.requestIdleCallback(cb, { timeout: 1200 });
+      } else {
+        setTimeout(cb, 200);
       }
+    };
+
+    idle(() => {
+      if (!mounted) return;
+      Promise.all([
+        import("gsap"),
+        import("gsap/ScrollTrigger"),
+      ]).then(([gsapMod, stMod]) => {
+        if (!mounted) return;
+        const gsap = gsapMod.default;
+        const ScrollTrigger = stMod.ScrollTrigger;
+        gsap.registerPlugin(ScrollTrigger);
+
+        const motion = gsap.matchMedia();
+        motion.add("(prefers-reduced-motion: no-preference)", () => {
+          const timeline = gsap.timeline({ defaults: { ease: "power3.out" } });
+          timeline
+            .from(".gsap-hero-item", { opacity: 0, y: 28, duration: 0.72, stagger: 0.09, clearProps: "opacity,transform" })
+            .from(".gsap-dashboard", { opacity: 0, y: 42, scale: 0.97, duration: 0.9, clearProps: "opacity,transform" }, 0.18)
+            .from(".gsap-card", { opacity: 0, y: 14, duration: 0.42, stagger: 0.035, clearProps: "opacity,transform" }, 0.55);
+
+          if (backgroundRef.current && sectionRef.current) {
+            gsap.to(backgroundRef.current, {
+              yPercent: 9,
+              ease: "none",
+              scrollTrigger: {
+                trigger: sectionRef.current,
+                start: "top top",
+                end: "bottom top",
+                scrub: 0.7,
+              },
+            });
+          }
+        });
+        revert = () => motion.revert();
+      }).catch(() => { /* GSAP non disponibile: la pagina resta funzionale */ });
     });
 
-    return () => motion.revert();
-  }, { scope: sectionRef });
+    return () => {
+      mounted = false;
+      if (revert) revert();
+    };
+  }, []);
 
   return (
     <section
       ref={sectionRef}
       className="relative overflow-hidden pt-20 md:pt-36 pb-14 md:pb-20"
     >
-      {/* Real photo background with parallax — <img> tag for LCP eligibility */}
+      {/* Real photo background with parallax — <img> tag for LCP eligibility.
+          Responsive srcset + WebP per ridurre il LCP mobile:
+          PSI flaggava 387KB caricati per un'immagine coperta da gradient 92%.
+          Mobile (≤640px) carica 640w WebP ~30KB invece di 1920w JPEG ~387KB. */}
       <img
         ref={backgroundRef}
-        src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80"
+        src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1280&q=70"
+        srcSet="
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=640&q=60 640w,
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1024&q=65 1024w,
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1280&q=70 1280w,
+          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1920&q=75 1920w
+        "
+        sizes="100vw"
         alt="Cantiere edile italiano gestito con Edilizia in Cloud"
         fetchpriority="high"
         loading="eager"
-        decoding="sync"
+        decoding="async"
         width={1920}
         height={1080}
         className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"

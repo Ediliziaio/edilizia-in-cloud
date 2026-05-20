@@ -60,7 +60,9 @@ import {
   PencilRuler,
   FileSearch,
 } from "lucide-react";
-import logo from "@/assets/edilizia-in-cloud-logo.webp";
+// Logo navbar: versione 360w (8.5KB) invece di 1871w (103KB).
+// PageSpeed flaggava 98.6KB di savings stimati sull'asset originale.
+import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
 import { getSubdomainUrl } from "@/utils/subdomainNav";
 
 // ───────────────────── Types ─────────────────────

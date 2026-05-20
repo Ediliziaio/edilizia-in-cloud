@@ -223,11 +223,11 @@ export default function AvvisoLegale() {
         Regolamento (UE) 2016/679 (GDPR) e del D.Lgs. 196/2003. Le modalità del trattamento, le
         finalità, le basi giuridiche, i destinatari, i tempi di conservazione e i diritti
         dell&apos;interessato sono descritti in dettaglio nella{" "}
-        <a href="/privacy-policy">Privacy Policy</a>.
+        <a href="/privacy-policy/">Privacy Policy</a>.
       </p>
       <p>
         Per quanto riguarda l&apos;utilizzo di cookie e tecnologie analoghe di tracciamento, si
-        rinvia alla <a href="/cookie-policy">Cookie Policy</a>, accessibile dal piè di pagina del
+        rinvia alla <a href="/cookie-policy/">Cookie Policy</a>, accessibile dal piè di pagina del
         Sito e dal pannello di gestione del consenso visualizzato alla prima visita.
       </p>
 

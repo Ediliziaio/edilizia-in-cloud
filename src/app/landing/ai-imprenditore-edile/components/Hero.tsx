@@ -4,7 +4,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ArrowRight, Check, ChevronDown, MessageCircle, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
-import logo from "@/assets/edilizia-in-cloud-logo.webp";
+import logo from "@/assets/edilizia-in-cloud-logo-small.webp";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/track";
 import { cta, hero, nav } from "../content";

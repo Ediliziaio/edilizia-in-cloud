@@ -1,22 +1,15 @@
 # Cloudflare Pages — redirects
+#
+# NOTA: la canonicalizzazione host/protocol/trailing-slash + /home è
+# gestita centralmente in functions/_middleware.js (linee 2008-2040)
+# in UN SOLO 301 senza chain. Qui restano solo le redirect che il
+# middleware non copre:
+#   - alias legacy → canonical
+#   - SEO short-URL → landing page
+# Tenere entrambe le sorgenti duplicate aveva causato chain a 2 hop
+# (GSC: "Pagina con reindirizzamento" su /blog, /prezzi, www apex).
 
-# ── Canonical 301 redirects ──────────────────────────────────────────────────
-
-# Force one canonical indexable host: HTTPS + www.
-# Google Search Console vedeva http/non-www come "Pagina con reindirizzamento":
-# questi redirect rendono esplicita la versione canonica da indicizzare.
-# /home era segnalata come 404: prima la normalizziamo direttamente alla home.
-http://ediliziaincloud.com/home      https://www.ediliziaincloud.com/          301
-https://ediliziaincloud.com/home     https://www.ediliziaincloud.com/          301
-http://www.ediliziaincloud.com/home  https://www.ediliziaincloud.com/          301
-https://www.ediliziaincloud.com/home https://www.ediliziaincloud.com/          301
-
-http://ediliziaincloud.com/*       https://www.ediliziaincloud.com/:splat   301
-https://ediliziaincloud.com/*      https://www.ediliziaincloud.com/:splat   301
-http://www.ediliziaincloud.com/*   https://www.ediliziaincloud.com/:splat   301
-
-# /home → / anche quando la regola host non viene applicata in locale/preview
-/home                                  /                                      301
+# /register → /demo/ (alias legacy non gestito dal middleware)
 /register                              /demo/                                 301
 
 # Legacy legal URLs → canonical legal URLs used in footer and sitemap

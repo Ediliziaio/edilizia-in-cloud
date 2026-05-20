@@ -163,7 +163,7 @@ export default function PrivacyPolicy() {
       <p>
         I termini e le condizioni del trattamento dei Dati del Cliente sono disciplinati da uno
         specifico Data Processing Agreement (DPA) che costituisce parte integrante del contratto
-        tra le parti e che è disponibile all'indirizzo <a href="/dpa">/dpa</a>.
+        tra le parti e che è disponibile all'indirizzo <a href="/dpa/">/dpa/</a>.
       </p>
       <p>
         <strong>In sintesi:</strong> i dati che il Cliente carica nel proprio gestionale (es. dati
@@ -717,7 +717,7 @@ export default function PrivacyPolicy() {
         Il Sito e la Piattaforma utilizzano cookie e tecnologie analoghe (local storage, pixel,
         SDK). Per i dettagli sulle finalità, sui tempi di conservazione e sulle modalità per
         concedere o revocare il consenso, si rinvia alla{" "}
-        <a href="/cookie-policy">Cookie Policy</a>, accessibile dal piè di pagina del Sito e
+        <a href="/cookie-policy/">Cookie Policy</a>, accessibile dal piè di pagina del Sito e
         direttamente dal banner di consenso visualizzato alla prima visita.
       </p>
       <p>

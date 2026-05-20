@@ -212,42 +212,36 @@
         } catch (e) { /* no-op: fallback statico sotto */ }
       })();
     </script>
-    <!-- Fallback statico per crawler no-JS (Bing legacy, alcuni preview tool).
-         Googlebot moderno esegue JS e usa il canonical dinamico inserito sopra.
-         Se entrambi presenti, browser/Googlebot prendono il PRIMO dichiarato
-         che è quello dinamico (corretto). -->
-    <link rel="canonical" href="https://www.ediliziaincloud.com/">
-    <link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/">
-    <link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/">
-    <meta property="og:url" content="https://www.ediliziaincloud.com/">
-    <!-- Cleanup: rimuove il fallback statico se quello dinamico è presente,
-         evitando duplicati ambigui durante l'audit Google. -->
-    <script>
-      (function() {
-        function cleanup() {
-          var dyn = document.querySelector('link[rel="canonical"][data-dynamic="1"]');
-          if (!dyn) return; // fallback rimane (JS guard ha fallito)
-          // Rimuovi i tag statici (senza data-dynamic) di canonical/hreflang/og:url
-          var staticTags = [
-            'link[rel="canonical"]:not([data-dynamic])',
-            'link[rel="alternate"][hreflang]:not([data-dynamic])',
-            'meta[property="og:url"]:not([data-dynamic])',
-          ];
-          staticTags.forEach(function(sel) {
-            document.querySelectorAll(sel).forEach(function(el) { el.remove(); });
-          });
-        }
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', cleanup);
-        } else {
-          cleanup();
-        }
-      })();
-    </script>
+    <!-- NESSUN fallback statico di canonical/hreflang/og:url.
+         Motivo: la SPA `dist/index.html` è il fallback per OGNI rotta non
+         prerenderata. Un canonical statico "https://www.ediliziaincloud.com/"
+         si applicherebbe ERRATAMENTE anche a /pianifica-migrazione/, /dpa/,
+         /blog/<slug>/, ecc. — causa diretta delle segnalazioni GSC
+         "Pagina duplicata, Google ha scelto canonica diversa" e
+         "Pagina alternativa con tag canonical appropriato".
+         Strategia attuale:
+         - Bot noti (Googlebot, Bingbot, Claude, GPT, ...) ricevono SSR HTML
+           dal middleware Cloudflare con canonical corretto per rotta.
+         - Browser (utenti reali) eseguono lo script inline sopra che imposta
+           il canonical dinamico sincrono prima del primo render React.
+         - Crawler no-JS sconosciuti: nessun canonical → Google deduce dalla
+           sitemap (preferibile a un canonical sbagliato).
+    -->
     <!-- Preconnect per risorse critiche -->
     <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co">
     <link rel="dns-prefetch" href="https://rsbrguhkodgnqfomrevo.supabase.co">
     <link rel="dns-prefetch" href="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev">
+
+    <!-- Inter font (Google Fonts) — caricato PRIMA del CSS bundle.
+         Prima era @import dentro src/index.css → richiesta serializzata di
+         750ms render-blocking (rilevato da PageSpeed mobile). Spostandolo qui
+         con preconnect + stylesheet asincrono (onload pattern), il font può
+         scaricare in parallelo agli script senza bloccare il First Contentful Paint. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+    <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"></noscript>
     <!--
       Velocity — Preload hero Unsplash CONDIZIONALE.
       L'immagine è LCP SOLO sulla landing pubblica e route marketing (city/per/blog).
@@ -271,7 +265,21 @@
         }
         add('preconnect', 'https://images.unsplash.com');
         add('dns-prefetch', 'https://images.unsplash.com');
-        add('preload', 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80', { as: 'image', fetchpriority: 'high' });
+        // Preload responsive: mobile (≤640) → 640w WebP ~30KB; desktop → 1280w ~120KB.
+        // imagesrcset/imagesizes accordano il preload con il <img srcset> in HeroSection.
+        var preloadLink = document.createElement('link');
+        preloadLink.rel = 'preload';
+        preloadLink.as = 'image';
+        preloadLink.setAttribute('fetchpriority', 'high');
+        preloadLink.href = 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1280&q=70';
+        preloadLink.setAttribute('imagesrcset',
+          'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=640&q=60 640w,' +
+          'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1024&q=65 1024w,' +
+          'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1280&q=70 1280w,' +
+          'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fm=webp&fit=crop&w=1920&q=75 1920w'
+        );
+        preloadLink.setAttribute('imagesizes', '100vw');
+        head.appendChild(preloadLink);
       })();
     </script>
     <!-- Leaflet CSS loaded lazily by the FleetTrack component — do NOT put here -->
@@ -425,10 +433,29 @@
           cookie_flags: 'SameSite=None;Secure'
         });
 
-        var script = document.createElement('script');
-        script.async = true;
-        script.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
-        document.head.appendChild(script);
+        // GTM/GA4 deferred: PageSpeed mobile flaggava GTM come 155KB con 168ms
+        // di thread principale durante il caricamento iniziale → impatta TBT.
+        // Carichiamo lo script solo DOPO uno tra:
+        //   - 3 secondi di idle (catturiamo l'utente "lurker")
+        //   - prima interazione utente (scroll/click/keydown)
+        //   - requestIdleCallback (browser fermo)
+        // così il LCP/FCP non perde tempo CPU per GA.
+        var gaLoaded = false;
+        function loadGA() {
+          if (gaLoaded) return;
+          gaLoaded = true;
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+          document.head.appendChild(s);
+        }
+        var EVENTS = ['scroll', 'click', 'keydown', 'touchstart', 'mousemove'];
+        function onInteract() {
+          EVENTS.forEach(function(e){ window.removeEventListener(e, onInteract, { passive: true, capture: true }); });
+          loadGA();
+        }
+        EVENTS.forEach(function(e){ window.addEventListener(e, onInteract, { passive: true, capture: true }); });
+        setTimeout(loadGA, 3500);
       })();
     </script>
   </head>

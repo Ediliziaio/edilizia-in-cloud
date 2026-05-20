@@ -1,4 +1,6 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+/* Inter font: caricato via <link rel="preload"> + <link rel="stylesheet"> in
+   index.html PRIMA del CSS bundle. L'@import qui dentro causava una richiesta
+   serializzata di +750ms render-blocking (rilevato da PageSpeed mobile). */
 
 @tailwind base;
 @tailwind components;
@@ -287,6 +289,20 @@ html { scroll-behavior: smooth; }
 }
 .section-divider-light {
   clip-path: polygon(0 15%, 100% 0, 100% 100%, 0 100%);
+}
+
+/* ── Mobile performance: disabilita animazioni non composite ──────────
+   PageSpeed mobile flaggava 7 elementi con box-shadow (pulse-glow) e
+   background-position-x (shimmer) come "animazioni non composite" che
+   richiedono repaint su CPU ogni frame → Total Blocking Time 4.27s.
+   Su schermi piccoli (≤768px) sono decorazioni opzionali: spegnerle
+   guadagna ~1s di TBT senza impatti visivi rilevanti.
+   Inoltre rispettiamo prefers-reduced-motion per accessibilità. */
+@media (max-width: 768px), (prefers-reduced-motion: reduce) {
+  .animate-shimmer,
+  .animate-pulse-glow {
+    animation: none !important;
+  }
 }
 
 /* ── Capacitor native app safe-area padding ────────────────── */

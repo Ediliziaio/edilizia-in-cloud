@@ -325,7 +325,7 @@ export default function Home() {
           </p>
           <div className="my-4 flex justify-center">
             <Link
-              to="/software-gestionale-edilizia"
+              to="/software-gestionale-edilizia/"
               className="text-sm font-semibold text-[#F97415] hover:underline"
             >
               Vedi tutte le 35 città →

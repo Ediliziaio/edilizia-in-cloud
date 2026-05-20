@@ -808,7 +808,7 @@ export default function Confronto() {
           </div>
           <div className="grid sm:grid-cols-2 gap-5">
             <Link
-              to="/confronto/vs-primus"
+              to="/confronto/vs-primus/"
               className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
               <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
@@ -822,7 +822,7 @@ export default function Confronto() {
               </span>
             </Link>
             <Link
-              to="/confronto/vs-edilnet"
+              to="/confronto/vs-edilnet/"
               className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
               <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
@@ -836,7 +836,7 @@ export default function Confronto() {
               </span>
             </Link>
             <Link
-              to="/confronto/vs-teamsystem"
+              to="/confronto/vs-teamsystem/"
               className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
               <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
@@ -850,7 +850,7 @@ export default function Confronto() {
               </span>
             </Link>
             <Link
-              to="/confronto/vs-excel"
+              to="/confronto/vs-excel/"
               className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
               <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">
@@ -864,7 +864,7 @@ export default function Confronto() {
               </span>
             </Link>
             <Link
-              to="/confronto/vs-buildertrend"
+              to="/confronto/vs-buildertrend/"
               className="group flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white hover:border-[#F97415]/40 p-6 transition-all hover:shadow-md hover:-translate-y-0.5"
             >
               <h3 className="font-bold text-[#111111] text-base group-hover:text-[#F97415] transition-colors">

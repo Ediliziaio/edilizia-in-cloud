@@ -632,7 +632,7 @@ export default function AISystemShowcaseSection() {
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link
-                  to="/funzionalita/preventivi-edilizia"
+                  to="/funzionalita/preventivi-edilizia/"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-[#111111] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#222]"
                 >
                   Vedi preventivi AI
