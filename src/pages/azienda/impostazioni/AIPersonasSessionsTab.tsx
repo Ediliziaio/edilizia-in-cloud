@@ -1,34 +1,37 @@
 /**
- * AIPersonasSessionsTab — v8.6.72 (rev. 2026-05-20)
+ * AIPersonasSessionsTab — v8.6.73 (rev. 2026-05-20)
  *
- * Tab "Sessioni" dell'hub AI Personas. Mostra lo storico delle conversazioni
- * (ai_persona_sessions + ai_persona_messages) con focus su:
+ * Tab "Sessioni" dell'hub AI Personas — scalabile a 1000+ conversazioni.
  *
- *   1. Lista filtrabile delle sessioni passate
- *   2. Drawer dettaglio messaggi (read-only)
- *   3. "Promuovi a memoria" — converte un messaggio AI in fact/preference/
- *      decision permanente in ai_persona_memory (RPC record_persona_memory).
- *      Questo chiude il loop richiesto dall'utente: "le conversazioni
- *      alimentano la memoria perche tutto migliora".
+ * Scalabilità (refactor v8.6.73):
+ *   - Paginazione server-side via useInfiniteQuery (50/pagina, range())
+ *   - Search server-side con ilike + debounce 300ms (no client filter)
+ *   - Stats globali via RPC ai_persona_sessions_stats (no client SUM/COUNT)
+ *   - Trigram index su title per ilike veloce anche con 100k+ righe
+ *   - Bulk archive via RPC ai_persona_sessions_bulk_archive (1 UPDATE)
  *
- * Azioni per-sessione:
- *   - Apri (drawer dettaglio)
- *   - Continua chat (porta alla tab Chat con sessionId resumed)
- *   - Archivia / Riattiva
- *   - Esporta Markdown (download .md della trascrizione)
- *
- * RLS: ai_persona_sessions_owner filtra automaticamente per user_id=auth.uid().
- *      L'utente vede solo le proprie sessioni private.
+ * Funzionalità:
+ *   1. Lista paginata con infinite scroll (IntersectionObserver)
+ *   2. Filtri: persona, periodo, archiviate, search debounced
+ *   3. Bulk select + bulk archive
+ *   4. Drawer dettaglio messaggi
+ *   5. Promuovi a memoria — modal con:
+ *      a. Promozione del messaggio intero (bottone su bubble)
+ *      b. Promozione della selezione testo (floating tooltip su selection)
+ *   6. Continua chat → autoresume sessione via ?tab=chat&sessionId=
+ *   7. Esporta Markdown
  */
-import { useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -46,7 +49,81 @@ import { cn } from "@/lib/utils";
 import {
   Search, Archive, ArchiveRestore, Download, MessageSquare, Brain, Sparkles,
   History, Coins, ChevronRight, Loader2, ExternalLink, BotIcon, UserIcon,
+  CheckSquare, X,
 } from "lucide-react";
+
+// ─── Constants & helpers ─────────────────────────────────────────────────────
+
+const PAGE_SIZE = 50;
+
+const PERIOD_OPTIONS = [
+  { key: "7d",  label: "Ultimi 7 giorni",  days: 7 },
+  { key: "30d", label: "Ultimi 30 giorni", days: 30 },
+  { key: "90d", label: "Ultimi 90 giorni", days: 90 },
+  { key: "all", label: "Tutte",            days: null as number | null },
+] as const;
+
+type PeriodKey = (typeof PERIOD_OPTIONS)[number]["key"];
+
+function periodToDays(p: PeriodKey): number | null {
+  return PERIOD_OPTIONS.find((o) => o.key === p)?.days ?? null;
+}
+
+function periodToCutoffIso(p: PeriodKey): string | null {
+  const days = periodToDays(p);
+  if (days == null) return null;
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
+
+function fmtRelative(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60_000);
+  if (min < 1) return "ora";
+  if (min < 60) return `${min} min fa`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h fa`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}g fa`;
+  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+}
+
+function fmtEur(n: number | null | undefined, decimals = 4): string {
+  if (n == null) return "—";
+  return `€ ${Number(n).toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+}
+
+function downloadMarkdown(session: SessionRow, messages: MessageRow[], persona: PersonaLite | null): void {
+  const lines: string[] = [];
+  lines.push(`# ${session.title}`);
+  lines.push("");
+  lines.push(`**Persona:** ${persona?.display_name ?? session.persona_key}`);
+  lines.push(`**Data inizio:** ${new Date(session.created_at).toLocaleString("it-IT")}`);
+  lines.push(`**Messaggi:** ${session.message_count}`);
+  lines.push(`**Costo:** ${fmtEur(session.total_cost_billed_eur, 4)}`);
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+  for (const m of messages) {
+    if (m.role === "system" || m.role === "tool") continue;
+    const who = m.role === "user" ? "👤 Tu" : `🤖 ${persona?.display_name ?? "Assistente"}`;
+    lines.push(`### ${who} · _${new Date(m.created_at).toLocaleString("it-IT")}_`);
+    lines.push("");
+    lines.push(m.content);
+    lines.push("");
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const safeTitle = session.title.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 60);
+  a.download = `chat-${safeTitle}-${session.id.slice(0, 8)}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -82,6 +159,14 @@ interface PersonaLite {
   icon: string | null;
 }
 
+interface StatsRow {
+  sessions_count: number;
+  messages_count: number;
+  total_cost_eur: number;
+  top_persona_key: string | null;
+  top_persona_count: number;
+}
+
 type MemoryType = "fact" | "preference" | "decision" | "pattern" | "avoid";
 
 const TYPE_LABEL: Record<MemoryType, string> = {
@@ -92,99 +177,45 @@ const TYPE_LABEL: Record<MemoryType, string> = {
   avoid: "Da evitare",
 };
 
-const PERIOD_OPTIONS = [
-  { key: "7d",  label: "Ultimi 7 giorni" },
-  { key: "30d", label: "Ultimi 30 giorni" },
-  { key: "90d", label: "Ultimi 90 giorni" },
-  { key: "all", label: "Tutte" },
-] as const;
-
-type PeriodKey = (typeof PERIOD_OPTIONS)[number]["key"];
-
-function periodToCutoff(p: PeriodKey): string | null {
-  if (p === "all") return null;
-  const days = p === "7d" ? 7 : p === "30d" ? 30 : 90;
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString();
-}
-
-function fmtRelative(iso: string): string {
-  const now = Date.now();
-  const t = new Date(iso).getTime();
-  const diffMs = now - t;
-  const min = Math.floor(diffMs / 60_000);
-  if (min < 1) return "ora";
-  if (min < 60) return `${min} min fa`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h fa`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}g fa`;
-  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
-}
-
-function fmtEur(n: number | null | undefined, decimals = 4): string {
-  if (n == null) return "—";
-  return `€ ${Number(n).toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
-}
-
-function downloadMarkdown(session: SessionRow, messages: MessageRow[], persona: PersonaLite | null): void {
-  const lines: string[] = [];
-  lines.push(`# ${session.title}`);
-  lines.push("");
-  lines.push(`**Persona:** ${persona?.display_name ?? session.persona_key}`);
-  lines.push(`**Data inizio:** ${new Date(session.created_at).toLocaleString("it-IT")}`);
-  lines.push(`**Messaggi:** ${session.message_count}`);
-  lines.push(`**Costo:** ${fmtEur(session.total_cost_billed_eur, 4)}`);
-  lines.push("");
-  lines.push("---");
-  lines.push("");
-  for (const m of messages) {
-    if (m.role === "system" || m.role === "tool") continue;
-    const who = m.role === "user" ? "👤 Tu" : `🤖 ${persona?.display_name ?? "Assistente"}`;
-    const when = new Date(m.created_at).toLocaleString("it-IT");
-    lines.push(`### ${who} · _${when}_`);
-    lines.push("");
-    lines.push(m.content);
-    lines.push("");
-  }
-  const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  const safeTitle = session.title.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 60);
-  a.download = `chat-${safeTitle}-${session.id.slice(0, 8)}.md`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function AIPersonasSessionsTab() {
   const qc = useQueryClient();
   const { effectiveCompany, user } = useAuth();
 
+  // ── Filter state ──────────────────────────────────────────────────────────
   const [filterPersona, setFilterPersona] = useState<string>("all");
   const [filterPeriod, setFilterPeriod] = useState<PeriodKey>("30d");
   const [showArchived, setShowArchived] = useState(false);
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput.trim(), 300);
 
-  // Drawer state
+  // ── Selection state (bulk archive) ────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // ── Drawer state ──────────────────────────────────────────────────────────
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
 
-  // Promote-to-memory dialog state
+  // ── Promote state (memoria) ───────────────────────────────────────────────
   const [promoteState, setPromoteState] = useState<{
-    open: boolean;
     sessionId: string;
     personaKey: string;
-    sourceMessageId: string;
+    sourceMessageId: string | null;
     memoryType: MemoryType;
     content: string;
   } | null>(null);
 
-  // ── Personas catalog (per icon/color/label nella lista) ───────────────────
+  // ── Selection-to-promote (highlight passage) ──────────────────────────────
+  // Floating button mostrato quando l'utente seleziona del testo dentro un
+  // bubble assistant nel drawer.
+  const [selectionPopover, setSelectionPopover] = useState<{
+    x: number;
+    y: number;
+    text: string;
+    messageId: string;
+  } | null>(null);
+
+  // ── Personas catalog ──────────────────────────────────────────────────────
   const { data: personas = [] } = useQuery({
     queryKey: ["sessions-personas-catalog"],
     queryFn: async (): Promise<PersonaLite[]> => {
@@ -203,63 +234,91 @@ export default function AIPersonasSessionsTab() {
     return m;
   }, [personas]);
 
-  // ── Sessions list ──────────────────────────────────────────────────────────
-  const { data: sessions = [], isLoading } = useQuery({
-    queryKey: ["ai-persona-sessions-tab", user?.id, filterPersona, filterPeriod, showArchived],
+  // ── Stats globali (RPC) ───────────────────────────────────────────────────
+  const { data: stats } = useQuery({
+    queryKey: ["ai-persona-sessions-stats", user?.id, filterPersona, filterPeriod, showArchived],
     enabled: !!user?.id,
-    queryFn: async (): Promise<SessionRow[]> => {
+    queryFn: async (): Promise<StatsRow> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("ai_persona_sessions_stats", {
+        p_persona_key: filterPersona === "all" ? null : filterPersona,
+        p_period_days: periodToDays(filterPeriod),
+        p_include_archived: showArchived,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return {
+        sessions_count: Number(row?.sessions_count ?? 0),
+        messages_count: Number(row?.messages_count ?? 0),
+        total_cost_eur: Number(row?.total_cost_eur ?? 0),
+        top_persona_key: row?.top_persona_key ?? null,
+        top_persona_count: Number(row?.top_persona_count ?? 0),
+      };
+    },
+  });
+
+  // ── Paginated sessions (infinite scroll) ──────────────────────────────────
+  const sessionsQ = useInfiniteQuery({
+    queryKey: ["ai-persona-sessions-paginated", user?.id, filterPersona, filterPeriod, showArchived, debouncedSearch],
+    enabled: !!user?.id,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const from = (pageParam as number) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
       let q = supabase
         .from("ai_persona_sessions" as never)
         .select("id, persona_key, title, message_count, total_cost_billed_eur, total_tokens_in, total_tokens_out, last_message_at, archived, created_at")
         .order("last_message_at", { ascending: false })
-        .limit(100);
+        .range(from, to);
 
       if (filterPersona !== "all") q = q.eq("persona_key", filterPersona);
       if (!showArchived) q = q.eq("archived", false);
 
-      const cutoff = periodToCutoff(filterPeriod);
+      const cutoff = periodToCutoffIso(filterPeriod);
       if (cutoff) q = q.gte("last_message_at", cutoff);
+
+      if (debouncedSearch) q = q.ilike("title", `%${debouncedSearch}%`);
 
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as SessionRow[];
     },
+    getNextPageParam: (lastPage, allPages) => {
+      // Se l'ultima pagina è < PAGE_SIZE, abbiamo finito
+      if (lastPage.length < PAGE_SIZE) return undefined;
+      return allPages.length; // next page index
+    },
   });
 
-  const filteredSessions = useMemo(() => {
-    if (!search.trim()) return sessions;
-    const s = search.toLowerCase();
-    return sessions.filter((row) => row.title.toLowerCase().includes(s));
-  }, [sessions, search]);
+  const allSessions = useMemo(
+    () => sessionsQ.data?.pages.flat() ?? [],
+    [sessionsQ.data],
+  );
 
-  // ── Aggregate stats (sul set FILTRATO, niente surprise) ────────────────────
-  const stats = useMemo(() => {
-    let messages = 0;
-    let cost = 0;
-    const byPersona = new Map<string, number>();
-    for (const s of sessions) {
-      messages += s.message_count;
-      cost += Number(s.total_cost_billed_eur);
-      byPersona.set(s.persona_key, (byPersona.get(s.persona_key) ?? 0) + 1);
-    }
-    let topPersonaKey: string | null = null;
-    let topCount = 0;
-    byPersona.forEach((c, k) => {
-      if (c > topCount) {
-        topCount = c;
-        topPersonaKey = k;
-      }
-    });
-    return {
-      sessionsCount: sessions.length,
-      messagesCount: messages,
-      costEur: cost,
-      topPersona: topPersonaKey ? personaByKey.get(topPersonaKey)?.display_name ?? topPersonaKey : null,
-      topPersonaCount: topCount,
-    };
-  }, [sessions, personaByKey]);
+  // ── Infinite scroll trigger via IntersectionObserver ──────────────────────
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && sessionsQ.hasNextPage && !sessionsQ.isFetchingNextPage) {
+          void sessionsQ.fetchNextPage();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [sessionsQ]);
 
-  // ── Open session messages (lazy on drawer open) ────────────────────────────
+  // ── Reset selezione quando filtri cambiano ────────────────────────────────
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filterPersona, filterPeriod, showArchived, debouncedSearch]);
+
+  // ── Open session messages (lazy on drawer open) ───────────────────────────
   const { data: openMessages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["ai-persona-session-messages", openSessionId],
     enabled: !!openSessionId,
@@ -275,11 +334,11 @@ export default function AIPersonasSessionsTab() {
   });
 
   const openSession = useMemo(
-    () => sessions.find((s) => s.id === openSessionId) ?? null,
-    [sessions, openSessionId],
+    () => allSessions.find((s) => s.id === openSessionId) ?? null,
+    [allSessions, openSessionId],
   );
 
-  // ── Mutations ──────────────────────────────────────────────────────────────
+  // ── Mutations ─────────────────────────────────────────────────────────────
 
   const archiveMut = useMutation({
     mutationFn: async ({ id, archived }: { id: string; archived: boolean }) => {
@@ -291,10 +350,35 @@ export default function AIPersonasSessionsTab() {
     },
     onSuccess: (_d, vars) => {
       toast.success(vars.archived ? "Sessione archiviata" : "Sessione riattivata");
-      void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-tab"] });
+      void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-paginated"] });
+      void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-stats"] });
       void qc.invalidateQueries({ queryKey: ["my_persona_sessions"] });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
+  });
+
+  const bulkArchiveMut = useMutation({
+    mutationFn: async ({ ids, archived }: { ids: string[]; archived: boolean }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("ai_persona_sessions_bulk_archive", {
+        p_session_ids: ids,
+        p_archived: archived,
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+    onSuccess: (count, vars) => {
+      toast.success(
+        vars.archived
+          ? `${count} sessioni archiviate`
+          : `${count} sessioni riattivate`,
+      );
+      setSelectedIds(new Set());
+      void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-paginated"] });
+      void qc.invalidateQueries({ queryKey: ["ai-persona-sessions-stats"] });
+      void qc.invalidateQueries({ queryKey: ["my_persona_sessions"] });
+    },
+    onError: (e) => toast.error("Errore bulk archive", { description: String(e) }),
   });
 
   const promoteMut = useMutation({
@@ -313,7 +397,7 @@ export default function AIPersonasSessionsTab() {
         p_memory_type: input.memoryType,
         p_content: input.content.trim(),
         p_source: `session:${input.sessionId}`,
-        p_confidence: 0.9, // user-promoted = alta fiducia
+        p_confidence: 0.9,
       });
       if (error) throw error;
       return data as string;
@@ -323,76 +407,150 @@ export default function AIPersonasSessionsTab() {
         description: "La persona AI lo ricorderà nelle prossime conversazioni.",
       });
       setPromoteState(null);
+      setSelectionPopover(null);
       void qc.invalidateQueries({ queryKey: ["ai-persona-memory"] });
     },
     onError: (e) => toast.error("Errore promozione", { description: String(e) }),
   });
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleResume = (s: SessionRow) => {
-    // Apre la tab Chat con la sessione preselezionata.
-    // AssistenteAIPage non legge ?sessionId, ma legge ?persona; combinato con
-    // il fatto che le sessioni recenti sono in sidebar sx, l'utente le riprende
-    // da lì. Per ora apriamo solo la persona, lasciando alla sidebar la ripresa
-    // (UX accettabile come MVP — TODO: parametro ?sessionId in autosend).
-    const sp = new URLSearchParams();
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAllVisible = useCallback(() => {
+    setSelectedIds(new Set(allSessions.map((s) => s.id)));
+  }, [allSessions]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const handleResume = useCallback((s: SessionRow) => {
+    // Auto-resume completo: la chat tab leggerà ?sessionId per attivare la sessione.
+    const sp = new URLSearchParams(window.location.search);
     sp.set("tab", "chat");
     sp.set("persona", s.persona_key);
-    window.history.pushState(null, "", `?${sp.toString()}`);
+    sp.set("sessionId", s.id);
+    window.history.pushState(null, "", `${window.location.pathname}?${sp.toString()}`);
     window.dispatchEvent(new PopStateEvent("popstate"));
     setOpenSessionId(null);
-  };
+  }, []);
 
-  const handleExport = (s: SessionRow) => {
+  const handleExport = useCallback((s: SessionRow) => {
     if (openMessages.length === 0) {
       toast.info("Apri prima la sessione per caricare i messaggi");
       return;
     }
     const persona = personaByKey.get(s.persona_key) ?? null;
     downloadMarkdown(s, openMessages, persona);
-  };
+  }, [openMessages, personaByKey]);
 
-  const handlePromoteClick = (msg: MessageRow, session: SessionRow) => {
+  const handlePromoteFull = useCallback((msg: MessageRow, session: SessionRow) => {
     setPromoteState({
-      open: true,
       sessionId: session.id,
       personaKey: session.persona_key,
       sourceMessageId: msg.id,
       memoryType: "fact",
-      content: msg.content.slice(0, 500), // pre-popola con primi 500 char
+      content: msg.content.slice(0, 500),
     });
-  };
+  }, []);
 
-  // ─── RENDER ───────────────────────────────────────────────────────────────
+  const handlePromoteSelection = useCallback(() => {
+    if (!selectionPopover || !openSession) return;
+    setPromoteState({
+      sessionId: openSession.id,
+      personaKey: openSession.persona_key,
+      sourceMessageId: selectionPopover.messageId,
+      memoryType: "fact",
+      content: selectionPopover.text,
+    });
+    setSelectionPopover(null);
+  }, [selectionPopover, openSession]);
+
+  // Listen for text selection inside the drawer (assistant bubbles only)
+  useEffect(() => {
+    if (!openSessionId) {
+      setSelectionPopover(null);
+      return;
+    }
+    const handler = () => {
+      const sel = window.getSelection();
+      const text = sel?.toString().trim() ?? "";
+      if (!text || text.length < 12) {
+        setSelectionPopover(null);
+        return;
+      }
+      // Verifica che la selezione sia DENTRO un bubble assistant del drawer
+      const anchorNode = sel?.anchorNode;
+      const focusNode = sel?.focusNode;
+      const findBubble = (n: Node | null | undefined): HTMLElement | null => {
+        let cur: Node | null = n ?? null;
+        while (cur) {
+          if (cur instanceof HTMLElement && cur.dataset.bubbleRole === "assistant") {
+            return cur;
+          }
+          cur = cur.parentNode;
+        }
+        return null;
+      };
+      const bubble = findBubble(anchorNode) ?? findBubble(focusNode);
+      if (!bubble) {
+        setSelectionPopover(null);
+        return;
+      }
+      const messageId = bubble.dataset.messageId;
+      if (!messageId) return;
+      const range = sel!.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setSelectionPopover({
+        x: rect.left + rect.width / 2,
+        y: rect.top,
+        text,
+        messageId,
+      });
+    };
+    document.addEventListener("selectionchange", handler);
+    return () => document.removeEventListener("selectionchange", handler);
+  }, [openSessionId]);
+
+  // ─── RENDER ──────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
-      {/* Stats banner */}
+      {/* Stats banner — sempre globale, non sul paginato */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <StatCard
           label="Sessioni"
-          value={String(stats.sessionsCount)}
+          value={String(stats?.sessions_count ?? "—")}
           icon={<History className="h-3.5 w-3.5" />}
           subtitle={showArchived ? "incl. archiviate" : "solo attive"}
         />
         <StatCard
           label="Messaggi"
-          value={String(stats.messagesCount)}
+          value={String(stats?.messages_count ?? "—")}
           icon={<MessageSquare className="h-3.5 w-3.5" />}
-          subtitle={`media ${stats.sessionsCount > 0 ? Math.round(stats.messagesCount / stats.sessionsCount) : 0}/sess`}
+          subtitle={
+            stats && stats.sessions_count > 0
+              ? `media ${Math.round(stats.messages_count / stats.sessions_count)}/sess`
+              : "—"
+          }
         />
         <StatCard
           label="Costo periodo"
-          value={fmtEur(stats.costEur, 3)}
+          value={fmtEur(stats?.total_cost_eur ?? 0, 3)}
           icon={<Coins className="h-3.5 w-3.5" />}
           subtitle="scalato dal saldo AI"
         />
         <StatCard
           label="Persona top"
-          value={stats.topPersona ?? "—"}
+          value={stats?.top_persona_key ? personaByKey.get(stats.top_persona_key)?.display_name ?? stats.top_persona_key : "—"}
           icon={<Sparkles className="h-3.5 w-3.5" />}
-          subtitle={stats.topPersonaCount > 0 ? `${stats.topPersonaCount} sessioni` : "nessuna chat ancora"}
+          subtitle={stats && stats.top_persona_count > 0 ? `${stats.top_persona_count} sessioni` : "nessuna chat ancora"}
         />
       </div>
 
@@ -425,10 +583,13 @@ export default function AIPersonasSessionsTab() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca per titolo…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="h-9 pl-9"
           />
+          {searchInput && searchInput !== debouncedSearch && (
+            <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          )}
         </div>
 
         <Button
@@ -440,42 +601,106 @@ export default function AIPersonasSessionsTab() {
           {showArchived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
           {showArchived ? "Nascondi archiviate" : "Mostra archiviate"}
         </Button>
-
-        <Badge variant="outline" className="ml-auto text-xs">
-          {filteredSessions.length} risultati
-        </Badge>
       </div>
 
+      {/* Bulk action bar (mostrata solo con selezione attiva) */}
+      {selectedIds.size > 0 && (
+        <div className="sticky top-0 z-10 rounded-lg border border-violet-300 bg-violet-50 dark:bg-violet-950/30 dark:border-violet-700 px-3 py-2 flex items-center gap-2 shadow-sm">
+          <CheckSquare className="h-4 w-4 text-violet-600" />
+          <span className="text-sm font-medium">
+            {selectedIds.size} {selectedIds.size === 1 ? "sessione selezionata" : "sessioni selezionate"}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={selectAllVisible}
+            className="h-8 gap-1.5"
+          >
+            <CheckSquare className="h-3.5 w-3.5" />
+            Tutte visibili ({allSessions.length})
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => bulkArchiveMut.mutate({ ids: Array.from(selectedIds), archived: !showArchived })}
+            disabled={bulkArchiveMut.isPending}
+            className="h-8 gap-1.5"
+          >
+            {bulkArchiveMut.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : showArchived ? (
+              <ArchiveRestore className="h-3.5 w-3.5" />
+            ) : (
+              <Archive className="h-3.5 w-3.5" />
+            )}
+            {showArchived ? "Riattiva tutte" : "Archivia tutte"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={clearSelection}
+            className="h-8 gap-1.5 ml-auto"
+          >
+            <X className="h-3.5 w-3.5" />
+            Annulla
+          </Button>
+        </div>
+      )}
+
       {/* Sessions list */}
-      {isLoading ? (
+      {sessionsQ.isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
         </div>
-      ) : filteredSessions.length === 0 ? (
+      ) : allSessions.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm font-medium">Nessuna sessione per questi filtri</p>
             <p className="text-xs mt-1">
-              Apri la tab <strong>Chat</strong> e fai partire una conversazione con una delle 18 personas.
-              Le sessioni appariranno qui, e potrai promuoverne i passaggi più utili a memoria persistente.
+              Apri la tab <strong>Chat</strong> e parla con una delle 18 personas.
+              Le conversazioni appariranno qui, e potrai promuoverne i passaggi più utili a memoria persistente.
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {filteredSessions.map((s) => (
-            <SessionCard
-              key={s.id}
-              session={s}
-              persona={personaByKey.get(s.persona_key) ?? null}
-              onOpen={() => setOpenSessionId(s.id)}
-              onResume={() => handleResume(s)}
-              onArchive={() => archiveMut.mutate({ id: s.id, archived: !s.archived })}
-              archivePending={archiveMut.isPending}
-            />
-          ))}
-        </div>
+        <>
+          <div className="space-y-2">
+            {allSessions.map((s) => (
+              <SessionCard
+                key={s.id}
+                session={s}
+                persona={personaByKey.get(s.persona_key) ?? null}
+                selected={selectedIds.has(s.id)}
+                onToggleSelect={() => toggleSelect(s.id)}
+                onOpen={() => setOpenSessionId(s.id)}
+                onResume={() => handleResume(s)}
+                onArchive={() => archiveMut.mutate({ id: s.id, archived: !s.archived })}
+                archivePending={archiveMut.isPending}
+                hasAnySelection={selectedIds.size > 0}
+              />
+            ))}
+          </div>
+
+          {/* Infinite scroll sentinel */}
+          <div ref={sentinelRef} className="h-1" />
+
+          {sessionsQ.isFetchingNextPage && (
+            <div className="py-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Carico altre sessioni…
+            </div>
+          )}
+
+          {!sessionsQ.hasNextPage && allSessions.length >= PAGE_SIZE && (
+            <p className="py-3 text-center text-xs text-muted-foreground">
+              Fine elenco · {allSessions.length} sessioni mostrate
+              {stats && stats.sessions_count > allSessions.length && (
+                <> su {stats.sessions_count} totali (riduci il periodo per vedere più indietro)</>
+              )}
+            </p>
+          )}
+        </>
       )}
 
       {/* Drawer dettaglio sessione */}
@@ -498,7 +723,7 @@ export default function AIPersonasSessionsTab() {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="px-4 py-2 border-b flex items-center gap-2 bg-muted/30">
+          <div className="px-4 py-2 border-b flex flex-wrap items-center gap-2 bg-muted/30">
             <Button
               size="sm"
               variant="outline"
@@ -517,7 +742,7 @@ export default function AIPersonasSessionsTab() {
               disabled={!openSession || openMessages.length === 0}
             >
               <Download className="h-3.5 w-3.5" />
-              Esporta Markdown
+              Esporta MD
             </Button>
             <Button
               size="sm"
@@ -530,6 +755,10 @@ export default function AIPersonasSessionsTab() {
               {openSession?.archived ? "Riattiva" : "Archivia"}
             </Button>
           </div>
+
+          <p className="text-[10px] text-muted-foreground bg-violet-50/50 dark:bg-violet-950/20 px-4 py-1.5 border-b">
+            💡 <strong>Tip:</strong> seleziona del testo nella risposta AI per promuovere solo quella frase a memoria.
+          </p>
 
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-4">
@@ -549,7 +778,7 @@ export default function AIPersonasSessionsTab() {
                       key={m.id}
                       message={m}
                       persona={openSession ? personaByKey.get(openSession.persona_key) ?? null : null}
-                      onPromote={() => openSession && handlePromoteClick(m, openSession)}
+                      onPromote={() => openSession && handlePromoteFull(m, openSession)}
                     />
                   ))
               )}
@@ -558,9 +787,26 @@ export default function AIPersonasSessionsTab() {
         </SheetContent>
       </Sheet>
 
-      {/* Dialog "Promuovi a memoria" */}
+      {/* Floating "Promuovi selezione" tooltip */}
+      {selectionPopover && (
+        <div
+          className="fixed z-[60] -translate-x-1/2 -translate-y-full"
+          style={{ left: selectionPopover.x, top: selectionPopover.y - 8 }}
+        >
+          <button
+            type="button"
+            onClick={handlePromoteSelection}
+            className="bg-violet-600 hover:bg-violet-700 text-white text-xs px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 transition-colors animate-in fade-in slide-in-from-bottom-1"
+          >
+            <Brain className="h-3 w-3" />
+            Promuovi selezione a memoria
+          </button>
+        </div>
+      )}
+
+      {/* Promote-to-memory dialog */}
       <Dialog
-        open={!!promoteState?.open}
+        open={!!promoteState}
         onOpenChange={(v) => !v && setPromoteState(null)}
       >
         <DialogContent className="sm:max-w-lg">
@@ -656,7 +902,7 @@ function StatCard({
         {icon}
         {label}
       </div>
-      <div className="text-xl font-bold tabular-nums mt-0.5 truncate">{value}</div>
+      <div className="text-xl font-bold tabular-nums mt-0.5 truncate" title={value}>{value}</div>
       {subtitle && (
         <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{subtitle}</div>
       )}
@@ -665,49 +911,63 @@ function StatCard({
 }
 
 function SessionCard({
-  session, persona, onOpen, onResume, onArchive, archivePending,
+  session, persona, selected, onToggleSelect, onOpen, onResume, onArchive,
+  archivePending, hasAnySelection,
 }: {
   session: SessionRow;
   persona: PersonaLite | null;
+  selected: boolean;
+  onToggleSelect: () => void;
   onOpen: () => void;
   onResume: () => void;
   onArchive: () => void;
   archivePending: boolean;
+  hasAnySelection: boolean;
 }) {
   return (
     <div
       className={cn(
-        "rounded-lg border bg-card hover:bg-muted/30 transition-colors",
+        "rounded-lg border bg-card transition-all",
         session.archived && "opacity-60",
+        selected ? "border-violet-400 ring-1 ring-violet-200 bg-violet-50/30 dark:bg-violet-950/10" : "hover:bg-muted/30",
       )}
     >
-      <button
-        type="button"
-        onClick={onOpen}
-        className="w-full text-left p-3 flex items-start gap-3"
-      >
-        <div className="shrink-0 h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-          <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+      <div className="flex items-start gap-3 p-3">
+        <div className="pt-1.5 shrink-0">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={onToggleSelect}
+            aria-label="Seleziona sessione"
+          />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium truncate">{session.title}</span>
-            {session.archived && (
-              <Badge variant="outline" className="text-[10px] h-4 px-1.5">archiviata</Badge>
-            )}
+        <button
+          type="button"
+          onClick={hasAnySelection ? onToggleSelect : onOpen}
+          className="flex-1 text-left flex items-start gap-3 min-w-0"
+        >
+          <div className="shrink-0 h-9 w-9 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+            <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />
           </div>
-          <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
-            <span>{persona?.display_name ?? session.persona_key}</span>
-            <span>·</span>
-            <span>{session.message_count} msg</span>
-            <span>·</span>
-            <span>{fmtEur(session.total_cost_billed_eur, 4)}</span>
-            <span>·</span>
-            <span>{fmtRelative(session.last_message_at)}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium truncate">{session.title}</span>
+              {session.archived && (
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5">archiviata</Badge>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+              <span>{persona?.display_name ?? session.persona_key}</span>
+              <span>·</span>
+              <span>{session.message_count} msg</span>
+              <span>·</span>
+              <span>{fmtEur(session.total_cost_billed_eur, 4)}</span>
+              <span>·</span>
+              <span>{fmtRelative(session.last_message_at)}</span>
+            </div>
           </div>
-        </div>
-        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
-      </button>
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
+        </button>
+      </div>
       <div className="border-t px-3 py-2 flex items-center gap-2 bg-muted/20">
         <Button size="sm" variant="ghost" onClick={onResume} className="h-7 gap-1.5 text-xs">
           <ExternalLink className="h-3 w-3" />
@@ -753,10 +1013,14 @@ function SessionMessageBubble({
       )}>
         {isUser ? <UserIcon className="h-3.5 w-3.5" /> : <BotIcon className="h-3.5 w-3.5" />}
       </div>
-      <div className={cn(
-        "rounded-lg px-3 py-2 max-w-[85%] text-sm whitespace-pre-wrap break-words",
-        isUser ? "bg-violet-600 text-white" : "bg-muted",
-      )}>
+      <div
+        data-bubble-role={isUser ? "user" : "assistant"}
+        data-message-id={message.id}
+        className={cn(
+          "rounded-lg px-3 py-2 max-w-[85%] text-sm whitespace-pre-wrap break-words",
+          isUser ? "bg-violet-600 text-white" : "bg-muted",
+        )}
+      >
         <div className="text-[10px] opacity-70 mb-1">
           {isUser ? "Tu" : persona?.display_name ?? "Assistente"}
           {" · "}
@@ -776,10 +1040,10 @@ function SessionMessageBubble({
               type="button"
               onClick={onPromote}
               className="inline-flex items-center gap-1 hover:bg-foreground/10 rounded px-1.5 py-0.5 transition-colors"
-              title="Salva come memoria persistente della persona"
+              title="Salva l'intero messaggio come memoria persistente"
             >
               <Brain className="h-3 w-3" />
-              Promuovi a memoria
+              Promuovi tutto
             </button>
           </div>
         )}

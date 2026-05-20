@@ -139,7 +139,10 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
   const [draftMessage, setDraftMessage] = useState("");
   const [search, setSearch] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [autosendHandled, setAutosendHandled] = useState(false);
+  // Tracciamo l'ultimo set di params processato anziché un boolean: così quando
+  // arrivano nuovi parametri (es. tab Sessioni > Continua chat con sessionId
+  // diverso) il deep-link re-fire correttamente anche se la pagina era già montata.
+  const lastProcessedParamsRef = useRef<string>("");
 
   // ─── DATA: personas (con check RBAC su client lato — orchestrator ricontrolla server-side) ──
   const { data: personas, isLoading: personasLoading } = useQuery({
@@ -232,41 +235,58 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 🆕 GAP 1 (Discoverability): deep-link autosend
-  // /azienda/assistente-ai?persona=cfo&q=Come%20va%20la%20cassa
-  // viene chiamato dal Command Palette (Cmd+K) e da future proactive proposals.
+  // 🆕 GAP 1 (Discoverability): deep-link autosend + resume
+  // /azienda/assistente-ai?persona=cfo&q=Come%20va%20la%20cassa  → autosend
+  // /azienda/assistente-ai?persona=cfo&sessionId=UUID            → resume sessione
+  // chiamato da Command Palette (Cmd+K), tab Sessioni "Continua chat", proactive proposals.
   useEffect(() => {
-    if (autosendHandled) return;
     if (!personas || personas.length === 0) return;
     const personaParam = searchParams.get("persona");
     const qParam = searchParams.get("q");
+    const sessionIdParam = searchParams.get("sessionId");
+    if (!personaParam && !sessionIdParam) return;
+
+    // Idempotency: skip se questa stessa combinazione è già stata processata
+    const fingerprint = `${personaParam ?? ""}|${qParam ?? ""}|${sessionIdParam ?? ""}`;
+    if (lastProcessedParamsRef.current === fingerprint) return;
+    lastProcessedParamsRef.current = fingerprint;
+
+    // Resume sessione esistente: ha precedenza su persona+q
+    if (sessionIdParam) {
+      setActiveSessionId(sessionIdParam);
+      if (personaParam) {
+        const personaExists = personas.some((p) => p.persona_key === personaParam);
+        if (personaExists) setActivePersonaKey(personaParam);
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete("sessionId");
+      setSearchParams(next, { replace: true });
+      return;
+    }
+
+    // Nuova sessione su persona (con eventuale autosend)
     if (!personaParam) return;
-    // Verifica che la persona esista + sia visibile dal ruolo utente
     const personaExists = personas.some((p) => p.persona_key === personaParam);
     if (!personaExists) {
       toast.error(`Persona "${personaParam}" non disponibile per il tuo ruolo`);
-      setAutosendHandled(true);
       return;
     }
     setActivePersonaKey(personaParam);
     setActiveSessionId(null);
     if (qParam && qParam.trim()) {
-      // Auto-invio del messaggio in coda al mount
       setTimeout(() => {
         sendMut.mutate({
           message: qParam.trim(),
           personaKey: personaParam,
           sessionId: null,
         });
-        // Pulisce ?q= per non re-invio su back/forward (mantiene ?persona)
         const next = new URLSearchParams(searchParams);
         next.delete("q");
         setSearchParams(next, { replace: true });
       }, 100);
     }
-    setAutosendHandled(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personas, autosendHandled]);
+  }, [personas, searchParams]);
 
   // ─── HELPERS ───────────────────────────────────────────────────────────
   const grouped = useMemo(() => {
