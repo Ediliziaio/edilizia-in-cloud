@@ -173,11 +173,35 @@ function SortableRowImpl({
             FOOTER: ☐ Articolo non imponibile (anticipazione)
             Actions (espandi/duplica/cestino) in alto a destra orizzontali. */}
         <div
-          className={`border rounded-lg group transition-colors mb-3 ${
+          className={`relative border rounded-lg group transition-colors mb-3 ${
             isDragging ? "bg-muted/40 border-primary/40" : "bg-card"
           }`}
         >
-          <div className="flex gap-3 px-4 py-4">
+          {/* Actions in alto a destra, in linea orizzontale, sopra le label
+              della TOP row grazie al pt-9 extra sul flex outer. */}
+          <div className="absolute top-1.5 right-2 flex items-center gap-0.5 z-10">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setExpanded((e) => !e)}
+              aria-label={expanded ? "Riduci riga" : "Espandi riga"}
+              title={expanded ? "Riduci" : "Espandi per dettagli"}
+            >
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+            </Button>
+            {!disabled && (
+              <>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
+                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemove(index)} aria-label="Elimina">
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              </>
+            )}
+          </div>
+          <div className="flex gap-3 px-4 pt-10 pb-4">
             {/* Drag handle a sinistra */}
             <div className="flex flex-col items-center gap-1 shrink-0 pt-2">
               <button
@@ -193,8 +217,8 @@ function SortableRowImpl({
 
             {/* Contenuto principale — grid stabile, no flex-wrap */}
             <div className="flex-1 min-w-0 space-y-3">
-              {/* TOP ROW — grid 7 colonne: 6 dati + actions a destra */}
-              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_4rem_4.5rem_5rem_5.5rem_5.5rem] gap-2">
+              {/* TOP ROW — grid 6 colonne fisse, sempre allineate */}
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)_4rem_4.5rem_5rem_5.5rem] gap-2">
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground font-normal">Codice</Label>
                   <Input
@@ -266,32 +290,6 @@ function SortableRowImpl({
                   <Label className="text-[10px] text-muted-foreground font-normal">Importo</Label>
                   <div className="h-8 px-2 flex items-center justify-end text-sm font-semibold tabular-nums rounded-md border bg-muted/40">
                     {formatCurrency(riga.totale_riga)}
-                  </div>
-                </div>
-                {/* Actions: ultima cella del grid, allineate alla baseline degli input */}
-                <div className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground font-normal invisible">.</Label>
-                  <div className="h-8 flex items-center justify-end gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setExpanded((e) => !e)}
-                      aria-label={expanded ? "Riduci riga" : "Espandi riga"}
-                      title={expanded ? "Riduci" : "Espandi per dettagli"}
-                    >
-                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
-                    </Button>
-                    {!disabled && (
-                      <>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
-                          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemove(index)} aria-label="Elimina">
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </>
-                    )}
                   </div>
                 </div>
               </div>
