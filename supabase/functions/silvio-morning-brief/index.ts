@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (targets.length === 0) {
-      return jsonResponse({ ok: true, generated: 0, message: "Nessun utente da processare" }, cors);
+      return jsonResponse({ ok: true, generated: 0, message: "Nessun utente da processare" }, 200, cors);
     }
 
     let ok = 0;
@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return jsonResponse({ ok: true, generated: ok, failed, errors: errors.slice(0, 5) }, cors);
+    return jsonResponse({ ok: true, generated: ok, failed, errors: errors.slice(0, 5) }, 200, cors);
 
   } catch (e) {
     // requireAuth/requireInternalSecret throwano Response per UX consistente

@@ -61,6 +61,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
   try {
+    console.log("[bulk-scheduler] start", { method: req.method, url: req.url });
+
     if (isInternalRequest(req)) {
       requireInternalSecret(req, cors);
     } else {
@@ -69,13 +71,22 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    if (!supabaseUrl || !serviceKey) {
+      console.error("[bulk-scheduler] missing env", { hasUrl: !!supabaseUrl, hasKey: !!serviceKey });
+      return errorResponse("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", 500, cors);
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase: any = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    console.log("[bulk-scheduler] querying due flows");
     const { data: dueFlows, error: dueErr } = await supabase.rpc("bulk_scheduler_due_flows");
-    if (dueErr) return errorResponse(`due_flows: ${dueErr.message}`, 500, cors);
+    if (dueErr) {
+      console.error("[bulk-scheduler] due_flows query failed", dueErr);
+      return errorResponse(`due_flows: ${dueErr.message}`, 500, cors);
+    }
+    console.log("[bulk-scheduler] due flows found:", (dueFlows ?? []).length);
 
     const flows: FlowToRun[] = (dueFlows ?? []).map((r: FlowToRun) => ({
       flow_id: r.flow_id,
@@ -85,27 +96,30 @@ Deno.serve(async (req: Request) => {
     }));
 
     if (flows.length === 0) {
-      return jsonResponse({ ok: true, due: 0 }, cors);
+      return jsonResponse({ ok: true, due: 0, message: "No flows due" }, 200, cors);
     }
 
-    const results: Array<{ flow_id: string; status: string; sent: number; failed: number }> = [];
+    const results: Array<{ flow_id: string; status: string; sent: number; failed: number; error?: string }> = [];
 
     for (const flow of flows) {
+      console.log("[bulk-scheduler] processing flow", flow.flow_id, flow.flow_name);
       try {
         const result = await runFlow(supabase, flow);
         results.push(result);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        console.error(`[bulk-scheduler] flow ${flow.flow_id} FAILED:`, msg);
-        results.push({ flow_id: flow.flow_id, status: "failed", sent: 0, failed: 0 });
+        const stack = e instanceof Error ? e.stack : undefined;
+        console.error(`[bulk-scheduler] flow ${flow.flow_id} FAILED:`, msg, stack?.slice(0, 500));
+        results.push({ flow_id: flow.flow_id, status: "failed", sent: 0, failed: 0, error: msg });
       }
     }
 
-    return jsonResponse({ ok: true, due: flows.length, results }, cors);
+    return jsonResponse({ ok: true, due: flows.length, results }, 200, cors);
   } catch (e) {
     if (e instanceof Response) return e;
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[bulk-scheduler] fatal", msg);
+    const stack = e instanceof Error ? e.stack : undefined;
+    console.error("[bulk-scheduler] fatal", msg, stack?.slice(0, 500));
     return errorResponse(`Fatal: ${msg}`, 500, cors);
   }
 });
