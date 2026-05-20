@@ -132,7 +132,16 @@ function SortableRow({
   onDuplicate: (index: number) => void;
   prezziLordi?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  // Default collapsed: mostra solo TOP row (Codice + Nome + Qtà + UM + Prezzo).
+  // L'utente espande per vedere/modificare Descrizione + Sc% + IVA + Importo
+  // + checkbox + Categoria. Auto-espanso se contiene descrizione multiline o
+  // dati strutturati nei campi "avanzati".
+  const hasAdvancedData =
+    riga.descrizione.includes("\n") ||
+    !!riga.riferimento_amministrazione ||
+    (riga.sconto_percentuale ?? 0) > 0 ||
+    riga.natura_iva === "N1";
+  const [expanded, setExpanded] = useState(hasAdvancedData);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: riga.id,
@@ -249,6 +258,7 @@ function SortableRow({
                 </div>
               </div>
 
+              {expanded && (<>
               {/* MIDDLE ROW — grid 2 col: Descrizione (1fr) | sidebar fixed 10rem */}
               <div className="grid grid-cols-[minmax(0,1fr)_10rem] gap-3">
                 <div className="space-y-1 min-w-0">
@@ -379,19 +389,42 @@ function SortableRow({
                   />
                 </div>
               </div>
+              </>)}
+
+              {/* Riga compatta quando collapsed: mostra solo l'importo */}
+              {!expanded && (
+                <div className="flex items-center justify-end gap-3 text-xs text-muted-foreground pt-1">
+                  <span>Sc.% {riga.sconto_percentuale ?? 0} · IVA {ivaDisplayLabel(riga)}</span>
+                  <span className="text-sm font-semibold tabular-nums text-foreground">
+                    {formatCurrency(riga.totale_riga)}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Cestino a destra */}
-            {!disabled && (
-              <div className="flex flex-col gap-1 shrink-0">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
-                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemove(index)} aria-label="Elimina">
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                </Button>
-              </div>
-            )}
+            {/* Actions a destra: toggle expand + duplica + cestino */}
+            <div className="flex flex-col gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setExpanded((e) => !e)}
+                aria-label={expanded ? "Riduci riga" : "Espandi riga"}
+                title={expanded ? "Riduci" : "Espandi per dettagli"}
+              >
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+              </Button>
+              {!disabled && (
+                <>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
+                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemove(index)} aria-label="Elimina">
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </Collapsible>
