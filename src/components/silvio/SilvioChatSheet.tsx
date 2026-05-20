@@ -306,20 +306,27 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   // Mirror del recordingMs in ref per leggerlo dentro callback (onstop)
   const recordingMsRef = useRef<number>(0);
 
-  // Cleanup blob URLs on unmount
+  // PERF/LEAK FIX: cleanup unmount con deps=[] cattura attachments/pendingAudio
+  // del primo render (sempre vuoti) -> i blob URL non venivano mai revocati.
+  // Pattern: latest-ref aggiornato ad ogni render, cleanup legge il ref.
+  const attachmentsLatestRef = useRef(attachments);
+  const pendingAudioLatestRef = useRef(pendingAudio);
+  useEffect(() => { attachmentsLatestRef.current = attachments; }, [attachments]);
+  useEffect(() => { pendingAudioLatestRef.current = pendingAudio; }, [pendingAudio]);
+
   useEffect(() => {
     return () => {
-      attachments.forEach((a) => {
+      attachmentsLatestRef.current.forEach((a) => {
         if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
       });
-      if (pendingAudio) URL.revokeObjectURL(pendingAudio.url);
+      const audio = pendingAudioLatestRef.current;
+      if (audio) URL.revokeObjectURL(audio.url);
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
       const recorder = mediaRecorderRef.current;
       if (recorder && recorder.state !== "inactive") {
         recorder.stream.getTracks().forEach((t) => t.stop());
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── 1. Trova/crea il channel Silvio personale via RPC idempotente ──────
@@ -563,13 +570,22 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   // ripartivano in animazione.
   // Fix: animare SOLO messaggi davvero arrivati DOPO il mount (created_at >=
   // mountTime). Initial load + paginazione storica → no animazione.
+  // PERF/LEAK FIX: i setTimeout per finire l'animazione typewriter venivano
+  // creati senza tracking. Se la sheet veniva chiusa prima della scadenza
+  // (utenti chattano rapidamente), restavano callback orfani con setState
+  // su componente potenzialmente smontato. Ora trackiamo gli handle e li
+  // pulisco all'unmount.
+  const streamingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  useEffect(() => () => {
+    streamingTimersRef.current.forEach(clearTimeout);
+    streamingTimersRef.current.clear();
+  }, []);
+
   useEffect(() => {
     const newSilvioIds: string[] = [];
     const isFirstHydration = !hasHydratedRef.current && messages.length > 0;
     for (const m of messages) {
       if (!seenMessageIdsRef.current.has(m.id)) {
-        // Anima solo se: Silvio + ha contenuto + creato dopo il mount + non è
-        // la prima hydration di una pagina già esistente.
         if (
           !isFirstHydration &&
           m.sender_id === SILVIO_SENDER_ID &&
@@ -589,13 +605,12 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
       newSilvioIds.forEach((id) => next.add(id));
       return next;
     });
-    // Dopo che l'animazione presunta finisce (~ tot char / cps + buffer),
-    // rimuovi dall'elenco "streaming" così non ricomincia su re-render.
     newSilvioIds.forEach((id) => {
       const msg = messages.find((m) => m.id === id);
       const len = msg?.content.length ?? 0;
       const durationMs = Math.max(800, (len / 50) * 1000 + 300);
-      setTimeout(() => {
+      const handle = setTimeout(() => {
+        streamingTimersRef.current.delete(handle);
         setStreamingMessageIds((prev) => {
           if (!prev.has(id)) return prev;
           const next = new Set(prev);
@@ -603,6 +618,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
           return next;
         });
       }, durationMs);
+      streamingTimersRef.current.add(handle);
     });
   }, [messages]);
 
