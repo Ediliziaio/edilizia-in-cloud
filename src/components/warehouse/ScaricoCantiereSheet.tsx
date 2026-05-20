@@ -57,6 +57,7 @@ import { uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
 import { supabase } from "@/integrations/supabase/client";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
 import { OrderSelectCombobox, type OrderOption } from "./OrderSelectCombobox";
+import { ManualArticleAdder } from "./ManualArticleAdder";
 
 const BatchBarcodeScanner = lazy(() =>
   import("./BatchBarcodeScanner").then((m) => ({ default: m.BatchBarcodeScanner })),
@@ -204,13 +205,15 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   }
 
   // ─── Step 'scan' delega al BatchBarcodeScanner ─────────────
+  // Quando l'utente chiude lo scanner torniamo allo step "context" così può
+  // continuare a modificare la lista articoli manuale (non perdiamo le entries).
   if (step === "scan") {
     return (
       <Suspense fallback={null}>
         <BatchBarcodeScanner
           open={open}
           onOpenChange={(v) => {
-            if (!v) onOpenChange(false);
+            if (!v) setStep("context");
           }}
           mode="carico"
           contextLabel={
@@ -303,6 +306,21 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
             )}
           </div>
 
+          {/* Articoli — modalità manuale (alternativa allo scanner) */}
+          <div className="space-y-2">
+            <Label>Articoli da scaricare</Label>
+            <ManualArticleAdder
+              companyId={companyId}
+              warehouseId={warehouseId}
+              entries={entries}
+              onEntriesChange={setEntries}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Aggiungi articoli cercandoli per nome qui sopra, oppure clicca <strong>"Scansiona articoli"</strong> per
+              usare la fotocamera/scanner barcode.
+            </p>
+          </div>
+
           {/* Foto merce caricata (opzionale) */}
           <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
             <div className="flex items-start gap-2">
@@ -360,17 +378,35 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
         </div>
 
         <DialogFooter className="shrink-0 border-t p-3 flex-row gap-2 bg-card">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="shrink-0">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Annulla
           </Button>
           <Button
+            variant="outline"
             onClick={() => setStep("scan")}
             disabled={!canProceedToScan}
+            className="flex-1"
+          >
+            <Camera className="h-4 w-4 mr-2" />
+            Scansiona
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={!canProceedToScan || entries.length === 0 || shipment.isPending}
             className="flex-[2]"
           >
-            Inizia scansione
-            <ArrowRight className="h-4 w-4 ml-2" />
+            {shipment.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Generazione...
+              </>
+            ) : (
+              <>
+                Genera DDT ({entries.length})
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
