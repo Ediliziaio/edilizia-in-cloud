@@ -188,7 +188,10 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                   value={search}
                   onValueChange={setSearch}
                 />
-                <CommandList className="max-h-[300px]">
+                {/* max-h "60vh" sfrutta tutta l'altezza disponibile della viewport
+                    (con margine), così lo scroll dell'utente è naturale e
+                    mostra molti più articoli prima di dover scrollare. */}
+                <CommandList className="!max-h-[60vh] overscroll-contain">
                   {isLoading ? (
                     <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin mr-2" />
