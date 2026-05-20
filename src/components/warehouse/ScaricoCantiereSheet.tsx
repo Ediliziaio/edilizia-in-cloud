@@ -448,9 +448,12 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
           </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {/* v8.6.105 — Refactor mobile-first: ogni sezione e' una card distinta
+            con padding generoso (px-4 mobile, px-5 desktop). Spacing aumentato
+            per non avere "blocchi appiccicati" che disorientavano l'utente. */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4 space-y-3">
           {/* Info preparazione */}
-          <div className="rounded-lg border bg-muted/20 p-3 text-xs space-y-0.5">
+          <div className="rounded-lg border bg-muted/20 px-3 py-2.5 text-xs space-y-0.5">
             <p>
               <span className="text-muted-foreground">Preparazione:</span>{" "}
               <span className="font-medium">{insertedAt.toLocaleString("it-IT")}</span>
@@ -464,9 +467,9 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
           {/* Ordine destinazione — OPZIONALE. Se presente, gli articoli ordinati
               vengono auto-caricati e cliente_snapshot popolato. Se assente, è
               un DDT spot (reso, spostamento, consegna libera). */}
-          <div className="space-y-2">
+          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Ordine destinazione <span className="text-muted-foreground font-normal">(opzionale)</span></Label>
+              <Label className="text-sm font-semibold">Ordine destinazione <span className="text-muted-foreground font-normal text-xs">(opzionale)</span></Label>
               {orderId && (
                 <button
                   type="button"
@@ -496,8 +499,8 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
           </div>
 
           {/* Magazzino sorgente */}
-          <div className="space-y-2">
-            <Label htmlFor="sc-warehouse">Magazzino sorgente *</Label>
+          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-2">
+            <Label htmlFor="sc-warehouse" className="text-sm font-semibold">Magazzino sorgente *</Label>
             {warehousesLoading ? (
               <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
@@ -534,39 +537,40 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
           </div>
 
           {/* Articoli — modalità manuale (alternativa allo scanner) */}
-          <div className="space-y-2">
-            <Label>Articoli da scaricare</Label>
+          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-2">
+            <Label className="text-sm font-semibold">Articoli da scaricare</Label>
             <ManualArticleAdder
               companyId={companyId}
               warehouseId={warehouseId}
               entries={entries}
               onEntriesChange={setEntries}
             />
-            <p className="text-[11px] text-muted-foreground">
-              Aggiungi articoli cercandoli per nome qui sopra, oppure clicca <strong>"Scansiona articoli"</strong> per
-              usare la fotocamera/scanner barcode.
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Cerca l'articolo per nome qui sopra, oppure usa <strong>Scansiona</strong> sotto.
             </p>
           </div>
 
           {/* Trasportatore — chi porta la merce. Opzionale (default: mittente azienda).
               Auto-fill da contratto subappalto della commessa, se presente. */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Trasportatore <span className="text-muted-foreground font-normal">(opzionale)</span></Label>
+          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-1">
+              <Label className="text-sm font-semibold">Trasportatore <span className="text-muted-foreground font-normal text-xs">(opzionale)</span></Label>
               {orderContract?.subappaltatore_id && vettoreTipo === "subappaltatore" && !vettoreManuallyChanged && (
                 <span className="text-[10px] text-emerald-600">✓ Auto-fill dalla commessa</span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            {/* Mobile: 1 colonna (verticale, button full-width).
+                Desktop: 3 colonne come prima. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {(["mittente", "subappaltatore", "terzo"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => { setVettoreTipo(t); setVettoreManuallyChanged(true); }}
-                  className={`text-xs px-3 py-2 rounded-md border transition-colors ${
+                  className={`text-sm sm:text-xs px-3 py-2.5 sm:py-2 rounded-md border transition-colors ${
                     vettoreTipo === t
                       ? "bg-primary text-primary-foreground border-primary font-medium"
-                      : "bg-card hover:bg-muted text-foreground"
+                      : "bg-background hover:bg-muted text-foreground"
                   }`}
                 >
                   {t === "mittente" && "Mittente (azienda)"}
@@ -704,24 +708,13 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
           </Alert>
         </div>
 
-        <DialogFooter className="shrink-0 border-t p-3 flex-row gap-2 bg-card">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="shrink-0">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Annulla
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => setStep("scan")}
-            disabled={!canProceedToScan}
-            className="flex-1"
-          >
-            <Camera className="h-4 w-4 mr-2" />
-            Scansiona
-          </Button>
+        {/* v8.6.105 — Footer mobile a 2 righe: 1a riga azione principale full-width,
+            2a riga Annulla + Scansiona affiancati. Su desktop torna inline. */}
+        <DialogFooter className="shrink-0 border-t p-3 bg-card flex-col sm:flex-row gap-2 sm:gap-2">
           <Button
             onClick={handleConfirm}
             disabled={!canProceedToScan || entries.length === 0 || shipment.isPending}
-            className="flex-[2]"
+            className="w-full sm:flex-[2] sm:order-3 h-11 sm:h-10"
           >
             {shipment.isPending ? (
               <>
@@ -735,6 +728,21 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
               </>
             )}
           </Button>
+          <div className="flex gap-2 w-full sm:contents">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none sm:shrink-0 sm:order-1 h-10">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Annulla
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setStep("scan")}
+              disabled={!canProceedToScan}
+              className="flex-1 sm:order-2 h-10"
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Scansiona
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

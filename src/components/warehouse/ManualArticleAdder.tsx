@@ -158,9 +158,10 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
 
   return (
     <div className="space-y-3">
-      {/* Picker + Quantità + Aggiungi */}
-      <div className="grid grid-cols-[1fr_5rem_auto] gap-2 items-end">
-        <div className="space-y-1">
+      {/* v8.6.105 — Layout mobile-first: su mobile picker articolo full-width,
+          quantità + bottone su seconda riga. Su desktop torna 3-col compatto. */}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_5rem_auto] gap-2 items-end">
+        <div className="space-y-1 md:col-span-1">
           <Label className="text-xs">Articolo</Label>
           <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
             <div className="relative">
@@ -277,28 +278,32 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
           </Popover>
         </div>
 
-        <div className="space-y-1">
-          <Label className="text-xs">Qtà</Label>
-          <Input
-            type="number"
-            min="1"
-            value={pendingQty}
-            onChange={(e) => setPendingQty(e.target.value)}
-            disabled={!pendingItem}
-            className="h-9 text-right tabular-nums"
-            max={pendingItem?.quantity ?? undefined}
-          />
-        </div>
+        {/* Su mobile: qtà + bottone su 2a riga con il bottone full-width.
+            Su desktop: layout 3-col inline come prima. */}
+        <div className="flex gap-2 items-end md:contents">
+          <div className="space-y-1 flex-1 md:flex-none">
+            <Label className="text-xs">Qtà</Label>
+            <Input
+              type="number"
+              min="1"
+              value={pendingQty}
+              onChange={(e) => setPendingQty(e.target.value)}
+              disabled={!pendingItem}
+              className="h-10 text-right tabular-nums md:h-9"
+              max={pendingItem?.quantity ?? undefined}
+            />
+          </div>
 
-        <Button
-          type="button"
-          onClick={handleAddEntry}
-          disabled={!pendingItem || !pendingQty || parseFloat(pendingQty) <= 0}
-          className="h-9 shrink-0"
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Aggiungi
-        </Button>
+          <Button
+            type="button"
+            onClick={handleAddEntry}
+            disabled={!pendingItem || !pendingQty || parseFloat(pendingQty) <= 0}
+            className="h-10 shrink-0 flex-1 md:flex-none md:h-9"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Aggiungi
+          </Button>
+        </div>
       </div>
 
       {/* Lista entries aggiunte */}
