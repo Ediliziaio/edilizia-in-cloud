@@ -16,17 +16,37 @@
 import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { pdf } from "@react-pdf/renderer";
 import { toast } from "sonner";
-import {
-  ShipmentDDTPDF,
-  type DDTRiga,
-  type DDTVettore,
-  type DDTCompanyMittente,
-  type DDTDestinatario,
-  type DDTIndirizzoConsegna,
-  type DDTFirmaDigitale,
+// PERF: import SOLO i type (tree-shakable, niente runtime). Il modulo
+// pesante @react-pdf/renderer + ShipmentDDTPDF component viene caricato
+// dinamicamente al primo click su "Scarica/Salva PDF" — vedi loadPdfModule().
+import type {
+  DDTRiga,
+  DDTVettore,
+  DDTCompanyMittente,
+  DDTDestinatario,
+  DDTIndirizzoConsegna,
+  DDTFirmaDigitale,
 } from "@/components/ddt/ShipmentDDTPDF";
+
+// Cache del modulo PDF: caricato una sola volta al primo click
+let pdfModulePromise: Promise<{
+  pdf: typeof import("@react-pdf/renderer").pdf;
+  ShipmentDDTPDF: typeof import("@/components/ddt/ShipmentDDTPDF").ShipmentDDTPDF;
+}> | null = null;
+
+function loadPdfModule() {
+  if (!pdfModulePromise) {
+    pdfModulePromise = Promise.all([
+      import("@react-pdf/renderer"),
+      import("@/components/ddt/ShipmentDDTPDF"),
+    ]).then(([pdfMod, tplMod]) => ({
+      pdf: pdfMod.pdf,
+      ShipmentDDTPDF: tplMod.ShipmentDDTPDF,
+    }));
+  }
+  return pdfModulePromise;
+}
 
 // ─── Shape dei dati documenti_fiscali (subset rilevante per DDT) ──────
 interface DdtRecord {
@@ -238,6 +258,7 @@ export function useShipmentDDTPDF() {
           }
         : null;
 
+      const { pdf, ShipmentDDTPDF } = await loadPdfModule();
       const blob = await pdf(
         ShipmentDDTPDF({
           numero: ddtRec.numero,
