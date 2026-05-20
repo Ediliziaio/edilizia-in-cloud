@@ -238,7 +238,12 @@ export default function EditorDocumento() {
   // Cleanup di un draft vuoto: tenta RPC `rilascia_numero_documento` per
   // restituire il numero al counter (se era l'ultimo emesso), altrimenti
   // fallback a delete diretto. In entrambi i casi il doc viene cancellato.
+  // Guard via ref: previene doppia delete su back-click rapidi o
+  // back-click + unmount cleanup simultanei.
+  const releaseInFlightRef = useRef<Set<string>>(new Set());
   const releaseEmptyDraft = useCallback(async (docId: string) => {
+    if (releaseInFlightRef.current.has(docId)) return;
+    releaseInFlightRef.current.add(docId);
     try {
       const { error } = await (supabase.rpc as unknown as (
         fn: string,
@@ -256,6 +261,8 @@ export default function EditorDocumento() {
       console.warn("[EditorDocumento] rilascia_numero_documento errore", error);
     } catch (e) {
       console.warn("[EditorDocumento] cleanup draft vuoto fallito", e);
+    } finally {
+      releaseInFlightRef.current.delete(docId);
     }
   }, []);
 
@@ -273,8 +280,11 @@ export default function EditorDocumento() {
   // Handle navigation when leaving with unsaved changes
   const handleBack = useCallback(() => {
     // Draft vuoto → elimina silenziosamente senza dialog (no spreco numerazione)
+    // Naviga IMMEDIATA (no await) — il cleanup avviene in background, evita
+    // freeze UI se il network è lento. L'unmount cleanup useEffect riprova.
     if (state.id && isEmpty && isBozza) {
-      void releaseEmptyDraft(state.id).finally(() => navigate("/azienda/documenti"));
+      void releaseEmptyDraft(state.id);
+      navigate("/azienda/documenti");
       return;
     }
     if (isDirty && isBozza) {

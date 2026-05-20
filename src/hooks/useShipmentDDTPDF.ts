@@ -13,7 +13,7 @@
  *   - se vettore.tipo === 'subappaltatore' e c'è un subappaltatore_id,
  *     enriching da suppliers/subcontractors.
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { pdf } from "@react-pdf/renderer";
@@ -109,10 +109,13 @@ function downloadBlob(blob: Blob, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // 30s allow browser to start the download; revoke immediato (setTimeout 0)
+  // può fallire su connessioni lente o file grossi su Safari/Firefox.
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
 interface BuildResult {
@@ -126,6 +129,11 @@ export function useShipmentDDTPDF() {
   const { effectiveCompany } = useAuth();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  // Ref-based guards: setState non è sincrono, due click ravvicinati
+  // possono entrambi vedere isGenerating=false e lanciare due build PDF.
+  // Il ref si aggiorna immediato e previene la race.
+  const generatingRef = useRef(false);
+  const uploadingRef = useRef(false);
 
   // Estraibile: build del PDF blob — usato sia da generate che da uploadAndAttach.
   const buildBlob = useCallback(
@@ -263,7 +271,8 @@ export function useShipmentDDTPDF() {
         toast.error("Nessuna azienda attiva");
         return null;
       }
-      if (isUploading) return null;
+      if (uploadingRef.current) return null;
+      uploadingRef.current = true;
       setIsUploading(true);
       try {
         const { blob, numero, companyId, documentoId: docId } = await buildBlob(documentoId);
@@ -283,10 +292,11 @@ export function useShipmentDDTPDF() {
         toast.error("Errore upload PDF", { description: (e as Error)?.message ?? "Riprova" });
         return null;
       } finally {
+        uploadingRef.current = false;
         setIsUploading(false);
       }
     },
-    [effectiveCompany?.id, isUploading, buildBlob],
+    [effectiveCompany?.id, buildBlob],
   );
 
   const generate = useCallback(
@@ -295,7 +305,8 @@ export function useShipmentDDTPDF() {
         toast.error("Nessuna azienda attiva");
         return;
       }
-      if (isGenerating) return;
+      if (generatingRef.current) return;
+      generatingRef.current = true;
       setIsGenerating(true);
       try {
         const { blob, numero } = await buildBlob(documentoId);
@@ -304,10 +315,11 @@ export function useShipmentDDTPDF() {
       } catch (e) {
         toast.error("Errore generazione DDT", { description: (e as Error)?.message ?? "Riprova" });
       } finally {
+        generatingRef.current = false;
         setIsGenerating(false);
       }
     },
-    [effectiveCompany?.id, isGenerating, buildBlob],
+    [effectiveCompany?.id, buildBlob],
   );
 
   return { generate, isGenerating, uploadAndAttach, isUploading };

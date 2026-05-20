@@ -11,6 +11,7 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useCallback, useMemo } from "react";
 import type { EditorState, Action } from "./useEditorState";
 
 interface Props {
@@ -20,10 +21,14 @@ interface Props {
 }
 
 export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
-  const setField = (field: string, value: unknown) =>
-    dispatch({ type: "SET_FIELD", field, value });
+  const setField = useCallback(
+    (field: string, value: unknown) => dispatch({ type: "SET_FIELD", field, value }),
+    [dispatch],
+  );
 
-  const indirizzoConsegnaFreeText = (() => {
+  // Read-only summary del luogo destinazione: mostra i campi strutturati
+  // se presenti, altrimenti il free_text. Memoizzato per evitare ricomputo.
+  const indirizzoConsegnaFreeText = useMemo(() => {
     const ic = (state.ddt_indirizzo_consegna ?? null) as Record<string, unknown> | null;
     if (!ic) return "";
     if (typeof ic.free_text === "string") return ic.free_text;
@@ -34,9 +39,9 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
       ic.province ?? ic.provincia,
     ].filter((p) => typeof p === "string" && p.length > 0);
     return parts.join(", ");
-  })();
+  }, [state.ddt_indirizzo_consegna]);
 
-  const trasportoFreeText = (() => {
+  const trasportoFreeText = useMemo(() => {
     const dv = (state.ddt_vettore ?? null) as Record<string, unknown> | null;
     if (!dv) return "";
     if (typeof dv.free_text === "string") return dv.free_text;
@@ -46,20 +51,44 @@ export function EditorDDTOpzioniCard({ state, dispatch, disabled }: Props) {
     if (!ragione && !cond && !targa) return "";
     const parts = [ragione, cond ? `Conducente: ${cond}` : null, targa ? `Targa ${targa}` : null].filter(Boolean);
     return parts.join(" — ");
-  })();
+  }, [state.ddt_vettore]);
 
-  const handleLuogoChange = (val: string) => {
-    setField("ddt_indirizzo_consegna", val.trim() ? { free_text: val } : null);
-  };
+  // CRITICAL: preserva i campi strutturati esistenti, sovrascrive SOLO free_text.
+  // Bug pregresso: setField sostituiva l'intero oggetto distruggendo i campi
+  // compilati dal collapsible "Dettagli trasporto avanzati" (via, comune, ecc).
+  const handleLuogoChange = useCallback(
+    (val: string) => {
+      const current = (state.ddt_indirizzo_consegna ?? {}) as Record<string, unknown>;
+      const trimmed = val.trim();
+      if (!trimmed) {
+        // Rimuovi solo free_text; se ci sono altri campi strutturati, mantienili
+        if (current && Object.keys(current).some((k) => k !== "free_text")) {
+          const { free_text: _ft, ...rest } = current;
+          dispatch({ type: "SET_FIELD", field: "ddt_indirizzo_consegna", value: rest });
+        } else {
+          dispatch({ type: "SET_FIELD", field: "ddt_indirizzo_consegna", value: null });
+        }
+        return;
+      }
+      dispatch({ type: "SET_FIELD", field: "ddt_indirizzo_consegna", value: { ...current, free_text: trimmed } });
+    },
+    [state.ddt_indirizzo_consegna, dispatch],
+  );
 
-  const handleTrasportoChange = (val: string) => {
-    const current = (state.ddt_vettore ?? {}) as Record<string, unknown>;
-    if (!val.trim()) {
-      setField("ddt_vettore", current.tipo ? { ...current, free_text: null } : null);
-      return;
-    }
-    setField("ddt_vettore", { ...current, free_text: val });
-  };
+  const handleTrasportoChange = useCallback(
+    (val: string) => {
+      const current = (state.ddt_vettore ?? {}) as Record<string, unknown>;
+      const trimmed = val.trim();
+      if (!trimmed) {
+        const { free_text: _ft, ...rest } = current;
+        const hasOther = Object.keys(rest).length > 0;
+        dispatch({ type: "SET_FIELD", field: "ddt_vettore", value: hasOther ? rest : null });
+        return;
+      }
+      dispatch({ type: "SET_FIELD", field: "ddt_vettore", value: { ...current, free_text: trimmed } });
+    },
+    [state.ddt_vettore, dispatch],
+  );
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3 border-l-[3px] border-l-sky-400/60 shadow-sm">

@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { EditorState } from "./useEditorState";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,30 +40,51 @@ const CAUSALI_TRASPORTO = [
 
 export function EditorDDTSection({ state, dispatch, disabled }: Props) {
   const { effectiveCompany } = useAuth();
-  const initialVettore = (state.ddt_vettore ?? {}) as Record<string, unknown>;
-  const initialTipo = ((initialVettore.tipo as string) ?? "mittente") as VettoreTipo;
 
-  const [destDiversa, setDestDiversa] = useState<boolean>(
-    !!state.ddt_indirizzo_consegna && Object.keys((state.ddt_indirizzo_consegna as any) ?? {}).length > 0,
+  // ── Vettore tipo: SEMPRE derivato dallo state (single source of truth).
+  // Bug pregresso: useState catturava il valore al primo render quando
+  // state.ddt_vettore poteva essere ancora undefined (doc loading async),
+  // causando UI desincronizzata dal DB.
+  const vettoreTipo: VettoreTipo = useMemo(() => {
+    const t = (state.ddt_vettore as Record<string, unknown> | null | undefined)?.tipo;
+    return (typeof t === "string" ? (t as VettoreTipo) : "mittente");
+  }, [state.ddt_vettore]);
+
+  // Destinazione diversa: derivata dallo state, ma con override locale
+  // (utente può toggle off/on senza perdere lo state immediatamente).
+  const hasCustomDest = useMemo(() => {
+    const ic = state.ddt_indirizzo_consegna as Record<string, unknown> | null | undefined;
+    return !!ic && Object.keys(ic).length > 0;
+  }, [state.ddt_indirizzo_consegna]);
+  const [destDiversa, setDestDiversa] = useState<boolean>(hasCustomDest);
+  // Sync quando lo state cambia (es. doc loading async)
+  useEffect(() => {
+    if (hasCustomDest && !destDiversa) setDestDiversa(true);
+  }, [hasCustomDest, destDiversa]);
+
+  const setField = useCallback(
+    (field: string, value: unknown) => dispatch({ type: "SET_FIELD", field, value }),
+    [dispatch],
   );
-  const [vettoreTipo, setVettoreTipo] = useState<VettoreTipo>(initialTipo);
 
-  const setField = (field: string, value: unknown) =>
-    dispatch({ type: "SET_FIELD", field, value });
+  const setVettoreField = useCallback(
+    (patch: Record<string, unknown>) => {
+      const current = (state.ddt_vettore as Record<string, unknown> | null | undefined) ?? {};
+      dispatch({ type: "SET_FIELD", field: "ddt_vettore", value: { ...current, ...patch } });
+    },
+    [state.ddt_vettore, dispatch],
+  );
 
-  const setVettoreField = (patch: Record<string, unknown>) =>
-    setField("ddt_vettore", { ...((state.ddt_vettore as any) ?? {}), ...patch });
-
-  const handleVettoreTipoChange = (v: string) => {
-    const tipo = v as VettoreTipo;
-    setVettoreTipo(tipo);
-    const current = (state.ddt_vettore as any) ?? {};
-    const next: Record<string, unknown> = { ...current, tipo };
-    if (tipo !== "subappaltatore") {
-      next.subappaltatore_id = null;
-    }
-    setField("ddt_vettore", next);
-  };
+  const handleVettoreTipoChange = useCallback(
+    (v: string) => {
+      const tipo = v as VettoreTipo;
+      const current = (state.ddt_vettore as Record<string, unknown> | null | undefined) ?? {};
+      const next: Record<string, unknown> = { ...current, tipo };
+      if (tipo !== "subappaltatore") next.subappaltatore_id = null;
+      dispatch({ type: "SET_FIELD", field: "ddt_vettore", value: next });
+    },
+    [state.ddt_vettore, dispatch],
+  );
 
   const { data: subappaltatori = [] } = useQuery<SubappaltatoreOption[]>({
     queryKey: ["subappaltatori-ddt-vettore", effectiveCompany?.id],
@@ -81,33 +102,33 @@ export function EditorDDTSection({ state, dispatch, disabled }: Props) {
     },
   });
 
+  // Deps minimizzate — re-compute solo quando subappaltatore_id cambia,
+  // non ad ogni keystroke sui campi conducente/targa/ecc.
+  const selectedSubId = (state.ddt_vettore as Record<string, unknown> | null | undefined)?.subappaltatore_id as string | undefined;
   const selectedSub = useMemo(() => {
-    const id = (state.ddt_vettore as any)?.subappaltatore_id as string | undefined;
-    if (!id) return null;
-    return subappaltatori.find((s) => s.id === id) ?? null;
-  }, [subappaltatori, state.ddt_vettore]);
+    if (!selectedSubId) return null;
+    return subappaltatori.find((s) => s.id === selectedSubId) ?? null;
+  }, [subappaltatori, selectedSubId]);
 
-  const handleSelectSub = (id: string) => {
-    const sub = subappaltatori.find((s) => s.id === id);
-    if (!sub) return;
-    setVettoreField({
-      subappaltatore_id: sub.id,
-      ragione_sociale: sub.ragione_sociale,
-      vat_number: sub.piva,
-      address: sub.indirizzo,
-      conducente_nome:
-        ((state.ddt_vettore as any)?.conducente_nome as string | null) ?? sub.responsabile ?? null,
-      conducente_telefono:
-        ((state.ddt_vettore as any)?.conducente_telefono as string | null) ?? sub.telefono ?? null,
-    });
-  };
-
-  useEffect(() => {
-    if (vettoreTipo !== initialTipo && !state.ddt_vettore) {
-      setField("ddt_vettore", { tipo: vettoreTipo });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const handleSelectSub = useCallback(
+    (id: string) => {
+      const sub = subappaltatori.find((s) => s.id === id);
+      if (!sub) return;
+      const current = (state.ddt_vettore as Record<string, unknown> | null | undefined) ?? {};
+      const patch: Record<string, unknown> = {
+        ...current,
+        subappaltatore_id: sub.id,
+        ragione_sociale: sub.ragione_sociale,
+        vat_number: sub.piva,
+        address: sub.indirizzo,
+      };
+      // Prefill conducente solo se non già compilato
+      if (!current.conducente_nome) patch.conducente_nome = sub.responsabile ?? null;
+      if (!current.conducente_telefono) patch.conducente_telefono = sub.telefono ?? null;
+      dispatch({ type: "SET_FIELD", field: "ddt_vettore", value: patch });
+    },
+    [subappaltatori, state.ddt_vettore, dispatch],
+  );
 
   return (
     <div className="space-y-4">
