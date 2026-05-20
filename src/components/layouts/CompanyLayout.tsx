@@ -604,7 +604,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       // Visibili a tutti gli utenti (la pagina interna gestisce permessi fini).
       label: "AI & Notifiche",
       items: [
-        { to: "/azienda/impostazioni/ai-memoria", label: "Memoria AI Personas", icon: <Brain className="h-4 w-4" />, visible: true },
+        { to: "/azienda/impostazioni/ai-memoria", label: "AI Personas (chat + memoria)", icon: <Brain className="h-4 w-4" />, visible: true },
         { to: "/azienda/impostazioni/notifiche",  label: "Notifiche",           icon: <Bell className="h-4 w-4" />,  visible: true },
       ],
     },

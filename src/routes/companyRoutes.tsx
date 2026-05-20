@@ -200,6 +200,7 @@ const SettingsSopralluoghi = lazy(() => import("@/pages/azienda/impostazioni/Set
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
 // 🆕 GAP 9b: pagina gestione memoria AI personas
 const AIMemoryPage = lazy(() => import("@/pages/azienda/AIMemoryPage"));
+const AIPersonasHub = lazy(() => import("@/pages/azienda/impostazioni/AIPersonasHub"));
 // Preferenze canale notifiche personali (parte del bulk scheduler)
 const SettingsNotifiche = lazy(() => import("@/pages/azienda/impostazioni/SettingsNotifiche"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
@@ -481,7 +482,9 @@ export function companyRoutes() {
         <Route path="automazioni-task" element={<Navigate to="/azienda/automazioni" replace />} />
 
         {/* Assistente AI con 18 personas (Fase 2 orchestrator) */}
-        <Route path="assistente-ai" element={<AssistenteAIPage />} />
+        {/* v8.6.72 — Pagina /assistente-ai dismessa: ora fusa in /impostazioni/ai-memoria
+            (hub a tab Chat+Memoria+Sessioni). Redirect mantiene deep-link funzionanti. */}
+        <Route path="assistente-ai" element={<Navigate to="/azienda/impostazioni/ai-memoria?tab=chat" replace />} />
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) — gated: ai_agents */}
         <Route path="agenti-ai" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentiAIPage /></FeatureRoute>)} />
@@ -651,8 +654,10 @@ export function companyRoutes() {
           <Route index element={<SettingsIndexRoute />} />
           {/* ── Il mio account (accessibile a tutti) ── */}
           <Route path="mio-profilo" element={<MioProfilo />} />
-          {/* ── Memoria AI Personas (gestione cose che le AI ricordano dell'azienda) ── */}
-          <Route path="ai-memoria" element={withCompanyPermission("canViewSettingsCustomization", <AIMemoryPage />)} />
+          {/* ── AI Personas Hub: Chat + Memoria + Sessioni in unica pagina ── */}
+          {/* v8.6.72 — Sostituisce AIMemoryPage standalone. Tab default "chat" via querystring. */}
+          <Route path="ai-memoria" element={withCompanyPermission("canViewSettingsCustomization", <AIPersonasHub />)} />
+          <Route path="ai-personas" element={<Navigate to="/azienda/impostazioni/ai-memoria?tab=chat" replace />} />
           {/* ── Preferenze canale notifiche personali (bulk scheduler routing) ── */}
           <Route path="notifiche" element={<SettingsNotifiche />} />
           {/* ── Impostazioni azienda (solo admin/permessi) ── */}

@@ -124,7 +124,12 @@ const fmtEur = (n: number | null | undefined, decimals = 4) =>
 
 // ════════════════════════════════════════════════════════════════════════════
 
-export default function AssistenteAIPage() {
+interface AssistenteAIPageProps {
+  /** Quando true: nasconde header h1 + DiscoveryBanner (forniti dal parent hub). */
+  embedded?: boolean;
+}
+
+export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageProps = {}) {
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -324,26 +329,41 @@ export default function AssistenteAIPage() {
   // ════════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Bot className="h-6 w-6 text-violet-600" />
-            Assistente AI
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Chatta con le persone AI specializzate per ogni area aziendale ·{" "}
-            <kbd className="px-1.5 py-0.5 text-[10px] rounded border bg-muted font-mono">⌘K</kbd>{" "}
-            per ricerca rapida
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-2">
-          <Plus className="h-4 w-4" /> Nuova chat
-        </Button>
-      </div>
+    <div className={cn(
+      "flex flex-col gap-4",
+      embedded ? "h-[calc(100vh-12rem)]" : "h-[calc(100vh-4rem)]",
+    )}>
+      {!embedded && (
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Bot className="h-6 w-6 text-violet-600" />
+                Assistente AI
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Chatta con le persone AI specializzate per ogni area aziendale ·{" "}
+                <kbd className="px-1.5 py-0.5 text-[10px] rounded border bg-muted font-mono">⌘K</kbd>{" "}
+                per ricerca rapida
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-2">
+              <Plus className="h-4 w-4" /> Nuova chat
+            </Button>
+          </div>
 
-      {/* 🆕 GAP 1: Discovery banner primo accesso (dismissable) */}
-      <DiscoveryBanner personaCount={personas?.length ?? 0} />
+          {/* 🆕 GAP 1: Discovery banner primo accesso (dismissable) */}
+          <DiscoveryBanner personaCount={personas?.length ?? 0} />
+        </>
+      )}
+
+      {embedded && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-2">
+            <Plus className="h-4 w-4" /> Nuova chat
+          </Button>
+        </div>
+      )}
 
 
       <div className="flex-1 grid grid-cols-12 gap-4 min-h-0">

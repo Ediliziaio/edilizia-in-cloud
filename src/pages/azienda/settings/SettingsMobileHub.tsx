@@ -88,7 +88,7 @@ const SECTIONS: Section[] = [
   {
     label: "AI & Notifiche",
     items: [
-      { to: "/azienda/impostazioni/ai-memoria",    label: "Memoria AI Personas", icon: Brain,    iconColor: "text-violet-600" },
+      { to: "/azienda/impostazioni/ai-memoria",    label: "AI Personas (chat + memoria)", icon: Brain,    iconColor: "text-violet-600" },
       { to: "/azienda/impostazioni/notifiche",     label: "Preferenze notifiche", icon: Bell,     iconColor: "text-rose-600" },
     ],
   },

@@ -197,9 +197,8 @@ export const macroAreas: MacroArea[] = [
     icon: Zap,
     items: [
       // TOP-LEVEL — sempre visibili anche con subcategory collassate
-      // NOTA: "Personas AI" (/azienda/assistente-ai) rimossa dalla sidebar — confondeva con Silvio.
-      // Resta raggiungibile da: FAB Silvio (popover "Personas"), Cmd+K, link in AIMemoryPage.
-      // La fusione vera (selettore persona dentro Silvio) richiede merge backend silvio-chat + ai-orchestrator.
+      // v8.6.72 — "Personas AI" fusa in /impostazioni/ai-memoria (hub Chat + Memoria + Sessioni).
+      // Raggiungibile da: Impostazioni > AI Personas, FAB Silvio popover, Cmd+K.
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni" },
       // ─── Canali comunicazione (subcategory collassabile) ───
       { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", featureKey: "email_marketing", groupLabel: "Comunicazione" },

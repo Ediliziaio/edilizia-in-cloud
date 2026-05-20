@@ -84,7 +84,13 @@ const EMPTY_FORM: FormData = {
   confidence: 1.0,
 };
 
-export default function AIMemoryPage() {
+interface AIMemoryPageProps {
+  /** Quando true, nasconde l'header h1 + descrizione (utile se la pagina viene
+   *  embeddata in un hub a tab dove l'header viene fornito dal parent). */
+  embedded?: boolean;
+}
+
+export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {}) {
   const qc = useQueryClient();
   const { effectiveCompany } = useAuth();
   const [filterPersona, setFilterPersona] = useState<string>("all");
@@ -283,30 +289,41 @@ export default function AIMemoryPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-screen-xl mx-auto space-y-4">
-      <div className="flex items-start gap-3">
-        <div className="shrink-0 h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-          <Brain className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+    <div className={cn(embedded ? "space-y-4" : "p-4 md:p-6 max-w-screen-xl mx-auto space-y-4")}>
+      {!embedded && (
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+            <Brain className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+          </div>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">Memoria AI Personas</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Cose che le 18 AI personas ricordano della tua azienda. Auto-popolate dal feedback loop o aggiunte manualmente.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" asChild className="gap-2">
+              <a href="/azienda/assistente-ai">
+                <Sparkles className="h-4 w-4" />
+                Apri le 18 Personas
+              </a>
+            </Button>
+            <Button onClick={openCreate} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Aggiungi memoria
+            </Button>
+          </div>
         </div>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold">Memoria AI Personas</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Cose che le 18 AI personas ricordano della tua azienda. Auto-popolate dal feedback loop o aggiunte manualmente.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" asChild className="gap-2">
-            <a href="/azienda/assistente-ai">
-              <Sparkles className="h-4 w-4" />
-              Apri le 18 Personas
-            </a>
-          </Button>
-          <Button onClick={openCreate} className="gap-2">
+      )}
+
+      {embedded && (
+        <div className="flex justify-end">
+          <Button onClick={openCreate} size="sm" className="gap-2">
             <Plus className="h-4 w-4" />
             Aggiungi memoria
           </Button>
         </div>
-      </div>
+      )}
 
       <Card className="bg-violet-50/40 dark:bg-violet-950/20 border-violet-200 dark:border-violet-900">
         <CardHeader className="pb-2">
