@@ -181,11 +181,13 @@ export function OrderItemsList({
   const [itemIsPaid, setItemIsPaid] = useState(false);
   const [itemPaidDate, setItemPaidDate] = useState<Date | undefined>();
   const [itemPaymentMethod, setItemPaymentMethod] = useState<string>("");
-  // Installment tracking state
-  const [itemDepositAmount, setItemDepositAmount] = useState<number>(0);
+  // Installment tracking state — getter prefissato `_` perché solo scritto
+  // (verrà letto in iterazione futura quando esponiamo l'edit completo
+  // dell'installment). Lint convention: _x → unused intenzionale.
+  const [_itemDepositAmount, setItemDepositAmount] = useState<number>(0);
   const [itemDepositPaid, setItemDepositPaid] = useState(false);
   const [itemDepositPaidDate, setItemDepositPaidDate] = useState<Date | undefined>();
-  const [itemBalanceAmount, setItemBalanceAmount] = useState<number>(0);
+  const [_itemBalanceAmount, setItemBalanceAmount] = useState<number>(0);
   const [itemBalancePaid, setItemBalancePaid] = useState(false);
   const [itemBalancePaidDate, setItemBalancePaidDate] = useState<Date | undefined>();
   const [itemBalanceExpectedDate, setItemBalanceExpectedDate] = useState<Date | undefined>();
