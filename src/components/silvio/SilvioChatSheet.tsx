@@ -266,6 +266,10 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   // AI Test Lab — selettore modello (visibile solo per Demo Azienda + utente demo)
   const aiSelector = useAIModelSelector('silvio_chat', 'text');
   const [sending, setSending] = useState(false);
+  // Tempo trascorso dall'inizio dell'invio in secondi — guida i micro-feedback
+  // UX ("riflette" → "analizza" → "ci sta mettendo troppo") senza far credere
+  // all'utente che la chat sia bloccata. Reset a 0 ad ogni nuovo invio.
+  const [sendingElapsed, setSendingElapsed] = useState(0);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   // Element 3: messaggi Silvio appena arrivati che devono ricevere effetto
@@ -477,6 +481,40 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [liveLength, lastLiveContent]);
+
+  // Ticker secondo-per-secondo durante l'invio. Senza questo l'utente vede
+  // solo i tre puntini animati e dopo 30s di silenzio pensa che la chat
+  // sia bloccata. Con il ticker possiamo mostrare "Silvio sta riflettendo…"
+  // → "Sta analizzando i dati…" → "Più tempo del previsto…" + pulsante
+  // annulla dopo 30s e toast warning a 45s.
+  useEffect(() => {
+    if (!sending) {
+      setSendingElapsed(0);
+      return;
+    }
+    const start = Date.now();
+    const iv = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - start) / 1000);
+      setSendingElapsed(elapsed);
+      if (elapsed === 45) {
+        toast.warning("Silvio ci sta mettendo più del previsto.", {
+          description: "Sta probabilmente analizzando un dataset grande. Puoi annullare e riprovare con una domanda più mirata.",
+          duration: 6000,
+        });
+      }
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [sending]);
+
+  // Label dinamico per il typing indicator — testuale, non solo animato.
+  const sendingPhaseLabel = useMemo(() => {
+    if (!sending) return null;
+    if (sendingElapsed < 3) return "Silvio sta riflettendo…";
+    if (sendingElapsed < 10) return "Sta analizzando i tuoi dati…";
+    if (sendingElapsed < 25) return "Sta interrogando le aree aziendali…";
+    if (sendingElapsed < 45) return `Più tempo del previsto (${sendingElapsed}s)…`;
+    return `Operazione in corso da ${sendingElapsed}s — puoi annullare`;
+  }, [sending, sendingElapsed]);
 
   // Element 3: quando arrivano messaggi nuovi di Silvio, marcali come streaming
   // (effetto typewriter). I messaggi già visti restano statici.
@@ -1094,15 +1132,41 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
               <div className="h-7 w-7 shrink-0 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center">
                 <Brain className="h-3.5 w-3.5 text-white" />
               </div>
-              <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-3 py-2.5 flex gap-1">
-                {[0, 1, 2].map((i) => (
-                  <motion.span
-                    key={i}
-                    className="h-1.5 w-1.5 rounded-full bg-slate-400"
-                    animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
-                    transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }}
-                  />
-                ))}
+              <div className="flex flex-col gap-1.5 min-w-0">
+                <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-2 max-w-fit">
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <motion.span
+                        key={i}
+                        className="h-1.5 w-1.5 rounded-full bg-slate-400"
+                        animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+                        transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }}
+                      />
+                    ))}
+                  </div>
+                  {sendingPhaseLabel && (
+                    <span className="text-[11px] text-slate-500 whitespace-nowrap">
+                      {sendingPhaseLabel}
+                    </span>
+                  )}
+                </div>
+                {/* Pulsante annulla dopo 30s di attesa. Setta sending=false
+                    via la mutation reset — la promise edge function può
+                    completare comunque server-side ma il client smette di
+                    aspettare e sblocca l'input per la prossima domanda. */}
+                {sendingElapsed >= 30 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sendMutation.reset();
+                      setSending(false);
+                      toast.info("Invio annullato. Puoi scrivere una nuova domanda.");
+                    }}
+                    className="self-start text-[11px] text-orange-600 hover:text-orange-700 underline underline-offset-2"
+                  >
+                    Annulla attesa
+                  </button>
+                )}
               </div>
             </div>
           )}
