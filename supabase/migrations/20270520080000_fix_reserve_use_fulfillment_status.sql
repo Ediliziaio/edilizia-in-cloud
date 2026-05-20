@@ -455,5 +455,6 @@ BEGIN
 END;
 $function$;
 
-COMMENT ON FUNCTION public.create_shipment_atomic(UUID, UUID, JSONB, JSONB) IS
-  'v8.6.103: aggiunto UPDATE order_items.fulfillment_status -> shipped dopo scarico, cosi il trigger oi_reserve_on_update decrementa quantity_reserved automaticamente. Niente piu doppio scalo.';
+-- v8.6.103: aggiunto UPDATE order_items.fulfillment_status -> 'shipped' dopo
+-- scarico, cosi il trigger oi_reserve_on_update decrementa quantity_reserved
+-- automaticamente. Niente piu doppio scalo.
