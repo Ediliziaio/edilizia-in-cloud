@@ -170,12 +170,36 @@ function SortableRowImpl({
         {/* Card grande con 2 colonne interne — replica Fatture in Cloud:
             LEFT col: Codice + Nome prodotto + Descrizione + Categoria
             RIGHT col: Qtà + U.M. + Prezzo netto + Sc.% + IVA + Importo totale
-            FOOTER: ☐ Articolo non imponibile (anticipazione) + actions */}
+            FOOTER: ☐ Articolo non imponibile (anticipazione)
+            Actions (espandi/duplica/cestino) in alto a destra orizzontali. */}
         <div
-          className={`border rounded-lg group transition-colors mb-3 ${
+          className={`relative border rounded-lg group transition-colors mb-3 ${
             isDragging ? "bg-muted/40 border-primary/40" : "bg-card"
           }`}
         >
+          {/* Actions in alto a destra, in linea orizzontale */}
+          <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setExpanded((e) => !e)}
+              aria-label={expanded ? "Riduci riga" : "Espandi riga"}
+              title={expanded ? "Riduci" : "Espandi per dettagli"}
+            >
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
+            </Button>
+            {!disabled && (
+              <>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
+                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemove(index)} aria-label="Elimina">
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              </>
+            )}
+          </div>
           <div className="flex gap-3 px-4 py-4">
             {/* Drag handle a sinistra */}
             <div className="flex flex-col items-center gap-1 shrink-0 pt-2">
@@ -404,29 +428,6 @@ function SortableRowImpl({
               )}
             </div>
 
-            {/* Actions a destra: toggle expand + duplica + cestino */}
-            <div className="flex flex-col gap-1 shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setExpanded((e) => !e)}
-                aria-label={expanded ? "Riduci riga" : "Espandi riga"}
-                title={expanded ? "Riduci" : "Espandi per dettagli"}
-              >
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`} />
-              </Button>
-              {!disabled && (
-                <>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
-                    <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemove(index)} aria-label="Elimina">
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
-                </>
-              )}
-            </div>
           </div>
         </div>
       </Collapsible>
