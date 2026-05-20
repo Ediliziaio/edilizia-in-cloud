@@ -72,9 +72,18 @@ interface VariableHint {
 
 const AVAILABLE_VARIABLES: VariableHint[] = [
   { key: "{nome}", description: "Nome dell'utente destinatario", example: "Mario" },
+  { key: "{ruolo}", description: "Ruolo dell'utente", example: "company_admin" },
+  { key: "{azienda}", description: "Ragione sociale dell'azienda", example: "Rossi Costruzioni Srl" },
+  { key: "{data_oggi}", description: "Data corrente (lungo, italiano)", example: "lunedì 21 maggio 2026" },
   { key: "{cantiere_oggi}", description: "Cantiere assegnato oggi (per operai)", example: "ORD-2026-024 Bianchi Srl" },
+  { key: "{task_oggi}", description: "Task primario in corso sul cantiere oggi", example: "Posa serramenti piano 2" },
   { key: "{ore_pianificate}", description: "Ore pianificate per oggi", example: "8 ore" },
+  { key: "{operai_oggi}", description: "Operai pianificati in cantieri oggi (per admin)", example: "12" },
   { key: "{numero_cantieri_aperti}", description: "Numero commesse attive azienda", example: "12" },
+  { key: "{crediti_scaduti}", description: "Totale crediti scaduti azienda", example: "€18.400 su 4 ordini" },
+  { key: "{ddt_in_arrivo}", description: "DDT in arrivo prossima settimana", example: "3" },
+  { key: "{prossimi_appuntamenti}", description: "Appuntamenti prossime 48h", example: "5" },
+  { key: "{meteo}", description: "Meteo cantiere oggi (richiede lat/lng company)", example: "sereno 22°C" },
 ];
 
 // ─── Wizard ─────────────────────────────────────────────────────────────

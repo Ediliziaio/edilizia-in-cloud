@@ -272,17 +272,56 @@ async function sendViaChannel(supabase: any, flow: FlowToRun, user: TargetUser, 
 }
 
 /**
- * Resolve variabili context-aware per un utente.
- * MVP set: nome, ruolo, cantiere_oggi, numero_cantieri_aperti.
+ * Resolve variabili context-aware per un utente. Tutte queste variabili sono
+ * disponibili nei template static OR nel prompt AI-generated.
+ *
+ * Set completo:
+ *   {nome}                      — nome utente
+ *   {email}                     — email utente
+ *   {ruolo}                     — primary user_role
+ *   {azienda}                   — ragione sociale company
+ *   {data_oggi}                 — "lunedì 21 maggio 2026"
+ *   {cantiere_oggi}             — order assegnato oggi
+ *   {task_oggi}                 — descrizione task primario commessa oggi
+ *   {ore_pianificate}           — ore pianificate oggi
+ *   {operai_oggi}               — N operai assegnati oggi (per admin)
+ *   {numero_cantieri_aperti}    — count orders attivi
+ *   {crediti_scaduti}           — totale € + count clienti con rate scadute
+ *   {ddt_in_arrivo}             — count DDT in arrivo prossima settimana
+ *   {prossimi_appuntamenti}     — count appointments prossime 48h
+ *   {meteo}                     — meteo cantiere oggi (cached, fallback)
+ *
+ * Tutte le query sono in try/catch — se una fallisce mette "n.d." ma non
+ * blocca il render. È meglio un messaggio con "n.d." che un fail totale.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function resolveVariables(supabase: any, companyId: string, user: TargetUser): Promise<Record<string, string>> {
+  const todayDate = new Date();
+  const today = todayDate.toISOString().slice(0, 10);
+  const dateLong = todayDate.toLocaleDateString("it-IT", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+
   const vars: Record<string, string> = {
     nome: user.first_name ?? "Utente",
     email: user.email ?? "",
+    data_oggi: dateLong,
   };
 
-  // Numero cantieri aperti (utile per company_admin)
+  // ── Identity: ruolo + azienda ────────────────────────────────────────
+  try {
+    const [{ data: roleRow }, { data: companyRow }] = await Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", user.user_id).limit(1).maybeSingle(),
+      supabase.from("companies").select("name").eq("id", companyId).maybeSingle(),
+    ]);
+    vars.ruolo = (roleRow?.role as string | undefined) ?? "utente";
+    vars.azienda = (companyRow?.name as string | undefined) ?? "Azienda";
+  } catch {
+    vars.ruolo = "n.d.";
+    vars.azienda = "n.d.";
+  }
+
+  // ── KPI azienda — numero cantieri aperti ─────────────────────────────
   try {
     const { count } = await supabase
       .from("orders")
@@ -292,10 +331,8 @@ async function resolveVariables(supabase: any, companyId: string, user: TargetUs
     vars.numero_cantieri_aperti = String(count ?? 0);
   } catch { vars.numero_cantieri_aperti = "n.d."; }
 
-  // Cantiere oggi (per operai): cerca order_employee_assignments con assegnazione oggi.
-  // Tabelle potrebbero non esistere — wrap in try.
+  // ── Cantiere oggi (per operai) + task primario ───────────────────────
   try {
-    const today = new Date().toISOString().slice(0, 10);
     const { data: assignment } = await supabase
       .from("order_employee_assignments")
       .select("order_id, hours_planned, orders:order_id(description)")
@@ -304,16 +341,147 @@ async function resolveVariables(supabase: any, companyId: string, user: TargetUs
       .maybeSingle();
     if (assignment) {
       const desc = (assignment.orders as { description?: string } | null)?.description ?? "";
-      vars.cantiere_oggi = `${assignment.order_id?.slice(0, 8) ?? ""} ${desc}`.trim();
+      const orderId = assignment.order_id as string | undefined;
+      vars.cantiere_oggi = `${orderId?.slice(0, 8) ?? ""} ${desc}`.trim() || "—";
       vars.ore_pianificate = `${assignment.hours_planned ?? 8} ore`;
+      // Task primario della commessa oggi (se tabella esiste)
+      if (orderId) {
+        try {
+          const { data: task } = await supabase
+            .from("order_tasks")
+            .select("title")
+            .eq("order_id", orderId)
+            .eq("status", "in_progress")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          vars.task_oggi = (task?.title as string | undefined) ?? "vedi note commessa";
+        } catch { vars.task_oggi = "vedi note commessa"; }
+      } else {
+        vars.task_oggi = "—";
+      }
     } else {
       vars.cantiere_oggi = "Nessun cantiere assegnato oggi";
       vars.ore_pianificate = "—";
+      vars.task_oggi = "—";
     }
   } catch {
     vars.cantiere_oggi = "n.d.";
     vars.ore_pianificate = "n.d.";
+    vars.task_oggi = "n.d.";
   }
+
+  // ── Per admin: operai pianificati oggi cross-azienda ─────────────────
+  try {
+    const { count } = await supabase
+      .from("order_employee_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("work_date", today)
+      .in("order_id",
+        // Subquery: orders della company. Supabase non supporta subquery diretta,
+        // facciamo 2 query in serie. Se errore: count=0
+        []
+      );
+    void count; // placeholder — la subquery sopra ritorna sempre vuoto
+    // Approccio corretto: query separata.
+    const { data: companyOrders } = await supabase
+      .from("orders").select("id").eq("company_id", companyId).eq("balance_paid", false).limit(500);
+    if (Array.isArray(companyOrders) && companyOrders.length > 0) {
+      const orderIds = companyOrders.map((o) => o.id);
+      const { count: assigned } = await supabase
+        .from("order_employee_assignments")
+        .select("id", { count: "exact", head: true })
+        .eq("work_date", today)
+        .in("order_id", orderIds);
+      vars.operai_oggi = String(assigned ?? 0);
+    } else {
+      vars.operai_oggi = "0";
+    }
+  } catch { vars.operai_oggi = "n.d."; }
+
+  // ── Crediti scaduti (totale + count clienti) ─────────────────────────
+  try {
+    // Riusa il tool RPC esistente se possibile; fallback a query inline
+    const { data: overdueRpc } = await supabase.rpc("silvio_tool_overdue_payments", {
+      p_company_id: companyId,
+      p_only_grave: false,
+    }).single().maybeSingle?.() ?? { data: null };
+    void overdueRpc;
+    // Pattern semplificato: somma deposit/balance/financing scaduti dalla orders
+    const { data: overdue } = await supabase
+      .from("orders")
+      .select("balance_amount, balance_expected_date, balance_paid, deposit_amount, deposit_expected_date, deposit_paid")
+      .eq("company_id", companyId);
+    if (Array.isArray(overdue)) {
+      const todayMs = Date.now();
+      let sum = 0;
+      const clients = new Set<string>();
+      for (const o of overdue) {
+        if (!o.balance_paid && o.balance_expected_date && new Date(o.balance_expected_date).getTime() < todayMs) {
+          sum += Number(o.balance_amount ?? 0);
+          clients.add(o.id);
+        }
+        if (!o.deposit_paid && o.deposit_expected_date && new Date(o.deposit_expected_date).getTime() < todayMs) {
+          sum += Number(o.deposit_amount ?? 0);
+          clients.add(o.id);
+        }
+      }
+      vars.crediti_scaduti = sum > 0
+        ? `€${sum.toLocaleString("it-IT")} su ${clients.size} ordini`
+        : "nessuno";
+    } else {
+      vars.crediti_scaduti = "n.d.";
+    }
+  } catch { vars.crediti_scaduti = "n.d."; }
+
+  // ── DDT in arrivo prossima settimana (DDT in tipo ricezione) ─────────
+  try {
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const { count } = await supabase
+      .from("documenti_fiscali")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("tipo", "ddt")
+      .gte("data_emissione", today)
+      .lte("data_emissione", nextWeek);
+    vars.ddt_in_arrivo = String(count ?? 0);
+  } catch { vars.ddt_in_arrivo = "n.d."; }
+
+  // ── Prossimi appuntamenti 48h ────────────────────────────────────────
+  try {
+    const nowIso = new Date().toISOString();
+    const in48h = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .gte("start_at", nowIso)
+      .lte("start_at", in48h);
+    vars.prossimi_appuntamenti = String(count ?? 0);
+  } catch { vars.prossimi_appuntamenti = "n.d."; }
+
+  // ── Meteo (best effort: open-meteo gratis, no key) ───────────────────
+  // Se la company ha lat/lng nei profili sede, chiamiamo l'API. Senza, n.d.
+  try {
+    const { data: company } = await supabase
+      .from("companies")
+      .select("latitude, longitude")
+      .eq("id", companyId)
+      .maybeSingle();
+    const lat = company?.latitude as number | undefined;
+    const lng = company?.longitude as number | undefined;
+    if (lat && lng) {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code&timezone=Europe%2FRome`;
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const json = await resp.json() as { current?: { temperature_2m: number; weather_code: number } };
+        const t = json.current?.temperature_2m;
+        const code = json.current?.weather_code ?? 0;
+        const condStr = code === 0 ? "sereno" : code < 3 ? "poco nuvoloso" : code < 50 ? "nuvoloso" : code < 70 ? "pioggia" : "perturbato";
+        vars.meteo = `${condStr} ${t}°C`;
+      } else { vars.meteo = "n.d."; }
+    } else { vars.meteo = "n.d."; }
+  } catch { vars.meteo = "n.d."; }
 
   return vars;
 }
