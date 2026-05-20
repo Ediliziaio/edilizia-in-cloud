@@ -154,10 +154,12 @@ export function NewDDTDialog({
     }
   }, [open, prefillPurchaseOrderId]);
 
-  // Reset al chiudere
+  // Reset al chiudere (con cleanup: senza clearTimeout, se il componente
+  // smonta nei 200ms tra dialog close e timeout fire, setState scatta su
+  // unmounted → warning React + timer handle leak).
   useEffect(() => {
     if (!open) {
-      setTimeout(() => {
+      const timerId = window.setTimeout(() => {
         setStepIdx(0);
         setPoId(prefillPurchaseOrderId ?? "");
         setNumero("");
@@ -178,6 +180,7 @@ export function NewDDTDialog({
         setNonConformita("");
         setNote("");
       }, 200);
+      return () => window.clearTimeout(timerId);
     }
   }, [open, prefillPurchaseOrderId]);
 
@@ -215,6 +218,11 @@ export function NewDDTDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
+    // Guard interno contro double-submit: prima c'erano solo button
+    // `disabled={isSubmitting}` ma tra primo click e setIsSubmitting(true)
+    // c'è micro-finestra che doppio click ravvicinato attraversa → 2 DDT
+    // duplicati creati. Pattern identico al P2 FIX di QuoteBuilder.
+    if (isSubmitting) return;
     if (!poId || !numero.trim()) return;
     setIsSubmitting(true);
     try {

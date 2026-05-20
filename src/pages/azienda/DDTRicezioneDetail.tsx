@@ -354,7 +354,11 @@ export default function DDTRicezioneDetail() {
   };
 
   const handleDeleteReceipt = (receiptId: string) => {
-    if (!confirm("Eliminare questa ricezione? Lo stock verrà ricalcolato.")) return;
+    // Messaggio corretto: l'RPC insert_goods_receipt_atomic NON tocca
+    // warehouse_stock.quantity (lo stock fisico è gestito separatamente
+    // dal carico rapido / batch_carico_from_scans). Quindi il DELETE
+    // pulisce solo il fulfillment status su order_items.
+    if (!confirm("Eliminare questa registrazione di ricezione? Lo stato della riga commessa tornerà a 'in attesa'.")) return;
     deleteGoodsReceipt.mutate(receiptId);
   };
 

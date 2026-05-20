@@ -517,8 +517,63 @@ export function useDDTRicezioneMutations(poId?: string | null) {
 
   const deleteGoodsReceipt = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("goods_receipts").delete().eq("id", id);
-      if (error) throw error;
+      // Bug pre-esistente: prima il DELETE eliminava SOLO la riga goods_receipts
+      // lasciando order_items.fulfillment_status='received' + quantity_received
+      // settati al valore della receipt cancellata → dati inconsistenti
+      // (la riga risultava ricevuta ma senza prova).
+      //
+      // Fix: prima del DELETE leggiamo order_item_id, poi dopo il DELETE
+      // ricalcoliamo da SUM delle ricezioni rimaste:
+      //   - sum > 0 → quantity_received = sum, fulfillment_status='received'
+      //   - sum == 0 → quantity_received=0, fulfillment_status='pending',
+      //                receipt_id=NULL
+      //
+      // Soluzione corretta a lungo termine: RPC delete_goods_receipt_atomic.
+      // Per ora client-side 3-step, fail-soft sull'UPDATE.
+      const { data: receiptRow, error: lookupErr } = await supabase
+        .from("goods_receipts")
+        .select("order_item_id")
+        .eq("id", id)
+        .maybeSingle();
+      if (lookupErr) throw lookupErr;
+      const orderItemId = receiptRow?.order_item_id ?? null;
+
+      const { error: delErr } = await supabase.from("goods_receipts").delete().eq("id", id);
+      if (delErr) throw delErr;
+
+      if (orderItemId) {
+        try {
+          const { data: remaining } = await supabase
+            .from("goods_receipts")
+            .select("quantity_received")
+            .eq("order_item_id", orderItemId);
+          const sumRemaining = (remaining ?? []).reduce(
+            (acc, r) => acc + Number((r as { quantity_received?: number }).quantity_received ?? 0),
+            0,
+          );
+          await supabase
+            .from("order_items")
+            .update(
+              sumRemaining > 0
+                ? {
+                    quantity_received: sumRemaining,
+                    fulfillment_status: "received" as never,
+                    last_goods_receipt_date: new Date().toISOString(),
+                  }
+                : {
+                    quantity_received: 0,
+                    fulfillment_status: "pending" as never,
+                    receipt_id: null,
+                  } as never,
+            )
+            .eq("id", orderItemId);
+        } catch (recalcErr) {
+          // Non fatale: la receipt è stata cancellata, ma il fulfillment
+          // status resta stale. L'utente vedrà il toast warning e potrà
+          // sistemare manualmente.
+          console.warn("[deleteGoodsReceipt] recalc fulfillment failed:", recalcErr);
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Ricezione rimossa");
