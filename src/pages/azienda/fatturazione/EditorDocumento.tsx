@@ -32,6 +32,10 @@ import { EditorPagamentoSection } from "./editor/EditorPagamentoSection";
 import { EditorNoteSection } from "./editor/EditorNoteSection";
 import { EditorPreviewDialog } from "./editor/EditorPreviewDialog";
 import { EditorDDTSection } from "./editor/EditorDDTSection";
+import { EditorDDTOpzioniCard } from "./editor/EditorDDTOpzioniCard";
+import { EditorDDTModelloCard } from "./editor/EditorDDTModelloCard";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { EditorOrdineSection } from "./editor/EditorOrdineSection";
 import { EditorFatturazioneElettronicaSection } from "./editor/EditorFatturazioneElettronicaSection";
 import { EditorOpzioniAvanzateSection } from "./editor/EditorOpzioniAvanzateSection";
@@ -303,36 +307,64 @@ export default function EditorDocumento() {
             </div>
           )}
 
-          {/* ═══ TOP SECTION: 3-column layout (Cliente | Dati + FE + Contributi | Pagamento + Opzioni + Personalizzazione) ═══ */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_280px] gap-4">
-            {/* LEFT: Cliente */}
-            <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+          {state.tipo === "ddt" ? (
+            /* ═══ DDT LAYOUT — replica Fatture in Cloud (compatto, 3 card) ═══ */
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
+                <EditorDDTOpzioniCard state={state} dispatch={dispatch} disabled={!isBozza} />
+              </div>
 
-            {/* CENTER: Dati documento + Fatturazione Elettronica + Contributi e Ritenute */}
-            <div className="space-y-4">
-              <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
-              {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
-                <EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!isBozza} />
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
+                <EditorDDTModelloCard />
+                <div />
+              </div>
+
+              {/* Dettagli trasporto avanzati (subappaltatore + conducente + targa) */}
+              <Collapsible defaultOpen={false}>
+                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-3 text-sm font-medium hover:bg-muted/40 transition">
+                  <span>Dettagli trasporto avanzati (vettore, conducente, targa)</span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3">
+                  <EditorDDTSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                </CollapsibleContent>
+              </Collapsible>
+
+              {(state.ordine_id || searchParams.get("ordine_link")) && (
+                <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
               )}
-              <EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!isBozza} />
-            </div>
+            </>
+          ) : (
+            <>
+              {/* ═══ TOP SECTION: 3-column layout (Cliente | Dati + FE + Contributi | Pagamento + Opzioni + Personalizzazione) ═══ */}
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_280px] gap-4">
+                {/* LEFT: Cliente */}
+                <EditorClienteSection state={state} dispatch={dispatch} disabled={!isBozza} />
 
-            {/* RIGHT: Pagamento + Opzioni avanzate + Personalizzazione */}
-            <div className="space-y-4">
-              <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
-              <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!isBozza} />
-              <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!isBozza} />
-            </div>
-          </div>
+                {/* CENTER: Dati documento + Fatturazione Elettronica + Contributi e Ritenute */}
+                <div className="space-y-4">
+                  <EditorDatiDocumento state={state} dispatch={dispatch} disabled={!isBozza} />
+                  {state.tipo !== "preventivo" && state.tipo !== "proforma" && (
+                    <EditorFatturazioneElettronicaSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                  )}
+                  <EditorContributiRitenuteSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                </div>
 
-          {/* Ordine collegato (solo se presente) */}
-          {(state.ordine_id || searchParams.get("ordine_link")) && (
-            <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
-          )}
+                {/* RIGHT: Pagamento + Opzioni avanzate + Personalizzazione */}
+                <div className="space-y-4">
+                  <EditorPagamentoSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                  <EditorOpzioniAvanzateSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                  <EditorPersonalizzazioneSection state={state} dispatch={dispatch} disabled={!isBozza} />
+                </div>
+              </div>
 
-          {/* DDT-specific sections */}
-          {state.tipo === "ddt" && (
-            <EditorDDTSection state={state} dispatch={dispatch} disabled={!isBozza} />
+              {/* Ordine collegato (solo se presente) */}
+              {(state.ordine_id || searchParams.get("ordine_link")) && (
+                <EditorOrdineSection state={state} dispatch={dispatch} disabled={!isBozza} />
+              )}
+            </>
           )}
 
           {/* ═══ RIGHE + RIEPILOGO ═══ */}
