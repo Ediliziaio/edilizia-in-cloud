@@ -593,11 +593,14 @@ export function BatchBarcodeScanner({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[90svh] flex flex-col p-0">
-        <SheetHeader className="px-4 py-3 border-b shrink-0">
+      {/* v8.6.118 — Sheet full-screen su mobile (h-[100svh]) per dare massimo
+          spazio alla camera. Su desktop resta 90svh come prima. */}
+      <SheetContent side="bottom" className="h-[100svh] sm:h-[90svh] flex flex-col p-0">
+        {/* Header compatto: padding ridotto su mobile per piu spazio camera */}
+        <SheetHeader className="px-3 py-2 sm:px-4 sm:py-3 border-b shrink-0">
           <div className="flex items-center justify-between gap-2">
-            <SheetTitle className="text-base flex items-center gap-2 min-w-0">
-              <ScanLine className="h-5 w-5 text-primary shrink-0" />
+            <SheetTitle className="text-sm sm:text-base flex items-center gap-2 min-w-0">
+              <ScanLine className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
               <span className="truncate">
                 {mode === "lookup"
                   ? "Cerca articolo"
@@ -614,8 +617,8 @@ export function BatchBarcodeScanner({
                 </Badge>
               )}
               {mode !== "lookup" && (
-                <Badge variant="outline" className="font-mono">
-                  {entries.length} righe · {totalScans} pz
+                <Badge variant="outline" className="font-mono text-xs">
+                  {entries.length}·{totalScans}pz
                 </Badge>
               )}
             </div>
@@ -625,20 +628,20 @@ export function BatchBarcodeScanner({
           )}
         </SheetHeader>
 
-        {/* Camera / Manual area */}
+        {/* v8.6.118 — Camera area: su mobile prende 55svh (vs ~28svh con
+            aspect-video 16:9). Su desktop torna ad aspect-video. */}
         <div className="shrink-0 relative bg-black">
           {!manualMode ? (
             <div className="relative">
               <video
                 ref={videoRef}
-                className="w-full aspect-video object-cover cursor-pointer"
+                className="w-full h-[55svh] sm:h-auto sm:aspect-video object-cover cursor-pointer"
                 playsInline
                 muted
                 autoPlay
                 onClick={handleTapFocus}
               />
-              {/* v8.6.108 — Flash overlay GLS-style: lampeggio verde/rosso 300ms
-                  ad ogni scan. Pointer-events none per non bloccare tap-focus. */}
+              {/* v8.6.108 — Flash overlay GLS-style: lampeggio verde/rosso 300ms */}
               <div
                 className={`absolute inset-0 pointer-events-none transition-opacity duration-150 ${
                   flashFx === "green"
@@ -648,25 +651,24 @@ export function BatchBarcodeScanner({
                     : "opacity-0"
                 }`}
               />
-              {/* v8.6.108 — Counter prominente in alto a sx (GLS-style).
-                  Mostra il contatore TOTALE pezzi scansionati, grosso e
-                  leggibile mentre stai inquadrando. */}
+              {/* v8.6.118 — Counter GROSSO in alto a sx, ben visibile su mobile */}
               {mode !== "lookup" && totalScans > 0 && (
-                <div className="absolute top-2 left-2 bg-emerald-600/95 text-white rounded-lg px-3 py-1.5 shadow-lg pointer-events-none">
-                  <div className="text-2xl font-bold tabular-nums leading-none">{totalScans}</div>
-                  <div className="text-[9px] uppercase tracking-wider opacity-90 leading-tight">scansionati</div>
+                <div className="absolute top-3 left-3 bg-emerald-600/95 text-white rounded-xl px-4 py-2 sm:px-3 sm:py-1.5 shadow-xl pointer-events-none backdrop-blur-sm">
+                  <div className="text-3xl sm:text-2xl font-bold tabular-nums leading-none">{totalScans}</div>
+                  <div className="text-[10px] sm:text-[9px] uppercase tracking-wider opacity-90 leading-tight mt-0.5">scansionati</div>
                 </div>
               )}
-              {/* Reticolo */}
+              {/* v8.6.118 — Reticolo PIU GRANDE su mobile (h-44 vs h-32 prima)
+                  per facilitare inquadratura barcode lunghi (es. EAN-13) */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="w-3/4 max-w-xs h-32 border-2 border-white/60 rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+                <div className="w-[85%] max-w-md h-44 sm:h-32 sm:w-3/4 sm:max-w-xs border-[3px] sm:border-2 border-white/70 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.4)] sm:shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
               </div>
-              {/* Hint tap-to-focus */}
-              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-white/80 text-[10px] bg-black/40 px-2 py-0.5 rounded-full pointer-events-none">
+              {/* Hint tap-to-focus, piu visibile su mobile */}
+              <div className="absolute bottom-3 sm:bottom-1 left-1/2 -translate-x-1/2 text-white text-xs sm:text-[10px] bg-black/60 sm:bg-black/40 px-3 py-1.5 sm:px-2 sm:py-0.5 rounded-full pointer-events-none font-medium">
                 Tocca per mettere a fuoco
               </div>
-              {/* Toolbar overlay */}
-              <div className="absolute top-2 right-2 flex gap-2">
+              {/* v8.6.118 — Toolbar overlay con icone PIU grosse su mobile (h-11 vs h-9) */}
+              <div className="absolute top-3 right-3 flex gap-2">
                 {torchSupported && (
                   <Button
                     type="button"
@@ -674,12 +676,12 @@ export function BatchBarcodeScanner({
                     size="icon"
                     onClick={toggleTorch}
                     aria-label={torchOn ? "Spegni torcia" : "Accendi torcia"}
-                    className="h-9 w-9 bg-white/90 hover:bg-white"
+                    className="h-11 w-11 sm:h-9 sm:w-9 bg-white/95 hover:bg-white shadow-lg"
                   >
                     {torchOn ? (
-                      <FlashlightOff className="h-4 w-4" />
+                      <FlashlightOff className="h-5 w-5 sm:h-4 sm:w-4" />
                     ) : (
-                      <Flashlight className="h-4 w-4" />
+                      <Flashlight className="h-5 w-5 sm:h-4 sm:w-4" />
                     )}
                   </Button>
                 )}
@@ -689,9 +691,9 @@ export function BatchBarcodeScanner({
                   size="icon"
                   onClick={() => setManualMode(true)}
                   aria-label="Inserimento manuale"
-                  className="h-9 w-9 bg-white/90 hover:bg-white"
+                  className="h-11 w-11 sm:h-9 sm:w-9 bg-white/95 hover:bg-white shadow-lg"
                 >
-                  <Keyboard className="h-4 w-4" />
+                  <Keyboard className="h-5 w-5 sm:h-4 sm:w-4" />
                 </Button>
               </div>
               {lookup.isPending && (
