@@ -51,6 +51,8 @@ import {
   CheckCircle2,
   X,
   Search,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -153,6 +155,10 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   const batchCarico = useBatchCarico();
 
   const [step, setStep] = useState<Step>("context");
+  // v8.6.111 — Sezione "DDT arrivo e ordini collegati" collassabile
+  // (richiesta utente: es. azienda ceramica compra lotto SENZA ordine cliente).
+  // Default CHIUSA su mobile per ridurre clutter (l'utente la apre solo se serve).
+  const [ddtSectionOpen, setDdtSectionOpen] = useState(false);
   const [receiveMode, setReceiveMode] = useState<ReceiveMode>("scan");
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
@@ -270,8 +276,14 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
    * attesa che l'utente salvi (→ resolver con i dati del nuovo articolo)
    * oppure chiuda il dialog senza salvare (→ resolve null).
    */
-  const handleRequestCreateItem = (rawCode: string) => {
+  // v8.6.111 — Stato per i seriali da QR pallet (caso multi-seriale).
+  // Passato al StockItemDialog come prefillSerials e usato in handleSaveNewItem
+  // per creare stock_units in batch dopo la creazione dello stock_item.
+  const [createPrefillSerials, setCreatePrefillSerials] = useState<string[] | undefined>();
+
+  const handleRequestCreateItem = (rawCode: string, hint?: { serials?: string[] }) => {
     setCreatePrefillBarcode(rawCode);
+    setCreatePrefillSerials(hint?.serials && hint.serials.length >= 2 ? hint.serials : undefined);
     setCreateDialogOpen(true);
     return new Promise<{
       stockItemId: string;
@@ -322,8 +334,47 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
         .select("id, name, tracking_mode")
         .single();
       if (error) throw error;
-      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
       const trackingMode = (inserted.tracking_mode ?? "fungible") as "fungible" | "serialized";
+
+      // v8.6.111 — Multi-serial creation: se il dialog e' stato aperto con
+      // prefillSerials (es. da QR pallet con 36 codici), creiamo N stock_units
+      // sotto il nuovo stock_item in 1 batch insert.
+      // Skippa se tracking != serialized (caso edge: l'utente ha cambiato manualmente).
+      if (
+        createPrefillSerials &&
+        createPrefillSerials.length >= 2 &&
+        trackingMode === "serialized" &&
+        warehouseId
+      ) {
+        try {
+          const unitsToInsert = createPrefillSerials.map((sn) => ({
+            company_id: effectiveCompany.id,
+            stock_item_id: inserted.id,
+            serial_number: sn,
+            status: "available" as const,
+            warehouse_id: warehouseId,
+            supplier_id: data.supplier_id ?? null,
+            purchase_price: data.unit_cost ?? null,
+            purchase_date: new Date().toISOString().slice(0, 10),
+          }));
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: unitsErr } = await (supabase as any)
+            .from("stock_units")
+            .insert(unitsToInsert);
+          if (unitsErr) {
+            console.warn("[CaricoRapido] stock_units batch insert error:", unitsErr);
+            toast.warning(`Articolo creato ma ${createPrefillSerials.length} seriali non collegati`, {
+              description: unitsErr.message,
+            });
+          } else {
+            toast.success(`Articolo "${inserted.name}" creato con ${createPrefillSerials.length} seriali collegati`);
+          }
+        } catch (unitsErr) {
+          console.error("[CaricoRapido] stock_units creation failed:", unitsErr);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
       createResolverRef.current?.({
         stockItemId: inserted.id,
         itemName: inserted.name,
@@ -332,6 +383,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       createResolverRef.current = null;
       setCreateDialogOpen(false);
       setCreatePrefillBarcode(undefined);
+      setCreatePrefillSerials(undefined);
     } catch (err) {
       toast.error("Errore creazione articolo", {
         description: (err as Error)?.message ?? "Riprova",
@@ -349,6 +401,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       createResolverRef.current?.(null);
       createResolverRef.current = null;
       setCreatePrefillBarcode(undefined);
+      setCreatePrefillSerials(undefined);
     }
   }
 
@@ -534,6 +587,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           isPending={createPending}
           prefillBarcode={createPrefillBarcode}
           prefillSupplierId={supplierId}
+          prefillSerials={createPrefillSerials}
         />
       </>
     );
@@ -640,16 +694,43 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             )}
           </div>
 
-          <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
-            <div className="flex items-start gap-2">
-              <FileText className="h-4 w-4 mt-0.5 text-primary" aria-hidden="true" />
-              <div>
-                <p className="text-sm font-medium">DDT arrivo e ordini collegati</p>
-                <p className="text-xs text-muted-foreground">
-                  Se un camion consegna materiale per più clienti, seleziona tutti gli ordini coinvolti.
+          {/* v8.6.111 — Sezione DDT/ordini collassabile. Default chiusa: la
+              maggioranza dei carichi sono "lotto magazzino" senza ordine
+              cliente specifico (es. azienda ceramica). Mostra contatore se
+              l'utente ha già selezionato ordini/DDT (così sa che c'è qualcosa). */}
+          <div className="rounded-lg border bg-muted/20">
+            <button
+              type="button"
+              onClick={() => setDdtSectionOpen((v) => !v)}
+              className="w-full flex items-center gap-2 p-3 hover:bg-muted/30 transition-colors rounded-lg"
+              aria-expanded={ddtSectionOpen}
+            >
+              <FileText className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-medium">
+                  DDT arrivo e ordini collegati
+                  {(ddtFile || relatedOrderIds.length > 0) && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-normal bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded-full">
+                      {ddtFile && "DDT ✓"}
+                      {ddtFile && relatedOrderIds.length > 0 && " · "}
+                      {relatedOrderIds.length > 0 && `${relatedOrderIds.length} ordin${relatedOrderIds.length === 1 ? "e" : "i"}`}
+                    </span>
+                  )}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {ddtSectionOpen
+                    ? "Opzionale — usa se il fornitore consegna su ordine cliente specifico"
+                    : "Apri se la merce è già destinata a un ordine cliente (opzionale)"}
                 </p>
               </div>
-            </div>
+              {ddtSectionOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+            </button>
+            {ddtSectionOpen && (
+            <div className="px-3 pb-3 space-y-3 border-t border-muted-foreground/10 pt-3">
             <div className="rounded-md border bg-background p-2">
               <Input
                 id="cr-ddt-file"
@@ -775,6 +856,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 )}
               </div>
             </div>
+            </div>
+            )}
           </div>
 
           {/* Magazzino */}

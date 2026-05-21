@@ -30,7 +30,6 @@ import { captureVelocityError } from "@/lib/velocity/sentry";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
 import { SubdomainRedirect } from "@/components/auth/SubdomainRedirect";
 import ScrollToTop from "@/components/ScrollToTop";
-import { InstallPWAPrompt } from "@/components/ui/InstallPWAPrompt";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 import { useSubdomainRoute, getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
@@ -524,8 +523,10 @@ const App = () => (
                 (login, landing); auto-nascosto per utenti autenticati che hanno
                 già la chat Silvio interna. Usa VITE_PUBLIC_CHAT_TOKEN env var. */}
             <PublicSiteChatWidgetGate />
-            {/* v8.6.91 — Install PWA prompt (Android/iOS) con snooze 7gg */}
-            <InstallPWAPrompt />
+            {/* v8.6.91 — Install PWA prompt (Android/iOS) — disabilitato su
+                richiesta utente: era invasivo e copriva i CTA sul mobile.
+                Il browser stesso propone "Aggiungi a Home" dal menu condividi. */}
+            {/* <InstallPWAPrompt /> */}
             {/* v8.6.99 — Auto-logout dopo 45gg dal login */}
             <SessionTimeoutGuard />
           </Suspense>

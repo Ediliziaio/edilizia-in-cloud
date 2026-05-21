@@ -61,6 +61,10 @@ interface StockItemDialogProps {
   prefillBarcode?: string;
   /** Pre-compila il fornitore (utile dal flow scan). */
   prefillSupplierId?: string;
+  /** v8.6.111 — Lista di seriali (es. da QR pallet multi-seriale). Quando
+   *  fornita: tracking_mode = serialized di default, quantity = lista.length,
+   *  e onSave include i seriali per creazione stock_units. */
+  prefillSerials?: string[];
 }
 
 export function StockItemDialog({
@@ -71,6 +75,7 @@ export function StockItemDialog({
   isPending,
   prefillBarcode,
   prefillSupplierId,
+  prefillSerials,
 }: StockItemDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -116,7 +121,10 @@ export function StockItemDialog({
     } else {
       setName("");
       setDescription("");
-      setQuantity("0");
+      // v8.6.111 — Se ci sono prefillSerials (es. QR pallet con 36 codici),
+      // pre-popolo quantity con il count e tracking_mode='serialized'.
+      const hasMultiSerials = (prefillSerials?.length ?? 0) >= 2;
+      setQuantity(hasMultiSerials ? String(prefillSerials!.length) : "0");
       setUnitCost("0");
       setVatRate(22);
       setSupplierId(prefillSupplierId);
@@ -127,11 +135,11 @@ export function StockItemDialog({
       setCostCategory("Magazzino");
       setBarcode(prefillBarcode ?? "");
       setInternalCode("");
-      setTrackingMode("fungible");
+      setTrackingMode(hasMultiSerials ? "serialized" : "fungible");
       setRequiresWarranty(false);
       setDefaultWarrantyMonths("");
     }
-  }, [editingItem, open, prefillBarcode, prefillSupplierId]);
+  }, [editingItem, open, prefillBarcode, prefillSupplierId, prefillSerials]);
 
   // Coerenza: garanzia obbligatoria → forza serialized (un singolo pezzo
   // deve poter essere tracciato per associare la garanzia al seriale).
@@ -183,6 +191,30 @@ export function StockItemDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* v8.6.111 — Banner per QR multi-seriale: N codici gia scansionati,
+              verranno collegati come stock_units di questo articolo. */}
+          {!editingItem && (prefillSerials?.length ?? 0) >= 2 && (
+            <div className="rounded-lg border-2 border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-700 p-3 space-y-2">
+              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                {prefillSerials!.length} seriali rilevati dal QR pallet
+              </p>
+              <p className="text-xs text-emerald-800 dark:text-emerald-200">
+                Quantità precompilata. Tracking impostato su <strong>serialized</strong>.
+                Ogni seriale verrà creato come unità separata sotto questo articolo.
+              </p>
+              <details className="text-xs">
+                <summary className="cursor-pointer text-emerald-700 dark:text-emerald-300 hover:underline">
+                  Vedi i {prefillSerials!.length} seriali
+                </summary>
+                <div className="mt-1.5 max-h-32 overflow-y-auto bg-white dark:bg-emerald-950/60 rounded p-1.5 font-mono text-[10px] text-emerald-900 dark:text-emerald-200 space-y-0.5">
+                  {prefillSerials!.map((s, i) => (
+                    <div key={i}>{i + 1}. {s}</div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Nome Articolo *</Label>
             <Input

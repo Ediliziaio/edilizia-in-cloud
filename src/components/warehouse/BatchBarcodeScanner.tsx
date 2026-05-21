@@ -147,7 +147,13 @@ interface BatchBarcodeScannerProps {
    * sostituisce la riga no-match con un'entry valida; risolvendo `null`
    * (utente ha annullato) la riga no-match viene rimossa.
    */
-  onRequestCreateItem?: (rawCode: string) => Promise<{
+  /**
+   * v8.6.111 — Accetta hint opzionale con la lista di seriali del QR pallet
+   * (caso multi-seriale). Quando fornito: il dialog crea l'articolo con
+   * tracking_mode='serialized', quantity=hint.serials.length, e i seriali
+   * vengono creati come stock_units sotto il nuovo stock_item.
+   */
+  onRequestCreateItem?: (rawCode: string, hint?: { serials?: string[] }) => Promise<{
     stockItemId: string;
     itemName: string;
     trackingMode: "fungible" | "serialized";
@@ -563,7 +569,11 @@ export function BatchBarcodeScanner({
     const pilot = noMatchEntries[0];
     setCreatingForUuid(pilot.clientUuid);
     try {
-      const result = await onRequestCreateItem(pilot.rawCode);
+      // v8.6.111 — Passa tutti i rawCode al dialog come 'serials' hint.
+      // Il dialog imposta tracking_mode='serialized' + quantity=N + crea
+      // N stock_units sotto il nuovo articolo (vedi CaricoRapidoSheet.handleSaveNewItem).
+      const allSerials = noMatchEntries.map((e) => e.rawCode);
+      const result = await onRequestCreateItem(pilot.rawCode, { serials: allSerials });
       if (!result) return; // utente ha annullato
       // Promuovi TUTTE le entry no-match al nuovo articolo. Ognuna mantiene
       // il suo rawCode come serial (se il tracking e' serialized).
