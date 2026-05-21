@@ -75,12 +75,27 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
 
   useEffect(() => {
     if (!open || !companyId) return;
-    supabase.from("suppliers").select("id, name").eq("company_id", companyId).order("name").then(({ data }) => {
+    // v8.6.114 — race-condition safe: flag `alive` evita setState dopo unmount
+    // o dopo cambio companyId. Prima 2 fetch in volo potevano scrivere sopra
+    // entries di companyId diverso.
+    let alive = true;
+    supabase.from("suppliers").select("id, name").eq("company_id", companyId).order("name").then(({ data, error }) => {
+      if (!alive) return;
+      if (error) {
+        console.warn("[NewEntryDialog] suppliers fetch error:", error.message);
+        return;
+      }
       if (data) setSuppliers(data);
     });
-    supabase.from("orders").select("id, order_code, customers(company_name)").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50).then(({ data }) => {
+    supabase.from("orders").select("id, order_code, customers(company_name)").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50).then(({ data, error }) => {
+      if (!alive) return;
+      if (error) {
+        console.warn("[NewEntryDialog] orders fetch error:", error.message);
+        return;
+      }
       if (data) setOrders(data as unknown as OrderOption[]);
     });
+    return () => { alive = false; };
   }, [open, companyId]);
 
   const reset = () => {
