@@ -130,8 +130,17 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, agent_id, payload } = body;
 
+    const callerIsSuperAdmin = await isSuperAdmin(adminClient, userId);
+
     // Rate limit expensive AI operations: max 30 calls per minute per company
-    const expensiveActions = ["create_agent", "update_agent", "delete_agent", "get_conversations", "get_conversation_audio"];
+    const expensiveActions = [
+      "create_agent",
+      "update_agent",
+      "delete_agent",
+      "get_conversations",
+      "get_conversation",
+      "get_conversation_audio",
+    ];
     if (expensiveActions.includes(action)) {
       const rl = await checkRateLimit({
         functionName: "elevenlabs-proxy",
@@ -218,12 +227,7 @@ Deno.serve(async (req) => {
 
         // SICUREZZA: verifica che l'elevenlabs_agent_id appartenga alla company del chiamante.
         // Senza questo check, un utente autenticato poteva modificare l'agente di un'altra azienda.
-        const { data: ownership } = await adminClient
-          .from("ai_agents")
-          .select("id, company_id")
-          .eq("elevenlabs_agent_id", agent_id)
-          .eq("company_id", companyId)
-          .maybeSingle();
+        const ownership = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!ownership) {
           return json({ error: "Agente non trovato o non autorizzato" }, 403);
         }
@@ -280,7 +284,42 @@ Deno.serve(async (req) => {
           }
         }
 
-        await auditLog(adminClient, companyId, null, userId, "update_agent", { agent_id, changes: Object.keys(payload || {}) });
+        if (ownership.v2AgentId) {
+          const v2Patch: Record<string, unknown> = {};
+          if (payload?.name !== undefined) v2Patch.nome = payload.name;
+          if (payload?.system_prompt !== undefined) v2Patch.system_prompt = payload.system_prompt;
+          if (payload?.first_message !== undefined) v2Patch.primo_messaggio = payload.first_message;
+          if (payload?.language !== undefined) v2Patch.lingua = payload.language;
+          if (payload?.llm_model !== undefined) v2Patch.llm_model = payload.llm_model;
+          if (payload?.voice_id !== undefined) v2Patch.elevenlabs_voice_id = payload.voice_id;
+          if (Object.keys(v2Patch).length > 0) {
+            await adminClient
+              .from("ai_agents_v2")
+              .update(v2Patch)
+              .eq("id", ownership.v2AgentId)
+              .eq("company_id", companyId);
+          }
+        }
+
+        if (ownership.legacyAgentId) {
+          const legacyPatch: Record<string, unknown> = {};
+          if (payload?.name !== undefined) legacyPatch.name = payload.name;
+          if (payload?.system_prompt !== undefined) legacyPatch.system_prompt = payload.system_prompt;
+          if (payload?.first_message !== undefined) legacyPatch.first_message = payload.first_message;
+          if (payload?.language !== undefined) legacyPatch.language = payload.language;
+          if (payload?.llm_model !== undefined) legacyPatch.llm_model = payload.llm_model;
+          if (payload?.voice_id !== undefined) legacyPatch.voice_id = payload.voice_id;
+          if (payload?.tools_config !== undefined) legacyPatch.tools_config = payload.tools_config;
+          if (Object.keys(legacyPatch).length > 0) {
+            await adminClient
+              .from("ai_agents")
+              .update(legacyPatch)
+              .eq("id", ownership.legacyAgentId)
+              .eq("company_id", companyId);
+          }
+        }
+
+        await auditLog(adminClient, companyId, ownership.legacyAgentId ?? ownership.v2AgentId, userId, "update_agent", { agent_id, changes: Object.keys(payload || {}) });
         result = { success: true };
         break;
       }
@@ -289,12 +328,7 @@ Deno.serve(async (req) => {
         if (!agent_id) throw new Error("agent_id richiesto");
 
         // SICUREZZA: verifica ownership prima di cancellare su ElevenLabs
-        const { data: ownership } = await adminClient
-          .from("ai_agents")
-          .select("id, company_id")
-          .eq("elevenlabs_agent_id", agent_id)
-          .eq("company_id", companyId)
-          .maybeSingle();
+        const ownership = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!ownership) {
           return json({ error: "Agente non trovato o non autorizzato" }, 403);
         }
@@ -326,8 +360,7 @@ Deno.serve(async (req) => {
         if (!agent_id) throw new Error("agent_id richiesto");
         if (!payload?.source_url && !payload?.name) throw new Error("source_url o name richiesti");
         // Ownership check
-        const { data: own } = await adminClient
-          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
         const docResult = await elFetch(`/convai/agents/${agent_id}/add-to-knowledge-base`, "POST", apiKey, {
@@ -340,8 +373,7 @@ Deno.serve(async (req) => {
 
       case "remove_kb_doc": {
         if (!agent_id || !payload?.doc_id) throw new Error("agent_id e doc_id richiesti");
-        const { data: own } = await adminClient
-          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
         try {
@@ -357,8 +389,7 @@ Deno.serve(async (req) => {
 
       case "list_kb_docs": {
         if (!agent_id) throw new Error("agent_id richiesto");
-        const { data: own } = await adminClient
-          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
         try {
@@ -372,8 +403,7 @@ Deno.serve(async (req) => {
 
       case "get_conversations": {
         if (!agent_id) throw new Error("agent_id richiesto");
-        const { data: own } = await adminClient
-          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
         const convRes = await elFetch(
@@ -387,6 +417,14 @@ Deno.serve(async (req) => {
 
       case "get_conversation": {
         if (!payload?.conversation_id) throw new Error("conversation_id richiesto");
+        const canReadConversation = await hasConversationAccess(
+          adminClient,
+          companyId,
+          String(payload.conversation_id),
+        );
+        if (!canReadConversation) {
+          return json({ error: "Conversazione non trovata o non autorizzata" }, 403);
+        }
         const convDetail = await elFetch(
           `/convai/conversations/${payload.conversation_id}`,
           "GET",
@@ -398,6 +436,14 @@ Deno.serve(async (req) => {
 
       case "get_conversation_audio": {
         if (!payload?.conversation_id) throw new Error("conversation_id richiesto");
+        const canReadConversation = await hasConversationAccess(
+          adminClient,
+          companyId,
+          String(payload.conversation_id),
+        );
+        if (!canReadConversation) {
+          return json({ error: "Conversazione non trovata o non autorizzata" }, 403);
+        }
         const audioRes = await fetch(
           `${EL_BASE}/convai/conversations/${payload.conversation_id}/audio`,
           {
@@ -417,7 +463,38 @@ Deno.serve(async (req) => {
 
       case "get_phone_numbers": {
         const phonesRes = await elFetch("/convai/phone-numbers", "GET", apiKey);
-        result = phonesRes;
+        if (callerIsSuperAdmin) {
+          result = phonesRes;
+          break;
+        }
+
+        const rawNumbers = Array.isArray(phonesRes?.phone_numbers)
+          ? phonesRes.phone_numbers
+          : Array.isArray(phonesRes)
+            ? phonesRes
+            : [];
+        const { data: localNumbers } = await adminClient
+          .from("ai_phone_numbers_v2")
+          .select("numero, elevenlabs_phone_id")
+          .eq("company_id", companyId);
+        const allowedIds = new Set(
+          ((localNumbers as Array<{ elevenlabs_phone_id?: string | null }> | null) ?? [])
+            .map((n) => n.elevenlabs_phone_id)
+            .filter(Boolean),
+        );
+        const allowedNumbers = new Set(
+          ((localNumbers as Array<{ numero?: string | null }> | null) ?? [])
+            .map((n) => normalizePhone(n.numero))
+            .filter(Boolean),
+        );
+        const filtered = rawNumbers.filter((n: Record<string, unknown>) => {
+          const id = String(n.phone_number_id ?? n.id ?? "");
+          const phone = normalizePhone(n.phone_number ?? n.number ?? "");
+          return (id && allowedIds.has(id)) || (phone && allowedNumbers.has(phone));
+        });
+        result = Array.isArray(phonesRes)
+          ? { phone_numbers: filtered }
+          : { ...phonesRes, phone_numbers: filtered };
         break;
       }
 
@@ -464,8 +541,7 @@ Deno.serve(async (req) => {
         if (!payload?.phone_number) throw new Error("phone_number richiesto");
 
         // Ownership check
-        const { data: own } = await adminClient
-          .from("ai_agents").select("id").eq("elevenlabs_agent_id", agent_id).eq("company_id", companyId).maybeSingle();
+        const own = await findOwnedAgentByElevenLabsId(adminClient, companyId, agent_id);
         if (!own) return json({ error: "Agente non trovato o non autorizzato" }, 403);
 
         // Get Telnyx settings for API key and connection_id
@@ -500,7 +576,8 @@ Deno.serve(async (req) => {
           await adminClient
             .from("ai_agent_phone_numbers")
             .update({ elevenlabs_phone_number_id: elPhoneNumberId })
-            .eq("id", payload.local_phone_id);
+            .eq("id", payload.local_phone_id)
+            .eq("company_id", companyId);
         }
 
         await auditLog(adminClient, companyId, null, userId, "link_phone_number", {
@@ -560,4 +637,68 @@ async function auditLog(
     action,
     details,
   });
+}
+
+async function isSuperAdmin(client: ReturnType<typeof createClient>, userId: string): Promise<boolean> {
+  const { data } = await client
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  return ((data as Array<{ role?: string }> | null) ?? []).some((row) => row.role === "super_admin");
+}
+
+async function findOwnedAgentByElevenLabsId(
+  client: ReturnType<typeof createClient>,
+  companyId: string,
+  elevenlabsAgentId: string,
+): Promise<{ legacyAgentId: string | null; v2AgentId: string | null } | null> {
+  const [{ data: legacyAgent }, { data: v2Agent }] = await Promise.all([
+    client
+      .from("ai_agents")
+      .select("id")
+      .eq("elevenlabs_agent_id", elevenlabsAgentId)
+      .eq("company_id", companyId)
+      .maybeSingle(),
+    client
+      .from("ai_agents_v2")
+      .select("id")
+      .eq("elevenlabs_agent_id", elevenlabsAgentId)
+      .eq("company_id", companyId)
+      .maybeSingle(),
+  ]);
+
+  const legacyAgentId = (legacyAgent as { id?: string } | null)?.id ?? null;
+  const v2AgentId = (v2Agent as { id?: string } | null)?.id ?? null;
+  if (!legacyAgentId && !v2AgentId) return null;
+  return { legacyAgentId, v2AgentId };
+}
+
+async function hasConversationAccess(
+  client: ReturnType<typeof createClient>,
+  companyId: string,
+  elevenlabsConversationId: string,
+): Promise<boolean> {
+  const [{ data: legacyConversation }, { data: v2Conversation }] = await Promise.all([
+    client
+      .from("ai_agent_conversations")
+      .select("id")
+      .eq("elevenlabs_conversation_id", elevenlabsConversationId)
+      .eq("company_id", companyId)
+      .maybeSingle(),
+    client
+      .from("ai_conversations_v2")
+      .select("id")
+      .eq("elevenlabs_conversation_id", elevenlabsConversationId)
+      .eq("company_id", companyId)
+      .maybeSingle(),
+  ]);
+
+  return Boolean(
+    (legacyConversation as { id?: string } | null)?.id ||
+    (v2Conversation as { id?: string } | null)?.id,
+  );
+}
+
+function normalizePhone(value: unknown): string {
+  return String(value ?? "").replace(/[^\d+]/g, "");
 }

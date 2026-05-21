@@ -39,11 +39,19 @@ interface AnalyzeRequest {
   hint?: string;
 }
 
+type AnyRecord = Record<string, unknown>;
+
 interface ValidationWarning {
   code: string;
   field?: string;
   message: string;
   severity: "info" | "warn" | "error";
+}
+
+interface ParserInvocation {
+  functionName: string;
+  body: AnyRecord;
+  metadata?: AnyRecord;
 }
 
 const TOL_INVOICE = 0.05;
@@ -226,6 +234,240 @@ async function hashStorageFile(
   }
 }
 
+function safeStorageName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 140) || "documento.pdf";
+}
+
+function inferComputoFileType(fileName?: string, mimeType?: string): "pdf" | "xlsx" | "xls" | "xpwe" | "dcf" | "image" {
+  const lower = String(fileName ?? "").toLowerCase();
+  if ((mimeType ?? "").startsWith("image/")) return "image";
+  if (lower.endsWith(".xlsx")) return "xlsx";
+  if (lower.endsWith(".xls")) return "xls";
+  if (lower.endsWith(".xpwe")) return "xpwe";
+  if (lower.endsWith(".dcf")) return "dcf";
+  return "pdf";
+}
+
+async function downloadStorageAsBase64(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  bucket: string,
+  path: string,
+): Promise<{ base64: string; blob: Blob; bytes: number }> {
+  const { data, error } = await supabase.storage.from(bucket).download(path);
+  if (error || !data) {
+    throw new Error(`download storage: ${error?.message ?? "file non trovato"}`);
+  }
+  const blob = data as Blob;
+  const buffer = await blob.arrayBuffer();
+  const bytes = buffer.byteLength;
+  const view = new Uint8Array(buffer);
+  let raw = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < view.length; i += chunkSize) {
+    raw += String.fromCharCode(...view.subarray(i, i + chunkSize));
+  }
+  return { base64: btoa(raw), blob, bytes };
+}
+
+async function ensureComputoUpload(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  params: {
+    companyId: string;
+    userId: string;
+    storageBucket: string;
+    storagePath: string;
+    fileName?: string;
+    fileSize?: number;
+    mimeType?: string;
+    analysisId: string;
+  },
+): Promise<string> {
+  let computoStoragePath = params.storagePath;
+  const fileName = params.fileName ?? params.storagePath.split("/").pop() ?? "computo.pdf";
+
+  if (params.storageBucket !== "computi") {
+    const { blob, bytes } = await downloadStorageAsBase64(
+      supabaseAdmin,
+      params.storageBucket,
+      params.storagePath,
+    );
+    computoStoragePath = `${params.companyId}/document-ai/${params.analysisId}-${safeStorageName(fileName)}`;
+    const { error: upErr } = await supabaseAdmin.storage
+      .from("computi")
+      .upload(computoStoragePath, blob, {
+        contentType: params.mimeType ?? "application/pdf",
+        upsert: false,
+      });
+    if (upErr && !String(upErr.message ?? "").toLowerCase().includes("already exists")) {
+      throw new Error(`copy computo: ${upErr.message}`);
+    }
+    params.fileSize = params.fileSize ?? bytes;
+  }
+
+  const { data: upload, error } = await supabaseAdmin
+    .from("computo_uploads")
+    .insert({
+      company_id: params.companyId,
+      uploaded_by: params.userId,
+      file_name: fileName,
+      file_type: inferComputoFileType(fileName, params.mimeType),
+      file_size: params.fileSize ?? 0,
+      storage_path: computoStoragePath,
+      extraction_status: "uploading",
+    })
+    .select("id")
+    .single();
+
+  if (error || !upload?.id) {
+    throw new Error(`computo_uploads insert: ${error?.message ?? "id mancante"}`);
+  }
+  return upload.id as string;
+}
+
+async function buildParserInvocation(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  params: {
+    parserName: string;
+    docType: string;
+    companyId: string;
+    userId: string;
+    analysisId: string;
+    storageBucket: string;
+    storagePath: string;
+    fileName?: string;
+    fileSize?: number;
+    mimeType?: string;
+    hint?: string;
+  },
+): Promise<ParserInvocation | null> {
+  const resolvedFileName = params.fileName ?? params.storagePath.split("/").pop() ?? "documento";
+  const baseStorageBody = {
+    storage_bucket: params.storageBucket,
+    storage_path: params.storagePath,
+    file_name: resolvedFileName,
+    mime_type: params.mimeType ?? "application/pdf",
+    company_id: params.companyId,
+  };
+
+  switch (params.parserName) {
+    case "ddt-ai-extract":
+      return { functionName: params.parserName, body: baseStorageBody };
+
+    case "generic-doc-ai-extract":
+      return {
+        functionName: params.parserName,
+        body: { ...baseStorageBody, doc_type: params.docType },
+      };
+
+    case "ai-fattura-ricevuta-ocr":
+      return {
+        functionName: params.parserName,
+        body: {
+          storage_bucket: params.storageBucket,
+          bucket: params.storageBucket,
+          storage_path: params.storagePath,
+          file_name: resolvedFileName,
+          mime_type: params.mimeType ?? "application/pdf",
+          company_id: params.companyId,
+          auto_create: false,
+        },
+      };
+
+    case "computo-ai-extract": {
+      const computoUploadId = await ensureComputoUpload(supabaseAdmin, {
+        companyId: params.companyId,
+        userId: params.userId,
+        storageBucket: params.storageBucket,
+        storagePath: params.storagePath,
+        fileName: params.fileName,
+        fileSize: params.fileSize,
+        mimeType: params.mimeType,
+        analysisId: params.analysisId,
+      });
+      return {
+        functionName: params.parserName,
+        body: { computoUploadId },
+        metadata: { computo_upload_id: computoUploadId },
+      };
+    }
+
+    case "ai-tabella-finanziamento-extract":
+      if (params.storageBucket !== "finanziamenti-tabelle") {
+        return null;
+      }
+      return {
+        functionName: params.parserName,
+        body: { storage_path: params.storagePath, hint: params.hint ? { note: params.hint } : undefined },
+      };
+
+    case "ai-listino-extract":
+      if (params.storageBucket !== "listini-tmp" || !params.storagePath.startsWith(`${params.userId}/`)) {
+        return null;
+      }
+      return {
+        functionName: params.parserName,
+        body: { storage_path: params.storagePath, object_type: "product" },
+      };
+
+    case "ai-biz-card-ocr": {
+      if (!(params.mimeType ?? "").startsWith("image/")) return null;
+      const { base64 } = await downloadStorageAsBase64(supabaseAdmin, params.storageBucket, params.storagePath);
+      return {
+        functionName: params.parserName,
+        body: {
+          image_base64: base64,
+          mime: params.mimeType ?? "image/jpeg",
+          company_id: params.companyId,
+          auto_create_contact: false,
+        },
+      };
+    }
+
+    default:
+      return null;
+  }
+}
+
+function normalizeParserResult(
+  parserName: string,
+  parserRes: unknown,
+  metadata?: AnyRecord,
+): AnyRecord {
+  const res = (parserRes && typeof parserRes === "object" ? parserRes : {}) as AnyRecord;
+  let extracted: AnyRecord;
+
+  if (parserName === "ddt-ai-extract") {
+    extracted = ((res.ddt as AnyRecord | undefined) ?? res) as AnyRecord;
+  } else if (parserName === "generic-doc-ai-extract" || parserName === "ai-fattura-ricevuta-ocr" || parserName === "ai-biz-card-ocr") {
+    extracted = ((res.extracted as AnyRecord | undefined) ?? res) as AnyRecord;
+  } else if (parserName === "ai-listino-extract") {
+    extracted = {
+      rows: res.rows ?? [],
+      confidence: res.confidence ?? null,
+      detected_supplier: res.detected_supplier ?? null,
+    };
+  } else if (parserName === "ai-tabella-finanziamento-extract") {
+    extracted = {
+      rows: res.rows ?? [],
+      detected: res.detected ?? null,
+      confidence: res.confidence ?? null,
+    };
+  } else {
+    extracted = res;
+  }
+
+  return metadata ? { ...extracted, _parser_meta: metadata } : extracted;
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Main handler
 // ──────────────────────────────────────────────────────────────────────────
@@ -242,6 +484,8 @@ serve(async (req) => {
     if (!storage_bucket || !storage_path) {
       return errorResponse("storage_bucket and storage_path required", 400, cors);
     }
+    const resolvedFileName = file_name ?? storage_path.split("/").pop() ?? "documento";
+    const resolvedMimeType = mime_type ?? "application/pdf";
 
     // Resolve company_id dell'utente (auth bridge)
     const { data: profile } = await supabaseAdmin
@@ -286,8 +530,8 @@ serve(async (req) => {
         company_id: companyId,
         storage_bucket,
         storage_path,
-        file_name,
-        mime_type,
+        file_name: resolvedFileName,
+        mime_type: resolvedMimeType,
         file_size_bytes: file_size,
         sha256_hash: sha256,
         doc_type: "documento_generico",
@@ -317,7 +561,15 @@ serve(async (req) => {
       const { data: routerRes, error: routerErr } = await supabaseAdmin.functions.invoke(
         "document-ai-router",
         {
-          body: { storage_bucket, storage_path, file_name, file_size, mime_type, hint },
+          body: {
+            storage_bucket,
+            storage_path,
+            file_name: resolvedFileName,
+            file_size,
+            mime_type: resolvedMimeType,
+            hint,
+            company_id: companyId,
+          },
           headers: { Authorization: req.headers.get("Authorization") ?? "" },
         },
       );
@@ -338,29 +590,64 @@ serve(async (req) => {
     // ── 4) Optionally invoke vertical parser (next_action.autoflow_function) ──
     let parserUsed: string = (routerOut.next_action?.autoflow_function as string | undefined) ?? "router_only";
     let structuredFields: Record<string, unknown> | null = keyFields;
+    const parserWarnings: ValidationWarning[] = [];
     if (routerOut.next_action?.kind === "autoflow" && routerOut.next_action.autoflow_function) {
       try {
-        const { data: parserRes, error: parserErr } = await supabaseAdmin.functions.invoke(
-          routerOut.next_action.autoflow_function,
-          {
-            body: { storage_bucket, storage_path, file_name, mime_type, hint },
-            headers: { Authorization: req.headers.get("Authorization") ?? "" },
-          },
-        );
-        if (parserErr) {
-          console.warn("[ai-document-analyzer] parser fallito (graceful):", parserErr.message);
-        } else if (parserRes && typeof parserRes === "object") {
-          // I parser ritornano shape diverse; conserviamo l'intero output come structured_fields
-          structuredFields = parserRes as Record<string, unknown>;
-          parserUsed = routerOut.next_action.autoflow_function;
+        const invocation = await buildParserInvocation(supabaseAdmin, {
+          parserName: routerOut.next_action.autoflow_function,
+          docType,
+          companyId,
+          userId,
+          analysisId,
+          storageBucket: storage_bucket,
+          storagePath: storage_path,
+          fileName: resolvedFileName,
+          fileSize: file_size,
+          mimeType: resolvedMimeType,
+          hint,
+        });
+
+        if (!invocation) {
+          parserUsed = "router_only";
+          parserWarnings.push({
+            code: "parser_requires_dedicated_flow",
+            message: `Il parser ${routerOut.next_action.autoflow_function} richiede un flusso dedicato o un bucket specifico.`,
+            severity: "info",
+          });
+        } else {
+          const { data: parserRes, error: parserErr } = await supabaseAdmin.functions.invoke(
+            invocation.functionName,
+            {
+              body: invocation.body,
+              headers: { Authorization: req.headers.get("Authorization") ?? "" },
+            },
+          );
+          if (parserErr) {
+            console.warn("[ai-document-analyzer] parser fallito (graceful):", parserErr.message);
+            parserWarnings.push({
+              code: "parser_failed",
+              message: `Parser ${invocation.functionName} fallito: ${parserErr.message}`,
+              severity: "warn",
+            });
+          } else if (parserRes && typeof parserRes === "object") {
+            structuredFields = normalizeParserResult(invocation.functionName, parserRes, invocation.metadata);
+            parserUsed = invocation.functionName;
+          }
         }
       } catch (e) {
         console.warn("[ai-document-analyzer] parser exception (graceful):", e instanceof Error ? e.message : e);
+        parserWarnings.push({
+          code: "parser_exception",
+          message: `Parser exception: ${e instanceof Error ? e.message : String(e)}`,
+          severity: "warn",
+        });
       }
     }
 
     // ── 5) Validate ─────────────────────────────────────────────────────
-    const { warnings, score } = validateStructuredFields(docType, structuredFields);
+    const validation = validateStructuredFields(docType, structuredFields);
+    const warnings = [...parserWarnings, ...validation.warnings];
+    const score = Math.max(0, validation.score - parserWarnings.filter((w) => w.severity === "warn").length * 0.1);
     const hasErrors = warnings.some((w) => w.severity === "error");
     const finalStatus: "success" | "review_required" = hasErrors || score < 0.6 ? "review_required" : "success";
 
@@ -384,10 +671,25 @@ serve(async (req) => {
 
     // ── 7) Hand-off cross-reference (best-effort, non bloccante) ────────
     try {
-      await supabaseAdmin.functions.invoke("document-ai-linker", {
-        body: { analysis_id: analysisId },
+      const { data: linkerRes } = await supabaseAdmin.functions.invoke("document-ai-linker", {
+        body: {
+          doc_type: docType,
+          extracted: structuredFields ?? {},
+          company_id: companyId,
+          file_info: {
+            storage_bucket,
+            storage_path,
+            file_name: resolvedFileName,
+          },
+        },
         headers: { Authorization: req.headers.get("Authorization") ?? "" },
       });
+      if (linkerRes && typeof linkerRes === "object") {
+        await supabaseAdmin
+          .from("document_analysis_results")
+          .update({ related_entities: (linkerRes as { suggestions?: unknown[] }).suggestions ?? [] })
+          .eq("id", analysisId);
+      }
     } catch (e) {
       console.warn("[ai-document-analyzer] linker exception (graceful):", e instanceof Error ? e.message : e);
     }
@@ -397,12 +699,22 @@ serve(async (req) => {
       cached: false,
       doc_type: docType,
       classification_confidence: classificationConfidence,
+      reasoning: routerOut.reasoning ?? null,
+      key_fields: keyFields,
+      next_action: routerOut.next_action ?? null,
       parser_used: parserUsed,
       structured_fields: structuredFields,
       validation: { warnings, valid: !hasErrors, score },
       status: finalStatus,
       processing_time_ms: processingMs,
       cost_eur: costEur,
+      file: {
+        storage_bucket,
+        storage_path,
+        name: resolvedFileName,
+        size: file_size ?? null,
+        mime_type: resolvedMimeType,
+      },
     }, 200, cors);
   } catch (err) {
     if (err instanceof Response) return err;

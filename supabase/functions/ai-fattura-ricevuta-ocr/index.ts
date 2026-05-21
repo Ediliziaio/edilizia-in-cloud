@@ -9,8 +9,9 @@
  *
  * Body:
  *   {
- *     storage_path: "user_id/file.pdf",  // bucket fatture-tmp o silvio-uploads
- *     bucket?: "silvio-uploads",         // default
+ *     storage_path: "company_id/file.pdf" | "user_id/file.pdf",
+ *     storage_bucket?: "documenti-smart" | "silvio-uploads" | "...",
+ *     bucket?: "silvio-uploads",         // legacy alias
  *     auto_create?: true                  // se true, crea record subito
  *   }
  */
@@ -58,7 +59,21 @@ Lingua italiano. Se è una NOTA CREDITO usa numeri positivi e segna tipo_documen
 interface OcrPayload {
   storage_path: string;
   bucket?: string;
+  storage_bucket?: string;
+  file_name?: string;
+  mime_type?: string;
+  company_id?: string;
   auto_create?: boolean;
+}
+
+function bufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
 }
 
 serve(async (req: Request) => {
@@ -72,47 +87,71 @@ serve(async (req: Request) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAdmin = auth.supabaseAdmin as any;
 
+    const body = (await req.json()) as OcrPayload;
+    const storagePath = body?.storage_path?.trim();
+    const bucket = body?.storage_bucket ?? body?.bucket ?? "silvio-uploads";
+    const autoCreate = body?.auto_create ?? false;
+    const requestedCompanyId = body?.company_id?.trim();
+
+    if (!storagePath) return errorResponse("storage_path mancante", 400, corsHeaders);
+
     const { data: profile } = await supabaseAdmin
       .from("profiles").select("company_id").eq("id", userId).maybeSingle();
-    const companyId: string | null = profile?.company_id ?? null;
+    const companyId: string | null = requestedCompanyId || profile?.company_id || null;
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
-    const body = (await req.json()) as OcrPayload;
-    const storagePath = body?.storage_path?.trim();
-    const bucket = body?.bucket ?? "silvio-uploads";
-    const autoCreate = body?.auto_create ?? false;
-
-    if (!storagePath) return errorResponse("storage_path mancante", 400, corsHeaders);
-    if (!storagePath.startsWith(`${userId}/`)) {
-      return errorResponse("storage_path fuori scope utente", 403, corsHeaders);
+    const isUserScoped = storagePath.startsWith(`${userId}/`);
+    const isCompanyScoped = storagePath.startsWith(`${companyId}/`);
+    if (!isUserScoped && !isCompanyScoped) {
+      return errorResponse("storage_path fuori scope utente/azienda", 403, corsHeaders);
     }
 
-    // Get signed URL
-    const { data: signed, error: sErr } = await supabaseAdmin.storage
-      .from(bucket).createSignedUrl(storagePath, 600);
-    if (sErr || !signed?.signedUrl) {
-      return errorResponse(`Storage URL fallita: ${sErr?.message ?? "no url"}`, 500, corsHeaders);
+    const { data: file, error: dlErr } = await supabaseAdmin.storage
+      .from(bucket)
+      .download(storagePath);
+    if (dlErr || !file) {
+      return errorResponse(`Download storage fallito: ${dlErr?.message ?? "file non trovato"}`, 500, corsHeaders);
     }
+    const buffer = await (file as Blob).arrayBuffer();
+    if (buffer.byteLength > 18 * 1024 * 1024) {
+      return errorResponse("Documento troppo grande per OCR fattura (max 18MB)", 413, corsHeaders);
+    }
+
+    const mimeType = body?.mime_type || (file as Blob).type || "application/pdf";
+    const base64 = bufferToBase64(buffer);
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+    const isImage = mimeType.startsWith("image/");
+    const userContent: unknown[] = [
+      { type: "text", text: "Estrai dati fattura nel formato JSON specificato." },
+      isImage
+        ? { type: "image_url", image_url: { url: dataUrl, detail: "high" } }
+        : {
+            type: "file",
+            file: {
+              filename: body?.file_name ?? storagePath.split("/").pop() ?? "fattura.pdf",
+              file_data: dataUrl,
+            },
+          },
+    ];
+
+    const { data: signed } = await supabaseAdmin.storage
+      .from(bucket)
+      .createSignedUrl(storagePath, 600);
+    const previewUrl = signed?.signedUrl ?? null;
 
     const aiResult = await aiRouterComplete({
       supabase: supabaseAdmin,
       taskKey: "fattura_ricevuta_ocr",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Estrai dati fattura nel formato JSON specificato." },
-            { type: "image_url", image_url: { url: signed.signedUrl, detail: "high" } },
-          ],
-        },
+        { role: "user", content: userContent },
       ],
       params: { max_tokens: 3500, temperature: 0.0 },
       responseFormat: { type: "json_object" },
       companyId,
       userId,
-      idempotencyKey: `ocr_fattura_${userId}_${storagePath}`,
+      idempotencyKey: `ocr_fattura_${companyId}_${bucket}_${storagePath}`,
       estimatedCostEur: 0.12,
     });
     let parsed: Record<string, unknown> = {};
@@ -147,7 +186,9 @@ serve(async (req: Request) => {
           totale_documento: parsed.totale_documento,
           righe: parsed.righe ?? [],
           riepilogo_iva: parsed.riepilogo_iva ?? [],
-          pdf_url: signed.signedUrl,
+          pdf_url: previewUrl,
+          pdf_storage_bucket: bucket,
+          pdf_storage_path: storagePath,
           stato: "da_verificare",
           note: `OCR Silvio (confidence ${parsed.confidence ?? "n/a"})`,
         }, { onConflict: "company_id,numero_fattura,cedente_piva", ignoreDuplicates: false })
@@ -167,7 +208,8 @@ serve(async (req: Request) => {
       model_used: aiResult.modelUsed,
       ledger_id: aiResult.ledgerId ?? null,
       created_invoice_id: createdId,
-      preview_url: signed.signedUrl,
+      preview_url: previewUrl,
+      file_ref: { bucket, storage_path: storagePath },
     }, 200, corsHeaders);
   } catch (err) {
     if (err instanceof Response) return err;

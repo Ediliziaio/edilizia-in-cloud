@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { requireAuth } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -19,22 +20,12 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-    // Auth check
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return json({ error: "Unauthorized" }, 401);
-    }
-
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
-    const { data: { user } } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!user) {
-      return json({ error: "Unauthorized" }, 401);
-    }
+    const { userId } = await requireAuth(req, corsHeaders);
 
     const { data: profile } = await adminClient
       .from("profiles")
       .select("company_id")
-      .eq("id", user.id)
+      .eq("id", userId)
       .single();
 
     if (!profile?.company_id) {
@@ -42,14 +33,26 @@ Deno.serve(async (req) => {
     }
 
     const { agentId } = await req.json();
+    if (!agentId) {
+      return json({ error: "agentId richiesto" }, 400);
+    }
 
     // Get agent's LLM+TTS config
-    const { data: agent } = await adminClient
+    const { data: legacyAgent } = await adminClient
       .from("ai_agents")
       .select("llm_model, tts_model")
       .eq("id", agentId)
       .eq("company_id", profile.company_id)
-      .single();
+      .maybeSingle();
+
+    const { data: v2Agent } = legacyAgent ? { data: null } : await adminClient
+      .from("ai_agents_v2")
+      .select("llm_model")
+      .eq("id", agentId)
+      .eq("company_id", profile.company_id)
+      .maybeSingle();
+
+    const agent = legacyAgent ?? v2Agent;
 
     if (!agent) {
       return json({ error: "Agent not found" }, 404);
@@ -60,7 +63,7 @@ Deno.serve(async (req) => {
       .from("platform_pricing")
       .select("cost_billed_per_min")
       .eq("llm_model", agent.llm_model)
-      .eq("tts_model", agent.tts_model || "eleven_multilingual_v2")
+      .eq("tts_model", (agent as { tts_model?: string | null }).tts_model || "eleven_multilingual_v2")
       .eq("is_active", true)
       .maybeSingle();
 
@@ -94,9 +97,9 @@ Deno.serve(async (req) => {
       cost_per_min: minCostPerCall,
     });
   } catch (err: unknown) {
+    if (err instanceof Response) return err;
     const message = err instanceof Error ? err.message : "Internal error";
     console.error("check-credits-before-call error:", message);
     return json({ error: message }, 500);
   }
 });
-

@@ -162,12 +162,38 @@ Deno.serve(async (req) => {
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
     const body = await req.json();
-    const { doc_type, extracted, company_id, file_info } = body as {
+    let { doc_type, extracted, company_id, file_info } = body as {
+      analysis_id?: string;
       doc_type?: string;
       extracted?: Record<string, unknown>;
       company_id?: string;
       file_info?: { storage_bucket: string; storage_path: string; file_name: string };
     };
+    const analysisId = (body as { analysis_id?: string }).analysis_id;
+
+    if (analysisId && (!doc_type || !extracted || !company_id)) {
+      const { data: analysis, error: analysisErr } = await supabaseAdmin
+        .from("document_analysis_results")
+        .select("company_id, doc_type, structured_fields, storage_bucket, storage_path, file_name")
+        .eq("id", analysisId)
+        .maybeSingle();
+
+      if (analysisErr) {
+        return errorResponse(`analysis lookup: ${analysisErr.message}`, 500, cors);
+      }
+      if (!analysis) {
+        return errorResponse("analysis_id non trovato", 404, cors);
+      }
+
+      company_id = company_id ?? analysis.company_id;
+      doc_type = doc_type ?? analysis.doc_type;
+      extracted = extracted ?? analysis.structured_fields ?? {};
+      file_info = file_info ?? {
+        storage_bucket: analysis.storage_bucket,
+        storage_path: analysis.storage_path,
+        file_name: analysis.file_name ?? "documento",
+      };
+    }
 
     if (!doc_type || !extracted || !company_id) {
       return errorResponse("doc_type, extracted, company_id required", 400, cors);

@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { ConversazioniTab } from "@/components/agenti/ConversazioniTab";
 import { useAiAgentsBasePath } from "@/hooks/useAiAgentsBasePath";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import type { UnifiedAgent } from "@/types/unifiedAgent.types";
 
 type SubTab = "panoramica" | "configurazione" | "conversazioni" | "statistiche";
@@ -90,6 +91,20 @@ export default function AgentDetailPage() {
       const prompt = editPrompt.trim();
       if (!nome) throw new Error("Inserisci un nome per l'agente AI.");
       if (prompt.length < 20) throw new Error("Completa il prompt di sistema prima di salvare.");
+
+      if (agent?.elevenlabs_agent_id) {
+        await callElevenLabsProxy({
+          action: "update_agent",
+          agent_id: agent.elevenlabs_agent_id,
+          payload: {
+            name: nome,
+            system_prompt: prompt,
+            first_message: editPrimoMsg.trim() || "",
+            language: editLingua,
+            llm_model: editModel,
+          },
+        });
+      }
 
       const { error } = await supabase
         .from("ai_agents_v2")

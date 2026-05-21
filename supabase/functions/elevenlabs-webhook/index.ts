@@ -324,6 +324,14 @@ Deno.serve(async (req) => {
 
     if (convErr) {
       console.error("Error saving conversation:", convErr);
+      if ((convErr as { code?: string }).code === "23505") {
+        console.log(`[WEBHOOK] Conversation ${conversationId} inserted by concurrent webhook, skipping billing`);
+        return json({
+          success: true,
+          already_processed: true,
+          concurrent_duplicate: true,
+        });
+      }
     }
 
     // ============ DUAL-WRITE TO ai_conversations_v2 ============
