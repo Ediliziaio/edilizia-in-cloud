@@ -628,14 +628,14 @@ export function BatchBarcodeScanner({
           )}
         </SheetHeader>
 
-        {/* v8.6.118 — Camera area: su mobile prende 55svh (vs ~28svh con
-            aspect-video 16:9). Su desktop torna ad aspect-video. */}
-        <div className="shrink-0 relative bg-black">
+        {/* v8.6.119 — Camera area FULL-VIEWPORT su mobile (flex-1) per
+            massimizzare lo spazio scanner. Su desktop torna ad aspect-video. */}
+        <div className="flex-1 sm:shrink-0 relative bg-black overflow-hidden">
           {!manualMode ? (
-            <div className="relative">
+            <div className="relative h-full">
               <video
                 ref={videoRef}
-                className="w-full h-[55svh] sm:h-auto sm:aspect-video object-cover cursor-pointer"
+                className="w-full h-full sm:h-auto sm:aspect-video object-cover cursor-pointer"
                 playsInline
                 muted
                 autoPlay
@@ -645,26 +645,57 @@ export function BatchBarcodeScanner({
               <div
                 className={`absolute inset-0 pointer-events-none transition-opacity duration-150 ${
                   flashFx === "green"
-                    ? "bg-emerald-500/45 opacity-100"
+                    ? "bg-emerald-500/50 opacity-100"
                     : flashFx === "red"
-                    ? "bg-red-500/45 opacity-100"
+                    ? "bg-red-500/50 opacity-100"
                     : "opacity-0"
                 }`}
               />
-              {/* v8.6.118 — Counter GROSSO in alto a sx, ben visibile su mobile */}
+              {/* v8.6.119 — Counter GROSSO + ultimo articolo scansionato.
+                  Mostra al magazziniere cosa ha appena scansionato senza
+                  guardare la lista in basso. */}
               {mode !== "lookup" && totalScans > 0 && (
-                <div className="absolute top-3 left-3 bg-emerald-600/95 text-white rounded-xl px-4 py-2 sm:px-3 sm:py-1.5 shadow-xl pointer-events-none backdrop-blur-sm">
-                  <div className="text-3xl sm:text-2xl font-bold tabular-nums leading-none">{totalScans}</div>
-                  <div className="text-[10px] sm:text-[9px] uppercase tracking-wider opacity-90 leading-tight mt-0.5">scansionati</div>
+                <div className="absolute top-3 left-3 right-3 sm:right-auto bg-emerald-600/95 text-white rounded-xl px-4 py-2.5 sm:px-3 sm:py-1.5 shadow-xl pointer-events-none backdrop-blur-sm">
+                  <div className="flex items-center gap-3 sm:block">
+                    <div>
+                      <div className="text-3xl sm:text-2xl font-bold tabular-nums leading-none">{totalScans}</div>
+                      <div className="text-[10px] sm:text-[9px] uppercase tracking-wider opacity-90 leading-tight mt-0.5">scansionati</div>
+                    </div>
+                    {/* v8.6.119 — Ultimo articolo (solo mobile) */}
+                    {(() => {
+                      const lastEntry = entries[entries.length - 1];
+                      if (!lastEntry || !lastEntry.itemName) return null;
+                      return (
+                        <div className="sm:hidden flex-1 min-w-0 border-l border-white/30 pl-3">
+                          <div className="text-[10px] uppercase tracking-wider opacity-80">Ultimo</div>
+                          <div className="text-sm font-medium truncate">{lastEntry.itemName}</div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
-              {/* v8.6.118 — Reticolo PIU GRANDE su mobile (h-44 vs h-32 prima)
-                  per facilitare inquadratura barcode lunghi (es. EAN-13) */}
+              {/* v8.6.119 — Reticolo grande con SCAN LINE animata (laser effect)
+                  + corner brackets pi&ugrave; pro */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className="w-[85%] max-w-md h-44 sm:h-32 sm:w-3/4 sm:max-w-xs border-[3px] sm:border-2 border-white/70 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.4)] sm:shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+                <div className="relative w-[88%] max-w-md h-48 sm:h-32 sm:w-3/4 sm:max-w-xs">
+                  {/* Dim background outside the reticule */}
+                  <div className="absolute inset-0 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.55)] sm:shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+                  {/* Corner brackets (4 corners) — solo mobile */}
+                  <div className="absolute -top-1 -left-1 w-7 h-7 border-t-[4px] border-l-[4px] border-emerald-400 rounded-tl-lg sm:hidden" />
+                  <div className="absolute -top-1 -right-1 w-7 h-7 border-t-[4px] border-r-[4px] border-emerald-400 rounded-tr-lg sm:hidden" />
+                  <div className="absolute -bottom-1 -left-1 w-7 h-7 border-b-[4px] border-l-[4px] border-emerald-400 rounded-bl-lg sm:hidden" />
+                  <div className="absolute -bottom-1 -right-1 w-7 h-7 border-b-[4px] border-r-[4px] border-emerald-400 rounded-br-lg sm:hidden" />
+                  {/* Fallback border per desktop */}
+                  <div className="absolute inset-0 border-2 border-white/70 rounded-xl hidden sm:block" />
+                  {/* SCAN LINE animata (effetto laser) */}
+                  <div className="absolute inset-x-2 top-2 bottom-2 overflow-hidden rounded-lg">
+                    <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_2px_rgba(52,211,153,0.8)] animate-scan" />
+                  </div>
+                </div>
               </div>
-              {/* Hint tap-to-focus, piu visibile su mobile */}
-              <div className="absolute bottom-3 sm:bottom-1 left-1/2 -translate-x-1/2 text-white text-xs sm:text-[10px] bg-black/60 sm:bg-black/40 px-3 py-1.5 sm:px-2 sm:py-0.5 rounded-full pointer-events-none font-medium">
+              {/* Hint tap-to-focus */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-white text-xs bg-black/60 px-3 py-1.5 rounded-full pointer-events-none font-medium">
                 Tocca per mettere a fuoco
               </div>
               {/* v8.6.118 — Toolbar overlay con icone PIU grosse su mobile (h-11 vs h-9) */}
@@ -676,7 +707,7 @@ export function BatchBarcodeScanner({
                     size="icon"
                     onClick={toggleTorch}
                     aria-label={torchOn ? "Spegni torcia" : "Accendi torcia"}
-                    className="h-11 w-11 sm:h-9 sm:w-9 bg-white/95 hover:bg-white shadow-lg"
+                    className="h-12 w-12 sm:h-9 sm:w-9 bg-white/95 hover:bg-white shadow-lg"
                   >
                     {torchOn ? (
                       <FlashlightOff className="h-5 w-5 sm:h-4 sm:w-4" />
@@ -691,14 +722,14 @@ export function BatchBarcodeScanner({
                   size="icon"
                   onClick={() => setManualMode(true)}
                   aria-label="Inserimento manuale"
-                  className="h-11 w-11 sm:h-9 sm:w-9 bg-white/95 hover:bg-white shadow-lg"
+                  className="h-12 w-12 sm:h-9 sm:w-9 bg-white/95 hover:bg-white shadow-lg"
                 >
                   <Keyboard className="h-5 w-5 sm:h-4 sm:w-4" />
                 </Button>
               </div>
               {lookup.isPending && (
-                <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1.5">
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                <div className="absolute bottom-14 sm:bottom-2 left-1/2 -translate-x-1/2 bg-black/80 text-white text-sm sm:text-xs px-3 py-1.5 sm:px-2 sm:py-1 rounded-full flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 sm:h-3 sm:w-3 animate-spin" />
                   Risolvo...
                 </div>
               )}
@@ -959,17 +990,20 @@ export function BatchBarcodeScanner({
                 </AlertDescription>
               </Alert>
             )}
-            <div className="flex gap-2">
+            {/* v8.6.119 — Footer CTA GROSSI su mobile (h-14 vs h-10) per
+                touch target generoso + visibilita sticky bottom.
+                safe-area-inset-bottom rispetta home indicator iPhone. */}
+            <div className="flex gap-2 pb-[env(safe-area-inset-bottom)]">
               <Button
                 type="button"
                 variant="outline"
                 onClick={onBack ?? (() => onOpenChange(false))}
-                className="flex-1"
+                className="flex-1 h-14 sm:h-10 text-base sm:text-sm font-medium"
               >
                 {onBack ? (
-                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  <ArrowLeft className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
                 ) : (
-                  <X className="h-4 w-4 mr-2" />
+                  <X className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
                 )}
                 {onBack ? backLabel : "Chiudi"}
               </Button>
@@ -977,16 +1011,16 @@ export function BatchBarcodeScanner({
                 type="button"
                 onClick={handleConfirm}
                 disabled={!canConfirm}
-                className="flex-[2]"
+                className="flex-[2] h-14 sm:h-10 text-base sm:text-sm font-semibold shadow-lg"
               >
                 {isConfirming ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Loader2 className="h-5 w-5 sm:h-4 sm:w-4 mr-2 animate-spin" />
                     Salvataggio...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    <CheckCircle2 className="h-5 w-5 sm:h-4 sm:w-4 mr-2" />
                     {confirmLabel} ({entries.length})
                   </>
                 )}
