@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import { installInvalidAuthSessionRecovery } from "./lib/authInvalidSessionRecovery";
 import App from "./App.tsx";
 import "./index.css";
-import { initSentry } from "./lib/velocity/sentry";
+// v8.6.117 — Sentry + WebVitals lazy-loaded DOPO mount per non bloccare FCP.
 import { initWebVitalsReporter } from "./lib/velocity/webVitalsReporter";
 
 // 🚨 ESPLICITO unregister di service worker stale.
@@ -50,9 +50,20 @@ if ("serviceWorker" in navigator) {
 
 installInvalidAuthSessionRecovery();
 
-// Velocity — Sentry init PRIMA del mount per catturare errori early.
-// No-op se VITE_SENTRY_DSN non è definita.
-initSentry();
+// v8.6.117 — Sentry init lazy DOPO mount (era prima del mount per catturare
+// errori early, ma costava 11KB JS preloadato sulla landing pubblica).
+// Trade-off accettabile: errori dei primi ~200ms non catturati. La landing
+// e statica, gli errori se ne occuperà ErrorBoundary client-side.
+if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+  (window as Window & { requestIdleCallback: (cb: () => void) => void })
+    .requestIdleCallback(() => {
+      void import("./lib/velocity/sentry").then((m) => m.initSentry());
+    });
+} else {
+  setTimeout(() => {
+    void import("./lib/velocity/sentry").then((m) => m.initSentry());
+  }, 1000);
+}
 
 // When a lazy-loaded chunk fails (e.g. after a new deploy the old hash no
 // longer exists on the server), Vite fires this event. Force a hard reload so

@@ -227,8 +227,8 @@ export default defineConfig(() => ({
           // Runtime & React core
           /\/rolldown-runtime-/,
           /\/client-/,  // react-dom client
-          // Error tracking essenziale (deve essere attivo dal boot)
-          /\/sentry-/,
+          // Error tracking ora lazy (vedi src/main.tsx v8.6.117) — escluso dal preload
+          // /\/sentry-/,
           // Provider sempre montati (App.tsx li wrappa)
           /\/QueryClientProvider-/,
           /\/AuthContext-/,
