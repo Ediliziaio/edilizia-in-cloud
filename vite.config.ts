@@ -286,15 +286,20 @@ export default defineConfig(() => ({
           if (id.includes("@radix-ui/")) {
             return "vendor-radix";
           }
-          // Shared utility (clsx + tailwind-merge + zod): usate praticamente
-          // OVUNQUE → meritano un loro chunk dedicato per dedup e cache.
-          // Senza, vengono duplicate fra index.js + chunks vendor + alcuni
-          // route chunks → pochi KB ma cache-busting frequente.
+          // v8.6.116 — zod estratto in chunk separato 'vendor-zod' (lazy):
+          // zod ~50KB compressed e' usato SOLO in 13 dialog/form components,
+          // tutti dietro lazy(). Prima viaggiava in vendor-shared (preload
+          // critical) -> wasted 50KB al boot per chi resta sulla landing.
+          // Ora chunk on-demand, escluso dai modulePreload KEEP_PATTERNS.
+          if (id.includes("/zod/")) {
+            return "vendor-zod";
+          }
+          // Shared utility (clsx + tailwind-merge): usate ovunque → meritano
+          // un loro chunk dedicato per dedup e cache.
           if (
             id.includes("/clsx/") ||
             id.includes("/tailwind-merge/") ||
-            id.includes("/class-variance-authority/") ||
-            id.includes("/zod/")
+            id.includes("/class-variance-authority/")
           ) {
             return "vendor-shared";
           }
