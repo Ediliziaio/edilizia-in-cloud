@@ -31,6 +31,7 @@ import { format } from "date-fns";
 
 import { COST_CATEGORIES } from "@/types/warehouse";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
+import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 
 interface StockItemDialogProps {
   open: boolean;
@@ -456,6 +457,18 @@ export function StockItemDialog({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* v8.6.113 — Custom fields per articoli magazzino (object_type='warehouse').
+              Visibile solo in editing mode (serve un id per linkare i valori).
+              Configura i campi in Impostazioni -> Campi personalizzati. */}
+          {editingItem?.id && (
+            <div className="pt-3 border-t">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Campi personalizzati
+              </p>
+              <EntityCustomFieldsSection entityType="warehouse" entityId={editingItem.id} />
             </div>
           )}
         </div>

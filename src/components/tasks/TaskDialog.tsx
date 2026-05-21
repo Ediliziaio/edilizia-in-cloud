@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
+import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 
 const RECURRENCE_OPTIONS = [
   { value: "none",      label: "Nessuna ripetizione" },
@@ -550,6 +551,16 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* v8.6.113 — Custom fields task. Visibile solo in editing. */}
+          {isEditing && task?.id && (
+            <div className="pt-3 border-t">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Campi personalizzati
+              </p>
+              <EntityCustomFieldsSection entityType="task" entityId={task.id} />
             </div>
           )}
         </div>

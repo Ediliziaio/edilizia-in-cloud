@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 import {
   Select,
   SelectContent,
@@ -329,6 +330,16 @@ export function EmployeeDialog({
                 </FormItem>
               )}
             />
+
+            {/* v8.6.113 — Campi personalizzati dipendenti (object_type='employee'). */}
+            {employee?.id && (
+              <div className="pt-3 border-t">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                  Campi personalizzati
+                </p>
+                <EntityCustomFieldsSection entityType="employee" entityId={employee.id} />
+              </div>
+            )}
 
             <DialogFooter>
               <Button

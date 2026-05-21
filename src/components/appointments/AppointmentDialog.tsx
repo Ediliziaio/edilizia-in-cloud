@@ -21,6 +21,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
 import AddressAutocomplete, { emptyAddress, type AddressData } from "@/components/shared/AddressAutocomplete";
+import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
 
 export interface AppointmentData {
   id?: string;
@@ -1309,6 +1310,16 @@ export function AppointmentDialog({
             <Label htmlFor="apt-desc">Note</Label>
             <Textarea id="apt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} />
           </div>
+
+          {/* v8.6.113 — Custom fields appuntamento. */}
+          {isEditing && appointment?.id && (
+            <div className="pt-3 border-t">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Campi personalizzati
+              </p>
+              <EntityCustomFieldsSection entityType="appointment" entityId={appointment.id} />
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
