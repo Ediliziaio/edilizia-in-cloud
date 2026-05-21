@@ -35,8 +35,10 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 import { useSubdomainRoute, getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
 // Route modules
-import { adminRoutes } from "@/routes/adminRoutes";
-import { companyRoutes } from "@/routes/companyRoutes";
+// v8.6.110 — Route containers lazy: rimossi 226+91KB di route definitions
+// dal bundle iniziale. Caricati on-demand quando l'utente naviga.
+const AdminRoutesContainer = lazy(() => import("@/routes/adminRoutes"));
+const CompanyRoutesContainer = lazy(() => import("@/routes/companyRoutes"));
 import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from "@/routes/portalRoutes";
 import { tecnicoRoutes } from "@/routes/tecnicoRoutes";
 import { campoRoutes } from "@/routes/campoRoutes";
@@ -489,8 +491,23 @@ const App = () => (
               <Route path="/" element={<SubdomainRedirect />} />
 
               {/* Domain route modules */}
-              {adminRoutes()}
-              {companyRoutes()}
+              {/* v8.6.110 — Lazy containers: bundle iniziale -300KB. */}
+              <Route
+                path="/admin/*"
+                element={
+                  <Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+                    <AdminRoutesContainer />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/azienda/*"
+                element={
+                  <Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+                    <CompanyRoutesContainer />
+                  </Suspense>
+                }
+              />
               {customerRoutes()}
               {employeeRoutes()}
               {salespersonRoutes()}

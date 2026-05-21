@@ -289,13 +289,23 @@ const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostituti
 // MP-CLN-001 Fase 1: COMPANY_ROLES + withCompanyPermission estratti in
 // `./company/_shared.tsx` per riuso e modularizzazione futura router.
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
+import { Routes } from "react-router-dom";
 
-export function companyRoutes() {
+/**
+ * v8.6.110 — Lazy-loadable container che wrappa tutte le route /azienda/*.
+ * Importato dinamicamente da App.tsx via `<Route path="/azienda/*"
+ * element={<Suspense><CompanyRoutesContainer /></Suspense>} />`.
+ * Risultato: 150+KB di route definitions NON entrano nel bundle iniziale,
+ * vengono fetchati solo quando l'utente naviga su /azienda/*.
+ *
+ * Path interni sono RELATIVI al wildcard `/azienda/*` parent.
+ */
+export default function CompanyRoutesContainer() {
   return (
-    <>
+    <Routes>
       {/* Full-screen Automation Builder routes - OUTSIDE CompanyLayout */}
       <Route
-        path="/azienda/marketing/automazioni/nuova"
+        path="marketing/automazioni/nuova"
         element={
           <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
@@ -305,7 +315,7 @@ export function companyRoutes() {
         }
       />
       <Route
-        path="/azienda/marketing/automazioni/:id"
+        path="marketing/automazioni/:id"
         element={
           <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
@@ -320,7 +330,7 @@ export function companyRoutes() {
           sta tutto dentro il Dialog del preventivo. La pagina detecta
           `?embed=1` e postMessage al parent quando il render e' completed. */}
       <Route
-        path="/azienda/render/infissi/embed"
+        path="render/infissi/embed"
         element={
           <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
             <ErrorBoundary title="Errore nel render builder">
@@ -330,9 +340,9 @@ export function companyRoutes() {
         }
       />
 
-      {/* Company Admin and Staff Routes */}
+      {/* Company Admin and Staff Routes — path="" matcha root del wildcard parent */}
       <Route
-        path="/azienda"
+        path=""
         element={
           <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
             <ErrorBoundary title="Errore nell'area azienda">
@@ -762,6 +772,13 @@ export function companyRoutes() {
         <Route path="firma-elettronica" element={withCompanyPermission("canViewOrders", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         <Route path="firma-elettronica/nuovo-template" element={withCompanyPermission("canEditSettingsCustomization", <FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>)} />
       </Route>
-    </>
+    </Routes>
   );
+}
+
+// Backward compat: la function-style `companyRoutes()` ritorna un fragment
+// con tutte le routes (path RELATIVI al wildcard parent). Non piu' usata dopo
+// il refactor lazy, ma mantenuta esportata per non rompere eventuali consumer.
+export function companyRoutes() {
+  return <CompanyRoutesContainer />;
 }

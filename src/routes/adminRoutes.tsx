@@ -106,12 +106,18 @@ const DunningTemplatesPage = lazy(() => import("@/pages/admin/DunningTemplatesPa
 // Mobile menu
 const AdminMobileMenu = lazy(() => import("@/pages/admin/AdminMobileMenu"));
 
-export function adminRoutes() {
+import { Routes } from "react-router-dom";
+
+/**
+ * v8.6.110 — Lazy container. Vedi commento in companyRoutes.tsx.
+ * Caricato on-demand quando l'utente naviga su /admin/*.
+ */
+export default function AdminRoutesContainer() {
   return (
-    <>
+    <Routes>
       {/* Full-screen Admin Automation Builder routes - OUTSIDE AdminLayout */}
       <Route
-        path="/admin/marketing/automazioni/nuova"
+        path="marketing/automazioni/nuova"
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
@@ -123,7 +129,7 @@ export function adminRoutes() {
         }
       />
       <Route
-        path="/admin/marketing/automazioni/:id"
+        path="marketing/automazioni/:id"
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder automazioni">
@@ -137,7 +143,7 @@ export function adminRoutes() {
 
       {/* Full-screen Admin Campaign Editor routes - OUTSIDE AdminLayout */}
       <Route
-        path="/admin/marketing/email/campagna/:id/editor"
+        path="marketing/email/campagna/:id/editor"
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nell'editor campagna">
@@ -149,7 +155,7 @@ export function adminRoutes() {
         }
       />
       <Route
-        path="/admin/marketing/email/campagna/:id/builder"
+        path="marketing/email/campagna/:id/builder"
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel builder email">
@@ -161,7 +167,7 @@ export function adminRoutes() {
         }
       />
       <Route
-        path="/admin/marketing/email/campagna/:id/impostazioni"
+        path="marketing/email/campagna/:id/impostazioni"
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nelle impostazioni campagna">
@@ -175,7 +181,7 @@ export function adminRoutes() {
 
       {/* Super Admin Routes */}
       <Route
-        path="/admin"
+        path=""
         element={
           <ProtectedRoute allowedRoles={[...ADMIN_PLATFORM_ROLES]}>
             <ErrorBoundary title="Errore nel pannello di amministrazione">
@@ -296,6 +302,11 @@ export function adminRoutes() {
         {/* Dunning Templates — Feature 4 */}
         <Route path="dunning-templates" element={<RequireSuperAdmin><DunningTemplatesPage /></RequireSuperAdmin>} />
       </Route>
-    </>
+    </Routes>
   );
+}
+
+// Backward compat (non piu' usato dopo refactor lazy, mantenuto per safety)
+export function adminRoutes() {
+  return <AdminRoutesContainer />;
 }
