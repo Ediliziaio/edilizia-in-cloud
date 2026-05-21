@@ -36,6 +36,16 @@ interface StockItem {
   internal_code: string | null;
   quantity: number;
   tracking_mode: "fungible" | "serialized";
+  /** v8.6.112 — Origine dell'item: 'warehouse' (gia a magazzino) o 'listino'
+   *  (nel catalogo prodotti article_families ma non ancora a stock). Quando
+   *  'listino', il click creera lo stock_item al volo. */
+  source?: "warehouse" | "listino";
+  /** Solo per source='listino': il family_id originale per tracking */
+  family_id?: string;
+  /** Solo per source='listino': prezzo base acquisto suggerito */
+  suggested_unit_cost?: number;
+  /** Solo per source='listino': vat_rate suggerita */
+  suggested_vat?: number;
 }
 
 interface Props {
@@ -57,32 +67,83 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
     return () => clearTimeout(t);
   }, [search]);
 
-  // Query articoli del magazzino selezionato + opzionale filtro testuale
+  // v8.6.112 — Query DUAL: warehouse_stock + article_families (listino prodotti).
+  // L'utente puo selezionare articoli sia gia a magazzino, sia presenti nel
+  // listino prodotti ma mai ricevuti. Al pick di un listino item, lo
+  // stock_item viene creato al volo con i dati pre-popolati.
   const { data: items = [], isLoading } = useQuery<StockItem[]>({
-    queryKey: ["manual-adder-stock", companyId, warehouseId, debouncedSearch],
+    queryKey: ["manual-adder-stock-listino", companyId, warehouseId, debouncedSearch],
     enabled: !!companyId && !!warehouseId && pickerOpen,
     staleTime: 30_000,
     queryFn: async () => {
-      // Mostriamo TUTTI gli articoli del magazzino (anche giacenza 0).
-      // L'utente deve poter cercare e selezionare ogni articolo: il warning
-      // di disponibilità appare nell'item card (e quantità max limitata).
-      let q = supabase
+      const filter = debouncedSearch ? `%${debouncedSearch}%` : null;
+
+      // ── Query 1: warehouse_stock (articoli a magazzino) ─────────────────
+      let wsQ = supabase
         .from("warehouse_stock")
         .select("id, name, internal_code, quantity, tracking_mode")
         .eq("company_id", companyId!)
         .eq("warehouse_id", warehouseId!);
+      if (filter) {
+        wsQ = wsQ.or(`name.ilike.${filter},internal_code.ilike.${filter}`);
+      }
+      wsQ = wsQ.order("quantity", { ascending: false }).order("name", { ascending: true }).limit(150);
 
-      if (debouncedSearch) {
-        const s = `%${debouncedSearch}%`;
-        q = q.or(`name.ilike.${s},internal_code.ilike.${s}`);
+      // ── Query 2: article_families (listino prodotti) ────────────────────
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let afQ = (supabase as any)
+        .from("article_families")
+        .select("id, nome, descrizione, prezzo_base_acquisto, vat_rate")
+        .eq("company_id", companyId!)
+        .eq("attivo", true);
+      if (filter) {
+        afQ = afQ.ilike("nome", filter);
+      }
+      afQ = afQ.order("nome", { ascending: true }).limit(50);
+
+      const [wsRes, afRes] = await Promise.all([wsQ, afQ]);
+      if (wsRes.error) throw wsRes.error;
+
+      const warehouseItems: StockItem[] = (wsRes.data ?? []).map((r) => ({
+        id: r.id,
+        name: r.name,
+        internal_code: r.internal_code,
+        quantity: r.quantity,
+        tracking_mode: r.tracking_mode as "fungible" | "serialized",
+        source: "warehouse" as const,
+      }));
+
+      // Skip listino se la query fallisce (es. tabella non esiste in qualche
+      // company) -> mostriamo solo warehouse, no errore bloccante.
+      if (afRes.error) {
+        console.warn("[ManualArticleAdder] article_families query failed:", afRes.error);
+        return warehouseItems;
       }
 
-      // Ordinamento: prima disponibili, poi a zero. Per nome ASC entro ciascuno.
-      q = q.order("quantity", { ascending: false }).order("name", { ascending: true }).limit(200);
+      // Dedup: se un nome (lowercase) e gia in warehouse, SKIP il duplicato
+      // listino (l'utente vuole l'item gia a magazzino).
+      const warehouseNamesLower = new Set(
+        warehouseItems.map((i) => i.name.toLowerCase().trim()),
+      );
 
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as StockItem[];
+      const listinoItems: StockItem[] = (afRes.data as Array<{
+        id: string; nome: string; descrizione: string | null;
+        prezzo_base_acquisto: number | null; vat_rate: number | null;
+      }>)
+        .filter((r) => !warehouseNamesLower.has(r.nome.toLowerCase().trim()))
+        .map((r) => ({
+          id: `listino:${r.id}`, // prefix per distinguere al pick
+          name: r.nome,
+          internal_code: null,
+          quantity: 0,
+          tracking_mode: "fungible" as const,
+          source: "listino" as const,
+          family_id: r.id,
+          suggested_unit_cost: r.prezzo_base_acquisto ?? undefined,
+          suggested_vat: r.vat_rate ?? undefined,
+        }));
+
+      return [...warehouseItems, ...listinoItems];
     },
   });
 
@@ -92,18 +153,49 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
     setPickerOpen(false);
   }, []);
 
-  const handleAddEntry = useCallback(() => {
+  const handleAddEntry = useCallback(async () => {
     if (!pendingItem) return;
     const qty = parseFloat(pendingQty) || 0;
     if (qty <= 0) return;
-    const safeQty = Math.min(qty, pendingItem.quantity);
+
+    // v8.6.112 — Se l'item viene dal listino (no warehouse_stock yet),
+    // crea lo stock_item al volo con i dati del listino.
+    let realStockItemId = pendingItem.id;
+    let realQuantityAvailable = pendingItem.quantity;
+    if (pendingItem.source === "listino" && pendingItem.family_id && companyId && warehouseId) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: inserted, error } = await (supabase as any)
+          .from("warehouse_stock")
+          .insert({
+            company_id: companyId,
+            warehouse_id: warehouseId,
+            name: pendingItem.name,
+            quantity: 0,
+            unit_cost: pendingItem.suggested_unit_cost ?? 0,
+            vat_rate: pendingItem.suggested_vat ?? 22,
+            tracking_mode: "fungible",
+            min_stock_level: 0,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        realStockItemId = inserted.id;
+        realQuantityAvailable = qty; // appena creato, accetta qualsiasi qty
+      } catch (err) {
+        console.error("[ManualArticleAdder] listino->warehouse create failed:", err);
+        return; // skip silenzioso
+      }
+    }
+
+    const safeQty = pendingItem.source === "listino" ? qty : Math.min(qty, realQuantityAvailable);
 
     // Se l'articolo è già in lista, somma le quantità
-    const existing = entries.find((e) => e.stockItemId === pendingItem.id);
+    const existing = entries.find((e) => e.stockItemId === realStockItemId);
     if (existing) {
       onEntriesChange(
         entries.map((e) =>
-          e.stockItemId === pendingItem.id ? { ...e, quantity: e.quantity + safeQty } : e,
+          e.stockItemId === realStockItemId ? { ...e, quantity: e.quantity + safeQty } : e,
         ),
       );
     } else {
@@ -111,7 +203,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
         ...entries,
         {
           id: crypto.randomUUID(),
-          stockItemId: pendingItem.id,
+          stockItemId: realStockItemId,
           itemName: pendingItem.name,
           quantity: safeQty,
           serialNumbers: [],
@@ -125,7 +217,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
     setPendingItem(null);
     setPendingQty("1");
     setSearch("");
-  }, [pendingItem, pendingQty, entries, onEntriesChange]);
+  }, [pendingItem, pendingQty, entries, onEntriesChange, companyId, warehouseId]);
 
   const handleRemoveEntry = useCallback(
     (entryId: string) => {
@@ -244,27 +336,45 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                             className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
                           >
                             <div className="flex items-center gap-2 w-full">
-                              <span className={`font-medium text-sm truncate ${noStock ? "text-muted-foreground" : ""}`}>
+                              <span className={`font-medium text-sm truncate ${noStock && item.source !== "listino" ? "text-muted-foreground" : ""}`}>
                                 {item.name}
                               </span>
-                              {item.internal_code && (
+                              {/* v8.6.112 — Badge source: distingue articoli magazzino
+                                  da articoli del listino prodotti (mai ricevuti). */}
+                              {item.source === "listino" ? (
+                                <Badge variant="outline" className="text-[10px] h-4 shrink-0 ml-auto bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300">
+                                  📋 Listino
+                                </Badge>
+                              ) : item.internal_code ? (
                                 <Badge variant="outline" className="text-[10px] h-4 shrink-0 ml-auto">
                                   {item.internal_code}
                                 </Badge>
-                              )}
+                              ) : null}
                             </div>
                             <div className="flex items-center gap-2 text-[11px]">
-                              <PackageCheck className={`h-2.5 w-2.5 ${noStock ? "text-destructive" : "text-emerald-600"}`} />
-                              <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
-                                Giacenza:{" "}
-                                <span className="font-semibold tabular-nums">{item.quantity}</span>{" "}
-                                pz
-                              </span>
-                              {noStock && (
-                                <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>
-                              )}
-                              {item.tracking_mode === "serialized" && (
-                                <Badge variant="secondary" className="text-[9px] h-4">SN</Badge>
+                              {item.source === "listino" ? (
+                                <>
+                                  <PackageCheck className="h-2.5 w-2.5 text-blue-600" />
+                                  <span className="text-blue-700 dark:text-blue-300">
+                                    Da listino · l'articolo verrà creato a magazzino
+                                    {item.suggested_unit_cost ? ` · ${item.suggested_unit_cost.toFixed(2)}€` : ""}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <PackageCheck className={`h-2.5 w-2.5 ${noStock ? "text-destructive" : "text-emerald-600"}`} />
+                                  <span className={noStock ? "text-destructive" : "text-muted-foreground"}>
+                                    Giacenza:{" "}
+                                    <span className="font-semibold tabular-nums">{item.quantity}</span>{" "}
+                                    pz
+                                  </span>
+                                  {noStock && (
+                                    <Badge variant="destructive" className="text-[9px] h-4">esaurito</Badge>
+                                  )}
+                                  {item.tracking_mode === "serialized" && (
+                                    <Badge variant="secondary" className="text-[9px] h-4">SN</Badge>
+                                  )}
+                                </>
                               )}
                             </div>
                           </CommandItem>
