@@ -3,7 +3,7 @@
  * Accessibile da lavori.ediliziaincloud.com/campo.
  */
 import { lazy } from "react";
-import { Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CAMPO_ROLES } from "@/types/auth";
@@ -31,44 +31,49 @@ const SubDocumenti        = lazy(() => import("@/pages/campo/subappaltatore/SubD
 const CampoMenu           = lazy(() => import("@/pages/campo/CampoMenu"));
 const CampoAttivita       = lazy(() => import("@/pages/campo/CampoAttivita"));
 
-export function campoRoutes() {
+/** v8.6.115 — Lazy container. */
+export default function CampoRoutesContainer() {
   return (
-    <Route
-      path="/campo"
-      element={
-        <ProtectedRoute allowedRoles={[...CAMPO_ROLES]}>
-          <ErrorBoundary title="Errore nell'area campo">
-            <CampoLayout />
-          </ErrorBoundary>
-        </ProtectedRoute>
-      }
-    >
-      <Route index element={<CampoHome />} />
-      <Route path="calendario" element={<CampoCalendario />} />
-      <Route path="lavoro/:orderId" element={<CampoLavoroDetail />} />
-      <Route path="lavoro/:orderId/rapportino" element={<CampoRapportino />} />
-      <Route path="lavoro/:orderId/rapportino/:rapportinoId" element={<CampoRapportino />} />
-      <Route path="sicurezza" element={<CampoChecklistSicurezza />} />
-      <Route path="rapportino-vocale" element={<CampoRapportinoVoce />} />
-      <Route path="lavoro/:orderId/rapportino-vocale" element={<CampoRapportinoVoce />} />
-      <Route path="timbratura" element={<CampoTimbratura />} />
-      <Route path="presenze" element={<CampoPresenze />} />
-      <Route path="ferie" element={<CampoFerie />} />
-      <Route path="cedolini" element={<CampoCedolini />} />
-      <Route path="magazzino" element={<CampoMagazzino />} />
-      <Route path="chat" element={<CampoChat />} />
-      <Route path="chat/:channelId" element={<CampoChat />} />
-      <Route path="documenti" element={<CampoDocumenti />} />
-      <Route path="tesserino" element={<CampoTesserino />} />
-      <Route path="ticket/nuovo" element={<CampoTicketNuovo />} />
-      <Route path="ticket/nuovo/:orderId" element={<CampoTicketNuovo />} />
-      <Route path="sal" element={<SubSAL />} />
-      <Route path="sub/documenti" element={<SubDocumenti />} />
-      <Route path="profilo" element={<CampoProfilo />} />
-      <Route path="impostazioni" element={<CampoImpostazioni />} />
-      <Route path="attivita" element={<CampoAttivita />} />
-      <Route path="menu" element={<CampoMenu />} />
-      <Route path="*" element={<Navigate to="/campo" replace />} />
-    </Route>
+    <Routes>
+      <Route
+        path=""
+        element={
+          <ProtectedRoute allowedRoles={[...CAMPO_ROLES]}>
+            <ErrorBoundary title="Errore nell'area campo">
+              <CampoLayout />
+            </ErrorBoundary>
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<CampoHome />} />
+        <Route path="calendario" element={<CampoCalendario />} />
+        <Route path="lavoro/:orderId" element={<CampoLavoroDetail />} />
+        <Route path="lavoro/:orderId/rapportino" element={<CampoRapportino />} />
+        <Route path="lavoro/:orderId/rapportino/:rapportinoId" element={<CampoRapportino />} />
+        <Route path="sicurezza" element={<CampoChecklistSicurezza />} />
+        <Route path="rapportino-vocale" element={<CampoRapportinoVoce />} />
+        <Route path="lavoro/:orderId/rapportino-vocale" element={<CampoRapportinoVoce />} />
+        <Route path="timbratura" element={<CampoTimbratura />} />
+        <Route path="presenze" element={<CampoPresenze />} />
+        <Route path="ferie" element={<CampoFerie />} />
+        <Route path="cedolini" element={<CampoCedolini />} />
+        <Route path="magazzino" element={<CampoMagazzino />} />
+        <Route path="chat" element={<CampoChat />} />
+        <Route path="chat/:channelId" element={<CampoChat />} />
+        <Route path="documenti" element={<CampoDocumenti />} />
+        <Route path="tesserino" element={<CampoTesserino />} />
+        <Route path="ticket/nuovo" element={<CampoTicketNuovo />} />
+        <Route path="ticket/nuovo/:orderId" element={<CampoTicketNuovo />} />
+        <Route path="sal" element={<SubSAL />} />
+        <Route path="sub/documenti" element={<SubDocumenti />} />
+        <Route path="profilo" element={<CampoProfilo />} />
+        <Route path="impostazioni" element={<CampoImpostazioni />} />
+        <Route path="attivita" element={<CampoAttivita />} />
+        <Route path="menu" element={<CampoMenu />} />
+        <Route path="*" element={<Navigate to="/campo" replace />} />
+      </Route>
+    </Routes>
   );
 }
+
+export function campoRoutes() { return <CampoRoutesContainer />; }

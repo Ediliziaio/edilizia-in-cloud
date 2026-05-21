@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import type { AppRole } from "@/types/auth";
 
@@ -14,23 +14,29 @@ const TecnicoPercorso = lazy(() => import("@/pages/tecnico/TecnicoPercorso"));
 
 const TECNICO_ROLES: AppRole[] = ["company_admin", "company_staff", "employee"];
 
-export function tecnicoRoutes() {
+/** v8.6.115 — Lazy container (caricato solo su /tecnico/*). */
+export default function TecnicoRoutesContainer() {
   return (
-    <Route
-      path="/tecnico"
-      element={
-        <ProtectedRoute allowedRoles={TECNICO_ROLES}>
-          <TecnicoLayout />
-        </ProtectedRoute>
-      }
-    >
-      <Route index element={<TecnicoHome />} />
-      <Route path="interventi" element={<TecnicoInterventi />} />
-      <Route path="intervento/:id" element={<TecnicoIntervento />} />
-      <Route path="intervento/:id/rapportino" element={<TecnicoRapportino />} />
-      <Route path="furgone" element={<TecnicoFurgone />} />
-      <Route path="profilo" element={<TecnicoProfilo />} />
-      <Route path="percorso" element={<TecnicoPercorso />} />
-    </Route>
+    <Routes>
+      <Route
+        path=""
+        element={
+          <ProtectedRoute allowedRoles={TECNICO_ROLES}>
+            <TecnicoLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<TecnicoHome />} />
+        <Route path="interventi" element={<TecnicoInterventi />} />
+        <Route path="intervento/:id" element={<TecnicoIntervento />} />
+        <Route path="intervento/:id/rapportino" element={<TecnicoRapportino />} />
+        <Route path="furgone" element={<TecnicoFurgone />} />
+        <Route path="profilo" element={<TecnicoProfilo />} />
+        <Route path="percorso" element={<TecnicoPercorso />} />
+      </Route>
+    </Routes>
   );
 }
+
+// Backward compat
+export function tecnicoRoutes() { return <TecnicoRoutesContainer />; }

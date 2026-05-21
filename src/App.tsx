@@ -34,10 +34,11 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 import { useSubdomainRoute, getCurrentSubdomain } from "@/hooks/useSubdomainRoute";
 // Route modules
-// v8.6.110 — Route containers lazy: rimossi 226+91KB di route definitions
-// dal bundle iniziale. Caricati on-demand quando l'utente naviga.
+// v8.6.110/115 — Route containers lazy. Bundle iniziale -300KB+.
 const AdminRoutesContainer = lazy(() => import("@/routes/adminRoutes"));
 const CompanyRoutesContainer = lazy(() => import("@/routes/companyRoutes"));
+const TecnicoRoutesContainer = lazy(() => import("@/routes/tecnicoRoutes"));
+const CampoRoutesContainer = lazy(() => import("@/routes/campoRoutes"));
 import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from "@/routes/portalRoutes";
 import { tecnicoRoutes } from "@/routes/tecnicoRoutes";
 import { campoRoutes } from "@/routes/campoRoutes";
@@ -511,8 +512,23 @@ const App = () => (
               {employeeRoutes()}
               {salespersonRoutes()}
               {partnerRoutes()}
-              {tecnicoRoutes()}
-              {campoRoutes()}
+              {/* v8.6.115 — Tecnico/Campo routes ora lazy */}
+              <Route
+                path="/tecnico/*"
+                element={
+                  <Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+                    <TecnicoRoutesContainer />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/campo/*"
+                element={
+                  <Suspense fallback={<div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"60vh"}}><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+                    <CampoRoutesContainer />
+                  </Suspense>
+                }
+              />
               {/* Portale Cliente — magic link, no auth required */}
               {portaleClienteRoutes()}
 

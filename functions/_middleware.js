@@ -1,3 +1,5 @@
+import { BLOG_BODIES } from "./_blog-bodies.js";
+
 /**
  * Cloudflare Pages Middleware — Bot Detection & Static Pre-render
  *
@@ -1938,7 +1940,11 @@ function resolveRoute(pathname) {
 
     const articleH1 = meta.h1 || meta.title.split("|")[0].trim();
     const articleIntro = meta.description;
-    const articleContent = ""; // Content rendered client-side by React
+    // v8.6.115 — Inietta preview HTML del body articolo (prime 3-4 sezioni)
+    // da BLOG_BODIES (generato via script da src/data/blogPosts.ts).
+    // Risolve 'thin content' SEO: prima Google vedeva solo intro 1 paragrafo,
+    // ora vede 600-2000 char di contenuto reale + heading semantici H2.
+    const articleContent = BLOG_BODIES[slug] || ""; // fallback: client renderizza
     const articleJsonLd = meta.title ? {
       "@context": "https://schema.org",
       "@type": "Article",
