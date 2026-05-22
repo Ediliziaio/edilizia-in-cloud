@@ -11,28 +11,37 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowRight,
+  ArrowUpRight,
   Calendar,
   Check,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Download,
   Edit3,
   ExternalLink,
   Eye,
   Film,
   Hash,
+  Heart,
   Image as ImageIcon,
+  ImagePlus,
   Info,
   Layers,
+  Library,
   Loader2,
+  MessageSquare,
   Pencil,
   Play,
   Plus,
   Send,
   Settings,
+  Share2,
   Smartphone,
   Sparkles,
   TrendingUp,
+  Upload,
+  Users,
   Wand2,
   X,
   Zap,
@@ -289,6 +298,84 @@ interface ScheduledPost {
   status: "draft" | "scheduled" | "published" | "failed";
   created_at: string;
 }
+
+// ─── Media Library types ───────────────────────────────────────────────────────
+
+interface MediaItem {
+  id: string;
+  type: "image" | "video" | "story";
+  format: "9:16" | "4:5" | "1:1" | "16:9";
+  title: string;
+  tags: string[];
+  usedInPosts: number;
+  usedInAds: number;
+  created_at: string;
+  gradient: string;
+  category: "portfolio" | "promo" | "team" | "cantiere" | "prodotto";
+  aiGenerated: boolean;
+  fileSize: string;
+}
+
+// ─── Demo analytics data ───────────────────────────────────────────────────────
+
+const DEMO_ANALYTICS = {
+  period: "Maggio 2026",
+  overview: {
+    reach:       { value: 12_430, change: 18.2 },
+    impressions: { value: 48_920, change: 22.1 },
+    engagement:  { value: 4.8,   change: 0.6  },
+    followers:   { value: 127,   change: 12.4 },
+  },
+  byPlatform: [
+    { id: "instagram", reach: 7_240, impressions: 28_410, engagement: 6.2, followerGain: 84,  posts: 12, topFormat: "Reel"      },
+    { id: "facebook",  reach: 3_180, impressions: 13_200, engagement: 3.1, followerGain: 29,  posts: 8,  topFormat: "Post"      },
+    { id: "linkedin",  reach: 2_010, impressions: 7_310,  engagement: 5.4, followerGain: 14,  posts: 6,  topFormat: "Carosello" },
+  ],
+  weekly: [
+    { label: "L",  posts: 2, reach: 1_840 },
+    { label: "M",  posts: 1, reach:   920 },
+    { label: "M",  posts: 3, reach: 2_100 },
+    { label: "G",  posts: 1, reach: 1_200 },
+    { label: "V",  posts: 4, reach: 3_400 },
+    { label: "S",  posts: 2, reach: 1_970 },
+    { label: "D",  posts: 1, reach: 1_000 },
+  ],
+  topPosts: [
+    { id: "t1", platform: "instagram", contentType: "Reel",      text: "5 errori che fanno perdere soldi in cantiere — e come evitarli",           reach: 3_420, likes: 211, comments: 18, shares: 34, engagementRate: 7.7, date: "15 Mag" },
+    { id: "t2", platform: "facebook",  contentType: "Post",      text: "Il cantiere di Via Roma è completato! 3 mesi di lavoro intenso",            reach: 2_180, likes: 134, comments: 41, shares: 22, engagementRate: 9.0, date: "18 Mag" },
+    { id: "t3", platform: "linkedin",  contentType: "Carosello", text: "Come gestiamo 12 cantieri contemporaneamente senza perdere la testa",       reach: 1_890, likes:  98, comments: 23, shares: 54, engagementRate: 9.2, date: "20 Mag" },
+    { id: "t4", platform: "instagram", contentType: "Post",      text: "I nuovi serramenti in alluminio — un lavoro di precisione assoluta",        reach: 1_640, likes: 156, comments: 12, shares:  8, engagementRate: 10.7,date: "22 Mag" },
+  ],
+  byContentType: [
+    { type: "Reel",      reach: 5_200, engagementRate: 7.1, posts: 5,  color: "from-pink-500 to-rose-500"     },
+    { type: "Post",      reach: 3_800, engagementRate: 4.2, posts: 12, color: "from-blue-500 to-indigo-500"   },
+    { type: "Carosello", reach: 2_100, engagementRate: 8.9, posts: 4,  color: "from-violet-500 to-purple-500" },
+    { type: "Story",     reach: 1_330, engagementRate: 2.1, posts: 9,  color: "from-amber-400 to-orange-500"  },
+  ],
+  insights: [
+    { icon: "🎬", text: "I Reel generano 2.4x il reach dei post normali — pubblica almeno 2 a settimana",               priority: "high"   },
+    { icon: "📅", text: "Venerdì è il giorno con più engagement (+38% vs media) — pianifica i post importanti il venerdì", priority: "high"   },
+    { icon: "🏗️", text: "Il tema 'cantieri completati' genera 9% di engagement — condividi più portfolio lavori",          priority: "medium" },
+    { icon: "💼", text: "LinkedIn ha un engagement del 5.4% — sopra la media edilizia (3.2%)",                            priority: "medium" },
+  ],
+};
+
+// ─── Demo media items ──────────────────────────────────────────────────────────
+
+const DEMO_MEDIA_ITEMS: MediaItem[] = [
+  { id: "m1",  type: "image", format: "4:5",  title: "Cantiere Milano — sopraelevazione",       tags: ["cantiere","edilizia","milano"],   usedInPosts: 3, usedInAds: 1, created_at: "2026-05-10", gradient: "from-slate-600 to-slate-900",    category: "portfolio", aiGenerated: false, fileSize: "2.4 MB" },
+  { id: "m2",  type: "image", format: "1:1",  title: "Serramenti PVC bianchi — dettaglio",       tags: ["serramenti","pvc"],              usedInPosts: 2, usedInAds: 0, created_at: "2026-05-12", gradient: "from-sky-400 to-blue-600",       category: "prodotto",  aiGenerated: false, fileSize: "1.8 MB" },
+  { id: "m3",  type: "image", format: "9:16", title: "Squadra AI — visual cantiere",              tags: ["team","ai-generated"],           usedInPosts: 1, usedInAds: 2, created_at: "2026-05-14", gradient: "from-violet-500 to-pink-600",    category: "team",      aiGenerated: true,  fileSize: "1.2 MB" },
+  { id: "m4",  type: "video", format: "16:9", title: "Time-lapse cantiere Via Roma",              tags: ["timelapse","video","cantiere"],  usedInPosts: 2, usedInAds: 0, created_at: "2026-05-08", gradient: "from-emerald-500 to-teal-700",   category: "portfolio", aiGenerated: false, fileSize: "45 MB"  },
+  { id: "m5",  type: "image", format: "4:5",  title: "Promo estate 2026 — ristrutturazione",     tags: ["promo","estate","offerta"],      usedInPosts: 4, usedInAds: 3, created_at: "2026-05-05", gradient: "from-orange-400 to-red-500",     category: "promo",     aiGenerated: true,  fileSize: "1.6 MB" },
+  { id: "m6",  type: "story", format: "9:16", title: "Story — Prima/Dopo finestre",               tags: ["prima-dopo","serramenti"],       usedInPosts: 1, usedInAds: 1, created_at: "2026-05-15", gradient: "from-amber-400 to-yellow-600",   category: "prodotto",  aiGenerated: false, fileSize: "0.9 MB" },
+  { id: "m7",  type: "image", format: "1:1",  title: "Logo impresa su sfondo cantiere",           tags: ["brand","logo"],                  usedInPosts: 0, usedInAds: 4, created_at: "2026-05-01", gradient: "from-blue-600 to-indigo-800",    category: "promo",     aiGenerated: false, fileSize: "0.4 MB" },
+  { id: "m8",  type: "video", format: "9:16", title: "Reel — 3 consigli per scegliere le finestre",tags: ["reel","educational"],          usedInPosts: 1, usedInAds: 0, created_at: "2026-05-17", gradient: "from-rose-500 to-pink-700",      category: "prodotto",  aiGenerated: false, fileSize: "22 MB"  },
+  { id: "m9",  type: "image", format: "16:9", title: "Squadra al lavoro — installazione",         tags: ["team","installazione"],          usedInPosts: 0, usedInAds: 0, created_at: "2026-05-19", gradient: "from-slate-400 to-slate-700",    category: "team",      aiGenerated: false, fileSize: "3.1 MB" },
+  { id: "m10", type: "image", format: "4:5",  title: "Facciata completata — villa privata",       tags: ["portfolio","facciata"],          usedInPosts: 2, usedInAds: 1, created_at: "2026-05-20", gradient: "from-green-500 to-emerald-700",  category: "portfolio", aiGenerated: false, fileSize: "2.7 MB" },
+  { id: "m11", type: "story", format: "9:16", title: "Story AI — promo tetto in coppi",           tags: ["tetto","promo","ai-generated"],  usedInPosts: 0, usedInAds: 2, created_at: "2026-05-21", gradient: "from-teal-400 to-cyan-600",      category: "promo",     aiGenerated: true,  fileSize: "1.1 MB" },
+  { id: "m12", type: "image", format: "1:1",  title: "Pavimento in gres — dettaglio finitura",   tags: ["pavimentazione","dettaglio"],    usedInPosts: 1, usedInAds: 0, created_at: "2026-05-03", gradient: "from-stone-400 to-stone-700",    category: "prodotto",  aiGenerated: false, fileSize: "1.9 MB" },
+];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -618,59 +705,73 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
                 ))}
               </div>
               {/* Day cells */}
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: dayOffset }).map((_, i) => <div key={`e-${i}`} />)}
+              <div className="grid grid-cols-7 gap-px bg-slate-100 rounded-xl overflow-hidden border border-slate-100">
+                {Array.from({ length: dayOffset }).map((_, i) => (
+                  <div key={`e-${i}`} className="min-h-[92px] bg-slate-50/60" />
+                ))}
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
                   const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
                   const dayPosts = postsByDate[dateKey] ?? [];
                   const isToday = day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
                   const isSelected = dateKey === selectedDay;
+                  const scheduledCount = dayPosts.filter(p => p.status === "scheduled").length;
+                  const publishedCount = dayPosts.filter(p => p.status === "published").length;
+                  // Heat intensity for days with many posts
+                  const heatClass = dayPosts.length >= 4 ? "bg-violet-50" : dayPosts.length >= 2 ? "bg-blue-50/60" : "bg-white";
 
                   return (
                     <button key={day} type="button"
                       onClick={() => setSelectedDay(dateKey === selectedDay ? null : dateKey)}
                       className={cn(
-                        "group relative flex min-h-[72px] flex-col rounded-xl p-1.5 text-left transition",
-                        isSelected ? "ring-2 ring-violet-400 bg-violet-50" : isToday ? "bg-blue-50 ring-1 ring-blue-200" : "hover:bg-slate-50",
+                        "group relative flex min-h-[92px] flex-col p-1.5 text-left transition-colors",
+                        isSelected ? "bg-violet-100 ring-2 ring-inset ring-violet-400" : isToday ? "bg-blue-50" : heatClass,
+                        "hover:bg-violet-50/80",
                       )}>
                       {/* Day number */}
-                      <span className={cn(
-                        "mb-1 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
-                        isToday ? "bg-blue-500 text-white" : isSelected ? "bg-violet-500 text-white" : "text-slate-700",
-                      )}>{day}</span>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className={cn(
+                          "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
+                          isToday ? "bg-blue-500 text-white shadow-sm" : isSelected ? "bg-violet-500 text-white" : "text-slate-600",
+                        )}>{day}</span>
+                        {/* Post count badge */}
+                        {dayPosts.length > 0 && (
+                          <span className={cn(
+                            "flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold",
+                            scheduledCount > 0 ? "bg-blue-500 text-white" : publishedCount > 0 ? "bg-emerald-500 text-white" : "bg-slate-300 text-white",
+                          )}>{dayPosts.length}</span>
+                        )}
+                      </div>
 
                       {/* Post mini-cards */}
-                      <div className="flex flex-col gap-0.5 overflow-hidden">
-                        {dayPosts.slice(0, 2).map((p, i) => {
+                      <div className="flex flex-col gap-0.5 overflow-hidden w-full">
+                        {dayPosts.slice(0, 3).map((p, i) => {
                           const pl = PLATFORMS.find((pl) => pl.id === p.platforms[0]);
                           const sc = STATUS_CONFIG[p.status];
-                          const ct = CONTENT_TYPE_CONFIG.find((c) => c.id === p.contentType);
-                          const Icon = ct?.icon ?? Edit3;
                           return (
-                            <div key={i} className={cn("flex items-center gap-1 rounded px-1 py-0.5 text-[9px] font-medium leading-tight truncate", sc.calBg)}>
-                              <span className={cn("flex h-3 w-3 shrink-0 items-center justify-center rounded-sm text-[7px] font-bold text-white bg-gradient-to-br", pl?.gradient ?? "from-slate-300 to-slate-400")}>
+                            <div key={i} className={cn("flex items-center gap-1 rounded-md px-1 py-0.5 text-[10px] font-medium leading-tight w-full", sc.calBg)}>
+                              <span className={cn("flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded text-[7px] font-bold text-white bg-gradient-to-br", pl?.gradient ?? "from-slate-300 to-slate-400")}>
                                 {pl?.icon ?? "·"}
                               </span>
-                              <span className="truncate">
+                              <span className="truncate min-w-0">
                                 {new Date(p.scheduled_at).toLocaleTimeString("it", { hour:"2-digit", minute:"2-digit" })}
-                                {p.text ? ` · ${p.text.slice(0, 12)}…` : ""}
+                                {p.text ? ` ${p.text.slice(0, 10)}` : ""}
                               </span>
                             </div>
                           );
                         })}
-                        {dayPosts.length > 2 && (
-                          <div className="rounded px-1 py-0.5 text-[9px] font-semibold text-slate-400 bg-slate-100">
-                            +{dayPosts.length - 2} altri
+                        {dayPosts.length > 3 && (
+                          <div className="rounded px-1 py-0.5 text-[10px] font-semibold text-slate-400 bg-slate-100 text-center">
+                            +{dayPosts.length - 3}
                           </div>
                         )}
                       </div>
 
                       {/* Add button on hover */}
-                      {dayPosts.length === 0 && (
-                        <div className="absolute inset-0 flex items-center justify-center rounded-xl opacity-0 transition-opacity group-hover:opacity-100">
-                          <Plus className="h-4 w-4 text-slate-300" />
+                      <div className="absolute bottom-1 right-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-500 text-white shadow-sm">
+                          <Plus className="h-3 w-3" />
                         </div>
-                      )}
+                      </div>
                     </button>
                   );
                 })}
@@ -728,7 +829,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
                         const slotPosts = postsForDateAndHour(d, hour);
                         const isToday = d.toDateString() === today.toDateString();
                         return (
-                          <div key={di} className={cn("min-h-[44px] border-r p-0.5 last:border-r-0", isToday ? "bg-blue-50/40" : "")}>
+                          <div key={di} className={cn("min-h-[56px] border-r p-0.5 last:border-r-0", isToday ? "bg-blue-50/40" : "")}>
                             {slotPosts.map((p, pi) => {
                               const pl = PLATFORMS.find((pl) => pl.id === p.platforms[0]);
                               const sc = STATUS_CONFIG[p.status];
@@ -1641,35 +1742,456 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB: ANALITICHE
+// TAB: ANALITICHE — dashboard completa
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccount[] }) {
+  const [period, setPeriod] = useState<"7d" | "30d" | "90d">("30d");
+  const da = DEMO_ANALYTICS;
+  const maxWeeklyReach = Math.max(...da.weekly.map(w => w.reach));
+  const maxPlatformReach = Math.max(...da.byPlatform.map(p => p.reach));
+
   return (
     <div className="space-y-5">
-      <Card className="overflow-hidden">
-        <div className="h-0.5 bg-gradient-to-r from-emerald-400 to-teal-400" />
-        <CardContent className="pb-6 pt-6 text-center">
-          <TrendingUp className="mx-auto mb-3 h-10 w-10 text-emerald-300" />
-          <p className="text-base font-semibold text-slate-700">Analitiche Social</p>
-          <p className="mt-1 text-sm text-slate-400">
-            {connectedAccounts.length === 0
-              ? "Collega le piattaforme da Impostazioni → Integrazioni per abilitare le analitiche."
-              : "Le metriche saranno disponibili dopo i primi post pubblicati."}
-          </p>
-          {connectedAccounts.length > 0 && (
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[{ label: "Reach totale", value: "—", sub: "ultimi 30gg" }, { label: "Engagement", value: "—", sub: "media %" }, { label: "Follower guadagnati", value: "—", sub: "questo mese" }, { label: "Post pubblicati", value: "0", sub: "questo mese" }].map(({ label, value, sub }) => (
-                <div key={label} className="rounded-xl border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-bold text-slate-800">{value}</p>
-                  <p className="text-xs font-medium text-slate-600">{label}</p>
-                  <p className="text-[10px] text-slate-400">{sub}</p>
+
+      {/* Demo banner */}
+      <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+        <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+        <p className="text-xs text-amber-800">
+          <strong>Dati demo — {da.period}.</strong> Connetti le piattaforme da Impostazioni → Integrazioni per vedere le metriche reali.
+        </p>
+        <div className="ml-auto flex items-center gap-1 rounded-lg border border-amber-200 bg-white p-0.5">
+          {(["7d","30d","90d"] as const).map(p => (
+            <button key={p} type="button" onClick={() => setPeriod(p)}
+              className={cn("rounded-md px-2.5 py-0.5 text-[11px] font-semibold transition",
+                period === p ? "bg-amber-500 text-white" : "text-amber-700 hover:bg-amber-100")}>
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── KPI HERO ── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "Reach",          value: da.overview.reach.value,       change: da.overview.reach.change,       suffix: "",  color: "text-violet-600", bg: "bg-violet-50",  icon: Users      },
+          { label: "Impressioni",    value: da.overview.impressions.value, change: da.overview.impressions.change, suffix: "",  color: "text-blue-600",   bg: "bg-blue-50",    icon: Eye        },
+          { label: "Engagement",     value: da.overview.engagement.value,  change: da.overview.engagement.change,  suffix: "%", color: "text-emerald-600",bg: "bg-emerald-50", icon: Heart      },
+          { label: "Nuovi follower", value: da.overview.followers.value,   change: da.overview.followers.change,   suffix: "",  color: "text-pink-600",   bg: "bg-pink-50",    icon: ArrowUpRight },
+        ].map(({ label, value, change, suffix, color, bg, icon: Icon }) => (
+          <Card key={label} className="overflow-hidden">
+            <div className={cn("h-1 w-full", bg.replace("bg-","bg-gradient-to-r from-").replace("-50","").concat("-400 to-").concat(color.replace("text-","").replace("-600","").concat("-600")))} />
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div className={cn("flex h-8 w-8 items-center justify-center rounded-xl", bg)}>
+                  <Icon className={cn("h-4 w-4", color)} />
                 </div>
-              ))}
+                <span className="flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                  <ArrowUpRight className="h-3 w-3" />+{change}{suffix === "%" ? "pp" : "%"}
+                </span>
+              </div>
+              <p className={cn("text-2xl font-bold tabular-nums", color)}>
+                {value >= 1000 ? `${(value / 1000).toFixed(1)}K` : value}{suffix}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">{label}</p>
+              <p className="text-[10px] text-slate-400">vs mese scorso</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── MAIN GRID ── */}
+      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
+
+        {/* LEFT */}
+        <div className="space-y-5">
+
+          {/* Weekly reach bar chart */}
+          <Card className="overflow-hidden">
+            <div className="h-0.5 bg-gradient-to-r from-violet-400 to-blue-400" />
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <TrendingUp className="h-4 w-4 text-violet-500" /> Reach settimanale
+              </CardTitle>
+              <CardDescription className="text-xs">Post pubblicati e reach per giorno — ultima settimana</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end gap-2" style={{ height: 120 }}>
+                {da.weekly.map((d, i) => {
+                  const barH = Math.max(8, Math.round((d.reach / maxWeeklyReach) * 96));
+                  const isHighest = d.reach === maxWeeklyReach;
+                  return (
+                    <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
+                      <span className="text-[9px] text-slate-400 tabular-nums">{(d.reach / 1000).toFixed(1)}K</span>
+                      <div className="flex w-full flex-col justify-end" style={{ height: 80 }}>
+                        <div
+                          className={cn("w-full rounded-t-lg transition-all", isHighest ? "bg-gradient-to-b from-violet-400 to-violet-600" : "bg-gradient-to-b from-slate-200 to-slate-300")}
+                          style={{ height: barH }}
+                        />
+                      </div>
+                      <span className={cn("text-[11px] font-bold", isHighest ? "text-violet-600" : "text-slate-500")}>{d.label}</span>
+                      {d.posts > 0 && (
+                        <span className={cn("rounded-full px-1.5 text-[8px] font-bold", d.posts >= 3 ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-500")}>{d.posts}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Platform breakdown */}
+          <Card className="overflow-hidden">
+            <div className="h-0.5 bg-gradient-to-r from-pink-400 to-orange-400" />
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Share2 className="h-4 w-4 text-pink-500" /> Performance per piattaforma
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {da.byPlatform.map((p) => {
+                  const pl = PLATFORMS.find(pl => pl.id === p.id);
+                  if (!pl) return null;
+                  const reachPct = Math.round((p.reach / maxPlatformReach) * 100);
+                  return (
+                    <div key={p.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("flex h-6 w-6 items-center justify-center rounded-lg text-[9px] font-bold text-white bg-gradient-to-br", pl.gradient)}>{pl.icon}</span>
+                          <span className="text-sm font-semibold text-slate-700">{pl.name}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{p.posts} post</span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px]">
+                          <span className="text-slate-500">Reach <strong className="text-slate-700">{(p.reach / 1000).toFixed(1)}K</strong></span>
+                          <span className={cn("font-bold", p.engagement >= 5 ? "text-emerald-600" : "text-slate-600")}>{p.engagement}% eng.</span>
+                          <span className="flex items-center gap-0.5 text-blue-600"><ArrowUpRight className="h-3 w-3" />{p.followerGain}</span>
+                        </div>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div className={cn("h-full rounded-full bg-gradient-to-r", pl.gradient)} style={{ width: `${reachPct}%` }} />
+                      </div>
+                      <p className="text-[10px] text-slate-400">Top formato: <span className="font-semibold text-slate-600">{p.topFormat}</span></p>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Top posts */}
+          <Card className="overflow-hidden">
+            <div className="h-0.5 bg-gradient-to-r from-emerald-400 to-teal-400" />
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-emerald-500" /> Top contenuti del mese
+              </CardTitle>
+              <CardDescription className="text-xs">Ordinati per engagement rate</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {da.topPosts.map((p, rank) => {
+                  const pl = PLATFORMS.find(pl => pl.id === p.platform);
+                  return (
+                    <div key={p.id} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                      {/* Rank */}
+                      <div className={cn(
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                        rank === 0 ? "bg-amber-100 text-amber-700" : rank === 1 ? "bg-slate-100 text-slate-600" : "bg-slate-50 text-slate-400"
+                      )}>#{rank + 1}</div>
+                      {/* Platform badge */}
+                      <div className="flex flex-col gap-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {pl && <span className={cn("flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white bg-gradient-to-br", pl.gradient)}>{pl.icon}</span>}
+                          <span className="rounded-full border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">{p.contentType}</span>
+                          <span className="ml-auto text-[10px] text-slate-400">{p.date}</span>
+                        </div>
+                        <p className="text-[12px] font-medium text-slate-700 line-clamp-1">{p.text}</p>
+                        <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                          <span className="flex items-center gap-1"><Users className="h-3 w-3" />{(p.reach / 1000).toFixed(1)}K reach</span>
+                          <span className="flex items-center gap-1"><Heart className="h-3 w-3 text-rose-400" />{p.likes}</span>
+                          <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3 text-blue-400" />{p.comments}</span>
+                          <span className="flex items-center gap-1"><Share2 className="h-3 w-3 text-violet-400" />{p.shares}</span>
+                          <span className={cn("ml-auto font-bold", p.engagementRate >= 8 ? "text-emerald-600" : p.engagementRate >= 5 ? "text-blue-600" : "text-slate-500")}>
+                            {p.engagementRate}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* RIGHT */}
+        <div className="space-y-5">
+
+          {/* Content type performance */}
+          <Card className="overflow-hidden">
+            <div className="h-0.5 bg-gradient-to-r from-violet-400 to-pink-400" />
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Film className="h-4 w-4 text-violet-500" /> Per tipo di contenuto
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {da.byContentType.map((ct) => (
+                  <div key={ct.type} className="flex items-center gap-3">
+                    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white text-[10px] font-bold", ct.color)}>
+                      {ct.type.slice(0, 2)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-slate-700">{ct.type}</span>
+                        <span className="text-[11px] font-bold text-slate-500">{ct.engagementRate}% eng</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div className={cn("h-full rounded-full bg-gradient-to-r", ct.color)}
+                          style={{ width: `${Math.round((ct.reach / da.byContentType[0].reach) * 100)}%` }} />
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-slate-400">{(ct.reach / 1000).toFixed(1)}K reach · {ct.posts} post</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Insights */}
+          <Card className="overflow-hidden border-violet-100">
+            <div className="h-0.5 bg-gradient-to-r from-violet-500 to-pink-500" />
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-violet-500" /> AI Insights
+              </CardTitle>
+              <CardDescription className="text-xs">Suggerimenti basati sulle tue performance</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2.5">
+                {da.insights.map((ins, i) => (
+                  <div key={i} className={cn(
+                    "flex items-start gap-3 rounded-xl border px-3 py-2.5",
+                    ins.priority === "high" ? "border-violet-200 bg-violet-50/60" : "border-slate-100 bg-slate-50/60"
+                  )}>
+                    <span className="text-base leading-none">{ins.icon}</span>
+                    <p className="text-[12px] leading-relaxed text-slate-700">{ins.text}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Best posting times */}
+          <Card className="overflow-hidden">
+            <div className="h-0.5 bg-gradient-to-r from-emerald-400 to-teal-400" />
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4 text-emerald-500" /> Orari migliori per piattaforma
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {PLATFORMS.slice(0, 4).map((p) => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[8px] font-bold text-white bg-gradient-to-br", p.gradient)}>{p.icon}</span>
+                    <div className="flex flex-wrap gap-1">
+                      {p.bestTimes.map((t) => (
+                        <span key={t} className="rounded-full border border-slate-100 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 shadow-sm">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TAB: GALLERIA CONTENUTI
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const FORMAT_ICONS: Record<string, string> = { "9:16": "↕", "4:5": "▬", "1:1": "▪", "16:9": "▭" };
+const CATEGORY_LABELS: Record<MediaItem["category"], string> = {
+  portfolio: "Portfolio", promo: "Promo", team: "Team", cantiere: "Cantiere", prodotto: "Prodotto",
+};
+
+function GalleriaTab({
+  onUseInPost,
+  onUseInAds,
+}: {
+  onUseInPost: (item: MediaItem) => void;
+  onUseInAds:  (item: MediaItem) => void;
+}) {
+  const [typeFilter, setTypeFilter]   = useState<"all" | "image" | "video" | "story">("all");
+  const [catFilter,  setCatFilter]    = useState<MediaItem["category"] | "all">("all");
+  const [search, setSearch]           = useState("");
+  const [mediaItems]                  = useState<MediaItem[]>(DEMO_MEDIA_ITEMS);
+
+  const filtered = mediaItems.filter((m) => {
+    if (typeFilter !== "all" && m.type !== typeFilter) return false;
+    if (catFilter  !== "all" && m.category !== catFilter) return false;
+    if (search && !m.title.toLowerCase().includes(search.toLowerCase()) && !m.tags.some(t => t.includes(search.toLowerCase()))) return false;
+    return true;
+  });
+
+  const totalUsed    = mediaItems.reduce((a, m) => a + m.usedInPosts + m.usedInAds, 0);
+  const aiGenCount   = mediaItems.filter(m => m.aiGenerated).length;
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── HEADER ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-slate-800">Galleria contenuti</h2>
+          <p className="text-xs text-slate-500">
+            {mediaItems.length} file · {aiGenCount} AI-generati · {totalUsed} utilizzi totali
+          </p>
+        </div>
+        <Button size="sm" className="gap-1.5 bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-sm"
+          onClick={() => toast.info("Trascina i file nella zona di upload in Crea Post oppure usa il generatore AI")}>
+          <Upload className="h-3.5 w-3.5" /> Carica media
+        </Button>
+      </div>
+
+      {/* ── FILTERS ── */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {/* Type filter */}
+        <div className="flex items-center gap-1 rounded-xl border bg-white p-1">
+          {([
+            { id: "all",   label: "Tutti"    },
+            { id: "image", label: "Immagini" },
+            { id: "video", label: "Video"    },
+            { id: "story", label: "Story"    },
+          ] as const).map(({ id, label }) => (
+            <button key={id} type="button" onClick={() => setTypeFilter(id)}
+              className={cn("rounded-lg px-3 py-1 text-xs font-semibold transition",
+                typeFilter === id ? "bg-violet-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Category filter */}
+        <div className="flex flex-wrap gap-1">
+          {(["all", "portfolio", "promo", "team", "cantiere", "prodotto"] as const).map((cat) => (
+            <button key={cat} type="button" onClick={() => setCatFilter(cat)}
+              className={cn("rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition",
+                catFilter === cat ? "border-violet-400 bg-violet-100 text-violet-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
+              {cat === "all" ? "Tutte le categorie" : CATEGORY_LABELS[cat]}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative ml-auto">
+          <input
+            type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Cerca…"
+            className="h-8 rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300"
+          />
+          <Sparkles className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-300" />
+        </div>
+      </div>
+
+      {/* ── GRID ── */}
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center">
+          <ImagePlus className="mb-3 h-10 w-10 text-slate-200" />
+          <p className="text-sm font-medium text-slate-500">Nessun contenuto trovato</p>
+          <p className="text-xs text-slate-400">Prova a cambiare i filtri o carica un nuovo file</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((item) => (
+            <div key={item.id} className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-shadow hover:shadow-md">
+              {/* Thumbnail */}
+              <div className={cn("relative flex items-center justify-center bg-gradient-to-br", item.gradient,
+                item.format === "9:16" ? "h-48" : item.format === "16:9" ? "h-28" : item.format === "4:5" ? "h-40" : "h-36"
+              )}>
+                {/* Type icon overlay */}
+                {item.type === "video" && (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40">
+                    <Play className="h-5 w-5 text-white" />
+                  </div>
+                )}
+                {item.type === "story" && (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40">
+                    <Smartphone className="h-5 w-5 text-white" />
+                  </div>
+                )}
+                {item.type === "image" && (
+                  <ImageIcon className="h-8 w-8 text-white/40" />
+                )}
+
+                {/* Badges */}
+                <div className="absolute left-2 top-2 flex gap-1.5">
+                  <span className="rounded-full bg-black/50 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    {FORMAT_ICONS[item.format]} {item.format}
+                  </span>
+                  {item.aiGenerated && (
+                    <span className="rounded-full bg-violet-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                      AI
+                    </span>
+                  )}
+                </div>
+
+                {/* Hover overlay actions */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button type="button" onClick={() => onUseInPost(item)}
+                    className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-lg hover:bg-violet-50">
+                    <Edit3 className="h-3.5 w-3.5 text-violet-600" /> Usa in Post
+                  </button>
+                  <button type="button" onClick={() => onUseInAds(item)}
+                    className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-lg hover:bg-blue-50">
+                    <TrendingUp className="h-3.5 w-3.5 text-blue-600" /> Usa in Ads
+                  </button>
+                  <button type="button" onClick={() => toast.info("Download — funzione disponibile con account collegato")}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-white/80 hover:text-white">
+                    <Download className="h-3 w-3" /> Scarica
+                  </button>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="p-2.5">
+                <p className="text-xs font-semibold text-slate-700 line-clamp-1">{item.title}</p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {item.tags.slice(0, 3).map(t => (
+                    <span key={t} className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-500">#{t}</span>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                  <span className="rounded-full border border-slate-100 px-2 py-0.5 font-medium">{CATEGORY_LABELS[item.category]}</span>
+                  <div className="flex items-center gap-2">
+                    {item.usedInPosts > 0 && <span className="flex items-center gap-0.5"><Edit3 className="h-2.5 w-2.5" />{item.usedInPosts}</span>}
+                    {item.usedInAds  > 0 && <span className="flex items-center gap-0.5 text-blue-500"><TrendingUp className="h-2.5 w-2.5" />{item.usedInAds}</span>}
+                    <span>{item.fileSize}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          ))}
+
+          {/* Upload CTA card */}
+          <button type="button"
+            onClick={() => toast.info("Carica da Crea Post → sezione Media, oppure usa il generatore AI immagini")}
+            className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 transition hover:border-violet-300 hover:bg-violet-50/40">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-pink-100">
+              <ImagePlus className="h-6 w-6 text-violet-500" />
+            </div>
+            <p className="text-xs font-semibold text-slate-500">Aggiungi contenuto</p>
+            <p className="text-[10px] text-slate-400">Upload o genera con AI</p>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1705,12 +2227,24 @@ export default function SocialManagerBeta() {
     });
   }, [STORAGE_KEY]);
 
+  const handleUseInPost = useCallback((item: MediaItem) => {
+    setTab("crea-post");
+    toast.success(`"${item.title}" selezionato`, { description: "Caricalo nella sezione Media del post." });
+  }, []);
+
+  const handleUseInAds = useCallback((item: MediaItem) => {
+    navigate("/azienda/marketing/ads");
+    toast.success(`"${item.title}" → Ads Manager`, { description: "Selezionalo come creativa nella campagna." });
+  }, [navigate]);
+
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
+  const mediaCount     = DEMO_MEDIA_ITEMS.length;
 
   const tabs = [
     { id: "crea-post",  label: "Crea Post",  icon: Edit3      },
     { id: "calendario", label: "Calendario", icon: Calendar,   badge: scheduledCount > 0 ? scheduledCount : undefined },
     { id: "analitiche", label: "Analitiche", icon: TrendingUp  },
+    { id: "galleria",   label: "Galleria",   icon: Library,    badge: mediaCount },
   ];
 
   return (
@@ -1767,6 +2301,9 @@ export default function SocialManagerBeta() {
             )}
             {activeTab === "analitiche" && (
               <AnaliticsTab connectedAccounts={connectedAccounts} />
+            )}
+            {activeTab === "galleria" && (
+              <GalleriaTab onUseInPost={handleUseInPost} onUseInAds={handleUseInAds} />
             )}
           </div>
         </div>
