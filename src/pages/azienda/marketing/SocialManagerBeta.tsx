@@ -2827,6 +2827,280 @@ function GalleriaTab({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// GRID PLANNER TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface GridCell {
+  id: string;
+  type: "published" | "scheduled" | "placeholder";
+  gradient?: string;
+  text?: string;
+  image_url?: string;
+  scheduled_at?: string;
+  platform?: string;
+  pillar?: string;
+  pillarEmoji?: string;
+}
+
+// Build 18-cell grid: last 6 published (from media items) + future slots
+function buildGrid(posts: ScheduledPost[]): GridCell[] {
+  // Last 6 "published" from demo media as past cells
+  const published: GridCell[] = DEMO_MEDIA_ITEMS.slice(0, 6).map((m, i) => ({
+    id: `pub-${m.id}`,
+    type: "published",
+    gradient: m.gradient,
+    text: m.title,
+    platform: "instagram",
+  }));
+
+  // Scheduled instagram posts
+  const scheduled: GridCell[] = posts
+    .filter((p) => p.platforms.includes("instagram") && (p.status === "scheduled" || p.status === "review"))
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+    .slice(0, 9)
+    .map((p) => ({
+      id: `sched-${p.id}`,
+      type: "scheduled",
+      gradient: DEMO_MEDIA_ITEMS[Math.floor(Math.random() * DEMO_MEDIA_ITEMS.length)]?.gradient,
+      text: p.text,
+      image_url: p.image_url,
+      scheduled_at: p.scheduled_at,
+      platform: "instagram",
+    }));
+
+  // Fill to at least 18 cells with placeholders
+  const cells = [...published, ...scheduled];
+  while (cells.length < 18) {
+    cells.push({ id: `placeholder-${cells.length}`, type: "placeholder" });
+  }
+  return cells.slice(0, 18);
+}
+
+// Pillar color mapping for grid overlay
+const PILLAR_GRADIENT: Record<string, string> = {
+  cantiere: "from-sky-500/80 to-sky-700/80",
+  team: "from-amber-500/80 to-amber-700/80",
+  testimonianza: "from-emerald-500/80 to-emerald-700/80",
+  educational: "from-orange-500/80 to-orange-700/80",
+  promo: "from-red-500/80 to-red-700/80",
+  portfolio: "from-violet-500/80 to-violet-700/80",
+};
+
+function GridPlannerTab({ posts }: { posts: ScheduledPost[] }) {
+  const [showLabels, setShowLabels] = useState(true);
+  const [highlightPillar, setHighlightPillar] = useState<string | null>(null);
+  const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
+
+  const grid = buildGrid(posts);
+
+  const getCellPillar = (cell: GridCell): string | null => {
+    if (cell.type !== "scheduled") return null;
+    const text = (cell.text ?? "").toLowerCase();
+    for (const p of CONTENT_PILLARS) {
+      if (p.hashtags.some((h) => text.includes(h.toLowerCase().replace("#", "")))) return p.id;
+      // Also check pillar keywords
+      const kws: Record<string, string[]> = {
+        cantiere: ["cantiere", "lavori", "progress"],
+        team: ["team", "squadra", "collaboratori"],
+        testimonianza: ["testimonianza", "cliente", "soddisfatto", "recensione"],
+        educational: ["consiglio", "normativa", "sapevi", "faq"],
+        promo: ["offerta", "promozione", "preventivo", "sconto"],
+        portfolio: ["portfolio", "completato", "prima", "dopo", "risultato"],
+      };
+      if (kws[p.id]?.some((kw) => text.includes(kw))) return p.id;
+    }
+    return null;
+  };
+
+  const scheduledCount = grid.filter((c) => c.type === "scheduled").length;
+  const publishedCount = grid.filter((c) => c.type === "published").length;
+
+  return (
+    <div className="space-y-4">
+
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-slate-800">📸 Grid Planner Instagram</h2>
+          <p className="text-xs text-slate-500">
+            Visualizza come apparirà il tuo profilo — {publishedCount} pubblicati · {scheduledCount} in programma
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Show labels toggle */}
+          <button type="button" onClick={() => setShowLabels((v) => !v)}
+            className={cn("rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+              showLabels ? "border-orange-300 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50")}>
+            {showLabels ? "🏷 Etichette on" : "🏷 Etichette off"}
+          </button>
+        </div>
+      </div>
+
+      {/* Pillar filter */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] font-semibold text-slate-500">Evidenzia pillar:</span>
+        <button type="button" onClick={() => setHighlightPillar(null)}
+          className={cn("rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition",
+            highlightPillar === null ? "border-orange-400 bg-orange-100 text-orange-700" : "border-slate-200 bg-white text-slate-400 hover:border-slate-300")}>
+          Tutti
+        </button>
+        {CONTENT_PILLARS.map((p) => (
+          <button key={p.id} type="button" onClick={() => setHighlightPillar(p.id === highlightPillar ? null : p.id)}
+            className={cn("flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold transition",
+              highlightPillar === p.id
+                ? `${p.colorBg} ${p.colorBorder} ${p.colorText}`
+                : "border-slate-200 bg-white text-slate-400 hover:border-slate-300")}>
+            {p.emoji} {p.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-4">
+        {/* Instagram mock profile header */}
+        <div className="w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          {/* Profile header */}
+          <div className="flex items-center gap-4 border-b border-slate-100 px-4 py-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-lg font-bold text-white shadow">
+              🏗
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-slate-900">tuaimpresaedile</p>
+              <p className="text-[11px] text-slate-500">Impresa Edile · Costruzioni e Ristrutturazioni</p>
+            </div>
+            <div className="flex gap-4 text-center">
+              <div><p className="text-sm font-bold text-slate-900">124</p><p className="text-[10px] text-slate-500">post</p></div>
+              <div><p className="text-sm font-bold text-slate-900">2.4K</p><p className="text-[10px] text-slate-500">follower</p></div>
+              <div><p className="text-sm font-bold text-slate-900">318</p><p className="text-[10px] text-slate-500">seguiti</p></div>
+            </div>
+          </div>
+
+          {/* Grid */}
+          <div className="grid grid-cols-3 gap-0.5 bg-slate-200 p-0.5">
+            {grid.map((cell, idx) => {
+              const pillarId = getCellPillar(cell);
+              const pillar = CONTENT_PILLARS.find((p) => p.id === pillarId);
+              const isDimmed = highlightPillar !== null && pillarId !== highlightPillar && cell.type !== "published";
+              const isHighlighted = highlightPillar !== null && pillarId === highlightPillar;
+
+              return (
+                <button
+                  key={cell.id}
+                  type="button"
+                  onClick={() => setSelectedCell(cell.id === selectedCell?.id ? null : cell)}
+                  className={cn(
+                    "group relative aspect-square overflow-hidden transition-all",
+                    cell.type === "published" ? "bg-slate-100" : cell.type === "scheduled" ? "bg-slate-200" : "bg-slate-50",
+                    isDimmed && "opacity-30",
+                    isHighlighted && "ring-2 ring-inset ring-white",
+                    selectedCell?.id === cell.id && "ring-2 ring-inset ring-orange-400"
+                  )}
+                >
+                  {/* Background */}
+                  {cell.type === "published" && cell.gradient && (
+                    <div className={cn("absolute inset-0 bg-gradient-to-br", cell.gradient)} />
+                  )}
+                  {cell.type === "scheduled" && (
+                    cell.image_url
+                      ? <img src={cell.image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                      : <div className={cn("absolute inset-0 bg-gradient-to-br", cell.gradient ?? "from-slate-300 to-slate-400")} />
+                  )}
+                  {cell.type === "placeholder" && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Plus className="h-6 w-6 text-slate-300" />
+                    </div>
+                  )}
+
+                  {/* Pillar tint overlay */}
+                  {pillar && highlightPillar === pillar.id && (
+                    <div className={cn("absolute inset-0 bg-gradient-to-br opacity-40", PILLAR_GRADIENT[pillar.id] ?? "")} />
+                  )}
+
+                  {/* Scheduled badge */}
+                  {cell.type === "scheduled" && (
+                    <div className="absolute left-1 top-1">
+                      <span className="rounded-full bg-white/90 px-1.5 py-0.5 text-[8px] font-bold text-slate-700 shadow-sm">
+                        {cell.scheduled_at
+                          ? new Date(cell.scheduled_at).toLocaleDateString("it-IT", { day: "numeric", month: "short" })
+                          : "—"}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Pillar emoji */}
+                  {pillar && showLabels && (
+                    <div className="absolute right-1 top-1">
+                      <span className="text-sm">{pillar.emoji}</span>
+                    </div>
+                  )}
+
+                  {/* Text overlay on hover */}
+                  {showLabels && cell.text && (
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 opacity-0 transition-opacity group-hover:opacity-100">
+                      <p className="line-clamp-2 text-[9px] leading-tight text-white">{cell.text}</p>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Selected cell detail */}
+      {selectedCell && selectedCell.type !== "placeholder" && (
+        <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-800">
+              {selectedCell.type === "published" ? "📌 Post pubblicato" : "⏳ Post programmato"}
+            </p>
+            <button type="button" onClick={() => setSelectedCell(null)} className="rounded-full p-1 text-slate-400 hover:bg-white">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {selectedCell.scheduled_at && (
+            <p className="text-xs text-slate-600">
+              📅 {new Date(selectedCell.scheduled_at).toLocaleString("it-IT", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+            </p>
+          )}
+          {selectedCell.text && (
+            <p className="text-sm text-slate-700">{selectedCell.text}</p>
+          )}
+          {getCellPillar(selectedCell) && (() => {
+            const p = CONTENT_PILLARS.find((p) => p.id === getCellPillar(selectedCell));
+            return p ? (
+              <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", p.colorBg, p.colorBorder, p.colorText)}>
+                {p.emoji} {p.label}
+              </span>
+            ) : null;
+          })()}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
+        <span className="text-[11px] font-bold text-slate-500">Legenda:</span>
+        {[
+          { label: "Pubblicato", color: "bg-slate-400" },
+          { label: "Programmato", color: "bg-orange-400" },
+          { label: "Libero", color: "bg-slate-200 border border-dashed border-slate-300" },
+        ].map(({ label, color }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <span className={cn("h-3 w-3 rounded-sm", color)} />
+            <span className="text-[10px] text-slate-600">{label}</span>
+          </div>
+        ))}
+        {CONTENT_PILLARS.map((p) => (
+          <div key={p.id} className="flex items-center gap-1">
+            <span className="text-xs">{p.emoji}</span>
+            <span className="text-[10px] text-slate-600">{p.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // INBOX TAB
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -3461,11 +3735,12 @@ export default function SocialManagerBeta() {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const tabs = [
-    { id: "crea-post",  label: "Crea Post",  icon: Edit3      },
-    { id: "calendario", label: "Calendario", icon: Calendar,   badge: reviewCount > 0 ? `${reviewCount} ⏳` : (scheduledCount > 0 ? scheduledCount : undefined) },
-    { id: "inbox",      label: "Inbox",      icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
-    { id: "analitiche", label: "Analitiche", icon: TrendingUp  },
-    { id: "galleria",   label: "Galleria",   icon: Library,    badge: mediaCount },
+    { id: "crea-post",  label: "Crea Post",  icon: Edit3          },
+    { id: "calendario", label: "Calendario", icon: Calendar,       badge: reviewCount > 0 ? `${reviewCount} ⏳` : (scheduledCount > 0 ? scheduledCount : undefined) },
+    { id: "grid",       label: "Grid 📸",    icon: Smartphone      },
+    { id: "inbox",      label: "Inbox",      icon: MessageSquare,  badge: inboxUnread > 0 ? inboxUnread : undefined },
+    { id: "analitiche", label: "Analitiche", icon: TrendingUp      },
+    { id: "galleria",   label: "Galleria",   icon: Library,        badge: mediaCount },
   ];
 
   return (
@@ -3530,6 +3805,9 @@ export default function SocialManagerBeta() {
             )}
             {activeTab === "calendario" && (
               <CalendarioTab posts={posts} onNewPost={() => setTab("crea-post")} onUpdatePost={handleUpdatePost} />
+            )}
+            {activeTab === "grid" && (
+              <GridPlannerTab posts={posts} />
             )}
             {activeTab === "inbox" && (
               <InboxTab />
