@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2, Activity, ShieldCheck, XCircle } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
@@ -593,6 +593,216 @@ export default function SettingsIntegrations() {
           </div>
         </>
       )}
+
+      {/* ── Piattaforme Social ───────────────────────────────────────── */}
+      <div className="pt-2 space-y-4">
+        <div className="flex items-center gap-2">
+          <Share2 className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">Piattaforme Social</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+
+          {/* ── Meta Pages & Instagram Content ─────────────────────── */}
+          <Card className="flex flex-col overflow-hidden border-l-4 border-l-blue-500">
+            <CardHeader className="flex-row items-start gap-3 space-y-0 pb-2">
+              {/* Facebook + Instagram dual logo */}
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0 bg-blue-50 dark:bg-blue-950/40">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" fill="#1877F2"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle className="text-base">Meta Pages &amp; Instagram Content</CardTitle>
+                  {metaIntegration?.status === "connected" ? (
+                    <Badge className="text-[10px] gap-1 bg-amber-500 hover:bg-amber-500">
+                      <AlertTriangle className="h-2.5 w-2.5" />
+                      Parzialmente abilitato
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                      Non configurato
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription className="mt-1">
+                  Pubblica post, immagini e Reel su Pagine Facebook e account Instagram Business dal gestionale.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">OAuth scopes richiesti</p>
+                <div className="flex flex-wrap gap-1">
+                  {["pages_manage_posts", "instagram_content_publish", "instagram_manage_insights"].map((s) => (
+                    <span key={s} className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground">{s}</span>
+                  ))}
+                </div>
+              </div>
+              {metaIntegration?.status === "connected" ? (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  La connessione Meta è attiva (Lead Ads). Per abilitare la pubblicazione dei contenuti occorre estendere i permessi OAuth.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Richiede una connessione Meta attiva. Connetti prima Meta Lead Ads dalla sezione superiore.
+                </p>
+              )}
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline font-medium"
+                onClick={() => {
+                  if (metaIntegration?.status === "connected") {
+                    toast.info("Estendi permessi Meta", {
+                      description: "Per abilitare la pubblicazione di contenuti, disconnetti e riconnetti Meta selezionando anche gli scopes 'pages_manage_posts' e 'instagram_content_publish' nel wizard. Questa funzionalità sarà disponibile nella prossima versione.",
+                    });
+                  } else {
+                    toast.info("Connetti prima Meta Lead Ads", {
+                      description: "Torna alla sezione principale e configura l'integrazione Meta (Facebook & Instagram Lead Ads). Una volta connessa potrai estendere i permessi per la pubblicazione dei contenuti.",
+                    });
+                  }
+                }}
+              >
+                {metaIntegration?.status === "connected" ? "Estendi permessi →" : "Connetti Meta →"}
+              </button>
+            </CardContent>
+          </Card>
+
+          {/* ── LinkedIn Company Pages ─────────────────────────────── */}
+          <Card className="flex flex-col overflow-hidden border-l-4 border-l-slate-300">
+            <CardHeader className="flex-row items-start gap-3 space-y-0 pb-2">
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0 bg-muted">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="#0A66C2" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle className="text-base">LinkedIn Company Pages</CardTitle>
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground">Non configurato</Badge>
+                </div>
+                <CardDescription className="mt-1">
+                  Pubblica post e aggiornamenti sulle pagine aziendali LinkedIn dal gestionale.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">OAuth scopes richiesti</p>
+                <div className="flex flex-wrap gap-1">
+                  {["w_organization_social", "r_organization_social"].map((s) => (
+                    <span key={s} className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground">{s}</span>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Endpoint: <span className="font-mono">POST /v2/posts</span> · Richiede approvazione LinkedIn Marketing Developer Platform.
+              </p>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline font-medium"
+                onClick={() =>
+                  toast.info("LinkedIn — Prossimamente", {
+                    description: "L'integrazione LinkedIn Company Pages richiede l'approvazione della tua app nel LinkedIn Marketing Developer Platform. Contatta il supporto per avviare il processo di configurazione.",
+                  })
+                }
+              >
+                Connetti LinkedIn →
+              </button>
+            </CardContent>
+          </Card>
+
+          {/* ── YouTube Channel ────────────────────────────────────── */}
+          <Card className="flex flex-col overflow-hidden border-l-4 border-l-slate-300">
+            <CardHeader className="flex-row items-start gap-3 space-y-0 pb-2">
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0 bg-muted">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="#FF0000" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle className="text-base">YouTube Channel</CardTitle>
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground">Non configurato</Badge>
+                </div>
+                <CardDescription className="mt-1">
+                  Carica video e YouTube Shorts direttamente dal gestionale tramite il tuo account Google.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">OAuth scopes richiesti</p>
+                <div className="flex flex-wrap gap-1">
+                  {["youtube.upload", "youtube.force-ssl"].map((s) => (
+                    <span key={s} className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground">{s}</span>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Usa Google OAuth 2.0 — stesso account Google di Google Ads. Possibilità di collegare entrambi con una sola autenticazione.
+              </p>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline font-medium"
+                onClick={() =>
+                  toast.info("YouTube — Prossimamente", {
+                    description: "L'integrazione YouTube Channel utilizza le stesse credenziali Google di Google Ads. Una volta disponibile, potrai collegare entrambe le piattaforme con un'unica autenticazione OAuth.",
+                  })
+                }
+              >
+                Connetti YouTube →
+              </button>
+            </CardContent>
+          </Card>
+
+          {/* ── TikTok for Business ───────────────────────────────── */}
+          <Card className="flex flex-col overflow-hidden border-l-4 border-l-slate-300">
+            <CardHeader className="flex-row items-start gap-3 space-y-0 pb-2">
+              <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0 bg-muted">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="#000000" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.32 6.32 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V9.05a8.16 8.16 0 004.77 1.52V7.13a4.85 4.85 0 01-1-.44z"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle className="text-base">TikTok for Business</CardTitle>
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground">Non configurato</Badge>
+                </div>
+                <CardDescription className="mt-1">
+                  Pubblica video sul profilo TikTok aziendale direttamente dal gestionale.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">OAuth scopes richiesti</p>
+                <div className="flex flex-wrap gap-1">
+                  {["video.publish", "video.upload"].map((s) => (
+                    <span key={s} className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground">{s}</span>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Richiede TikTok Business Account e approvazione dell'app tramite TikTok Developer Portal.
+              </p>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline font-medium"
+                onClick={() =>
+                  toast.info("TikTok for Business — Prossimamente", {
+                    description: "Per pubblicare su TikTok è necessario un TikTok Business Account e l'approvazione dell'applicazione tramite il TikTok Developer Portal. Contatta il supporto per avviare il processo.",
+                  })
+                }
+              >
+                Connetti TikTok →
+              </button>
+            </CardContent>
+          </Card>
+
+        </div>
+      </div>
+      {/* ── Fine Piattaforme Social ─────────────────────────────────── */}
 
       {metaConfigMissing && (
         <Alert variant="destructive" className="max-w-xl">
