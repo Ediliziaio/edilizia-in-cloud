@@ -26,6 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import { DEMO_MEMORIES, PERSONA_FALLBACKS } from "./brainGraphDemoMemories";
+import { BrainStarfield } from "./BrainStarfield";
+import { BrainInsightFeed } from "./BrainInsightFeed";
 import { GraphCanvas, lightTheme, type GraphNode, type GraphEdge, type GraphCanvasRef } from "reagraph";
 import type { InternalGraphNode, InternalGraphEdge } from "reagraph";
 import { Badge } from "@/components/ui/badge";
@@ -608,6 +610,8 @@ export default function AIBrainGraph() {
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [hoveredEdge, setHoveredEdge] = useState<{ id: string; x: number; y: number } | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [recentEventsCount, setRecentEventsCount] = useState(0);
+  const [livePulse, setLivePulse] = useState(false); // pulse animation on the LIVE indicator
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
@@ -661,6 +665,10 @@ export default function AIBrainGraph() {
           filter: `company_id=eq.${effectiveCompany.id}`,
         },
         () => {
+          // Pulse the LIVE indicator briefly + bump event counter
+          setRecentEventsCount((n) => n + 1);
+          setLivePulse(true);
+          window.setTimeout(() => setLivePulse(false), 1500);
           void qc.invalidateQueries({ queryKey: ["brain-graph-memories"] });
         },
       )
@@ -1034,15 +1042,16 @@ export default function AIBrainGraph() {
               </div>
             </div>
 
-            {/* Insight narrativo */}
-            <div className="md:ml-auto md:max-w-sm flex items-start gap-2 rounded-lg bg-white/70 border border-orange-200/60 px-3 py-2 backdrop-blur-sm">
-              <Sparkles className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wider text-orange-700 font-semibold leading-tight">
-                  {heroInsight.title}
-                </div>
-                <p className="text-[11px] text-slate-700 leading-snug mt-0.5">{heroInsight.text}</p>
-              </div>
+            {/* Insight feed rotante */}
+            <div className="md:ml-auto md:max-w-sm w-full md:w-auto">
+              <BrainInsightFeed
+                memories={memories}
+                personas={personas}
+                crossPersonaLinks={crossPersonaLinks}
+                totalCrossPersonaLinks={totalCrossPersonaLinks}
+                healthPct={insights.healthPct}
+                recentEventsCount={recentEventsCount}
+              />
             </div>
           </div>
         </div>
@@ -1057,6 +1066,35 @@ export default function AIBrainGraph() {
         )}
         style={gridBgStyle}
       >
+      {/* Starfield background animato (dietro al canvas WebGL) */}
+      <BrainStarfield />
+
+      {/* LIVE heartbeat indicator */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <div
+          className={cn(
+            "flex items-center gap-1.5 bg-slate-900/85 backdrop-blur-sm rounded-full border px-2.5 py-1 shadow-lg transition-all duration-300",
+            livePulse
+              ? "border-emerald-400/70 scale-110 shadow-emerald-500/30"
+              : "border-slate-700",
+          )}
+        >
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full transition-all",
+              livePulse ? "bg-emerald-400 animate-ping" : "bg-emerald-500 animate-pulse",
+            )}
+          />
+          <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300">
+            LIVE
+          </span>
+          {recentEventsCount > 0 && (
+            <span className="text-[9px] text-emerald-400 font-bold tabular-nums">
+              {recentEventsCount}
+            </span>
+          )}
+        </div>
+      </div>
       {/* ── Top bar ────────────────────────────────────────────────────────── */}
       <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
@@ -1642,6 +1680,8 @@ export default function AIBrainGraph() {
       )}
 
       {/* ── Graph canvas ───────────────────────────────────────────────────── */}
+      {/* Canvas con effetto glow soft (drop-shadow filter) — z-index above starfield */}
+      <div className="absolute inset-0" style={{ zIndex: 1, filter: "drop-shadow(0 0 8px rgba(251, 146, 60, 0.15))" }}>
       <GraphCanvas
         ref={graphRef}
         nodes={nodes}
@@ -1680,6 +1720,7 @@ export default function AIBrainGraph() {
         onEdgePointerOver={handleEdgePointerOver}
         onEdgePointerOut={handleEdgePointerOut}
       />
+      </div>
       </div>
     </div>
   );
