@@ -4153,16 +4153,27 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
 
       {/* ─── BRIEF UNIFICATO ─────────────────────────────────────────── */}
       <div className={cn(
-        "overflow-hidden rounded-2xl border shadow-sm transition-all duration-200",
+        "overflow-hidden rounded-2xl border shadow-sm transition-all duration-300",
         isBriefOpen
           ? "border-orange-200 bg-gradient-to-br from-orange-50 via-amber-50/50 to-white"
           : "border-orange-100 bg-gradient-to-r from-orange-50/80 to-white"
       )}>
         {!isBriefOpen ? (
-          /* Collapsed — thin brief strip */
+          /* Collapsed — brief strip con genera tutto */
           <div className="flex items-center gap-3 px-4 py-2.5">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-100">
               <FileText className="h-3.5 w-3.5 text-orange-600" />
+            </div>
+            {/* Status dot */}
+            <div className="relative flex h-2 w-2 shrink-0">
+              {brief ? (
+                <>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
+                </>
+              ) : (
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-slate-300" />
+              )}
             </div>
             <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
               {SEGMENT_LABELS[segment] ?? segment}
@@ -4173,14 +4184,29 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </span>
             )}
             <p className="min-w-0 flex-1 truncate text-sm text-slate-600">
-              {brief || <span className="italic text-slate-400">Nessun brief — inserisci il tuo messaggio</span>}
+              {brief || <span className="italic text-slate-400">Nessun brief — clicca Modifica per impostarlo</span>}
             </p>
-            <button
-              type="button"
-              onClick={() => setIsBriefOpen(true)}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-orange-100 px-2.5 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-200">
-              <Pencil className="h-3 w-3" /> Modifica brief
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {brief && (
+                <button
+                  type="button"
+                  onClick={() => { onGenerateAll(); }}
+                  disabled={isGeneratingCopy || isGeneratingImage || isGeneratingScript}
+                  className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-rose-500 px-3 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:from-orange-600 hover:to-rose-600 disabled:opacity-60">
+                  {(isGeneratingCopy || isGeneratingImage || isGeneratingScript)
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : <Sparkles className="h-3 w-3" />
+                  }
+                  Genera tutto
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsBriefOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-orange-100 px-2.5 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-200">
+                <Pencil className="h-3 w-3" /> Modifica brief
+              </button>
+            </div>
           </div>
         ) : (
           /* Expanded — full brief form */
@@ -4224,26 +4250,44 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 <Input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Es. Monza e Brianza" />
               </Field>
             </div>
-            <Field label="Descrivi l'offerta e l'angolo di vendita">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium text-slate-700">Descrivi l'offerta e l'angolo di vendita</Label>
+                <span className={cn("text-[10px] tabular-nums", brief.length > 200 ? "text-amber-600" : "text-slate-400")}>
+                  {brief.length} car.
+                </span>
+              </div>
               <Textarea
                 value={brief}
                 onChange={(e) => setBrief(e.target.value)}
                 className="min-h-20 resize-none"
                 placeholder="Serramenti premium con sopralluogo gratuito e posa certificata..."
               />
-            </Field>
+            </div>
             <Button
               onClick={() => { onGenerateAll(); setIsBriefOpen(false); }}
               disabled={!brief.trim() || isGeneratingCopy || isGeneratingImage || isGeneratingScript}
               className="w-full bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-sm">
               {(isGeneratingCopy || isGeneratingImage || isGeneratingScript)
                 ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generazione in corso...</>
-                : <><Sparkles className="mr-2 h-4 w-4" /> Genera tutto con AI</>
+                : <><Sparkles className="mr-2 h-4 w-4" /> Genera tutto con AI — Copy · Immagine · Script</>
               }
             </Button>
           </div>
         )}
       </div>
+
+      {/* ─── Flow connector ──────────────────────────────────────────── */}
+      {brief && (
+        <div className="flex items-center gap-3 px-1">
+          <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-100" />
+          <div className="flex items-center gap-1.5 rounded-full border border-slate-100 bg-white px-2.5 py-1 shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
+            <span className="text-[10px] font-medium text-slate-400">Brief attivo → Copy · Immagine · Script</span>
+          </div>
+          <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-100" />
+        </div>
+      )}
 
       {/* ─── ROW 1: COPY + IMAGE ─────────────────────────────────────── */}
       <div className="grid gap-5 xl:grid-cols-2">
@@ -4252,24 +4296,26 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
         <Card className="overflow-hidden">
           <div className="h-0.5 bg-gradient-to-r from-violet-500 to-purple-500" />
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-100">
-                <Sparkles className="h-4 w-4 text-violet-600" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-100">
+                  <Sparkles className="h-4 w-4 text-violet-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Copy AI</CardTitle>
+                  <CardDescription className="text-[11px]">5 varianti · hook · CTA per Meta Ads</CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-base">Copy AI</CardTitle>
-                <CardDescription className="text-[11px]">5 varianti · hook · CTA per Meta Ads</CardDescription>
-              </div>
-            </div>
-            {brief && (
-              <div className="mt-2.5 flex items-center gap-2 overflow-hidden rounded-lg border border-violet-100 bg-violet-50/60 px-2.5 py-1.5">
-                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-violet-400">Brief</span>
-                <span className="min-w-0 flex-1 truncate text-[11px] text-violet-700">{brief}</span>
-                <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold text-violet-600">
-                  {SEGMENT_LABELS[segment] ?? segment}
+              {brief ? (
+                <span className="flex shrink-0 items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-600">
+                  <Check className="h-2.5 w-2.5" /> {SEGMENT_LABELS[segment] ?? segment}
                 </span>
-              </div>
-            )}
+              ) : (
+                <span className="shrink-0 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                  Brief mancante
+                </span>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             <Button onClick={onGenerateCopy} disabled={isGeneratingCopy || !brief.trim()} className="w-full bg-violet-600 hover:bg-violet-700">
@@ -4278,11 +4324,25 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             </Button>
 
             {!generatedCopy && !isGeneratingCopy && (
-              <div className="rounded-xl border border-dashed border-violet-100 bg-violet-50/40 p-4 text-center">
-                <p className="text-[11px] font-semibold text-violet-700">Otterrai:</p>
-                <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-                  {["5 varianti copy", "3 hook apertura", "CTA suggerite", "Prompt immagine"].map(t => (
-                    <span key={t} className="rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[10px] text-violet-600">{t}</span>
+              <div className="rounded-xl border border-dashed border-violet-100 bg-gradient-to-b from-violet-50/60 to-transparent p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                  <p className="text-[11px] font-semibold text-violet-700">Genererai in un click:</p>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { icon: "✦", label: "5 varianti copy", sub: "Adatti al tuo settore e zona" },
+                    { icon: "🪝", label: "3 hook apertura", sub: "Per catturare l'attenzione nei primi 3s" },
+                    { icon: "🎯", label: "CTA suggerite", sub: "Frasi d'azione efficaci" },
+                    { icon: "🖼️", label: "Prompt immagine",  sub: "Pronti per Immagine AI" },
+                  ].map(({ icon, label, sub }) => (
+                    <div key={label} className="flex items-center gap-2.5">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-sm shadow-sm">{icon}</span>
+                      <div>
+                        <p className="text-[11px] font-semibold leading-none text-violet-800">{label}</p>
+                        <p className="mt-0.5 text-[10px] leading-none text-violet-400">{sub}</p>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -4380,25 +4440,27 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
         <Card className="overflow-hidden">
           <div className="h-0.5 bg-gradient-to-r from-amber-400 to-orange-500" />
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-                <Wand2 className="h-4 w-4 text-amber-600" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+                  <Wand2 className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Immagine AI</CardTitle>
+                  <CardDescription className="text-[11px]">DALL-E · preview inline · salvata in libreria</CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-base">Immagine AI</CardTitle>
-                <CardDescription className="text-[11px]">DALL-E · preview inline · salvata in libreria</CardDescription>
-              </div>
-            </div>
-            {brief && (
-              <div className="mt-2.5 flex items-center gap-2 overflow-hidden rounded-lg border border-amber-100 bg-amber-50/60 px-2.5 py-1.5">
-                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-amber-500">Brief</span>
-                <span className="min-w-0 flex-1 truncate text-[11px] text-amber-700">{brief}</span>
+              {brief && imagePrompt !== brief ? (
                 <button type="button" onClick={() => setImagePrompt(brief)}
-                  className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 transition hover:bg-amber-200">
-                  ↺ Sincronizza
+                  className="flex shrink-0 items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-100">
+                  <RefreshCw className="h-2.5 w-2.5" /> Sincronizza
                 </button>
-              </div>
-            )}
+              ) : brief ? (
+                <span className="flex shrink-0 items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                  <Check className="h-2.5 w-2.5" /> Sincronizzato
+                </span>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="space-y-3.5">
             {/* Aspect ratio visual picker */}
@@ -4480,6 +4542,30 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             </Button>
 
             {/* Preview inline dopo generazione */}
+            {!isGeneratingImage && !lastGeneratedImage && (
+              /* Visual placeholder proporzionale al formato scelto */
+              <div className="flex justify-center py-1">
+                {(() => {
+                  const ratioMap: Record<string, { w: number; h: number }> = {
+                    "1:1":  { w: 120, h: 120 },
+                    "4:5":  { w: 100, h: 125 },
+                    "9:16": { w: 72,  h: 128 },
+                    "16:9": { w: 160, h: 90 },
+                  };
+                  const dim = ratioMap[aspectRatio] ?? { w: 100, h: 125 };
+                  return (
+                    <div
+                      className="relative flex items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50"
+                      style={{ width: dim.w, height: dim.h }}>
+                      <div className="text-center">
+                        <Wand2 className="mx-auto mb-1.5 h-5 w-5 text-amber-300" />
+                        <p className="text-[10px] font-medium text-amber-400">{aspectRatio}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
             {isGeneratingImage && (
               <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-6 text-sm text-amber-700">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -4549,13 +4635,17 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </button>
             </div>
           </div>
-          {brief && videoTab === "script" && (
-            <div className="mt-2.5 flex items-center gap-2 overflow-hidden rounded-lg border border-rose-100 bg-rose-50/60 px-2.5 py-1.5">
-              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-rose-400">Brief</span>
-              <span className="min-w-0 flex-1 truncate text-[11px] text-rose-700">{brief}</span>
-              <span className="shrink-0 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-600">
-                {SEGMENT_LABELS[segment] ?? segment}
-              </span>
+          {videoTab === "script" && (
+            <div className="mt-1">
+              {brief ? (
+                <span className="flex w-fit items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+                  <Check className="h-2.5 w-2.5" /> {SEGMENT_LABELS[segment] ?? segment} · Brief attivo
+                </span>
+              ) : (
+                <span className="flex w-fit items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                  Brief mancante — impostalo in cima
+                </span>
+              )}
             </div>
           )}
         </CardHeader>
@@ -4708,7 +4798,8 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
       </Card>
 
       {/* ─── ROW 3: LIBRERIA ASSET ───────────────────────────────────── */}
-      <Card>
+      <Card className="overflow-hidden">
+        <div className="h-0.5 bg-gradient-to-r from-slate-300 to-slate-200" />
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
