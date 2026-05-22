@@ -60,6 +60,9 @@ const ALL_DETECTORS = [
   "fattura_scaduta_30gg",
   "durc_scadenza_subappaltatore",
   "lead_dormiente_30gg",
+  // Feature #2 — Self-healing cashflow: quando forecast 90gg è negativo,
+  // l'AI prepara proposte di sollecito ai top debitori per recuperare cassa.
+  "cashflow_critico_90gg",
 ] as const;
 type DetectorName = typeof ALL_DETECTORS[number];
 
@@ -320,11 +323,221 @@ async function detectLeadDormienti(
   return result;
 }
 
+/**
+ * Feature #2 — Self-healing cashflow.
+ *
+ * Quando il forecast 90gg per l'azienda è negativo (worst-case con cassa cumulativa <0
+ * in qualche settimana), l'AI agisce come "CFO d'emergenza":
+ *
+ *   1. Verifica forecast esistente (cashflow_forecast_snapshots, ultimo del giorno)
+ *      o lo computa al volo via RPC silvio_tool_get_cashflow_forecast_scenarios.
+ *   2. Se worst_case è negativo, prende i top 5 ordini con rate scadute
+ *      (deposit, deposit_2, saldo) ordinati per importo decrescente.
+ *   3. Crea per ciascuno una proposta canonica `send_overdue_reminder` con
+ *      payload pronto per `silvio-execute-action`.
+ *
+ * Il modulo Feature #1 (trust policy) decide poi se inviare automaticamente
+ * o chiedere conferma all'utente. Se la company ha mode=auto_execute per
+ * send_overdue_reminder, queste proposte verranno applicate al prossimo giro
+ * del worker auto-execute (worker = lavoro futuro / Phase 2 del rollout).
+ *
+ * Idempotenza: via create_proactive_proposal sul signal_type. Tutta la flow
+ * non manda email automatiche oggi — crea solo proposte. Sicuro per default.
+ */
+async function detectCashflowCritico(
+  supa: SupabaseClient,
+  companyId: string,
+  defaultUserId: string,
+): Promise<DetectorResult> {
+  const result: DetectorResult = {
+    signal_type: "cashflow_critico_90gg",
+    proposals_created: 0,
+    proposals_skipped: 0,
+    errors: [],
+  };
+
+  try {
+    // 1) Verifica se la cassa attesa nei prossimi 90gg è negativa.
+    //    Preferisco l'ultimo snapshot del giorno (più veloce); se manca, ricomputo.
+    let worstCumulativeEur: number | null = null;
+    let worstWeekIso: string | null = null;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: snap } = await (supa as any)
+      .from("cashflow_forecast_snapshots")
+      .select("scenarios, created_at")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const snapScenarios = (snap as { scenarios?: Record<string, unknown> } | null)?.scenarios;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const worstFromSnap = (snapScenarios as any)?.worst_case ?? null;
+    if (worstFromSnap && typeof worstFromSnap.cumulative_eur === "number") {
+      worstCumulativeEur = worstFromSnap.cumulative_eur;
+      worstWeekIso = typeof worstFromSnap.min_balance_week === "string"
+        ? worstFromSnap.min_balance_week
+        : null;
+    }
+
+    // Fallback: ricomputo via RPC se non c'è snapshot recente.
+    if (worstCumulativeEur === null) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: forecast } = await (supa as any).rpc(
+        "silvio_tool_get_cashflow_forecast_scenarios",
+        { p_company_id: companyId, p_giorni: 90 },
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const worst = (forecast as any)?.worst_case;
+      if (worst && typeof worst.cumulative_eur === "number") {
+        worstCumulativeEur = worst.cumulative_eur;
+        worstWeekIso = typeof worst.min_balance_week === "string" ? worst.min_balance_week : null;
+      }
+    }
+
+    // Soglia di trigger: -5000 EUR. Sotto questa cifra la cassa è solo "sotto target",
+    // non "in emergenza" — il sistema avvisa ma non propone azioni invasive.
+    const TRIGGER_THRESHOLD_EUR = -5_000;
+    if (worstCumulativeEur === null || worstCumulativeEur > TRIGGER_THRESHOLD_EUR) {
+      // Cassa OK o forecast non disponibile → nessuna proposta.
+      return result;
+    }
+
+    // 2) Trova i top 5 ordini con rate scadute, ordinati per importo decrescente
+    //    sull'acconto scaduto (la rata più importante e più recuperabile).
+    const today = new Date().toISOString().slice(0, 10);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: overdueOrders, error: ordErr } = await (supa as any)
+      .from("orders")
+      .select("id, order_code, client_name, client_company, client_email, deposit_amount, deposit_expected_date, deposit_paid, deposit_2_amount, deposit_2_expected_date, deposit_2_paid, balance_amount, balance_expected_date, balance_paid")
+      .eq("company_id", companyId)
+      .or(
+        // rate scadute non pagate
+        `and(deposit_paid.eq.false,deposit_expected_date.lt.${today}),and(deposit_2_paid.eq.false,deposit_2_expected_date.lt.${today}),and(balance_paid.eq.false,balance_expected_date.lt.${today})`,
+      )
+      .limit(50);
+
+    if (ordErr) {
+      // Schema diverso o tabella non disponibile in questa company → degrade silent.
+      if (!ordErr.message.includes("does not exist") && !ordErr.message.includes("column")) {
+        result.errors.push(`query orders overdue: ${ordErr.message}`);
+      }
+      return result;
+    }
+
+    // Calcola per ogni ordine l'importo scaduto reale + la rata "più impattante"
+    interface DebtorRow {
+      order_id: string;
+      order_code: string;
+      client_name: string;
+      client_email: string | null;
+      total_overdue_eur: number;
+      worst_rata: "acconto" | "acconto_2" | "saldo";
+      days_late: number;
+    }
+    const todayDate = new Date(today);
+    const debtors: DebtorRow[] = [];
+    for (const o of (overdueOrders ?? []) as Array<Record<string, unknown>>) {
+      let total = 0;
+      let worstDays = 0;
+      let worstRata: DebtorRow["worst_rata"] = "acconto";
+      const consider = (
+        amount: unknown,
+        paid: unknown,
+        date: unknown,
+        rata: DebtorRow["worst_rata"],
+      ) => {
+        const amt = Number(amount ?? 0);
+        if (!amt || paid === true) return;
+        if (typeof date !== "string" || !date) return;
+        const d = new Date(date);
+        if (d >= todayDate) return;
+        const days = Math.floor((todayDate.getTime() - d.getTime()) / 86_400_000);
+        total += amt;
+        if (days > worstDays) {
+          worstDays = days;
+          worstRata = rata;
+        }
+      };
+      consider(o.deposit_amount, o.deposit_paid, o.deposit_expected_date, "acconto");
+      consider(o.deposit_2_amount, o.deposit_2_paid, o.deposit_2_expected_date, "acconto_2");
+      consider(o.balance_amount, o.balance_paid, o.balance_expected_date, "saldo");
+      if (total <= 0) continue;
+      debtors.push({
+        order_id: String(o.id),
+        order_code: String(o.order_code ?? o.id),
+        client_name: String(o.client_name ?? o.client_company ?? "Cliente"),
+        client_email: typeof o.client_email === "string" ? o.client_email : null,
+        total_overdue_eur: total,
+        worst_rata: worstRata,
+        days_late: worstDays,
+      });
+    }
+
+    // Top 5 per importo scaduto, ma SOLO chi ha email (altrimenti sollecito non parte).
+    const top = debtors
+      .filter((d) => d.client_email && /\S+@\S+\.\S+/.test(d.client_email))
+      .sort((a, b) => b.total_overdue_eur - a.total_overdue_eur)
+      .slice(0, 5);
+
+    // 3) Crea le proposte di sollecito.
+    for (const d of top) {
+      const summary = `Cassa critica a 90gg (€${Math.abs(worstCumulativeEur).toFixed(0)} negativi). ` +
+        `Cliente ${d.client_name} deve €${d.total_overdue_eur.toFixed(0)} da ${d.days_late}gg — invio sollecito?`;
+      const { error: createErr } = await supa.rpc("create_proactive_proposal", {
+        p_company_id: companyId,
+        p_user_id: defaultUserId,
+        p_persona_key: "amministrazione",
+        p_action_type: "send_overdue_reminder",
+        p_summary: summary.substring(0, 200),
+        p_payload: {
+          order_id: d.order_id,
+          client_email: d.client_email,
+          client_name: d.client_name,
+          amount: d.total_overdue_eur,
+          rata_type: d.worst_rata,
+          // contesto cashflow per la chat (non usato dal handler)
+          context: {
+            trigger: "cashflow_critico_90gg",
+            worst_case_eur: worstCumulativeEur,
+            worst_week: worstWeekIso,
+          },
+        },
+        p_signal_type: "cashflow_critico_90gg",
+        // Idempotenza per (company, signal, order_id): se esiste già una proposta
+        // pending per questo ordine + signal, viene saltata via RPC.
+        p_signal_entity_id: d.order_id,
+        p_signal_metadata: {
+          worst_case_eur: worstCumulativeEur,
+          worst_week: worstWeekIso,
+          days_late: d.days_late,
+          amount_eur: d.total_overdue_eur,
+          rata: d.worst_rata,
+        },
+        // Rischio yellow: l'azione è ricuperabile e reversible (email non distruttiva)
+        // Resta soggetta a policy company: se mode=auto_execute il worker la manda da solo.
+        p_risk_level: "yellow",
+        p_ttl_days: 5,
+      });
+      if (createErr) {
+        result.errors.push(`rpc cashflow ${d.order_id}: ${createErr.message}`);
+      } else {
+        result.proposals_created += 1;
+      }
+    }
+  } catch (e) {
+    result.errors.push(e instanceof Error ? e.message : String(e));
+  }
+  return result;
+}
+
 const DETECTORS: Record<DetectorName, typeof detectCantieriInRitardo> = {
   cantiere_in_ritardo: detectCantieriInRitardo,
   fattura_scaduta_30gg: detectFattureScadute,
   durc_scadenza_subappaltatore: detectDurcInScadenza,
   lead_dormiente_30gg: detectLeadDormienti,
+  cashflow_critico_90gg: detectCashflowCritico,
 };
 
 // ════════════════════════════════════════════════════════════════════════════
