@@ -349,7 +349,7 @@ const DEMO_ANALYTICS = {
   byContentType: [
     { type: "Reel",      reach: 5_200, engagementRate: 7.1, posts: 5,  color: "from-pink-500 to-rose-500"     },
     { type: "Post",      reach: 3_800, engagementRate: 4.2, posts: 12, color: "from-blue-500 to-indigo-500"   },
-    { type: "Carosello", reach: 2_100, engagementRate: 8.9, posts: 4,  color: "from-violet-500 to-purple-500" },
+    { type: "Carosello", reach: 2_100, engagementRate: 8.9, posts: 4,  color: "from-orange-500 to-purple-500" },
     { type: "Story",     reach: 1_330, engagementRate: 2.1, posts: 9,  color: "from-amber-400 to-orange-500"  },
   ],
   insights: [
@@ -365,7 +365,7 @@ const DEMO_ANALYTICS = {
 const DEMO_MEDIA_ITEMS: MediaItem[] = [
   { id: "m1",  type: "image", format: "4:5",  title: "Cantiere Milano — sopraelevazione",       tags: ["cantiere","edilizia","milano"],   usedInPosts: 3, usedInAds: 1, created_at: "2026-05-10", gradient: "from-slate-600 to-slate-900",    category: "portfolio", aiGenerated: false, fileSize: "2.4 MB" },
   { id: "m2",  type: "image", format: "1:1",  title: "Serramenti PVC bianchi — dettaglio",       tags: ["serramenti","pvc"],              usedInPosts: 2, usedInAds: 0, created_at: "2026-05-12", gradient: "from-sky-400 to-blue-600",       category: "prodotto",  aiGenerated: false, fileSize: "1.8 MB" },
-  { id: "m3",  type: "image", format: "9:16", title: "Squadra AI — visual cantiere",              tags: ["team","ai-generated"],           usedInPosts: 1, usedInAds: 2, created_at: "2026-05-14", gradient: "from-violet-500 to-pink-600",    category: "team",      aiGenerated: true,  fileSize: "1.2 MB" },
+  { id: "m3",  type: "image", format: "9:16", title: "Squadra AI — visual cantiere",              tags: ["team","ai-generated"],           usedInPosts: 1, usedInAds: 2, created_at: "2026-05-14", gradient: "from-orange-500 to-pink-600",    category: "team",      aiGenerated: true,  fileSize: "1.2 MB" },
   { id: "m4",  type: "video", format: "16:9", title: "Time-lapse cantiere Via Roma",              tags: ["timelapse","video","cantiere"],  usedInPosts: 2, usedInAds: 0, created_at: "2026-05-08", gradient: "from-emerald-500 to-teal-700",   category: "portfolio", aiGenerated: false, fileSize: "45 MB"  },
   { id: "m5",  type: "image", format: "4:5",  title: "Promo estate 2026 — ristrutturazione",     tags: ["promo","estate","offerta"],      usedInPosts: 4, usedInAds: 3, created_at: "2026-05-05", gradient: "from-orange-400 to-red-500",     category: "promo",     aiGenerated: true,  fileSize: "1.6 MB" },
   { id: "m6",  type: "story", format: "9:16", title: "Story — Prima/Dopo finestre",               tags: ["prima-dopo","serramenti"],       usedInPosts: 1, usedInAds: 1, created_at: "2026-05-15", gradient: "from-amber-400 to-yellow-600",   category: "prodotto",  aiGenerated: false, fileSize: "0.9 MB" },
@@ -603,7 +603,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
     { label: "Pubblicati",         value: posts.filter((p) => p.status === "published").length,  color: "text-emerald-600", bg: "bg-emerald-50" },
     { label: "Bozze",             value: posts.filter((p) => p.status === "draft").length,       color: "text-slate-600",   bg: "bg-slate-50"   },
     { label: "Falliti",           value: posts.filter((p) => p.status === "failed").length,      color: "text-red-500",     bg: "bg-red-50"     },
-    { label: "Piattaforme attive", value: new Set(posts.flatMap((p) => p.platforms)).size,       color: "text-violet-600",  bg: "bg-violet-50"  },
+    { label: "Piattaforme attive", value: new Set(posts.flatMap((p) => p.platforms)).size,       color: "text-orange-600",  bg: "bg-orange-50"  },
   ];
 
   // ── Upcoming posts (next 14 days) ──────────────────────────────────────────
@@ -636,7 +636,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
             {(["month","week"] as const).map((v) => (
               <button key={v} type="button" onClick={() => setView(v)}
                 className={cn("px-3.5 py-1.5 font-semibold transition",
-                  view === v ? "bg-violet-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
+                  view === v ? "bg-orange-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
                 {v === "month" ? "Mese" : "Settimana"}
               </button>
             ))}
@@ -646,7 +646,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
           <div className="flex items-center gap-1.5">
             <button type="button" onClick={() => setFilterPlatform(null)}
               className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
-                filterPlatform === null ? "border-violet-400 bg-violet-100 text-violet-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
+                filterPlatform === null ? "border-orange-400 bg-orange-100 text-orange-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
               Tutti
             </button>
             {PLATFORMS.map((p) => (
@@ -696,7 +696,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
         {/* MONTH VIEW */}
         {view === "month" && (
           <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-blue-400 via-violet-400 to-pink-400" />
+            <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-300" />
             <CardContent className="p-3">
               {/* Day headers */}
               <div className="mb-1 grid grid-cols-7 gap-1">
@@ -717,21 +717,21 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
                   const scheduledCount = dayPosts.filter(p => p.status === "scheduled").length;
                   const publishedCount = dayPosts.filter(p => p.status === "published").length;
                   // Heat intensity for days with many posts
-                  const heatClass = dayPosts.length >= 4 ? "bg-violet-50" : dayPosts.length >= 2 ? "bg-blue-50/60" : "bg-white";
+                  const heatClass = dayPosts.length >= 4 ? "bg-orange-50" : dayPosts.length >= 2 ? "bg-blue-50/60" : "bg-white";
 
                   return (
                     <button key={day} type="button"
                       onClick={() => setSelectedDay(dateKey === selectedDay ? null : dateKey)}
                       className={cn(
                         "group relative flex min-h-[92px] flex-col p-1.5 text-left transition-colors",
-                        isSelected ? "bg-violet-100 ring-2 ring-inset ring-violet-400" : isToday ? "bg-blue-50" : heatClass,
-                        "hover:bg-violet-50/80",
+                        isSelected ? "bg-orange-100 ring-2 ring-inset ring-orange-400" : isToday ? "bg-blue-50" : heatClass,
+                        "hover:bg-orange-50/80",
                       )}>
                       {/* Day number */}
                       <div className="mb-1.5 flex items-center justify-between">
                         <span className={cn(
                           "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
-                          isToday ? "bg-blue-500 text-white shadow-sm" : isSelected ? "bg-violet-500 text-white" : "text-slate-600",
+                          isToday ? "bg-blue-500 text-white shadow-sm" : isSelected ? "bg-orange-500 text-white" : "text-slate-600",
                         )}>{day}</span>
                         {/* Post count badge */}
                         {dayPosts.length > 0 && (
@@ -768,7 +768,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
 
                       {/* Add button on hover */}
                       <div className="absolute bottom-1 right-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-500 text-white shadow-sm">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white shadow-sm">
                           <Plus className="h-3 w-3" />
                         </div>
                       </div>
@@ -793,7 +793,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
         {/* WEEK VIEW */}
         {view === "week" && (
           <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-blue-400 via-violet-400 to-pink-400" />
+            <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-300" />
             <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <div className="min-w-[640px]">
@@ -812,7 +812,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
                             {d.getDate()}
                           </span>
                           {dayPosts.length > 0 && (
-                            <span className="mt-0.5 rounded-full bg-violet-100 px-1.5 text-[9px] font-bold text-violet-700">{dayPosts.length}</span>
+                            <span className="mt-0.5 rounded-full bg-orange-100 px-1.5 text-[9px] font-bold text-orange-700">{dayPosts.length}</span>
                           )}
                         </div>
                       );
@@ -914,7 +914,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
                               {p.text || <span className="italic text-slate-400">Nessun testo</span>}
                             </p>
                             {p.hashtags.length > 0 && (
-                              <p className="mt-1 text-[10px] text-violet-500">
+                              <p className="mt-1 text-[10px] text-orange-500">
                                 {p.hashtags.slice(0, 5).join(" ")}{p.hashtags.length > 5 ? ` +${p.hashtags.length - 5}` : ""}
                               </p>
                             )}
@@ -938,7 +938,7 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
                   <Zap className="mx-auto mb-2 h-6 w-6 text-slate-300" />
                   <p className="text-sm font-medium text-slate-500">Nessun post in programma</p>
                   <p className="mt-1 text-xs text-slate-400">Inizia a pianificare i tuoi contenuti</p>
-                  <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-violet-500 to-pink-500 text-white" onClick={onNewPost}>
+                  <Button size="sm" className="mt-3 gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white" onClick={onNewPost}>
                     <Plus className="h-3.5 w-3.5" /> Crea il primo post
                   </Button>
                 </div>
@@ -1159,7 +1159,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
     <div className="space-y-4">
       {/* ── CONTENT TYPE SELECTOR ──────────────────────────────────────── */}
       <Card className="overflow-hidden">
-        <div className="h-0.5 bg-gradient-to-r from-violet-400 via-pink-400 to-orange-400" />
+        <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-400" />
         <CardContent className="pt-4 pb-3">
           <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Formato contenuto</p>
           <div className="flex flex-wrap gap-2">
@@ -1174,16 +1174,16 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                         className={cn(
                           "flex flex-col items-center gap-1.5 rounded-2xl border-2 px-4 py-3 text-center transition-all",
                           isSelected
-                            ? "border-violet-400 bg-gradient-to-br from-violet-50 to-pink-50 shadow-sm"
-                            : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/30"
+                            ? "border-orange-400 bg-gradient-to-br from-orange-50 to-pink-50 shadow-sm"
+                            : "border-slate-200 bg-white hover:border-orange-200 hover:bg-orange-50/30"
                         )}>
                         <div className={cn(
                           "flex h-9 w-9 items-center justify-center rounded-xl",
-                          isSelected ? "bg-gradient-to-br from-violet-500 to-pink-500 text-white" : "bg-slate-100 text-slate-600"
+                          isSelected ? "bg-gradient-to-br from-orange-500 to-amber-500 text-white" : "bg-slate-100 text-slate-600"
                         )}>
                           <Icon className="h-4 w-4" />
                         </div>
-                        <span className={cn("text-xs font-bold", isSelected ? "text-violet-700" : "text-slate-700")}>{ct.label}</span>
+                        <span className={cn("text-xs font-bold", isSelected ? "text-orange-700" : "text-slate-700")}>{ct.label}</span>
                         <span className="text-[9px] text-slate-400">{ct.desc}</span>
                         {/* Supported platforms */}
                         <div className="flex items-center gap-0.5">
@@ -1210,8 +1210,8 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
             })}
           </div>
           {/* Tip for selected type */}
-          <div className="mt-3 flex items-start gap-2 rounded-xl border border-violet-100 bg-violet-50/60 px-3 py-2 text-[11px] text-violet-700">
-            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-500" />
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2 text-[11px] text-orange-700">
+            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-500" />
             <span>{contentType.tips}</span>
           </div>
         </CardContent>
@@ -1220,20 +1220,20 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
       {/* ── BRIEF AI ────────────────────────────────────────────────────── */}
       <div className={cn(
         "overflow-hidden rounded-2xl border shadow-sm transition-all duration-300",
-        isBriefOpen ? "border-violet-200 bg-gradient-to-br from-violet-50 via-pink-50/40 to-white" : "border-violet-100 bg-gradient-to-r from-violet-50/70 to-white"
+        isBriefOpen ? "border-orange-200 bg-gradient-to-br from-orange-50 via-pink-50/40 to-white" : "border-orange-100 bg-gradient-to-r from-orange-50/70 to-white"
       )}>
         {!isBriefOpen ? (
           <div className="flex items-center gap-3 px-4 py-2.5">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-100">
-              <Sparkles className="h-3.5 w-3.5 text-violet-600" />
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-100">
+              <Sparkles className="h-3.5 w-3.5 text-orange-600" />
             </div>
             {brief ? (
               <>
                 <div className="relative flex h-2 w-2 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400 opacity-50" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-violet-500" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-50" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
                 </div>
-                <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700">{SEGMENT_LABELS[segment] ?? segment}</span>
+                <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">{SEGMENT_LABELS[segment] ?? segment}</span>
                 <p className="min-w-0 flex-1 truncate text-sm text-slate-600">{brief}</p>
               </>
             ) : (
@@ -1242,13 +1242,13 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
             <div className="flex shrink-0 items-center gap-2">
               {brief && (
                 <button type="button" onClick={() => void onGeneratePost()} disabled={isGeneratingCopy}
-                  className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60">
+                  className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-pink-500 px-3 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-60">
                   {isGeneratingCopy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
                   Genera varianti
                 </button>
               )}
               <button type="button" onClick={() => setIsBriefOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-violet-100 px-2.5 py-1 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-200">
+                className="flex items-center gap-1.5 rounded-lg bg-orange-100 px-2.5 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-200">
                 <Pencil className="h-3 w-3" /> {brief ? "Modifica" : "Imposta brief"}
               </button>
             </div>
@@ -1257,15 +1257,15 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
           <div className="space-y-3 p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-100">
-                  <Sparkles className="h-4 w-4 text-violet-600" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100">
+                  <Sparkles className="h-4 w-4 text-orange-600" />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-900">Brief AI</p>
                   <p className="text-[11px] text-slate-500">Genera 3 varianti di testo · hashtag · immagine</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setIsBriefOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-violet-100 hover:text-violet-600">
+              <button type="button" onClick={() => setIsBriefOpen(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-orange-100 hover:text-orange-600">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -1291,7 +1291,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
             <div className="flex gap-2">
               <Button onClick={() => { void onGeneratePost(); setIsBriefOpen(false); }}
                 disabled={!brief.trim() || isGeneratingCopy}
-                className="flex-1 bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 text-white">
+                className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white">
                 {isGeneratingCopy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generazione...</> : <><Sparkles className="mr-2 h-4 w-4" />Genera 3 varianti</>}
               </Button>
               {contentType.hashtagsAllowed && (
@@ -1347,21 +1347,21 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 
           {/* Copy variants */}
           {copyVariants.length > 1 && (
-            <Card className="overflow-hidden border-violet-200">
-              <div className="h-0.5 bg-gradient-to-r from-violet-400 to-pink-400" />
+            <Card className="overflow-hidden border-orange-200">
+              <div className="h-0.5 bg-gradient-to-r from-orange-400 to-pink-400" />
               <CardContent className="pt-3 pb-3">
                 <p className="mb-2 text-xs font-bold text-slate-700">
-                  <Sparkles className="mr-1.5 inline h-3.5 w-3.5 text-violet-500" />
+                  <Sparkles className="mr-1.5 inline h-3.5 w-3.5 text-orange-500" />
                   Scegli la variante che preferisci
                 </p>
                 <div className="space-y-2">
                   {copyVariants.map((v, i) => (
                     <button key={i} type="button" onClick={() => { setPostText(v); setCopyVariants([]); toast.success("Variante selezionata"); }}
                       className={cn(
-                        "w-full rounded-xl border-2 p-3 text-left text-sm text-slate-700 transition hover:border-violet-300 hover:bg-violet-50",
-                        postText === v ? "border-violet-400 bg-violet-50" : "border-slate-200 bg-white"
+                        "w-full rounded-xl border-2 p-3 text-left text-sm text-slate-700 transition hover:border-orange-300 hover:bg-orange-50",
+                        postText === v ? "border-orange-400 bg-orange-50" : "border-slate-200 bg-white"
                       )}>
-                      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-violet-400">Variante {i + 1}</span>
+                      <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-orange-400">Variante {i + 1}</span>
                       {v.slice(0, 120)}{v.length > 120 ? "…" : ""}
                     </button>
                   ))}
@@ -1372,12 +1372,12 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 
           {/* Text editor */}
           <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-violet-400 to-pink-400" />
+            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-pink-400" />
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-100">
-                    <Edit3 className="h-4 w-4 text-violet-600" />
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100">
+                    <Edit3 className="h-4 w-4 text-orange-600" />
                   </div>
                   <div>
                     <CardTitle className="text-base">
@@ -1393,15 +1393,15 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                   </div>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => void onGeneratePost()} disabled={isGeneratingCopy || !brief.trim()}
-                  className="h-7 gap-1.5 text-[11px] text-violet-600 hover:bg-violet-50">
+                  className="h-7 gap-1.5 text-[11px] text-orange-600 hover:bg-orange-50">
                   {isGeneratingCopy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} AI
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {isGeneratingCopy ? (
-                <div className="space-y-2 rounded-xl border border-violet-100 bg-violet-50/40 p-3">
-                  {[...Array(3)].map((_, i) => <div key={i} className={cn("h-4 animate-pulse rounded-lg bg-violet-100/70", i === 2 ? "w-2/3" : "w-full")} />)}
+                <div className="space-y-2 rounded-xl border border-orange-100 bg-orange-50/40 p-3">
+                  {[...Array(3)].map((_, i) => <div key={i} className={cn("h-4 animate-pulse rounded-lg bg-orange-100/70", i === 2 ? "w-2/3" : "w-full")} />)}
                 </div>
               ) : (
                 <Textarea value={postText} onChange={(e) => setPostText(e.target.value)}
@@ -1421,15 +1421,15 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                       )}
                     </p>
                     <button type="button" onClick={() => void onGenerateHashtags()} disabled={isGeneratingHashtags || (!postText.trim() && !brief.trim())}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-violet-600 hover:text-violet-800 disabled:opacity-40">
+                      className="flex items-center gap-1 text-[10px] font-semibold text-orange-600 hover:text-orange-800 disabled:opacity-40">
                       {isGeneratingHashtags ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} AI
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {hashtags.map((tag) => (
-                      <span key={tag} className="flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                      <span key={tag} className="flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700">
                         {tag}
-                        <button type="button" onClick={() => setHashtags((h) => h.filter((t) => t !== tag))}><X className="h-2.5 w-2.5 text-violet-400 hover:text-violet-700" /></button>
+                        <button type="button" onClick={() => setHashtags((h) => h.filter((t) => t !== tag))}><X className="h-2.5 w-2.5 text-orange-400 hover:text-orange-700" /></button>
                       </span>
                     ))}
                     <div className="flex items-center">
@@ -1446,7 +1446,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                 <div>
                   <button type="button" onClick={() => setShowFirstComment(!showFirstComment)}
                     className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-700">
-                    <span className={cn("flex h-4 w-4 items-center justify-center rounded-full border-2 transition", showFirstComment ? "border-violet-400 bg-violet-400" : "border-slate-300")}>
+                    <span className={cn("flex h-4 w-4 items-center justify-center rounded-full border-2 transition", showFirstComment ? "border-orange-400 bg-orange-400" : "border-slate-300")}>
                       {showFirstComment && <Check className="h-2.5 w-2.5 text-white" />}
                     </span>
                     Primo commento Instagram (hashtag estratti dal caption)
@@ -1598,7 +1598,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
               <Button onClick={onSchedulePost} disabled={!postText.trim() || selectedPlatforms.length === 0}
                 className={cn("w-full text-white shadow-sm",
                   publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
-                             : "bg-gradient-to-r from-blue-500 to-violet-500 hover:from-blue-600 hover:to-violet-600")}>
+                             : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600")}>
                 {publishNow
                   ? <><Send className="mr-2 h-4 w-4" />Pubblica ora su {selectedPlatforms.length} piattaform{selectedPlatforms.length === 1 ? "a" : "e"}</>
                   : <><Calendar className="mr-2 h-4 w-4" />Programma pubblicazione</>}
@@ -1774,7 +1774,7 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
       {/* ── KPI HERO ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "Reach",          value: da.overview.reach.value,       change: da.overview.reach.change,       suffix: "",  color: "text-violet-600", bg: "bg-violet-50",  icon: Users      },
+          { label: "Reach",          value: da.overview.reach.value,       change: da.overview.reach.change,       suffix: "",  color: "text-orange-600", bg: "bg-orange-50",  icon: Users      },
           { label: "Impressioni",    value: da.overview.impressions.value, change: da.overview.impressions.change, suffix: "",  color: "text-blue-600",   bg: "bg-blue-50",    icon: Eye        },
           { label: "Engagement",     value: da.overview.engagement.value,  change: da.overview.engagement.change,  suffix: "%", color: "text-emerald-600",bg: "bg-emerald-50", icon: Heart      },
           { label: "Nuovi follower", value: da.overview.followers.value,   change: da.overview.followers.change,   suffix: "",  color: "text-pink-600",   bg: "bg-pink-50",    icon: ArrowUpRight },
@@ -1808,10 +1808,10 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
 
           {/* Weekly reach bar chart */}
           <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-violet-400 to-blue-400" />
+            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-blue-400" />
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className="h-4 w-4 text-violet-500" /> Reach settimanale
+                <TrendingUp className="h-4 w-4 text-orange-500" /> Reach settimanale
               </CardTitle>
               <CardDescription className="text-xs">Post pubblicati e reach per giorno — ultima settimana</CardDescription>
             </CardHeader>
@@ -1825,13 +1825,13 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
                       <span className="text-[9px] text-slate-400 tabular-nums">{(d.reach / 1000).toFixed(1)}K</span>
                       <div className="flex w-full flex-col justify-end" style={{ height: 80 }}>
                         <div
-                          className={cn("w-full rounded-t-lg transition-all", isHighest ? "bg-gradient-to-b from-violet-400 to-violet-600" : "bg-gradient-to-b from-slate-200 to-slate-300")}
+                          className={cn("w-full rounded-t-lg transition-all", isHighest ? "bg-gradient-to-b from-orange-400 to-orange-600" : "bg-gradient-to-b from-slate-200 to-slate-300")}
                           style={{ height: barH }}
                         />
                       </div>
-                      <span className={cn("text-[11px] font-bold", isHighest ? "text-violet-600" : "text-slate-500")}>{d.label}</span>
+                      <span className={cn("text-[11px] font-bold", isHighest ? "text-orange-600" : "text-slate-500")}>{d.label}</span>
                       {d.posts > 0 && (
-                        <span className={cn("rounded-full px-1.5 text-[8px] font-bold", d.posts >= 3 ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-500")}>{d.posts}</span>
+                        <span className={cn("rounded-full px-1.5 text-[8px] font-bold", d.posts >= 3 ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-500")}>{d.posts}</span>
                       )}
                     </div>
                   );
@@ -1911,7 +1911,7 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
                           <span className="flex items-center gap-1"><Users className="h-3 w-3" />{(p.reach / 1000).toFixed(1)}K reach</span>
                           <span className="flex items-center gap-1"><Heart className="h-3 w-3 text-rose-400" />{p.likes}</span>
                           <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3 text-blue-400" />{p.comments}</span>
-                          <span className="flex items-center gap-1"><Share2 className="h-3 w-3 text-violet-400" />{p.shares}</span>
+                          <span className="flex items-center gap-1"><Share2 className="h-3 w-3 text-orange-400" />{p.shares}</span>
                           <span className={cn("ml-auto font-bold", p.engagementRate >= 8 ? "text-emerald-600" : p.engagementRate >= 5 ? "text-blue-600" : "text-slate-500")}>
                             {p.engagementRate}%
                           </span>
@@ -1930,10 +1930,10 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
 
           {/* Content type performance */}
           <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-violet-400 to-pink-400" />
+            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-pink-400" />
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Film className="h-4 w-4 text-violet-500" /> Per tipo di contenuto
+                <Film className="h-4 w-4 text-orange-500" /> Per tipo di contenuto
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1961,11 +1961,11 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
           </Card>
 
           {/* AI Insights */}
-          <Card className="overflow-hidden border-violet-100">
-            <div className="h-0.5 bg-gradient-to-r from-violet-500 to-pink-500" />
+          <Card className="overflow-hidden border-orange-100">
+            <div className="h-0.5 bg-gradient-to-r from-orange-500 to-pink-500" />
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="h-4 w-4 text-violet-500" /> AI Insights
+                <Sparkles className="h-4 w-4 text-orange-500" /> AI Insights
               </CardTitle>
               <CardDescription className="text-xs">Suggerimenti basati sulle tue performance</CardDescription>
             </CardHeader>
@@ -1974,7 +1974,7 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
                 {da.insights.map((ins, i) => (
                   <div key={i} className={cn(
                     "flex items-start gap-3 rounded-xl border px-3 py-2.5",
-                    ins.priority === "high" ? "border-violet-200 bg-violet-50/60" : "border-slate-100 bg-slate-50/60"
+                    ins.priority === "high" ? "border-orange-200 bg-orange-50/60" : "border-slate-100 bg-slate-50/60"
                   )}>
                     <span className="text-base leading-none">{ins.icon}</span>
                     <p className="text-[12px] leading-relaxed text-slate-700">{ins.text}</p>
@@ -2055,7 +2055,7 @@ function GalleriaTab({
             {mediaItems.length} file · {aiGenCount} AI-generati · {totalUsed} utilizzi totali
           </p>
         </div>
-        <Button size="sm" className="gap-1.5 bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-sm"
+        <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm"
           onClick={() => toast.info("Trascina i file nella zona di upload in Crea Post oppure usa il generatore AI")}>
           <Upload className="h-3.5 w-3.5" /> Carica media
         </Button>
@@ -2073,7 +2073,7 @@ function GalleriaTab({
           ] as const).map(({ id, label }) => (
             <button key={id} type="button" onClick={() => setTypeFilter(id)}
               className={cn("rounded-lg px-3 py-1 text-xs font-semibold transition",
-                typeFilter === id ? "bg-violet-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
+                typeFilter === id ? "bg-orange-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
               {label}
             </button>
           ))}
@@ -2084,7 +2084,7 @@ function GalleriaTab({
           {(["all", "portfolio", "promo", "team", "cantiere", "prodotto"] as const).map((cat) => (
             <button key={cat} type="button" onClick={() => setCatFilter(cat)}
               className={cn("rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition",
-                catFilter === cat ? "border-violet-400 bg-violet-100 text-violet-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
+                catFilter === cat ? "border-orange-400 bg-orange-100 text-orange-700" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
               {cat === "all" ? "Tutte le categorie" : CATEGORY_LABELS[cat]}
             </button>
           ))}
@@ -2095,7 +2095,7 @@ function GalleriaTab({
           <input
             type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Cerca…"
-            className="h-8 rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300"
+            className="h-8 rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-orange-300"
           />
           <Sparkles className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-300" />
         </div>
@@ -2137,7 +2137,7 @@ function GalleriaTab({
                     {FORMAT_ICONS[item.format]} {item.format}
                   </span>
                   {item.aiGenerated && (
-                    <span className="rounded-full bg-violet-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    <span className="rounded-full bg-orange-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
                       AI
                     </span>
                   )}
@@ -2146,8 +2146,8 @@ function GalleriaTab({
                 {/* Hover overlay actions */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
                   <button type="button" onClick={() => onUseInPost(item)}
-                    className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-lg hover:bg-violet-50">
-                    <Edit3 className="h-3.5 w-3.5 text-violet-600" /> Usa in Post
+                    className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-lg hover:bg-orange-50">
+                    <Edit3 className="h-3.5 w-3.5 text-orange-600" /> Usa in Post
                   </button>
                   <button type="button" onClick={() => onUseInAds(item)}
                     className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-lg hover:bg-blue-50">
@@ -2183,9 +2183,9 @@ function GalleriaTab({
           {/* Upload CTA card */}
           <button type="button"
             onClick={() => toast.info("Carica da Crea Post → sezione Media, oppure usa il generatore AI immagini")}
-            className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 transition hover:border-violet-300 hover:bg-violet-50/40">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-pink-100">
-              <ImagePlus className="h-6 w-6 text-violet-500" />
+            className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 transition hover:border-orange-300 hover:bg-orange-50/40">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-100 to-pink-100">
+              <ImagePlus className="h-6 w-6 text-orange-500" />
             </div>
             <p className="text-xs font-semibold text-slate-500">Aggiungi contenuto</p>
             <p className="text-[10px] text-slate-400">Upload o genera con AI</p>
@@ -2255,7 +2255,7 @@ export default function SocialManagerBeta() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Badge className="border-0 bg-gradient-to-r from-violet-500 to-pink-500 text-white">Beta</Badge>
+              <Badge className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white">Beta</Badge>
               <Badge variant="outline" className="border-slate-200 text-slate-500">Demo Azienda</Badge>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">Gestione Social</h1>
@@ -2266,7 +2266,7 @@ export default function SocialManagerBeta() {
               <Settings className="h-3.5 w-3.5" /> Connessioni
               <ExternalLink className="h-3 w-3 opacity-60" />
             </Button>
-            <Button size="sm" className="gap-1.5 bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 text-white shadow-sm"
+            <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-sm"
               onClick={() => setTab("crea-post")}>
               <Plus className="h-3.5 w-3.5" /> Crea post
             </Button>
@@ -2282,12 +2282,12 @@ export default function SocialManagerBeta() {
             {tabs.map(({ id, label, icon: Icon, badge }) => (
               <button key={id} type="button" onClick={() => setTab(id)}
                 className={cn("flex shrink-0 items-center gap-2 border-b-2 px-5 py-4 text-sm font-semibold transition-colors",
-                  activeTab === id ? "border-violet-500 text-violet-700" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700")}>
+                  activeTab === id ? "border-orange-500 text-orange-700" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700")}>
                 <Icon className="h-4 w-4" />
                 {label}
                 {badge != null && (
                   <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-bold",
-                    activeTab === id ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600")}>{badge}</span>
+                    activeTab === id ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-600")}>{badge}</span>
                 )}
               </button>
             ))}
