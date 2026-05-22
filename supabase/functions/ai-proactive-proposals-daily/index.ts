@@ -68,6 +68,11 @@ const ALL_DETECTORS = [
   // ci sono API ufficiali certificate per l'auto-renew), ma l'AI prepara il
   // task con tutti i dati necessari per non perdere la scadenza.
   "durc_aziendale_30gg",
+  // Feature #4 — Smart ticket routing: ticket non assegnato dopo 4h →
+  // propone tecnico ottimale per workload corrente. L'AI seleziona il tecnico
+  // con il minor numero di ticket aperti come baseline. Versioni future
+  // estenderanno con skill matching + GPS proximity (vedi roadmap).
+  "ticket_non_assegnato_4h",
 ] as const;
 type DetectorName = typeof ALL_DETECTORS[number];
 
@@ -645,6 +650,163 @@ async function detectDurcAziendale(
   return result;
 }
 
+/**
+ * Feature #4 — Smart ticket routing.
+ *
+ * Detector: ticket di assistenza non assegnato (assigned_to=NULL) creato da
+ * più di 4 ore, status 'aperto' o 'in_lavorazione'.
+ *
+ * Per ogni ticket non assegnato propone l'assegnazione al tecnico col workload
+ * più basso della company. Workload = numero di ticket open per ogni tecnico.
+ *
+ * V1: solo workload-based. Roadmap V2 estende con:
+ *  - skill matching (categorie ticket vs specializzazioni tecnico)
+ *  - GPS proximity (latitudine cliente vs ultima posizione tecnico)
+ *  - working hours (escludere tecnici fuori turno)
+ *
+ * action_type `assign_ticket_to_technician` non è handler eseguibile in
+ * silvio-execute-action: resta come proposta che apre la UI ticket per
+ * conferma dell'assegnazione. La policy company decide (dopo implementazione
+ * handler) se renderla auto_execute.
+ */
+async function detectTicketNonAssegnato(
+  supa: SupabaseClient,
+  companyId: string,
+  defaultUserId: string,
+): Promise<DetectorResult> {
+  const result: DetectorResult = {
+    signal_type: "ticket_non_assegnato_4h",
+    proposals_created: 0,
+    proposals_skipped: 0,
+    errors: [],
+  };
+
+  try {
+    const cutoff = new Date();
+    cutoff.setHours(cutoff.getHours() - 4);
+    const cutoffStr = cutoff.toISOString();
+
+    // 1) Trova ticket non assegnati ferma da 4+ ore.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: tickets, error: tErr } = await (supa as any)
+      .from("support_tickets")
+      .select("id, titolo, descrizione, categoria, urgenza, created_at")
+      .eq("company_id", companyId)
+      .is("assigned_to", null)
+      .in("stato", ["aperto", "in_lavorazione"])
+      .lt("created_at", cutoffStr)
+      .order("created_at", { ascending: true })
+      .limit(20);
+
+    if (tErr) {
+      if (!tErr.message.includes("does not exist") && !tErr.message.includes("column")) {
+        result.errors.push(`query support_tickets: ${tErr.message}`);
+      }
+      return result;
+    }
+
+    const ticketList = (tickets ?? []) as Array<Record<string, unknown>>;
+    if (ticketList.length === 0) return result;
+
+    // 2) Trova tecnici della company con il loro workload corrente.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: techRoles } = await (supa as any)
+      .from("user_roles")
+      .select("user_id")
+      .eq("company_id", companyId)
+      .in("role", ["tecnico", "company_staff", "company_admin"]);
+
+    const techIds = ((techRoles ?? []) as Array<{ user_id: string }>).map((r) => r.user_id);
+    if (techIds.length === 0) {
+      // Nessun tecnico → niente da proporre.
+      return result;
+    }
+
+    // Conta ticket aperti per ogni tecnico.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: openByTech } = await (supa as any)
+      .from("support_tickets")
+      .select("assigned_to")
+      .eq("company_id", companyId)
+      .in("stato", ["aperto", "in_lavorazione"])
+      .not("assigned_to", "is", null);
+
+    const workload = new Map<string, number>();
+    for (const id of techIds) workload.set(id, 0);
+    for (const row of (openByTech ?? []) as Array<{ assigned_to: string }>) {
+      if (workload.has(row.assigned_to)) {
+        workload.set(row.assigned_to, (workload.get(row.assigned_to) ?? 0) + 1);
+      }
+    }
+
+    // Tecnico col workload minimo (a parità, il primo della lista).
+    const pickLowestWorkloadTechnician = (excluded: Set<string>): string | null => {
+      let best: { id: string; load: number } | null = null;
+      for (const [id, load] of workload.entries()) {
+        if (excluded.has(id)) continue;
+        if (!best || load < best.load) {
+          best = { id, load };
+        }
+      }
+      return best?.id ?? null;
+    };
+
+    // 3) Per ogni ticket non assegnato, scegli un tecnico e crea la proposta.
+    // Round-robin morbido: tecnico scelto incrementa workload locale così
+    // se 3 ticket arrivano in fila vengono distribuiti.
+    const localWorkload = new Map(workload);
+    for (const t of ticketList) {
+      let chosen: string | null = null;
+      const excluded = new Set<string>();
+      // 1° tentativo: tecnico con workload minimo
+      chosen = pickLowestWorkloadTechnician(excluded);
+      if (!chosen) continue;
+      // Incrementa workload locale
+      localWorkload.set(chosen, (localWorkload.get(chosen) ?? 0) + 1);
+
+      const createdAt = String(t.created_at);
+      const hoursOpen = Math.floor((Date.now() - new Date(createdAt).getTime()) / 3_600_000);
+      const urgenza = String(t.urgenza ?? "normale");
+      const summary = `Ticket "${String(t.titolo).slice(0, 60)}" non assegnato da ${hoursOpen}h (urgenza ${urgenza}) — assegno a tecnico con minor carico?`;
+
+      const { error: createErr } = await supa.rpc("create_proactive_proposal", {
+        p_company_id: companyId,
+        p_user_id: defaultUserId,
+        p_persona_key: "operations",
+        p_action_type: "assign_ticket_to_technician",
+        p_summary: summary.substring(0, 200),
+        p_payload: {
+          ticket_id: t.id,
+          ticket_title: t.titolo,
+          ticket_categoria: t.categoria,
+          ticket_urgenza: urgenza,
+          suggested_assignee_id: chosen,
+          suggested_assignee_workload: localWorkload.get(chosen),
+          hours_open: hoursOpen,
+        },
+        p_signal_type: "ticket_non_assegnato_4h",
+        p_signal_entity_id: t.id,
+        p_signal_metadata: {
+          hours_open: hoursOpen,
+          urgenza,
+          categoria: t.categoria,
+        },
+        // urgenza 'alta'/'urgente' → red (alert PM/admin)
+        p_risk_level: urgenza === "alta" || urgenza === "urgente" ? "red" : "yellow",
+        p_ttl_days: 2,
+      });
+      if (createErr) {
+        result.errors.push(`rpc ticket ${t.id}: ${createErr.message}`);
+      } else {
+        result.proposals_created += 1;
+      }
+    }
+  } catch (e) {
+    result.errors.push(e instanceof Error ? e.message : String(e));
+  }
+  return result;
+}
+
 const DETECTORS: Record<DetectorName, typeof detectCantieriInRitardo> = {
   cantiere_in_ritardo: detectCantieriInRitardo,
   fattura_scaduta_30gg: detectFattureScadute,
@@ -652,6 +814,7 @@ const DETECTORS: Record<DetectorName, typeof detectCantieriInRitardo> = {
   lead_dormiente_30gg: detectLeadDormienti,
   cashflow_critico_90gg: detectCashflowCritico,
   durc_aziendale_30gg: detectDurcAziendale,
+  ticket_non_assegnato_4h: detectTicketNonAssegnato,
 };
 
 // ════════════════════════════════════════════════════════════════════════════
