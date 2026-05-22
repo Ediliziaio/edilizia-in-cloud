@@ -286,19 +286,36 @@ function buildGraphData(
     });
 
   const isGalaxyPure = viewMode === "galaxy" && expandedPersonas.size === 0;
-  // Layout fisso in 2D (cerchio matematico). 3D è libero/orbit.
+  // Layout fisso: 2D = cerchio matematico, "core" 3D = sfera Fibonacci
   const useFixedCircle = viewDim === "2d";
-  const RADIUS = 350;        // cerchio personas
-  const MEM_RADIUS = 70;     // mini-cerchio attorno a ogni persona per le sue memorie
+  const useFixedSphere = viewDim === "core";
+  const RADIUS = 350;        // raggio cerchio (2D) o sfera (3D core)
+  const MEM_RADIUS = 70;     // mini-orbite attorno a ogni persona
 
-  // Pre-compute posizioni delle personas per usarle anche con le memorie
-  const personaPositions = new Map<string, { x: number; y: number }>();
+  // Pre-compute posizioni 3D delle personas (cerchio 2D o sfera 3D)
+  const personaPositions = new Map<string, { x: number; y: number; z?: number }>();
   if (useFixedCircle) {
+    // Cerchio matematico equispaziato (2D, z=0)
     activePersonasList.forEach((p, i) => {
       const angle = (i / activePersonasList.length) * Math.PI * 2 - Math.PI / 2;
       personaPositions.set(p.persona_key, {
         x: Math.cos(angle) * RADIUS,
         y: Math.sin(angle) * RADIUS,
+      });
+    });
+  } else if (useFixedSphere) {
+    // Distribuzione Fibonacci-sphere → punti uniformemente sparsi sulla
+    // superficie di una vera sfera 3D (effetto "palla con nodi dentro")
+    const n = activePersonasList.length;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    activePersonasList.forEach((p, i) => {
+      const y = 1 - (i / Math.max(1, n - 1)) * 2;     // -1 → 1
+      const r = Math.sqrt(1 - y * y);
+      const theta = goldenAngle * i;
+      personaPositions.set(p.persona_key, {
+        x: Math.cos(theta) * r * RADIUS,
+        y: y * RADIUS,
+        z: Math.sin(theta) * r * RADIUS,
       });
     });
   }
@@ -311,10 +328,11 @@ function buildGraphData(
       ? 12 + Math.round((memCount / maxMemCount) * 10)   // hub 12-22 (più contenuti)
       : 9;
 
-    // Layout circolare deterministico in 2D — usa la mappa pre-calcolata
+    // Layout circolare deterministico (2D) o sferico (3D core) — mappa pre-calcolata
     const pos = personaPositions.get(p.persona_key);
     const fx = pos ? pos.x : undefined;
     const fy = pos ? pos.y : undefined;
+    const fz = pos?.z; // undefined in 2D, valore reale in core
 
     const emoji = PERSONA_CATEGORY_EMOJI[p.category] ?? PERSONA_CATEGORY_EMOJI.default;
     nodes.push({
@@ -326,6 +344,7 @@ function buildGraphData(
       cluster: `cat_${p.category}`,
       fx,
       fy,
+      fz,                              // 3D position in core/sfera mode
       // Emoji disponibile per detail panel HTML (canvas WebGL non supporta emoji nel testo)
       data: { type: "persona", persona: p, memoryCount: memCount, emoji },
     });
@@ -362,17 +381,28 @@ function buildGraphData(
     // Persona for this memory
     const persona = personaMap.get(m.persona_key);
 
-    // Posizione fissa per la memoria: mini-cerchio attorno alla persona
+    // Posizione fissa per la memoria: mini-orbita attorno alla persona
+    // 2D: cerchio piatto. 3D core: mini-sfera Fibonacci attorno.
     let memFx: number | undefined;
     let memFy: number | undefined;
-    if (useFixedCircle) {
-      const personaPos = personaPositions.get(m.persona_key);
-      if (personaPos) {
-        const idx = memIndexInPersona.get(m.id) ?? 0;
-        const total = memCountByPersonaForLayout.get(m.persona_key) ?? 1;
-        const memAngle = (idx / total) * Math.PI * 2;
-        memFx = personaPos.x + Math.cos(memAngle) * MEM_RADIUS;
-        memFy = personaPos.y + Math.sin(memAngle) * MEM_RADIUS;
+    let memFz: number | undefined;
+    const personaPos = personaPositions.get(m.persona_key);
+    if (personaPos && (useFixedCircle || useFixedSphere)) {
+      const idx = memIndexInPersona.get(m.id) ?? 0;
+      const total = memCountByPersonaForLayout.get(m.persona_key) ?? 1;
+      if (useFixedCircle) {
+        const a = (idx / total) * Math.PI * 2;
+        memFx = personaPos.x + Math.cos(a) * MEM_RADIUS;
+        memFy = personaPos.y + Math.sin(a) * MEM_RADIUS;
+      } else {
+        // Mini-sfera Fibonacci attorno alla persona (in 3D)
+        const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+        const y = 1 - (idx / Math.max(1, total - 1)) * 2;
+        const r = Math.sqrt(1 - y * y);
+        const theta = goldenAngle * idx;
+        memFx = personaPos.x + Math.cos(theta) * r * MEM_RADIUS;
+        memFy = personaPos.y + y * MEM_RADIUS;
+        memFz = (personaPos.z ?? 0) + Math.sin(theta) * r * MEM_RADIUS;
       }
     }
 
@@ -401,6 +431,7 @@ function buildGraphData(
       cluster: `persona_${m.persona_key}`,
       fx: memFx,
       fy: memFy,
+      fz: memFz,
       data: {
         type: "memory",
         memory: m,
@@ -2068,14 +2099,14 @@ export default function AIBrainGraph() {
         // apparivano come puntini neri parassiti nel grafo. La logica di
         // raggruppamento visivo è già nei colori dei nodi e nelle posizioni.
         layoutOverrides={{
-          // 2D (galaxy + detail con fx/fy precomputed): TUTTE le forze a 0
-          //   → fx/fy comandano interamente, nessuno spostamento, cerchio perfetto
-          // 3D Nucleo: forze attrattive forti → nodi compatti come un atomo
-          clusterStrength: viewDim === "core" ? 0 : 0,
-          nodeStrength: viewDim === "core" ? -100 : 0,
-          linkDistance: viewDim === "core" ? 60 : 1,
-          linkStrengthIntraCluster: viewDim === "core" ? 1.0 : 0,
-          linkStrengthInterCluster: viewDim === "core" ? 0.5 : 0,
+          // 2D: forze a 0 → fx/fy comandano puramente (cerchio perfetto)
+          // Core: fx/fy/fz comandano → forze a 0 (sfera fissa)
+          // 3D libero (non core): forze normali → esplorabile manualmente
+          clusterStrength: viewDim === "3d" ? 2.0 : 0,
+          nodeStrength: viewDim === "3d" ? -400 : 0,
+          linkDistance: viewDim === "3d" ? 80 : 1,
+          linkStrengthIntraCluster: viewDim === "3d" ? 0.7 : 0,
+          linkStrengthInterCluster: viewDim === "3d" ? 0.02 : 0,
         }}
         sizingType="attribute"
         sizingAttribute="size"
