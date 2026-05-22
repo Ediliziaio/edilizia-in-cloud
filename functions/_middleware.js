@@ -1719,6 +1719,16 @@ const CITY_CONFIGS = {
   trento: { city: "Trento", region: "Trentino-Alto Adige", description: "Software gestionale per imprese edili a Trento. Cantieri alpini, standard CasaClima e bioedilizia in legno con Edilizia in Cloud." },
   bolzano: { city: "Bolzano", region: "Alto Adige", description: "Software gestionale per imprese edili a Bolzano. Standard KlimaHaus, cantieri alpini e mercato bilingue con Edilizia in Cloud." },
   ferrara: { city: "Ferrara", region: "Emilia-Romagna", description: "Software gestionale per imprese edili a Ferrara. Restauro patrimonio UNESCO, zona alluvionale e riqualificazione delta con Edilizia in Cloud." },
+  // ── Aggiunte 2026-05-22 dal commit 990d1f1ca (allineate a CityLanding.tsx) ──
+  // BUG FIX: queste città erano nel sitemap + componente React ma NON nel
+  // middleware → bot Google riceveva 404. Ora coerente.
+  como: { city: "Como", region: "Lombardia", description: "Software gestionale per imprese edili a Como. Ville di lusso sul lago, restauro storico in centro UNESCO e cantieri lariani con Edilizia in Cloud." },
+  lecco: { city: "Lecco", region: "Lombardia", description: "Software gestionale per imprese edili a Lecco. Cantieri in pendenza in Valassina, ristrutturazioni vincolate nei nuclei antichi e logistica lago con Edilizia in Cloud." },
+  monza: { city: "Monza", region: "Lombardia", description: "Software gestionale per imprese edili a Monza e Brianza. Capannoni industriali con tempistiche rigide, residenziale di pregio per clienti milanesi e SAL settimanali con Edilizia in Cloud." },
+  varese: { city: "Varese", region: "Lombardia", description: "Software gestionale per imprese edili a Varese. Clienti italo-svizzeri esigenti, cantieri prealpini stagionali e gestione frontalieri con Edilizia in Cloud." },
+  treviso: { city: "Treviso", region: "Veneto", description: "Software gestionale per imprese edili a Treviso. Capannoni industriali nei distretti vinicoli, ristrutturazioni di rustici sotto vincolo e burocrazia veneta con Edilizia in Cloud." },
+  latina: { city: "Latina", region: "Lazio", description: "Software gestionale per imprese edili a Latina. Cantieri stagionali sulla costa pontina, capannoni agricoli dell'Agro Pontino e riqualificazione case popolari con Edilizia in Cloud." },
+  pisa: { city: "Pisa", region: "Toscana", description: "Software gestionale per imprese edili a Pisa. Restauro vincolato del centro storico UNESCO, edilizia universitaria estiva e manutenzione case versiliesi con Edilizia in Cloud." },
 };
 
 // Blog category meta
