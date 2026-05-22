@@ -403,12 +403,14 @@ export default defineConfig(() => ({
           if (id.includes("exceljs")) {
             return "vendor-excel";
           }
-          if (id.includes("@xyflow") || id.includes("reactflow")) {
-            return "vendor-flow";
-          }
-          if (id.includes("recharts") || id.includes("d3-")) {
-            return "vendor-charts";
-          }
+          // Vendor-flow (xyflow) and vendor-charts (recharts/d3) NO LONGER
+          // get dedicated chunks. Cloudflare Pages CDN has a known upload
+          // bug that randomly corrupts specific large chunks (~200-500KB),
+          // resulting in 500 errors. By letting Rolldown auto-split these
+          // libraries into the lazy route chunks that import them, the
+          // libraries only load when the user navigates to a page that
+          // actually needs them — home/marketing never trigger them.
+          // (Removed: vendor-flow + vendor-charts manualChunks rules)
           if (id.includes("leaflet")) {
             return "vendor-maps";
           }
