@@ -19,6 +19,10 @@ export function useGeofenceAlert(companyId: string) {
   useEffect(() => {
     if (!companyId || !profile?.id) return;
     const userId = profile.id;
+    // Cleanup guard: il capocantiere può navigare via prima che la query
+    // iniziale ritorni. Senza guard: setState su componente smontato +
+    // canale realtime non liberato → memory leak su navigazioni frequenti.
+    let cancelled = false;
 
     // Carica recenti (ultime 8 ore)
     const carica = async () => {
@@ -34,13 +38,16 @@ export function useGeofenceAlert(companyId: string) {
           data: GeofenceBreachNotification[] | null;
           error: unknown;
         }>);
+      if (cancelled) return;
       if (!error && data) setViolazioni(data);
     };
 
-    carica();
+    void carica();
 
-    // Real-time subscription
-    channelRef.current = supabase
+    // Real-time subscription — canale unique per (company, user) coppia.
+    // Suffisso random non necessario perché la chiave (companyId, profile.id)
+    // è già nei deps: re-mount = effect ri-eseguito = nuovo channel name.
+    const channel = supabase
       .channel(`geofence-alert-${companyId}-${userId}`)
       .on(
         'postgres_changes',
@@ -51,6 +58,7 @@ export function useGeofenceAlert(companyId: string) {
           filter: `company_id=eq.${companyId}`,
         },
         (payload) => {
+          if (cancelled) return;
           const nuova = payload.new as {
             id: string;
             type: string;
@@ -73,9 +81,15 @@ export function useGeofenceAlert(companyId: string) {
         }
       )
       .subscribe();
+    channelRef.current = channel;
 
     return () => {
-      channelRef.current?.unsubscribe();
+      cancelled = true;
+      // removeChannel() è il modo corretto Supabase v2 per liberare la
+      // connessione websocket sottostante. unsubscribe() da solo non
+      // sempre rimuove il channel dal pool client.
+      void supabase.removeChannel(channel);
+      channelRef.current = null;
     };
   }, [companyId, profile?.id]);
 

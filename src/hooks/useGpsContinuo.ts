@@ -57,6 +57,11 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
   useEffect(() => {
     if (!user?.id || !effectiveCompany?.id) return;
 
+    // Cleanup guard: se l'utente naviga via prima che la query torni
+    // (es. cambio cantiere), evita setState su componente smontato +
+    // unhandled rejection se la query fallisce.
+    let cancelled = false;
+
     supabase
       .from("tecnico_gps_consent" as never)
       .select("id")
@@ -67,10 +72,20 @@ export function useGpsContinuo(): GpsContinuoState & GpsContinuoActions {
       .limit(1)
       .maybeSingle()
       .then(({ data }) => {
+        if (cancelled) return;
         if (data) {
           setState((s) => ({ ...s, hasConsent: true }));
         }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn("[useGpsContinuo] consent check failed:", err);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id, effectiveCompany?.id]);
 
   // ── Registra SW e ascolta messaggi ────────────────────────────────────────

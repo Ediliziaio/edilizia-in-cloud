@@ -46,9 +46,15 @@ export function usePreviewToken(): PreviewSession {
     // Inizia validazione
     setSession((prev) => ({ ...prev, isValidating: true }));
 
+    // Cleanup guard: il portale può smontare prima che la edge function
+    // risponda (es. utente naviga via durante la validazione). Senza guard:
+    // setState su componente smontato → React warning + closure leak.
+    let cancelled = false;
+
     supabase.functions
       .invoke("validate-preview-token", { body: { token } })
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (error) {
           setSession({
             isPreview: false,
@@ -91,6 +97,7 @@ export function usePreviewToken(): PreviewSession {
         });
       })
       .catch(() => {
+        if (cancelled) return;
         setSession({
           isPreview: false,
           isValidating: false,
@@ -100,6 +107,10 @@ export function usePreviewToken(): PreviewSession {
           error: "Impossibile contattare il server",
         });
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []); // Eseguito solo al mount — il token è monouso
 
   return session;
