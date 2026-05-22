@@ -1,33 +1,41 @@
 /**
- * AIBrainGraph — v1.0
+ * AIBrainGraph — v2.0
  *
  * Visualizzazione a grafo interattivo del "cervello AI" dell'azienda.
  * Mostra le connessioni tra le 18 Personas AI e le loro memorie come
  * una mappa neurale — stile Obsidian Graph View / InfraNodus.
  *
- * Nodi:
- *   • Persona (grandi, colorati per category) — hub centrali
- *   • Memory  (medi, colorati per memory_type) — fatti/decisioni/pattern
- *
- * Edges:
- *   • persona → memory (ogni memoria appartiene a una persona)
- *   • memory ↔ memory (connessione semantica via keyword overlap)
+ * v2.0 improvements:
+ *   1. Search nel grafo con highlight/fade
+ *   2. Cross-persona edges (connessioni trasversali tra dipartimenti)
+ *   3. Clustering visivo con anelli per persona
+ *   4. Real-time live via Supabase subscription
+ *   5. Double-click persona → zoom cinematico
+ *   6. Insights panel (god nodes, orfani, bridge, health)
+ *   7. Edge hover → tooltip con keyword condivise
+ *   8. Heat map mode (recency/hits vs tipo)
+ *   9. Export screenshot PNG
+ *  10. Stemming italiano basico per NLP migliore
  *
  * Tech: reagraph (WebGL, force-directed 3D) su React.
  */
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { GraphCanvas, darkTheme, type GraphNode, type GraphEdge, type GraphCanvasRef } from "reagraph";
-import type { InternalGraphNode } from "reagraph";
+import type { InternalGraphNode, InternalGraphEdge } from "reagraph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
-  Brain, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut,
-  Filter, X, Sparkles, Network,
+  Brain, Maximize2, Minimize2, RotateCcw,
+  Filter, X, Sparkles, Network, Search, Camera,
+  Flame, Palette, ChevronRight, ChevronDown,
+  AlertTriangle, Link2, Zap, Ghost,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -71,19 +79,31 @@ const MEMORY_TYPE_LABELS: Record<string, string> = {
 };
 
 const PERSONA_CATEGORY_COLORS: Record<string, string> = {
-  finance:    "#f59e0b", // amber-500
-  operations: "#3b82f6", // blue-500
-  sales:      "#10b981", // emerald-500
-  marketing:  "#ec4899", // pink-500
-  hr:         "#8b5cf6", // violet-500
-  strategy:   "#ef4444", // red-500
-  support:    "#06b6d4", // cyan-500
-  tech:       "#6366f1", // indigo-500
-  legal:      "#78716c", // stone-500
-  default:    "#f97316", // orange-500
+  finance:    "#f59e0b",
+  operations: "#3b82f6",
+  sales:      "#10b981",
+  marketing:  "#ec4899",
+  hr:         "#8b5cf6",
+  strategy:   "#ef4444",
+  support:    "#06b6d4",
+  tech:       "#6366f1",
+  legal:      "#78716c",
+  default:    "#f97316",
 };
 
-/** Stopwords italiane + inglesi comuni — per estrarre keyword significative */
+// ─── Heat map colors (cold → hot) ────────────────────────────────────────────
+
+function heatColor(value: number): string {
+  // value 0→1: cold (blue) → warm (yellow) → hot (red)
+  if (value < 0.33) return "#3b82f6";      // blue
+  if (value < 0.5)  return "#06b6d4";      // cyan
+  if (value < 0.66) return "#fbbf24";      // amber
+  if (value < 0.85) return "#f97316";      // orange
+  return "#ef4444";                         // red
+}
+
+// ─── Stopwords ────────────────────────────────────────────────────────────────
+
 const STOPWORDS = new Set([
   "il", "lo", "la", "i", "gli", "le", "un", "uno", "una", "di", "del", "della",
   "dei", "delle", "a", "al", "alla", "ai", "alle", "da", "dal", "dalla", "dai",
@@ -105,9 +125,34 @@ const STOPWORDS = new Set([
 ]);
 
 const MIN_KEYWORD_LEN = 3;
-const KEYWORD_OVERLAP_THRESHOLD = 2; // min shared keywords per edge
+const KEYWORD_OVERLAP_THRESHOLD = 2;
 
-// ─── Keyword extraction ───────────────────────────────────────────────────────
+// ─── #10: Italian stemmer (suffix stripping) ─────────────────────────────────
+// Riduce varianti morfologiche allo stesso stem senza dipendenze esterne.
+// "cantieri"→"cantier", "pagamento"→"pagament", "fatture"→"fattur"
+
+const IT_SUFFIXES = [
+  "azione", "zioni", "mente", "ibile", "abile",
+  "ismo", "ista", "iere", "iera",
+  "ando", "endo", "ato", "ata", "ati", "ate", "uto", "uta", "iti", "ite",
+  "are", "ere", "ire", "ono", "ano",
+  "ità", "tà",
+  "io", "ia", "ie", "ii",
+  "oi", "ai", "ei",
+  "i", "e", "o", "a",
+];
+
+function stemIt(word: string): string {
+  if (word.length < 4) return word;
+  for (const suf of IT_SUFFIXES) {
+    if (word.length - suf.length >= 3 && word.endsWith(suf)) {
+      return word.slice(0, -suf.length);
+    }
+  }
+  return word;
+}
+
+// ─── Keyword extraction (with stemming) ───────────────────────────────────────
 
 function extractKeywords(text: string): Set<string> {
   const words = text
@@ -115,27 +160,70 @@ function extractKeywords(text: string): Set<string> {
     .replace(/[^a-zà-úA-ZÀ-Ú0-9\s]/g, " ")
     .split(/\s+/)
     .filter((w) => w.length >= MIN_KEYWORD_LEN && !STOPWORDS.has(w));
-  return new Set(words);
+  return new Set(words.map(stemIt));
+}
+
+/** Returns the actual shared keywords (unstemmed) for tooltip display */
+function sharedKeywordsDisplay(textA: string, textB: string): string[] {
+  const wordsA = textA.toLowerCase().replace(/[^a-zà-úA-ZÀ-Ú0-9\s]/g, " ").split(/\s+/)
+    .filter((w) => w.length >= MIN_KEYWORD_LEN && !STOPWORDS.has(w));
+  const wordsB = new Set(
+    textB.toLowerCase().replace(/[^a-zà-úA-ZÀ-Ú0-9\s]/g, " ").split(/\s+/)
+      .filter((w) => w.length >= MIN_KEYWORD_LEN && !STOPWORDS.has(w))
+  );
+  const stemsB = new Map<string, string>();
+  for (const w of wordsB) stemsB.set(stemIt(w), w);
+
+  const shared: string[] = [];
+  const seen = new Set<string>();
+  for (const w of wordsA) {
+    const stem = stemIt(w);
+    if (stemsB.has(stem) && !seen.has(stem)) {
+      seen.add(stem);
+      shared.push(w);
+    }
+  }
+  return shared;
 }
 
 // ─── Graph builder ────────────────────────────────────────────────────────────
+
+interface GraphBuildResult {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  /** Map edge_id → shared keyword strings (for tooltip) */
+  edgeKeywords: Map<string, string[]>;
+  /** Map memory_id → Set<connected_node_ids> (for insights) */
+  connectionsMap: Map<string, Set<string>>;
+  /** Cross-persona edges (persona_key → persona_key → count) */
+  crossPersonaLinks: Map<string, Map<string, number>>;
+}
 
 function buildGraphData(
   personas: PersonaLite[],
   memories: MemoryRow[],
   filterPersona: string | null,
   filterType: string | null,
-): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  heatMode: boolean,
+): GraphBuildResult {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
+  const edgeKeywords = new Map<string, string[]>();
+  const connectionsMap = new Map<string, Set<string>>();
+  const crossPersonaLinks = new Map<string, Map<string, number>>();
 
-  // Filter memories
+  // Filter
   let filtered = memories.filter((m) => m.enabled);
   if (filterPersona) filtered = filtered.filter((m) => m.persona_key === filterPersona);
   if (filterType) filtered = filtered.filter((m) => m.memory_type === filterType);
 
-  // Active persona keys (those with at least 1 memory)
   const activePersonaKeys = new Set(filtered.map((m) => m.persona_key));
+
+  // Heat map ranges
+  const maxHits = Math.max(1, ...filtered.map((m) => m.hits_count ?? 0));
+  const now = Date.now();
+  const oldest = Math.min(...filtered.map((m) => new Date(m.created_at).getTime()), now);
+  const timeRange = Math.max(1, now - oldest);
 
   // Persona nodes
   const personaMap = new Map(personas.map((p) => [p.persona_key, p]));
@@ -148,75 +236,217 @@ function buildGraphData(
       label: p.display_name,
       fill: catColor,
       size: 8,
+      // #3: cluster by persona category
+      cluster: `cat_${p.category}`,
       data: { type: "persona", persona: p },
     });
+    connectionsMap.set(`p_${p.persona_key}`, new Set());
   }
 
-  // Memory nodes + persona→memory edges
+  // Memory nodes + edges
   const keywordsMap = new Map<string, Set<string>>();
+  const memoryByPersona = new Map<string, string[]>(); // persona_key → [memId, ...]
+
   for (const m of filtered) {
     const memId = `m_${m.id}`;
-    const typeColor = MEMORY_TYPE_COLORS[m.memory_type] ?? "#94a3b8";
     const hits = m.hits_count ?? 0;
-    // Size proportional to hits (min 2, max 6)
     const size = Math.min(6, Math.max(2, 2 + Math.log2(hits + 1)));
-
-    // Truncate label to 60 chars for readability
     const label = m.content.length > 60 ? m.content.slice(0, 57) + "…" : m.content;
+
+    // #8: Heat map color
+    let fill: string;
+    if (heatMode) {
+      const recency = (new Date(m.created_at).getTime() - oldest) / timeRange; // 0=oldest, 1=newest
+      const hitScore = hits / maxHits;
+      const heat = recency * 0.4 + hitScore * 0.6; // weighted: hits matter more
+      fill = heatColor(heat);
+    } else {
+      fill = MEMORY_TYPE_COLORS[m.memory_type] ?? "#94a3b8";
+    }
+
+    // Persona for this memory
+    const persona = personaMap.get(m.persona_key);
 
     nodes.push({
       id: memId,
       label,
-      fill: typeColor,
+      fill,
       size,
+      // #3: cluster by persona_key
+      cluster: `persona_${m.persona_key}`,
       data: {
         type: "memory",
         memory: m,
         typeLabel: MEMORY_TYPE_LABELS[m.memory_type] ?? m.memory_type,
+        personaName: persona?.display_name ?? m.persona_key,
       },
     });
 
     // Edge: persona → memory
+    const personaEdgeId = `e_p_${m.persona_key}_m_${m.id}`;
     edges.push({
-      id: `e_p_${m.persona_key}_m_${m.id}`,
+      id: personaEdgeId,
       source: `p_${m.persona_key}`,
       target: memId,
       size: 1,
     });
 
-    // Extract keywords for cross-linking
+    // Track connections
+    connectionsMap.set(memId, new Set([`p_${m.persona_key}`]));
+    connectionsMap.get(`p_${m.persona_key}`)?.add(memId);
+
+    // Track per-persona memories
+    if (!memoryByPersona.has(m.persona_key)) memoryByPersona.set(m.persona_key, []);
+    memoryByPersona.get(m.persona_key)!.push(memId);
+
     keywordsMap.set(memId, extractKeywords(m.content));
   }
 
-  // Memory ↔ Memory edges (semantic overlap)
+  // Memory ↔ Memory cross-edges (semantic overlap)
   const memIds = [...keywordsMap.keys()];
   const crossEdgeSet = new Set<string>();
   for (let i = 0; i < memIds.length; i++) {
     const kwA = keywordsMap.get(memIds[i])!;
+    const memA = filtered.find((m) => `m_${m.id}` === memIds[i])!;
     for (let j = i + 1; j < memIds.length; j++) {
       const kwB = keywordsMap.get(memIds[j])!;
+      const memB = filtered.find((m) => `m_${m.id}` === memIds[j])!;
       let overlap = 0;
       for (const w of kwA) {
         if (kwB.has(w)) overlap++;
-        if (overlap >= KEYWORD_OVERLAP_THRESHOLD) break;
       }
       if (overlap >= KEYWORD_OVERLAP_THRESHOLD) {
         const edgeKey = `${memIds[i]}__${memIds[j]}`;
         if (!crossEdgeSet.has(edgeKey)) {
           crossEdgeSet.add(edgeKey);
+          const edgeId = `e_cross_${edgeKey}`;
           edges.push({
-            id: `e_cross_${edgeKey}`,
+            id: edgeId,
             source: memIds[i],
             target: memIds[j],
-            size: 0.5,
-            fill: "#475569", // slate-600
+            size: Math.min(2, 0.5 + overlap * 0.3),
+            fill: "#475569",
           });
+
+          // #7: store shared keywords for tooltip
+          const shared = sharedKeywordsDisplay(memA.content, memB.content);
+          edgeKeywords.set(edgeId, shared);
+
+          // Track connections
+          connectionsMap.get(memIds[i])?.add(memIds[j]);
+          connectionsMap.get(memIds[j])?.add(memIds[i]);
+
+          // #2: Track cross-persona links
+          if (memA.persona_key !== memB.persona_key) {
+            const [pA, pB] = [memA.persona_key, memB.persona_key].sort();
+            if (!crossPersonaLinks.has(pA)) crossPersonaLinks.set(pA, new Map());
+            const existing = crossPersonaLinks.get(pA)!.get(pB) ?? 0;
+            crossPersonaLinks.get(pA)!.set(pB, existing + 1);
+          }
         }
       }
     }
   }
 
-  return { nodes, edges };
+  // #2: Add cross-persona edges (dashed)
+  for (const [pA, targets] of crossPersonaLinks) {
+    for (const [pB, count] of targets) {
+      if (count >= 1) {
+        edges.push({
+          id: `e_xp_${pA}_${pB}`,
+          source: `p_${pA}`,
+          target: `p_${pB}`,
+          size: Math.min(3, 0.8 + count * 0.4),
+          fill: "#f97316",
+          label: `${count} link`,
+          dashed: true,
+        });
+        connectionsMap.get(`p_${pA}`)?.add(`p_${pB}`);
+        connectionsMap.get(`p_${pB}`)?.add(`p_${pA}`);
+      }
+    }
+  }
+
+  return { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks };
+}
+
+// ─── Insights calculator ──────────────────────────────────────────────────────
+
+interface Insights {
+  godNodes: Array<{ id: string; label: string; connections: number }>;
+  orphans: Array<{ id: string; label: string }>;
+  bridges: Array<{ id: string; label: string; personasLinked: string[] }>;
+  healthPct: number; // % memorie con hits > 0
+  totalCrossLinks: number;
+}
+
+function computeInsights(
+  nodes: GraphNode[],
+  connectionsMap: Map<string, Set<string>>,
+  crossPersonaLinks: Map<string, Map<string, number>>,
+  memories: MemoryRow[],
+  personas: PersonaLite[],
+): Insights {
+  const personaMap = new Map(personas.map((p) => [p.persona_key, p]));
+
+  // God nodes: memory nodes with most connections (excluding persona edges)
+  const memoryNodes = nodes.filter((n) => n.data?.type === "memory");
+  const ranked = memoryNodes
+    .map((n) => ({
+      id: n.id,
+      label: n.label ?? "",
+      connections: (connectionsMap.get(n.id)?.size ?? 0),
+    }))
+    .sort((a, b) => b.connections - a.connections);
+
+  const godNodes = ranked.slice(0, 5).filter((n) => n.connections > 1);
+
+  // Orphans: memory nodes connected only to their persona (1 connection)
+  const orphans = ranked
+    .filter((n) => n.connections <= 1)
+    .slice(0, 5);
+
+  // Bridges: memorie che collegano personas diverse
+  const bridgeSet = new Map<string, Set<string>>(); // memId → Set<persona_key>
+  for (const m of memories) {
+    const memId = `m_${m.id}`;
+    if (!bridgeSet.has(memId)) bridgeSet.set(memId, new Set());
+    bridgeSet.get(memId)!.add(m.persona_key);
+    // Check connected memories for different personas
+    const connected = connectionsMap.get(memId);
+    if (connected) {
+      for (const cId of connected) {
+        if (cId.startsWith("m_")) {
+          const connMem = memories.find((mm) => `m_${mm.id}` === cId);
+          if (connMem && connMem.persona_key !== m.persona_key) {
+            bridgeSet.get(memId)!.add(connMem.persona_key);
+          }
+        }
+      }
+    }
+  }
+  const bridges = [...bridgeSet.entries()]
+    .filter(([, pks]) => pks.size >= 2)
+    .map(([memId, pks]) => ({
+      id: memId,
+      label: nodes.find((n) => n.id === memId)?.label ?? "",
+      personasLinked: [...pks].map((pk) => personaMap.get(pk)?.display_name ?? pk),
+    }))
+    .sort((a, b) => b.personasLinked.length - a.personasLinked.length)
+    .slice(0, 5);
+
+  // Health: % memorie con almeno 1 hit
+  const withHits = memories.filter((m) => m.enabled && (m.hits_count ?? 0) > 0).length;
+  const totalEnabled = memories.filter((m) => m.enabled).length;
+  const healthPct = totalEnabled > 0 ? Math.round((withHits / totalEnabled) * 100) : 0;
+
+  // Total cross-links
+  let totalCrossLinks = 0;
+  for (const [, targets] of crossPersonaLinks) {
+    for (const [, count] of targets) totalCrossLinks += count;
+  }
+
+  return { godNodes, orphans, bridges, healthPct, totalCrossLinks };
 }
 
 // ─── Custom dark theme ────────────────────────────────────────────────────────
@@ -224,19 +454,19 @@ function buildGraphData(
 const BRAIN_THEME = {
   ...darkTheme,
   canvas: {
-    background: "#0c0a1a",       // deep dark purple
+    background: "#0c0a1a",
     fog: "#0c0a1a",
   },
   node: {
     ...darkTheme.node,
-    fill: "#f97316",              // default orange (overridden per-node via fill)
+    fill: "#f97316",
     activeFill: "#fb923c",
     opacity: 0.92,
     selectedOpacity: 1,
-    inactiveOpacity: 0.3,
+    inactiveOpacity: 0.15,
     label: {
       ...darkTheme.node.label,
-      color: "#e2e8f0",           // slate-200
+      color: "#e2e8f0",
       activeColor: "#ffffff",
       stroke: "#0c0a1a",
       backgroundColor: "#1e1b3a",
@@ -247,11 +477,11 @@ const BRAIN_THEME = {
   },
   edge: {
     ...darkTheme.edge,
-    fill: "#334155",              // slate-700
-    activeFill: "#f97316",        // orange on hover
+    fill: "#334155",
+    activeFill: "#f97316",
     opacity: 0.35,
     selectedOpacity: 0.8,
-    inactiveOpacity: 0.08,
+    inactiveOpacity: 0.04,
     label: {
       ...darkTheme.edge.label,
       color: "#94a3b8",
@@ -267,15 +497,15 @@ const BRAIN_THEME = {
     activeFill: "#fb923c",
   },
   cluster: {
-    stroke: "#1e293b",
+    stroke: "#334155",
     fill: "#1e1b3a",
-    opacity: 0.15,
+    opacity: 0.12,
     selectedOpacity: 0.3,
-    inactiveOpacity: 0.05,
+    inactiveOpacity: 0.03,
     label: {
       stroke: "#0c0a1a",
-      color: "#94a3b8",
-      fontSize: 3,
+      color: "#64748b",
+      fontSize: 2.5,
       offset: [0, -2, 0] as [number, number, number],
     },
   },
@@ -289,12 +519,17 @@ const BRAIN_THEME = {
 
 export default function AIBrainGraph() {
   const { effectiveCompany } = useAuth();
+  const qc = useQueryClient();
   const graphRef = useRef<GraphCanvasRef | null>(null);
   const [is3D, setIs3D] = useState(true);
   const [selectedNode, setSelectedNode] = useState<InternalGraphNode | null>(null);
   const [filterPersona, setFilterPersona] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [heatMode, setHeatMode] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const [hoveredEdge, setHoveredEdge] = useState<{ id: string; x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
@@ -331,11 +566,42 @@ export default function AIBrainGraph() {
     staleTime: 30_000,
   });
 
+  // ── #4: Real-time subscription ────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!effectiveCompany?.id) return;
+    const ch = supabase
+      .channel(`brain-graph-rt-${effectiveCompany.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "ai_persona_memory",
+          filter: `company_id=eq.${effectiveCompany.id}`,
+        },
+        () => {
+          void qc.invalidateQueries({ queryKey: ["brain-graph-memories"] });
+        },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [effectiveCompany?.id, qc]);
+
   // ── Build graph ───────────────────────────────────────────────────────────
 
-  const { nodes, edges } = useMemo(
-    () => buildGraphData(personas, memories, filterPersona, filterType),
-    [personas, memories, filterPersona, filterType],
+  const graphData = useMemo(
+    () => buildGraphData(personas, memories, filterPersona, filterType, heatMode),
+    [personas, memories, filterPersona, filterType, heatMode],
+  );
+
+  const { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks } = graphData;
+
+  // ── #6: Insights ──────────────────────────────────────────────────────────
+
+  const insights = useMemo(
+    () => computeInsights(nodes, connectionsMap, crossPersonaLinks, memories, personas),
+    [nodes, connectionsMap, crossPersonaLinks, memories, personas],
   );
 
   // ── Stats ─────────────────────────────────────────────────────────────────
@@ -344,8 +610,25 @@ export default function AIBrainGraph() {
     const personaCount = nodes.filter((n) => n.data?.type === "persona").length;
     const memoryCount = nodes.filter((n) => n.data?.type === "memory").length;
     const crossEdges = edges.filter((e) => e.id.startsWith("e_cross_")).length;
-    return { personaCount, memoryCount, crossEdges, totalEdges: edges.length };
+    const xpEdges = edges.filter((e) => e.id.startsWith("e_xp_")).length;
+    return { personaCount, memoryCount, crossEdges, xpEdges, totalEdges: edges.length };
   }, [nodes, edges]);
+
+  // ── #1: Search → selections / actives ─────────────────────────────────────
+
+  const searchSelections = useMemo(() => {
+    if (!searchQuery.trim()) return null; // null = no search active
+    const q = searchQuery.toLowerCase();
+    const matching = nodes
+      .filter((n) => {
+        const label = (n.label ?? "").toLowerCase();
+        const content = n.data?.memory?.content?.toLowerCase() ?? "";
+        const personaName = n.data?.persona?.display_name?.toLowerCase() ?? "";
+        return label.includes(q) || content.includes(q) || personaName.includes(q);
+      })
+      .map((n) => n.id);
+    return matching;
+  }, [searchQuery, nodes]);
 
   // ── Interactions ──────────────────────────────────────────────────────────
 
@@ -353,8 +636,45 @@ export default function AIBrainGraph() {
     setSelectedNode((prev) => prev?.id === node.id ? null : node);
   }, []);
 
+  // #5: Double-click persona → zoom cinematico
+  const handleNodeDoubleClick = useCallback((node: InternalGraphNode) => {
+    if (node.data?.type === "persona") {
+      const personaKey = node.data.persona.persona_key;
+      // Find all memory nodes belonging to this persona
+      const relatedIds = [node.id];
+      for (const e of edges) {
+        if (e.source === node.id) relatedIds.push(e.target);
+        if (e.target === node.id) relatedIds.push(e.source);
+      }
+      graphRef.current?.centerGraph(relatedIds);
+      setSelectedNode(node);
+    } else if (node.data?.type === "memory") {
+      // Zoom to this memory + all connected
+      const relatedIds = [node.id];
+      for (const e of edges) {
+        if (e.source === node.id) relatedIds.push(e.target);
+        if (e.target === node.id) relatedIds.push(e.source);
+      }
+      graphRef.current?.centerGraph(relatedIds);
+    }
+  }, [edges]);
+
   const handleCanvasClick = useCallback(() => {
     setSelectedNode(null);
+    setHoveredEdge(null);
+  }, []);
+
+  // #7: Edge hover → tooltip
+  const handleEdgePointerOver = useCallback((edge: InternalGraphEdge, event?: { nativeEvent?: MouseEvent }) => {
+    if (edge.id.startsWith("e_cross_")) {
+      const x = (event?.nativeEvent?.clientX ?? 0);
+      const y = (event?.nativeEvent?.clientY ?? 0);
+      setHoveredEdge({ id: edge.id, x, y });
+    }
+  }, []);
+
+  const handleEdgePointerOut = useCallback(() => {
+    setHoveredEdge(null);
   }, []);
 
   const resetView = useCallback(() => {
@@ -362,17 +682,31 @@ export default function AIBrainGraph() {
     setSelectedNode(null);
     setFilterPersona(null);
     setFilterType(null);
+    setSearchQuery("");
+    setHoveredEdge(null);
+  }, []);
+
+  // #9: Export screenshot
+  const handleExport = useCallback(() => {
+    try {
+      const dataUrl = graphRef.current?.exportCanvas();
+      if (!dataUrl) return;
+      const link = document.createElement("a");
+      link.download = `cervello-ai-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = dataUrl;
+      link.click();
+      toast.success("Screenshot esportato");
+    } catch {
+      toast.error("Errore esportazione");
+    }
   }, []);
 
   // ── Fullscreen ────────────────────────────────────────────────────────────
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
-    if (!fullscreen) {
-      void containerRef.current.requestFullscreen?.();
-    } else {
-      void document.exitFullscreen?.();
-    }
+    if (!fullscreen) void containerRef.current.requestFullscreen?.();
+    else void document.exitFullscreen?.();
   }, [fullscreen]);
 
   useEffect(() => {
@@ -381,18 +715,20 @@ export default function AIBrainGraph() {
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
-  // ── Active selections for highlight ───────────────────────────────────────
+  // ── Compute final selections ──────────────────────────────────────────────
 
   const selections = useMemo(() => {
+    // Search takes priority
+    if (searchSelections !== null) return searchSelections;
+    // Then node selection
     if (!selectedNode) return [];
     const sel = [selectedNode.id];
-    // Also highlight connected nodes
     for (const e of edges) {
       if (e.source === selectedNode.id) sel.push(e.target);
       else if (e.target === selectedNode.id) sel.push(e.source);
     }
     return sel;
-  }, [selectedNode, edges]);
+  }, [searchSelections, selectedNode, edges]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -427,13 +763,12 @@ export default function AIBrainGraph() {
       ref={containerRef}
       className={cn(
         "relative rounded-xl overflow-hidden border border-slate-800 bg-[#0c0a1a]",
-        fullscreen ? "fixed inset-0 z-50 rounded-none" : "h-[600px]",
+        fullscreen ? "fixed inset-0 z-50 rounded-none" : "h-[650px]",
       )}
     >
       {/* ── Top bar ────────────────────────────────────────────────────────── */}
       <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Stats badges */}
           <Badge className="bg-slate-800/80 text-slate-300 border-slate-700 backdrop-blur-sm text-[10px] gap-1.5">
             <Brain className="h-3 w-3 text-orange-400" />
             {stats.personaCount} personas
@@ -446,10 +781,63 @@ export default function AIBrainGraph() {
             <Network className="h-3 w-3 text-emerald-400" />
             {stats.crossEdges} connessioni
           </Badge>
+          {stats.xpEdges > 0 && (
+            <Badge className="bg-orange-900/60 text-orange-300 border-orange-700 backdrop-blur-sm text-[10px] gap-1.5">
+              <Link2 className="h-3 w-3" />
+              {stats.xpEdges} cross-persona
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 pointer-events-auto">
-          {/* 2D/3D toggle */}
+          {/* #1: Search */}
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-500" />
+            <Input
+              placeholder="Cerca nel grafo…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-7 w-40 pl-7 pr-2 text-[10px] bg-slate-800/80 border-slate-700 text-slate-300 placeholder:text-slate-500 backdrop-blur-sm focus:w-56 transition-all"
+            />
+            {searchQuery && (
+              <button
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                onClick={() => setSearchQuery("")}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+          {/* #8: Heat map toggle */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className={cn(
+              "h-7 px-2 text-[10px] backdrop-blur-sm gap-1",
+              heatMode
+                ? "bg-orange-900/60 text-orange-300 hover:bg-orange-800/60"
+                : "bg-slate-800/80 text-slate-400 hover:bg-slate-700/80 hover:text-white",
+            )}
+            onClick={() => setHeatMode(!heatMode)}
+            title="Heat map: colora per attività (hits + recency)"
+          >
+            <Flame className="h-3 w-3" />
+            Heat
+          </Button>
+          {/* Color mode label */}
+          {!heatMode && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[10px] bg-slate-800/80 text-slate-400 hover:bg-slate-700/80 hover:text-white backdrop-blur-sm gap-1"
+              onClick={() => setHeatMode(true)}
+              title="Modalità colore: per tipo memoria"
+            >
+              <Palette className="h-3 w-3" />
+              Tipo
+            </Button>
+          )}
+          {/* 2D/3D */}
           <Button
             size="sm"
             variant="ghost"
@@ -457,6 +845,16 @@ export default function AIBrainGraph() {
             onClick={() => setIs3D(!is3D)}
           >
             {is3D ? "3D" : "2D"}
+          </Button>
+          {/* #9: Export */}
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 bg-slate-800/80 text-slate-400 hover:bg-slate-700/80 hover:text-white backdrop-blur-sm"
+            onClick={handleExport}
+            title="Esporta screenshot PNG"
+          >
+            <Camera className="h-3.5 w-3.5" />
           </Button>
           {/* Reset */}
           <Button
@@ -481,9 +879,18 @@ export default function AIBrainGraph() {
         </div>
       </div>
 
-      {/* ── Filters ────────────────────────────────────────────────────────── */}
+      {/* ── Search results count ──────────────────────────────────────────── */}
+      {searchSelections !== null && (
+        <div className="absolute top-12 right-3 z-10 pointer-events-auto">
+          <Badge className="bg-slate-800/80 text-slate-300 border-slate-700 backdrop-blur-sm text-[10px]">
+            {searchSelections.length} risultat{searchSelections.length === 1 ? "o" : "i"}
+          </Badge>
+        </div>
+      )}
+
+      {/* ── Active filters ────────────────────────────────────────────────── */}
       {(filterPersona || filterType) && (
-        <div className="absolute top-12 left-3 z-10 flex items-center gap-1.5">
+        <div className="absolute top-12 left-3 z-10 flex items-center gap-1.5 pointer-events-auto">
           {filterPersona && (
             <Badge
               className="bg-orange-900/60 text-orange-300 border-orange-700 backdrop-blur-sm text-[10px] gap-1 cursor-pointer hover:bg-orange-800/60"
@@ -509,37 +916,196 @@ export default function AIBrainGraph() {
             className="h-5 px-1.5 text-[9px] text-slate-500 hover:text-white"
             onClick={resetView}
           >
-            Resetta tutto
+            Resetta
           </Button>
         </div>
       )}
 
+      {/* ── #6: Insights panel ─────────────────────────────────────────────── */}
+      <div className="absolute top-12 left-3 z-10 pointer-events-auto" style={{ marginTop: (filterPersona || filterType) ? 28 : 0 }}>
+        <button
+          className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-white bg-slate-900/80 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-slate-800 transition-colors"
+          onClick={() => setInsightsOpen(!insightsOpen)}
+        >
+          <Zap className="h-3 w-3 text-orange-400" />
+          Insights
+          {insightsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        </button>
+
+        {insightsOpen && (
+          <div className="mt-1 bg-slate-900/90 backdrop-blur-md rounded-lg border border-slate-800 p-2.5 w-64 space-y-2.5 shadow-2xl">
+            {/* Health */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Salute cervello</span>
+                <span className={cn(
+                  "text-[11px] font-bold",
+                  insights.healthPct >= 70 ? "text-emerald-400" : insights.healthPct >= 40 ? "text-amber-400" : "text-rose-400",
+                )}>
+                  {insights.healthPct}%
+                </span>
+              </div>
+              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    insights.healthPct >= 70 ? "bg-emerald-500" : insights.healthPct >= 40 ? "bg-amber-500" : "bg-rose-500",
+                  )}
+                  style={{ width: `${insights.healthPct}%` }}
+                />
+              </div>
+              <p className="text-[9px] text-slate-600 mt-0.5">
+                {insights.healthPct}% delle memorie usate almeno 1 volta
+              </p>
+            </div>
+
+            {/* God nodes */}
+            {insights.godNodes.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1 mb-1">
+                  <Sparkles className="h-3 w-3 text-amber-400" />
+                  <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Nodi centrali</span>
+                </div>
+                {insights.godNodes.map((n) => (
+                  <button
+                    key={n.id}
+                    className="w-full text-left text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/5 truncate flex items-center gap-1.5"
+                    onClick={() => {
+                      graphRef.current?.centerGraph([n.id]);
+                      const gn = nodes.find((nn) => nn.id === n.id);
+                      if (gn) setSelectedNode(gn as unknown as InternalGraphNode);
+                    }}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                    <span className="truncate">{n.label}</span>
+                    <span className="text-slate-600 ml-auto shrink-0">{n.connections}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Bridges */}
+            {insights.bridges.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1 mb-1">
+                  <Link2 className="h-3 w-3 text-orange-400" />
+                  <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Ponti tra personas</span>
+                </div>
+                {insights.bridges.map((b) => (
+                  <button
+                    key={b.id}
+                    className="w-full text-left text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/5 truncate flex items-center gap-1.5"
+                    onClick={() => graphRef.current?.centerGraph([b.id])}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0" />
+                    <span className="truncate">{b.label}</span>
+                    <span className="text-slate-600 ml-auto shrink-0">{b.personasLinked.length}p</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Orphans */}
+            {insights.orphans.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1 mb-1">
+                  <Ghost className="h-3 w-3 text-slate-500" />
+                  <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Orfane (isolate)</span>
+                </div>
+                {insights.orphans.slice(0, 3).map((o) => (
+                  <button
+                    key={o.id}
+                    className="w-full text-left text-[10px] text-slate-500 hover:text-slate-300 px-1.5 py-0.5 rounded hover:bg-white/5 truncate flex items-center gap-1.5"
+                    onClick={() => graphRef.current?.centerGraph([o.id])}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-600 shrink-0" />
+                    <span className="truncate">{o.label}</span>
+                  </button>
+                ))}
+                {insights.orphans.length > 3 && (
+                  <p className="text-[9px] text-slate-600 px-1.5">+{insights.orphans.length - 3} altre</p>
+                )}
+              </div>
+            )}
+
+            {/* Cross-links total */}
+            {insights.totalCrossLinks > 0 && (
+              <div className="pt-1 border-t border-slate-800">
+                <p className="text-[9px] text-slate-500">
+                  <span className="text-orange-400 font-semibold">{insights.totalCrossLinks}</span> connessioni cross-persona trovate
+                  {" — "}il cervello pensa trasversalmente
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── Legend ──────────────────────────────────────────────────────────── */}
       <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-1 pointer-events-auto">
         <div className="bg-slate-900/80 backdrop-blur-sm rounded-lg p-2 border border-slate-800">
-          <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5 font-semibold">Tipo memoria</p>
-          <div className="flex flex-wrap gap-1.5">
-            {Object.entries(MEMORY_TYPE_LABELS).map(([key, label]) => (
-              <button
-                key={key}
-                className={cn(
-                  "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-all",
-                  filterType === key
-                    ? "ring-1 ring-white/40 bg-white/10"
-                    : "hover:bg-white/5",
-                )}
-                onClick={() => setFilterType(filterType === key ? null : key)}
-              >
-                <span
-                  className="h-2 w-2 rounded-full shrink-0"
-                  style={{ backgroundColor: MEMORY_TYPE_COLORS[key] }}
-                />
-                <span className="text-slate-400">{label}</span>
-              </button>
-            ))}
+          <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5 font-semibold">
+            {heatMode ? "Attività (freddo → caldo)" : "Tipo memoria"}
+          </p>
+          {heatMode ? (
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-slate-500">Dormiente</span>
+              <div className="flex-1 h-2 rounded-full" style={{
+                background: "linear-gradient(to right, #3b82f6, #06b6d4, #fbbf24, #f97316, #ef4444)",
+              }} />
+              <span className="text-[9px] text-slate-500">Attiva</span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(MEMORY_TYPE_LABELS).map(([key, label]) => (
+                <button
+                  key={key}
+                  className={cn(
+                    "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-all",
+                    filterType === key ? "ring-1 ring-white/40 bg-white/10" : "hover:bg-white/5",
+                  )}
+                  onClick={() => setFilterType(filterType === key ? null : key)}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: MEMORY_TYPE_COLORS[key] }}
+                  />
+                  <span className="text-slate-400">{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Cross-persona edge legend */}
+          <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-slate-800/50">
+            <span className="h-[2px] w-4 border-t border-dashed border-orange-400" />
+            <span className="text-[9px] text-slate-500">Connessione cross-persona</span>
           </div>
         </div>
       </div>
+
+      {/* ── #7: Edge tooltip ───────────────────────────────────────────────── */}
+      {hoveredEdge && (
+        <div
+          className="fixed z-50 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-700 px-3 py-2 shadow-2xl pointer-events-none"
+          style={{
+            left: hoveredEdge.x + 12,
+            top: hoveredEdge.y - 10,
+            maxWidth: 220,
+          }}
+        >
+          <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1 font-semibold">Keyword condivise</p>
+          <div className="flex flex-wrap gap-1">
+            {(edgeKeywords.get(hoveredEdge.id) ?? []).map((kw) => (
+              <Badge key={kw} className="text-[9px] h-4 px-1.5 bg-orange-900/40 text-orange-300 border-orange-700">
+                {kw}
+              </Badge>
+            ))}
+            {(edgeKeywords.get(hoveredEdge.id) ?? []).length === 0 && (
+              <span className="text-[10px] text-slate-500">overlap semantico</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Detail panel ───────────────────────────────────────────────────── */}
       {selectedNode && (
@@ -563,18 +1129,67 @@ export default function AIBrainGraph() {
                   <p className="text-[10px] text-slate-500 mt-1">
                     {memories.filter((m) => m.persona_key === selectedNode.data.persona.persona_key).length} memorie totali
                   </p>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="mt-2 h-6 text-[10px] text-orange-400 hover:text-orange-300 hover:bg-orange-900/30 gap-1 px-2"
-                    onClick={() => {
-                      setFilterPersona(selectedNode.data.persona.persona_key);
-                      setSelectedNode(null);
-                    }}
-                  >
-                    <Filter className="h-3 w-3" />
-                    Filtra solo questa persona
-                  </Button>
+                  {/* Cross-persona connections for this persona */}
+                  {(() => {
+                    const pk = selectedNode.data.persona.persona_key;
+                    const xpLinks: Array<{ name: string; count: number }> = [];
+                    for (const [pA, targets] of crossPersonaLinks) {
+                      if (pA === pk) {
+                        for (const [pB, count] of targets) {
+                          const name = personas.find((p) => p.persona_key === pB)?.display_name ?? pB;
+                          xpLinks.push({ name, count });
+                        }
+                      }
+                      for (const [pB, count] of (crossPersonaLinks.get(pA) ?? new Map())) {
+                        if (pB === pk && pA !== pk) {
+                          const name = personas.find((p) => p.persona_key === pA)?.display_name ?? pA;
+                          if (!xpLinks.find((l) => l.name === name)) xpLinks.push({ name, count });
+                        }
+                      }
+                    }
+                    if (xpLinks.length === 0) return null;
+                    return (
+                      <div className="mt-2 pt-2 border-t border-slate-800">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Connessa con</p>
+                        {xpLinks.map((l) => (
+                          <div key={l.name} className="flex items-center justify-between text-[10px]">
+                            <span className="text-orange-300">{l.name}</span>
+                            <span className="text-slate-600">{l.count} link</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  <div className="flex gap-1.5 mt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] text-orange-400 hover:text-orange-300 hover:bg-orange-900/30 gap-1 px-2"
+                      onClick={() => {
+                        setFilterPersona(selectedNode.data.persona.persona_key);
+                        setSelectedNode(null);
+                      }}
+                    >
+                      <Filter className="h-3 w-3" />
+                      Filtra
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 gap-1 px-2"
+                      onClick={() => {
+                        const relatedIds = [selectedNode.id];
+                        for (const e of edges) {
+                          if (e.source === selectedNode.id) relatedIds.push(e.target);
+                          if (e.target === selectedNode.id) relatedIds.push(e.source);
+                        }
+                        graphRef.current?.centerGraph(relatedIds);
+                      }}
+                    >
+                      <Maximize2 className="h-3 w-3" />
+                      Zoom
+                    </Button>
+                  </div>
                 </>
               ) : selectedNode.data?.type === "memory" ? (
                 <>
@@ -590,7 +1205,7 @@ export default function AIBrainGraph() {
                       {selectedNode.data.typeLabel}
                     </Badge>
                     <span className="text-[10px] text-slate-500">
-                      {personas.find((p) => p.persona_key === selectedNode.data.memory.persona_key)?.display_name}
+                      {selectedNode.data.personaName}
                     </span>
                   </div>
                   <p className="text-xs text-slate-200 leading-relaxed mt-1">
@@ -601,6 +1216,17 @@ export default function AIBrainGraph() {
                     <span>Conf. {((selectedNode.data.memory.confidence ?? 1) * 100).toFixed(0)}%</span>
                     <span>{selectedNode.data.memory.source ?? "auto"}</span>
                   </div>
+                  {/* Connections count */}
+                  {(() => {
+                    const conn = connectionsMap.get(selectedNode.id);
+                    const crossCount = conn ? [...conn].filter((id) => id.startsWith("m_")).length : 0;
+                    if (crossCount === 0) return null;
+                    return (
+                      <p className="text-[9px] text-orange-400 mt-1.5">
+                        Collegata a {crossCount} altr{crossCount === 1 ? "a memoria" : "e memorie"}
+                      </p>
+                    );
+                  })()}
                 </>
               ) : null}
             </div>
@@ -633,9 +1259,13 @@ export default function AIBrainGraph() {
         labelType="auto"
         edgeInterpolation="curved"
         edgeArrowPosition="none"
+        clusterAttribute="cluster"
         selections={selections}
         onNodeClick={handleNodeClick}
+        onNodeDoubleClick={handleNodeDoubleClick}
         onCanvasClick={handleCanvasClick}
+        onEdgePointerOver={handleEdgePointerOver}
+        onEdgePointerOut={handleEdgePointerOut}
       />
     </div>
   );
