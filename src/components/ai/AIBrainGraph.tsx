@@ -285,9 +285,22 @@ function buildGraphData(
     });
 
   const isGalaxyPure = viewMode === "galaxy" && expandedPersonas.size === 0;
-  // Layout circolare fisso solo in 2D galaxy puro (3D è libero/orbit)
-  const useFixedCircle = isGalaxyPure && viewDim === "2d";
-  const RADIUS = 280;
+  // Layout fisso in 2D (cerchio matematico). 3D è libero/orbit.
+  const useFixedCircle = viewDim === "2d";
+  const RADIUS = 350;        // cerchio personas
+  const MEM_RADIUS = 70;     // mini-cerchio attorno a ogni persona per le sue memorie
+
+  // Pre-compute posizioni delle personas per usarle anche con le memorie
+  const personaPositions = new Map<string, { x: number; y: number }>();
+  if (useFixedCircle) {
+    activePersonasList.forEach((p, i) => {
+      const angle = (i / activePersonasList.length) * Math.PI * 2 - Math.PI / 2;
+      personaPositions.set(p.persona_key, {
+        x: Math.cos(angle) * RADIUS,
+        y: Math.sin(angle) * RADIUS,
+      });
+    });
+  }
 
   activePersonasList.forEach((p, i) => {
     const catColor = PERSONA_CATEGORY_COLORS[p.category] ?? PERSONA_CATEGORY_COLORS.default;
@@ -297,10 +310,10 @@ function buildGraphData(
       ? 12 + Math.round((memCount / maxMemCount) * 10)   // hub 12-22 (più contenuti)
       : 9;
 
-    // Layout circolare deterministico in 2D galaxy puro
-    const angle = (i / activePersonasList.length) * Math.PI * 2 - Math.PI / 2;
-    const fx = useFixedCircle ? Math.cos(angle) * RADIUS : undefined;
-    const fy = useFixedCircle ? Math.sin(angle) * RADIUS : undefined;
+    // Layout circolare deterministico in 2D — usa la mappa pre-calcolata
+    const pos = personaPositions.get(p.persona_key);
+    const fx = pos ? pos.x : undefined;
+    const fy = pos ? pos.y : undefined;
 
     const emoji = PERSONA_CATEGORY_EMOJI[p.category] ?? PERSONA_CATEGORY_EMOJI.default;
     nodes.push({
@@ -329,6 +342,15 @@ function buildGraphData(
   const keywordsMap = new Map<string, Set<string>>();
   const memoryByPersona = new Map<string, string[]>(); // persona_key → [memId, ...]
 
+  // Pre-calcolo indice memoria all'interno della sua persona (per posizionamento)
+  const memIndexInPersona = new Map<string, number>();
+  const memCountByPersonaForLayout = new Map<string, number>();
+  for (const m of visibleMemories) {
+    const cur = memCountByPersonaForLayout.get(m.persona_key) ?? 0;
+    memIndexInPersona.set(m.id, cur);
+    memCountByPersonaForLayout.set(m.persona_key, cur + 1);
+  }
+
   for (const m of visibleMemories) {
     const memId = `m_${m.id}`;
     const hits = m.hits_count ?? 0;
@@ -338,6 +360,20 @@ function buildGraphData(
 
     // Persona for this memory
     const persona = personaMap.get(m.persona_key);
+
+    // Posizione fissa per la memoria: mini-cerchio attorno alla persona
+    let memFx: number | undefined;
+    let memFy: number | undefined;
+    if (useFixedCircle) {
+      const personaPos = personaPositions.get(m.persona_key);
+      if (personaPos) {
+        const idx = memIndexInPersona.get(m.id) ?? 0;
+        const total = memCountByPersonaForLayout.get(m.persona_key) ?? 1;
+        const memAngle = (idx / total) * Math.PI * 2;
+        memFx = personaPos.x + Math.cos(memAngle) * MEM_RADIUS;
+        memFy = personaPos.y + Math.sin(memAngle) * MEM_RADIUS;
+      }
+    }
 
     // Colore: cluster (per persona, default) / type (per tipo memoria) / heat (attività)
     let fill: string;
@@ -362,6 +398,8 @@ function buildGraphData(
       size,
       // #3: cluster by persona_key
       cluster: `persona_${m.persona_key}`,
+      fx: memFx,
+      fy: memFy,
       data: {
         type: "memory",
         memory: m,
@@ -953,6 +991,121 @@ export default function AIBrainGraph() {
     }
   }, []);
 
+  // Export PDF Report executive (1 pagina con screenshot + numeri + insight + top memorie)
+  const handlePdfReport = useCallback(async () => {
+    try {
+      // Lazy load jsPDF (riduce bundle iniziale)
+      const { jsPDF } = await import("jspdf");
+      const dataUrl = graphRef.current?.exportCanvas();
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+      const today = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
+      const companyName = effectiveCompany?.name ?? "Azienda";
+
+      // ── Header ──
+      pdf.setFillColor(249, 115, 22);
+      pdf.rect(0, 0, 210, 14, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Cervello AI — Report Esecutivo", 12, 9.5);
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(today, 198, 9.5, { align: "right" });
+
+      // ── Sottotitolo ──
+      pdf.setTextColor(30, 41, 59);
+      pdf.setFontSize(11);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(companyName, 12, 24);
+      pdf.setFontSize(9);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(100, 116, 139);
+      pdf.text("La conoscenza condivisa delle AI Personas aziendali", 12, 29);
+
+      // ── 4 numeri hero ──
+      const heroY = 38;
+      const cells = [
+        { label: "MEMORIE", value: String(totalMemories), color: [30, 41, 59] },
+        { label: "PONTI CROSS-TEAM", value: String(totalCrossPersonaLinks), color: [249, 115, 22] },
+        { label: "SALUTE", value: `${insights.healthPct}%`, color: insights.healthPct >= 70 ? [16, 185, 129] : insights.healthPct >= 40 ? [245, 158, 11] : [244, 63, 94] },
+        { label: "PERSONAS", value: String(stats.personaCount), color: [124, 58, 237] },
+      ];
+      cells.forEach((c, i) => {
+        const x = 12 + i * 48;
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(x, heroY, 44, 22, 2, 2, "F");
+        pdf.setFontSize(18);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(c.color[0], c.color[1], c.color[2]);
+        pdf.text(c.value, x + 22, heroY + 11, { align: "center" });
+        pdf.setFontSize(7);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(c.label, x + 22, heroY + 17, { align: "center" });
+      });
+
+      // ── Screenshot grafo ──
+      if (dataUrl) {
+        try {
+          pdf.addImage(dataUrl, "PNG", 12, 66, 186, 100);
+        } catch { /* fallback noop */ }
+      }
+
+      // ── Insight narrativo ──
+      pdf.setFillColor(255, 247, 237);
+      pdf.roundedRect(12, 172, 186, 18, 2, 2, "F");
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(194, 65, 12);
+      pdf.text(heroInsight.title.toUpperCase(), 16, 178);
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(51, 65, 85);
+      const insightLines = pdf.splitTextToSize(heroInsight.text, 178);
+      pdf.text(insightLines, 16, 183);
+
+      // ── Top 5 memorie più richiamate ──
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(30, 41, 59);
+      pdf.text("Top 5 memorie più richiamate", 12, 202);
+
+      const personaMapLocal = new Map(personas.map((p) => [p.persona_key, p]));
+      const top5 = [...memories]
+        .filter((m) => m.enabled)
+        .sort((a, b) => (b.hits_count ?? 0) - (a.hits_count ?? 0))
+        .slice(0, 5);
+
+      let y = 208;
+      top5.forEach((m, i) => {
+        const personaName = personaMapLocal.get(m.persona_key)?.display_name ?? m.persona_key;
+        const preview = m.content.length > 95 ? m.content.slice(0, 92) + "…" : m.content;
+        pdf.setFontSize(7);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(249, 115, 22);
+        pdf.text(`${i + 1}.`, 12, y);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(`${m.hits_count ?? 0} hits`, 200, y, { align: "right" });
+        pdf.setTextColor(30, 41, 59);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(`${personaName}: ${preview}`, 17, y, { maxWidth: 175 });
+        y += 8;
+      });
+
+      // ── Footer ──
+      pdf.setFontSize(7);
+      pdf.setFont("helvetica", "italic");
+      pdf.setTextColor(148, 163, 184);
+      pdf.text("Generato da Edilizia in Cloud — Cervello AI", 105, 287, { align: "center" });
+
+      pdf.save(`cervello-ai-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+      toast.success("Report PDF esportato");
+    } catch (err) {
+      toast.error("Errore generazione PDF", { description: String((err as Error).message ?? err) });
+    }
+  }, [effectiveCompany?.name, totalMemories, totalCrossPersonaLinks, insights.healthPct, personas, memories, heroInsight]);
+
   // ── Seed demo: popola memorie realistiche per Demo Azienda ──────────────
   // Mappa ogni persona_key delle memorie demo a un persona_key reale presente
   // nel sistema (via PERSONA_FALLBACKS). Salta le memorie senza match.
@@ -1435,13 +1588,20 @@ export default function AIBrainGraph() {
                     </button>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-slate-600">
+                <div className="pt-2 border-t border-slate-600 space-y-1">
                   <button
                     className="w-full h-7 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white rounded-md flex items-center justify-center gap-1.5 transition-colors"
                     onClick={handleExport}
                   >
                     <Camera className="h-3 w-3" />
                     Esporta screenshot PNG
+                  </button>
+                  <button
+                    className="w-full h-7 text-[10px] text-orange-400 hover:bg-orange-500/20 hover:text-orange-300 rounded-md flex items-center justify-center gap-1.5 transition-colors border border-orange-500/30"
+                    onClick={handlePdfReport}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Report PDF executive
                   </button>
                 </div>
               </div>
