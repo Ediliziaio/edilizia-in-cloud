@@ -4028,6 +4028,9 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
   const [videoStyle, setVideoStyle] = useState<VideoScriptStyle>("problema-soluzione");
   const [generatedScript, setGeneratedScript] = useState<VideoScript | null>(null);
 
+  // ─── Video section tab (script | studio) ─────────────────────────
+  const [videoTab, setVideoTab] = useState<"script" | "studio">("script");
+
   // ─── Libreria asset filters ───────────────────────────────────────
   const [mediaKindFilter, setMediaKindFilter] = useState<"all" | "image" | "video">("all");
   const [mediaFormatFilter, setMediaFormatFilter] = useState<string>("all");
@@ -4351,18 +4354,38 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
         </Card>
       </div>
 
-      {/* ─── ROW 2: VIDEO SCRIPT GENERATOR ───────────────────────────── */}
+      {/* ─── ROW 2: VIDEO (Script + Studio) ─────────────────────────── */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Clapperboard className="h-5 w-5 text-rose-600" />
-            Genera script video AI
-          </CardTitle>
-          <CardDescription>
-            Timeline a scene per Reels / Stories / Feed — usa lo stesso brief, scegli durata e stile narrativo.
-          </CardDescription>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Film className="h-5 w-5 text-rose-600" />
+                Video AI
+              </CardTitle>
+              <CardDescription>Pianifica lo script e genera il video con AI.</CardDescription>
+            </div>
+            {/* Tab switcher inline */}
+            <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+              <button type="button" onClick={() => setVideoTab("script")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition",
+                  videoTab === "script" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                )}>
+                <Clapperboard className="h-3.5 w-3.5" /> Script
+              </button>
+              <button type="button" onClick={() => setVideoTab("studio")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition",
+                  videoTab === "studio" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                )}>
+                <Sparkles className="h-3.5 w-3.5" /> Genera video
+              </button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+        {videoTab === "script" && (<>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Durata">
               <div className="flex gap-2">
@@ -4493,50 +4516,28 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </Button>
             </div>
           )}
+        </>)}
+
+        {/* ─── TAB: GENERA VIDEO ───────────────────────────────────── */}
+        {videoTab === "studio" && (
+          <VideoAIStudio
+            companyId={companyId}
+            libraryImages={mediaLib
+              .filter(m => m.kind !== "video" && m.public_url)
+              .map(m => ({ id: m.id, name: m.name, public_url: m.public_url! }))}
+          />
+        )}
         </CardContent>
       </Card>
 
-      {/* ─── ROW 3: VIDEO AI STUDIO ──────────────────────────────────── */}
-      <VideoAIStudio
-        companyId={companyId}
-        libraryImages={mediaLib
-          .filter(m => m.kind !== "video" && m.public_url)
-          .map(m => ({ id: m.id, name: m.name, public_url: m.public_url! }))}
-      />
-
-      {/* ─── ROW 4: UPLOAD MANUALE ───────────────────────────────────── */}
-      <div>
-        <div className="mb-3 flex items-center gap-2">
-          <div className="h-px flex-1 bg-slate-200" />
-          <span className="text-xs font-medium text-slate-400">Upload manuale</span>
-          <div className="h-px flex-1 bg-slate-200" />
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <AdMediaUploader
-            companyId={companyId}
-            onUploaded={(media) => {
-              toast.success("Immagine salvata in libreria", { description: media.public_url ? "Pronta da usare nelle campagne." : undefined });
-              qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
-            }}
-          />
-          <AdVideoUploader
-            companyId={companyId}
-            onUploaded={(media) => {
-              toast.success("Video salvato in libreria", { description: media.public_url ? "Pronto da usare nelle campagne." : undefined });
-              qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
-            }}
-          />
-        </div>
-      </div>
-
-      {/* ─── ROW 4: LIBRERIA ASSET ───────────────────────────────────── */}
+      {/* ─── ROW 3: LIBRERIA ASSET ───────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-lg">Libreria asset</CardTitle>
               <CardDescription>
-                {mediaLib.length} asset totali · {mediaLib.filter((m) => m.source === "ai_generated").length} AI · {mediaLib.filter((m) => m.source === "upload").length} upload
+                {mediaLib.length} asset · {mediaLib.filter((m) => m.source === "ai_generated").length} AI · {mediaLib.filter((m) => m.source === "upload").length} upload
               </CardDescription>
             </div>
             {/* Filtri */}
@@ -4569,7 +4570,25 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Upload compatto */}
+          <div className="grid gap-3 lg:grid-cols-2">
+            <AdMediaUploader
+              companyId={companyId}
+              onUploaded={(media) => {
+                toast.success("Immagine salvata in libreria", { description: media.public_url ? "Pronta da usare nelle campagne." : undefined });
+                qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
+              }}
+            />
+            <AdVideoUploader
+              companyId={companyId}
+              onUploaded={(media) => {
+                toast.success("Video salvato in libreria", { description: media.public_url ? "Pronto da usare nelle campagne." : undefined });
+                qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
+              }}
+            />
+          </div>
+          {/* Media grid */}
           {mediaLib.length === 0 ? (
             <div className="rounded-xl border border-dashed bg-slate-50 p-10 text-center">
               <ImageIcon className="mx-auto mb-2 h-6 w-6 text-slate-400" />

@@ -351,17 +351,17 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
         <SetupGuide onDismiss={() => setSetupStatus("unknown")} />
       )}
 
-      {/* ─── Main studio card (dark premium) ─────────────────────────── */}
-      <div className="overflow-hidden rounded-2xl bg-slate-950 text-white shadow-2xl">
+      {/* ─── Main studio card ────────────────────────────────────────── */}
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="p-5 space-y-5">
 
           {/* Mode tabs */}
-          <div className="flex items-center gap-1 rounded-xl bg-slate-900 p-1">
+          <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
             <button type="button"
               onClick={() => setMode("img2vid")}
               className={cn(
                 "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition",
-                mode === "img2vid" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-white"
+                mode === "img2vid" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
               )}>
               <ImagePlus className="h-4 w-4" />
               Da immagine
@@ -370,7 +370,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
               onClick={() => setMode("txt2vid")}
               className={cn(
                 "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition",
-                mode === "txt2vid" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-white"
+                mode === "txt2vid" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
               )}>
               <Sparkles className="h-4 w-4" />
               Da testo
@@ -395,20 +395,20 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                     }}
                     className={cn(
                       "flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 text-center transition",
-                      isDragging ? "border-orange-400 bg-orange-500/10" : "border-slate-700 bg-slate-900 hover:border-slate-500"
+                      isDragging ? "border-orange-400 bg-orange-50" : "border-gray-200 bg-gray-50 hover:border-gray-300"
                     )}>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-800">
-                      <Upload className="h-6 w-6 text-slate-400" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                      <Upload className="h-6 w-6 text-gray-400" />
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-200">Trascina la foto del cantiere</p>
-                      <p className="text-xs text-slate-500">JPG, PNG, WebP · max 15 MB</p>
+                      <p className="font-semibold text-gray-700">Trascina la foto del cantiere</p>
+                      <p className="text-xs text-gray-500">JPG, PNG, WebP · max 15 MB</p>
                     </div>
                     {libraryImages.length > 0 && (
                       <button
                         type="button"
                         onClick={e => { e.stopPropagation(); setShowLibraryPicker(p => !p); }}
-                        className="mt-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700">
+                        className="mt-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
                         Scegli da Libreria ({libraryImages.length})
                       </button>
                     )}
@@ -416,11 +416,11 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
 
                   {/* Library picker */}
                   {showLibraryPicker && libraryImages.length > 0 && (
-                    <div className="mt-2 grid grid-cols-4 gap-2 rounded-xl bg-slate-900 p-2">
+                    <div className="mt-2 grid grid-cols-4 gap-2 rounded-xl bg-gray-50 border border-gray-200 p-2">
                       {libraryImages.slice(0, 12).map(img => (
                         <button key={img.id} type="button"
                           onClick={() => { setUploadedImage({ url: img.public_url }); setShowLibraryPicker(false); }}
-                          className="aspect-square overflow-hidden rounded-lg border border-slate-700 hover:border-orange-400">
+                          className="aspect-square overflow-hidden rounded-lg border border-gray-200 hover:border-orange-400">
                           <img src={img.public_url} alt={img.name} className="h-full w-full object-cover" />
                         </button>
                       ))}
@@ -444,12 +444,12 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
             </div>
           ) : (
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Descrivi la scena</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Descrivi la scena</p>
               <Textarea
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
                 placeholder="Es. Operaio installa nuove finestre in appartamento luminoso, Milano, mattina, luce naturale..."
-                className="min-h-20 resize-none border-slate-700 bg-slate-900 text-white placeholder:text-slate-600 focus-visible:ring-orange-500"
+                className="min-h-20 resize-none focus-visible:ring-orange-500"
               />
               {/* Quick prompts */}
               <div className="flex flex-wrap gap-1.5">
@@ -460,7 +460,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                   "Tetto in costruzione, operai al lavoro",
                 ].map(p => (
                   <button key={p} type="button" onClick={() => setPrompt(p)}
-                    className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-400 hover:border-orange-500 hover:text-orange-400">
+                    className="rounded-full border border-gray-200 px-2 py-0.5 text-[10px] text-gray-500 hover:border-orange-400 hover:text-orange-600">
                     {p}
                   </button>
                 ))}
@@ -471,14 +471,14 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
           {/* ─── Effect picker ─────────────────────────────────────────── */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Effetto cinematico</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Effetto cinematico</p>
               <div className="flex gap-1">
                 {(["all", "base", "cantiere", "cinematic"] as const).map(c => (
                   <button key={c} type="button"
                     onClick={() => setCategoryFilter(c)}
                     className={cn(
                       "rounded-md px-2 py-0.5 text-[10px] font-medium transition",
-                      categoryFilter === c ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-300"
+                      categoryFilter === c ? "bg-gray-800 text-white" : "text-gray-500 hover:text-gray-800"
                     )}>
                     {c === "all" ? "Tutti" : c === "cantiere" ? "🏗️ Cantiere" : c === "cinematic" ? "🎭 Cinematic" : "Base"}
                   </button>
@@ -528,11 +528,11 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
             </div>
 
             {/* Selected effect info */}
-            <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+            <div className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
               <span className="text-lg">{selectedEffect.emoji}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-white">{selectedEffect.label}</p>
-                <p className="truncate text-[10px] text-slate-400">{selectedEffect.desc}</p>
+                <p className="text-xs font-semibold text-gray-900">{selectedEffect.label}</p>
+                <p className="truncate text-[10px] text-gray-500">{selectedEffect.desc}</p>
               </div>
             </div>
           </div>
@@ -540,7 +540,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
           {/* ─── Duration + Format + Aspect ────────────────────────────── */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Durata</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Durata</p>
               <div className="flex gap-1.5">
                 {([3, 5, 8] as const).map(d => (
                   <button key={d} type="button"
@@ -548,8 +548,8 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                     className={cn(
                       "flex-1 rounded-lg border py-1.5 text-sm font-bold transition",
                       duration === d
-                        ? "border-orange-400 bg-orange-500/20 text-orange-300"
-                        : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-600"
+                        ? "border-orange-500 bg-orange-50 text-orange-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                     )}>
                     {d}s
                   </button>
@@ -557,7 +557,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
               </div>
             </div>
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Formato</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Formato</p>
               <div className="flex gap-1.5">
                 {(["9:16", "1:1", "16:9"] as const).map(ar => (
                   <button key={ar} type="button"
@@ -565,8 +565,8 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                     className={cn(
                       "flex-1 rounded-lg border py-1.5 text-[11px] font-bold transition",
                       aspectRatio === ar
-                        ? "border-orange-400 bg-orange-500/20 text-orange-300"
-                        : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-600"
+                        ? "border-orange-500 bg-orange-50 text-orange-700"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
                     )}>
                     {ar}
                     <span className="ml-0.5 hidden text-[9px] font-normal opacity-60 sm:inline">
@@ -580,7 +580,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
 
           {/* ─── Cost estimate + Generate button ─────────────────────── */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
+            <div className="flex items-center justify-between text-[11px] text-gray-500">
               <span className="flex items-center gap-1">
                 <Timer className="h-3 w-3" /> ~30-60s generazione
               </span>
@@ -596,7 +596,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                 "w-full rounded-xl py-5 text-base font-bold transition",
                 canGenerate
                   ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white hover:from-orange-400 hover:to-rose-400 shadow-lg shadow-orange-500/25"
-                  : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
               )}>
               {isStarting ? (
                 <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Avvio generazione...</>
