@@ -3021,6 +3021,270 @@ function InboxTab() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// BULK SCHEDULE MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface BulkPost {
+  row: number;
+  platforms: string[];
+  text: string;
+  hashtags: string[];
+  scheduled_at: string;
+  image_url?: string;
+  status: "ok" | "error";
+  errorMsg?: string;
+}
+
+const CSV_EXAMPLE = `piattaforme,testo,hashtag,data_ora,immagine_url
+instagram;facebook,"Cantiere completato in Via Roma! Qualità e precisione come sempre.","#cantiere #lavorifiniti #impresaedile",2026-06-02T09:00,
+instagram,"Buongiorno dal team! Oggi inizia un nuovo progetto entusiasmante 🏗️","#teamwork #costruzioni",2026-06-03T10:30,
+facebook;linkedin,"Consiglio della settimana: controllate sempre il meteo prima di pianificare i lavori in quota.","#consigliutili #edilizia #sicurezza",2026-06-04T11:00,`;
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQuotes = !inQuotes; continue; }
+    if (ch === "," && !inQuotes) { result.push(current.trim()); current = ""; continue; }
+    current += ch;
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function BulkScheduleModal({
+  onImport,
+  onClose,
+}: {
+  onImport: (posts: ScheduledPost[]) => void;
+  onClose: () => void;
+}) {
+  const [csvText, setCsvText] = useState("");
+  const [parsed, setParsed] = useState<BulkPost[]>([]);
+  const [step, setStep] = useState<"input" | "preview" | "done">("input");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const parseCsv = (raw: string): BulkPost[] => {
+    const lines = raw.trim().split("\n").filter((l) => l.trim());
+    if (lines.length < 2) return [];
+    // Skip header
+    return lines.slice(1).map((line, idx) => {
+      const cols = parseCsvLine(line);
+      const [platformsRaw = "", text = "", hashtagsRaw = "", dateRaw = "", imageUrl = ""] = cols;
+      const platforms = platformsRaw.split(";").map((p) => p.trim().toLowerCase()).filter((p) =>
+        PLATFORMS.some((pl) => pl.id === p || pl.name.toLowerCase() === p)
+      ).map((p) => {
+        const found = PLATFORMS.find((pl) => pl.name.toLowerCase() === p || pl.id === p);
+        return found?.id ?? p;
+      });
+      const hashtags = hashtagsRaw.split(/\s+/).map((h) => h.replace(/^#+/, "")).filter(Boolean).map((h) => `#${h}`);
+      const scheduled_at = new Date(dateRaw.trim()).toISOString();
+      const isValidDate = !isNaN(new Date(dateRaw.trim()).getTime());
+      const hasError = platforms.length === 0 || !text.trim() || !isValidDate;
+      return {
+        row: idx + 2,
+        platforms: platforms.length > 0 ? platforms : ["instagram"],
+        text: text.trim(),
+        hashtags,
+        scheduled_at: isValidDate ? scheduled_at : new Date(Date.now() + 86400000).toISOString(),
+        image_url: imageUrl.trim() || undefined,
+        status: hasError ? "error" : "ok",
+        errorMsg: !text.trim() ? "Testo mancante"
+          : platforms.length === 0 ? "Piattaforme non riconosciute"
+          : !isValidDate ? "Data non valida (formato: YYYY-MM-DDTHH:MM)"
+          : undefined,
+      } satisfies BulkPost;
+    });
+  };
+
+  const handlePreview = () => {
+    const rows = parseCsv(csvText);
+    setParsed(rows);
+    setStep("preview");
+  };
+
+  const handleImport = () => {
+    const validPosts: ScheduledPost[] = parsed
+      .filter((p) => p.status === "ok")
+      .map((p, i) => ({
+        id: `bulk-${Date.now()}-${i}`,
+        platforms: p.platforms,
+        contentType: "post",
+        text: p.text,
+        hashtags: p.hashtags,
+        scheduled_at: p.scheduled_at,
+        image_url: p.image_url,
+        status: "scheduled" as const,
+        created_at: new Date().toISOString(),
+      }));
+    validPosts.forEach((post) => onImport(post));
+    setStep("done");
+  };
+
+  const loadFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => setCsvText((e.target?.result as string) ?? "");
+    reader.readAsText(file, "utf-8");
+  };
+
+  const okCount = parsed.filter((p) => p.status === "ok").length;
+  const errCount = parsed.filter((p) => p.status === "error").length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">📅 Import bulk post da CSV</h2>
+            <p className="text-xs text-slate-500">Carica fino a 30 post programmati in una volta sola</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[70vh] overflow-y-auto p-6 space-y-4">
+
+          {step === "input" && (
+            <>
+              {/* Format guide */}
+              <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 space-y-2">
+                <p className="text-xs font-bold text-orange-700">📋 Formato CSV richiesto</p>
+                <p className="text-[11px] text-slate-600">Colonne (separatore virgola, valori con spazi tra virgolette):</p>
+                <div className="overflow-x-auto rounded-lg bg-slate-900 px-3 py-2">
+                  <code className="whitespace-pre font-mono text-[10px] text-emerald-400">{`piattaforme,testo,hashtag,data_ora,immagine_url
+
+• piattaforme: instagram;facebook;linkedin (sep. ;)
+• testo:       tra "virgolette" se contiene virgole
+• hashtag:     #hashtag1 #hashtag2 (spazio-separati)
+• data_ora:    2026-06-02T09:00  (ISO 8601)
+• immagine_url: URL https o vuoto`}</code>
+                </div>
+              </div>
+
+              {/* Paste / upload area */}
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-700">Incolla il contenuto CSV o carica file:</label>
+                  <div className="flex gap-2">
+                    <button type="button"
+                      onClick={() => setCsvText(CSV_EXAMPLE)}
+                      className="rounded-lg border border-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50">
+                      Carica esempio
+                    </button>
+                    <button type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50">
+                      <Upload className="h-3 w-3" /> .csv
+                    </button>
+                    <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
+                  </div>
+                </div>
+                <Textarea
+                  rows={8}
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  placeholder="Incolla qui il tuo CSV…"
+                  className="resize-none font-mono text-xs"
+                />
+                <p className="mt-1 text-[10px] text-slate-400">
+                  {csvText.split("\n").filter((l) => l.trim()).length - 1} righe rilevate (esclusa intestazione)
+                </p>
+              </div>
+            </>
+          )}
+
+          {step === "preview" && (
+            <>
+              <div className={cn("flex items-center gap-3 rounded-xl border px-3 py-2",
+                errCount === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
+                <span className="text-lg">{errCount === 0 ? "✅" : "⚠️"}</span>
+                <div className="text-sm">
+                  <span className="font-bold text-emerald-700">{okCount} post validi</span>
+                  {errCount > 0 && <span className="ml-2 font-bold text-red-600">{errCount} con errori (verranno saltati)</span>}
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {parsed.map((p) => (
+                  <div key={p.row} className={cn("flex items-start gap-3 rounded-xl border p-3 text-xs",
+                    p.status === "ok" ? "border-slate-100 bg-white" : "border-red-200 bg-red-50")}>
+                    <span className={cn("shrink-0 font-bold", p.status === "ok" ? "text-emerald-500" : "text-red-500")}>
+                      {p.status === "ok" ? "✓" : "✗"} R{p.row}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                        {p.platforms.map((pid) => {
+                          const pl = PLATFORMS.find((x) => x.id === pid);
+                          return pl ? (
+                            <span key={pid} className={cn("flex h-4 w-4 items-center justify-center rounded text-[7px] text-white bg-gradient-to-br", pl.gradient)}>
+                              {pl.icon}
+                            </span>
+                          ) : null;
+                        })}
+                        <span className="text-slate-400">
+                          {new Date(p.scheduled_at).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      {p.status === "error"
+                        ? <p className="text-red-600 font-semibold">⚠ {p.errorMsg}</p>
+                        : <p className="line-clamp-1 text-slate-700">{p.text}</p>
+                      }
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {step === "done" && (
+            <div className="flex flex-col items-center gap-4 py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-3xl">✅</div>
+              <div>
+                <p className="text-lg font-bold text-slate-800">{okCount} post importati!</p>
+                <p className="text-sm text-slate-500">Puoi vederli nel Calendario e modificarli singolarmente.</p>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t px-6 py-4">
+          <button type="button" onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-50">
+            {step === "done" ? "Chiudi" : "Annulla"}
+          </button>
+
+          {step === "input" && (
+            <button type="button" onClick={handlePreview} disabled={!csvText.trim()}
+              className="rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
+              Anteprima →
+            </button>
+          )}
+          {step === "preview" && (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setStep("input")}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50">
+                ← Modifica
+              </button>
+              <button type="button" onClick={handleImport} disabled={okCount === 0}
+                className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:from-emerald-600 hover:to-teal-600 disabled:opacity-40">
+                ✓ Importa {okCount} post
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -3073,6 +3337,7 @@ export default function SocialManagerBeta() {
   const reviewCount    = posts.filter((p) => p.status === "review").length;
   const mediaCount     = DEMO_MEDIA_ITEMS.length;
   const inboxUnread    = DEMO_INBOX.filter((i) => i.status === "unread").length;
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const tabs = [
     { id: "crea-post",  label: "Crea Post",  icon: Edit3      },
@@ -3101,12 +3366,23 @@ export default function SocialManagerBeta() {
               <Settings className="h-3.5 w-3.5" /> Connessioni
               <ExternalLink className="h-3 w-3 opacity-60" />
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setBulkModalOpen(true)} className="gap-1.5">
+              <Upload className="h-3.5 w-3.5" /> Import CSV
+            </Button>
             <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-sm"
               onClick={() => setTab("crea-post")}>
               <Plus className="h-3.5 w-3.5" /> Crea post
             </Button>
           </div>
         </div>
+
+        {/* ─── BULK SCHEDULE MODAL ─────────────────────────────────────── */}
+        {bulkModalOpen && (
+          <BulkScheduleModal
+            onImport={handlePostScheduled}
+            onClose={() => setBulkModalOpen(false)}
+          />
+        )}
 
         {/* ─── PLATFORM RIBBON ─────────────────────────────────────────── */}
         <PlatformStatusRibbon connectedAccounts={connectedAccounts} onGoToSettings={goToIntegrations} />
