@@ -32,6 +32,7 @@ import { BrainSemanticSearch } from "./BrainSemanticSearch";
 import { BrainPersonaStats } from "./BrainPersonaStats";
 import { BrainOnboardingTour } from "./BrainOnboardingTour";
 import { BrainMascot } from "./BrainMascot";
+import { BrainPersonaSheet } from "./BrainPersonaSheet";
 import { GraphCanvas, lightTheme, type GraphNode, type GraphEdge, type GraphCanvasRef } from "reagraph";
 import type { InternalGraphNode, InternalGraphEdge } from "reagraph";
 import { Badge } from "@/components/ui/badge";
@@ -549,9 +550,9 @@ function buildGraphData(
           id: `e_xp_${pA}_${pB}`,
           source: `p_${pA}`,
           target: `p_${pB}`,
-          size: Math.min(5, 1.5 + count * 0.5), // più visibile
-          fill: "#fb923c", // orange-400 ben visibile su nero
-          // niente label sull'edge (il numero compare nel detail panel)
+          // Top cross (≥3 link) sono SPESSE per attirare l'occhio
+          size: count >= 3 ? Math.min(7, 2.5 + count * 0.6) : Math.min(5, 1.5 + count * 0.5),
+          fill: "#fb923c",
         });
         connectionsMap.get(`p_${pA}`)?.add(`p_${pB}`);
         connectionsMap.get(`p_${pB}`)?.add(`p_${pA}`);
@@ -783,6 +784,8 @@ export default function AIBrainGraph() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [recentEventsCount, setRecentEventsCount] = useState(0);
   const [livePulse, setLivePulse] = useState(false); // pulse animation on the LIVE indicator
+  const [timeFilter, setTimeFilter] = useState<"7d" | "30d" | "90d" | "all">("all");
+  const [personaSheetKey, setPersonaSheetKey] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
@@ -849,9 +852,18 @@ export default function AIBrainGraph() {
 
   // ── Build graph ───────────────────────────────────────────────────────────
 
+  // Memorie filtrate per finestra temporale (timeFilter)
+  const timeFilteredMemories = useMemo(() => {
+    if (timeFilter === "all") return memories;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const days = timeFilter === "7d" ? 7 : timeFilter === "30d" ? 30 : 90;
+    const threshold = Date.now() - days * dayMs;
+    return memories.filter((m) => new Date(m.created_at).getTime() >= threshold);
+  }, [memories, timeFilter]);
+
   const graphData = useMemo(
-    () => buildGraphData(personas, memories, filterPersona, filterType, colorMode, viewMode, expandedPersonas, viewDim),
-    [personas, memories, filterPersona, filterType, colorMode, viewMode, expandedPersonas, viewDim],
+    () => buildGraphData(personas, timeFilteredMemories, filterPersona, filterType, colorMode, viewMode, expandedPersonas, viewDim),
+    [personas, timeFilteredMemories, filterPersona, filterType, colorMode, viewMode, expandedPersonas, viewDim],
   );
 
   const { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks } = graphData;
@@ -913,6 +925,25 @@ export default function AIBrainGraph() {
     for (const [, t] of crossPersonaLinks) for (const [, c] of t) n += c;
     return n;
   }, [crossPersonaLinks]);
+
+  // Confronto vs 7 giorni fa: quante memorie create / hits accumulati
+  const periodComparison = useMemo(() => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const sevenDaysAgo = now - 7 * dayMs;
+    const fourteenDaysAgo = now - 14 * dayMs;
+
+    let current = 0;
+    let previous = 0;
+    for (const m of memories) {
+      if (!m.enabled) continue;
+      const t = new Date(m.created_at).getTime();
+      if (t >= sevenDaysAgo) current++;
+      else if (t >= fourteenDaysAgo) previous++;
+    }
+    const delta = current - previous;
+    return { current, previous, delta };
+  }, [memories]);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
 
@@ -1308,8 +1339,20 @@ export default function AIBrainGraph() {
             {/* 3 numeri hero */}
             <div className="flex items-center gap-4 md:gap-6 md:ml-6">
               <div>
-                <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">{totalMemories}</div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">memorie</div>
+                <div className="flex items-baseline gap-1.5">
+                  <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">{totalMemories}</div>
+                  {periodComparison.delta !== 0 && (
+                    <span className={cn(
+                      "text-[10px] font-semibold tabular-nums",
+                      periodComparison.delta > 0 ? "text-emerald-600" : "text-rose-600",
+                    )}>
+                      {periodComparison.delta > 0 ? "▲" : "▼"}{Math.abs(periodComparison.delta)}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">
+                  memorie {periodComparison.delta !== 0 ? "vs 7gg" : ""}
+                </div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div>
@@ -1371,8 +1414,35 @@ export default function AIBrainGraph() {
               </Popover>
             </div>
 
+            {/* Filtro temporale */}
+            <div className="md:ml-auto flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Periodo</span>
+              <div className="flex bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm">
+                {([
+                  { v: "7d", l: "7g" },
+                  { v: "30d", l: "30g" },
+                  { v: "90d", l: "90g" },
+                  { v: "all", l: "Tutto" },
+                ] as const).map((opt, i) => (
+                  <button
+                    key={opt.v}
+                    onClick={() => setTimeFilter(opt.v)}
+                    className={cn(
+                      "h-7 px-2 text-[10px] font-medium transition-colors",
+                      timeFilter === opt.v
+                        ? "bg-orange-500 text-white"
+                        : "text-slate-300 hover:bg-slate-100 hover:text-slate-300",
+                      i > 0 && "border-l border-slate-200",
+                    )}
+                  >
+                    {opt.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Insight feed rotante */}
-            <div className="md:ml-auto md:max-w-sm w-full md:w-auto">
+            <div className="md:max-w-sm w-full md:w-auto">
               <BrainInsightFeed
                 memories={memories}
                 personas={personas}
@@ -1400,6 +1470,20 @@ export default function AIBrainGraph() {
 
       {/* Onboarding tour (solo primo accesso, persistito in localStorage) */}
       <BrainOnboardingTour />
+
+      {/* Sheet fullscreen scheda persona */}
+      <BrainPersonaSheet
+        open={personaSheetKey !== null}
+        onClose={() => setPersonaSheetKey(null)}
+        persona={personaSheetKey ? personas.find((p) => p.persona_key === personaSheetKey) ?? null : null}
+        emoji={personaSheetKey ? (PERSONA_CATEGORY_EMOJI[personas.find((p) => p.persona_key === personaSheetKey)?.category ?? ""] ?? "⚡") : "⚡"}
+        color={personaSheetKey ? (PERSONA_CATEGORY_COLORS[personas.find((p) => p.persona_key === personaSheetKey)?.category ?? ""] ?? PERSONA_CATEGORY_COLORS.default) : "#f97316"}
+        memories={memories}
+        allPersonas={personas}
+        crossPersonaLinks={crossPersonaLinks}
+        typeColors={MEMORY_TYPE_COLORS}
+        typeLabels={MEMORY_TYPE_LABELS}
+      />
 
       {/* Brain mascot (chiacchiera in basso a destra) */}
       <BrainMascot
@@ -2003,6 +2087,17 @@ export default function AIBrainGraph() {
                         {expandedPersonas.has(selectedNode.data.persona.persona_key) ? "Comprimi" : "Espandi"}
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] text-orange-400 hover:text-orange-300 hover:bg-orange-500/20 gap-1 px-2 bg-orange-500/10 border border-orange-500/30"
+                      onClick={() => {
+                        setPersonaSheetKey(selectedNode.data.persona.persona_key);
+                      }}
+                    >
+                      <Maximize2 className="h-3 w-3" />
+                      Scheda completa
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"

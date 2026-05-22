@@ -157,6 +157,102 @@ function Sparkline({
   );
 }
 
+/**
+ * Activity heatmap stile GitHub contributions.
+ * 14 settimane × 7 giorni (98 celle) — colorato per # memorie create quel giorno.
+ */
+function ActivityHeatmap({ memories }: { memories: MemoryLite[] }) {
+  const data = useMemo(() => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const weeks = 14;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Domenica della settimana corrente = ancore
+    const dow = today.getDay();
+    const sunday = new Date(today.getTime() - dow * dayMs);
+    const start = new Date(sunday.getTime() - (weeks - 1) * 7 * dayMs);
+
+    // Count per giorno (key = "YYYY-MM-DD")
+    const counts = new Map<string, number>();
+    for (const m of memories) {
+      if (!m.enabled) continue;
+      const d = new Date(m.created_at);
+      d.setHours(0, 0, 0, 0);
+      if (d.getTime() < start.getTime()) continue;
+      const key = d.toISOString().slice(0, 10);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    // Build grid [week][day]
+    const grid: Array<Array<{ date: Date; count: number }>> = [];
+    for (let w = 0; w < weeks; w++) {
+      const week: Array<{ date: Date; count: number }> = [];
+      for (let d = 0; d < 7; d++) {
+        const date = new Date(start.getTime() + (w * 7 + d) * dayMs);
+        const key = date.toISOString().slice(0, 10);
+        week.push({ date, count: counts.get(key) ?? 0 });
+      }
+      grid.push(week);
+    }
+    const max = Math.max(1, ...counts.values());
+    return { grid, max };
+  }, [memories]);
+
+  const cellColor = (count: number): string => {
+    if (count === 0) return "#1e293b";
+    const intensity = Math.min(1, count / data.max);
+    if (intensity < 0.25) return "#92400e"; // amber-800
+    if (intensity < 0.5) return "#c2410c";  // orange-700
+    if (intensity < 0.75) return "#ea580c"; // orange-600
+    return "#f97316";                        // orange-500 max
+  };
+
+  const cellSize = 8;
+  const gap = 2;
+  const width = data.grid.length * (cellSize + gap);
+  const height = 7 * (cellSize + gap);
+
+  return (
+    <div className="pt-1.5 border-t border-slate-700">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">
+          Attività 14 settimane
+        </span>
+        <div className="flex items-center gap-0.5">
+          <span className="text-[8px] text-slate-300">-</span>
+          {[0.1, 0.3, 0.6, 1].map((i) => (
+            <span
+              key={i}
+              className="h-2 w-2 rounded-sm"
+              style={{ backgroundColor: cellColor(i * data.max) }}
+            />
+          ))}
+          <span className="text-[8px] text-slate-300">+</span>
+        </div>
+      </div>
+      <svg width={width} height={height} className="block">
+        {data.grid.map((week, w) =>
+          week.map((day, d) => (
+            <rect
+              key={`${w}-${d}`}
+              x={w * (cellSize + gap)}
+              y={d * (cellSize + gap)}
+              width={cellSize}
+              height={cellSize}
+              rx={1.5}
+              fill={cellColor(day.count)}
+            >
+              <title>
+                {day.date.toLocaleDateString("it-IT")} — {day.count} {day.count === 1 ? "memoria" : "memorie"}
+              </title>
+            </rect>
+          )),
+        )}
+      </svg>
+    </div>
+  );
+}
+
 export function BrainPersonaStats({ memories, typeColors, typeLabels }: Props) {
   const stats = useMemo(() => {
     const enabled = memories.filter((m) => m.enabled);
@@ -236,6 +332,9 @@ export function BrainPersonaStats({ memories, typeColors, typeLabels }: Props) {
         </div>
         <Sparkline values={stats.sparkline} color="#fb923c" width={228} height={26} />
       </div>
+
+      {/* Activity heatmap stile GitHub — 14 settimane × 7 giorni */}
+      <ActivityHeatmap memories={memories} />
 
       {/* Top 3 memorie più richiamate */}
       {stats.top.length > 0 && (
