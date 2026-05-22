@@ -2213,7 +2213,7 @@ function isPublicNoindexPath(pathname) {
   return PUBLIC_NOINDEX_PATTERNS.some((pattern) => pattern.test(pathname));
 }
 
-export async function onRequest({ request, next }) {
+export async function onRequest({ request, next, env }) {
   const ua = request.headers.get("user-agent") || "";
   const url = new URL(request.url);
 
