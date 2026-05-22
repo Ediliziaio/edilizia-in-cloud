@@ -201,6 +201,7 @@ const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/Email
 // 🆕 GAP 9b: pagina gestione memoria AI personas
 const AIMemoryPage = lazy(() => import("@/pages/azienda/AIMemoryPage"));
 const AIPersonasHub = lazy(() => import("@/pages/azienda/impostazioni/AIPersonasHub"));
+const SettingsAIAutomazioni = lazy(() => import("@/pages/azienda/impostazioni/SettingsAIAutomazioni"));
 // Preferenze canale notifiche personali (parte del bulk scheduler)
 const SettingsNotifiche = lazy(() => import("@/pages/azienda/impostazioni/SettingsNotifiche"));
 const MioProfilo = lazy(() => import("@/pages/azienda/impostazioni/MioProfilo"));
@@ -668,6 +669,8 @@ export default function CompanyRoutesContainer() {
           {/* v8.6.72 — Sostituisce AIMemoryPage standalone. Tab default "chat" via querystring. */}
           <Route path="ai-memoria" element={withCompanyPermission("canViewSettingsCustomization", <AIPersonasHub />)} />
           <Route path="ai-personas" element={<Navigate to="/azienda/impostazioni/ai-memoria?tab=chat" replace />} />
+          {/* Feature #1 — Trust-level + auto-execution policy per azione AI */}
+          <Route path="ai-automazioni" element={withCompanyPermission("canViewSettingsCustomization", <SettingsAIAutomazioni />)} />
           {/* ── Preferenze canale notifiche personali (bulk scheduler routing) ── */}
           <Route path="notifiche" element={<SettingsNotifiche />} />
           {/* ── Impostazioni azienda (solo admin/permessi) ── */}
