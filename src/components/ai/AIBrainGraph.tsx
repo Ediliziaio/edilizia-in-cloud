@@ -98,6 +98,32 @@ const PERSONA_CATEGORY_COLORS: Record<string, string> = {
   default:    "#f97316",
 };
 
+// Emoji caratteristica per ogni categoria persona
+const PERSONA_CATEGORY_EMOJI: Record<string, string> = {
+  finance:    "💰",
+  operations: "🔨",
+  sales:      "📊",
+  marketing:  "📢",
+  hr:         "👥",
+  strategy:   "🎯",
+  support:    "🎧",
+  tech:       "💻",
+  legal:      "⚖️",
+  compliance: "📋",
+  default:    "⚡",
+};
+
+/** Genera SVG data URI con emoji centrato (no background — il nodo colorato fa già da sfondo) */
+function emojiToIconUri(emoji: string): string {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='50%' text-anchor='middle' dominant-baseline='central' font-size='70'>${emoji}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+// Pre-compute icon URIs (statici per category)
+const PERSONA_ICONS: Record<string, string> = Object.fromEntries(
+  Object.entries(PERSONA_CATEGORY_EMOJI).map(([cat, emoji]) => [cat, emojiToIconUri(emoji)]),
+);
+
 // ─── Heat map colors (cold → hot) ────────────────────────────────────────────
 
 function heatColor(value: number): string {
@@ -273,17 +299,18 @@ function buildGraphData(
     const fx = useFixedCircle ? Math.cos(angle) * RADIUS : undefined;
     const fy = useFixedCircle ? Math.sin(angle) * RADIUS : undefined;
 
+    const emoji = PERSONA_CATEGORY_EMOJI[p.category] ?? PERSONA_CATEGORY_EMOJI.default;
     nodes.push({
       id: `p_${p.persona_key}`,
       label: `${p.display_name}${viewMode === "galaxy" ? ` · ${memCount}` : ""}`,
       fill: catColor,
       size,
       labelVisible: true,
-      // cluster solo quando layout lo supporta (sempre force directed ora)
       cluster: `cat_${p.category}`,
       fx,
       fy,
-      data: { type: "persona", persona: p, memoryCount: memCount },
+      // Emoji disponibile per detail panel HTML (canvas WebGL non supporta emoji nel testo)
+      data: { type: "persona", persona: p, memoryCount: memCount, emoji },
     });
     connectionsMap.set(`p_${p.persona_key}`, new Set());
   });
@@ -1592,10 +1619,12 @@ export default function AIBrainGraph() {
               {selectedNode.data?.type === "persona" ? (
                 <>
                   <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className="h-3 w-3 rounded-full shrink-0"
+                    <div
+                      className="h-8 w-8 rounded-lg flex items-center justify-center text-base shrink-0"
                       style={{ backgroundColor: selectedNode.fill as string }}
-                    />
+                    >
+                      {selectedNode.data.emoji ?? "⚡"}
+                    </div>
                     <span className="text-sm font-semibold text-white truncate">
                       {selectedNode.data.persona.display_name}
                     </span>
