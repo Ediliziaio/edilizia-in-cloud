@@ -466,6 +466,33 @@ const DEMO_ANALYTICS = {
   ],
 };
 
+// ─── Demo hashtag performance ─────────────────────────────────────────────────
+
+interface HashtagStat {
+  tag: string;
+  uses: number;
+  avgReach: number;
+  totalReach: number;
+  engagementRate: number;
+  trend: number;         // % vs periodo precedente
+  bestPillar?: string;
+}
+
+const DEMO_HASHTAG_STATS: HashtagStat[] = [
+  { tag: "#cantiere",            uses: 18, avgReach: 1_240, totalReach: 22_320, engagementRate: 7.2, trend: 24,  bestPillar: "cantiere"      },
+  { tag: "#impresaedile",        uses: 14, avgReach: 1_080, totalReach: 15_120, engagementRate: 6.4, trend: 18,  bestPillar: "team"          },
+  { tag: "#ristrutturazione",    uses: 12, avgReach: 1_410, totalReach: 16_920, engagementRate: 8.1, trend: 31,  bestPillar: "portfolio"     },
+  { tag: "#costruzioni",         uses: 11, avgReach:   890, totalReach:  9_790, engagementRate: 5.9, trend: 8,   bestPillar: "cantiere"      },
+  { tag: "#lavoriincorso",       uses: 10, avgReach:   760, totalReach:  7_600, engagementRate: 5.2, trend: -5,  bestPillar: "cantiere"      },
+  { tag: "#primadopo",           uses:  8, avgReach: 1_680, totalReach: 13_440, engagementRate: 9.3, trend: 42,  bestPillar: "portfolio"     },
+  { tag: "#consigliutili",       uses:  7, avgReach: 1_120, totalReach:  7_840, engagementRate: 6.8, trend: 15,  bestPillar: "educational"   },
+  { tag: "#teamwork",            uses:  6, avgReach:   640, totalReach:  3_840, engagementRate: 4.7, trend: 3,   bestPillar: "team"          },
+  { tag: "#edilizia",            uses: 16, avgReach:   580, totalReach:  9_280, engagementRate: 3.2, trend: -12, bestPillar: "cantiere"      },
+  { tag: "#preventivogratuito",  uses:  5, avgReach: 1_950, totalReach:  9_750, engagementRate: 11.4,trend: 58,  bestPillar: "promo"         },
+  { tag: "#clientisoddisfatti",  uses:  4, avgReach: 1_340, totalReach:  5_360, engagementRate: 8.6, trend: 22,  bestPillar: "testimonianza" },
+  { tag: "#artigiani",           uses:  4, avgReach:   720, totalReach:  2_880, engagementRate: 5.1, trend: -3,  bestPillar: "team"          },
+];
+
 // ─── Demo media items ──────────────────────────────────────────────────────────
 
 const DEMO_MEDIA_ITEMS: MediaItem[] = [
@@ -2518,6 +2545,100 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
           </Card>
         </div>
       </div>
+
+      {/* ── HASHTAG PERFORMANCE ─────────────────────────────────────────── */}
+      <Card className="overflow-hidden">
+        <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Hash className="h-4 w-4 text-orange-500" /> Hashtag Performance
+            </CardTitle>
+            <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">Demo</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-0.5">Reach medio e utilizzi degli hashtag nei post del periodo</p>
+        </CardHeader>
+        <CardContent>
+          {/* Summary pills */}
+          <div className="mb-4 flex flex-wrap gap-2">
+            {[
+              { label: "Hashtag usati", value: DEMO_HASHTAG_STATS.length,                       color: "text-orange-700", bg: "bg-orange-50"  },
+              { label: "Reach totale",  value: `${(DEMO_HASHTAG_STATS.reduce((s,h)=>s+h.totalReach,0)/1000).toFixed(1)}K`, color: "text-blue-700", bg: "bg-blue-50" },
+              { label: "Migliore",      value: DEMO_HASHTAG_STATS[0]?.tag ?? "—",               color: "text-emerald-700",bg: "bg-emerald-50" },
+              { label: "Trend",         value: `${DEMO_HASHTAG_STATS.filter(h=>h.trend>0).length} in crescita`, color: "text-violet-700", bg: "bg-violet-50" },
+            ].map(({ label, value, color, bg }) => (
+              <div key={label} className={cn("flex flex-col rounded-xl border border-slate-100 px-3 py-2 text-center", bg)}>
+                <span className={cn("text-base font-bold", color)}>{value}</span>
+                <span className="text-[10px] text-slate-500">{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Hashtag table */}
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60 text-left">
+                  <th className="py-2 pl-3 pr-2 font-semibold text-slate-600">#</th>
+                  <th className="py-2 px-2 font-semibold text-slate-600">Hashtag</th>
+                  <th className="py-2 px-2 text-right font-semibold text-slate-600">Utilizzi</th>
+                  <th className="py-2 px-2 text-right font-semibold text-slate-600">Reach medio</th>
+                  <th className="py-2 px-2 text-right font-semibold text-slate-600">Reach totale</th>
+                  <th className="py-2 px-2 text-right font-semibold text-slate-600">Eng. rate</th>
+                  <th className="py-2 pr-3 text-right font-semibold text-slate-600">Trend</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {DEMO_HASHTAG_STATS.map((h, i) => (
+                  <tr key={h.tag} className="group hover:bg-slate-50/60 transition">
+                    <td className="py-2 pl-3 pr-2 text-slate-400">{i + 1}</td>
+                    <td className="py-2 px-2">
+                      <span className="font-semibold text-slate-800">{h.tag}</span>
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums text-slate-600">{h.uses}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-slate-700 font-medium">
+                      {h.avgReach >= 1000 ? `${(h.avgReach / 1000).toFixed(1)}K` : h.avgReach}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums text-slate-700">
+                      {h.totalReach >= 1000 ? `${(h.totalReach / 1000).toFixed(1)}K` : h.totalReach}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums">
+                      <span className={cn("font-semibold",
+                        h.engagementRate >= 6 ? "text-emerald-600" : h.engagementRate >= 4 ? "text-amber-600" : "text-slate-500")}>
+                        {h.engagementRate.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 text-right">
+                      <span className={cn("flex items-center justify-end gap-0.5 font-bold text-[10px]",
+                        h.trend > 0 ? "text-emerald-600" : h.trend < 0 ? "text-red-500" : "text-slate-400")}>
+                        {h.trend > 0 ? "▲" : h.trend < 0 ? "▼" : "—"}
+                        {h.trend !== 0 && Math.abs(h.trend)}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Recommendations */}
+          <div className="mt-4 space-y-2">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">💡 Suggerimenti AI</p>
+            {[
+              { icon: "🚀", text: `#${DEMO_HASHTAG_STATS[0]?.tag?.replace("#","")} è il tuo hashtag più performante — usalo in ogni post del pillar ${DEMO_HASHTAG_STATS[0]?.bestPillar ?? "cantiere"}.`, priority: "high" },
+              { icon: "📉", text: `#edilizia ha un trend in calo (-12%) — sostituiscilo con varianti long tail come #impresaedileitalia o #cantiereitalia.`, priority: "medium" },
+              { icon: "✨", text: `Prova ad aggiungere 2-3 hashtag niche con volume inferiore (500-5K) per migliorare il match con l'audience locale.`, priority: "low" },
+            ].map((tip, i) => (
+              <div key={i} className={cn("flex items-start gap-2.5 rounded-xl border px-3 py-2.5",
+                tip.priority === "high" ? "border-orange-200 bg-orange-50/60" : "border-slate-100 bg-slate-50/60")}>
+                <span className="text-base leading-none">{tip.icon}</span>
+                <p className="text-[11px] leading-relaxed text-slate-700">{tip.text}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }
