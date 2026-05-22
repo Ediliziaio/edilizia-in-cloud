@@ -276,6 +276,110 @@ const CONTENT_TYPE_CONFIG: ContentTypeConfig[] = [
   },
 ];
 
+// ─── Content Pillars ───────────────────────────────────────────────────────────
+
+interface ContentPillar {
+  id: string;
+  label: string;
+  emoji: string;
+  color: string;          // tailwind bg (active)
+  colorText: string;      // tailwind text
+  colorBorder: string;    // tailwind border
+  colorBg: string;        // light bg
+  description: string;
+  hashtags: string[];
+  promptHint: string;
+  suggestedContentType: string;
+  weeklyFreq: number;
+}
+
+const CONTENT_PILLARS: ContentPillar[] = [
+  {
+    id: "cantiere",
+    label: "Cantiere",
+    emoji: "🏗️",
+    color: "bg-sky-500",
+    colorText: "text-sky-700",
+    colorBorder: "border-sky-300",
+    colorBg: "bg-sky-50",
+    description: "Lavori in corso, progress, before/after",
+    hashtags: ["#cantiere", "#lavoriincorso", "#costruzioni", "#impresaedile", "#realizzazioni"],
+    promptHint: "Mostra i lavori in corso nel cantiere, racconta il progresso, prima e dopo i lavori.",
+    suggestedContentType: "post",
+    weeklyFreq: 3,
+  },
+  {
+    id: "team",
+    label: "Team",
+    emoji: "👷",
+    color: "bg-amber-500",
+    colorText: "text-amber-700",
+    colorBorder: "border-amber-300",
+    colorBg: "bg-amber-50",
+    description: "Il tuo team, storia, dietro le quinte",
+    hashtags: ["#teamwork", "#artigiani", "#impresaedile", "#squadra", "#lavorecedilepassione"],
+    promptHint: "Presenta il team di lavoro, racconta la storia e la passione dei tuoi collaboratori.",
+    suggestedContentType: "reel",
+    weeklyFreq: 1,
+  },
+  {
+    id: "testimonianza",
+    label: "Testimonianza",
+    emoji: "⭐",
+    color: "bg-emerald-500",
+    colorText: "text-emerald-700",
+    colorBorder: "border-emerald-300",
+    colorBg: "bg-emerald-50",
+    description: "Clienti soddisfatti, recensioni, referenze",
+    hashtags: ["#clientisoddisfatti", "#recensioni", "#lavorifiniti", "#qualita", "#fiducia"],
+    promptHint: "Condividi la testimonianza di un cliente soddisfatto, i risultati ottenuti e perché ti ha scelto.",
+    suggestedContentType: "post",
+    weeklyFreq: 1,
+  },
+  {
+    id: "educational",
+    label: "Educational",
+    emoji: "📚",
+    color: "bg-orange-500",
+    colorText: "text-orange-700",
+    colorBorder: "border-orange-300",
+    colorBg: "bg-orange-50",
+    description: "Consigli pratici, normative, FAQ",
+    hashtags: ["#consigliutili", "#edilizia", "#sapevi", "#normative", "#guidapratica"],
+    promptHint: "Condividi un consiglio pratico, spiega una normativa edilizia o rispondi a una domanda frequente dei clienti.",
+    suggestedContentType: "carousel",
+    weeklyFreq: 2,
+  },
+  {
+    id: "promo",
+    label: "Promo",
+    emoji: "🎯",
+    color: "bg-red-500",
+    colorText: "text-red-700",
+    colorBorder: "border-red-300",
+    colorBg: "bg-red-50",
+    description: "Offerte, promozioni stagionali, preventivi",
+    hashtags: ["#offerta", "#preventivogratuito", "#promozione", "#sconto", "#chiediilpreventivo"],
+    promptHint: "Promuovi un'offerta speciale o una promozione stagionale, invita a richiedere un preventivo gratuito.",
+    suggestedContentType: "story",
+    weeklyFreq: 1,
+  },
+  {
+    id: "portfolio",
+    label: "Portfolio",
+    emoji: "✨",
+    color: "bg-violet-500",
+    colorText: "text-violet-700",
+    colorBorder: "border-violet-300",
+    colorBg: "bg-violet-50",
+    description: "Progetti completati, before & after",
+    hashtags: ["#portfolio", "#progettorealizzato", "#ristrutturazione", "#risultati", "#primadopo"],
+    promptHint: "Mostra un progetto completato con le foto del risultato finale, descrivi il lavoro svolto e il valore creato.",
+    suggestedContentType: "carousel",
+    weeklyFreq: 2,
+  },
+];
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 interface ConnectedAccount {
@@ -1160,6 +1264,31 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
   connectedAccounts: ConnectedAccount[];
   onPostScheduled: (post: ScheduledPost) => void;
 }) {
+  // ── Content Pillar ────────────────────────────────────────────────────────
+  const [activePillarId, setActivePillarId] = useState<string | null>(null);
+
+  const applyPillar = (pillar: ContentPillar) => {
+    if (activePillarId === pillar.id) {
+      // Deselect
+      setActivePillarId(null);
+      return;
+    }
+    setActivePillarId(pillar.id);
+    // Apply hashtags (merge without duplicates)
+    setHashtags((prev) => {
+      const existing = new Set(prev);
+      const merged = [...prev];
+      pillar.hashtags.forEach((h) => { if (!existing.has(h)) merged.push(h); });
+      return merged.slice(0, 30);
+    });
+    // Pre-fill brief hint if brief is empty
+    setBrief((prev) => prev.trim() ? prev : pillar.promptHint);
+    // Switch content type to suggested
+    const ctExists = CONTENT_TYPE_CONFIG.find((c) => c.id === pillar.suggestedContentType);
+    if (ctExists) setContentTypeId(pillar.suggestedContentType);
+    toast.success(`Pillar "${pillar.label}" applicato`, { description: "Hashtag e brief aggiornati." });
+  };
+
   // ── Content type selection ─────────────────────────────────────────────────
   const [contentTypeId, setContentTypeId] = useState("post");
   const contentType = CONTENT_TYPE_CONFIG.find((c) => c.id === contentTypeId) ?? CONTENT_TYPE_CONFIG[0];
@@ -1343,6 +1472,77 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 
   return (
     <div className="space-y-4">
+
+      {/* ── CONTENT PILLARS ────────────────────────────────────────────── */}
+      <Card className="overflow-hidden border-slate-200">
+        <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-300 to-orange-400" />
+        <CardContent className="pt-3 pb-3">
+          <div className="mb-2.5 flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+              🎯 Pillar contenuto
+            </p>
+            {activePillarId && (
+              <button
+                type="button"
+                onClick={() => setActivePillarId(null)}
+                className="text-[10px] font-semibold text-slate-400 hover:text-slate-600 transition"
+              >
+                ✕ Deseleziona
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {CONTENT_PILLARS.map((pillar) => {
+              const isActive = activePillarId === pillar.id;
+              return (
+                <button
+                  key={pillar.id}
+                  type="button"
+                  onClick={() => applyPillar(pillar)}
+                  className={cn(
+                    "group flex items-center gap-2 rounded-2xl border-2 px-3.5 py-2 text-sm font-semibold transition-all",
+                    isActive
+                      ? `${pillar.colorBg} ${pillar.colorBorder} ${pillar.colorText} shadow-sm`
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                  )}
+                >
+                  <span className="text-base leading-none">{pillar.emoji}</span>
+                  <span className="text-xs">{pillar.label}</span>
+                  <span className={cn(
+                    "rounded-full px-1.5 py-0.5 text-[9px] font-bold transition",
+                    isActive ? `${pillar.colorBg} ${pillar.colorText}` : "bg-slate-100 text-slate-400"
+                  )}>
+                    {pillar.weeklyFreq}×/sett
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {/* Active pillar description + hashtag preview */}
+          {activePillarId && (() => {
+            const p = CONTENT_PILLARS.find((p) => p.id === activePillarId);
+            if (!p) return null;
+            return (
+              <div className={cn("mt-2.5 flex flex-wrap items-start gap-3 rounded-xl border px-3 py-2.5", p.colorBg, p.colorBorder)}>
+                <div className="flex-1 min-w-0">
+                  <p className={cn("text-[11px] font-semibold", p.colorText)}>{p.description}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {p.hashtags.map((h) => (
+                      <span key={h} className={cn("rounded-full border px-2 py-0.5 text-[10px] font-medium", p.colorBg, p.colorBorder, p.colorText)}>
+                        {h}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <span className={cn("shrink-0 rounded-xl border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide", p.colorBg, p.colorBorder, p.colorText)}>
+                  {CONTENT_TYPE_CONFIG.find((c) => c.id === p.suggestedContentType)?.label ?? p.suggestedContentType}
+                </span>
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
+
       {/* ── CONTENT TYPE SELECTOR ──────────────────────────────────────── */}
       <Card className="overflow-hidden">
         <div className="h-0.5 bg-gradient-to-r from-orange-400 via-amber-400 to-orange-400" />
