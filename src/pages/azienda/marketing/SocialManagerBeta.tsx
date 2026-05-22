@@ -2706,6 +2706,321 @@ function GalleriaTab({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// INBOX TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type InboxItemType = "comment" | "dm" | "mention" | "review";
+type InboxStatus = "unread" | "read" | "replied" | "archived";
+
+interface InboxItem {
+  id: string;
+  type: InboxItemType;
+  platform: string;
+  authorName: string;
+  authorAvatar: string;   // initials placeholder
+  postPreview?: string;
+  message: string;
+  sentiment: "positive" | "neutral" | "negative";
+  status: InboxStatus;
+  timestamp: string;      // ISO
+  starred: boolean;
+}
+
+const DEMO_INBOX: InboxItem[] = [
+  { id: "i1", type: "comment", platform: "instagram", authorName: "Marco Bianchi", authorAvatar: "MB", postPreview: "5 errori che fanno perdere soldi in cantiere", message: "Ottimo consiglio sul punto 3! Ne parlavo proprio con il mio capocantiere ieri 👏", sentiment: "positive", status: "unread", timestamp: new Date(Date.now() - 12 * 60000).toISOString(), starred: false },
+  { id: "i2", type: "dm", platform: "instagram", authorName: "Lucia Ferrari", authorAvatar: "LF", message: "Ciao! Vorrei un preventivo per una ristrutturazione bagno 15mq. Potete mandarmi qualche info?", sentiment: "neutral", status: "unread", timestamp: new Date(Date.now() - 35 * 60000).toISOString(), starred: true },
+  { id: "i3", type: "comment", platform: "facebook", authorName: "Giuseppe Russo", authorAvatar: "GR", postPreview: "Il cantiere di Via Roma è completato!", message: "Complimenti ragazzi, lavoro impeccabile! Lo consiglio a tutti 🌟🌟🌟🌟🌟", sentiment: "positive", status: "read", timestamp: new Date(Date.now() - 2 * 3600000).toISOString(), starred: false },
+  { id: "i4", type: "review", platform: "facebook", authorName: "Anna Martini", authorAvatar: "AM", message: "Professionalità alta ma i tempi sono stati più lunghi del previsto. 3 stelle.", sentiment: "negative", status: "unread", timestamp: new Date(Date.now() - 5 * 3600000).toISOString(), starred: false },
+  { id: "i5", type: "mention", platform: "linkedin", authorName: "Costruzioni Riva Srl", authorAvatar: "CR", postPreview: "Le migliori imprese edili della Lombardia", message: "@TuaImpresaEdile citata come eccellenza per qualità dei materiali e rispetto dei tempi.", sentiment: "positive", status: "unread", timestamp: new Date(Date.now() - 6 * 3600000).toISOString(), starred: false },
+  { id: "i6", type: "dm", platform: "facebook", authorName: "Roberto Conti", authorAvatar: "RC", message: "Buongiorno, avete disponibilità per un sopralluogo la prossima settimana? Devo ristrutturare un appartamento 80mq.", sentiment: "neutral", status: "replied", timestamp: new Date(Date.now() - 1 * 86400000).toISOString(), starred: false },
+  { id: "i7", type: "comment", platform: "instagram", authorName: "Silvia Greco", authorAvatar: "SG", postPreview: "Come gestiamo 12 cantieri contemporaneamente", message: "Sarebbe interessante sapere che software usate per gestire tutto! 🤔", sentiment: "neutral", status: "read", timestamp: new Date(Date.now() - 1.5 * 86400000).toISOString(), starred: false },
+  { id: "i8", type: "review", platform: "facebook", authorName: "Famiglia Moro", authorAvatar: "FM", message: "Lavori eseguiti a regola d'arte, massima puntualità e pulizia del cantiere. Consigliamo vivamente! ⭐⭐⭐⭐⭐", sentiment: "positive", status: "read", timestamp: new Date(Date.now() - 2 * 86400000).toISOString(), starred: true },
+  { id: "i9", type: "dm", platform: "instagram", authorName: "Ing. Paolo Neri", authorAvatar: "PN", message: "Ho visto il vostro lavoro su Instagram. Sono un ingegnere e sto cercando una squadra affidabile per un progetto importante.", sentiment: "positive", status: "archived", timestamp: new Date(Date.now() - 3 * 86400000).toISOString(), starred: false },
+];
+
+const INBOX_TYPE_CONFIG: Record<InboxItemType, { label: string; icon: string; color: string; bg: string; border: string }> = {
+  comment:  { label: "Commento", icon: "💬", color: "text-blue-700",   bg: "bg-blue-50",    border: "border-blue-200"   },
+  dm:       { label: "DM",       icon: "✉️",  color: "text-violet-700", bg: "bg-violet-50",  border: "border-violet-200" },
+  mention:  { label: "Menzione", icon: "📣",  color: "text-orange-700", bg: "bg-orange-50",  border: "border-orange-200" },
+  review:   { label: "Recensione",icon:"⭐",  color: "text-amber-700",  bg: "bg-amber-50",   border: "border-amber-200"  },
+};
+
+const SENTIMENT_CONFIG: Record<InboxItem["sentiment"], { icon: string; color: string }> = {
+  positive: { icon: "😊", color: "text-emerald-500" },
+  neutral:  { icon: "😐", color: "text-slate-400"   },
+  negative: { icon: "😟", color: "text-red-400"     },
+};
+
+function InboxTab() {
+  const [items, setItems] = useState<InboxItem[]>(DEMO_INBOX);
+  const [filterType, setFilterType] = useState<InboxItemType | "all">("all");
+  const [filterStatus, setFilterStatus] = useState<InboxStatus | "all">("all");
+  const [filterPlatform, setFilterPlatform] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+
+  const markRead = (id: string) =>
+    setItems((prev) => prev.map((i) => (i.id === id && i.status === "unread" ? { ...i, status: "read" } : i)));
+
+  const toggleStar = (id: string) =>
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, starred: !i.starred } : i)));
+
+  const archive = (id: string) =>
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: "archived" } : i)));
+
+  const sendReply = (id: string) => {
+    if (!replyText.trim()) return;
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: "replied" } : i)));
+    toast.success("Risposta inviata", { description: "Il messaggio è stato consegnato sulla piattaforma." });
+    setReplyText("");
+    setSelectedId(null);
+  };
+
+  const filteredItems = items.filter((i) => {
+    if (filterType !== "all" && i.type !== filterType) return false;
+    if (filterStatus !== "all" && i.status !== filterStatus) return false;
+    if (filterPlatform && i.platform !== filterPlatform) return false;
+    return true;
+  });
+
+  const unreadCount = items.filter((i) => i.status === "unread").length;
+  const selectedItem = items.find((i) => i.id === selectedId) ?? null;
+
+  const timeAgo = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    if (diff < 3600000) return `${Math.round(diff / 60000)}m fa`;
+    if (diff < 86400000) return `${Math.round(diff / 3600000)}h fa`;
+    return `${Math.round(diff / 86400000)}g fa`;
+  };
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── HEADER STATS ─────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { label: "Da leggere",  value: items.filter((i) => i.status === "unread").length,   color: "text-orange-600", bg: "bg-orange-50"  },
+          { label: "Commenti",    value: items.filter((i) => i.type === "comment").length,     color: "text-blue-600",   bg: "bg-blue-50"    },
+          { label: "DM ricevuti", value: items.filter((i) => i.type === "dm").length,          color: "text-violet-600", bg: "bg-violet-50"  },
+          { label: "Recensioni",  value: items.filter((i) => i.type === "review").length,      color: "text-amber-600",  bg: "bg-amber-50"   },
+        ].map(({ label, value, color, bg }) => (
+          <div key={label} className={cn("flex items-center gap-3 rounded-2xl border border-slate-100 p-3", bg)}>
+            <p className={cn("text-2xl font-bold tabular-nums", color)}>{value}</p>
+            <p className="text-[11px] leading-tight text-slate-500">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── FILTERS ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Type */}
+        <div className="flex items-center gap-1 rounded-xl border bg-white p-1">
+          {([
+            { id: "all",      label: "Tutti"     },
+            { id: "comment",  label: "💬 Comm."  },
+            { id: "dm",       label: "✉️ DM"     },
+            { id: "mention",  label: "📣 Menz."  },
+            { id: "review",   label: "⭐ Recens." },
+          ] as const).map(({ id, label }) => (
+            <button key={id} type="button" onClick={() => setFilterType(id)}
+              className={cn("rounded-lg px-2.5 py-1 text-xs font-semibold transition",
+                filterType === id ? "bg-orange-500 text-white" : "text-slate-500 hover:bg-slate-50")}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Status */}
+        <div className="flex items-center gap-1 rounded-xl border bg-white p-1">
+          {([
+            { id: "all",      label: "Tutti"      },
+            { id: "unread",   label: "Da leggere" },
+            { id: "replied",  label: "Risposti"   },
+            { id: "archived", label: "Archivio"   },
+          ] as const).map(({ id, label }) => (
+            <button key={id} type="button" onClick={() => setFilterStatus(id)}
+              className={cn("rounded-lg px-2.5 py-1 text-xs font-semibold transition",
+                filterStatus === id ? "bg-slate-700 text-white" : "text-slate-500 hover:bg-slate-50")}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Platform */}
+        {PLATFORMS.map((p) => (
+          <button key={p.id} type="button" onClick={() => setFilterPlatform(p.id === filterPlatform ? null : p.id)}
+            className={cn("flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+              filterPlatform === p.id
+                ? `border-transparent text-white bg-gradient-to-r ${p.gradient}`
+                : "border-slate-200 bg-white text-slate-500 hover:border-slate-300")}>
+            <span className="text-[10px]">{p.icon}</span>{p.shortName}
+          </button>
+        ))}
+
+        <div className="ml-auto text-[11px] text-slate-400">
+          {filteredItems.length} messaggi{unreadCount > 0 && <span className="ml-1 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{unreadCount} nuovi</span>}
+        </div>
+      </div>
+
+      {/* ── LIST + DETAIL PANE ───────────────────────────────────────────── */}
+      <div className="flex gap-4">
+
+        {/* List */}
+        <div className={cn("flex-1 space-y-2 overflow-y-auto", selectedItem ? "max-h-[600px]" : "")}>
+          {filteredItems.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-12 text-slate-400">
+              <MessageSquare className="h-10 w-10 opacity-30" />
+              <p className="text-sm font-medium">Nessun messaggio trovato</p>
+            </div>
+          ) : (
+            filteredItems.map((item) => {
+              const tc = INBOX_TYPE_CONFIG[item.type];
+              const sc = SENTIMENT_CONFIG[item.sentiment];
+              const platform = PLATFORMS.find((p) => p.id === item.platform);
+              const isSelected = selectedId === item.id;
+              const isUnread = item.status === "unread";
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(isSelected ? null : item.id);
+                    markRead(item.id);
+                    setReplyText("");
+                  }}
+                  className={cn(
+                    "w-full rounded-2xl border p-3 text-left transition-all",
+                    isSelected
+                      ? "border-orange-300 bg-orange-50 shadow-sm"
+                      : isUnread
+                        ? "border-orange-100 bg-white shadow-sm ring-2 ring-orange-100"
+                        : "border-slate-100 bg-white hover:border-slate-200"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Avatar */}
+                    <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", platform ? `bg-gradient-to-br ${platform.gradient}` : "bg-slate-400")}>
+                      {item.authorAvatar}
+                    </div>
+
+                    {/* Content */}
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-slate-800">{item.authorName}</span>
+                        <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold", tc.bg, tc.border, tc.color)}>
+                          {tc.icon} {tc.label}
+                        </span>
+                        {platform && (
+                          <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded text-[8px] font-bold text-white bg-gradient-to-br", platform.gradient)}>
+                            {platform.icon}
+                          </span>
+                        )}
+                        <span className="ml-auto shrink-0 text-[10px] text-slate-400">{timeAgo(item.timestamp)}</span>
+                      </div>
+
+                      {item.postPreview && (
+                        <p className="mb-0.5 truncate text-[10px] text-slate-400 italic">↩ {item.postPreview}</p>
+                      )}
+
+                      <p className="line-clamp-2 text-xs text-slate-600">{item.message}</p>
+
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <span className={cn("text-sm", sc.color)}>{sc.icon}</span>
+                        {item.status === "replied" && <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">✓ Risposto</span>}
+                        {item.status === "unread" && <span className="h-2 w-2 rounded-full bg-orange-500" />}
+                        {item.starred && <span className="text-amber-400 text-xs">★</span>}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* Detail / Reply pane */}
+        {selectedItem && (() => {
+          const tc = INBOX_TYPE_CONFIG[selectedItem.type];
+          const sc = SENTIMENT_CONFIG[selectedItem.sentiment];
+          const platform = PLATFORMS.find((p) => p.id === selectedItem.platform);
+
+          return (
+            <div className="w-80 shrink-0 space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              {/* Close */}
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-800">Dettaglio</p>
+                <button type="button" onClick={() => setSelectedId(null)} className="rounded-full p-1 text-slate-400 hover:bg-slate-100">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Author */}
+              <div className="flex items-center gap-3">
+                <div className={cn("flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white", platform ? `bg-gradient-to-br ${platform.gradient}` : "bg-slate-400")}>
+                  {selectedItem.authorAvatar}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{selectedItem.authorName}</p>
+                  <div className="flex items-center gap-1.5">
+                    {platform && <span className="text-xs">{platform.icon} {platform.name}</span>}
+                    <span className={cn("text-[9px]", tc.color)}>{tc.icon} {tc.label}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Message */}
+              <div className={cn("rounded-xl border p-3 text-sm text-slate-700", tc.bg, tc.border)}>
+                {selectedItem.postPreview && (
+                  <p className="mb-1.5 text-[10px] italic text-slate-400">In risposta a: {selectedItem.postPreview}</p>
+                )}
+                <p>{selectedItem.message}</p>
+                <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-400">
+                  <span className={sc.color}>{sc.icon}</span>
+                  <span>Sentiment: {selectedItem.sentiment === "positive" ? "positivo" : selectedItem.sentiment === "negative" ? "negativo" : "neutro"}</span>
+                  <span>·</span>
+                  <span>{new Date(selectedItem.timestamp).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => toggleStar(selectedItem.id)}
+                  className={cn("flex-1 rounded-xl border py-1.5 text-xs font-semibold transition",
+                    selectedItem.starred ? "border-amber-300 bg-amber-50 text-amber-700" : "border-slate-200 text-slate-500 hover:bg-slate-50")}>
+                  {selectedItem.starred ? "★ Salvato" : "☆ Salva"}
+                </button>
+                <button type="button" onClick={() => { archive(selectedItem.id); setSelectedId(null); }}
+                  className="flex-1 rounded-xl border border-slate-200 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50">
+                  📁 Archivia
+                </button>
+              </div>
+
+              {/* Reply */}
+              {(selectedItem.type === "comment" || selectedItem.type === "dm" || selectedItem.type === "review") && selectedItem.status !== "archived" && (
+                <div className="space-y-2">
+                  <Textarea
+                    rows={3}
+                    placeholder={selectedItem.type === "dm" ? "Scrivi la tua risposta..." : selectedItem.type === "review" ? "Ringrazia o rispondi alla recensione..." : "Rispondi al commento..."}
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    className="resize-none rounded-xl text-xs"
+                  />
+                  <button type="button" onClick={() => sendReply(selectedItem.id)} disabled={!replyText.trim()}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 py-2 text-xs font-bold text-white shadow-sm transition hover:from-orange-600 hover:to-amber-600 disabled:opacity-40">
+                    <Send className="h-3.5 w-3.5" /> Invia risposta
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -2757,10 +3072,12 @@ export default function SocialManagerBeta() {
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
   const reviewCount    = posts.filter((p) => p.status === "review").length;
   const mediaCount     = DEMO_MEDIA_ITEMS.length;
+  const inboxUnread    = DEMO_INBOX.filter((i) => i.status === "unread").length;
 
   const tabs = [
     { id: "crea-post",  label: "Crea Post",  icon: Edit3      },
     { id: "calendario", label: "Calendario", icon: Calendar,   badge: reviewCount > 0 ? `${reviewCount} ⏳` : (scheduledCount > 0 ? scheduledCount : undefined) },
+    { id: "inbox",      label: "Inbox",      icon: MessageSquare, badge: inboxUnread > 0 ? inboxUnread : undefined },
     { id: "analitiche", label: "Analitiche", icon: TrendingUp  },
     { id: "galleria",   label: "Galleria",   icon: Library,    badge: mediaCount },
   ];
@@ -2816,6 +3133,9 @@ export default function SocialManagerBeta() {
             )}
             {activeTab === "calendario" && (
               <CalendarioTab posts={posts} onNewPost={() => setTab("crea-post")} onUpdatePost={handleUpdatePost} />
+            )}
+            {activeTab === "inbox" && (
+              <InboxTab />
             )}
             {activeTab === "analitiche" && (
               <AnaliticsTab connectedAccounts={connectedAccounts} />
