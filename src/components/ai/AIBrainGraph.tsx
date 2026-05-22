@@ -1018,12 +1018,28 @@ export default function AIBrainGraph() {
   }, []);
 
   // #7: Edge hover → tooltip
+  // Track posizione mouse globale per posizionare tooltip edges
+  // (l'event di reagraph non garantisce clientX/clientY validi → fallback al pointer)
+  const mousePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      mousePosRef.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener("mousemove", handler, { passive: true });
+    return () => window.removeEventListener("mousemove", handler);
+  }, []);
+
   const handleEdgePointerOver = useCallback((edge: InternalGraphEdge, event?: { nativeEvent?: MouseEvent }) => {
-    if (edge.id.startsWith("e_cross_")) {
-      const x = (event?.nativeEvent?.clientX ?? 0);
-      const y = (event?.nativeEvent?.clientY ?? 0);
-      setHoveredEdge({ id: edge.id, x, y });
-    }
+    if (!edge.id.startsWith("e_cross_")) return;
+    // Preferisci clientX/Y dell'event, ma se sono 0/undefined usa il pointer
+    // tracker globale (evita tooltip in alto a sinistra del viewport)
+    const evX = event?.nativeEvent?.clientX;
+    const evY = event?.nativeEvent?.clientY;
+    const x = (evX && evX > 0) ? evX : mousePosRef.current.x;
+    const y = (evY && evY > 0) ? evY : mousePosRef.current.y;
+    // Skip se ancora 0 (mouse mai mosso) — non vogliamo tooltip strani
+    if (x <= 0 && y <= 0) return;
+    setHoveredEdge({ id: edge.id, x, y });
   }, []);
 
   const handleEdgePointerOut = useCallback(() => {
