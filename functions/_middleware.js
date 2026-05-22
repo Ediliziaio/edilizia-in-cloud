@@ -2322,6 +2322,17 @@ export async function onRequest({ request, next }) {
     return newResponse;
   }
 
+  // ── Public site: serve prerendered home for "/" ─────────────────────────
+  // Cloudflare Pages serves dist/index.html (SPA shell) for "/" via static
+  // file match BEFORE checking _redirects rules. The prerendered home lives
+  // at dist/_home/index.html. We intercept "/" here and serve it via
+  // env.ASSETS.fetch(), bypassing the static file match entirely.
+  // This avoids both the _redirects limitation AND the "Clean URLs" 308
+  // redirect loop that breaks custom rewrite targets.
+  if (pathname === "/" && !isBot(ua)) {
+    return env.ASSETS.fetch(new URL("/_home/index.html", url));
+  }
+
   // ── Public site (www / root): serve SEO content to bots ────────────────
   if (!isBot(ua)) {
     return next();

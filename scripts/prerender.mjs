@@ -406,31 +406,6 @@ async function main() {
       new Promise((r) => setTimeout(r, 10_000)),
     ]);
 
-    // ── SPA shell swap ─────────────────────────────────────────────
-    // Cloudflare Pages serves dist/index.html for the root "/" path
-    // BEFORE checking _redirects rules. The _redirects rewrite
-    // "/ /_home/index.html 200" never fires.
-    //
-    // Fix: move the SPA shell to dist/_shell/index.html (directory-
-    // based so Cloudflare's "Clean URLs" 308 redirect doesn't fire
-    // — using .html extension like _spa-shell.html causes a redirect
-    // loop: _spa-shell.html → 308 → /_spa-shell → /* catch-all →
-    // _spa-shell.html → 308 → ...).
-    // Then copy the prerendered home to dist/index.html.
-    // The _redirects catch-all "/* /_shell/index.html 200" handles
-    // auth/admin routes that need the SPA shell.
-    const spaShellSrc = join(DIST, "index.html");
-    const shellDir = join(DIST, "_shell");
-    const spaShellDst = join(shellDir, "index.html");
-    const prerenderedHome = join(DIST, "_home", "index.html");
-    if (existsSync(prerenderedHome) && existsSync(spaShellSrc)) {
-      const { renameSync, copyFileSync } = await import("node:fs");
-      if (!existsSync(shellDir)) mkdirSync(shellDir, { recursive: true });
-      renameSync(spaShellSrc, spaShellDst);
-      copyFileSync(prerenderedHome, spaShellSrc);
-      console.log("✓ SPA shell → _shell/index.html, prerendered home → index.html");
-    }
-
     // Report finale
     console.log("\n────────────────────────────────────────");
     console.log(`Prerender completato: ${ok}/${allRoutes.length} OK · ${fail} falliti`);
