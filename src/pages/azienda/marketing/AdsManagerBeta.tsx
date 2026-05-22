@@ -4724,95 +4724,151 @@ type CopyGenResult = {
 function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
   const audiences = [
     {
+      step: 1,
       name: "Freddo locale Advantage+",
       strategy: "advantage_plus" as const,
       zone: "Provincia + 20/30 km",
       age: "28-65",
       signals: "Ristrutturazione casa, infissi, bagno, detrazioni, risparmio energetico",
       excludes: "clienti chiusi, lead duplicati, aree fuori raggio",
-      use: "Primo test per far imparare l'algoritmo senza stringere troppo.",
+      use: "Lascia che l'algoritmo impari da solo. È il pubblico di partenza per ogni nuova campagna.",
+      when: "Parti sempre da qui",
+      recommended: true,
+      color: { card: "border-blue-200", badge: "border-blue-200 bg-blue-50 text-blue-700", icon: "bg-blue-50 text-blue-600", step: "bg-blue-600", cta: "bg-blue-600 hover:bg-blue-700 text-white" },
     },
     {
+      step: 2,
       name: "Manuale alta intenzione",
       strategy: "manual" as const,
       zone: "Raggio sopralluoghi",
       age: "35-65",
       signals: "Mutuo, nuova casa, interior design, arredo bagno, fotovoltaico",
       excludes: "studenti, affittuari se non target, comuni non serviti",
-      use: "Quando vuoi più controllo su interessi e fascia cliente.",
+      use: "Quando vuoi scegliere tu chi vedere l'annuncio. Più controllo, meno volume.",
+      when: "Dopo 2-3 settimane di dati",
+      recommended: false,
+      color: { card: "border-violet-200", badge: "border-violet-200 bg-violet-50 text-violet-700", icon: "bg-violet-50 text-violet-600", step: "bg-violet-600", cta: "bg-violet-600 hover:bg-violet-700 text-white" },
     },
     {
+      step: 3,
       name: "Retargeting caldo",
       strategy: "retargeting" as const,
       zone: "Stessa zona operativa",
       age: "18-65",
       signals: "Visitatori sito, video viewers, engagement pagina, lead aperti CRM",
       excludes: "commesse vinte, preventivi già accettati, spam",
-      use: "Per recuperare chi ti conosce già e spingere prova sociale.",
+      use: "Mostra l'annuncio a chi ti conosce già. Costo per lead molto più basso.",
+      when: "Con 200+ interazioni/mese sulla pagina",
+      recommended: false,
+      color: { card: "border-orange-200", badge: "border-orange-200 bg-orange-50 text-orange-700", icon: "bg-orange-50 text-orange-600", step: "bg-orange-500", cta: "bg-orange-500 hover:bg-orange-600 text-white" },
     },
     {
+      step: 4,
       name: "Lookalike clienti migliori",
       strategy: "lookalike" as const,
       zone: "Provincia/regione",
       age: "25-65",
       signals: "Clienti chiusi con margine buono, commesse sopra media, preventivi accettati",
       excludes: "clienti esistenti e lead recenti",
-      use: "Per scalare quando hai dati storici puliti e margini misurati.",
+      use: "Meta trova nuovi clienti simili ai tuoi migliori. Funziona solo con dati storici puliti.",
+      when: "Con almeno 50 clienti nel CRM",
+      recommended: false,
+      color: { card: "border-emerald-200", badge: "border-emerald-200 bg-emerald-50 text-emerald-700", icon: "bg-emerald-50 text-emerald-600", step: "bg-emerald-600", cta: "bg-emerald-600 hover:bg-emerald-700 text-white" },
     },
   ];
+
   return (
     <div className="space-y-5">
-      <Card className="border-blue-100 bg-blue-50/40">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Libreria pubblici edili</CardTitle>
-          <CardDescription>
-            Pubblici già pensati per imprese locali: uno freddo per imparare, uno controllato, uno retargeting e uno lookalike quando hai dati buoni.
-          </CardDescription>
-        </CardHeader>
+      {/* ─── Come funziona ─────────────────────────────────────────── */}
+      <Card className="border-slate-200 bg-white">
+        <CardContent className="pt-5 pb-4">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Come funziona</p>
+          <p className="mb-4 text-base font-semibold text-slate-900">
+            Scegli un pubblico → crea la campagna → Meta lo usa automaticamente
+          </p>
+          {/* Funnel visivo */}
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { n: "1", label: "Freddo", sub: "Acquisisci", color: "bg-blue-600" },
+              { n: "2", label: "Manuale", sub: "Qualifica", color: "bg-violet-600" },
+              { n: "3", label: "Retargeting", sub: "Riconverti", color: "bg-orange-500" },
+              { n: "4", label: "Lookalike", sub: "Scala", color: "bg-emerald-600" },
+            ].map((s, i, arr) => (
+              <div key={s.n} className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className={cn("flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white", s.color)}>{s.n}</span>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-800">{s.label}</p>
+                    <p className="text-[10px] text-slate-400">{s.sub}</p>
+                  </div>
+                </div>
+                {i < arr.length - 1 && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300" />}
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-500">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <span>Se è la prima campagna: usa <strong className="text-blue-700">Freddo locale Advantage+</strong>. Attiva gli altri quando hai dati concreti.</span>
+          </p>
+        </CardContent>
       </Card>
+
+      {/* ─── Audience cards ────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
         {audiences.map((audience) => (
-          <Card key={audience.name}>
-            <CardHeader>
-              <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                <Target className="h-5 w-5" />
+          <Card key={audience.name} className={cn("relative overflow-hidden", audience.color.card)}>
+            {audience.recommended && (
+              <div className="absolute right-3 top-3">
+                <Badge className="bg-blue-600 text-white text-[10px]">⭐ Inizia qui</Badge>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle className="text-base">{audience.name}</CardTitle>
-                <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                  {audienceStrategyLabel(audience.strategy)}
-                </Badge>
+            )}
+            <CardHeader className="pb-3">
+              <div className="flex items-start gap-3">
+                <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", audience.color.icon)}>
+                  <span className="text-sm font-bold">{audience.step}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-base">{audience.name}</CardTitle>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500">{audience.use}</p>
+                </div>
               </div>
-              <CardDescription>{audience.use}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2">
                 <MiniStat label="Località" value={audience.zone} />
                 <MiniStat label="Età" value={audience.age} />
               </div>
-              <div className="rounded-lg bg-slate-50 p-3">
+              <div className="rounded-lg bg-white/70 p-3">
                 <p className="text-[11px] text-slate-500">Segnali / interessi</p>
-                <p className="font-medium text-slate-950">{audience.signals}</p>
+                <p className="mt-0.5 font-medium text-slate-900">{audience.signals}</p>
               </div>
               <div className="rounded-lg bg-amber-50 p-3">
                 <p className="text-[11px] text-amber-700">Esclusioni consigliate</p>
-                <p className="font-medium text-amber-950">{audience.excludes}</p>
+                <p className="mt-0.5 font-medium text-amber-900">{audience.excludes}</p>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-200 bg-white/50 px-3 py-2">
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <Info className="h-3.5 w-3.5" />
+                  <span>Quando usarlo: <strong className="text-slate-700">{audience.when}</strong></span>
+                </div>
               </div>
               <Button
-                variant="outline"
-                className="w-full"
+                className={cn("w-full", audience.color.cta)}
                 onClick={() => {
                   if (onUseInWizard) {
                     onUseInWizard();
-                    toast.success("Wizard aperto", {
-                      description: "Apri il pannello pubblici nello step 2 per personalizzare il pubblico scelto.",
+                    toast.success(`Pubblico "${audience.name}" selezionato`, {
+                      description: "Nello step 2 del wizard puoi personalizzare zona e fascia d'età.",
                     });
                   } else {
                     toast.info("Pubblico pronto per il prossimo wizard");
                   }
                 }}
               >
-                Usa nel wizard
+                Usa nella campagna
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardContent>
           </Card>
@@ -5418,74 +5474,102 @@ function SettingsTab({
     },
   ];
 
+  // Calcola progress totale
+  const allChecks = setupBlocks.flatMap(b => b.items);
+  const doneCount = allChecks.filter(([, ok]) => Boolean(ok)).length;
+  const totalCount = allChecks.length;
+  const progressPct = Math.round((doneCount / totalCount) * 100);
+
+  // Blocchi colori per le sezioni
+  const blockColors = [
+    { icon: "🔗", border: "border-blue-200", bg: "bg-blue-50/50", title: "text-blue-900" },
+    { icon: "📡", border: "border-violet-200", bg: "bg-violet-50/50", title: "text-violet-900" },
+    { icon: "📋", border: "border-orange-200", bg: "bg-orange-50/50", title: "text-orange-900" },
+    { icon: "⚡", border: "border-emerald-200", bg: "bg-emerald-50/50", title: "text-emerald-900" },
+  ];
+
   return (
     <div className="space-y-5">
-      {/* PIXEL + CAPI configuration */}
+
+      {/* ─── 1. SETUP STATUS — hero checklist ────────────────────── */}
+      <Card className="border-slate-200">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ShieldCheck className="h-5 w-5 text-slate-600" />
+                Stato setup campagne
+              </CardTitle>
+              <CardDescription>
+                Completa questi passaggi prima di pubblicare la prima campagna live.
+              </CardDescription>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-slate-900">{doneCount}<span className="text-sm font-normal text-slate-400">/{totalCount}</span></p>
+              <p className="text-[11px] text-slate-500">passaggi completati</p>
+            </div>
+          </div>
+          {/* Progress bar */}
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className={cn("h-full rounded-full transition-all", progressPct === 100 ? "bg-emerald-500" : progressPct > 50 ? "bg-blue-500" : "bg-amber-500")}
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button size="sm" asChild>
+              <Link to="/azienda/impostazioni/lead-forms">
+                Configura Meta <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => toast.info("Checklist pre-lancio disponibile nella revisione della bozza")}>
+              Checklist pre-lancio
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {setupBlocks.map((block, bi) => {
+              const col = blockColors[bi];
+              const blockDone = block.items.filter(([,ok]) => Boolean(ok)).length;
+              return (
+                <div key={block.title} className={cn("rounded-xl border p-4", col.border, col.bg)}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{col.icon}</span>
+                      <p className={cn("text-sm font-semibold", col.title)}>{block.title}</p>
+                    </div>
+                    <span className="text-[11px] font-medium text-slate-500">{blockDone}/{block.items.length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {block.items.map(([label, ok, detail]) => (
+                      <div key={label as string} className="flex items-center justify-between rounded-lg border border-white/80 bg-white/70 px-3 py-2">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-900">{label as string}</p>
+                          <p className="text-[10px] text-slate-500">{detail as string}</p>
+                        </div>
+                        <Badge variant="outline" className={cn("shrink-0 text-[10px]", Boolean(ok) ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700")}>
+                          {Boolean(ok) ? "✓ OK" : "Da fare"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── 2. PIXEL + CAPI ─────────────────────────────────────── */}
       <PixelConfigCard companyId={companyId} />
 
-      {/* SPEND GUARD — sicurezza budget */}
+      {/* ─── 3. SPEND GUARD ──────────────────────────────────────── */}
       <SpendGuardCard companyId={companyId} />
 
-      {/* AUTOMATION RULES — autopilota campagne */}
+      {/* ─── 4. AUTOMAZIONI ──────────────────────────────────────── */}
       <AutomationRulesEditor companyId={companyId} />
 
-      <Card className="border-blue-100 bg-blue-50/40">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Impostazioni pubblicitarie</CardTitle>
-          <CardDescription>
-            Struttura pensata per non far perdere l'imprenditore dentro Meta: prima collegamenti, poi tracking, modulo lead, follow-up e solo alla fine pubblicazione.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row">
-          <Button asChild>
-            <Link to="/azienda/impostazioni/lead-forms">
-              Apri configurazione Meta
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-          <Button variant="outline" onClick={() => toast.info("Test pre-lancio disponibile nella revisione della bozza")}>
-            Esegui checklist pre-lancio
-          </Button>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        {setupBlocks.map((block) => (
-          <Card key={block.title}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">{block.title}</CardTitle>
-              <CardDescription>{block.body}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {block.items.map(([label, ok, detail]) => (
-                <SettingsCheck key={label as string} label={label as string} ok={Boolean(ok)} detail={detail as string} />
-              ))}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Pipeline tecnica sicura</CardTitle>
-          <CardDescription>Quando abiliteremo il live write, ogni oggetto nascerà in PAUSED e con rollback.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-5">
-          {[
-            ["1", "Media", "immagini/video validati"],
-            ["2", "Campaign", "obiettivo e tetto spesa"],
-            ["3", "Pubblico", "zona, pubblico, budget"],
-            ["4", "Lead Form + Ads", "copy e modulo"],
-            ["5", "Review", "test e attivazione"],
-          ].map(([n, title, desc]) => (
-            <div key={n} className="rounded-xl border bg-white p-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">{n}</span>
-              <p className="mt-3 text-sm font-semibold text-slate-950">{title}</p>
-              <p className="text-xs text-slate-500">{desc}</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
     </div>
   );
 }
