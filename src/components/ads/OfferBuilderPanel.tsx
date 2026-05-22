@@ -1,39 +1,35 @@
 /**
- * OfferBuilderPanel — sostituisce il vecchio TemplateSelector statico.
+ * OfferBuilderPanel — AI Copywriter Pro
  *
- * Quando l'utente apre il wizard, questo pannello:
- *   1. Mostra i dati azienda estratti automaticamente (nome, città, anni,
- *      dimensione, sito web) — l'utente vede che il sistema "conosce"
- *      l'impresa
- *   2. Spiega i 7 parametri di un'offerta vincente (educativo)
- *   3. Permette di cliccare "Costruisci offerte forti con AI"
- *   4. Mostra 3 offerte candidate (starter / medium / strong) con
- *      breakdown dei 7 parametri per ciascuna
- *   5. L'utente sceglie un'offerta → applica state.offer + suggested hook + CTA
- *   6. Avvisi su dati azienda mancanti (per offerte ancora più forti)
+ * Cambio di paradigma:
+ *   L'UTENTE scrive la sua offerta (sconti, detrazioni, garanzie, materiali,
+ *   tempi). L'AI agisce da Senior Copywriter (Dan Kennedy / Jay Abraham /
+ *   Eugene Schwartz / Gary Halbert / David Ogilvy) e genera 5 varianti di
+ *   annuncio Meta Ads usando framework provati (PAS, AIDA, HSO, AWARENESS,
+ *   RISK_REVERSAL) + swipe file di annunci edilizia performanti.
  */
 
 import { useState } from "react";
 import {
-  AlertTriangle,
-  Building2,
-  Calendar,
+  ArrowRight,
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  Globe,
   Loader2,
-  MapPin,
-  Phone,
+  Quote,
   Sparkles,
+  Target,
   TrendingUp,
-  Users,
+  Wand2,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -42,131 +38,167 @@ import { cn } from "@/lib/utils";
 // TYPES
 // ════════════════════════════════════════════════════════════════════
 
-interface CompanySignals {
-  name: string;
-  business_name: string | null;
-  sector: string | null;
-  vertical: string | null;
-  city: string | null;
-  province: string | null;
-  region: string | null;
-  anni_attivita: number | null;
-  employee_count: number | null;
-  company_size: string | null;
-  phone: string | null;
-  website: string | null;
-  annual_revenue_range: string | null;
-  monthly_orders_target: number | null;
-  has_website: boolean;
-  has_phone: boolean;
+export interface AdVariant {
+  framework: "PAS" | "AIDA" | "HSO" | "AWARENESS" | "RISK_REVERSAL";
+  framework_explain: string;
+  title: string;
+  primary_text: string;
+  hook: string;
+  cta: string;
+  angle: string;
+  image_prompt: string;
 }
 
-export interface OfferCandidate {
-  tier: "strong" | "medium" | "starter";
-  headline: string;
-  pitch: string;
-  parameters: {
-    promise: string;
-    advantage: string;
-    risk_reversal: string;
-    urgency: string;
-    proof: string;
-    cta: string;
-    locality: string;
-  };
-  suggested_hook: string;
-  suggested_cta: string;
-  daily_budget_suggested: number;
-  missing_data: string[];
-  confidence: number;
-}
-
-interface BuilderResponse {
+interface CopywriterResponse {
   ok: boolean;
-  company_signals: CompanySignals;
-  offers: OfferCandidate[];
-  missing_company_fields: string[];
-  advice: string;
+  company_context: {
+    name: string;
+    city: string | null;
+    province: string | null;
+    region: string | null;
+    sector: string | null;
+    anni_attivita: number | null;
+    employee_count: number | null;
+  };
+  user_offer: string;
+  ads: AdVariant[];
+  coaching: string;
 }
 
 interface Props {
   companyId: string | undefined;
-  /** Settore prevalente (dal vertical_key) — usato per segment hint */
   segmentHint?: string;
-  /** Callback quando l'utente sceglie un'offerta */
-  onChooseOffer: (offer: OfferCandidate) => void;
-  /** Eventuale offer corrente, per evidenziare "scelta" */
+  /** Callback: l'utente sceglie una variante → aggiorna BuilderState */
+  onChooseOffer: (ad: AdVariant) => void;
+  /** Offer corrente, per evidenziare la selezione */
   currentOffer?: string;
 }
 
 // ════════════════════════════════════════════════════════════════════
-// 7 PARAMETRI — educational
+// FRAMEWORK INFO (educational)
 // ════════════════════════════════════════════════════════════════════
 
-const SEVEN_PARAMS: Array<{ icon: string; title: string; desc: string }> = [
-  { icon: "🎯", title: "Promessa specifica", desc: "In 48h, entro 7gg, +30% — mai 'veloce'" },
-  { icon: "💎", title: "Vantaggio quantificabile", desc: "-30% bolletta, +15 anni durata — numeri reali" },
-  { icon: "🛡️", title: "Riduzione rischio", desc: "Gratuito · senza impegno · soddisfatto o..." },
-  { icon: "⏰", title: "Urgenza reale", desc: "Bonus fiscale fino al X · stagione · agenda" },
-  { icon: "⭐", title: "Prova sociale verificabile", desc: "200+ cantieri dal 2010 · 4.8/5 Google" },
-  { icon: "👆", title: "CTA a basso attrito", desc: "Preventivo in 2 min · Calcola detrazione" },
-  { icon: "📍", title: "Localizzazione esplicita", desc: "Per chi vive a [zona] · [città] e provincia" },
+const FRAMEWORK_INFO: Record<AdVariant["framework"], {
+  label: string;
+  master: string;
+  color: string;
+  emoji: string;
+  description: string;
+}> = {
+  PAS: {
+    label: "PAS",
+    master: "Dan Kennedy",
+    color: "border-rose-300 bg-rose-50",
+    emoji: "🔥",
+    description: "Problem → Agitation → Solution. Diretto, no-nonsense. Per chi vuole vendere subito.",
+  },
+  AIDA: {
+    label: "AIDA",
+    master: "Classico",
+    color: "border-blue-300 bg-blue-50",
+    emoji: "🎯",
+    description: "Attention → Interest → Desire → Action. Costruisce desiderio. Bilanciato.",
+  },
+  HSO: {
+    label: "Hook-Story-Offer",
+    master: "Russell Brunson",
+    color: "border-violet-300 bg-violet-50",
+    emoji: "📖",
+    description: "Hook → microstoria cliente reale → Offerta. Molto Meta-friendly, mima il passaparola.",
+  },
+  AWARENESS: {
+    label: "Awareness",
+    master: "Eugene Schwartz",
+    color: "border-amber-300 bg-amber-50",
+    emoji: "💡",
+    description: "Educational + acquisitivo. Adatta il messaggio al livello di consapevolezza del cliente.",
+  },
+  RISK_REVERSAL: {
+    label: "Risk Reversal",
+    master: "Jay Abraham / Halbert",
+    color: "border-emerald-300 bg-emerald-50",
+    emoji: "🛡️",
+    description: "Promessa forte + inversione rischio + urgenza reale. Assertivo ma onesto.",
+  },
+};
+
+// ════════════════════════════════════════════════════════════════════
+// PARAMETRI EDUCATIONAL
+// ════════════════════════════════════════════════════════════════════
+
+const OFFER_PARAMS: Array<{ icon: string; title: string; example: string }> = [
+  { icon: "💰", title: "Sconto / promozione", example: "Sconto web 30% fino al 31 ottobre" },
+  { icon: "🧾", title: "Detrazione fiscale", example: "50% bonus ristrutturazione · 65% serramenti" },
+  { icon: "🛠️", title: "Qualità del lavoro", example: "Posa certificata · made in Italy · garanzia 10 anni" },
+  { icon: "⏱️", title: "Tempistica concreta", example: "Sopralluogo in 48h · cantiere in 12 giorni" },
+  { icon: "🛡️", title: "Riduzione rischio", example: "Preventivo gratuito · senza impegno · niente acconto" },
+  { icon: "🏆", title: "Prova sociale", example: "200+ cantieri dal 2010 · 4.8/5 Google" },
 ];
 
-const FIELD_LABELS: Record<string, string> = {
-  anno_fondazione: "Anno di fondazione",
-  recensioni: "Recensioni / rating",
-  cantieri_anno: "Numero cantieri all'anno",
-  tagline: "Tagline / slogan",
-  certificazioni: "Certificazioni / partner",
-  website: "Sito web",
-  phone: "Telefono diretto",
-  employee_count: "Numero dipendenti",
-  description: "Descrizione azienda",
-  zona_operativa: "Zona operativa precisa",
-  servizi_specifici: "Lista servizi specifici",
-  prezzi_orientativi: "Prezzi orientativi",
-};
+const EXAMPLE_OFFERS: Array<{ title: string; text: string }> = [
+  {
+    title: "Serramenti — Bonus + Sconto",
+    text: "Sconto web 30% valido fino al 31 ottobre. Bonus serramenti 65% in detrazione fiscale (ultimo anno). Posa qualificata con installatori certificati. Materiali Made in Italy con garanzia 10 anni. Sopralluogo gratuito in 48h, preventivo senza impegno.",
+  },
+  {
+    title: "Bagni — Chiavi in mano",
+    text: "Ristrutturazione bagno chiavi in mano in 12 giorni lavorativi. Preventivo trasparente con bonus ristrutturazione 50% incluso nel calcolo. Direttore lavori dedicato, niente subappaltatori a caso. Sopralluogo + render 3D gratuiti.",
+  },
+  {
+    title: "Fotovoltaico — Risparmio",
+    text: "Impianto fotovoltaico con accumulo da 6 kWh. Calcolo personalizzato del risparmio reale sulla TUA bolletta. Detrazione 50% in 10 anni. Posa in 1 giorno, monitoraggio bolletta inclusi 24 mesi. Preventivo gratuito + simulazione fattibilità.",
+  },
+];
 
 // ════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ════════════════════════════════════════════════════════════════════
 
 export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, currentOffer }: Props) {
+  const [offer, setOffer] = useState("");
+  const [extraHint, setExtraHint] = useState("");
+  const [showHint, setShowHint] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [data, setData] = useState<BuilderResponse | null>(null);
-  const [intent, setIntent] = useState("");
-  const [showIntent, setShowIntent] = useState(false);
+  const [result, setResult] = useState<CopywriterResponse | null>(null);
   const [showParams, setShowParams] = useState(false);
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState<number | null>(null);
 
-  const handleBuild = async () => {
+  const handleGenerate = async () => {
     if (!companyId) {
       toast.error("Azienda non selezionata");
       return;
     }
+    if (offer.trim().length < 15) {
+      toast.error("Offerta troppo corta", {
+        description: "Almeno 15 caratteri. Scrivi sconti, garanzie, tempi, materiali.",
+      });
+      return;
+    }
     setGenerating(true);
     try {
-      const { data: resp, error } = await supabase.functions.invoke("ai-ads-offer-builder", {
+      const { data, error } = await supabase.functions.invoke("ai-ads-offer-builder", {
         body: {
           company_id: companyId,
-          user_intent: intent.trim() || undefined,
+          user_offer: offer.trim(),
+          extra_hint: extraHint.trim() || undefined,
           segment_hint: segmentHint,
         },
       });
       if (error) throw new Error(error.message);
-      const result = resp as BuilderResponse;
-      if (!result?.offers?.length) {
-        toast.error("L'AI non è riuscita a generare offerte", {
-          description: "Riprova o completa il profilo aziendale.",
+      const resp = data as CopywriterResponse;
+      if (!resp?.ads?.length) {
+        toast.error("L'AI non ha generato annunci validi", {
+          description: "Riprova o riscrivi l'offerta in modo più chiaro.",
         });
         return;
       }
-      setData(result);
-      toast.success(`${result.offers.length} offerte pronte`, {
-        description: result.advice?.slice(0, 100) ?? "",
+      setResult(resp);
+      setSelectedVariantIdx(null);
+      toast.success(`${resp.ads.length} annunci pro generati`, {
+        description: resp.coaching?.slice(0, 100) ?? "",
       });
     } catch (e) {
-      toast.error("Errore generazione offerte", {
+      toast.error("Errore generazione", {
         description: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -176,125 +208,168 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
 
   return (
     <div className="space-y-4">
-      {/* HEADER + DATI AZIENDA ESTRATTI */}
-      {data?.company_signals ? (
-        <CompanySnapshot signals={data.company_signals} />
-      ) : (
-        <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex-1">
-              <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
-                <Sparkles className="h-4 w-4 text-blue-600" />
-                Offerta pubblicitaria con AI
-              </h3>
-              <p className="mt-1 text-xs text-slate-600">
-                L'AI legge i dati della tua azienda (nome, città, anni, dimensione) e costruisce
-                <strong> 3 offerte candidate </strong> seguendo i 7 parametri di un'offerta vincente.
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowParams((v) => !v)}
-                className="mt-2 inline-flex items-center gap-1 text-xs text-blue-700 hover:underline"
-              >
-                {showParams ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                {showParams ? "Nascondi" : "Cosa rende un'offerta forte?"}
-              </button>
-            </div>
-            <Button
-              size="lg"
-              onClick={handleBuild}
-              disabled={generating || !companyId}
-              className="bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg hover:from-blue-700 hover:to-violet-700"
-            >
-              {generating ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI sta lavorando…</>
-              ) : (
-                <><Sparkles className="mr-2 h-4 w-4" /> Costruisci offerte forti</>
-              )}
-            </Button>
+      {/* === INPUT OFFERTA === */}
+      <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-5">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex-1">
+            <h3 className="flex items-center gap-2 text-base font-semibold text-slate-950">
+              <Wand2 className="h-4 w-4 text-blue-600" />
+              AI Copywriter Pro — annunci stile Dan Kennedy / Jay Abraham
+            </h3>
+            <p className="mt-1 text-xs text-slate-600">
+              Scrivi la <strong>tua offerta</strong> (sconti, detrazioni, garanzie, tempi, materiali).
+              L'AI scrive <strong>5 varianti di annuncio</strong> usando framework di copywriting provati.
+            </p>
           </div>
+        </div>
 
-          {/* 7 PARAMETRI educational */}
-          {showParams && (
-            <div className="mt-4 rounded-xl border border-blue-200 bg-white p-4">
-              <p className="mb-3 text-xs font-semibold uppercase text-blue-900">I 7 parametri di un'offerta forte</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {SEVEN_PARAMS.map((p, i) => (
-                  <div key={p.title} className="flex items-start gap-2 rounded-lg bg-blue-50/40 p-2">
-                    <span className="text-base">{p.icon}</span>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-950">
-                        {i + 1}. {p.title}
-                      </p>
-                      <p className="text-[10px] leading-snug text-slate-600">{p.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* OPZIONALE: brief extra */}
+        <Label className="mb-1 block text-xs font-semibold text-slate-700">
+          La tua offerta (sconto, promozione, garanzia, caratteristiche premium):
+        </Label>
+        <Textarea
+          value={offer}
+          onChange={(e) => setOffer(e.target.value.slice(0, 1500))}
+          placeholder="Es. Sconto web 30% valido fino al 31 ottobre. Bonus serramenti 65% in detrazione fiscale. Posa qualificata con installatori certificati. Made in Italy con garanzia 10 anni. Sopralluogo gratuito in 48h."
+          className="min-h-28 bg-white text-sm"
+          maxLength={1500}
+        />
+        <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
+          <span>{offer.length}/1500 caratteri</span>
           <button
             type="button"
-            onClick={() => setShowIntent((v) => !v)}
-            className="mt-3 inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
+            onClick={() => setShowParams((v) => !v)}
+            className="inline-flex items-center gap-1 text-blue-700 hover:underline"
           >
-            {showIntent ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {showIntent ? "Nascondi brief opzionale" : "Aggiungi brief extra (opzionale)"}
+            {showParams ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            Cosa includere nell'offerta?
           </button>
-          {showIntent && (
-            <Textarea
-              value={intent}
-              onChange={(e) => setIntent(e.target.value.slice(0, 400))}
-              placeholder="Es. Voglio intercettare il Bonus Casa 2026 / Punto sul lusso premium / Solo lavori sopra 10k€"
-              className="mt-2 min-h-16"
-              maxLength={400}
-            />
-          )}
         </div>
-      )}
 
-      {/* RISULTATO: 3 OFFERTE CANDIDATE */}
-      {data && (
+        {/* Elementi educational */}
+        {showParams && (
+          <div className="mt-3 rounded-xl border border-blue-200 bg-white p-3">
+            <p className="mb-2 text-xs font-semibold uppercase text-blue-900">Elementi forti da inserire</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {OFFER_PARAMS.map((p) => (
+                <div key={p.title} className="flex items-start gap-2 rounded-lg bg-blue-50/40 p-2">
+                  <span className="text-base">{p.icon}</span>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-950">{p.title}</p>
+                    <p className="text-[10px] italic text-slate-600">{p.example}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Esempi cliccabili */}
+        <div className="mt-3">
+          <p className="mb-1.5 text-[11px] font-semibold text-slate-700">💡 Esempi cliccabili (parti da uno e personalizzalo):</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {EXAMPLE_OFFERS.map((ex) => (
+              <button
+                key={ex.title}
+                type="button"
+                onClick={() => setOffer(ex.text)}
+                className="rounded-lg border border-slate-200 bg-white p-2 text-left text-xs hover:border-blue-300 hover:bg-blue-50"
+              >
+                <p className="font-semibold text-slate-950">{ex.title}</p>
+                <p className="mt-0.5 line-clamp-2 text-[10px] text-slate-500">{ex.text}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hint extra opzionale */}
+        <button
+          type="button"
+          onClick={() => setShowHint((v) => !v)}
+          className="mt-3 inline-flex items-center gap-1 text-xs text-slate-600 hover:text-slate-900"
+        >
+          {showHint ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {showHint ? "Nascondi" : "Aggiungi hint extra (stile, tono, focus)"}
+        </button>
+        {showHint && (
+          <Input
+            value={extraHint}
+            onChange={(e) => setExtraHint(e.target.value.slice(0, 200))}
+            placeholder="Es. tono lusso premium / molto diretto / parla a clienti senza budget"
+            className="mt-2 bg-white"
+            maxLength={200}
+          />
+        )}
+
+        <Button
+          size="lg"
+          onClick={handleGenerate}
+          disabled={generating || offer.trim().length < 15 || !companyId}
+          className="mt-4 w-full bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-lg hover:from-blue-700 hover:to-violet-700"
+        >
+          {generating ? (
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI Copywriter Pro sta scrivendo…</>
+          ) : (
+            <><Sparkles className="mr-2 h-4 w-4" /> Genera 5 annunci pubblicitari pro</>
+          )}
+        </Button>
+      </div>
+
+      {/* === RISULTATI === */}
+      {result && (
         <>
           {/* Coaching */}
-          {data.advice && (
+          {result.coaching && (
             <Alert className="border-violet-200 bg-violet-50">
-              <Sparkles className="h-4 w-4 text-violet-700" />
-              <AlertTitle>Coaching AI</AlertTitle>
-              <AlertDescription className="text-xs">{data.advice}</AlertDescription>
+              <Quote className="h-4 w-4 text-violet-700" />
+              <AlertTitle>Coaching del Copywriter</AlertTitle>
+              <AlertDescription className="text-xs">{result.coaching}</AlertDescription>
             </Alert>
           )}
 
-          {/* Missing company fields warning */}
-          {data.missing_company_fields.length > 0 && (
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertTriangle className="h-4 w-4 text-amber-700" />
-              <AlertTitle>Per offerte ancora più forti, completa il profilo</AlertTitle>
-              <AlertDescription className="text-xs">
-                Dati mancanti: <strong>{data.missing_company_fields.map((f) => FIELD_LABELS[f] ?? f).join(", ")}</strong>. Aggiungerli in Impostazioni → Profilo azienda renderà le offerte più solide (prova sociale, urgenza reale).
-              </AlertDescription>
-            </Alert>
-          )}
+          {/* Framework legend */}
+          <div className="rounded-xl border bg-white p-3">
+            <div className="mb-2 flex items-center gap-2">
+              <BookOpen className="h-3.5 w-3.5 text-slate-500" />
+              <p className="text-xs font-semibold text-slate-700">5 Framework usati</p>
+            </div>
+            <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-5">
+              {(Object.keys(FRAMEWORK_INFO) as Array<keyof typeof FRAMEWORK_INFO>).map((f) => {
+                const info = FRAMEWORK_INFO[f];
+                return (
+                  <div key={f} className={cn("rounded-md border p-1.5", info.color)}>
+                    <p className="text-[10px] font-bold text-slate-900">
+                      {info.emoji} {info.label}
+                    </p>
+                    <p className="text-[9px] text-slate-600">{info.master}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
-            {data.offers.map((offer, idx) => (
-              <OfferCard
+          {/* Ad variants */}
+          <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {result.ads.map((ad, idx) => (
+              <AdVariantCard
                 key={idx}
-                offer={offer}
-                selected={offer.pitch === currentOffer}
-                onSelect={() => onChooseOffer(offer)}
+                ad={ad}
+                selected={selectedVariantIdx === idx || ad.primary_text === currentOffer}
+                onSelect={() => {
+                  setSelectedVariantIdx(idx);
+                  onChooseOffer(ad);
+                }}
               />
             ))}
           </div>
 
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-500">
-              {data.offers.length} offerte generate dal profilo aziendale di <strong>{data.company_signals.name}</strong>
+              Annunci personalizzati per <strong>{result.company_context.name}</strong>
+              {result.company_context.city && <> · {result.company_context.city}</>}
+              {result.company_context.anni_attivita !== null && <> · {result.company_context.anni_attivita} anni</>}
             </p>
-            <Button variant="ghost" size="sm" onClick={() => { setData(null); }}>
-              Rigenera con brief diverso
+            <Button variant="ghost" size="sm" onClick={() => { setResult(null); setSelectedVariantIdx(null); }}>
+              Riscrivi con offerta diversa
             </Button>
           </div>
         </>
@@ -304,141 +379,81 @@ export function OfferBuilderPanel({ companyId, segmentHint, onChooseOffer, curre
 }
 
 // ════════════════════════════════════════════════════════════════════
-// COMPANY SNAPSHOT
+// AD VARIANT CARD
 // ════════════════════════════════════════════════════════════════════
 
-function CompanySnapshot({ signals }: { signals: CompanySignals }) {
-  const items: Array<{ icon: React.ComponentType<{ className?: string }>; label: string; value: string | null; ok: boolean }> = [
-    { icon: Building2, label: "Azienda", value: signals.business_name ?? signals.name, ok: true },
-    { icon: MapPin, label: "Zona operativa", value: signals.city ? `${signals.city}${signals.province ? ` (${signals.province})` : ""}` : null, ok: !!signals.city },
-    { icon: Calendar, label: "Anni di attività", value: signals.anni_attivita !== null ? String(signals.anni_attivita) : null, ok: signals.anni_attivita !== null },
-    { icon: Users, label: "Team", value: signals.employee_count !== null ? `${signals.employee_count} persone` : signals.company_size, ok: !!(signals.employee_count || signals.company_size) },
-    { icon: Globe, label: "Sito web", value: signals.has_website ? signals.website : null, ok: signals.has_website },
-    { icon: Phone, label: "Telefono", value: signals.has_phone ? "configurato" : null, ok: signals.has_phone },
-  ];
-  return (
-    <div className="rounded-xl border bg-white p-3">
-      <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Dati azienda usati dall'AI</p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {items.map((it, i) => {
-          const Icon = it.icon;
-          return (
-            <div
-              key={i}
-              className={cn(
-                "rounded-lg border p-2 text-xs",
-                it.ok ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50",
-              )}
-            >
-              <Icon className={cn("mb-1 h-3.5 w-3.5", it.ok ? "text-emerald-600" : "text-slate-400")} />
-              <p className="text-[9px] uppercase text-slate-500">{it.label}</p>
-              <p className={cn("truncate font-medium", it.ok ? "text-slate-900" : "text-slate-400 italic")}>
-                {it.value ?? "—"}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ════════════════════════════════════════════════════════════════════
-// OFFER CARD
-// ════════════════════════════════════════════════════════════════════
-
-function OfferCard({
-  offer,
+function AdVariantCard({
+  ad,
   selected,
   onSelect,
 }: {
-  offer: OfferCandidate;
+  ad: AdVariant;
   selected: boolean;
   onSelect: () => void;
 }) {
+  const info = FRAMEWORK_INFO[ad.framework];
   const [expanded, setExpanded] = useState(false);
-  const tierConfig = {
-    starter: { color: "border-blue-300 bg-blue-50", label: "Starter", badge: "bg-blue-500", icon: "🌱" },
-    medium: { color: "border-violet-300 bg-violet-50", label: "Bilanciato", badge: "bg-violet-500", icon: "⚖️" },
-    strong: { color: "border-emerald-300 bg-emerald-50", label: "Forte", badge: "bg-emerald-500", icon: "🚀" },
-  }[offer.tier];
-
-  const params = [
-    { key: "promise", label: "Promessa", icon: "🎯" },
-    { key: "advantage", label: "Vantaggio", icon: "💎" },
-    { key: "risk_reversal", label: "Rischio ridotto", icon: "🛡️" },
-    { key: "urgency", label: "Urgenza", icon: "⏰" },
-    { key: "proof", label: "Prova sociale", icon: "⭐" },
-    { key: "cta", label: "CTA", icon: "👆" },
-    { key: "locality", label: "Località", icon: "📍" },
-  ] as const;
-
-  const paramsCount = params.filter((p) => (offer.parameters[p.key as keyof typeof offer.parameters] ?? "").trim().length > 0).length;
 
   return (
     <div
       className={cn(
         "flex flex-col rounded-2xl border-2 bg-white p-4 transition",
-        selected ? "border-emerald-500 ring-2 ring-emerald-200" : tierConfig.color,
+        selected ? "border-emerald-500 ring-2 ring-emerald-200" : info.color.replace("bg-", "border-").split(" ")[0],
       )}
     >
       <header className="mb-3 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-xl">{tierConfig.icon}</span>
+          <span className="text-xl">{info.emoji}</span>
           <div>
-            <Badge className={cn("text-[10px] text-white", tierConfig.badge)}>{tierConfig.label}</Badge>
-            <p className="mt-0.5 text-[10px] text-slate-500">{paramsCount}/7 parametri</p>
+            <Badge variant="outline" className={cn("text-[10px]", info.color)}>
+              {info.label}
+            </Badge>
+            <p className="mt-0.5 text-[9px] text-slate-500">stile {info.master}</p>
           </div>
         </div>
-        <div className="text-right">
-          <Badge variant="outline" className="text-[10px]">
-            Conf {offer.confidence}/100
-          </Badge>
-          <p className="mt-0.5 text-[10px] text-slate-500">{offer.daily_budget_suggested}€/giorno</p>
-        </div>
+        <Badge variant="outline" className="text-[10px]">
+          {ad.cta === "GET_QUOTE" ? "Preventivo" : ad.cta === "MESSAGE_PAGE" ? "Messaggio" : ad.cta === "WHATSAPP_MESSAGE" ? "WhatsApp" : "Scopri"}
+        </Badge>
       </header>
 
-      <h4 className="mb-2 text-sm font-bold text-slate-950">{offer.headline}</h4>
-      <p className="mb-3 text-sm leading-relaxed text-slate-700">{offer.pitch}</p>
+      {/* Hook in evidenza */}
+      <div className="mb-2 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2">
+        <p className="text-[9px] font-semibold uppercase text-fuchsia-700">Hook (stop-scroll)</p>
+        <p className="text-xs font-semibold text-fuchsia-950">{ad.hook}</p>
+      </div>
 
-      {offer.suggested_hook && (
-        <div className="mb-2 rounded-md border border-fuchsia-200 bg-fuchsia-50 p-2">
-          <p className="text-[9px] font-semibold uppercase text-fuchsia-700">Hook suggerito</p>
-          <p className="text-xs text-fuchsia-900">{offer.suggested_hook}</p>
-        </div>
-      )}
+      {/* Title */}
+      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500">Titolo (headline)</p>
+      <p className="mb-3 text-sm font-bold text-slate-950">{ad.title}</p>
 
+      {/* Primary text */}
+      <p className="mb-1 text-[9px] font-semibold uppercase text-slate-500">Corpo annuncio</p>
+      <p className="mb-3 text-sm leading-relaxed text-slate-700">{ad.primary_text}</p>
+
+      {/* Expanded: angle + framework explain + image prompt */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
         className="mb-2 inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-slate-900"
       >
         {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        Vedi i 7 parametri usati
+        {expanded ? "Nascondi dettagli" : "Vedi angolo + framework + visuale"}
       </button>
 
       {expanded && (
-        <div className="mb-3 space-y-1 rounded-lg border bg-slate-50 p-2">
-          {params.map((p) => {
-            const val = offer.parameters[p.key as keyof typeof offer.parameters] ?? "";
-            const has = val.trim().length > 0;
-            return (
-              <div key={p.key} className={cn("flex items-start gap-2 text-[10px]", has ? "text-slate-900" : "text-slate-400 italic")}>
-                <span className="shrink-0">{p.icon}</span>
-                <span className="shrink-0 font-semibold">{p.label}:</span>
-                <span className="flex-1">{has ? val : "(non applicabile o dati mancanti)"}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {offer.missing_data.length > 0 && (
-        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2">
-          <p className="text-[9px] font-semibold uppercase text-amber-800">Per potenziarla, aggiungi</p>
-          <p className="text-[10px] text-amber-900">
-            {offer.missing_data.map((m) => FIELD_LABELS[m] ?? m).join(", ")}
-          </p>
+        <div className="mb-3 space-y-2 rounded-lg border bg-slate-50 p-2">
+          <div className="text-[10px]">
+            <p className="font-semibold text-slate-700">🎯 Angolo di vendita</p>
+            <p className="text-slate-600">{ad.angle}</p>
+          </div>
+          <div className="text-[10px]">
+            <p className="font-semibold text-slate-700">📚 Perché funziona</p>
+            <p className="text-slate-600">{ad.framework_explain}</p>
+          </div>
+          <div className="text-[10px]">
+            <p className="font-semibold text-slate-700">🎨 Prompt immagine</p>
+            <p className="italic text-slate-600">{ad.image_prompt}</p>
+          </div>
         </div>
       )}
 
@@ -446,13 +461,13 @@ function OfferCard({
         onClick={onSelect}
         className={cn(
           "mt-auto w-full",
-          selected ? "bg-emerald-600 hover:bg-emerald-700" : tierConfig.badge,
+          selected ? "bg-emerald-600 hover:bg-emerald-700" : "",
         )}
       >
         {selected ? (
-          <><CheckCircle2 className="mr-2 h-4 w-4" /> Selezionata</>
+          <><CheckCircle2 className="mr-2 h-4 w-4" /> Selezionato</>
         ) : (
-          <><TrendingUp className="mr-2 h-4 w-4" /> Usa questa offerta</>
+          <><Target className="mr-2 h-4 w-4" /> Usa questo annuncio</>
         )}
       </Button>
     </div>

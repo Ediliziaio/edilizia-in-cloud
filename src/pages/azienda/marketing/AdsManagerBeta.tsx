@@ -2485,34 +2485,34 @@ function CampaignBuilderTab({
                 companyId={companyId}
                 segmentHint={state.templateId}
                 currentOffer={state.offer}
-                onChooseOffer={(picked) => {
+                onChooseOffer={(ad) => {
                   setState((prev) => {
                     const next: BuilderState = {
                       ...prev,
-                      // Applica offerta scelta
-                      offer: picked.pitch,
-                      cta: (picked.suggested_cta ?? prev.cta) as BuilderState["cta"],
-                      dailyBudget: picked.daily_budget_suggested || prev.dailyBudget,
-                      copyBrief: picked.pitch,
+                      // L'annuncio scelto popola lo state
+                      offer: ad.primary_text,
+                      cta: ad.cta as BuilderState["cta"],
+                      copyBrief: ad.primary_text,
+                      imagePrompt: ad.image_prompt || prev.imagePrompt,
                     };
-                    // Aggiungi suggested hook in copyHooks se vuoto
-                    if (picked.suggested_hook && (!prev.copyHooks || prev.copyHooks.length === 0)) {
-                      next.copyHooks = [picked.suggested_hook];
+                    // Hook → copyHooks[0]
+                    if (ad.hook) {
+                      next.copyHooks = [ad.hook, ...(prev.copyHooks ?? []).filter((h) => h !== ad.hook)].slice(0, 5);
                     }
-                    // Headline come copyTitles se vuoto
-                    if (picked.headline && (!prev.copyTitles || prev.copyTitles.length === 0)) {
-                      next.copyTitles = [picked.headline];
+                    // Title → copyTitles[0]
+                    if (ad.title) {
+                      next.copyTitles = [ad.title, ...(prev.copyTitles ?? []).filter((t) => t !== ad.title)].slice(0, 5);
                     }
-                    // Pitch come prima descrizione se vuoto
-                    if (picked.pitch && (!prev.copyDescriptions || prev.copyDescriptions.length === 0)) {
-                      next.copyDescriptions = [picked.pitch];
+                    // Primary text → copyDescriptions[0]
+                    if (ad.primary_text) {
+                      next.copyDescriptions = [ad.primary_text, ...(prev.copyDescriptions ?? []).filter((d) => d !== ad.primary_text)].slice(0, 5);
                     }
-                    // Ricostruisci ad sets coerenti col nuovo budget
+                    // Ricostruisci ad sets coerenti
                     next.adSets = buildDefaultAdSets(next);
                     return next;
                   });
-                  toast.success("Offerta applicata", {
-                    description: "L'offerta è ora nella sezione 'Cosa offri'. Continua per definire pubblico.",
+                  toast.success(`Annuncio ${ad.framework} applicato`, {
+                    description: "Hook, titolo e descrizione sono già in 'Creatività' (step 4). Continua per pubblico.",
                   });
                 }}
               />

@@ -1,38 +1,46 @@
 /**
- * ai-ads-offer-builder — costruisce offerte pubblicitarie forti
+ * ai-ads-offer-builder — AI Copywriter Pro per Meta Ads
  *
- * Quando l'utente apre il wizard di creazione campagna, l'AI legge il
- * profilo aziendale completo e genera 3-5 OFFERTE CANDIDATE pronte da
- * usare. Ogni offerta è costruita sui 7 parametri di un'offerta vincente
- * Meta Ads:
+ * Cambio di paradigma rispetto alla v1:
+ *   L'UTENTE scrive la SUA offerta (sconti, detrazioni, garanzie,
+ *   caratteristiche premium). L'AI agisce da Senior Copywriter (stile
+ *   Dan Kennedy + Jay Abraham + Eugene Schwartz + Gary Halbert + Ogilvy)
+ *   e produce 5 varianti di annuncio Meta Ads usando framework provati.
  *
- *   1. PROMESSA specifica e misurabile (in 48h, entro 7 giorni, +30%)
- *   2. VANTAGGIO concreto quantificabile (risparmio €, m² coperti, anni
- *      garanzia)
- *   3. RIDUZIONE RISCHIO (gratuito, senza impegno, soddisfatto o rimborso)
- *   4. URGENZA reale (bonus fiscale 2026, posti limitati per la stagione)
- *   5. PROVA SOCIALE verificabile (200+ cantieri dal 2010 in Brianza)
- *   6. CTA chiara a basso attrito (preventivo in 2 minuti, chiama)
- *   7. LOCALIZZAZIONE esplicita (zona operativa)
+ * Framework usati (uno per ogni variante):
+ *   1. PAS (Problem-Agitation-Solution) — Dan Kennedy / Magnetic Marketing
+ *   2. AIDA (Attention-Interest-Desire-Action) — classico
+ *   3. Hook-Story-Offer — Russell Brunson
+ *   4. Five Levels of Awareness — Eugene Schwartz
+ *   5. Risk Reversal + Urgency — Jay Abraham / Gary Halbert
  *
- * Input minimo: company_id. Tutto il resto (settore, città, anni attività,
- * dimensione team) viene letto da `companies`.
+ * Swipe file: il system prompt include 6 annunci edilizia italiana che
+ * hanno performato bene (CPL <15€, CTR >2%) come few-shot examples.
  *
- * Output JSON:
+ * Input:
  *   {
- *     company_signals: { name, sector, city, anni_attivita, dipendenti, ... }
- *     offers: [
+ *     company_id: string,
+ *     user_offer: string,        // l'offerta scritta dall'utente
+ *     extra_hint?: string,       // intent extra opzionale
+ *   }
+ *
+ * Output:
+ *   {
+ *     ok: true,
+ *     company_context: {...},    // dati azienda usati per personalizzare
+ *     ads: [
  *       {
- *         tier: "strong" | "medium" | "starter",
- *         headline: "Titolo accattivante",
- *         pitch: "Frase 80-180 char con i 7 parametri",
- *         parameters: { promise, advantage, risk_reversal, urgency, proof, cta, locality },
- *         missing_data: [],  // dati azienda da completare per ulteriore valore
- *         confidence: 0-100
+ *         framework: "PAS" | "AIDA" | "HSO" | "AWARENESS" | "RISK_REVERSAL",
+ *         framework_explain: "1 frase su perché funziona",
+ *         title: "max 40 char",
+ *         primary_text: "90-180 char",
+ *         hook: "30-60 char",
+ *         cta: "GET_QUOTE" | "CONTACT_US" | ...,
+ *         angle: "1 frase sull'angolo di vendita scelto",
+ *         image_prompt: "prompt per AI image gen coerente"
  *       }
  *     ],
- *     missing_company_fields: [],
- *     advice: "1 frase coaching"
+ *     coaching: "1-2 frasi consigli per testare meglio"
  *   }
  */
 
@@ -42,50 +50,23 @@ import { chat, InsufficientCreditsError } from "../_shared/ai-provider/index.ts"
 
 interface BuildRequest {
   company_id: string;
-  /** Eventuale focus richiesto (es. "voglio servizio premium" o "intercetto bonus fiscale") */
-  user_intent?: string;
-  /** Settore prevalente da considerare (override del default `vertical`) */
+  /** L'offerta scritta dall'utente in italiano libero */
+  user_offer: string;
+  /** Hint extra opzionale (es. "stile diretto", "tono lusso") */
+  extra_hint?: string;
+  /** Override settore (default: vertical dell'azienda) */
   segment_hint?: string;
 }
 
-interface OfferCandidate {
-  tier: "strong" | "medium" | "starter";
-  headline: string;
-  pitch: string;
-  parameters: {
-    promise: string;
-    advantage: string;
-    risk_reversal: string;
-    urgency: string;
-    proof: string;
-    cta: string;
-    locality: string;
-  };
-  suggested_hook: string;
-  suggested_cta: string;
-  daily_budget_suggested: number;
-  missing_data: string[];
-  confidence: number;
-}
-
-interface CompanySignals {
-  name: string;
-  business_name: string | null;
-  sector: string | null;
-  vertical: string | null;
-  city: string | null;
-  province: string | null;
-  region: string | null;
-  anni_attivita: number | null;
-  employee_count: number | null;
-  company_size: string | null;
-  phone: string | null;
-  website: string | null;
-  annual_revenue_range: string | null;
-  monthly_orders_target: number | null;
-  has_website: boolean;
-  has_phone: boolean;
-  notes: string | null;
+interface AdVariant {
+  framework: "PAS" | "AIDA" | "HSO" | "AWARENESS" | "RISK_REVERSAL";
+  framework_explain: string;
+  title: string;
+  primary_text: string;
+  hook: string;
+  cta: string;
+  angle: string;
+  image_prompt: string;
 }
 
 function json(body: unknown, status: number, headers: Record<string, string>): Response {
@@ -95,107 +76,139 @@ function json(body: unknown, status: number, headers: Record<string, string>): R
   });
 }
 
-const SYSTEM_PROMPT = `Sei un Senior Performance Marketer Meta Ads esperto in lead generation per imprese edili italiane.
+// ════════════════════════════════════════════════════════════════════
+// MASTER PROMPT — Senior Copywriter Pro
+// ════════════════════════════════════════════════════════════════════
+const SYSTEM_PROMPT = `Sei un Senior Direct Response Copywriter italiano specializzato in Meta Ads per il settore edilizia, serramentisti, fotovoltaico, ristrutturazioni e impiantistica. Pensi e scrivi come un mix di:
 
-Devi generare 3-5 OFFERTE CANDIDATE per la campagna pubblicitaria, ognuna costruita rigorosamente sui 7 PARAMETRI di un'offerta vincente:
+• Dan Kennedy (Magnetic Marketing) — urgency reali, risk reversal, "no B.S."
+• Jay Abraham — pre-eminence, valore prima della vendita
+• Eugene Schwartz (Breakthrough Advertising) — Five Levels of Awareness
+• Gary Halbert — frasi che fermano lo scroll, ritmo
+• David Ogilvy — credibilità, dati specifici, niente claim assurdi
+• Russell Brunson — Hook-Story-Offer per il digitale
 
-═══ I 7 PARAMETRI DI UN'OFFERTA FORTE ═══
+═══ I 5 FRAMEWORK CHE USERAI (UNO PER VARIANTE) ═══
 
-1. PROMESSA SPECIFICA E MISURABILE
-   - ❌ "preventivi veloci" / "lavori di qualità"
-   - ✅ "preventivo serramenti chiavi in mano in 48 ore"
-   - ✅ "sopralluogo tecnico + offerta firmata in 7 giorni"
+▸ FRAMEWORK 1 — "PAS" (Problem-Agitation-Solution) — Dan Kennedy
+   1. Apri identificando UN problema specifico del cliente
+   2. Agita il problema (cosa succede se non lo risolve)
+   3. Presenti la soluzione concreta + offerta + CTA
+   Hook esempio: "Spifferi e bollette alte? È peggio di quanto pensi."
+   Tono: diretto, no-nonsense, parla all'inconscio del cliente.
 
-2. VANTAGGIO QUANTIFICABILE
-   - ❌ "risparmi energia" / "lavoro fatto bene"
-   - ✅ "-30% bolletta in 12 mesi" / "+15 anni durata"
-   - ✅ "rimborso 65% in detrazione fiscale"
+▸ FRAMEWORK 2 — "AIDA" (Attention-Interest-Desire-Action) — classico
+   1. Attention: hook fortissimo (numero, domanda, paradosso)
+   2. Interest: dato/curiosità che mantiene attenzione
+   3. Desire: il beneficio concreto (visualizzazione del risultato)
+   4. Action: CTA chiara
+   Tono: aspirational, costruisce desiderio del risultato finale.
 
-3. RIDUZIONE DEL RISCHIO (no-risk reversal)
-   - ❌ niente
-   - ✅ "sopralluogo gratuito" / "preventivo senza impegno"
-   - ✅ "se il preventivo non ti convince paghi solo lo studio"
-   - ✅ "fattibilità gratuita prima di firmare"
+▸ FRAMEWORK 3 — "Hook-Story-Offer" (HSO) — Russell Brunson
+   1. Hook stop-scroll (claim shocking ma vero)
+   2. Microstoria di un cliente che ha avuto il risultato
+   3. Offerta concreta + CTA
+   Tono: narrativo, "imitazione del passaparola amici", molto Meta-friendly.
 
-4. URGENZA REALE (mai falsa)
-   - ❌ "ultimi posti" (se non vero) / "scade oggi" (mai)
-   - ✅ "bonus 50% valido fino al 31 dicembre 2026"
-   - ✅ "agenda piena da fine novembre"
-   - ✅ "in 30gg parte la stagione e i tempi raddoppiano"
+▸ FRAMEWORK 4 — "Five Levels of Awareness" (AWARENESS) — Eugene Schwartz
+   Adatti il messaggio al livello di consapevolezza:
+   - L1 Unaware: il cliente non sa di avere il problema (apri con la verità nascosta)
+   - L2 Problem-aware: sa del problema, non della soluzione
+   - L3 Solution-aware: conosce le soluzioni, non te
+   - L4 Product-aware: conosce te, non sceglie ancora
+   - L5 Most-aware: è pronto, serve solo il push
+   Tono: educational + acquisitivo, didattico.
 
-5. PROVA SOCIALE VERIFICABILE
-   - ❌ "i migliori" / "leader del settore"
-   - ✅ "200+ cantieri completati a Brianza dal 2010" (con dati veri)
-   - ✅ "12 anni di posa certificata"
-   - ✅ "media 4.8/5 su Google"
-   Se i dati non li hai, EVITA il parametro proof (lascia stringa vuota) e
-   segnala in missing_data la mancanza.
+▸ FRAMEWORK 5 — "Risk Reversal + Urgency" — Jay Abraham / Gary Halbert
+   1. Apri con la promessa più forte (la cosa più importante per il cliente)
+   2. Inversione del rischio (gratuito, garantito, senza impegno)
+   3. Urgenza reale (data, agenda, bonus fiscale)
+   4. CTA + reminder della scarcity
+   Tono: assertivo ma onesto, fa percepire che "non vincolarsi non costa nulla".
 
-6. CTA CHIARA A BASSO ATTRITO
-   - ❌ "scopri di più" / "contattaci"
-   - ✅ "richiedi preventivo (2 minuti)"
-   - ✅ "calcola la tua detrazione"
-   - ✅ "fissa il sopralluogo gratuito"
-   - ✅ "scrivi su WhatsApp"
+═══ SWIPE FILE (ANNUNCI CHE HANNO PERFORMATO) ═══
 
-7. LOCALIZZAZIONE ESPLICITA
-   - ❌ "in tutta Italia"
-   - ✅ "per chi vive a Monza e Brianza"
-   - ✅ "[Città] e provincia"
+1. SERRAMENTI MILANO (CPL 12€ — PAS framework):
+   Hook: "Ancora con quegli infissi rumorosi e freddi?"
+   Primary: "Cambiare gli infissi non significa svuotare il conto. Con il bonus 65% del 2026 e la nostra rateizzazione, una finestra ti costa quanto una cena fuori. Prima di decidere, scopri il vero risparmio. Sopralluogo gratuito, niente impegno."
+   Title: "Infissi nuovi senza svuotare il conto"
+   CTA: GET_QUOTE
 
-═══ TIER DELLE OFFERTE ═══
+2. BAGNI BRIANZA (CPL 18€ — HSO framework):
+   Hook: "Maria ha rifatto il bagno in 12 giorni, chiavi in mano."
+   Primary: "Dal sopralluogo alla consegna: 12 giorni di lavori, niente sorprese, contratto chiaro. Bonus ristrutturazione 50% incluso nel preventivo. Vuoi sapere quanto verrebbe a casa tua?"
+   Title: "Bagno chiavi in mano in 12 giorni"
+   CTA: GET_QUOTE
 
-Genera 3 offerte distinte per tier:
+3. FOTOVOLTAICO VENETO (CPL 14€ — Awareness L2 framework):
+   Hook: "Bolletta sopra 100€/mese? Ecco il vero motivo."
+   Primary: "Non è il consumo. È il prezzo dell'energia di rete, salito del +47% in 3 anni. Con un impianto fotovoltaico ben dimensionato per la TUA casa, dopo 3-5 anni la bolletta è regalata. Calcolo preciso gratuito + simulazione detrazione."
+   Title: "Perché la bolletta non scende"
+   CTA: LEARN_MORE
 
-a) STRONG (alta intensità — promessa massima, urgenza concreta, prova sociale forte):
-   Per aziende con dati solidi (anni attività ≥5, recensioni, cantieri verificabili).
-   Pitch più lungo (140-180 char), urgenza concreta, prova sociale.
+4. TETTI EMERGENCY (CPL 25€ — Risk Reversal + Urgency):
+   Hook: "Il tetto perde? In 48h lo verifichiamo gratis."
+   Primary: "Sopralluogo entro 48h, preventivo trasparente, lavori in 7 giorni. Senza acconto sopra i 1000€. Se non interveni prima dell'inverno il danno si triplica. Chiamaci subito."
+   Title: "Tetto sicuro prima dell'inverno"
+   CTA: CONTACT_US
 
-b) MEDIUM (bilanciato — promessa chiara senza esagerare):
-   Pitch ~100-140 char. Vantaggio + riduzione rischio + locality.
-   Default per la maggior parte delle aziende.
+5. RISTRUTTURAZIONE LUSSO (CPL 32€ — AIDA premium):
+   Hook: "+ valore alla tua casa. - tempi morti."
+   Primary: "Ristrutturazione completa con architetto interno, capocantiere unico, fornitori certificati. Niente subappaltatori a caso. Casa pronta in 60-90 giorni con planning settimanale. Per chi vuole il lavoro fatto, non solo iniziato."
+   Title: "Ristrutturazione chiavi in mano"
+   CTA: GET_QUOTE
 
-c) STARTER (per chi parte — focus su rischio basso + apertura conversazione):
-   Pitch corto (80-120 char). Sopralluogo gratuito + CTA messaggistica.
-   Per aziende giovani senza dati di prova sociale.
+6. SERRAMENTI BONUS (CPL 10€ — Magnetic / Kennedy):
+   Hook: "Il bonus 65% finisce davvero il 31 dicembre 2026."
+   Primary: "I serramenti sono l'ultimo intervento che ancora gode del 65% di detrazione. Dal 2027 scende al 50%. Se hai pensato di cambiare gli infissi, ora è il momento. Preventivo gratuito + simulazione detrazione su misura."
+   Title: "Ultimo anno bonus serramenti 65%"
+   CTA: GET_QUOTE
 
-═══ COMPLIANCE META ═══
+═══ REGOLE OBBLIGATORIE ═══
 
-- NIENTE claim invalidabili ("il migliore", "garantito al 100%", "primo")
-- NIENTE prima/dopo aggressivi
-- NIENTE targeting personale Meta-vietato ("hai problemi con..." / "tu che soffri di...")
-- NIENTE salute/finanza prima/dopo
-- Italiano naturale, dare del tu/voi
+1. Italiano naturale, dare del TU/voi (mai "Lei")
+2. ZERO inglesismi forzati ("smart", "easy", "engagement" → NO)
+3. ZERO claim invalidabili ("il migliore", "garantito al 100%", "primo")
+4. ZERO promesse esagerate ("zero spese", "gratis per sempre")
+5. ZERO emoji eccessivi (max 1-2 per copy, solo se aggiungono)
+6. Numero specifico > superlativo ("12 giorni" > "veloce")
+7. Beneficio CLIENTE > caratteristica prodotto
+8. Compliance Meta: niente salute/finanza/dimagrimento, no prima/dopo invasivi
+9. Frasi corte. Una frase = una idea.
+10. Apri con il PIÙ FORTE elemento dell'offerta utente (la cosa più value).
 
-═══ OUTPUT JSON — ESATTO ═══
+═══ INPUT ATTESO ═══
+
+L'utente ti darà:
+- L'OFFERTA (in italiano libero): sconti, promozioni, garanzie, caratteristiche specifiche del prodotto/servizio
+- Eventuali hint extra (stile, tono, focus)
+- DATI AZIENDA: nome, città, anni attività, settore (per personalizzare)
+
+═══ TASK ═══
+
+Genera 5 VARIANTI DI ANNUNCIO, una per ogni framework (PAS, AIDA, HSO, AWARENESS, RISK_REVERSAL).
+Ogni variante usa l'offerta REALE dell'utente come materia prima e la traduce nel framework scelto.
+
+═══ OUTPUT — SOLO JSON ═══
 
 {
-  "offers": [
+  "ads": [
     {
-      "tier": "strong" | "medium" | "starter",
-      "headline": "Titolo breve max 50 char",
-      "pitch": "Frase 80-180 char con 7 parametri integrati",
-      "parameters": {
-        "promise": "estratto specifico",
-        "advantage": "estratto",
-        "risk_reversal": "estratto (può essere stringa vuota se non applicabile)",
-        "urgency": "estratto (stringa vuota se non hai dati per supportarla)",
-        "proof": "estratto (stringa vuota se mancano numeri verificabili)",
-        "cta": "estratto",
-        "locality": "estratto"
-      },
-      "suggested_hook": "Prima riga stop-scroll 30-60 char",
-      "suggested_cta": "GET_QUOTE" | "CONTACT_US" | "MESSAGE_PAGE" | "WHATSAPP_MESSAGE" | "LEARN_MORE",
-      "daily_budget_suggested": 15-50 (EUR/giorno),
-      "missing_data": ["nome_campo_da_completare", ...],
-      "confidence": 0-100 (più alto = pitch più solido basato sui dati disponibili)
+      "framework": "PAS",
+      "framework_explain": "1 frase su perché questo framework funziona per questa offerta",
+      "title": "max 40 caratteri",
+      "primary_text": "90-180 caratteri (corpo annuncio)",
+      "hook": "30-60 caratteri (prima riga stop-scroll)",
+      "cta": "GET_QUOTE" | "CONTACT_US" | "MESSAGE_PAGE" | "WHATSAPP_MESSAGE" | "LEARN_MORE",
+      "angle": "1 frase sull'angolo di vendita scelto",
+      "image_prompt": "descrizione visuale per AI image gen coerente con il copy (formato 4:5 mobile)"
     }
+    // ... 4 altre varianti
   ],
-  "missing_company_fields": ["nome", "anno_fondazione", "recensioni", "cantieri_completati", ...],
-  "advice": "1-2 frasi coaching su come potenziare le offerte completando i dati mancanti"
+  "coaching": "1-2 frasi pratiche su come testare le varianti (es. per chi non conosce: parti dal PAS; per audience già consapevole: prova AWARENESS)"
 }
 
-NIENTE testo fuori dal JSON. NIENTE markdown fence. SOLO il JSON.`;
+NIENTE testo fuori dal JSON. NIENTE markdown code fence. SOLO il JSON.`;
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
@@ -219,6 +232,12 @@ Deno.serve(async (req) => {
 
     const body = (await req.json()) as BuildRequest;
     if (!body.company_id) return json({ error: "missing_company_id" }, 400, corsHeaders);
+    if (!body.user_offer || body.user_offer.trim().length < 15) {
+      return json({
+        error: "offer_too_short",
+        message: "Scrivi un'offerta di almeno 15 caratteri (es. sconto, detrazione, garanzia, materiali, tempi).",
+      }, 400, corsHeaders);
+    }
 
     // Cross-tenant guard
     const [profileRes, rolesRes] = await Promise.all([
@@ -230,70 +249,43 @@ Deno.serve(async (req) => {
       return json({ error: "forbidden" }, 403, corsHeaders);
     }
 
-    // Carica profilo azienda
-    const { data: company, error: companyErr } = await admin
+    // Carica profilo azienda (solo per CONTESTO — non per generare l'offerta!)
+    const { data: company } = await admin
       .from("companies")
-      .select("name, business_name, sector, vertical, verticals_secondari, legal_city, legal_province, operational_city, operational_province, region, anno_fondazione, employee_count, company_size, phone, website, annual_revenue_range, monthly_orders_target, notes")
+      .select("name, business_name, sector, vertical, legal_city, operational_city, legal_province, operational_province, region, anno_fondazione, employee_count")
       .eq("id", body.company_id)
       .maybeSingle();
 
-    if (companyErr || !company) {
-      return json({ error: "company_not_found" }, 404, corsHeaders);
-    }
-
-    // Costruisci signals
     const currentYear = new Date().getFullYear();
-    const anniAttivita = company.anno_fondazione ? Math.max(0, currentYear - company.anno_fondazione) : null;
-    const city = company.operational_city ?? company.legal_city ?? null;
-    const province = company.operational_province ?? company.legal_province ?? null;
-
-    const signals: CompanySignals = {
-      name: company.name ?? "Azienda",
-      business_name: company.business_name,
-      sector: company.sector,
-      vertical: body.segment_hint ?? company.vertical,
-      city,
-      province,
-      region: company.region,
-      anni_attivita: anniAttivita,
-      employee_count: company.employee_count,
-      company_size: company.company_size,
-      phone: company.phone,
-      website: company.website,
-      annual_revenue_range: company.annual_revenue_range,
-      monthly_orders_target: company.monthly_orders_target,
-      has_website: !!company.website,
-      has_phone: !!company.phone,
-      notes: company.notes,
+    const companyContext = {
+      name: company?.name ?? "Azienda",
+      city: company?.operational_city ?? company?.legal_city ?? null,
+      province: company?.operational_province ?? company?.legal_province ?? null,
+      region: company?.region ?? null,
+      sector: body.segment_hint ?? company?.vertical ?? company?.sector ?? null,
+      anni_attivita: company?.anno_fondazione ? Math.max(0, currentYear - company.anno_fondazione) : null,
+      employee_count: company?.employee_count ?? null,
     };
 
-    // Componi user prompt con i dati azienda
-    const dataLines: string[] = [];
-    dataLines.push(`Nome azienda: ${signals.name}`);
-    if (signals.vertical) dataLines.push(`Settore principale: ${signals.vertical}`);
-    if (signals.sector) dataLines.push(`Categoria: ${signals.sector}`);
-    if (signals.city) dataLines.push(`Città operativa: ${signals.city}${signals.province ? ` (${signals.province})` : ""}`);
-    if (signals.region) dataLines.push(`Regione: ${signals.region}`);
-    if (signals.anni_attivita !== null) dataLines.push(`Anni di attività: ${signals.anni_attivita}`);
-    if (signals.employee_count) dataLines.push(`Dipendenti: ${signals.employee_count}`);
-    if (signals.company_size) dataLines.push(`Dimensione: ${signals.company_size}`);
-    if (signals.has_website) dataLines.push(`Sito web: SÌ (${signals.website})`);
-    if (signals.has_phone) dataLines.push(`Telefono diretto: SÌ`);
-    if (signals.annual_revenue_range) dataLines.push(`Fascia fatturato: ${signals.annual_revenue_range}`);
-    if (signals.monthly_orders_target) dataLines.push(`Target ordini/mese: ${signals.monthly_orders_target}`);
-    if (signals.notes) dataLines.push(`Note interne: ${signals.notes.slice(0, 200)}`);
+    const contextLines: string[] = [];
+    contextLines.push(`Nome azienda: ${companyContext.name}`);
+    if (companyContext.sector) contextLines.push(`Settore: ${companyContext.sector}`);
+    if (companyContext.city) contextLines.push(`Città: ${companyContext.city}${companyContext.province ? ` (${companyContext.province})` : ""}`);
+    if (companyContext.region) contextLines.push(`Regione: ${companyContext.region}`);
+    if (companyContext.anni_attivita !== null) contextLines.push(`Anni di attività: ${companyContext.anni_attivita}`);
+    if (companyContext.employee_count) contextLines.push(`Dipendenti: ${companyContext.employee_count}`);
 
-    const userPrompt = `═══ DATI AZIENDA ═══
-${dataLines.join("\n")}
+    const userMessage = `═══ DATI AZIENDA ═══
+${contextLines.join("\n")}
 
-${body.user_intent ? `═══ INTENT UTENTE ═══\n${body.user_intent}\n` : ""}═══ TASK ═══
-Genera 3 offerte (1 starter, 1 medium, 1 strong) costruite sui 7 parametri.
-- Usa i dati azienda VERI: città reale, anni reali, dimensione reale.
-- Se mancano dati per "proof" o "urgency" (es. recensioni, anno fondazione, cantieri),
-  lascia STRINGA VUOTA in quel parametro e segnala il dato mancante in missing_data.
-- "missing_company_fields" deve elencare i campi del profilo aziendale che, se completati,
-  migliorerebbero TUTTE le offerte (es. "anno_fondazione", "recensioni_google", "cantieri_anno", "tagline").
-- "advice" deve dare 1-2 frasi pratiche su come potenziare le offerte.`;
+═══ OFFERTA DELL'AZIENDA (input utente) ═══
+${body.user_offer.trim()}
+
+${body.extra_hint ? `═══ HINT EXTRA UTENTE ═══\n${body.extra_hint.trim()}\n` : ""}═══ TASK ═══
+Genera 5 annunci Meta Ads — uno per ognuno dei 5 framework (PAS, AIDA, HSO, AWARENESS, RISK_REVERSAL).
+USA l'offerta dell'utente come materia prima REALE. NON inventare sconti/promozioni non presenti.
+Personalizza con i dati azienda (nome, città, anni di attività).
+Restituisci JSON come da schema.`;
 
     // Chiamata AI
     let resp;
@@ -303,10 +295,10 @@ Genera 3 offerte (1 starter, 1 medium, 1 strong) costruite sui 7 parametri.
         company_id: body.company_id,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
+          { role: "user", content: userMessage },
         ],
-        max_tokens: 3000,
-        temperature: 0.5,
+        max_tokens: 4000,
+        temperature: 0.7,
         json_mode: true,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
@@ -323,49 +315,38 @@ Genera 3 offerte (1 starter, 1 medium, 1 strong) costruite sui 7 parametri.
       return json({ error: "ai_invalid_output", raw: String(rawText).slice(0, 300) }, 502, corsHeaders);
     }
 
-    let parsed: { offers?: OfferCandidate[]; missing_company_fields?: string[]; advice?: string };
+    let parsed: { ads?: AdVariant[]; coaching?: string };
     try {
       parsed = JSON.parse(match[0]);
     } catch {
       return json({ error: "ai_invalid_json" }, 502, corsHeaders);
     }
 
-    // Sanitize
-    const offers: OfferCandidate[] = Array.isArray(parsed.offers)
-      ? parsed.offers
-          .filter((o) => o && typeof o.pitch === "string" && o.pitch.trim().length > 20)
+    const VALID_FRAMEWORKS = ["PAS", "AIDA", "HSO", "AWARENESS", "RISK_REVERSAL"];
+    const VALID_CTAS = ["GET_QUOTE", "CONTACT_US", "MESSAGE_PAGE", "WHATSAPP_MESSAGE", "LEARN_MORE"];
+
+    const ads: AdVariant[] = Array.isArray(parsed.ads)
+      ? parsed.ads
+          .filter((a) => a && typeof a.primary_text === "string" && a.primary_text.trim().length > 30)
           .slice(0, 5)
-          .map((o) => ({
-            tier: ["strong", "medium", "starter"].includes(o.tier) ? o.tier : "medium",
-            headline: String(o.headline ?? "").slice(0, 60),
-            pitch: String(o.pitch ?? "").slice(0, 220),
-            parameters: {
-              promise: String(o.parameters?.promise ?? "").slice(0, 180),
-              advantage: String(o.parameters?.advantage ?? "").slice(0, 180),
-              risk_reversal: String(o.parameters?.risk_reversal ?? "").slice(0, 180),
-              urgency: String(o.parameters?.urgency ?? "").slice(0, 180),
-              proof: String(o.parameters?.proof ?? "").slice(0, 180),
-              cta: String(o.parameters?.cta ?? "").slice(0, 60),
-              locality: String(o.parameters?.locality ?? "").slice(0, 100),
-            },
-            suggested_hook: String(o.suggested_hook ?? "").slice(0, 100),
-            suggested_cta: ["GET_QUOTE", "CONTACT_US", "MESSAGE_PAGE", "WHATSAPP_MESSAGE", "LEARN_MORE"].includes(o.suggested_cta)
-              ? o.suggested_cta
-              : "GET_QUOTE",
-            daily_budget_suggested: Math.max(10, Math.min(100, Number(o.daily_budget_suggested) || 25)),
-            missing_data: Array.isArray(o.missing_data) ? o.missing_data.filter((m: unknown) => typeof m === "string").slice(0, 8) : [],
-            confidence: Math.max(0, Math.min(100, Number(o.confidence) || 50)),
+          .map((a) => ({
+            framework: VALID_FRAMEWORKS.includes(a.framework) ? a.framework : "AIDA",
+            framework_explain: String(a.framework_explain ?? "").slice(0, 200),
+            title: String(a.title ?? "").slice(0, 60),
+            primary_text: String(a.primary_text ?? "").slice(0, 220),
+            hook: String(a.hook ?? "").slice(0, 80),
+            cta: VALID_CTAS.includes(a.cta) ? a.cta : "GET_QUOTE",
+            angle: String(a.angle ?? "").slice(0, 200),
+            image_prompt: String(a.image_prompt ?? "").slice(0, 500),
           }))
       : [];
 
     return json({
       ok: true,
-      company_signals: signals,
-      offers,
-      missing_company_fields: Array.isArray(parsed.missing_company_fields)
-        ? parsed.missing_company_fields.filter((f: unknown) => typeof f === "string").slice(0, 10)
-        : [],
-      advice: String(parsed.advice ?? "").slice(0, 300),
+      company_context: companyContext,
+      user_offer: body.user_offer.trim(),
+      ads,
+      coaching: String(parsed.coaching ?? "").slice(0, 300),
     }, 200, corsHeaders);
   } catch (e) {
     console.error("[ai-ads-offer-builder] error", e);
