@@ -86,6 +86,7 @@ import { MetaLeadFormBuilder, META_FORM_DEFAULTS } from "@/components/ads/MetaLe
 import { AdMediaUploader } from "@/components/ads/AdMediaUploader";
 import { AdVideoUploader } from "@/components/ads/AdVideoUploader";
 import { OfferBuilderPanel } from "@/components/ads/OfferBuilderPanel";
+import { VideoAIStudio } from "@/components/ads/VideoAIStudio";
 import type { Integration, MetaAsset } from "@/types/integrations";
 import type { MetaCampaignRow } from "@/types/metaAds";
 
@@ -4495,22 +4496,37 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
         </CardContent>
       </Card>
 
-      {/* ─── ROW 3: UPLOAD IMMAGINI + VIDEO ──────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <AdMediaUploader
-          companyId={companyId}
-          onUploaded={(media) => {
-            toast.success("Immagine salvata in libreria", { description: media.public_url ? "Pronta da usare nelle campagne." : undefined });
-            qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
-          }}
-        />
-        <AdVideoUploader
-          companyId={companyId}
-          onUploaded={(media) => {
-            toast.success("Video salvato in libreria", { description: media.public_url ? "Pronto da usare nelle campagne." : undefined });
-            qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
-          }}
-        />
+      {/* ─── ROW 3: VIDEO AI STUDIO ──────────────────────────────────── */}
+      <VideoAIStudio
+        companyId={companyId}
+        libraryImages={mediaLib
+          .filter(m => m.kind !== "video" && m.public_url)
+          .map(m => ({ id: m.id, name: m.name, public_url: m.public_url! }))}
+      />
+
+      {/* ─── ROW 4: UPLOAD MANUALE ───────────────────────────────────── */}
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-xs font-medium text-slate-400">Upload manuale</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <AdMediaUploader
+            companyId={companyId}
+            onUploaded={(media) => {
+              toast.success("Immagine salvata in libreria", { description: media.public_url ? "Pronta da usare nelle campagne." : undefined });
+              qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
+            }}
+          />
+          <AdVideoUploader
+            companyId={companyId}
+            onUploaded={(media) => {
+              toast.success("Video salvato in libreria", { description: media.public_url ? "Pronto da usare nelle campagne." : undefined });
+              qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
+            }}
+          />
+        </div>
       </div>
 
       {/* ─── ROW 4: LIBRERIA ASSET ───────────────────────────────────── */}

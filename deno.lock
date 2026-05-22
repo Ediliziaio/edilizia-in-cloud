@@ -8977,6 +8977,7 @@
         "npm:papaparse@^5.5.3",
         "npm:pdfjs-dist@^4.10.38",
         "npm:postcss@^8.5.6",
+        "npm:posthog-js@^1.374.2",
         "npm:qrcode@^1.5.4",
         "npm:react-day-picker@^8.10.1",
         "npm:react-dom@^18.3.1",
