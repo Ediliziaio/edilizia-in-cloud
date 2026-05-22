@@ -11,7 +11,6 @@
 
 import { useState } from "react";
 import {
-  ArrowRight,
   BookOpen,
   CheckCircle2,
   ChevronDown,
@@ -20,7 +19,6 @@ import {
   Quote,
   Sparkles,
   Target,
-  TrendingUp,
   Wand2,
 } from "lucide-react";
 
