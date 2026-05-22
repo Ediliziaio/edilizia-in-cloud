@@ -566,13 +566,14 @@ const BRAIN_THEME = {
     label: {
       ...lightTheme.node.label,
       color: "#ffffff",
-      activeColor: "#ffffff",
-      stroke: "#000000",
-      backgroundColor: "#1e293b",
-      backgroundOpacity: 1,        // pill solido, leggibile
-      padding: 6,
-      radius: 6,
-      fontSize: 6,
+      activeColor: "#fbbf24",       // amber-400 per nodo attivo (più visibile)
+      stroke: "#000000",            // outline nero spesso intorno al testo bianco
+      strokeWidth: 4,
+      backgroundColor: "#000000",
+      backgroundOpacity: 0.85,
+      padding: 8,
+      radius: 8,
+      fontSize: 7,
     },
   },
   edge: {
@@ -1748,9 +1749,9 @@ export default function AIBrainGraph() {
         glOptions={{ alpha: true, antialias: true }}
         layoutType={viewDim === "2d" ? "forceDirected2d" : "forceDirected3d"}
         cameraMode={viewDim === "core" ? "orbit" : "rotate"}
-        clusterAttribute={
-          viewMode === "galaxy" && expandedPersonas.size === 0 && viewDim === "2d" ? undefined : "cluster"
-        }
+        // Rimosso clusterAttribute: i meta-nodes generati dal cluster algorithm
+        // apparivano come puntini neri parassiti nel grafo. La logica di
+        // raggruppamento visivo è già nei colori dei nodi e nelle posizioni.
         layoutOverrides={{
           // 2D galaxy pure: forze ridotte → fx/fy comandano (cerchio perfetto)
           // 3D Nucleo: forze attrattive forti → nodi compatti come un atomo
