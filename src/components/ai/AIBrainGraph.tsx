@@ -426,7 +426,7 @@ function buildGraphData(
           target: `p_${pB}`,
           size: Math.min(4, 0.8 + count * 0.4),
           fill: "#fb923c", // orange-400 ben visibile su nero
-          label: `${count}`,
+          // niente label sull'edge (il numero compare nel detail panel)
         });
         connectionsMap.get(`p_${pA}`)?.add(`p_${pB}`);
         connectionsMap.get(`p_${pB}`)?.add(`p_${pA}`);
@@ -684,6 +684,57 @@ export default function AIBrainGraph() {
     [nodes, connectionsMap, crossPersonaLinks, memories, personas],
   );
 
+  // Insight narrativo automatico — la frase "vendibile" che racconta cosa sa l'AI
+  // Calcoliamo direttamente da memories+personas (non dipende da viewMode).
+  const heroInsight = useMemo(() => {
+    if (memories.length === 0) {
+      return {
+        title: "Cervello in costruzione",
+        text: "Parla con le AI Personas o aggiungi memorie manuali — il sistema imparerà nel tempo.",
+      };
+    }
+
+    // Top cross-persona link più forte
+    let topPair: { pA: string; pB: string; count: number } | null = null;
+    for (const [pA, targets] of crossPersonaLinks) {
+      for (const [pB, count] of targets) {
+        if (!topPair || count > topPair.count) topPair = { pA, pB, count };
+      }
+    }
+    if (topPair && topPair.count >= 2) {
+      const nameA = personas.find((p) => p.persona_key === topPair!.pA)?.display_name ?? topPair.pA;
+      const nameB = personas.find((p) => p.persona_key === topPair!.pB)?.display_name ?? topPair.pB;
+      return {
+        title: "Asse di conoscenza più forte",
+        text: `${nameA} ↔ ${nameB} condividono ${topPair.count} memorie. Le due personas pensano "alla stessa cosa".`,
+      };
+    }
+
+    // Most-used memory
+    const sorted = [...memories].filter((m) => m.enabled).sort((a, b) => (b.hits_count ?? 0) - (a.hits_count ?? 0));
+    if (sorted.length > 0 && (sorted[0].hits_count ?? 0) > 0) {
+      const top = sorted[0];
+      const personaName = personas.find((p) => p.persona_key === top.persona_key)?.display_name ?? top.persona_key;
+      const preview = top.content.length > 70 ? top.content.slice(0, 67) + "…" : top.content;
+      return {
+        title: "Informazione più usata",
+        text: `${personaName} ricorda: "${preview}" (${top.hits_count} richiami).`,
+      };
+    }
+
+    return {
+      title: "Cervello attivo",
+      text: `${memories.filter((m) => m.enabled).length} memorie attive distribuite su ${new Set(memories.map((m) => m.persona_key)).size} personas.`,
+    };
+  }, [memories, personas, crossPersonaLinks]);
+
+  const totalMemories = memories.filter((m) => m.enabled).length;
+  const totalCrossPersonaLinks = useMemo(() => {
+    let n = 0;
+    for (const [, t] of crossPersonaLinks) for (const [, c] of t) n += c;
+    return n;
+  }, [crossPersonaLinks]);
+
   // ── Stats ─────────────────────────────────────────────────────────────────
 
   const stats = useMemo(() => {
@@ -937,14 +988,75 @@ export default function AIBrainGraph() {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "relative rounded-xl overflow-hidden border border-slate-800",
-        fullscreen ? "fixed inset-0 z-50 rounded-none" : "h-[680px]",
+    <div className="space-y-3">
+      {/* ── Hero panel storytelling ──────────────────────────────────────── */}
+      {!fullscreen && (
+        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 via-orange-50/30 to-amber-50/40 p-4 md:p-5">
+          {/* Background pattern decorativo */}
+          <div
+            className="absolute inset-0 opacity-[0.04] pointer-events-none"
+            style={{
+              backgroundImage: `radial-gradient(circle, #f97316 1px, transparent 1px)`,
+              backgroundSize: "24px 24px",
+            }}
+          />
+          <div className="relative flex flex-col md:flex-row md:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <Brain className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Cervello AI</h3>
+                <p className="text-[11px] text-slate-600">La conoscenza condivisa delle 18 personas</p>
+              </div>
+            </div>
+
+            {/* 3 numeri hero */}
+            <div className="flex items-center gap-4 md:gap-6 md:ml-6">
+              <div>
+                <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">{totalMemories}</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">memorie</div>
+              </div>
+              <div className="h-8 w-px bg-slate-200" />
+              <div>
+                <div className="text-2xl font-bold text-orange-600 tabular-nums leading-tight">{totalCrossPersonaLinks}</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">ponti cross-team</div>
+              </div>
+              <div className="h-8 w-px bg-slate-200" />
+              <div>
+                <div className={cn(
+                  "text-2xl font-bold tabular-nums leading-tight",
+                  insights.healthPct >= 70 ? "text-emerald-600" : insights.healthPct >= 40 ? "text-amber-600" : "text-rose-600",
+                )}>
+                  {insights.healthPct}%
+                </div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">salute</div>
+              </div>
+            </div>
+
+            {/* Insight narrativo */}
+            <div className="md:ml-auto md:max-w-sm flex items-start gap-2 rounded-lg bg-white/70 border border-orange-200/60 px-3 py-2 backdrop-blur-sm">
+              <Sparkles className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wider text-orange-700 font-semibold leading-tight">
+                  {heroInsight.title}
+                </div>
+                <p className="text-[11px] text-slate-700 leading-snug mt-0.5">{heroInsight.text}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
-      style={gridBgStyle}
-    >
+
+      {/* ── Graph container ──────────────────────────────────────────────── */}
+      <div
+        ref={containerRef}
+        className={cn(
+          "relative rounded-xl overflow-hidden border border-slate-800",
+          fullscreen ? "fixed inset-0 z-50 rounded-none" : "h-[600px]",
+        )}
+        style={gridBgStyle}
+      >
       {/* ── Top bar ────────────────────────────────────────────────────────── */}
       <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
@@ -1537,13 +1649,18 @@ export default function AIBrainGraph() {
         theme={BRAIN_THEME}
         glOptions={{ alpha: true, antialias: true }}
         layoutType={is3D ? "forceDirected3d" : "forceDirected2d"}
+        clusterAttribute={
+          // In galaxy mode senza espansioni: niente cluster (più ordinato)
+          viewMode === "galaxy" && expandedPersonas.size === 0 ? undefined : "cluster"
+        }
         layoutOverrides={{
-          // Cluster ben separati spazialmente (come riferimento knowledge graph viz)
-          clusterStrength: 2.0,
-          nodeStrength: -400,
-          linkDistance: 80,
-          linkStrengthIntraCluster: 0.7,   // nodi stesso cluster molto vicini
-          linkStrengthInterCluster: 0.02,  // nodi cluster diversi quasi indipendenti
+          // Galaxy mode: pochi nodi distanziati → repulsione molto alta
+          // Detail mode: cluster compatti → bilanciato
+          clusterStrength: viewMode === "galaxy" ? 0 : 2.0,
+          nodeStrength: viewMode === "galaxy" && expandedPersonas.size === 0 ? -800 : -400,
+          linkDistance: viewMode === "galaxy" && expandedPersonas.size === 0 ? 180 : 80,
+          linkStrengthIntraCluster: 0.7,
+          linkStrengthInterCluster: viewMode === "galaxy" && expandedPersonas.size === 0 ? 0.15 : 0.02,
         }}
         sizingType="attribute"
         sizingAttribute="size"
@@ -1552,7 +1669,7 @@ export default function AIBrainGraph() {
         maxNodeSize={10}
         animated
         draggable
-        labelType="auto"
+        labelType="nodes"
         edgeInterpolation="curved"
         edgeArrowPosition="none"
         clusterAttribute="cluster"
@@ -1563,6 +1680,7 @@ export default function AIBrainGraph() {
         onEdgePointerOver={handleEdgePointerOver}
         onEdgePointerOut={handleEdgePointerOut}
       />
+      </div>
     </div>
   );
 }
