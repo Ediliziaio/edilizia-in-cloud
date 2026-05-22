@@ -291,12 +291,14 @@ interface ScheduledPost {
   platforms: string[];
   contentType: string;
   text: string;
+  platformTexts?: Record<string, string>;  // caption per-piattaforma
   image_url?: string;
   hashtags: string[];
   firstComment?: string;
   scheduled_at: string;
-  status: "draft" | "scheduled" | "published" | "failed";
+  status: "draft" | "scheduled" | "published" | "failed" | "review";
   created_at: string;
+  reviewNote?: string;
 }
 
 // ─── Media Library types ───────────────────────────────────────────────────────
@@ -1039,6 +1041,34 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
   const [firstComment, setFirstComment] = useState("");
   const [showFirstComment, setShowFirstComment] = useState(false);
 
+  // ── Cross-platform caption ──────────────────────────────────────────────────
+  const [crossPlatformMode, setCrossPlatformMode] = useState(false);
+  const [platformTexts, setPlatformTexts] = useState<Record<string, string>>({});
+
+  // Testo effettivo per una piattaforma (fallback al testo globale)
+  const getTextForPlatform = (platformId: string) =>
+    crossPlatformMode && platformTexts[platformId] !== undefined
+      ? platformTexts[platformId]
+      : postText;
+
+  const setPlatformText = (platformId: string, text: string) =>
+    setPlatformTexts((prev) => ({ ...prev, [platformId]: text }));
+
+  // Quando si disabilita cross-platform, svuota le override
+  const toggleCrossPlatform = (enabled: boolean) => {
+    setCrossPlatformMode(enabled);
+    if (!enabled) setPlatformTexts({});
+  };
+
+  // Pre-popola ogni piattaforma col testo globale quando si attiva
+  useEffect(() => {
+    if (crossPlatformMode && Object.keys(platformTexts).length === 0 && postText) {
+      const initial: Record<string, string> = {};
+      selectedPlatforms.forEach(id => { initial[id] = postText; });
+      setPlatformTexts(initial);
+    }
+  }, [crossPlatformMode]);
+
   // ── Media ──────────────────────────────────────────────────────────────────
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
 
@@ -1114,7 +1144,11 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
   };
 
   const onSchedulePost = () => {
-    if (!postText.trim()) { toast.error("Scrivi il testo del post"); return; }
+    // In cross-platform mode, valid if at least one platform has text
+    const hasText = crossPlatformMode
+      ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim())
+      : postText.trim();
+    if (!hasText) { toast.error("Scrivi il testo del post"); return; }
     if (selectedPlatforms.length === 0) { toast.error("Seleziona almeno una piattaforma"); return; }
     if (!publishNow && !scheduledDate) { toast.error("Seleziona la data di pubblicazione"); return; }
 
@@ -1126,20 +1160,30 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
       id: `post-${Date.now()}`,
       platforms: selectedPlatforms,
       contentType: contentTypeId,
-      text: postText,
+      // In cross-platform mode, salva il testo della prima piattaforma come principale
+      text: crossPlatformMode
+        ? (platformTexts[selectedPlatforms[0]] ?? postText)
+        : postText,
       image_url: mediaUrl ?? undefined,
       hashtags: contentType.hashtagsAllowed ? hashtags : [],
       firstComment: firstComment || undefined,
       scheduled_at: scheduledAt,
       status: publishNow ? "published" : "scheduled",
       created_at: new Date().toISOString(),
+      platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0
+        ? platformTexts
+        : undefined,
     };
 
     onPostScheduled(newPost);
     toast.success(publishNow ? "Post pubblicato!" : "Post programmato!", {
-      description: publishNow ? "Visibile sulle tue pagine." : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
+      description: crossPlatformMode
+        ? `Testi diversi per ${selectedPlatforms.length} piattaforme — ottimizzato!`
+        : publishNow ? "Visibile sulle tue pagine." : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
     });
-    setPostText(""); setHashtags([]); setMediaUrl(null); setScheduledDate(""); setPublishNow(false); setCopyVariants([]); setFirstComment(""); setShowFirstComment(false);
+    setPostText(""); setHashtags([]); setMediaUrl(null); setScheduledDate(""); setPublishNow(false);
+    setCopyVariants([]); setFirstComment(""); setShowFirstComment(false);
+    setPlatformTexts({}); setCrossPlatformMode(false);
   };
 
   const currentPlatform = PLATFORMS.find((p) => p.id === previewPlatform) ?? PLATFORMS[0];
@@ -1392,16 +1436,108 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                     </CardDescription>
                   </div>
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => void onGeneratePost()} disabled={isGeneratingCopy || !brief.trim()}
-                  className="h-7 gap-1.5 text-[11px] text-orange-600 hover:bg-orange-50">
-                  {isGeneratingCopy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} AI
-                </Button>
+                <div className="flex items-center gap-2">
+                  {/* Cross-platform toggle — visibile con 2+ piattaforme */}
+                  {selectedPlatforms.length > 1 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" onClick={() => toggleCrossPlatform(!crossPlatformMode)}
+                            className={cn(
+                              "flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold transition",
+                              crossPlatformMode
+                                ? "border-orange-400 bg-orange-100 text-orange-700"
+                                : "border-slate-200 bg-white text-slate-500 hover:border-orange-200 hover:text-orange-600"
+                            )}>
+                            <Share2 className="h-3 w-3" />
+                            {crossPlatformMode ? "✓ Per piattaforma" : "Personalizza"}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[200px] text-xs">
+                          Testo diverso per ogni piattaforma — Instagram breve, LinkedIn lungo, Facebook conversazionale
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => void onGeneratePost()} disabled={isGeneratingCopy || !brief.trim()}
+                    className="h-7 gap-1.5 text-[11px] text-orange-600 hover:bg-orange-50">
+                    {isGeneratingCopy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} AI
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {isGeneratingCopy ? (
                 <div className="space-y-2 rounded-xl border border-orange-100 bg-orange-50/40 p-3">
                   {[...Array(3)].map((_, i) => <div key={i} className={cn("h-4 animate-pulse rounded-lg bg-orange-100/70", i === 2 ? "w-2/3" : "w-full")} />)}
+                </div>
+              ) : crossPlatformMode ? (
+                /* ── CROSS-PLATFORM MODE: textarea per piattaforma ── */
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2 text-[11px] text-orange-700">
+                    <Share2 className="h-3.5 w-3.5 shrink-0" />
+                    <span><strong>Modalità multi-piattaforma</strong> — ogni canale riceve il suo testo ottimizzato</span>
+                  </div>
+                  {selectedPlatforms.map((pid) => {
+                    const pl = PLATFORMS.find(p => p.id === pid);
+                    if (!pl) return null;
+                    const txt = platformTexts[pid] ?? postText;
+                    const over = txt.length > pl.maxChars;
+                    const HINTS: Record<string, string> = {
+                      instagram: "Breve + emoji · 3-5 hashtag nel testo · hook nei primi 125 car.",
+                      facebook:  "Conversazionale · racconta la storia · domanda finale per commenti",
+                      linkedin:  "Professionale · bullet point · inizia con insight · no hashtag in eccesso",
+                      youtube:   "Titolo: keyword nei primi 40 car. · Descrizione: 200+ parole",
+                      tiktok:    "Hook immediato · breve · trending hashtag",
+                    };
+                    return (
+                      <div key={pid} className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("flex h-6 w-6 items-center justify-center rounded-lg text-[9px] font-bold text-white bg-gradient-to-br", pl.gradient)}>{pl.icon}</span>
+                            <div>
+                              <span className="text-xs font-bold text-slate-800">{pl.name}</span>
+                              <p className="text-[10px] text-slate-400">{HINTS[pid]}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={cn("text-[10px] tabular-nums", over ? "font-bold text-red-500" : "text-slate-400")}>
+                              {txt.length}/{pl.maxChars.toLocaleString("it")}
+                            </span>
+                            <button type="button"
+                              onClick={() => {
+                                void (async () => {
+                                  const tips: Record<string, string> = {
+                                    instagram: "Ottimizza per Instagram: breve, visivo, emoji naturali, 3-5 hashtag nel testo",
+                                    facebook:  "Ottimizza per Facebook: conversazionale, termina con domanda aperta",
+                                    linkedin:  "Ottimizza per LinkedIn: professionale, usa bullet point, inizia con insight di settore",
+                                    youtube:   "Riscrivi come titolo YouTube SEO: keyword edilizia nei primi 40 caratteri",
+                                    tiktok:    "Ottimizza per TikTok: hook immediato, max 150 car, trending hashtag edilizia",
+                                  };
+                                  const base = txt || postText || brief;
+                                  if (!base.trim()) { toast.error("Scrivi prima del testo"); return; }
+                                  const result = await generateCopy({ brief: `${tips[pid] ?? "Ottimizza questo testo"}: "${base}"`, segment, zone: "", variants: 1 });
+                                  if (result?.copy_variants?.[0]) {
+                                    setPlatformText(pid, result.copy_variants[0]);
+                                    toast.success(`Testo ${pl.name} ottimizzato`);
+                                  }
+                                })();
+                              }}
+                              disabled={isGeneratingCopy}
+                              className="flex items-center gap-0.5 rounded-md bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-700 hover:bg-orange-200 disabled:opacity-50">
+                              <Sparkles className="h-2.5 w-2.5" /> AI
+                            </button>
+                          </div>
+                        </div>
+                        <Textarea
+                          value={txt}
+                          onChange={e => setPlatformText(pid, e.target.value)}
+                          className={cn("min-h-[80px] resize-none text-sm", over ? "border-red-300" : "")}
+                          placeholder={`Testo ottimizzato per ${pl.name}...`}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <Textarea value={postText} onChange={(e) => setPostText(e.target.value)}
