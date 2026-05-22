@@ -73,6 +73,8 @@ import { ABTestDialog } from "@/components/ads/ABTestDialog";
 import { AutomationRulesEditor } from "@/components/ads/AutomationRulesEditor";
 import { useAdsNotifications } from "@/hooks/useAdsNotifications";
 import { AdsOnboardingTour } from "@/components/ads/AdsOnboardingTour";
+import { ProviderChoiceDialog } from "@/components/ads/ProviderChoiceDialog";
+import { MetaTargetingPanel } from "@/components/ads/MetaTargetingPanel";
 import type { Integration, MetaAsset } from "@/types/integrations";
 import type { MetaCampaignRow } from "@/types/metaAds";
 
@@ -189,6 +191,15 @@ interface BuilderState {
   testDurationDays: number;
   pauseRule: string;
   scaleRule: string;
+  /**
+   * Meta targeting avanzato — opzionali per backward-compat con bozze
+   * pre-2026-05. Quando presenti, hanno la precedenza su `zone`/`interests`.
+   */
+  metaGeoLocations?: import("@/types/metaAds").MetaGeoLocationPick[];
+  metaInterestTags?: import("@/types/metaAds").MetaSearchResult[];
+  metaExcludedInterestTags?: import("@/types/metaAds").MetaSearchResult[];
+  metaLocaleTags?: import("@/types/metaAds").MetaSearchResult[];
+  metaPlacements?: import("@/types/metaAds").MetaPlacementsConfig;
 }
 
 interface CampaignTemplate {
@@ -511,6 +522,12 @@ const DEFAULT_BUILDER: BuilderState = {
   testDurationDays: 5,
   pauseRule: "Pausa un annuncio se dopo 2.5x CPL target non genera lead qualificati o se i lead non rispondono al primo contatto.",
   scaleRule: "Aumenta budget del 15-20% ogni 48 ore solo se CPL, tasso opportunità e tempi di risposta restano stabili.",
+  // Meta targeting avanzato — default vuoti, popolati dall'utente nel wizard.
+  metaGeoLocations: [],
+  metaInterestTags: [],
+  metaExcludedInterestTags: [],
+  metaLocaleTags: [],
+  metaPlacements: { automatic: true },
 };
 
 DEFAULT_BUILDER.adSets = buildDefaultAdSets(DEFAULT_BUILDER);
@@ -797,6 +814,10 @@ export default function AdsManagerBeta() {
   const mode = searchParams.get("mode");
   const editId = searchParams.get("edit");
   const detailId = searchParams.get("detail");
+  // Platform scelta nel ProviderChoiceDialog (Meta vs Google) prima del wizard.
+  const initialPlatformFromUrl = (searchParams.get("platform") as "meta" | "google" | null) ?? undefined;
+  const initialGoogleChannelFromUrl =
+    (searchParams.get("googleChannel") as "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX" | null) ?? undefined;
 
   const meta = useMetaConnection(companyId, isDemoCompany);
 
@@ -898,7 +919,25 @@ export default function AdsManagerBeta() {
     }
   }, [showSamples, sampleKey]);
 
-  const openWizardNew = () => setSearchParams({ mode: "create" });
+  // Provider choice dialog — si apre quando l'utente clicca "Crea Campagna".
+  // Forza scelta esplicita Meta vs Google PRIMA del wizard, perché i due
+  // flussi sono completamente diversi (lead form Meta vs keyword Google).
+  const [providerDialogOpen, setProviderDialogOpen] = useState(false);
+  const openWizardNew = () => setProviderDialogOpen(true);
+
+  // Dopo conferma scelta nel dialog → entra nel wizard con platform già settata
+  // via search params (initialPlatform / initialGoogleChannel).
+  const handleProviderConfirmed = useCallback(
+    (platform: "meta" | "google", googleChannel?: "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX") => {
+      const params: Record<string, string> = { mode: "create", platform };
+      if (platform === "google" && googleChannel) {
+        params.googleChannel = googleChannel;
+      }
+      setSearchParams(params);
+    },
+    [setSearchParams],
+  );
+
   const openWizardEdit = (id: string) => setSearchParams({ mode: "edit", edit: id });
   const openDetail = (id: string) => setSearchParams({ detail: id });
   const backToList = (tab: AdsTab = "campagne") => setSearchParams({ tab });
@@ -987,6 +1026,8 @@ export default function AdsManagerBeta() {
               companyName={companyName}
               companyId={companyId}
               initialState={initialState}
+              initialPlatform={initialPlatformFromUrl}
+              initialGoogleChannel={initialGoogleChannelFromUrl}
               isEditing={!!editingDraft}
               onCancel={() => backToList()}
               onSaveDraft={async (state) => {
@@ -1106,6 +1147,12 @@ export default function AdsManagerBeta() {
   // ---- LIST (default) ----
   return (
     <div className="min-h-screen bg-slate-50/70">
+      {/* Provider scelta — Meta vs Google — prima del wizard */}
+      <ProviderChoiceDialog
+        open={providerDialogOpen}
+        onOpenChange={setProviderDialogOpen}
+        onConfirm={handleProviderConfirmed}
+      />
       <ListHeader onCreate={openWizardNew} />
       <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6">
         <ConnectionPill meta={meta} />
@@ -1977,6 +2024,8 @@ function CampaignBuilderTab({
   companyName,
   companyId,
   initialState,
+  initialPlatform,
+  initialGoogleChannel,
   isEditing = false,
 }: {
   onSaveDraft: (state: BuilderState) => void;
@@ -1984,10 +2033,23 @@ function CampaignBuilderTab({
   companyName?: string;
   companyId?: string;
   initialState?: BuilderState | null;
+  /** Se aperto da ProviderChoiceDialog, forza la piattaforma scelta. */
+  initialPlatform?: "meta" | "google";
+  initialGoogleChannel?: "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX";
   isEditing?: boolean;
 }) {
   const [step, setStep] = useState(1);
-  const [state, setState] = useState<BuilderState>(initialState ?? DEFAULT_BUILDER);
+  const [state, setState] = useState<BuilderState>(() => {
+    const base = initialState ?? DEFAULT_BUILDER;
+    if (initialPlatform && !initialState) {
+      return {
+        ...base,
+        platform: initialPlatform,
+        googleChannel: initialPlatform === "google" ? (initialGoogleChannel ?? "SEARCH") : undefined,
+      };
+    }
+    return base;
+  });
   const { generateCopy, isGeneratingCopy } = useAdsAi(companyId);
   const totalDailyBudget = getCampaignDailyBudget(state);
   const dailyBudgetCents = totalDailyBudget * 100;
@@ -2334,7 +2396,109 @@ function CampaignBuilderTab({
             </div>
           )}
 
-          {step === 2 && (
+          {step === 2 && state.platform === "meta" && (
+            <div className="space-y-5">
+              <div className="grid gap-3 md:grid-cols-3">
+                <GuidanceCard title="Locale prima" body="Per edilizia e serramenti parti da città/provincia e raggio realistico, poi allarghi solo se i lead diventano opportunità." />
+                <GuidanceCard title="Non stringere troppo" body="Interessi utili sì, ma troppi vincoli riducono il bacino e impediscono all'algoritmo di imparare." />
+                <GuidanceCard title="Usa dati reali" body="Clienti già chiusi, lead buoni e visitatori sito alimentano retargeting e lookalike." />
+              </div>
+              {/* === META TARGETING PANEL — multi-luogo, interests reali, placements === */}
+              <MetaTargetingPanel
+                companyId={companyId}
+                value={{
+                  geoLocations: state.metaGeoLocations ?? [],
+                  interestTags: state.metaInterestTags ?? [],
+                  excludedInterestTags: state.metaExcludedInterestTags ?? [],
+                  localeTags: state.metaLocaleTags ?? [],
+                  placements: state.metaPlacements ?? { automatic: true },
+                  ageMin: state.ageMin,
+                  ageMax: state.ageMax,
+                  gender: state.gender,
+                  advantageAudience: state.advantageAudience,
+                }}
+                onChange={(next) => {
+                  setState((prev) => {
+                    const merged: BuilderState = {
+                      ...prev,
+                      ...(next.ageMin !== undefined ? { ageMin: next.ageMin } : {}),
+                      ...(next.ageMax !== undefined ? { ageMax: next.ageMax } : {}),
+                      ...(next.gender !== undefined ? { gender: next.gender } : {}),
+                      ...(next.advantageAudience !== undefined ? { advantageAudience: next.advantageAudience } : {}),
+                      ...(next.geoLocations !== undefined ? { metaGeoLocations: next.geoLocations } : {}),
+                      ...(next.interestTags !== undefined ? { metaInterestTags: next.interestTags } : {}),
+                      ...(next.excludedInterestTags !== undefined ? { metaExcludedInterestTags: next.excludedInterestTags } : {}),
+                      ...(next.localeTags !== undefined ? { metaLocaleTags: next.localeTags } : {}),
+                      ...(next.placements !== undefined ? { metaPlacements: next.placements } : {}),
+                    };
+                    // Sync legacy fields (zone, interests, languages) per backward-compat
+                    // con codice che legge ancora la stringa.
+                    if (next.geoLocations !== undefined) {
+                      const firstIncluded = next.geoLocations.find((g) => !g.excluded);
+                      merged.zone = firstIncluded?.name ?? "";
+                      if (firstIncluded?.radius_km) merged.radiusKm = firstIncluded.radius_km;
+                    }
+                    if (next.interestTags !== undefined) {
+                      merged.interests = next.interestTags.map((t) => t.name).join(", ");
+                    }
+                    if (next.localeTags !== undefined && next.localeTags.length > 0) {
+                      merged.languages = next.localeTags.map((l) => l.name).join(", ");
+                    }
+                    // Ricostruisci ad-set di default coerenti
+                    merged.adSets = buildDefaultAdSets(merged);
+                    return merged;
+                  });
+                }}
+              />
+
+              <AudienceControlsPanel state={state} setState={setState} />
+              <AdSetPlanner
+                adSets={state.adSets}
+                totalBudget={totalDailyBudget}
+                onAdd={addAdSet}
+                onRemove={removeAdSet}
+                onUpdate={updateAdSet}
+              />
+            </div>
+          )}
+
+          {step === 2 && state.platform === "google" && (
+            <div className="space-y-5">
+              <Alert className="border-amber-200 bg-amber-50">
+                <Info className="h-4 w-4 text-amber-700" />
+                <AlertTitle>Targeting Google Ads</AlertTitle>
+                <AlertDescription className="text-xs">
+                  Google funziona per keyword e intent, non per interessi.
+                  Il targeting completo Google sarà disponibile in iterazione successiva.
+                  Per ora compila i campi base qui sotto.
+                </AlertDescription>
+              </Alert>
+              <div className="grid gap-3 md:grid-cols-3">
+                <GuidanceCard title="Keyword chiave" body="Per Search, le keyword sono il targeting. Pensale come domande complete del cliente." />
+                <GuidanceCard title="Località servite" body="Limita a comuni/province dove fai sopralluoghi. Niente targeting raggio per Search." />
+                <GuidanceCard title="Budget realistico" body="CPC IT edilizia 1-4€. Con 20€/giorno ottieni 5-15 click. Lascia 7-14gg di learning." />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Zona principale">
+                  <Input value={state.zone} onChange={(e) => setState((p) => ({ ...p, zone: e.target.value }))} placeholder="Es. Milano, Monza, Brianza" />
+                </Field>
+                <Field label="Lingue">
+                  <Input value={state.languages} onChange={(e) => setState((p) => ({ ...p, languages: e.target.value }))} placeholder="Italiano" />
+                </Field>
+              </div>
+              <Field label="Keyword (separate da virgola)">
+                <Textarea
+                  value={state.interests}
+                  onChange={(e) => setState((p) => ({ ...p, interests: e.target.value }))}
+                  className="min-h-24"
+                  placeholder='Es. "ristrutturazione bagno Milano", "preventivo infissi Brianza", "sostituzione finestre"'
+                />
+              </Field>
+            </div>
+          )}
+
+          {/* LEGACY UI nascosta — vecchio step 2 lasciato come fallback (non usato per nuove campagne) */}
+          {false && step === 2 && (
             <div className="space-y-5">
               <div className="grid gap-3 md:grid-cols-3">
                 <GuidanceCard title="Locale prima" body="Per edilizia e serramenti parti da città/provincia e raggio realistico, poi allarghi solo se i lead diventano opportunità." />

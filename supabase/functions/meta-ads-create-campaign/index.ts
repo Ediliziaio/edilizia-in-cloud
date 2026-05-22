@@ -82,6 +82,24 @@ interface BuilderState {
   testDurationDays: number;
   pauseRule: string;
   scaleRule: string;
+  // Targeting Meta avanzato (v2 — multi-luogo, interests reali, placements)
+  metaGeoLocations?: Array<{
+    key: string;
+    name: string;
+    type: string;
+    country_code?: string;
+    radius_km?: number;
+    excluded?: boolean;
+  }>;
+  metaInterestTags?: Array<{ key: string; name: string; type: string }>;
+  metaExcludedInterestTags?: Array<{ key: string; name: string; type: string }>;
+  metaLocaleTags?: Array<{ key: string; name: string; type: string }>;
+  metaPlacements?: {
+    automatic: boolean;
+    publisher_platforms?: string[];
+    facebook_positions?: string[];
+    instagram_positions?: string[];
+  };
 }
 
 interface BuilderAdSet {
@@ -588,24 +606,113 @@ function buildMetaPayload(state: BuilderState, _adAccountId: string): MetaPayloa
         ? "CONVERSATIONS"
         : "LANDING_PAGE_VIEWS";
 
+    // ════════════════════════════════════════════════════════════════
+    // GEO LOCATIONS — v2 (multi-luogo via state.metaGeoLocations)
+    //   con fallback v1 (custom_locations.address_string) per bozze legacy.
+    // ════════════════════════════════════════════════════════════════
+    const geoIncluded: { countries: string[]; regions: { key: string }[]; cities: { key: string; radius?: number; distance_unit?: string }[]; custom_locations: Record<string, unknown>[] } = {
+      countries: [],
+      regions: [],
+      cities: [],
+      custom_locations: [],
+    };
+    const geoExcluded: { countries: string[]; regions: { key: string }[]; cities: { key: string }[] } = {
+      countries: [],
+      regions: [],
+      cities: [],
+    };
+
+    const v2Locations = state.metaGeoLocations ?? [];
+    if (v2Locations.length > 0) {
+      for (const loc of v2Locations) {
+        const bucket = loc.excluded ? geoExcluded : geoIncluded;
+        if (loc.type === "country" && loc.country_code) {
+          bucket.countries.push(loc.country_code);
+        } else if (loc.type === "region") {
+          bucket.regions.push({ key: loc.key });
+        } else if (loc.type === "city") {
+          if (loc.excluded) {
+            geoExcluded.cities.push({ key: loc.key });
+          } else {
+            geoIncluded.cities.push({
+              key: loc.key,
+              radius: loc.radius_km ?? 25,
+              distance_unit: "kilometer",
+            });
+          }
+        }
+      }
+    } else {
+      // Fallback v1 — usa zone + radiusKm dell'adSet
+      geoIncluded.custom_locations.push({
+        address_string: adSet.zone,
+        radius: adSet.radiusKm,
+        distance_unit: "kilometer",
+      });
+    }
+
+    const geoLocationsPayload: Record<string, unknown> = {};
+    if (geoIncluded.countries.length > 0) geoLocationsPayload.countries = geoIncluded.countries;
+    if (geoIncluded.regions.length > 0) geoLocationsPayload.regions = geoIncluded.regions;
+    if (geoIncluded.cities.length > 0) geoLocationsPayload.cities = geoIncluded.cities;
+    if (geoIncluded.custom_locations.length > 0) geoLocationsPayload.custom_locations = geoIncluded.custom_locations;
+
+    const excludedGeoPayload: Record<string, unknown> = {};
+    if (geoExcluded.countries.length > 0) excludedGeoPayload.countries = geoExcluded.countries;
+    if (geoExcluded.regions.length > 0) excludedGeoPayload.regions = geoExcluded.regions;
+    if (geoExcluded.cities.length > 0) excludedGeoPayload.cities = geoExcluded.cities;
+
+    // ════════════════════════════════════════════════════════════════
+    // LOCALES — v2 (state.metaLocaleTags) con fallback v1 (adSet.languages stringa)
+    // ════════════════════════════════════════════════════════════════
+    const localesPayload: number[] = state.metaLocaleTags?.length
+      ? state.metaLocaleTags.map((l) => Number(l.key)).filter((n) => !Number.isNaN(n))
+      : parseLocales(adSet.languages);
+
+    // ════════════════════════════════════════════════════════════════
+    // FLEXIBLE_SPEC — interests v2 (state.metaInterestTags + exclusions)
+    // ════════════════════════════════════════════════════════════════
+    const flexibleSpec: Array<Record<string, unknown>> = [];
+    if (state.metaInterestTags && state.metaInterestTags.length > 0) {
+      flexibleSpec.push({
+        interests: state.metaInterestTags.map((t) => ({ id: t.key, name: t.name })),
+      });
+    }
+
+    const exclusions: Record<string, unknown> = {};
+    if (state.metaExcludedInterestTags && state.metaExcludedInterestTags.length > 0) {
+      exclusions.interests = state.metaExcludedInterestTags.map((t) => ({ id: t.key, name: t.name }));
+    }
+
     const targeting: Record<string, unknown> = {
       age_min: ageMin,
       age_max: ageMax,
-      geo_locations: {
-        custom_locations: [
-          {
-            address_string: adSet.zone,
-            radius: adSet.radiusKm,
-            distance_unit: "kilometer",
-          },
-        ],
-      },
-      locales: parseLocales(adSet.languages),
+      geo_locations: geoLocationsPayload,
+      locales: localesPayload,
       targeting_automation: {
         advantage_audience: state.advantageAudience ? 1 : 0,
       },
     };
+    if (Object.keys(excludedGeoPayload).length > 0) targeting.excluded_geo_locations = excludedGeoPayload;
+    if (flexibleSpec.length > 0) targeting.flexible_spec = flexibleSpec;
+    if (Object.keys(exclusions).length > 0) targeting.exclusions = exclusions;
     if (genderArr) targeting.genders = genderArr;
+
+    // ════════════════════════════════════════════════════════════════
+    // PLACEMENTS — manuali vs automatic (Advantage placements)
+    // ════════════════════════════════════════════════════════════════
+    const placementsConfig = state.metaPlacements;
+    if (placementsConfig && !placementsConfig.automatic) {
+      if (placementsConfig.publisher_platforms && placementsConfig.publisher_platforms.length > 0) {
+        targeting.publisher_platforms = placementsConfig.publisher_platforms;
+      }
+      if (placementsConfig.facebook_positions && placementsConfig.facebook_positions.length > 0) {
+        targeting.facebook_positions = placementsConfig.facebook_positions;
+      }
+      if (placementsConfig.instagram_positions && placementsConfig.instagram_positions.length > 0) {
+        targeting.instagram_positions = placementsConfig.instagram_positions;
+      }
+    }
 
     return {
       name: adSet.name,

@@ -348,3 +348,72 @@ export interface CampaignWithStats extends MetaCampaignRow {
   last_30d_leads: number;
   last_30d_cpl_cents: number | null;
 }
+
+/* ----------------------- Targeting types (Meta search) ----------------------- */
+
+/**
+ * Risultato canonical da meta-targeting-search edge function. Stessa shape
+ * usata in UI per multi-select location, interests, behaviors, demographics,
+ * locales. La `key` è il Meta ID da passare nel `targeting` quando si
+ * pubblica una campagna.
+ */
+export interface MetaSearchResult {
+  key: string;
+  name: string;
+  type: string; // "country" | "region" | "city" | "geo_market" | "neighborhood" | "interest" | "behavior" | "demographic" | "locale" | "zip"
+  country_code?: string;
+  country_name?: string;
+  region?: string;
+  supports_region?: boolean;
+  supports_city?: boolean;
+  audience_size_lower?: number;
+  audience_size_upper?: number;
+  path?: string[];
+}
+
+/**
+ * Geo location selezionata nel builder (subset di MetaSearchResult con
+ * raggio opzionale per le città).
+ */
+export interface MetaGeoLocationPick extends MetaSearchResult {
+  /** Per cities/custom_locations: raggio in km. Per region/country non applicabile. */
+  radius_km?: number;
+  /** Se true → è in `excluded_geo_locations` invece di `geo_locations`. */
+  excluded?: boolean;
+}
+
+/**
+ * Placement Meta per fine-tuning posizionamento ad.
+ * Default: tutti (Meta Advantage placements). Personalizzazione = subset.
+ */
+export type MetaPublisherPlatform = "facebook" | "instagram" | "messenger" | "audience_network";
+
+export type MetaFacebookPosition =
+  | "feed"
+  | "right_hand_column"
+  | "marketplace"
+  | "video_feeds"
+  | "story"
+  | "search"
+  | "instream_video"
+  | "facebook_reels"
+  | "facebook_reels_overlay";
+
+export type MetaInstagramPosition =
+  | "stream"
+  | "story"
+  | "explore"
+  | "reels"
+  | "shop"
+  | "ig_search"
+  | "profile_feed"
+  | "explore_home";
+
+export interface MetaPlacementsConfig {
+  /** true = Advantage placements (Meta sceglie), false = manuale */
+  automatic: boolean;
+  publisher_platforms?: MetaPublisherPlatform[];
+  facebook_positions?: MetaFacebookPosition[];
+  instagram_positions?: MetaInstagramPosition[];
+}
+
