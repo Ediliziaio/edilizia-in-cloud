@@ -201,12 +201,14 @@ interface GraphBuildResult {
   crossPersonaLinks: Map<string, Map<string, number>>;
 }
 
+type ColorMode = "cluster" | "type" | "heat";
+
 function buildGraphData(
   personas: PersonaLite[],
   memories: MemoryRow[],
   filterPersona: string | null,
   filterType: string | null,
-  heatMode: boolean,
+  colorMode: ColorMode,
 ): GraphBuildResult {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
@@ -257,23 +259,28 @@ function buildGraphData(
     // Short label (32 chars) per leggibilità su grafi densi
     const label = m.content.length > 32 ? m.content.slice(0, 30) + "…" : m.content;
 
-    // #8: Heat map color
-    let fill: string;
-    if (heatMode) {
-      const recency = (new Date(m.created_at).getTime() - oldest) / timeRange; // 0=oldest, 1=newest
-      const hitScore = hits / maxHits;
-      const heat = recency * 0.4 + hitScore * 0.6; // weighted: hits matter more
-      fill = heatColor(heat);
-    } else {
-      fill = MEMORY_TYPE_COLORS[m.memory_type] ?? "#94a3b8";
-    }
-
     // Persona for this memory
     const persona = personaMap.get(m.persona_key);
 
+    // Colore: cluster (per persona, default) / type (per tipo memoria) / heat (attività)
+    let fill: string;
+    if (colorMode === "heat") {
+      const recency = (new Date(m.created_at).getTime() - oldest) / timeRange;
+      const hitScore = hits / maxHits;
+      const heat = recency * 0.4 + hitScore * 0.6;
+      fill = heatColor(heat);
+    } else if (colorMode === "type") {
+      fill = MEMORY_TYPE_COLORS[m.memory_type] ?? "#94a3b8";
+    } else {
+      // cluster: colore della persona
+      const catColor = persona ? (PERSONA_CATEGORY_COLORS[persona.category] ?? PERSONA_CATEGORY_COLORS.default) : "#94a3b8";
+      fill = catColor;
+    }
+
     nodes.push({
       id: memId,
-      label,
+      // No label sul grafo (riduce rumore visivo) — visibile solo nel detail panel
+      // su click. Il contenuto è in `data.memory.content`.
       fill,
       size,
       // #3: cluster by persona_key
@@ -283,6 +290,7 @@ function buildGraphData(
         memory: m,
         typeLabel: MEMORY_TYPE_LABELS[m.memory_type] ?? m.memory_type,
         personaName: persona?.display_name ?? m.persona_key,
+        previewLabel: label, // tenuto per ricerca / dettagli
       },
     });
 
@@ -454,11 +462,12 @@ function computeInsights(
 
 // ─── Custom dark theme ────────────────────────────────────────────────────────
 
+// Theme ispirato a knowledge graph viz professionali (sfondo dark + grid)
 const BRAIN_THEME = {
   ...lightTheme,
   canvas: {
-    background: "#fafafa",       // soft white
-    fog: "#fafafa",
+    background: "transparent",     // trasparente per mostrare grid background CSS
+    fog: null,
   },
   node: {
     ...lightTheme.node,
@@ -466,13 +475,13 @@ const BRAIN_THEME = {
     activeFill: "#fb923c",
     opacity: 0.95,
     selectedOpacity: 1,
-    inactiveOpacity: 0.18,
+    inactiveOpacity: 0.12,
     label: {
       ...lightTheme.node.label,
-      color: "#1e293b",            // slate-800
-      activeColor: "#0f172a",
-      stroke: "#ffffff",
-      backgroundColor: "#ffffff",
+      color: "#f1f5f9",            // slate-100
+      activeColor: "#ffffff",
+      stroke: "#0f172a",
+      backgroundColor: "#1e293b",
       backgroundOpacity: 0.92,
       padding: 4,
       radius: 3,
@@ -480,40 +489,40 @@ const BRAIN_THEME = {
   },
   edge: {
     ...lightTheme.edge,
-    fill: "#cbd5e1",               // slate-300
-    activeFill: "#f97316",
-    opacity: 0.55,
-    selectedOpacity: 1,
-    inactiveOpacity: 0.08,
+    fill: "#475569",                // slate-600 (sottile su dark)
+    activeFill: "#fb923c",
+    opacity: 0.18,                  // molto sottile come riferimento
+    selectedOpacity: 0.9,
+    inactiveOpacity: 0.03,
     label: {
       ...lightTheme.edge.label,
-      color: "#475569",
-      activeColor: "#1e293b",
+      color: "#94a3b8",
+      activeColor: "#f1f5f9",
     },
   },
   arrow: {
-    fill: "#94a3b8",
-    activeFill: "#f97316",
-  },
-  ring: {
-    fill: "#f97316",
+    fill: "#64748b",
     activeFill: "#fb923c",
   },
+  ring: {
+    fill: "#fb923c",
+    activeFill: "#f97316",
+  },
   cluster: {
-    stroke: "#e2e8f0",
-    fill: "#f1f5f9",
-    opacity: 0.35,
-    selectedOpacity: 0.6,
-    inactiveOpacity: 0.1,
+    stroke: "#334155",              // slate-700
+    fill: "#1e293b",
+    opacity: 0.25,
+    selectedOpacity: 0.5,
+    inactiveOpacity: 0.05,
     label: {
-      stroke: "#ffffff",
-      color: "#64748b",
-      fontSize: 2.5,
+      stroke: "#0f172a",
+      color: "#94a3b8",
+      fontSize: 3,
       offset: [0, -2, 0] as [number, number, number],
     },
   },
   lasso: {
-    background: "rgba(249,115,22,0.08)",
+    background: "rgba(249,115,22,0.1)",
     border: "1px solid rgba(249,115,22,0.5)",
   },
 };
@@ -524,13 +533,13 @@ export default function AIBrainGraph() {
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const graphRef = useRef<GraphCanvasRef | null>(null);
-  const [is3D, setIs3D] = useState(true);
+  const [is3D, setIs3D] = useState(false); // default 2D: cluster meglio leggibili
   const [selectedNode, setSelectedNode] = useState<InternalGraphNode | null>(null);
   const [filterPersona, setFilterPersona] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [heatMode, setHeatMode] = useState(false);
+  const [colorMode, setColorMode] = useState<ColorMode>("cluster");
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [hoveredEdge, setHoveredEdge] = useState<{ id: string; x: number; y: number } | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -597,8 +606,8 @@ export default function AIBrainGraph() {
   // ── Build graph ───────────────────────────────────────────────────────────
 
   const graphData = useMemo(
-    () => buildGraphData(personas, memories, filterPersona, filterType, heatMode),
-    [personas, memories, filterPersona, filterType, heatMode],
+    () => buildGraphData(personas, memories, filterPersona, filterType, colorMode),
+    [personas, memories, filterPersona, filterType, colorMode],
   );
 
   const { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks } = graphData;
@@ -796,12 +805,25 @@ export default function AIBrainGraph() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  // Dark grid background (CSS-only, no extra deps)
+  const gridBgStyle: React.CSSProperties = {
+    backgroundColor: "#0f172a",
+    backgroundImage: `
+      linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px)
+    `,
+    backgroundSize: "32px 32px",
+  };
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[500px] bg-[#fafafa] rounded-xl border border-slate-200">
+      <div
+        className="flex items-center justify-center h-[500px] rounded-xl border border-slate-800"
+        style={gridBgStyle}
+      >
         <div className="flex flex-col items-center gap-3">
-          <Brain className="h-10 w-10 text-orange-500 animate-pulse" />
-          <p className="text-sm text-slate-500">Caricamento cervello AI…</p>
+          <Brain className="h-10 w-10 text-orange-400 animate-pulse" />
+          <p className="text-sm text-slate-400">Caricamento cervello AI…</p>
         </div>
       </div>
     );
@@ -809,10 +831,13 @@ export default function AIBrainGraph() {
 
   if (nodes.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[400px] bg-[#fafafa] rounded-xl border border-slate-200">
+      <div
+        className="flex items-center justify-center h-[400px] rounded-xl border border-slate-800"
+        style={gridBgStyle}
+      >
         <div className="flex flex-col items-center gap-3 text-center px-4 max-w-md">
-          <Network className="h-12 w-12 text-slate-300" />
-          <p className="text-sm text-slate-700 font-medium">Nessuna memoria AI ancora</p>
+          <Network className="h-12 w-12 text-slate-700" />
+          <p className="text-sm text-slate-200 font-medium">Nessuna memoria AI ancora</p>
           <p className="text-xs text-slate-500">
             Inizia a parlare con le AI Personas nella tab Chat. Il sistema creerà automaticamente
             memorie che appariranno qui come nodi collegati.
@@ -837,22 +862,23 @@ export default function AIBrainGraph() {
     <div
       ref={containerRef}
       className={cn(
-        "relative rounded-xl overflow-hidden border border-slate-200 bg-[#fafafa]",
-        fullscreen ? "fixed inset-0 z-50 rounded-none" : "h-[650px]",
+        "relative rounded-xl overflow-hidden border border-slate-800",
+        fullscreen ? "fixed inset-0 z-50 rounded-none" : "h-[680px]",
       )}
+      style={gridBgStyle}
     >
       {/* ── Top bar ────────────────────────────────────────────────────────── */}
       <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
-          <Badge className="bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm shadow-sm text-[10px] gap-1.5">
+          <Badge className="bg-slate-900/85 text-slate-200 border-slate-700 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
             <Brain className="h-3 w-3 text-orange-400" />
             {stats.personaCount} personas
           </Badge>
-          <Badge className="bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm shadow-sm text-[10px] gap-1.5">
+          <Badge className="bg-slate-900/85 text-slate-200 border-slate-700 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
             <Sparkles className="h-3 w-3 text-violet-400" />
             {stats.memoryCount} memorie
           </Badge>
-          <Badge className="bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm shadow-sm text-[10px] gap-1.5">
+          <Badge className="bg-slate-900/85 text-slate-200 border-slate-700 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
             <Network className="h-3 w-3 text-emerald-400" />
             {stats.crossEdges} connessioni
           </Badge>
@@ -872,51 +898,64 @@ export default function AIBrainGraph() {
               placeholder="Cerca nel grafo…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-7 w-40 pl-7 pr-2 text-[10px] bg-white/95 border-slate-200 text-slate-800 placeholder:text-slate-400 shadow-sm backdrop-blur-sm focus:w-56 transition-all"
+              className="h-7 w-40 pl-7 pr-2 text-[10px] bg-slate-900/85 border-slate-700 text-slate-200 placeholder:text-slate-500 shadow-sm backdrop-blur-sm focus:w-56 transition-all"
             />
             {searchQuery && (
               <button
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
                 onClick={() => setSearchQuery("")}
               >
                 <X className="h-3 w-3" />
               </button>
             )}
           </div>
-          {/* #8: Heat map toggle */}
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn(
-              "h-7 px-2 text-[10px] backdrop-blur-sm gap-1",
-              heatMode
-                ? "bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300"
-                : "bg-white/95 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200 shadow-sm",
-            )}
-            onClick={() => setHeatMode(!heatMode)}
-            title="Heat map: colora per attività (hits + recency)"
-          >
-            <Flame className="h-3 w-3" />
-            Heat
-          </Button>
-          {/* Color mode label */}
-          {!heatMode && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-[10px] bg-white/95 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200 backdrop-blur-sm shadow-sm gap-1"
-              onClick={() => setHeatMode(true)}
-              title="Modalità colore: per tipo memoria"
+          {/* Color mode segmented control */}
+          <div className="flex items-center bg-slate-900/80 rounded-md border border-slate-700 backdrop-blur-sm shadow-sm overflow-hidden">
+            <button
+              className={cn(
+                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors",
+                colorMode === "cluster"
+                  ? "bg-orange-500 text-white"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
+              )}
+              onClick={() => setColorMode("cluster")}
+              title="Colore per persona (cluster)"
+            >
+              <Network className="h-3 w-3" />
+              Cluster
+            </button>
+            <button
+              className={cn(
+                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors border-l border-slate-700",
+                colorMode === "type"
+                  ? "bg-orange-500 text-white"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
+              )}
+              onClick={() => setColorMode("type")}
+              title="Colore per tipo memoria"
             >
               <Palette className="h-3 w-3" />
               Tipo
-            </Button>
-          )}
+            </button>
+            <button
+              className={cn(
+                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors border-l border-slate-700",
+                colorMode === "heat"
+                  ? "bg-orange-500 text-white"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
+              )}
+              onClick={() => setColorMode("heat")}
+              title="Heat map: attività (hits + recency)"
+            >
+              <Flame className="h-3 w-3" />
+              Attività
+            </button>
+          </div>
           {/* 2D/3D */}
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 px-2.5 text-[10px] bg-white/95 text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-200 backdrop-blur-sm shadow-sm"
+            className="h-7 px-2.5 text-[10px] bg-slate-900/85 text-slate-200 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
             onClick={() => setIs3D(!is3D)}
           >
             {is3D ? "3D" : "2D"}
@@ -939,7 +978,7 @@ export default function AIBrainGraph() {
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7 bg-white/95 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200 backdrop-blur-sm shadow-sm"
+            className="h-7 w-7 bg-slate-900/85 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
             onClick={handleExport}
             title="Esporta screenshot PNG"
           >
@@ -949,7 +988,7 @@ export default function AIBrainGraph() {
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7 bg-white/95 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200 backdrop-blur-sm shadow-sm"
+            className="h-7 w-7 bg-slate-900/85 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
             onClick={resetView}
             title="Reset vista"
           >
@@ -959,7 +998,7 @@ export default function AIBrainGraph() {
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7 bg-white/95 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-200 backdrop-blur-sm shadow-sm"
+            className="h-7 w-7 bg-slate-900/85 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
             onClick={toggleFullscreen}
             title={fullscreen ? "Esci fullscreen" : "Fullscreen"}
           >
@@ -971,7 +1010,7 @@ export default function AIBrainGraph() {
       {/* ── Search results count ──────────────────────────────────────────── */}
       {searchSelections !== null && (
         <div className="absolute top-12 right-3 z-10 pointer-events-auto">
-          <Badge className="bg-white/95 text-slate-700 border-slate-200 backdrop-blur-sm shadow-sm text-[10px]">
+          <Badge className="bg-slate-900/85 text-slate-200 border-slate-700 backdrop-blur-sm shadow-lg text-[10px]">
             {searchSelections.length} risultat{searchSelections.length === 1 ? "o" : "i"}
           </Badge>
         </div>
@@ -1002,7 +1041,7 @@ export default function AIBrainGraph() {
           <Button
             size="sm"
             variant="ghost"
-            className="h-5 px-1.5 text-[9px] text-slate-500 hover:text-slate-900"
+            className="h-5 px-1.5 text-[9px] text-slate-500 hover:text-white"
             onClick={resetView}
           >
             Resetta
@@ -1013,16 +1052,16 @@ export default function AIBrainGraph() {
       {/* ── #6: Insights panel ─────────────────────────────────────────────── */}
       <div className="absolute top-12 left-3 z-10 pointer-events-auto" style={{ marginTop: (filterPersona || filterType) ? 28 : 0 }}>
         <button
-          className="flex items-center gap-1.5 text-[10px] text-slate-600 hover:text-slate-900 bg-white/95 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-slate-200 shadow-sm transition-colors"
+          className="flex items-center gap-1.5 text-[10px] text-slate-300 hover:text-white bg-slate-900/85 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-slate-700 shadow-sm transition-colors"
           onClick={() => setInsightsOpen(!insightsOpen)}
         >
-          <Zap className="h-3 w-3 text-orange-500" />
+          <Zap className="h-3 w-3 text-orange-400" />
           Insights
           {insightsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         </button>
 
         {insightsOpen && (
-          <div className="mt-1 bg-white/98 backdrop-blur-md rounded-lg border border-slate-200 p-2.5 w-64 space-y-2.5 shadow-xl">
+          <div className="mt-1 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-700 p-2.5 w-64 space-y-2.5 shadow-2xl">
             {/* Health */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -1034,7 +1073,7 @@ export default function AIBrainGraph() {
                   {insights.healthPct}%
                 </span>
               </div>
-              <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
@@ -1058,7 +1097,7 @@ export default function AIBrainGraph() {
                 {insights.godNodes.map((n) => (
                   <button
                     key={n.id}
-                    className="w-full text-left text-[10px] text-slate-700 hover:text-slate-900 px-1.5 py-0.5 rounded hover:bg-slate-100 truncate flex items-center gap-1.5"
+                    className="w-full text-left text-[10px] text-slate-300 hover:text-white px-1.5 py-0.5 rounded hover:bg-slate-800 truncate flex items-center gap-1.5"
                     onClick={() => {
                       graphRef.current?.centerGraph([n.id]);
                       const gn = nodes.find((nn) => nn.id === n.id);
@@ -1083,7 +1122,7 @@ export default function AIBrainGraph() {
                 {insights.bridges.map((b) => (
                   <button
                     key={b.id}
-                    className="w-full text-left text-[10px] text-slate-700 hover:text-slate-900 px-1.5 py-0.5 rounded hover:bg-slate-100 truncate flex items-center gap-1.5"
+                    className="w-full text-left text-[10px] text-slate-300 hover:text-white px-1.5 py-0.5 rounded hover:bg-slate-800 truncate flex items-center gap-1.5"
                     onClick={() => graphRef.current?.centerGraph([b.id])}
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0" />
@@ -1104,7 +1143,7 @@ export default function AIBrainGraph() {
                 {insights.orphans.slice(0, 3).map((o) => (
                   <button
                     key={o.id}
-                    className="w-full text-left text-[10px] text-slate-500 hover:text-slate-800 px-1.5 py-0.5 rounded hover:bg-slate-100 truncate flex items-center gap-1.5"
+                    className="w-full text-left text-[10px] text-slate-500 hover:text-slate-200 px-1.5 py-0.5 rounded hover:bg-slate-800 truncate flex items-center gap-1.5"
                     onClick={() => graphRef.current?.centerGraph([o.id])}
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-slate-600 shrink-0" />
@@ -1119,7 +1158,7 @@ export default function AIBrainGraph() {
 
             {/* Cross-links total */}
             {insights.totalCrossLinks > 0 && (
-              <div className="pt-1 border-t border-slate-200">
+              <div className="pt-1 border-t border-slate-700">
                 <p className="text-[9px] text-slate-500">
                   <span className="text-orange-400 font-semibold">{insights.totalCrossLinks}</span> connessioni cross-persona trovate
                   {" — "}il cervello pensa trasversalmente
@@ -1131,27 +1170,31 @@ export default function AIBrainGraph() {
       </div>
 
       {/* ── Legend ──────────────────────────────────────────────────────────── */}
-      <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-1 pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-sm rounded-lg p-2 border border-slate-200 shadow-sm">
-          <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5 font-semibold">
-            {heatMode ? "Attività (freddo → caldo)" : "Tipo memoria"}
+      <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-1 pointer-events-auto max-w-xs">
+        <div className="bg-slate-900/85 backdrop-blur-sm rounded-lg p-2 border border-slate-700 shadow-lg">
+          <p className="text-[9px] text-slate-400 uppercase tracking-wider mb-1.5 font-semibold">
+            {colorMode === "heat"
+              ? "Attività (dormiente → attiva)"
+              : colorMode === "type"
+              ? "Tipo memoria"
+              : "Cluster (per persona)"}
           </p>
-          {heatMode ? (
+          {colorMode === "heat" ? (
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-slate-500">Dormiente</span>
+              <span className="text-[9px] text-slate-400">Dormiente</span>
               <div className="flex-1 h-2 rounded-full" style={{
                 background: "linear-gradient(to right, #3b82f6, #06b6d4, #fbbf24, #f97316, #ef4444)",
               }} />
-              <span className="text-[9px] text-slate-500">Attiva</span>
+              <span className="text-[9px] text-slate-400">Attiva</span>
             </div>
-          ) : (
+          ) : colorMode === "type" ? (
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(MEMORY_TYPE_LABELS).map(([key, label]) => (
                 <button
                   key={key}
                   className={cn(
                     "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-all",
-                    filterType === key ? "ring-1 ring-orange-300 bg-orange-50" : "hover:bg-slate-100",
+                    filterType === key ? "ring-1 ring-orange-400 bg-orange-500/20" : "hover:bg-slate-800",
                   )}
                   onClick={() => setFilterType(filterType === key ? null : key)}
                 >
@@ -1159,15 +1202,31 @@ export default function AIBrainGraph() {
                     className="h-2 w-2 rounded-full shrink-0"
                     style={{ backgroundColor: MEMORY_TYPE_COLORS[key] }}
                   />
-                  <span className="text-slate-600">{label}</span>
+                  <span className="text-slate-300">{label}</span>
                 </button>
               ))}
             </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              {/* Lista personas con colore */}
+              {[...new Set(personas.filter((p) =>
+                memories.some((m) => m.persona_key === p.persona_key && m.enabled)
+              ).map((p) => p.category))].map((cat) => {
+                const personasInCat = personas.filter((p) => p.category === cat);
+                const color = PERSONA_CATEGORY_COLORS[cat] ?? PERSONA_CATEGORY_COLORS.default;
+                return (
+                  <div key={cat} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5">
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-slate-300 capitalize">{cat}</span>
+                  </div>
+                );
+              })}
+            </div>
           )}
           {/* Cross-persona edge legend */}
-          <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-slate-200/50">
-            <span className="h-[2px] w-4 border-t border-dashed border-orange-400" />
-            <span className="text-[9px] text-slate-500">Connessione cross-persona</span>
+          <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-slate-700">
+            <span className="h-[2px] w-4 bg-orange-400/60" />
+            <span className="text-[9px] text-slate-400">Connessione cross-persona</span>
           </div>
         </div>
       </div>
@@ -1175,7 +1234,7 @@ export default function AIBrainGraph() {
       {/* ── #7: Edge tooltip ───────────────────────────────────────────────── */}
       {hoveredEdge && (
         <div
-          className="fixed z-50 bg-white/98 backdrop-blur-md rounded-lg border border-slate-200 px-3 py-2 shadow-xl pointer-events-none"
+          className="fixed z-50 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-700 px-3 py-2 shadow-2xl pointer-events-none"
           style={{
             left: hoveredEdge.x + 12,
             top: hoveredEdge.y - 10,
@@ -1198,7 +1257,7 @@ export default function AIBrainGraph() {
 
       {/* ── Detail panel ───────────────────────────────────────────────────── */}
       {selectedNode && (
-        <div className="absolute bottom-3 right-3 z-10 w-72 bg-white/98 backdrop-blur-md rounded-lg border border-slate-200 p-3 pointer-events-auto shadow-xl">
+        <div className="absolute bottom-3 right-3 z-10 w-72 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-700 p-3 pointer-events-auto shadow-2xl">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               {selectedNode.data?.type === "persona" ? (
@@ -1208,11 +1267,11 @@ export default function AIBrainGraph() {
                       className="h-3 w-3 rounded-full shrink-0"
                       style={{ backgroundColor: selectedNode.fill as string }}
                     />
-                    <span className="text-sm font-semibold text-slate-900 truncate">
+                    <span className="text-sm font-semibold text-white truncate">
                       {selectedNode.data.persona.display_name}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-600">
+                  <p className="text-[10px] text-slate-400">
                     Categoria: {selectedNode.data.persona.category}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-1">
@@ -1238,12 +1297,12 @@ export default function AIBrainGraph() {
                     }
                     if (xpLinks.length === 0) return null;
                     return (
-                      <div className="mt-2 pt-2 border-t border-slate-200">
+                      <div className="mt-2 pt-2 border-t border-slate-700">
                         <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Connessa con</p>
                         {xpLinks.map((l) => (
                           <div key={l.name} className="flex items-center justify-between text-[10px]">
                             <span className="text-orange-700 font-medium">{l.name}</span>
-                            <span className="text-slate-600">{l.count} link</span>
+                            <span className="text-slate-300">{l.count} link</span>
                           </div>
                         ))}
                       </div>
@@ -1265,7 +1324,7 @@ export default function AIBrainGraph() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 text-[10px] text-slate-600 hover:text-slate-900 hover:bg-slate-100 gap-1 px-2"
+                      className="h-6 text-[10px] text-slate-300 hover:text-white hover:bg-slate-800 gap-1 px-2"
                       onClick={() => {
                         const relatedIds = [selectedNode.id];
                         for (const e of edges) {
@@ -1297,7 +1356,7 @@ export default function AIBrainGraph() {
                       {selectedNode.data.personaName}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-800 leading-relaxed mt-1">
+                  <p className="text-xs text-slate-100 leading-relaxed mt-1">
                     {selectedNode.data.memory.content}
                   </p>
                   <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500">
@@ -1322,7 +1381,7 @@ export default function AIBrainGraph() {
             <Button
               size="icon"
               variant="ghost"
-              className="h-6 w-6 shrink-0 text-slate-500 hover:text-slate-900"
+              className="h-6 w-6 shrink-0 text-slate-500 hover:text-white"
               onClick={() => setSelectedNode(null)}
             >
               <X className="h-3.5 w-3.5" />
@@ -1337,7 +1396,16 @@ export default function AIBrainGraph() {
         nodes={nodes}
         edges={edges}
         theme={BRAIN_THEME}
+        glOptions={{ alpha: true, antialias: true }}
         layoutType={is3D ? "forceDirected3d" : "forceDirected2d"}
+        layoutOverrides={{
+          // Cluster ben separati spazialmente (come riferimento knowledge graph viz)
+          clusterStrength: 2.0,
+          nodeStrength: -400,
+          linkDistance: 80,
+          linkStrengthIntraCluster: 0.7,   // nodi stesso cluster molto vicini
+          linkStrengthInterCluster: 0.02,  // nodi cluster diversi quasi indipendenti
+        }}
         sizingType="attribute"
         sizingAttribute="size"
         defaultNodeSize={4}
