@@ -1274,9 +1274,20 @@ export default function AIBrainGraph() {
             typeLabels={MEMORY_TYPE_LABELS}
             typeColors={MEMORY_TYPE_COLORS}
             onSelect={(nodeId) => {
-              graphRef.current?.centerGraph([nodeId]);
-              const node = nodes.find((n) => n.id === nodeId);
-              if (node) setSelectedNode(node as unknown as InternalGraphNode);
+              // Se è una memoria di una persona NON espansa in galaxy mode,
+              // espandiamo automaticamente quel cluster
+              if (nodeId.startsWith("m_") && viewMode === "galaxy") {
+                const mem = memories.find((m) => `m_${m.id}` === nodeId);
+                if (mem && !expandedPersonas.has(mem.persona_key)) {
+                  setExpandedPersonas((prev) => new Set([...prev, mem.persona_key]));
+                }
+              }
+              // Zoom + centra
+              setTimeout(() => {
+                graphRef.current?.fitNodesInView([nodeId], { fitOnlyIfNodesNotInView: false });
+                const node = nodes.find((n) => n.id === nodeId);
+                if (node) setSelectedNode(node as unknown as InternalGraphNode);
+              }, 100); // delay per dare tempo al layout di includere il nuovo nodo
             }}
           />
 
@@ -1876,21 +1887,22 @@ export default function AIBrainGraph() {
         // apparivano come puntini neri parassiti nel grafo. La logica di
         // raggruppamento visivo è già nei colori dei nodi e nelle posizioni.
         layoutOverrides={{
-          // 2D galaxy pure: forze ridotte → fx/fy comandano (cerchio perfetto)
+          // 2D galaxy pure: TUTTE le forze quasi zero → fx/fy comandano,
+          //   layout fisso e stabile dal primo render (no shrink animation)
           // 3D Nucleo: forze attrattive forti → nodi compatti come un atomo
-          // Standard: forze normali
+          // Detail/expanded: forze normali per layout dinamico
           clusterStrength: viewDim === "core"
             ? 0
             : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 2.0),
           nodeStrength: viewDim === "core"
-            ? -100  // attrazione moderata, nodi compatti
-            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? -50 : -400),
+            ? -100
+            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? -5 : -400),
           linkDistance: viewDim === "core"
-            ? 60  // nodi vicini → effetto nucleo
-            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 200 : 80),
-          linkStrengthIntraCluster: viewDim === "core" ? 1.0 : 0.7,
+            ? 60
+            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 100 : 80),
+          linkStrengthIntraCluster: viewDim === "core" ? 1.0 : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 0.7),
           linkStrengthInterCluster: viewDim === "core"
-            ? 0.5  // forte attrazione cross — tutto si lega
+            ? 0.5
             : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 0.02),
         }}
         sizingType="attribute"
@@ -1898,7 +1910,7 @@ export default function AIBrainGraph() {
         defaultNodeSize={3}
         minNodeSize={1.5}
         maxNodeSize={5}
-        animated
+        animated={!(viewMode === "galaxy" && expandedPersonas.size === 0 && viewDim === "2d")}
         draggable
         labelType="nodes"
         edgeInterpolation="curved"
