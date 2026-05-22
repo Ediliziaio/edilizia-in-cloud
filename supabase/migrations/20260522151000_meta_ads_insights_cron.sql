@@ -60,4 +60,7 @@ BEGIN
   END IF;
 END $$;
 
-COMMENT ON SCHEMA cron IS 'pg_cron schedule per meta-ads-sync-insights ogni 4h aggiunto in 20260522151000';
+-- NB: rimosso `COMMENT ON SCHEMA cron` perché solo il proprietario dello
+-- schema cron (postgres/supabase_admin) può modificarne i commenti. Il SQL
+-- Editor di Supabase gira con role non-owner → fallirebbe con
+-- "ERROR: 42501: must be owner of schema cron".
