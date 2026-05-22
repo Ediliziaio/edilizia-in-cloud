@@ -310,7 +310,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
 
         <div ref={heroAnim.ref as React.RefObject<HTMLDivElement>} className="relative z-10 max-w-4xl mx-auto px-6 text-center">
           <div className={`transition-all duration-700 ${heroAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-xs font-bold uppercase tracking-widest">
+            <span className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#C2410C] text-xs font-bold uppercase tracking-widest">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-ping flex-shrink-0" />
               {config.badge}
             </span>
@@ -415,7 +415,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         <section className="py-16 md:py-28 bg-white">
           <div ref={featuresAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6">
             <div className={`text-center mb-14 transition-all duration-700 ${featuresAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-              <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
+              <span className="inline-block mb-3 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#C2410C] bg-[#F97415]/10 border border-[#F97415]/20">
                 Funzionalità per il tuo settore
               </span>
               <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">
@@ -636,7 +636,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
         <div className="absolute top-0 right-0 w-[600px] h-[600px] rounded-full blur-[150px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.18) 0%, transparent 65%)" }} />
         <div ref={caseAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6 relative z-10">
           <div className={`text-center mb-12 transition-all duration-700 ${caseAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
+            <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#C2410C] bg-[#F97415]/10 border border-[#F97415]/20">
               Caso Studio Reale
             </span>
             <h2 className="text-2xl md:text-4xl font-extrabold text-white">

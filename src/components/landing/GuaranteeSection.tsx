@@ -52,7 +52,7 @@ export default function GuaranteeSection() {
 
             {/* Content */}
             <div>
-              <span className="inline-block mb-4 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
+              <span className="inline-block mb-4 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest text-[#C2410C] bg-[#F97415]/10 border border-[#F97415]/20">
                 La nostra promessa
               </span>
               <h2 className="text-3xl md:text-5xl font-extrabold text-[#111111] leading-tight mb-5">

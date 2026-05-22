@@ -2,10 +2,16 @@
 import { lazy, Suspense } from "react";
 import { useSEO } from "@/hooks/useSEO";
 import { JsonLd } from "@/components/seo/JsonLd";
-import LandingNavbar from "@/components/landing/LandingNavbar";
 import HeroSection from "@/components/landing/HeroSection";
-import StatsSection from "@/components/landing/StatsSection";
 import { Link } from "react-router-dom";
+
+// v8.6.120 — LandingNavbar lazy: importa 60 icone lucide-react (344KB chunk
+// vendor-icons quando raggruppato) bloccava TBT 9.9s desktop. Caricarlo lazy
+// permette al LCP di renderizzare prima senza aspettare il parse degli SVG.
+// StatsSection ugualmente lazy: usata sotto al hero (~600px scroll su mobile),
+// non parte del LCP element.
+const LandingNavbar = lazy(() => import("@/components/landing/LandingNavbar"));
+const StatsSection = lazy(() => import("@/components/landing/StatsSection"));
 
 // Below-the-fold: lazy-loaded
 const AISystemShowcaseSection = lazy(() => import("@/components/landing/AISystemShowcaseSection"));
@@ -300,24 +306,50 @@ export default function Home() {
         ]
       }} />
 
-      <LandingNavbar />
+      {/* LandingNavbar lazy: 60 lucide icons, lo carichiamo SOTTO al hero
+          per non bloccare il LCP. Lo spazio è preservato dal min-h del header. */}
+      <Suspense fallback={<div className="h-16" aria-hidden="true" />}>
+        <LandingNavbar />
+      </Suspense>
       <HeroSection />
-      <StatsSection />
+      <Suspense fallback={<div className="h-32" aria-hidden="true" />}>
+        <StatsSection />
+      </Suspense>
 
+      {/* content-visibility:auto via .cv-auto-tall: il browser skip rendering
+          delle sezioni fuori dal viewport iniziale → main thread libero. */}
       <Suspense fallback={<SectionFallback />}>
-        <AISystemShowcaseSection />
-        <PainPointsSection />
-        <SolutionSection />
-        <ModulesSection />
-        <TestimonialsSection />
-        <GuaranteeSection />
-        <PricingSection />
-        <FAQSection />
-        <FinalCtaSection />
+        <div className="cv-auto-tall">
+          <AISystemShowcaseSection />
+        </div>
+        <div className="cv-auto-tall">
+          <PainPointsSection />
+        </div>
+        <div className="cv-auto-tall">
+          <SolutionSection />
+        </div>
+        <div className="cv-auto-tall">
+          <ModulesSection />
+        </div>
+        <div className="cv-auto">
+          <TestimonialsSection />
+        </div>
+        <div className="cv-auto">
+          <GuaranteeSection />
+        </div>
+        <div className="cv-auto-tall">
+          <PricingSection />
+        </div>
+        <div className="cv-auto">
+          <FAQSection />
+        </div>
+        <div className="cv-auto-short">
+          <FinalCtaSection />
+        </div>
       </Suspense>
 
       {/* ── Copertura Geografica ─────────────────────────────────────────── */}
-      <section className="border-t border-gray-200 bg-gray-50/70 py-8">
+      <section className="border-t border-gray-200 bg-gray-50/70 py-8 cv-auto-short">
         <div className="max-w-5xl mx-auto px-6">
           <h2 className="mb-3 text-center text-base font-bold text-[#111111] md:text-lg">Software gestionale edilizia nelle principali città italiane</h2>
           <p className="max-w-3xl mx-auto text-center text-xs leading-relaxed text-gray-500 md:text-sm">

@@ -10,7 +10,7 @@ export default function FounderLetterBottom() {
     <section ref={ref} className="py-20" style={{ background: "linear-gradient(135deg, #111111 0%, #111111 100%)" }}>
       <div className="max-w-3xl mx-auto px-6">
         <div className={`text-center mb-10 transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-          <span className="inline-block mb-4 px-4 py-1.5 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#F97415] text-xs font-semibold uppercase tracking-widest">
+          <span className="inline-block mb-4 px-4 py-1.5 rounded-full border border-[#F97415]/40 bg-[#F97415]/10 text-[#C2410C] text-xs font-semibold uppercase tracking-widest">
             Da imprenditore a imprenditore
           </span>
           <h2 className="text-3xl md:text-4xl font-extrabold text-white">Lettera dal Fondatore</h2>

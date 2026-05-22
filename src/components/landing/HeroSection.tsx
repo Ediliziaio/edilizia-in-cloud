@@ -218,7 +218,7 @@ function DashboardMockup() {
                 aria-label={`Apri schermata ${item.label}`}
                 title={item.label}
                 onClick={() => setActiveArea(item)}
-                className={`group relative flex h-9 w-9 items-center justify-center rounded-lg transition ${
+                className={`group relative flex h-11 w-11 md:h-9 md:w-9 items-center justify-center rounded-lg transition ${
                   activeArea.id === item.id ? "bg-[#F97415]/25 text-[#F97415]" : "text-white/60 hover:bg-white/5 hover:text-white/90"
                 }`}
               >
@@ -435,16 +435,19 @@ export default function HeroSection() {
           Mobile (≤640px) carica 640w WebP ~30KB invece di 1920w JPEG ~387KB. */}
       <img
         ref={backgroundRef}
-        // v8.6.101 — quality drasticamente ridotta perche l'immagine e' coperta
-        // dal gradient overlay del 88-92% (vedi sotto). Risparmio LCP ~60 KiB su
-        // mobile (q60->q40) senza differenza visiva percepibile sotto overlay.
-        src="https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1024&q=40"
+        // v8.6.121 — Hero image SELF-HOSTED in public/hero/ invece di Unsplash.
+        // Vantaggi:
+        //   • -1 preconnect a images.unsplash.com (risparmio handshake)
+        //   • Servito da Cloudflare Pages same-origin (no CORS preflight)
+        //   • Cache headers controllabili (immutable 1y)
+        //   • PageSpeed flag "Use a CDN" → soddisfatto
+        src="/hero/cantiere-1024.webp"
         srcSet="
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=480&q=30 480w,
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=768&q=35 768w,
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1024&q=40 1024w,
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1440&q=45 1440w,
-          https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=50 1920w
+          /hero/cantiere-480.webp 480w,
+          /hero/cantiere-768.webp 768w,
+          /hero/cantiere-1024.webp 1024w,
+          /hero/cantiere-1440.webp 1440w,
+          /hero/cantiere-1920.webp 1920w
         "
         sizes="100vw"
         alt="Cantiere edile italiano gestito con Edilizia in Cloud"

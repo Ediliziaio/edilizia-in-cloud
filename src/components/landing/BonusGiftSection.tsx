@@ -48,7 +48,7 @@ export default function BonusGiftSection() {
             className="w-40 h-40 mx-auto mb-5 rounded-xl"
           />
 
-          <span className="inline-block px-4 py-1 rounded-full text-[10px] font-bold tracking-widest text-[#F97415] border border-[#F97415]/40 bg-[#F97415]/10 mb-5">
+          <span className="inline-block px-4 py-1 rounded-full text-[10px] font-bold tracking-widest text-[#C2410C] border border-[#F97415]/40 bg-[#F97415]/10 mb-5">
             BONUS GRATUITO
           </span>
 

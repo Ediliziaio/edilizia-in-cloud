@@ -1649,4 +1649,62 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/dpa/"/>
   </url>
 
+  <!-- 7 città aggiunte v8.6.123 — Como, Lecco, Monza, Varese, Treviso, Latina, Pisa -->
+  <url>
+    <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-como/</loc>
+    <lastmod>2026-05-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-como/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-como/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-lecco/</loc>
+    <lastmod>2026-05-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-lecco/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-lecco/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-monza/</loc>
+    <lastmod>2026-05-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-monza/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-monza/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-varese/</loc>
+    <lastmod>2026-05-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-varese/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-varese/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-treviso/</loc>
+    <lastmod>2026-05-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-treviso/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-treviso/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-latina/</loc>
+    <lastmod>2026-05-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-latina/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-latina/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/software-gestionale-edilizia-pisa/</loc>
+    <lastmod>2026-05-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-pisa/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/software-gestionale-edilizia-pisa/"/>
+  </url>
+
 </urlset>

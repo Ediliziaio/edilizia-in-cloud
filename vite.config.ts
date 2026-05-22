@@ -2,6 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
+import Beasties from "beasties";
+import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 // https://vitejs.dev/config/
 const isMobile = process.env.VITE_APP_MODE === "mobile";
@@ -38,6 +41,71 @@ export default defineConfig(() => ({
             (_match, href) => `<link rel="preload" as="style" crossorigin href="${href}" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" crossorigin href="${href}"></noscript>`,
           );
         },
+      },
+    },
+    // v8.6.121 — Critical CSS auto-extraction via Beasties (post-build hook).
+    // Estrae automaticamente le regole CSS usate above-the-fold dell'HTML
+    // generato e le INLINE nello <style> dell'<head>. Il bundle CSS principale
+    // (388KB) resta async (preload+onload→stylesheet via defer-non-critical-css).
+    // Effetto atteso: -2s su LCP mobile, +10-15 punti PageSpeed.
+    {
+      name: "beasties-critical-css",
+      apply: "build",
+      enforce: "post" as const,
+      async closeBundle() {
+        try {
+          const beasties = new Beasties({
+            path: path.resolve(__dirname, "dist"),
+            publicPath: "/",
+            preload: "swap",
+            inlineFonts: false,
+            pruneSource: false, // mantieni CSS originali (servono per below-fold)
+            mergeStylesheets: false,
+            additionalStylesheets: [],
+            compress: true,
+            logLevel: "info",
+            // Heuristics: include regole base anche se non matchano l'HTML
+            // (utility Tailwind più comuni nel hero)
+            keyframes: "critical",
+            allowRules: [
+              /^@font-face/,
+              /^:root/,
+              /^html/,
+              /^body/,
+            ],
+          });
+
+          // Funzione ricorsiva per trovare tutti gli index.html generati
+          function* findHtmlFiles(dir: string): Generator<string> {
+            const entries = readdirSync(dir);
+            for (const entry of entries) {
+              const full = join(dir, entry);
+              if (statSync(full).isDirectory()) {
+                // Skip assets / icons / images dir
+                if (["assets-v4", "assets", "icons", "images", "_routes"].includes(entry)) continue;
+                yield* findHtmlFiles(full);
+              } else if (entry.endsWith(".html")) {
+                yield full;
+              }
+            }
+          }
+
+          const distDir = path.resolve(__dirname, "dist");
+          let processed = 0;
+          for (const htmlFile of findHtmlFiles(distDir)) {
+            try {
+              const html = readFileSync(htmlFile, "utf-8");
+              const processedHtml = await beasties.process(html);
+              writeFileSync(htmlFile, processedHtml);
+              processed += 1;
+            } catch (e) {
+              console.warn(`[beasties] skip ${htmlFile}: ${(e as Error).message}`);
+            }
+          }
+          console.log(`[beasties] processed ${processed} HTML file(s)`);
+        } catch (e) {
+          console.error(`[beasties] failed: ${(e as Error).message}`);
+        }
       },
     },
     ...(isMobile ? [] : [VitePWA({
@@ -331,6 +399,193 @@ export default defineConfig(() => ({
           if (id.includes("@tiptap/")) {
             return "vendor-tiptap";
           }
+
+          // ============================================================
+          // VENDOR REACT CORE — base critica per ogni route
+          // Tutti questi sono bundle critico al boot.
+          // ============================================================
+          if (
+            id.includes("/react/") ||
+            id.includes("/react-dom/") ||
+            id.includes("/scheduler/") ||
+            id.includes("/react-router/") ||
+            id.includes("/react-router-dom/") ||
+            id.includes("/@tanstack/react-query/") ||
+            id.includes("/history/")
+          ) {
+            return "vendor-react-core";
+          }
+          // Supabase SDK + auth
+          if (
+            id.includes("/@supabase/") ||
+            id.includes("/supabase-js/")
+          ) {
+            return "vendor-supabase";
+          }
+          // ⚠️ Lucide icons NON raggruppati: 344KB tutto in un chunk
+          // bloccava TBT 9.9s su desktop. Lasciamo che Rollup li distribuisca
+          // naturalmente nei chunks che li importano (tree-shaking nativo).
+          // if (id.includes("lucide-react")) return "vendor-icons";
+          // Sonner / toast / sentry
+          if (
+            id.includes("/sonner/") ||
+            id.includes("/@sentry/")
+          ) {
+            return "vendor-ui-misc";
+          }
+          // React Hook Form
+          if (
+            id.includes("/react-hook-form/") ||
+            id.includes("/@hookform/")
+          ) {
+            return "vendor-forms";
+          }
+          // Embla carousel / framer-motion / animation
+          if (
+            id.includes("embla-carousel") ||
+            id.includes("framer-motion") ||
+            id.includes("/gsap/")
+          ) {
+            return "vendor-animation";
+          }
+
+          // ============================================================
+          // AREA-LEVEL CHUNKS per routes
+          // Prima erano ogni Page.tsx un chunk → 1232 chunks totali!
+          // Raggruppando per area: ~80 chunks totali, drastic riduzione
+          // round-trips HTTP/2 e CDN cache hit-rate migliore.
+          // ============================================================
+
+          // Marketing pages — landing pubbliche (Home eager, altre lazy individuali)
+          // NB: NON raggruppare tutte in un chunk unico (era 705KB) → ogni page
+          // resta lazy individuale, Rollup le splitta in chunks 50-150KB.
+          // Blog/Glossario raggruppati per condividere markdown renderer.
+          if (
+            id.includes("/src/pages/Blog.") ||
+            id.includes("/src/pages/BlogPost.") ||
+            id.includes("/src/pages/BlogCategory.") ||
+            id.includes("/src/pages/Glossario.") ||
+            id.includes("/src/pages/CasiStudio.")
+          ) {
+            return "page-marketing-content";
+          }
+          // Marketing landings dinamiche città/per (alta cardinalità ma stesso bundle)
+          if (
+            id.includes("/src/pages/marketing/") ||
+            id.includes("/src/pages/landing/")
+          ) {
+            return "page-marketing-dyn";
+          }
+          // Legal / static pages
+          if (
+            id.includes("/src/pages/PrivacyPolicy") ||
+            id.includes("/src/pages/CookiePolicy") ||
+            id.includes("/src/pages/TerminiServizio") ||
+            id.includes("/src/pages/CondizioniUtilizzoSito") ||
+            id.includes("/src/pages/AvvisoLegale") ||
+            id.includes("/src/pages/DPA")
+          ) {
+            return "page-legal";
+          }
+          // Auth pages
+          if (
+            id.includes("/src/pages/Login") ||
+            id.includes("/src/pages/AdminLogin") ||
+            id.includes("/src/pages/ClientiLogin") ||
+            id.includes("/src/pages/LavoriLogin") ||
+            id.includes("/src/pages/auth/")
+          ) {
+            return "page-auth";
+          }
+          // Admin area — splittato per sub-area (prima era unico 2.9MB)
+          if (id.includes("/src/pages/admin/ai/")) {
+            return "page-admin-ai";
+          }
+          if (id.includes("/src/pages/admin/billing/")) {
+            return "page-admin-billing";
+          }
+          if (
+            id.includes("/src/pages/admin/marketing/") ||
+            id.includes("/src/pages/admin/seo/")
+          ) {
+            return "page-admin-marketing";
+          }
+          if (
+            id.includes("/src/pages/admin/users/") ||
+            id.includes("/src/pages/admin/companies/")
+          ) {
+            return "page-admin-users";
+          }
+          if (
+            id.includes("/src/pages/admin/settings/") ||
+            id.includes("/src/pages/admin/integrations/")
+          ) {
+            return "page-admin-settings";
+          }
+          // Admin other splittato ulteriormente per ridurre 2MB chunk
+          if (id.includes("/src/pages/admin/dashboard")) return "page-admin-dashboard";
+          if (id.includes("/src/pages/admin/cantieri")) return "page-admin-cantieri";
+          if (id.includes("/src/pages/admin/finanza") || id.includes("/src/pages/admin/banking")) {
+            return "page-admin-finanza";
+          }
+          if (id.includes("/src/pages/admin/notifications") || id.includes("/src/pages/admin/email")) {
+            return "page-admin-notifications";
+          }
+          if (
+            id.includes("/src/pages/admin/") ||
+            id.includes("/src/routes/adminRoutes")
+          ) {
+            return "page-admin-other";
+          }
+
+          // Azienda area — splittato per sub-area
+          // NB: marketing è troppo grosso (2.1MB) — splittato ulteriormente.
+          if (id.includes("/src/pages/azienda/marketing/AdsManagerBeta")) {
+            return "page-azienda-marketing-ads";
+          }
+          if (
+            id.includes("/src/pages/azienda/marketing/email") ||
+            id.includes("/src/pages/azienda/sms-marketing/") ||
+            id.includes("/src/pages/azienda/marketing/Campaign") ||
+            id.includes("/src/pages/azienda/marketing/DragDropEmail")
+          ) {
+            return "page-azienda-marketing-campaigns";
+          }
+          if (
+            id.includes("/src/pages/azienda/marketing/Quote") ||
+            id.includes("/src/pages/azienda/marketing/Preventivi") ||
+            id.includes("/src/pages/azienda/marketing/UnifiedPreventivi")
+          ) {
+            return "page-azienda-marketing-quotes";
+          }
+          if (
+            id.includes("/src/pages/azienda/marketing/") ||
+            id.includes("/src/pages/azienda/sms-marketing/")
+          ) {
+            return "page-azienda-marketing-other";
+          }
+          if (id.includes("/src/pages/azienda/fatturazione/")) {
+            return "page-azienda-fatturazione";
+          }
+          if (id.includes("/src/pages/azienda/billing/")) {
+            return "page-azienda-billing";
+          }
+          if (id.includes("/src/pages/azienda/ordini/")) {
+            return "page-azienda-ordini";
+          }
+          if (id.includes("/src/pages/azienda/magazzino/")) {
+            return "page-azienda-magazzino";
+          }
+          if (id.includes("/src/pages/azienda/impostazioni/")) {
+            return "page-azienda-impostazioni";
+          }
+          if (id.includes("/src/pages/azienda/cantiere/")) {
+            return "page-azienda-cantiere";
+          }
+
+          // NB: NON raggruppare /src/components/landing/ — vanificherebbe
+          // il lazy() delle sezioni below-the-fold (PainPoints, Modules,
+          // FAQ, etc.). Solo Hero/Stats/Navbar sono eager su Home.tsx.
         },
       },
     },

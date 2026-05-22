@@ -467,9 +467,9 @@ export default function LandingNavbar() {
                 {/* 4 main columns */}
                 {piattaformaColumns.map((col) => (
                   <div key={col.heading} className="col-span-2">
-                    <h3 className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
+                    <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
                       {col.heading}
-                    </h3>
+                    </p>
                     <ul className="space-y-1">
                       {col.items.map((item) => (
                         <li key={`${col.heading}-${item.label}`}>
@@ -506,10 +506,10 @@ export default function LandingNavbar() {
 
                 {/* Render AI sidebar */}
                 <div className="col-span-4 bg-gradient-to-br from-[#F97415]/5 to-[#F97415]/10 rounded-2xl p-5 border border-[#F97415]/10">
-                  <h3 className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4 flex items-center gap-1.5">
+                  <p className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4 flex items-center gap-1.5">
                     <Sparkles className="h-3 w-3" />
                     {piattaformaSidebar.heading}
-                  </h3>
+                  </p>
                   <p className="text-[12px] text-[#111111]/70 mb-4 leading-snug">
                     Trasforma la foto del cliente in un prima/dopo realistico. Vendi di più, anche a distanza.
                   </p>
@@ -565,9 +565,9 @@ export default function LandingNavbar() {
               <div className="grid grid-cols-12 gap-8">
                 {perChiColumns.map((col, idx) => (
                   <div key={col.heading} className={idx === 0 ? "col-span-3" : "col-span-5"}>
-                    <h3 className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
+                    <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
                       {col.heading}
-                    </h3>
+                    </p>
                     <ul className="space-y-1">
                       {col.items.map((item) => (
                         <li key={`${col.heading}-${item.label}`}>
@@ -597,9 +597,9 @@ export default function LandingNavbar() {
 
                 {/* Partnership sidebar */}
                 <div className="col-span-4 bg-gray-50 rounded-2xl p-5 border border-gray-100">
-                  <h3 className="text-[10px] font-bold tracking-widest text-[#111111]/60 mb-4">
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/60 mb-4">
                     {perChiSidebar.heading}
-                  </h3>
+                  </p>
                   <ul className="space-y-2">
                     {perChiSidebar.items.map((item) => (
                       <li key={item.label}>
@@ -656,9 +656,9 @@ export default function LandingNavbar() {
               <div className="grid grid-cols-12 gap-8">
                 {risorseColumns.map((col) => (
                   <div key={col.heading} className="col-span-3">
-                    <h3 className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
+                    <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
                       {col.heading}
-                    </h3>
+                    </p>
                     <ul className="space-y-1">
                       {col.items.map((item) => (
                         <li key={`${col.heading}-${item.label}`}>
@@ -695,9 +695,9 @@ export default function LandingNavbar() {
                     <div className="text-[10px] font-bold tracking-widest text-[#F97415] mb-4">
                       DI EDILIZIA IN CLOUD
                     </div>
-                    <h4 className="text-sm font-bold text-[#111111] mb-2 leading-snug">
+                    <p className="text-sm font-bold text-[#111111] mb-2 leading-snug">
                       Cosa fanno le migliori imprese edili in Italia?
-                    </h4>
+                    </p>
                     <p className="text-[12px] text-[#111111]/65 leading-snug mb-4">
                       Ogni 2 settimane riceverai benchmark, casi reali e novità normative dal mondo edilizia.
                     </p>
@@ -727,9 +727,9 @@ export default function LandingNavbar() {
               <div className="grid grid-cols-12 gap-8">
                 {confrontoColumns.map((col) => (
                   <div key={col.heading} className="col-span-7">
-                    <h3 className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
+                    <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-4">
                       {col.heading}
-                    </h3>
+                    </p>
                     <ul className="grid grid-cols-2 gap-1">
                       {col.items.map((item) => (
                         <li key={`${col.heading}-${item.label}`}>
@@ -759,9 +759,9 @@ export default function LandingNavbar() {
 
                 <div className="col-span-5 bg-gray-50 rounded-2xl p-5 border border-gray-100 flex flex-col justify-between">
                   <div>
-                    <h4 className="text-sm font-bold text-[#111111] mb-2 leading-snug">
+                    <p className="text-sm font-bold text-[#111111] mb-2 leading-snug">
                       Pensi di passare da un altro software?
-                    </h4>
+                    </p>
                     <p className="text-[12px] text-[#111111]/65 leading-snug mb-4">
                       Migrazione gratuita assistita: importiamo cantieri, anagrafiche, fatture e archivio storico. Setup in 48 ore.
                     </p>
@@ -806,9 +806,9 @@ export default function LandingNavbar() {
             >
               {[...piattaformaColumns, piattaformaSidebar].map((col) => (
                 <div key={col.heading} className="mt-3 first:mt-0">
-                  <h4 className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
                     {col.heading}
-                  </h4>
+                  </p>
                   <ul className="space-y-0.5">
                     {col.items.map((item) => (
                       <li key={`m-${col.heading}-${item.label}`}>
@@ -847,9 +847,9 @@ export default function LandingNavbar() {
             >
               {[...perChiColumns, perChiSidebar].map((col) => (
                 <div key={col.heading} className="mt-3 first:mt-0">
-                  <h4 className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
                     {col.heading}
-                  </h4>
+                  </p>
                   <ul className="space-y-0.5">
                     {col.items.map((item) => (
                       <li key={`m-${col.heading}-${item.label}`}>
@@ -876,9 +876,9 @@ export default function LandingNavbar() {
             >
               {risorseColumns.map((col) => (
                 <div key={col.heading} className="mt-3 first:mt-0">
-                  <h4 className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
                     {col.heading}
-                  </h4>
+                  </p>
                   <ul className="space-y-0.5">
                     {col.items.map((item) => (
                       <li key={`m-${col.heading}-${item.label}`}>
@@ -905,9 +905,9 @@ export default function LandingNavbar() {
             >
               {confrontoColumns.map((col) => (
                 <div key={col.heading} className="mt-3 first:mt-0">
-                  <h4 className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
+                  <p className="text-[10px] font-bold tracking-widest text-[#111111]/50 mb-2">
                     {col.heading}
-                  </h4>
+                  </p>
                   <ul className="space-y-0.5">
                     {col.items.map((item) => (
                       <li key={`m-${col.heading}-${item.label}`}>
