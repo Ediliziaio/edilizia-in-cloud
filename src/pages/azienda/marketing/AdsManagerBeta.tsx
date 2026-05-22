@@ -80,6 +80,7 @@ import { CampaignCopyEditor } from "@/components/ads/CampaignCopyEditor";
 import { MetaLeadFormBuilder, META_FORM_DEFAULTS } from "@/components/ads/MetaLeadFormBuilder";
 import { AdMediaUploader } from "@/components/ads/AdMediaUploader";
 import { AdVideoUploader } from "@/components/ads/AdVideoUploader";
+import { OfferBuilderPanel } from "@/components/ads/OfferBuilderPanel";
 import type { Integration, MetaAsset } from "@/types/integrations";
 import type { MetaCampaignRow } from "@/types/metaAds";
 
@@ -2477,14 +2478,44 @@ function CampaignBuilderTab({
                   Cambia piattaforma →
                 </Button>
               </div>
-              <TemplateSelector selectedId={state.templateId} onSelect={applyTemplate} />
-              <Alert className="border-blue-200 bg-blue-50">
-                <Info className="h-4 w-4 text-blue-700" />
-                <AlertTitle>Parti dalla promessa, non dal pulsante della piattaforma</AlertTitle>
-                <AlertDescription>
-                  Una campagna lead funziona quando budget, pubblico e modulo sono coerenti con un'offerta chiara: preventivo, sopralluogo, guida o consulenza.
-                </AlertDescription>
-              </Alert>
+              {/* OFFERTA AI — sostituisce il vecchio TemplateSelector statico.
+                  L'AI legge il profilo aziendale (companies) e propone 3 offerte
+                  candidate costruite sui 7 parametri di un'offerta vincente. */}
+              <OfferBuilderPanel
+                companyId={companyId}
+                segmentHint={state.templateId}
+                currentOffer={state.offer}
+                onChooseOffer={(picked) => {
+                  setState((prev) => {
+                    const next: BuilderState = {
+                      ...prev,
+                      // Applica offerta scelta
+                      offer: picked.pitch,
+                      cta: (picked.suggested_cta ?? prev.cta) as BuilderState["cta"],
+                      dailyBudget: picked.daily_budget_suggested || prev.dailyBudget,
+                      copyBrief: picked.pitch,
+                    };
+                    // Aggiungi suggested hook in copyHooks se vuoto
+                    if (picked.suggested_hook && (!prev.copyHooks || prev.copyHooks.length === 0)) {
+                      next.copyHooks = [picked.suggested_hook];
+                    }
+                    // Headline come copyTitles se vuoto
+                    if (picked.headline && (!prev.copyTitles || prev.copyTitles.length === 0)) {
+                      next.copyTitles = [picked.headline];
+                    }
+                    // Pitch come prima descrizione se vuoto
+                    if (picked.pitch && (!prev.copyDescriptions || prev.copyDescriptions.length === 0)) {
+                      next.copyDescriptions = [picked.pitch];
+                    }
+                    // Ricostruisci ad sets coerenti col nuovo budget
+                    next.adSets = buildDefaultAdSets(next);
+                    return next;
+                  });
+                  toast.success("Offerta applicata", {
+                    description: "L'offerta è ora nella sezione 'Cosa offri'. Continua per definire pubblico.",
+                  });
+                }}
+              />
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Nome campagna">
                   <Input value={state.name} onChange={(event) => update("name", event.target.value)} placeholder="Es. Serramenti - Lead Milano" />
