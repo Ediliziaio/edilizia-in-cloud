@@ -981,7 +981,7 @@ export default function AIBrainGraph() {
       >
         <div className="flex flex-col items-center gap-3">
           <Brain className="h-10 w-10 text-orange-400 animate-pulse" />
-          <p className="text-sm text-slate-400">Caricamento cervello AI…</p>
+          <p className="text-sm text-slate-300">Caricamento cervello AI…</p>
         </div>
       </div>
     );
@@ -996,7 +996,7 @@ export default function AIBrainGraph() {
         <div className="flex flex-col items-center gap-3 text-center px-4 max-w-md">
           <Network className="h-12 w-12 text-slate-700" />
           <p className="text-sm text-slate-200 font-medium">Nessuna memoria AI ancora</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-300">
             Inizia a parlare con le AI Personas nella tab Chat. Il sistema creerà automaticamente
             memorie che appariranno qui come nodi collegati.
           </p>
@@ -1036,7 +1036,7 @@ export default function AIBrainGraph() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Cervello AI</h3>
-                <p className="text-[11px] text-slate-600">La conoscenza condivisa delle 18 personas</p>
+                <p className="text-[11px] text-slate-300">La conoscenza condivisa delle 18 personas</p>
               </div>
             </div>
 
@@ -1044,12 +1044,12 @@ export default function AIBrainGraph() {
             <div className="flex items-center gap-4 md:gap-6 md:ml-6">
               <div>
                 <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">{totalMemories}</div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">memorie</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">memorie</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div>
                 <div className="text-2xl font-bold text-orange-600 tabular-nums leading-tight">{totalCrossPersonaLinks}</div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">ponti cross-team</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">ponti cross-team</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div>
@@ -1059,7 +1059,7 @@ export default function AIBrainGraph() {
                 )}>
                   {insights.healthPct}%
                 </div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">salute</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">salute</div>
               </div>
             </div>
 
@@ -1094,10 +1094,10 @@ export default function AIBrainGraph() {
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
         <div
           className={cn(
-            "flex items-center gap-1.5 bg-slate-900/85 backdrop-blur-sm rounded-full border px-2.5 py-1 shadow-lg transition-all duration-300",
+            "flex items-center gap-1.5 bg-slate-900/95 backdrop-blur-sm rounded-full border px-2.5 py-1 shadow-lg transition-all duration-300",
             livePulse
               ? "border-emerald-400/70 scale-110 shadow-emerald-500/30"
-              : "border-slate-700",
+              : "border-slate-600",
           )}
         >
           <span
@@ -1119,15 +1119,15 @@ export default function AIBrainGraph() {
       {/* ── Top bar ────────────────────────────────────────────────────────── */}
       <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
-          <Badge className="bg-slate-900/85 text-slate-200 border-slate-700 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
+          <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
             <Brain className="h-3 w-3 text-orange-400" />
             {stats.personaCount} personas
           </Badge>
-          <Badge className="bg-slate-900/85 text-slate-200 border-slate-700 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
+          <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
             <Sparkles className="h-3 w-3 text-violet-400" />
             {stats.memoryCount} memorie
           </Badge>
-          <Badge className="bg-slate-900/85 text-slate-200 border-slate-700 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
+          <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
             <Network className="h-3 w-3 text-emerald-400" />
             {stats.crossEdges} connessioni
           </Badge>
@@ -1142,16 +1142,16 @@ export default function AIBrainGraph() {
         <div className="flex items-center gap-1.5 pointer-events-auto">
           {/* #1: Search */}
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-500" />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-300" />
             <Input
               placeholder="Cerca nel grafo…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-7 w-40 pl-7 pr-2 text-[10px] bg-slate-900/85 border-slate-700 text-slate-200 placeholder:text-slate-500 shadow-sm backdrop-blur-sm focus:w-56 transition-all"
+              className="h-7 w-40 pl-7 pr-2 text-[10px] bg-slate-900/95 border-slate-600 text-slate-200 placeholder:text-slate-300 shadow-sm backdrop-blur-sm focus:w-56 transition-all"
             />
             {searchQuery && (
               <button
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white"
                 onClick={() => setSearchQuery("")}
               >
                 <X className="h-3 w-3" />
@@ -1166,7 +1166,7 @@ export default function AIBrainGraph() {
               "h-7 px-2.5 text-[10px] gap-1 backdrop-blur-sm shadow-sm border",
               viewMode === "detail"
                 ? "bg-orange-500 text-white border-orange-400 hover:bg-orange-600"
-                : "bg-slate-900/85 text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white",
+                : "bg-slate-900/95 text-slate-200 border-slate-600 hover:bg-slate-800 hover:text-white",
             )}
             onClick={() => {
               if (viewMode === "galaxy") setViewMode("detail");
@@ -1198,7 +1198,7 @@ export default function AIBrainGraph() {
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7 bg-slate-900/85 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
+            className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
             onClick={resetView}
             title="Reset vista"
           >
@@ -1208,7 +1208,7 @@ export default function AIBrainGraph() {
           <Button
             size="icon"
             variant="ghost"
-            className="h-7 w-7 bg-slate-900/85 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
+            className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
             onClick={toggleFullscreen}
             title={fullscreen ? "Esci fullscreen" : "Fullscreen"}
           >
@@ -1220,7 +1220,7 @@ export default function AIBrainGraph() {
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 bg-slate-900/85 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
+                className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
                 title="Opzioni avanzate"
               >
                 <Settings2 className="h-3.5 w-3.5" />
@@ -1228,19 +1228,19 @@ export default function AIBrainGraph() {
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="w-60 p-3 bg-slate-900/95 border-slate-700 text-slate-200 shadow-2xl"
+              className="w-60 p-3 bg-slate-900/95 border-slate-600 text-slate-200 shadow-2xl"
             >
               <div className="space-y-3">
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1.5">Colore nodi</p>
-                  <div className="flex bg-slate-800 rounded-md border border-slate-700 overflow-hidden">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1.5">Colore nodi</p>
+                  <div className="flex bg-slate-800 rounded-md border border-slate-600 overflow-hidden">
                     {(["cluster", "type", "heat"] as ColorMode[]).map((m) => (
                       <button
                         key={m}
                         className={cn(
                           "flex-1 h-7 text-[10px] flex items-center justify-center gap-1 transition-colors",
                           colorMode === m ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
-                          m !== "cluster" && "border-l border-slate-700",
+                          m !== "cluster" && "border-l border-slate-600",
                         )}
                         onClick={() => setColorMode(m)}
                       >
@@ -1251,8 +1251,8 @@ export default function AIBrainGraph() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1.5">Dimensione</p>
-                  <div className="flex bg-slate-800 rounded-md border border-slate-700 overflow-hidden">
+                  <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1.5">Dimensione</p>
+                  <div className="flex bg-slate-800 rounded-md border border-slate-600 overflow-hidden">
                     <button
                       className={cn(
                         "flex-1 h-7 text-[10px] transition-colors",
@@ -1264,7 +1264,7 @@ export default function AIBrainGraph() {
                     </button>
                     <button
                       className={cn(
-                        "flex-1 h-7 text-[10px] transition-colors border-l border-slate-700",
+                        "flex-1 h-7 text-[10px] transition-colors border-l border-slate-600",
                         is3D ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
                       onClick={() => setIs3D(true)}
@@ -1273,7 +1273,7 @@ export default function AIBrainGraph() {
                     </button>
                   </div>
                 </div>
-                <div className="pt-2 border-t border-slate-700">
+                <div className="pt-2 border-t border-slate-600">
                   <button
                     className="w-full h-7 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white rounded-md flex items-center justify-center gap-1.5 transition-colors"
                     onClick={handleExport}
@@ -1291,7 +1291,7 @@ export default function AIBrainGraph() {
       {/* Galaxy mode hint — solo quando nessuna è espansa, posizionato in basso (no overlap con LIVE) */}
       {viewMode === "galaxy" && expandedPersonas.size === 0 && nodes.length > 0 && (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <div className="bg-slate-900/85 backdrop-blur-sm rounded-full border border-slate-700 px-3 py-1 shadow-lg">
+          <div className="bg-slate-900/95 backdrop-blur-sm rounded-full border border-slate-600 px-3 py-1 shadow-lg">
             <p className="text-[10px] text-slate-300 flex items-center gap-1.5">
               <Sparkles className="h-3 w-3 text-orange-400" />
               Click su una persona per esplorare le sue memorie
@@ -1303,7 +1303,7 @@ export default function AIBrainGraph() {
       {/* ── Search results count ──────────────────────────────────────────── */}
       {searchSelections !== null && (
         <div className="absolute top-12 right-3 z-10 pointer-events-auto">
-          <Badge className="bg-slate-900/85 text-slate-200 border-slate-700 backdrop-blur-sm shadow-lg text-[10px]">
+          <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px]">
             {searchSelections.length} risultat{searchSelections.length === 1 ? "o" : "i"}
           </Badge>
         </div>
@@ -1334,7 +1334,7 @@ export default function AIBrainGraph() {
           <Button
             size="sm"
             variant="ghost"
-            className="h-5 px-1.5 text-[9px] text-slate-500 hover:text-white"
+            className="h-5 px-1.5 text-[9px] text-slate-300 hover:text-white"
             onClick={resetView}
           >
             Resetta
@@ -1345,7 +1345,7 @@ export default function AIBrainGraph() {
       {/* ── #6: Insights panel ─────────────────────────────────────────────── */}
       <div className="absolute top-12 left-3 z-10 pointer-events-auto" style={{ marginTop: (filterPersona || filterType) ? 28 : 0 }}>
         <button
-          className="flex items-center gap-1.5 text-[10px] text-slate-300 hover:text-white bg-slate-900/85 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-slate-700 shadow-sm transition-colors"
+          className="flex items-center gap-1.5 text-[10px] text-slate-300 hover:text-white bg-slate-900/95 backdrop-blur-sm rounded-lg px-2 py-1.5 border border-slate-600 shadow-sm transition-colors"
           onClick={() => setInsightsOpen(!insightsOpen)}
         >
           <Zap className="h-3 w-3 text-orange-400" />
@@ -1354,11 +1354,11 @@ export default function AIBrainGraph() {
         </button>
 
         {insightsOpen && (
-          <div className="mt-1 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-700 p-2.5 w-64 space-y-2.5 shadow-2xl">
+          <div className="mt-1 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-600 p-2.5 w-64 space-y-2.5 shadow-2xl">
             {/* Health */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Salute cervello</span>
+                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Salute cervello</span>
                 <span className={cn(
                   "text-[11px] font-bold",
                   insights.healthPct >= 70 ? "text-emerald-400" : insights.healthPct >= 40 ? "text-amber-400" : "text-rose-400",
@@ -1375,7 +1375,7 @@ export default function AIBrainGraph() {
                   style={{ width: `${insights.healthPct}%` }}
                 />
               </div>
-              <p className="text-[9px] text-slate-600 mt-0.5">
+              <p className="text-[9px] text-slate-300 mt-0.5">
                 {insights.healthPct}% delle memorie usate almeno 1 volta
               </p>
             </div>
@@ -1385,7 +1385,7 @@ export default function AIBrainGraph() {
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Sparkles className="h-3 w-3 text-amber-400" />
-                  <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Nodi centrali</span>
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Nodi centrali</span>
                 </div>
                 {insights.godNodes.map((n) => (
                   <button
@@ -1399,7 +1399,7 @@ export default function AIBrainGraph() {
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
                     <span className="truncate">{n.label}</span>
-                    <span className="text-slate-600 ml-auto shrink-0">{n.connections}</span>
+                    <span className="text-slate-300 ml-auto shrink-0">{n.connections}</span>
                   </button>
                 ))}
               </div>
@@ -1410,7 +1410,7 @@ export default function AIBrainGraph() {
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Link2 className="h-3 w-3 text-orange-400" />
-                  <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Ponti tra personas</span>
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Ponti tra personas</span>
                 </div>
                 {insights.bridges.map((b) => (
                   <button
@@ -1420,7 +1420,7 @@ export default function AIBrainGraph() {
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-orange-400 shrink-0" />
                     <span className="truncate">{b.label}</span>
-                    <span className="text-slate-600 ml-auto shrink-0">{b.personasLinked.length}p</span>
+                    <span className="text-slate-300 ml-auto shrink-0">{b.personasLinked.length}p</span>
                   </button>
                 ))}
               </div>
@@ -1430,13 +1430,13 @@ export default function AIBrainGraph() {
             {insights.orphans.length > 0 && (
               <div>
                 <div className="flex items-center gap-1 mb-1">
-                  <Ghost className="h-3 w-3 text-slate-500" />
-                  <span className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Orfane (isolate)</span>
+                  <Ghost className="h-3 w-3 text-slate-300" />
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Orfane (isolate)</span>
                 </div>
                 {insights.orphans.slice(0, 3).map((o) => (
                   <button
                     key={o.id}
-                    className="w-full text-left text-[10px] text-slate-500 hover:text-slate-200 px-1.5 py-0.5 rounded hover:bg-slate-800 truncate flex items-center gap-1.5"
+                    className="w-full text-left text-[10px] text-slate-300 hover:text-slate-200 px-1.5 py-0.5 rounded hover:bg-slate-800 truncate flex items-center gap-1.5"
                     onClick={() => graphRef.current?.centerGraph([o.id])}
                   >
                     <span className="h-1.5 w-1.5 rounded-full bg-slate-600 shrink-0" />
@@ -1444,15 +1444,15 @@ export default function AIBrainGraph() {
                   </button>
                 ))}
                 {insights.orphans.length > 3 && (
-                  <p className="text-[9px] text-slate-600 px-1.5">+{insights.orphans.length - 3} altre</p>
+                  <p className="text-[9px] text-slate-300 px-1.5">+{insights.orphans.length - 3} altre</p>
                 )}
               </div>
             )}
 
             {/* Cross-links total */}
             {insights.totalCrossLinks > 0 && (
-              <div className="pt-1 border-t border-slate-700">
-                <p className="text-[9px] text-slate-500">
+              <div className="pt-1 border-t border-slate-600">
+                <p className="text-[9px] text-slate-300">
                   <span className="text-orange-400 font-semibold">{insights.totalCrossLinks}</span> connessioni cross-persona trovate
                   {" — "}il cervello pensa trasversalmente
                 </p>
@@ -1464,8 +1464,8 @@ export default function AIBrainGraph() {
 
       {/* ── Legend ──────────────────────────────────────────────────────────── */}
       <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-1 pointer-events-auto max-w-xs">
-        <div className="bg-slate-900/85 backdrop-blur-sm rounded-lg p-2 border border-slate-700 shadow-lg">
-          <p className="text-[9px] text-slate-400 uppercase tracking-wider mb-1.5 font-semibold">
+        <div className="bg-slate-900/95 backdrop-blur-sm rounded-lg p-2 border border-slate-600 shadow-lg">
+          <p className="text-[9px] text-slate-300 uppercase tracking-wider mb-1.5 font-semibold">
             {colorMode === "heat"
               ? "Attività (dormiente → attiva)"
               : colorMode === "type"
@@ -1474,11 +1474,11 @@ export default function AIBrainGraph() {
           </p>
           {colorMode === "heat" ? (
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-slate-400">Dormiente</span>
+              <span className="text-[9px] text-slate-300">Dormiente</span>
               <div className="flex-1 h-2 rounded-full" style={{
                 background: "linear-gradient(to right, #3b82f6, #06b6d4, #fbbf24, #f97316, #ef4444)",
               }} />
-              <span className="text-[9px] text-slate-400">Attiva</span>
+              <span className="text-[9px] text-slate-300">Attiva</span>
             </div>
           ) : colorMode === "type" ? (
             <div className="flex flex-wrap gap-1.5">
@@ -1517,9 +1517,9 @@ export default function AIBrainGraph() {
             </div>
           )}
           {/* Cross-persona edge legend */}
-          <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-slate-700">
+          <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-slate-600">
             <span className="h-[2px] w-4 bg-orange-400/60" />
-            <span className="text-[9px] text-slate-400">Connessione cross-persona</span>
+            <span className="text-[9px] text-slate-300">Connessione cross-persona</span>
           </div>
         </div>
       </div>
@@ -1527,14 +1527,14 @@ export default function AIBrainGraph() {
       {/* ── #7: Edge tooltip ───────────────────────────────────────────────── */}
       {hoveredEdge && (
         <div
-          className="fixed z-50 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-700 px-3 py-2 shadow-2xl pointer-events-none"
+          className="fixed z-50 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-600 px-3 py-2 shadow-2xl pointer-events-none"
           style={{
             left: hoveredEdge.x + 12,
             top: hoveredEdge.y - 10,
             maxWidth: 220,
           }}
         >
-          <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1 font-semibold">Keyword condivise</p>
+          <p className="text-[9px] text-slate-300 uppercase tracking-wider mb-1 font-semibold">Keyword condivise</p>
           <div className="flex flex-wrap gap-1">
             {(edgeKeywords.get(hoveredEdge.id) ?? []).map((kw) => (
               <Badge key={kw} className="text-[9px] h-4 px-1.5 bg-orange-100 text-orange-700 border-orange-300">
@@ -1542,7 +1542,7 @@ export default function AIBrainGraph() {
               </Badge>
             ))}
             {(edgeKeywords.get(hoveredEdge.id) ?? []).length === 0 && (
-              <span className="text-[10px] text-slate-500">overlap semantico</span>
+              <span className="text-[10px] text-slate-300">overlap semantico</span>
             )}
           </div>
         </div>
@@ -1550,7 +1550,7 @@ export default function AIBrainGraph() {
 
       {/* ── Detail panel ───────────────────────────────────────────────────── */}
       {selectedNode && (
-        <div className="absolute bottom-3 right-3 z-10 w-72 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-700 p-3 pointer-events-auto shadow-2xl">
+        <div className="absolute bottom-3 right-3 z-10 w-72 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-600 p-3 pointer-events-auto shadow-2xl">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               {selectedNode.data?.type === "persona" ? (
@@ -1564,10 +1564,10 @@ export default function AIBrainGraph() {
                       {selectedNode.data.persona.display_name}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-300">
                     Categoria: {selectedNode.data.persona.category}
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-[10px] text-slate-300 mt-1">
                     {memories.filter((m) => m.persona_key === selectedNode.data.persona.persona_key).length} memorie totali
                   </p>
                   {/* Cross-persona connections for this persona */}
@@ -1590,8 +1590,8 @@ export default function AIBrainGraph() {
                     }
                     if (xpLinks.length === 0) return null;
                     return (
-                      <div className="mt-2 pt-2 border-t border-slate-700">
-                        <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1">Connessa con</p>
+                      <div className="mt-2 pt-2 border-t border-slate-600">
+                        <p className="text-[9px] text-slate-300 uppercase tracking-wider mb-1">Connessa con</p>
                         {xpLinks.map((l) => (
                           <div key={l.name} className="flex items-center justify-between text-[10px]">
                             <span className="text-orange-700 font-medium">{l.name}</span>
@@ -1664,14 +1664,14 @@ export default function AIBrainGraph() {
                     >
                       {selectedNode.data.typeLabel}
                     </Badge>
-                    <span className="text-[10px] text-slate-500">
+                    <span className="text-[10px] text-slate-300">
                       {selectedNode.data.personaName}
                     </span>
                   </div>
                   <p className="text-xs text-slate-100 leading-relaxed mt-1">
                     {selectedNode.data.memory.content}
                   </p>
-                  <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500">
+                  <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-300">
                     <span>{selectedNode.data.memory.hits_count ?? 0} hits</span>
                     <span>Conf. {((selectedNode.data.memory.confidence ?? 1) * 100).toFixed(0)}%</span>
                     <span>{selectedNode.data.memory.source ?? "auto"}</span>
@@ -1693,7 +1693,7 @@ export default function AIBrainGraph() {
             <Button
               size="icon"
               variant="ghost"
-              className="h-6 w-6 shrink-0 text-slate-500 hover:text-white"
+              className="h-6 w-6 shrink-0 text-slate-300 hover:text-white"
               onClick={() => setSelectedNode(null)}
             >
               <X className="h-3.5 w-3.5" />
