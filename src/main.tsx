@@ -4,6 +4,8 @@ import App from "./App.tsx";
 import "./index.css";
 // v8.6.117 — Sentry + WebVitals lazy-loaded DOPO mount per non bloccare FCP.
 import { initWebVitalsReporter } from "./lib/velocity/webVitalsReporter";
+// Meta Ads attribution: cattura fbclid → _fbc, bootstrap _fbp per CAPI.
+import { initFacebookClickTracker } from "./lib/meta/fbcTracker";
 
 // 🚨 ESPLICITO unregister di service worker stale.
 //
@@ -101,6 +103,10 @@ window.addEventListener("vite:preloadError", () => {
   url.searchParams.set("__recovery", Date.now().toString());
   window.location.replace(url.toString());
 });
+
+// Meta Ads attribution: idempotente, no-op se fbclid assente.
+// Va PRIMA del render perché il fbclid arriva da URL al primo paint.
+initFacebookClickTracker();
 
 createRoot(document.getElementById("root")!).render(<App />);
 
