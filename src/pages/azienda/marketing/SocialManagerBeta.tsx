@@ -531,10 +531,11 @@ function ApiPlatformHints({ selectedPlatforms, contentType, publishNow }: {
 // ─── Status config ─────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG = {
-  draft:     { label: "Bozza",       dot: "bg-slate-400",   pill: "border-slate-200 bg-slate-50 text-slate-600",    calBg: "bg-slate-100 text-slate-600" },
-  scheduled: { label: "Programmato", dot: "bg-blue-400",    pill: "border-blue-200 bg-blue-50 text-blue-700",       calBg: "bg-blue-50 text-blue-700 border border-blue-100" },
-  published: { label: "Pubblicato",  dot: "bg-emerald-400", pill: "border-emerald-200 bg-emerald-50 text-emerald-700", calBg: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
-  failed:    { label: "Fallito",     dot: "bg-red-400",     pill: "border-red-200 bg-red-50 text-red-700",           calBg: "bg-red-50 text-red-700 border border-red-100" },
+  draft:     { label: "Bozza",        dot: "bg-slate-400",   pill: "border-slate-200 bg-slate-50 text-slate-600",     calBg: "bg-slate-100 text-slate-600" },
+  review:    { label: "In revisione", dot: "bg-amber-400",   pill: "border-amber-200 bg-amber-50 text-amber-700",     calBg: "bg-amber-50 text-amber-700 border border-amber-200" },
+  scheduled: { label: "Programmato",  dot: "bg-blue-400",    pill: "border-blue-200 bg-blue-50 text-blue-700",        calBg: "bg-blue-50 text-blue-700 border border-blue-100" },
+  published: { label: "Pubblicato",   dot: "bg-emerald-400", pill: "border-emerald-200 bg-emerald-50 text-emerald-700", calBg: "bg-emerald-50 text-emerald-700 border border-emerald-100" },
+  failed:    { label: "Fallito",      dot: "bg-red-400",     pill: "border-red-200 bg-red-50 text-red-700",            calBg: "bg-red-50 text-red-700 border border-red-100" },
 } satisfies Record<ScheduledPost["status"], { label: string; dot: string; pill: string; calBg: string }>;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -545,7 +546,15 @@ const MONTH_NAMES = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Lu
 const DAY_NAMES_SHORT = ["L","M","M","G","V","S","D"];
 const DAY_NAMES_FULL  = ["Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato","Domenica"];
 
-function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost?: () => void }) {
+function CalendarioTab({
+  posts,
+  onNewPost,
+  onUpdatePost,
+}: {
+  posts: ScheduledPost[];
+  onNewPost?: () => void;
+  onUpdatePost?: (id: string, changes: Partial<ScheduledPost>) => void;
+}) {
   const today = new Date();
   const [view, setView]               = useState<"month" | "week">("month");
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
@@ -559,6 +568,9 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
   });
   const [selectedDay, setSelectedDay]   = useState<string | null>(null); // "YYYY-MM-DD"
   const [filterPlatform, setFilterPlatform] = useState<string | null>(null);
+  const [reviewExpanded, setReviewExpanded] = useState(true);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
 
   // Filtered posts
   const filteredPosts = filterPlatform
@@ -608,6 +620,9 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
     { label: "Piattaforme attive", value: new Set(posts.flatMap((p) => p.platforms)).size,       color: "text-orange-600",  bg: "bg-orange-50"  },
   ];
 
+  // ── Review posts ──────────────────────────────────────────────────────────
+  const reviewPosts = posts.filter((p) => p.status === "review");
+
   // ── Upcoming posts (next 14 days) ──────────────────────────────────────────
   const upcomingPosts = [...posts]
     .filter((p) => {
@@ -620,6 +635,133 @@ function CalendarioTab({ posts, onNewPost }: { posts: ScheduledPost[]; onNewPost
 
   return (
     <div className="space-y-4">
+
+      {/* ── REVIEW QUEUE BANNER ────────────────────────────────────────── */}
+      {reviewPosts.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border-2 border-amber-300 bg-amber-50 shadow-sm">
+          {/* Header */}
+          <button
+            type="button"
+            onClick={() => setReviewExpanded((v) => !v)}
+            className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-amber-100/60"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="text-lg">⏳</span>
+              <span className="font-bold text-amber-800">
+                {reviewPosts.length} post in attesa di revisione
+              </span>
+              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-white">
+                {reviewPosts.length}
+              </span>
+            </div>
+            <span className={cn("text-amber-600 transition-transform", reviewExpanded ? "rotate-180" : "")}>▲</span>
+          </button>
+
+          {/* Expanded list */}
+          {reviewExpanded && (
+            <div className="divide-y divide-amber-200 border-t border-amber-200">
+              {reviewPosts.map((post) => {
+                const platformIcons = post.platforms
+                  .map((pid) => PLATFORMS.find((p) => p.id === pid)?.icon ?? "")
+                  .join(" ");
+                const scheduledLabel = new Date(post.scheduled_at).toLocaleString("it-IT", {
+                  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                });
+                const isRejecting = rejectingId === post.id;
+
+                return (
+                  <div key={post.id} className="px-4 py-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      {/* Left: post info */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm">{platformIcons}</span>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                            {scheduledLabel}
+                          </span>
+                        </div>
+                        <p className="line-clamp-2 text-sm text-slate-700">
+                          {post.text || "(nessun testo)"}
+                        </p>
+                        {post.hashtags.length > 0 && (
+                          <p className="truncate text-[11px] text-slate-400">
+                            {post.hashtags.slice(0, 5).map((h) => `#${h}`).join(" ")}
+                            {post.hashtags.length > 5 && ` +${post.hashtags.length - 5}`}
+                          </p>
+                        )}
+                        {post.reviewNote && (
+                          <p className="rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] text-red-700 ring-1 ring-red-100">
+                            💬 {post.reviewNote}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Right: actions */}
+                      {!isRejecting ? (
+                        <div className="flex shrink-0 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onUpdatePost?.(post.id, { status: "scheduled", reviewNote: undefined });
+                              toast.success("✅ Post approvato", { description: "Verrà pubblicato all'orario programmato." });
+                            }}
+                            className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-95"
+                          >
+                            <Check className="h-3.5 w-3.5" /> Approva
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setRejectingId(post.id); setRejectNote(""); }}
+                            className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-50 active:scale-95"
+                          >
+                            <X className="h-3.5 w-3.5" /> Rimanda
+                          </button>
+                        </div>
+                      ) : (
+                        /* Reject flow — add note */
+                        <div className="flex w-full flex-col gap-2 sm:w-64">
+                          <Textarea
+                            rows={2}
+                            placeholder="Note per il creatore (es. 'Aggiungi logo', 'Tono troppo formale'...)"
+                            value={rejectNote}
+                            onChange={(e) => setRejectNote(e.target.value)}
+                            className="resize-none rounded-xl border-red-200 text-xs focus:ring-red-300"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdatePost?.(post.id, {
+                                  status: "draft",
+                                  reviewNote: rejectNote.trim() || "Rimandato in bozza.",
+                                });
+                                setRejectingId(null);
+                                setRejectNote("");
+                                toast.info("↩️ Post rimandato in bozza", { description: rejectNote.trim() || undefined });
+                              }}
+                              className="flex-1 rounded-xl bg-red-500 py-1.5 text-xs font-bold text-white transition hover:bg-red-600"
+                            >
+                              Conferma rimanda
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setRejectingId(null); setRejectNote(""); }}
+                              className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-500 transition hover:bg-slate-50"
+                            >
+                              Annulla
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── STATS BAR ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {statsData.map(({ label, value, color, bg }) => (
@@ -1731,7 +1873,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                 </div>
               )}
 
-              <Button onClick={onSchedulePost} disabled={!postText.trim() || selectedPlatforms.length === 0}
+              <Button onClick={onSchedulePost} disabled={!(crossPlatformMode ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim()) : postText.trim()) || selectedPlatforms.length === 0}
                 className={cn("w-full text-white shadow-sm",
                   publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                              : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600")}>
@@ -1739,6 +1881,37 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                   ? <><Send className="mr-2 h-4 w-4" />Pubblica ora su {selectedPlatforms.length} piattaform{selectedPlatforms.length === 1 ? "a" : "e"}</>
                   : <><Calendar className="mr-2 h-4 w-4" />Programma pubblicazione</>}
               </Button>
+              {/* Invia in revisione */}
+              {!publishNow && (
+                <button type="button"
+                  onClick={() => {
+                    const hasText = crossPlatformMode
+                      ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim())
+                      : postText.trim();
+                    if (!hasText) { toast.error("Scrivi il testo del post"); return; }
+                    if (selectedPlatforms.length === 0) { toast.error("Seleziona almeno una piattaforma"); return; }
+                    const reviewPost: ScheduledPost = {
+                      id: `post-${Date.now()}`,
+                      platforms: selectedPlatforms,
+                      contentType: contentTypeId,
+                      text: crossPlatformMode ? (platformTexts[selectedPlatforms[0]] ?? postText) : postText,
+                      platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0 ? platformTexts : undefined,
+                      image_url: mediaUrl ?? undefined,
+                      hashtags: contentType.hashtagsAllowed ? hashtags : [],
+                      firstComment: firstComment || undefined,
+                      scheduled_at: scheduledDate ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString() : new Date(Date.now() + 86400000).toISOString(),
+                      status: "review",
+                      created_at: new Date().toISOString(),
+                    };
+                    onPostScheduled(reviewPost);
+                    toast.success("Post inviato in revisione", { description: "Il titolare riceverà una notifica per approvare." });
+                    setPostText(""); setHashtags([]); setMediaUrl(null); setScheduledDate(""); setCopyVariants([]); setPlatformTexts({}); setCrossPlatformMode(false);
+                  }}
+                  disabled={!(crossPlatformMode ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim()) : postText.trim()) || selectedPlatforms.length === 0}
+                  className="w-full rounded-xl border-2 border-dashed border-amber-300 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-40">
+                  ⏳ Invia in revisione al titolare
+                </button>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -2363,6 +2536,14 @@ export default function SocialManagerBeta() {
     });
   }, [STORAGE_KEY]);
 
+  const handleUpdatePost = useCallback((id: string, changes: Partial<ScheduledPost>) => {
+    setPosts((prev) => {
+      const updated = prev.map((p) => (p.id === id ? { ...p, ...changes } : p));
+      try { localStorage.setItem(`${STORAGE_KEY}_posts`, JSON.stringify(updated)); } catch { /* noop */ }
+      return updated;
+    });
+  }, [STORAGE_KEY]);
+
   const handleUseInPost = useCallback((item: MediaItem) => {
     setTab("crea-post");
     toast.success(`"${item.title}" selezionato`, { description: "Caricalo nella sezione Media del post." });
@@ -2374,11 +2555,12 @@ export default function SocialManagerBeta() {
   }, [navigate]);
 
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
+  const reviewCount    = posts.filter((p) => p.status === "review").length;
   const mediaCount     = DEMO_MEDIA_ITEMS.length;
 
   const tabs = [
     { id: "crea-post",  label: "Crea Post",  icon: Edit3      },
-    { id: "calendario", label: "Calendario", icon: Calendar,   badge: scheduledCount > 0 ? scheduledCount : undefined },
+    { id: "calendario", label: "Calendario", icon: Calendar,   badge: reviewCount > 0 ? `${reviewCount} ⏳` : (scheduledCount > 0 ? scheduledCount : undefined) },
     { id: "analitiche", label: "Analitiche", icon: TrendingUp  },
     { id: "galleria",   label: "Galleria",   icon: Library,    badge: mediaCount },
   ];
@@ -2433,7 +2615,7 @@ export default function SocialManagerBeta() {
               <ContentStudioTab companyId={companyId} connectedAccounts={connectedAccounts} onPostScheduled={handlePostScheduled} />
             )}
             {activeTab === "calendario" && (
-              <CalendarioTab posts={posts} onNewPost={() => setTab("crea-post")} />
+              <CalendarioTab posts={posts} onNewPost={() => setTab("crea-post")} onUpdatePost={handleUpdatePost} />
             )}
             {activeTab === "analitiche" && (
               <AnaliticsTab connectedAccounts={connectedAccounts} />
