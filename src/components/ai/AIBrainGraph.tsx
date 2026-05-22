@@ -233,7 +233,7 @@ function buildGraphData(
   const oldest = Math.min(...filtered.map((m) => new Date(m.created_at).getTime()), now);
   const timeRange = Math.max(1, now - oldest);
 
-  // Persona nodes — dimensione proporzionale al # memorie (visione "galassia")
+  // Persona nodes — layout CIRCOLARE FISSO in galaxy mode + dimensione proporzionale
   const personaMap = new Map(personas.map((p) => [p.persona_key, p]));
   const memoriesPerPersona = new Map<string, number>();
   for (const m of filtered) {
@@ -241,29 +241,45 @@ function buildGraphData(
   }
   const maxMemCount = Math.max(1, ...memoriesPerPersona.values());
 
-  for (const pKey of activePersonaKeys) {
-    const p = personaMap.get(pKey);
-    if (!p) continue;
-    const catColor = PERSONA_CATEGORY_COLORS[p.category] ?? PERSONA_CATEGORY_COLORS.default;
-    const memCount = memoriesPerPersona.get(pKey) ?? 0;
+  // Sort active personas per category per posizionarle in ordine deterministico
+  const activePersonasList = [...activePersonaKeys]
+    .map((k) => personaMap.get(k))
+    .filter((p): p is PersonaLite => p != null)
+    .sort((a, b) => {
+      // Ordine per categoria poi per name
+      if (a.category !== b.category) return a.category.localeCompare(b.category);
+      return a.display_name.localeCompare(b.display_name);
+    });
 
-    // In galaxy mode: dimensione grande proporzionale (12-30)
-    // In detail mode: dimensione fissa media (10)
+  const isGalaxyPure = viewMode === "galaxy" && expandedPersonas.size === 0;
+  const RADIUS = 280;
+
+  activePersonasList.forEach((p, i) => {
+    const catColor = PERSONA_CATEGORY_COLORS[p.category] ?? PERSONA_CATEGORY_COLORS.default;
+    const memCount = memoriesPerPersona.get(p.persona_key) ?? 0;
+
     const size = viewMode === "galaxy"
-      ? 12 + Math.round((memCount / maxMemCount) * 18)
-      : 10;
+      ? 14 + Math.round((memCount / maxMemCount) * 16)
+      : 11;
+
+    // Layout circolare deterministico in galaxy puro
+    const angle = (i / activePersonasList.length) * Math.PI * 2 - Math.PI / 2;
+    const fx = isGalaxyPure ? Math.cos(angle) * RADIUS : undefined;
+    const fy = isGalaxyPure ? Math.sin(angle) * RADIUS : undefined;
 
     nodes.push({
       id: `p_${p.persona_key}`,
       label: `${p.display_name}${viewMode === "galaxy" ? ` · ${memCount}` : ""}`,
       fill: catColor,
       size,
-      labelVisible: true,         // Persona labels sempre visibili
+      labelVisible: true,
       cluster: `cat_${p.category}`,
+      fx,
+      fy,
       data: { type: "persona", persona: p, memoryCount: memCount },
     });
     connectionsMap.set(`p_${p.persona_key}`, new Set());
-  }
+  });
 
   // Memory nodes + edges
   // In galaxy mode mostriamo SOLO le memorie delle personas espanse — il resto
@@ -426,7 +442,7 @@ function buildGraphData(
           id: `e_xp_${pA}_${pB}`,
           source: `p_${pA}`,
           target: `p_${pB}`,
-          size: Math.min(4, 0.8 + count * 0.4),
+          size: Math.min(5, 1.5 + count * 0.5), // più visibile
           fill: "#fb923c", // orange-400 ben visibile su nero
           // niente label sull'edge (il numero compare nel detail panel)
         });
@@ -537,32 +553,33 @@ const BRAIN_THEME = {
     ...lightTheme.node,
     fill: "#f97316",
     activeFill: "#fb923c",
-    opacity: 0.95,
+    opacity: 1,
     selectedOpacity: 1,
-    inactiveOpacity: 0.12,
+    inactiveOpacity: 0.2,
     label: {
       ...lightTheme.node.label,
-      color: "#f1f5f9",            // slate-100
+      color: "#ffffff",
       activeColor: "#ffffff",
-      stroke: "#0f172a",
+      stroke: "#000000",
       backgroundColor: "#1e293b",
-      backgroundOpacity: 0.92,
-      padding: 4,
-      radius: 3,
+      backgroundOpacity: 1,        // pill solido, leggibile
+      padding: 6,
+      radius: 6,
+      fontSize: 6,
     },
   },
   edge: {
     ...lightTheme.edge,
-    fill: "#64748b",                // slate-500
-    activeFill: "#fb923c",
-    opacity: 0.5,                   // edges visibili ma non invadenti
+    fill: "#fb923c",                // arancio brillante per tutte le edges
+    activeFill: "#ffffff",
+    opacity: 0.7,                   // ben visibile
     selectedOpacity: 1,
-    inactiveOpacity: 0.08,
+    inactiveOpacity: 0.1,
     label: {
       ...lightTheme.edge.label,
-      color: "#cbd5e1",
-      activeColor: "#ffffff",
-      fontSize: 4,
+      color: "transparent",         // nessuna label edges (eliminano i puntini neri)
+      activeColor: "transparent",
+      fontSize: 0,
     },
   },
   arrow: {
@@ -1265,13 +1282,13 @@ export default function AIBrainGraph() {
         </div>
       </div>
 
-      {/* Galaxy mode hint */}
+      {/* Galaxy mode hint — solo quando nessuna è espansa, posizionato in basso (no overlap con LIVE) */}
       {viewMode === "galaxy" && expandedPersonas.size === 0 && nodes.length > 0 && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
           <div className="bg-slate-900/85 backdrop-blur-sm rounded-full border border-slate-700 px-3 py-1 shadow-lg">
             <p className="text-[10px] text-slate-300 flex items-center gap-1.5">
               <Sparkles className="h-3 w-3 text-orange-400" />
-              Click su una persona per espandere il suo cluster di memorie
+              Click su una persona per esplorare le sue memorie
             </p>
           </div>
         </div>
@@ -1680,8 +1697,8 @@ export default function AIBrainGraph() {
       )}
 
       {/* ── Graph canvas ───────────────────────────────────────────────────── */}
-      {/* Canvas con effetto glow soft (drop-shadow filter) — z-index above starfield */}
-      <div className="absolute inset-0" style={{ zIndex: 1, filter: "drop-shadow(0 0 8px rgba(251, 146, 60, 0.15))" }}>
+      {/* Canvas WebGL — z-index above starfield, nessun filter per nitidezza max */}
+      <div className="absolute inset-0" style={{ zIndex: 1 }}>
       <GraphCanvas
         ref={graphRef}
         nodes={nodes}
