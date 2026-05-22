@@ -28,6 +28,9 @@ import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import { DEMO_MEMORIES, PERSONA_FALLBACKS } from "./brainGraphDemoMemories";
 import { BrainStarfield } from "./BrainStarfield";
 import { BrainInsightFeed } from "./BrainInsightFeed";
+import { BrainSemanticSearch } from "./BrainSemanticSearch";
+import { BrainPersonaStats } from "./BrainPersonaStats";
+import { BrainOnboardingTour } from "./BrainOnboardingTour";
 import { GraphCanvas, lightTheme, type GraphNode, type GraphEdge, type GraphCanvasRef } from "reagraph";
 import type { InternalGraphNode, InternalGraphEdge } from "reagraph";
 import { Badge } from "@/components/ui/badge";
@@ -497,11 +500,19 @@ function buildGraphData(
 
 // ─── Insights calculator ──────────────────────────────────────────────────────
 
+interface HealthBreakdown {
+  coverage: number;    // % personas con >=3 memorie
+  crossLinkage: number; // % personas connesse trasversalmente
+  freshness: number;   // % memorie aggiornate ultimi 30gg
+  activity: number;    // % memorie usate (hits > 0)
+}
+
 interface Insights {
   godNodes: Array<{ id: string; label: string; connections: number }>;
   orphans: Array<{ id: string; label: string }>;
   bridges: Array<{ id: string; label: string; personasLinked: string[] }>;
-  healthPct: number; // % memorie con hits > 0
+  healthPct: number; // score composto (media pesata delle 4 sub-metriche)
+  healthBreakdown: HealthBreakdown;
   totalCrossLinks: number;
 }
 
@@ -560,10 +571,45 @@ function computeInsights(
     .sort((a, b) => b.personasLinked.length - a.personasLinked.length)
     .slice(0, 5);
 
-  // Health: % memorie con almeno 1 hit
-  const withHits = memories.filter((m) => m.enabled && (m.hits_count ?? 0) > 0).length;
-  const totalEnabled = memories.filter((m) => m.enabled).length;
-  const healthPct = totalEnabled > 0 ? Math.round((withHits / totalEnabled) * 100) : 0;
+  // Health score composto (4 sub-metriche)
+  const enabledMems = memories.filter((m) => m.enabled);
+  const totalEnabled = enabledMems.length;
+
+  // 1. Coverage: % personas con >=3 memorie
+  const memCountByPersona = new Map<string, number>();
+  for (const m of enabledMems) memCountByPersona.set(m.persona_key, (memCountByPersona.get(m.persona_key) ?? 0) + 1);
+  const activePersonasCount = memCountByPersona.size;
+  const personasWithEnough = [...memCountByPersona.values()].filter((c) => c >= 3).length;
+  const coverage = activePersonasCount > 0 ? Math.round((personasWithEnough / activePersonasCount) * 100) : 0;
+
+  // 2. Cross-linkage: % personas con >=1 cross-persona link
+  const personasWithCross = new Set<string>();
+  for (const [pA, targets] of crossPersonaLinks) {
+    if (targets.size > 0) personasWithCross.add(pA);
+    for (const pB of targets.keys()) personasWithCross.add(pB);
+  }
+  const crossLinkage = activePersonasCount > 0
+    ? Math.round((personasWithCross.size / activePersonasCount) * 100)
+    : 0;
+
+  // 3. Freshness: % memorie aggiornate ultimi 30gg
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const fresh = enabledMems.filter((m) => {
+    const age = (now - new Date(m.created_at).getTime()) / dayMs;
+    return age <= 30;
+  }).length;
+  const freshness = totalEnabled > 0 ? Math.round((fresh / totalEnabled) * 100) : 0;
+
+  // 4. Activity: % memorie usate (hits > 0)
+  const withHits = enabledMems.filter((m) => (m.hits_count ?? 0) > 0).length;
+  const activity = totalEnabled > 0 ? Math.round((withHits / totalEnabled) * 100) : 0;
+
+  const healthBreakdown: HealthBreakdown = { coverage, crossLinkage, freshness, activity };
+  // Score composto: media pesata (activity e crossLinkage più importanti)
+  const healthPct = Math.round(
+    coverage * 0.2 + crossLinkage * 0.3 + freshness * 0.2 + activity * 0.3,
+  );
 
   // Total cross-links
   let totalCrossLinks = 0;
@@ -571,7 +617,7 @@ function computeInsights(
     for (const [, count] of targets) totalCrossLinks += count;
   }
 
-  return { godNodes, orphans, bridges, healthPct, totalCrossLinks };
+  return { godNodes, orphans, bridges, healthPct, healthBreakdown, totalCrossLinks };
 }
 
 // ─── Custom dark theme ────────────────────────────────────────────────────────
@@ -1086,15 +1132,58 @@ export default function AIBrainGraph() {
                 <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">ponti cross-team</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
-              <div>
-                <div className={cn(
-                  "text-2xl font-bold tabular-nums leading-tight",
-                  insights.healthPct >= 70 ? "text-emerald-600" : insights.healthPct >= 40 ? "text-amber-600" : "text-rose-600",
-                )}>
-                  {insights.healthPct}%
-                </div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">salute</div>
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="text-left cursor-pointer group">
+                    <div className={cn(
+                      "text-2xl font-bold tabular-nums leading-tight group-hover:underline",
+                      insights.healthPct >= 70 ? "text-emerald-600" : insights.healthPct >= 40 ? "text-amber-600" : "text-rose-600",
+                    )}>
+                      {insights.healthPct}%
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold flex items-center gap-1">
+                      salute
+                      <span className="text-orange-500 text-[9px]">▾</span>
+                    </div>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-56 p-3 bg-white border-slate-200 shadow-xl">
+                  <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-2">Brain Health Score</p>
+                  <div className="space-y-2">
+                    {([
+                      { label: "Copertura", value: insights.healthBreakdown.coverage, desc: "% personas con ≥3 memorie" },
+                      { label: "Cross-linkage", value: insights.healthBreakdown.crossLinkage, desc: "% personas connesse" },
+                      { label: "Freschezza", value: insights.healthBreakdown.freshness, desc: "% memorie ultimi 30gg" },
+                      { label: "Attività", value: insights.healthBreakdown.activity, desc: "% memorie usate" },
+                    ] as const).map((m) => (
+                      <div key={m.label}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[10px] font-semibold text-slate-700">{m.label}</span>
+                          <span className={cn(
+                            "text-[10px] font-bold tabular-nums",
+                            m.value >= 70 ? "text-emerald-600" : m.value >= 40 ? "text-amber-600" : "text-rose-600",
+                          )}>
+                            {m.value}%
+                          </span>
+                        </div>
+                        <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              m.value >= 70 ? "bg-emerald-500" : m.value >= 40 ? "bg-amber-500" : "bg-rose-500",
+                            )}
+                            style={{ width: `${m.value}%` }}
+                          />
+                        </div>
+                        <p className="text-[9px] text-slate-500 mt-0.5">{m.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-3 pt-2 border-t border-slate-100">
+                    Score = (copertura×0.2 + cross×0.3 + freschezza×0.2 + attività×0.3)
+                  </p>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Insight feed rotante */}
@@ -1123,6 +1212,9 @@ export default function AIBrainGraph() {
       >
       {/* Starfield background animato (dietro al canvas WebGL) */}
       <BrainStarfield />
+
+      {/* Onboarding tour (solo primo accesso, persistito in localStorage) */}
+      <BrainOnboardingTour />
 
       {/* LIVE heartbeat indicator */}
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
@@ -1174,24 +1266,20 @@ export default function AIBrainGraph() {
         </div>
 
         <div className="flex items-center gap-1.5 pointer-events-auto">
-          {/* #1: Search */}
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-300" />
-            <Input
-              placeholder="Cerca nel grafo…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-7 w-40 pl-7 pr-2 text-[10px] bg-slate-900/95 border-slate-600 text-slate-200 placeholder:text-slate-300 shadow-sm backdrop-blur-sm focus:w-56 transition-all"
-            />
-            {searchQuery && (
-              <button
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white"
-                onClick={() => setSearchQuery("")}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
+          {/* AI Search semantico con dropdown risultati */}
+          <BrainSemanticSearch
+            memories={memories}
+            personas={personas}
+            categoryEmoji={PERSONA_CATEGORY_EMOJI}
+            typeLabels={MEMORY_TYPE_LABELS}
+            typeColors={MEMORY_TYPE_COLORS}
+            onSelect={(nodeId) => {
+              graphRef.current?.centerGraph([nodeId]);
+              const node = nodes.find((n) => n.id === nodeId);
+              if (node) setSelectedNode(node as unknown as InternalGraphNode);
+            }}
+          />
+
           {/* Toggle Nucleo 3D rotante (effetto WOW) */}
           <Button
             size="sm"
@@ -1632,9 +1720,15 @@ export default function AIBrainGraph() {
                   <p className="text-[10px] text-slate-300">
                     Categoria: {selectedNode.data.persona.category}
                   </p>
-                  <p className="text-[10px] text-slate-300 mt-1">
-                    {memories.filter((m) => m.persona_key === selectedNode.data.persona.persona_key).length} memorie totali
-                  </p>
+
+                  {/* Mini-stats: donut + sparkline + top memorie */}
+                  <div className="mt-2 pt-2 border-t border-slate-700">
+                    <BrainPersonaStats
+                      memories={memories.filter((m) => m.persona_key === selectedNode.data.persona.persona_key)}
+                      typeColors={MEMORY_TYPE_COLORS}
+                      typeLabels={MEMORY_TYPE_LABELS}
+                    />
+                  </div>
                   {/* Cross-persona connections for this persona */}
                   {(() => {
                     const pk = selectedNode.data.persona.persona_key;
