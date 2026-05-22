@@ -9,6 +9,7 @@ import {
   BadgeEuro,
   Check,
   ChevronRight,
+  ChevronUp,
   Clapperboard,
   Copy,
   Euro,
@@ -4031,6 +4032,9 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
   // ─── Video section tab (script | studio) ─────────────────────────
   const [videoTab, setVideoTab] = useState<"script" | "studio">("script");
 
+  // ─── Brief panel open/closed ──────────────────────────────────────
+  const [isBriefOpen, setIsBriefOpen] = useState(false);
+
   // ─── Libreria asset filters ───────────────────────────────────────
   const [mediaKindFilter, setMediaKindFilter] = useState<"all" | "image" | "video">("all");
   const [mediaFormatFilter, setMediaFormatFilter] = useState<string>("all");
@@ -4095,6 +4099,12 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
     if (result) setGeneratedScript(result);
   };
 
+  const onGenerateAll = () => {
+    void onGenerateCopy();
+    void onGenerateImage(brief);
+    void onGenerateScript();
+  };
+
   const deleteMedia = async (id: string) => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4120,24 +4130,82 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
     "border-rose-200 bg-rose-50 text-rose-800",
   ];
 
+  // ─── Design constants ────────────────────────────────────────────────────────
+  const SEGMENT_LABELS: Record<string, string> = {
+    serramenti: "Serramenti",
+    bagni: "Bagni",
+    ristrutturazioni: "Ristrutturazioni",
+    fotovoltaico: "Fotovoltaico",
+    tetti: "Tetti",
+    manutenzione: "Manutenzioni",
+    generico: "Edilizia",
+  };
+
+  const ASPECT_RATIOS: Array<{ value: "1:1"|"4:5"|"9:16"|"16:9"; rw: number; rh: number; label: string; sub: string }> = [
+    { value: "1:1",  rw: 20, rh: 20, label: "1:1",  sub: "Feed" },
+    { value: "4:5",  rw: 17, rh: 22, label: "4:5",  sub: "Vert." },
+    { value: "9:16", rw: 12, rh: 21, label: "9:16", sub: "Story" },
+    { value: "16:9", rw: 26, rh: 15, label: "16:9", sub: "Banner" },
+  ];
+
   return (
     <div className="space-y-5">
-      {/* ─── ROW 1: COPY + IMAGE GENERATORS ─────────────────────────── */}
-      <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
 
-        {/* COPY GENERATOR */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Sparkles className="h-5 w-5 text-violet-600" />
-              Genera copy AI
-            </CardTitle>
-            <CardDescription>
-              5 varianti copy + hook + CTA per Meta Ads, basate sul tuo brief.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
+      {/* ─── BRIEF UNIFICATO ─────────────────────────────────────────── */}
+      <div className={cn(
+        "overflow-hidden rounded-2xl border shadow-sm transition-all duration-200",
+        isBriefOpen
+          ? "border-orange-200 bg-gradient-to-br from-orange-50 via-amber-50/50 to-white"
+          : "border-orange-100 bg-gradient-to-r from-orange-50/80 to-white"
+      )}>
+        {!isBriefOpen ? (
+          /* Collapsed — thin brief strip */
+          <div className="flex items-center gap-3 px-4 py-2.5">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-100">
+              <FileText className="h-3.5 w-3.5 text-orange-600" />
+            </div>
+            <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-semibold text-orange-700">
+              {SEGMENT_LABELS[segment] ?? segment}
+            </span>
+            {zone && (
+              <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500">
+                📍 {zone}
+              </span>
+            )}
+            <p className="min-w-0 flex-1 truncate text-sm text-slate-600">
+              {brief || <span className="italic text-slate-400">Nessun brief — inserisci il tuo messaggio</span>}
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsBriefOpen(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-orange-100 px-2.5 py-1 text-[11px] font-semibold text-orange-700 transition hover:bg-orange-200">
+              <Pencil className="h-3 w-3" /> Modifica brief
+            </button>
+          </div>
+        ) : (
+          /* Expanded — full brief form */
+          <div className="space-y-3.5 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-orange-100">
+                  <FileText className="h-4 w-4 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Brief campagna</p>
+                  <p className="text-[11px] text-slate-500">Condiviso con Copy AI · Immagine AI · Video AI</p>
+                </div>
+                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600">
+                  ✦ Sincronizzato
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBriefOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-orange-100 hover:text-orange-600">
+                <ChevronUp className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Settore">
                 <Select value={segment} onValueChange={setSegment}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -4156,17 +4224,57 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 <Input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Es. Monza e Brianza" />
               </Field>
             </div>
-            <Field label="Brief creativo">
+            <Field label="Descrivi l'offerta e l'angolo di vendita">
               <Textarea
                 value={brief}
                 onChange={(e) => setBrief(e.target.value)}
-                className="min-h-24"
-                placeholder="Descrivi l'offerta, il pubblico target, l'angolo di vendita..."
+                className="min-h-20 resize-none"
+                placeholder="Serramenti premium con sopralluogo gratuito e posa certificata..."
               />
             </Field>
-            <Button onClick={onGenerateCopy} disabled={isGeneratingCopy} className="w-full">
+            <Button
+              onClick={() => { onGenerateAll(); setIsBriefOpen(false); }}
+              disabled={!brief.trim() || isGeneratingCopy || isGeneratingImage || isGeneratingScript}
+              className="w-full bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-sm">
+              {(isGeneratingCopy || isGeneratingImage || isGeneratingScript)
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generazione in corso...</>
+                : <><Sparkles className="mr-2 h-4 w-4" /> Genera tutto con AI</>
+              }
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* ─── ROW 1: COPY + IMAGE ─────────────────────────────────────── */}
+      <div className="grid gap-5 xl:grid-cols-2">
+
+        {/* COPY AI */}
+        <Card className="overflow-hidden">
+          <div className="h-0.5 bg-gradient-to-r from-violet-500 to-purple-500" />
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-100">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Copy AI</CardTitle>
+                <CardDescription className="text-[11px]">5 varianti · hook · CTA per Meta Ads</CardDescription>
+              </div>
+            </div>
+            {brief && (
+              <div className="mt-2.5 flex items-center gap-2 overflow-hidden rounded-lg border border-violet-100 bg-violet-50/60 px-2.5 py-1.5">
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-violet-400">Brief</span>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-violet-700">{brief}</span>
+                <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold text-violet-600">
+                  {SEGMENT_LABELS[segment] ?? segment}
+                </span>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button onClick={onGenerateCopy} disabled={isGeneratingCopy || !brief.trim()} className="w-full bg-violet-600 hover:bg-violet-700">
               {isGeneratingCopy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {isGeneratingCopy ? "Generazione in corso..." : "Genera 5 copy con AI"}
+              {isGeneratingCopy ? "Generazione copy..." : "Genera 5 copy con AI"}
             </Button>
 
             {generatedCopy && (
@@ -4257,65 +4365,112 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           </CardContent>
         </Card>
 
-        {/* IMAGE GENERATOR */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ImageIcon className="h-5 w-5 text-orange-600" />
-              Genera immagine AI
-            </CardTitle>
-            <CardDescription>
-              DALL-E (gpt-image-1) — prompt visivo indipendente dal brief, preview inline.
-            </CardDescription>
+        {/* IMAGE AI */}
+        <Card className="overflow-hidden">
+          <div className="h-0.5 bg-gradient-to-r from-amber-400 to-orange-500" />
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+                <Wand2 className="h-4 w-4 text-amber-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Immagine AI</CardTitle>
+                <CardDescription className="text-[11px]">DALL-E · preview inline · salvata in libreria</CardDescription>
+              </div>
+            </div>
+            {brief && (
+              <div className="mt-2.5 flex items-center gap-2 overflow-hidden rounded-lg border border-amber-100 bg-amber-50/60 px-2.5 py-1.5">
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-amber-500">Brief</span>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-amber-700">{brief}</span>
+                <button type="button" onClick={() => setImagePrompt(brief)}
+                  className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 transition hover:bg-amber-200">
+                  ↺ Sincronizza
+                </button>
+              </div>
+            )}
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Formato">
-                <Select value={aspectRatio} onValueChange={(v) => setAspectRatio(v as typeof aspectRatio)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="4:5">4:5 — Feed verticale ✦ consigliato</SelectItem>
-                    <SelectItem value="9:16">9:16 — Story / Reel</SelectItem>
-                    <SelectItem value="1:1">1:1 — Feed quadrato</SelectItem>
-                    <SelectItem value="16:9">16:9 — Orizzontale / Display</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Qualità">
-                <Select value={imageQuality} onValueChange={(v) => setImageQuality(v as typeof imageQuality)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="standard">Standard ~0.04€</SelectItem>
-                    <SelectItem value="hd">HD ~0.07€ · più nitida</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
+          <CardContent className="space-y-3.5">
+            {/* Aspect ratio visual picker */}
+            <div>
+              <p className="mb-2 text-xs font-medium text-slate-600">Formato</p>
+              <div className="grid grid-cols-4 gap-2">
+                {ASPECT_RATIOS.map(({ value, rw, rh, label, sub }) => (
+                  <button key={value} type="button"
+                    onClick={() => setAspectRatio(value)}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 rounded-xl border-2 py-2.5 transition",
+                      aspectRatio === value
+                        ? "border-amber-400 bg-amber-50 shadow-sm"
+                        : "border-gray-100 bg-gray-50 hover:border-amber-200"
+                    )}>
+                    <div className="flex h-7 items-center justify-center">
+                      <div
+                        className={cn("rounded-[3px] border-2 transition",
+                          aspectRatio === value ? "border-amber-500 bg-amber-200" : "border-gray-300 bg-gray-100"
+                        )}
+                        style={{ width: rw, height: rh }}
+                      />
+                    </div>
+                    <div className="text-center">
+                      <p className={cn("text-[11px] font-bold leading-none", aspectRatio === value ? "text-amber-700" : "text-gray-500")}>{label}</p>
+                      <p className={cn("mt-0.5 text-[9px] leading-none", aspectRatio === value ? "text-amber-500" : "text-gray-400")}>{sub}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
+            {/* Qualità — visual toggle */}
             <div>
-              <div className="mb-1 flex items-center justify-between">
-                <Label className="text-xs font-medium">Prompt visivo</Label>
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500"
+              <p className="mb-2 text-xs font-medium text-slate-600">Qualità</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: "standard", label: "Standard", price: "~0.04€", desc: "Veloce" },
+                  { value: "hd",       label: "HD",       price: "~0.07€", desc: "Più nitida" },
+                ] as const).map(({ value, label, price, desc }) => (
+                  <button key={value} type="button"
+                    onClick={() => setImageQuality(value)}
+                    className={cn(
+                      "flex flex-col items-start rounded-xl border-2 px-3 py-2 text-left transition",
+                      imageQuality === value
+                        ? "border-amber-400 bg-amber-50"
+                        : "border-gray-100 bg-gray-50 hover:border-amber-200"
+                    )}>
+                    <div className="flex w-full items-center justify-between">
+                      <span className={cn("text-sm font-bold", imageQuality === value ? "text-amber-800" : "text-gray-700")}>{label}</span>
+                      <span className={cn("text-[11px] font-semibold", imageQuality === value ? "text-amber-600" : "text-gray-400")}>{price}</span>
+                    </div>
+                    <span className={cn("text-[10px]", imageQuality === value ? "text-amber-500" : "text-gray-400")}>{desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Prompt visivo */}
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <Label className="text-xs font-medium text-slate-600">Prompt visivo</Label>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500 hover:text-amber-600"
                   onClick={() => setImagePrompt(brief)}>
-                  <RefreshCw className="mr-1 h-3 w-3" /> Usa brief →
+                  <RefreshCw className="mr-1 h-3 w-3" /> Da brief
                 </Button>
               </div>
               <Textarea
                 value={imagePrompt}
                 onChange={(e) => setImagePrompt(e.target.value)}
-                className="min-h-24"
-                placeholder="Descrivi la scena: operaio che installa finestre, casa appena ristrutturata, prima/dopo, colori caldi, luce naturale..."
+                className="min-h-20 resize-none"
+                placeholder="Operaio che installa finestre, casa ristrutturata, luce naturale, colori caldi..."
               />
             </div>
 
-            <Button onClick={() => onGenerateImage(imagePrompt)} disabled={isGeneratingImage} className="w-full">
+            <Button onClick={() => onGenerateImage(imagePrompt)} disabled={isGeneratingImage || !imagePrompt.trim()} className="w-full bg-amber-500 hover:bg-amber-600 text-white">
               {isGeneratingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-              {isGeneratingImage ? "Generazione immagine..." : "Genera immagine"}
+              {isGeneratingImage ? "DALL-E sta dipingendo..." : "Genera immagine"}
             </Button>
 
             {/* Preview inline dopo generazione */}
             {isGeneratingImage && (
-              <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-orange-200 bg-orange-50 p-6 text-sm text-orange-700">
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-6 text-sm text-amber-700">
                 <Loader2 className="h-5 w-5 animate-spin" />
                 DALL-E sta dipingendo...
               </div>
@@ -4347,25 +4502,25 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </div>
             )}
 
-            <p className="text-[11px] leading-relaxed text-slate-500">
-              Le immagini vengono salvate in <strong>Libreria asset</strong> e riutilizzabili nei wizard campagne.
-            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* ─── ROW 2: VIDEO (Script + Studio) ─────────────────────────── */}
-      <Card>
+      {/* ─── ROW 2: VIDEO AI ─────────────────────────────────────────── */}
+      <Card className="overflow-hidden">
+        <div className="h-0.5 bg-gradient-to-r from-rose-500 to-pink-500" />
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Film className="h-5 w-5 text-rose-600" />
-                Video AI
-              </CardTitle>
-              <CardDescription>Pianifica lo script e genera il video con AI.</CardDescription>
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-100">
+                <Film className="h-4 w-4 text-rose-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Video AI</CardTitle>
+                <CardDescription className="text-[11px]">Pianifica lo script e genera il video con AI.</CardDescription>
+              </div>
             </div>
-            {/* Tab switcher inline */}
+            {/* Tab switcher */}
             <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
               <button type="button" onClick={() => setVideoTab("script")}
                 className={cn(
@@ -4383,6 +4538,15 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               </button>
             </div>
           </div>
+          {brief && videoTab === "script" && (
+            <div className="mt-2.5 flex items-center gap-2 overflow-hidden rounded-lg border border-rose-100 bg-rose-50/60 px-2.5 py-1.5">
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-rose-400">Brief</span>
+              <span className="min-w-0 flex-1 truncate text-[11px] text-rose-700">{brief}</span>
+              <span className="shrink-0 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-600">
+                {SEGMENT_LABELS[segment] ?? segment}
+              </span>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
         {videoTab === "script" && (<>
@@ -4534,11 +4698,18 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-lg">Libreria asset</CardTitle>
-              <CardDescription>
-                {mediaLib.length} asset · {mediaLib.filter((m) => m.source === "ai_generated").length} AI · {mediaLib.filter((m) => m.source === "upload").length} upload
-              </CardDescription>
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100">
+                <ImageIcon className="h-4 w-4 text-slate-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Libreria asset</CardTitle>
+                <CardDescription className="text-[11px]">
+                  {mediaLib.length === 0
+                    ? "Nessun asset ancora · genera o carica"
+                    : `${mediaLib.length} asset · ${mediaLib.filter(m => m.source === "ai_generated").length} AI · ${mediaLib.filter(m => m.source === "upload").length} upload`}
+                </CardDescription>
+              </div>
             </div>
             {/* Filtri */}
             <div className="flex flex-wrap items-center gap-2">
