@@ -77,6 +77,7 @@ import { ProviderChoiceDialog } from "@/components/ads/ProviderChoiceDialog";
 import { MetaTargetingPanel } from "@/components/ads/MetaTargetingPanel";
 import { QuickStartCampaign } from "@/components/ads/QuickStartCampaign";
 import { CampaignCopyEditor } from "@/components/ads/CampaignCopyEditor";
+import { MetaLeadFormBuilder, META_FORM_DEFAULTS } from "@/components/ads/MetaLeadFormBuilder";
 import type { Integration, MetaAsset } from "@/types/integrations";
 import type { MetaCampaignRow } from "@/types/metaAds";
 
@@ -211,6 +212,8 @@ interface BuilderState {
   copyHooks?: string[];
   /** Asset selezionati dalla libreria ad_media (immagini/video) */
   selectedMediaIds?: string[];
+  /** Meta Lead Form strutturato — sostituisce i campi flat dello step 3 */
+  metaLeadForm?: import("@/components/ads/MetaLeadFormBuilder").MetaLeadFormState;
 }
 
 interface CampaignTemplate {
@@ -486,6 +489,40 @@ function buildDefaultCreatives(input: Pick<BuilderState, "copyBrief" | "imagePro
       prompt: `Carosello Meta Ads per ${brief}: slide 1 hook forte, slide 2 problema, slide 3 soluzione, slide 4 prova, slide 5 CTA richiesta preventivo.`,
     },
   ];
+}
+
+/**
+ * Costruisce un MetaLeadFormState iniziale a partire da BuilderState legacy
+ * (privacyUrl, qualityQuestion, requiredFields stringa). Permette migrazione
+ * fluida delle bozze pre-2026-05-22 al nuovo lead form builder.
+ */
+function buildInitialLeadForm(state: BuilderState): import("@/components/ads/MetaLeadFormBuilder").MetaLeadFormState {
+  const base = { ...META_FORM_DEFAULTS };
+  if (state.privacyUrl) base.privacyPolicyUrl = state.privacyUrl;
+  if (state.formIntent === "volume") base.formType = "MORE_VOLUME";
+  if (state.formIntent === "higher_intent") base.formType = "HIGHER_INTENT";
+  // Se l'utente aveva una qualifying question legacy, aggiungila al default
+  if (state.qualityQuestion?.trim() && !base.questions.some((q) => q.kind === "custom" && (q as { label: string }).label === state.qualityQuestion.trim())) {
+    base.questions = [
+      ...base.questions,
+      {
+        kind: "custom",
+        key: `legacy_${Date.now()}`,
+        type: "short_answer",
+        label: state.qualityQuestion.trim(),
+      },
+    ];
+  }
+  // Use offer come intro body se presente
+  if (state.offer) {
+    base.introBody = state.offer.slice(0, 600);
+  }
+  // Customizza thank-you se è una lead-gen edilizia
+  if (state.offer?.toLowerCase().includes("sopralluogo") || state.offer?.toLowerCase().includes("preventivo")) {
+    base.thankYouHeadline = "Grazie! Ti contattiamo entro 24h";
+    base.thankYouBody = "Abbiamo ricevuto la tua richiesta. Un nostro tecnico ti chiamerà per fissare il sopralluogo.";
+  }
+  return base;
 }
 
 const DEFAULT_BUILDER: BuilderState = {
@@ -2368,18 +2405,41 @@ function CampaignBuilderTab({
 
           {step === 1 && (
             <div className="space-y-5">
-              {/* PLATFORM SELECTOR — prima scelta del wizard */}
-              <PlatformSelector
-                value={state.platform}
-                googleChannel={state.googleChannel}
-                onChange={(p, channel) => {
-                  setState((prev) => ({
-                    ...prev,
-                    platform: p,
-                    googleChannel: channel,
-                  }));
-                }}
-              />
+              {/* PLATFORM RECAP — la scelta è già stata fatta nel ProviderChoiceDialog */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "border-2 px-2.5 py-1",
+                      state.platform === "meta"
+                        ? "border-blue-300 bg-blue-50 text-blue-800"
+                        : "border-amber-300 bg-amber-50 text-amber-800",
+                    )}
+                  >
+                    {state.platform === "meta" ? (
+                      <>📘 Meta Ads (Facebook + Instagram)</>
+                    ) : (
+                      <>
+                        🟧 Google Ads
+                        {state.googleChannel && state.googleChannel !== "SEARCH" && (
+                          <> · {state.googleChannel}</>
+                        )}
+                      </>
+                    )}
+                  </Badge>
+                  <span className="text-xs text-slate-500">Piattaforma scelta</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onCancel()}
+                  className="text-xs text-slate-600"
+                >
+                  Cambia piattaforma →
+                </Button>
+              </div>
               <TemplateSelector selectedId={state.templateId} onSelect={applyTemplate} />
               <Alert className="border-blue-200 bg-blue-50">
                 <Info className="h-4 w-4 text-blue-700" />
@@ -2725,36 +2785,46 @@ function CampaignBuilderTab({
             <div className="space-y-5">
               <Alert className="border-emerald-200 bg-emerald-50">
                 <ShieldCheck className="h-4 w-4 text-emerald-700" />
-                <AlertTitle>Qui si decide la qualità del lead</AlertTitle>
+                <AlertTitle>Modulo di contatto — come Meta Lead Ads</AlertTitle>
                 <AlertDescription>
-                  Pochi campi riducono l'attrito, ma una domanda di qualificazione evita di riempire il CRM di contatti non lavorabili.
+                  Configura il form esattamente come appare a chi clicca l'annuncio: tipologia,
+                  campi pre-compilati Meta, domande qualificanti, privacy e schermata "grazie".
                 </AlertDescription>
               </Alert>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Tipo modulo">
-                  <Select value={state.formIntent} onValueChange={(value: BuilderState["formIntent"]) => update("formIntent", value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="higher_intent">Maggiore intenzione - revisione prima dell'invio</SelectItem>
-                      <SelectItem value="volume">Più volume - meno passaggi</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Privacy URL">
-                  <Input value={state.privacyUrl} onChange={(event) => update("privacyUrl", event.target.value)} placeholder="https://..." />
-                </Field>
+
+              <MetaLeadFormBuilder
+                value={state.metaLeadForm ?? buildInitialLeadForm(state)}
+                onChange={(next) => {
+                  setState((prev) => ({
+                    ...prev,
+                    metaLeadForm: next,
+                    // Sync legacy fields per backward-compat con codice ad/serializer
+                    formIntent: next.formType === "MORE_VOLUME" ? "volume" : "higher_intent",
+                    privacyUrl: next.privacyPolicyUrl,
+                    requiredFields: next.questions
+                      .map((q) => q.kind === "prefilled" ? q.key.toLowerCase() : (q as { label: string }).label)
+                      .join(", "),
+                    qualityQuestion: next.questions.find((q) => q.kind === "custom")?.label
+                      ? (next.questions.find((q) => q.kind === "custom") as { label: string }).label
+                      : prev.qualityQuestion,
+                  }));
+                }}
+                defaultOffer={state.offer}
+                defaultCompanyName={companyName}
+              />
+
+              <div className="rounded-2xl border bg-white p-4">
+                <h3 className="text-sm font-semibold text-slate-950">Follow-up automatico</h3>
+                <p className="mb-2 text-xs text-slate-500">
+                  Cosa succede sul tuo CRM appena arriva un lead da questo modulo.
+                </p>
+                <Textarea
+                  value={state.followUp}
+                  onChange={(event) => update("followUp", event.target.value)}
+                  className="min-h-20"
+                  placeholder="Es. Crea lead CRM, assegna al commerciale, invia WhatsApp entro 5 minuti."
+                />
               </div>
-              <Field label="Campi del modulo">
-                <Textarea value={state.requiredFields} onChange={(event) => update("requiredFields", event.target.value)} className="min-h-20" />
-              </Field>
-              <Field label="Domanda di qualificazione">
-                <Input value={state.qualityQuestion} onChange={(event) => update("qualityQuestion", event.target.value)} />
-              </Field>
-              <Field label="Follow-up automatico dopo il lead">
-                <Textarea value={state.followUp} onChange={(event) => update("followUp", event.target.value)} className="min-h-20" />
-              </Field>
             </div>
           )}
 
