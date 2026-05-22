@@ -344,39 +344,15 @@ export default defineConfig(() => ({
     // ─────────────────────────────────────────────────────────────
     modulePreload: {
       // v8.6.101 — WHITELIST strict modulePreload.
-      // Prima il pattern era blacklist (escludere chunk heavy): risultato
-      // 207 modulepreload nel <head> di index.html — la quasi totalita
-      // erano icone Lucide (un chunk per icona ESM tree-shaken), dialoghi
-      // Radix interattivi, e route secondarie. Il browser scaricava ~1MB
-      // gzip al boot, parser bloccato 800ms+ (PSI mobile score 40, LCP 11.8s).
-      //
-      // Ora teniamo SOLO i chunk strettamente necessari al first paint
-      // della Home (root /). Tutto il resto verra fetchato on-demand quando
-      // il modulo che li importa entra nel grafo (es. click su un dialog ->
-      // dynamic import del chunk del dialog).
-      //
-      // Pattern KEEP: framework + provider sempre montati + utility shared
-      // + chunk del routing entry. Niente icone, niente route lazy, niente
-      // componenti UI interattivi pesanti.
+      // Solo i chunk strettamente necessari al first paint della Home.
       resolveDependencies: (_filename, deps) => {
         const KEEP_PATTERNS = [
-          // Runtime & React core
           /\/rolldown-runtime-/,
-          /\/client-/,  // react-dom client
-          // Error tracking ora lazy (vedi src/main.tsx v8.6.117) — escluso dal preload
-          // /\/sentry-/,
-          // Provider sempre montati (App.tsx li wrappa)
-          /\/QueryClientProvider-/,
+          /\/client-/,
           /\/AuthContext-/,
-          /\/ErrorBoundary-/,
-          // Shared utility usate ovunque (clsx, tailwind-merge, zod base)
           /\/vendor-shared-/,
           /\/utils-/,
-          // Lucide icon factory base (le singole icone NO -> lazy on first use)
           /\/createLucideIcon-/,
-          // ─── Above-the-fold della Home (lazy ma critical per LCP) ───
-          // Senza questi, waterfall: index.js -> scopre Home -> scopre HeroSection
-          // -> scopre LandingNavbar = 4 round trip prima del first paint.
           /\/Home-/,
           /\/LandingNavbar-/,
           /\/HeroSection-/,
@@ -395,17 +371,6 @@ export default defineConfig(() => ({
         // any chunk that imports them. Merging into "vendor-dates" forces a new
         // URL that has never been poisoned.
         manualChunks(id) {
-          // v8.6.126 — Reverted strict path matching: peggiorava il bin packing
-          // di Rolldown (vendor-jspdf passava da 412KB a 779KB, vendor-animation
-          // da 94KB a 266KB). Lasciato il pattern `includes` originale che ha
-          // bin-packing più sano.
-          //
-          // BUG NOTO non risolvibile via config: il `__vitePreload` helper di
-          // Rolldown viene ancorato a vendor-jspdf (il primo chunk grosso che
-          // ne ha bisogno). Conseguenza: ogni `lazy()` carica 134KB di stack
-          // PDF (jspdf + DOMPurify + html2canvas + canvg) anche se l'utente
-          // non aprirà mai un PDF. Mitigation: il prerender della Home rende
-          // l'utente "first paint" indipendente da questi script (HTML statico).
           if (id.includes("date-fns") || id.includes("react-day-picker")) {
             return "vendor-dates";
           }
