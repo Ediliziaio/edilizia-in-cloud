@@ -109,15 +109,49 @@ interface ActionPermission {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Feature #1B — Service-role auto-execute bypass.
+// La worker `ai-auto-execute-pending` chiama questa funzione con:
+//   - Authorization: Bearer <SERVICE_ROLE_KEY>
+//   - x-internal-auto-execute: <env INTERNAL_AUTO_EXECUTE_SECRET>
+// Se ENTRAMBE corrispondono, salta requireAuth e usa proposal.user_id
+// come actor. La policy del DB (loadActionPermission) viene comunque
+// applicata in modo strict: viene rifiutato qualsiasi mode != 'auto_execute'.
+// Senza policy auto_execute, anche un caller service-role NON può
+// eseguire l'azione bypassando la conferma utente.
+function isInternalAutoExecuteCall(req: Request): boolean {
+  const internalSecret = Deno.env.get("INTERNAL_AUTO_EXECUTE_SECRET");
+  if (!internalSecret) return false; // env non configurato → feature disabilitata
+  const callerSecret = req.headers.get("x-internal-auto-execute");
+  if (callerSecret !== internalSecret) return false;
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "_no_match_";
+  return authHeader === `Bearer ${serviceRoleKey}`;
+}
+
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return errorResponse("Method not allowed", 405, corsHeaders);
 
   try {
-    const auth = await requireAuth(req, corsHeaders);
-    const userId = auth.userId;
-    const supabaseAdmin: SupabaseAdmin = auth.supabaseAdmin;
+    const autoExecuteBypass = isInternalAutoExecuteCall(req);
+    let userId: string;
+    let supabaseAdmin: SupabaseAdmin;
+
+    if (autoExecuteBypass) {
+      // Per il bypass usiamo il client service-role direttamente.
+      // L'userId verrà impostato dal proposal.user_id dopo il caricamento.
+      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.43.4");
+      supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      ) as SupabaseAdmin;
+      userId = ""; // placeholder, riempito dopo aver caricato la proposal
+    } else {
+      const auth = await requireAuth(req, corsHeaders);
+      userId = auth.userId;
+      supabaseAdmin = auth.supabaseAdmin;
+    }
 
     const body = (await req.json()) as Payload;
     if (!body.proposal_id) return errorResponse("proposal_id mancante", 400, corsHeaders);
@@ -131,6 +165,11 @@ serve(async (req: Request) => {
 
     if (pErr || !proposalRow) return errorResponse("Proposta non trovata", 404, corsHeaders);
     const proposal = proposalRow;
+    // Per auto-execute bypass: il caller è il worker service-role, l'actor
+    // effettivo è il proprietario della proposta (creata da ai-proactive-proposals-daily).
+    if (autoExecuteBypass) {
+      userId = proposal.user_id;
+    }
     if (proposal.user_id !== userId) return errorResponse("Proposta non autorizzata", 403, corsHeaders);
     if (!proposal.company_id) return errorResponse("Proposta senza scope azienda", 400, corsHeaders);
 
@@ -156,6 +195,17 @@ serve(async (req: Request) => {
         corsHeaders,
       );
     }
+    // Auto-execute bypass: la policy DEVE essere 'auto_execute', altrimenti rifiuta.
+    // Difesa-in-profondità: anche se il caller manipola gli header, la policy DB è
+    // l'unica fonte di verità — se l'admin azienda non l'ha messa in auto_execute,
+    // il sistema NON esegue automaticamente.
+    if (autoExecuteBypass && permission.mode !== "auto_execute") {
+      return errorResponse(
+        `Auto-execute richiesto ma policy company per ${canonicalType} è '${permission.mode}', non 'auto_execute'.`,
+        403,
+        corsHeaders,
+      );
+    }
 
     const effectiveAllowedRoles = permission.requiresCompanyAdmin
       ? Array.from(new Set([
@@ -165,10 +215,18 @@ serve(async (req: Request) => {
       ]))
       : permission.allowedRoles;
 
-    const access = await requireCompanyAccess(supabaseAdmin, userId, proposal.company_id, corsHeaders, {
-      allowedRoles: effectiveAllowedRoles,
-    });
-    const primaryRole = pickPrimaryRole(access.roles);
+    // Per auto-execute: skip requireCompanyAccess (l'access è autorizzato dalla policy
+    // DB stessa che è settata solo da super_admin/company_admin). Usiamo "system" come
+    // primary role per il decision log → tracciabile come "executed_by=ai".
+    let primaryRole: string;
+    if (autoExecuteBypass) {
+      primaryRole = "ai_auto_execute";
+    } else {
+      const access = await requireCompanyAccess(supabaseAdmin, userId, proposal.company_id, corsHeaders, {
+        allowedRoles: effectiveAllowedRoles,
+      });
+      primaryRole = pickPrimaryRole(access.roles);
+    }
 
     const requiresStrongConfirmation =
       proposal.risk_level === "red" ||
@@ -176,7 +234,12 @@ serve(async (req: Request) => {
       policy.requiresStrongConfirmation ||
       permission.requiresStrongConfirmation;
 
-    if (requiresStrongConfirmation) {
+    // Auto-execute bypass: la conferma "forte" salta SOLO se il super_admin ha
+    // esplicitamente attivato mode=auto_execute per quell'azione (la RLS DB
+    // permette di settare mode=auto_execute su red SOLO al super_admin). Se la
+    // policy non è auto_execute (caso utente normale), la conferma forte resta
+    // come barriera anti-misclick come da design originale.
+    if (requiresStrongConfirmation && !autoExecuteBypass) {
       const expected = `CONFERMO ${proposal.action_type}`;
       if ((body.confirmation_text ?? "").trim() !== expected) {
         return errorResponse(`Conferma forte richiesta. Scrivi esattamente: ${expected}`, 400, corsHeaders);
