@@ -236,10 +236,20 @@ export function useAdminDashboardData() {
   const lastFetchRef = useRef<number>(0);
   const hasFetchedRef = useRef<boolean>(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Unmount guard: evita "Can't perform a React state update on an unmounted
+  // component" + memory leak della closure (data dashboard è pesante: companies,
+  // KPI, charts). Su rapid nav admin → utente → admin si accumulavano fetch
+  // pendenti che terminavano dopo unmount.
+  const isMountedRef = useRef<boolean>(true);
+  const inFlightRef = useRef<boolean>(false);
 
   const doFetch = useCallback(async (force: boolean): Promise<void> => {
     const now = Date.now();
     if (!force && now - lastFetchRef.current < CACHE_TTL_MS) return;
+    // Dedup concorrente: evita query duplicate se polling + visibilitychange
+    // scattano in contemporanea o se refetch() è chiamato durante una fetch.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
     if (!hasFetchedRef.current) {
       setIsLoading(true);
@@ -251,6 +261,7 @@ export function useAdminDashboardData() {
 
     try {
       const result = await fetchDashboardData();
+      if (!isMountedRef.current) return;
       lastFetchRef.current = Date.now();
       hasFetchedRef.current = true;
       setData(result);
@@ -258,12 +269,16 @@ export function useAdminDashboardData() {
         "Aggiornato alle " + new Date().toLocaleTimeString("it-IT")
       );
     } catch (err) {
+      if (!isMountedRef.current) return;
       const e = err instanceof Error ? err : new Error("Errore sconosciuto");
       setIsError(true);
       setError(e);
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      inFlightRef.current = false;
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
@@ -297,6 +312,7 @@ export function useAdminDashboardData() {
     if (document.visibilityState === "visible") startInterval();
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
+      isMountedRef.current = false;
       document.removeEventListener("visibilitychange", handleVisibility);
       stopInterval();
     };

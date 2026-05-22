@@ -496,11 +496,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Race getSession against a 10s timeout to avoid infinite spinner
       // when the auto-refresh network request hangs (e.g. expired token + flaky network).
+      // Memory-leak fix: cancella il timer se getSession vince il race, altrimenti il
+      // timer continua a girare per 10s e a rilanciare reject su una Promise.race già
+      // settled — handle leakato fino al firing.
+      let getSessionTimerId: ReturnType<typeof setTimeout> | undefined;
       const sessionResult = await Promise.race([
-        supabase.auth.getSession(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("getSession timeout")), 10_000)
-        ),
+        supabase.auth.getSession()
+          .finally(() => { if (getSessionTimerId) clearTimeout(getSessionTimerId); }),
+        new Promise<never>((_, reject) => {
+          getSessionTimerId = setTimeout(() => reject(new Error("getSession timeout")), 10_000);
+        }),
       ]);
 
       // If a SIGNED_IN / TOKEN_REFRESHED event fired while we were waiting,
@@ -810,12 +815,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Slow path — role was never resolved; use TOKEN_REFRESHED as a retry opportunity
             const myGen = ++authGenRef.current;
             let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
+            // Memory-leak fix: cancella il timer se fetchUserData vince il race
+            // (stesso pattern del ramo SIGNED_IN, riga ~705).
+            let tokenRefreshRaceTimerId: ReturnType<typeof setTimeout> | undefined;
             try {
               userData = await Promise.race([
-                fetchUserData(session.user.id, session.user.email),
-                new Promise<never>((_, reject) =>
-                  setTimeout(() => reject(new Error("fetchUserData timeout")), 22_000)
-                ),
+                fetchUserData(session.user.id, session.user.email)
+                  .finally(() => { if (tokenRefreshRaceTimerId) clearTimeout(tokenRefreshRaceTimerId); }),
+                new Promise<never>((_, reject) => {
+                  tokenRefreshRaceTimerId = setTimeout(() => reject(new Error("fetchUserData timeout")), 22_000);
+                }),
               ]);
             } catch {
               // fetchUserData failed during TOKEN_REFRESHED retry (timeout or network error).
@@ -996,21 +1005,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Inoltre: ritorniamo un errore tipizzato "Login timeout" così il
     // LoginForm può distinguerlo dal vero "Invalid credentials" e mostrare
     // un messaggio appropriato invece di accusare l'utente.
+    let signInTimerId: ReturnType<typeof setTimeout> | undefined;
     try {
       const signInPromise = supabase.auth.signInWithPassword({ email, password });
       (signInPromise as unknown as Promise<unknown>).catch(() => {});
+      // Memory-leak fix: cancella il timer di timeout quando signIn termina
+      // (vinto o perso il race). Senza cleanup il setTimeout 25s continuava a
+      // girare anche dopo login riuscito → timer pendenti accumulati nei
+      // tentativi consecutivi.
       const { error } = await Promise.race([
-        signInPromise,
-        new Promise<{ error: Error }>((_, reject) =>
-          setTimeout(() => {
+        signInPromise.finally(() => { if (signInTimerId) clearTimeout(signInTimerId); }),
+        new Promise<{ error: Error }>((_, reject) => {
+          signInTimerId = setTimeout(() => {
             const timeoutErr = new Error("Login timeout — riprova");
             (timeoutErr as Error & { __isTimeout: boolean }).__isTimeout = true;
             reject(timeoutErr);
-          }, 25_000),
-        ),
+          }, 25_000);
+        }),
       ]);
       return { error: error as Error | null };
     } catch (err) {
+      if (signInTimerId) clearTimeout(signInTimerId);
       return { error: err as Error };
     }
   }, []);

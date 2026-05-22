@@ -9,6 +9,14 @@
 # Tenere entrambe le sorgenti duplicate aveva causato chain a 2 hop
 # (GSC: "Pagina con reindirizzamento" su /blog, /prezzi, www apex).
 
+# /home → / (alias legacy: GSC ha rilevato 404 ricorrenti)
+# Il middleware Cloudflare già copre questo caso ma serve come backup
+# per richieste che bypassano il middleware (preview deploys, edge dove il
+# function non è ancora bootstrap, file diretti senza host normalization).
+# 301 esplicito → niente chain, niente 404.
+/home                                  /                                      301
+/home/                                 /                                      301
+
 # /register → /demo/ (alias legacy non gestito dal middleware)
 /register                              /demo/                                 301
 

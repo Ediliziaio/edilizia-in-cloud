@@ -77,6 +77,27 @@ const ROUTES = {
     h1: "Edilizia in Cloud: il software gestionale per imprese edili italiane",
     intro:
       "Edilizia in Cloud è il software gestionale cloud progettato specificamente per le imprese edili italiane. Permette di gestire cantieri, preventivi professionali, fatturazione elettronica SDI (B2B e PA), subappalti, DDT, ordini fornitori, HR con presenze geolocalizzate e prima nota — tutto in un'unica piattaforma accessibile da smartphone anche in cantiere. Utilizzato da oltre 500 imprese edili in Italia, Edilizia in Cloud riduce il tempo amministrativo del 70% e i costi operativi del 20%. Piani a partire da 49€/mese, prova gratuita 31 giorni con supporto italiano dedicato.",
+    extra: `
+    <h2>Perché Edilizia in Cloud è diverso dagli altri gestionali edilizia</h2>
+    <p>Edilizia in Cloud è il primo gestionale italiano <strong>AI-native</strong> pensato per chi sta in cantiere, non per il commercialista. Mentre i gestionali tradizionali (Primus, TeamSystem, STR Vision) sono nati per la progettazione e la contabilità di studio, Edilizia in Cloud è ottimizzato per il flusso operativo dell'impresa edile italiana: ordini, presenze, DDT, fatturazione e controllo margini accessibili da smartphone direttamente in cantiere, anche offline.</p>
+    <h2>Per chi è pensato Edilizia in Cloud</h2>
+    <ul>
+      <li><strong>Imprese edili generaliste</strong> con 1-50 dipendenti che gestiscono cantieri residenziali, commerciali, industriali</li>
+      <li><strong>Imprese di ristrutturazione</strong> con cantieri di breve-media durata e molti subappalti</li>
+      <li><strong>Serramentisti, impiantisti, ditte di tetti</strong> che vogliono uscire da Excel e WhatsApp</li>
+      <li><strong>General contractor</strong> con commesse complesse e multi-sito</li>
+      <li><strong>Geometri titolari di impresa</strong> e <strong>capocantiere con impresa propria</strong></li>
+    </ul>
+    <h2>Cosa fa Edilizia in Cloud in concreto</h2>
+    <p>Centralizza in un'unica piattaforma tutti i processi dell'impresa edile: dal primo preventivo al saldo finale. Sostituisce 4-5 strumenti separati (Excel, fatturazione in cloud, gestionale presenze, WhatsApp aziendale, calendario condiviso) eliminando errori di trascrizione, dati persi, perdite di margine e contestazioni del cliente.</p>
+    <h2>Risultati misurabili per le imprese edili italiane</h2>
+    <ul>
+      <li><strong>-70% tempo amministrativo</strong> grazie all'automazione fatturazione e ordini</li>
+      <li><strong>-20% costi operativi</strong> con il controllo margini di cantiere in tempo reale</li>
+      <li><strong>+30% velocità preventivi</strong> con prezzari regionali e voci di capitolato pre-configurate</li>
+      <li><strong>0 errori MUT / Cassa Edile</strong> con invio mensile automatico</li>
+    </ul>
+    `,
     links: [
       { href: "/funzionalita", label: "Scopri le Funzionalità" },
       { href: "/prezzi", label: "Vedi i Prezzi" },
@@ -94,7 +115,7 @@ const ROUTES = {
         operatingSystem: "Web, iOS, Android",
         description:
           "Software gestionale cloud per imprese edili italiane: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR.",
-        url: "https://www.ediliziaincloud.com",
+        url: "https://www.ediliziaincloud.com/",
         inLanguage: "it",
         offers: {
           "@type": "AggregateOffer",
@@ -111,7 +132,7 @@ const ROUTES = {
         "@type": "Organization",
         name: "Edilizia in Cloud",
         legalName: "Domus Group S.r.l.",
-        url: "https://www.ediliziaincloud.com",
+        url: "https://www.ediliziaincloud.com/",
         logo: "https://www.ediliziaincloud.com/logo.png",
         sameAs: [
           "https://www.linkedin.com/company/ediliziaincloud",
@@ -135,10 +156,33 @@ const ROUTES = {
   "/funzionalita": {
     title: "Funzionalità Gestionale Edilizia | Edilizia in Cloud",
     description:
-      "Tutte le funzionalità di Edilizia in Cloud: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti, HR, margini e app mobile cantiere.",
+      "Tutte le funzionalità di Edilizia in Cloud: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti, HR, margini, app mobile cantiere, agenti AI.",
     h1: "Funzionalità di Edilizia in Cloud: tutto quello che serve alla tua impresa edile",
     intro:
-      "Edilizia in Cloud offre 8 moduli integrati per gestire ogni aspetto dell'impresa edile: gestione cantieri in tempo reale con app mobile, preventivi professionali con prezziari regionali, fatturazione elettronica SDI (B2B e FatturaPA), controllo margini per commessa, gestione subappalti con tracciamento DURC, DDT e bolle di consegna, HR con presenze geolocalizzate in cantiere e prima nota contabile. Ogni modulo è progettato per il settore edile italiano e funziona anche offline da smartphone.",
+      "Edilizia in Cloud offre 8 moduli integrati per gestire ogni aspetto dell'impresa edile italiana: gestione cantieri in tempo reale con app mobile, preventivi professionali con prezziari regionali, fatturazione elettronica SDI (B2B e FatturaPA), controllo margini per commessa, gestione subappalti con tracciamento DURC, DDT e bolle di consegna, HR con presenze geolocalizzate in cantiere e prima nota contabile. Ogni modulo è progettato per il settore edile italiano e funziona anche offline da smartphone.",
+    extra: `
+    <h2>I moduli del gestionale edilizia cloud</h2>
+    <h3>1. Gestione cantieri</h3>
+    <p>Pianificazione, avanzamento lavori, fotografie geolocalizzate, giornale dei lavori digitale, gantt multi-cantiere, gestione varianti e SAL. Tutto accessibile dal capocantiere via app mobile, anche offline.</p>
+    <h3>2. Preventivi e capitolati</h3>
+    <p>Costruzione di preventivi professionali con voci da prezzari regionali (DEI, Lombardia, Veneto, Sicilia), capitolati personalizzati, listini fornitori, conversione automatica preventivo → cantiere → fattura. Firma elettronica del cliente direttamente sul preventivo PDF.</p>
+    <h3>3. Fatturazione elettronica SDI</h3>
+    <p>Emissione fatture B2B e FatturaPA conformi alle regole AdE, gestione SAL, acconti, note di credito, split payment, reverse charge edilizia, conservazione fiscale a norma decennale. Invio diretto al SDI via Aruba o SDICoop.</p>
+    <h3>4. Controllo margini per commessa</h3>
+    <p>Confronto in tempo reale preventivo vs consuntivo per ogni cantiere, analisi di manodopera, materiali, subappalti e oneri di sicurezza. Alert automatici quando il margine scende sotto soglia configurabile.</p>
+    <h3>5. Subappalti e DURC</h3>
+    <p>Anagrafica subappaltatori con verifica automatica scadenza DURC, POS, polizze assicurative e tracciamento ritenuta d'acconto. Conformità al D.Lgs 50/2016 e successive modifiche (Codice degli Appalti).</p>
+    <h3>6. HR, presenze e CCNL Edilizia</h3>
+    <p>Timbratura GPS in cantiere, calcolo automatico ore ordinarie/straordinarie, gestione CCNL Edilizia Industria e Artigianato, calcolo TFR e Cassa Edile, export per consulente del lavoro, MUT mensile pronto all'invio.</p>
+    <h3>7. DDT e ordini fornitori</h3>
+    <p>Gestione documenti di trasporto in entrata/uscita, ordini materiali con conferma fornitore, lettura barcode/QR su packaging, integrazione con magazzino di cantiere e centrale.</p>
+    <h3>8. Prima nota e tesoreria</h3>
+    <p>Prima nota di cassa, banca e carte di credito aziendali, riconciliazione automatica via PSD2 con le principali banche italiane, scadenzario fatture clienti/fornitori, previsione flussi di cassa a 90 giorni.</p>
+    <h2>Funzionalità AI e automazioni</h2>
+    <p>Edilizia in Cloud è il primo gestionale italiano AI-native per l'edilizia: l'assistente Silvio risponde via chat, redige preventivi da specifiche testuali, classifica fatture in arrivo, suggerisce solleciti per fatture scadute, monitora il margine di cantiere e propone correzioni in tempo reale. Tutte le azioni passano per un sistema di conferma esplicita dell'utente sulle operazioni invasive.</p>
+    <h2>App mobile cantiere</h2>
+    <p>App iOS e Android pensata per il capocantiere: timbratura GPS, foto cantiere, DDT digitale, lettura barcode materiali, giornale dei lavori vocale, accesso offline ai documenti tecnici (CSA, POS, PSC, schede tecniche). Sincronizzazione automatica al ritorno della connettività.</p>
+    `,
     links: [
       { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
       { href: "/funzionalita/preventivi-edilizia", label: "Preventivi Professionali" },
@@ -1081,7 +1125,7 @@ const ROUTES = {
       "@type": "DefinedTermSet",
       name: "Glossario Edilizia",
       description: "Dizionario dei principali termini del settore edile italiano",
-      url: "https://www.ediliziaincloud.com/glossario-edilizia",
+      url: "https://www.ediliziaincloud.com/glossario-edilizia/",
       inLanguage: "it",
     },
   },
@@ -1089,14 +1133,73 @@ const ROUTES = {
   "/integrazioni": {
     title: "Integrazioni Software Edilizia | Edilizia in Cloud",
     description:
-      "Connetti Edilizia in Cloud con fatturazione elettronica, contabilità, CRM, gestione presenze e molto altro. 20+ integrazioni native e API REST.",
-    h1: "Integrazioni con i tuoi strumenti preferiti",
+      "Connetti Edilizia in Cloud con fatturazione elettronica, contabilità, CRM, banche, posta certificata e Cassa Edile. 20+ integrazioni native e API REST per l'edilizia.",
+    h1: "Integrazioni native per il software gestionale edilizia",
     intro:
-      "Oltre 20 integrazioni native con i principali strumenti usati dalle imprese edili: FattureInCloud, Aruba, Zucchetti, Google Calendar, Stripe e molti altri. API REST disponibile per integrazioni custom.",
+      "Edilizia in Cloud si collega in tempo reale con i principali strumenti utilizzati dalle imprese edili italiane: fatturazione elettronica SDI, contabilità, CRM, banche con PSD2, presenze e paghe, Cassa Edile, Google Calendar e Outlook, posta certificata, firma elettronica, marketplace e prezzari edilizi. Oltre 20 integrazioni native già pronte e API REST documentata per sviluppi custom.",
+    extra: `
+    <h2>Categorie di integrazioni disponibili</h2>
+    <h3>Fatturazione elettronica e contabilità</h3>
+    <ul>
+      <li><strong>SDI Agenzia delle Entrate</strong> — invio e ricezione fatture B2B e FatturaPA via web service ufficiale</li>
+      <li><strong>Fatture in Cloud, Aruba Fatturazione, Danea Easyfatt</strong> — import storico fatture e anagrafiche</li>
+      <li><strong>Zucchetti, Profis, TeamSystem Contabilità</strong> — export prima nota per il commercialista</li>
+      <li><strong>SDICoop / Aruba PEC</strong> — canali certificati per la trasmissione SDI</li>
+    </ul>
+    <h3>Banche, pagamenti e tesoreria</h3>
+    <ul>
+      <li><strong>API PSD2</strong> — riconciliazione automatica estratti conto Intesa Sanpaolo, UniCredit, BPER, BNL, Crédit Agricole, Banco BPM, Banca Popolare di Sondrio</li>
+      <li><strong>Stripe</strong> — pagamenti acconti e saldi via link in fattura</li>
+      <li><strong>SEPA Direct Debit</strong> — RID per canoni periodici</li>
+    </ul>
+    <h3>HR, presenze e Cassa Edile</h3>
+    <ul>
+      <li><strong>Cassa Edile</strong> — invio mensile MUT (denuncia operai) per le principali province italiane</li>
+      <li><strong>INPS UniEMens</strong> — export per consulente del lavoro</li>
+      <li><strong>Zucchetti HR Infinity, Inaz Easy, EcosAgile</strong> — sincronizzazione anagrafiche dipendenti e presenze</li>
+    </ul>
+    <h3>Calendario, comunicazione e firma</h3>
+    <ul>
+      <li><strong>Google Calendar e Outlook 365</strong> — sync cantieri e appuntamenti commerciali</li>
+      <li><strong>WhatsApp Business API</strong> — notifiche cantiere automatiche al cliente</li>
+      <li><strong>PEC certificata Aruba, Legalmail, PostecertPEC</strong> — invio documenti certificati</li>
+      <li><strong>Namirial / InfoCert / Universign</strong> — firma elettronica avanzata (FEA) e qualificata (FEQ) per preventivi e SAL</li>
+    </ul>
+    <h3>Preventivi, prezzari e BIM</h3>
+    <ul>
+      <li><strong>DEI, Prezzario Regione Lombardia, Prezzario DEI Tipografia del Genio Civile</strong> — import voci di capitolato</li>
+      <li><strong>ACCA Primus / Primus DCF</strong> — import preventivi e computi metrici (formato XPWE/PMU)</li>
+      <li><strong>IFC / BIM viewer</strong> — visualizzazione modelli per quantità e quote di cantiere</li>
+    </ul>
+    <h3>CRM, marketing e portali</h3>
+    <ul>
+      <li><strong>HubSpot, Pipedrive</strong> — sync lead e opportunità commerciali</li>
+      <li><strong>Mailchimp, Brevo</strong> — newsletter mirate a clienti esistenti</li>
+      <li><strong>Google Ads e Meta Ads</strong> — tracciamento conversioni preventivi</li>
+    </ul>
+    <h2>API REST per integrazioni custom</h2>
+    <p>Edilizia in Cloud espone un'API REST documentata (OpenAPI 3.0) che permette di costruire integrazioni custom verso ERP proprietari, software di nicchia o sistemi legacy dell'impresa. Autenticazione tramite API key con scope granulari, rate limiting, webhook per eventi (nuovo cantiere, fattura emessa, presenza registrata, DDT firmato). Ambiente sandbox gratuito per test prima del go-live in produzione.</p>
+    <h2>Roadmap nuove integrazioni 2026</h2>
+    <p>In rilascio nei prossimi trimestri: integrazione SOA (verifica automatica attestazioni), MEPA per appalti pubblici, sistemi GPS per macchine movimento terra, sistemi di pesatura automezzi con DDT digitale e piattaforme cessione crediti bonus edilizia.</p>
+    `,
     links: [
-      { href: "/funzionalita", label: "Funzionalità" },
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione SDI" },
+      { href: "/funzionalita/hr-personale", label: "HR e Personale" },
+      { href: "/funzionalita/cassa-cantiere", label: "Cassa Cantiere" },
       { href: "/demo", label: "Richiedi Demo" },
+      { href: "/prezzi", label: "Piani e Prezzi" },
     ],
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        { "@type": "Question", name: "Edilizia in Cloud si integra con la fatturazione elettronica SDI?", acceptedAnswer: { "@type": "Answer", text: "Sì, Edilizia in Cloud invia e riceve fatture B2B e FatturaPA via web service ufficiale Agenzia delle Entrate e gestisce conservazione fiscale a norma. Compatibile con SDICoop e Aruba PEC." } },
+        { "@type": "Question", name: "Posso collegare Edilizia in Cloud al mio conto bancario?", acceptedAnswer: { "@type": "Answer", text: "Sì, tramite API PSD2 puoi connettere Intesa Sanpaolo, UniCredit, BPER, BNL, Banco BPM e altre banche italiane per la riconciliazione automatica degli incassi clienti e il monitoraggio cash flow." } },
+        { "@type": "Question", name: "Edilizia in Cloud invia il MUT alla Cassa Edile?", acceptedAnswer: { "@type": "Answer", text: "Sì, il modulo HR genera ed invia in automatico la denuncia MUT mensile alla Cassa Edile per le principali province italiane (Milano, Roma, Torino, Bologna, Firenze, Napoli, Genova e oltre 60 province coperte)." } },
+        { "@type": "Question", name: "Esiste un'API per integrazioni custom?", acceptedAnswer: { "@type": "Answer", text: "Sì, Edilizia in Cloud espone un'API REST documentata (OpenAPI 3.0) con autenticazione API key, webhook eventi e ambiente sandbox gratuito. Adatta per integrazioni con ERP proprietari, software di nicchia o sistemi legacy aziendali." } },
+      ],
+    },
   },
 
   "/privacy-policy": {
@@ -1130,10 +1233,20 @@ const ROUTES = {
   "/avviso-legale": {
     title: "Avviso Legale — Edilizia in Cloud",
     description:
-      "Avviso legale di Edilizia in Cloud: dati societari, responsabilità sui contenuti, proprietà intellettuale e comunicazioni ufficiali.",
-    h1: "Avviso Legale",
+      "Avviso legale di Edilizia in Cloud: dati societari Domus Group S.r.l., P.IVA, sede legale, responsabilità sui contenuti pubblicati, proprietà intellettuale del software.",
+    h1: "Avviso Legale di Edilizia in Cloud",
     intro:
-      "Avviso legale del sito Edilizia in Cloud con dati societari, informazioni sul titolare, proprietà intellettuale, limiti di responsabilità e riferimenti ufficiali.",
+      "Documento che identifica il titolare del sito www.ediliziaincloud.com e del servizio Edilizia in Cloud: Domus Group S.r.l., con sede legale a Milano. Definisce limiti di responsabilità sui contenuti pubblicati, proprietà intellettuale del software e dei marchi, modalità di comunicazione ufficiale e foro competente.",
+    extra: `
+    <h2>Dati identificativi del titolare</h2>
+    <p>Il sito www.ediliziaincloud.com e il servizio software Edilizia in Cloud sono di proprietà di Domus Group S.r.l., con sede legale in Via Aurelio Saffi 29, 20123 Milano. P.IVA e Codice Fiscale 13132010961. Iscrizione al Registro delle Imprese di Milano Monza Brianza Lodi. PEC pubblicata nell'apposito registro INI-PEC.</p>
+    <h2>Contenuti pubblicati e responsabilità</h2>
+    <p>I contenuti del sito (articoli del blog, guide, schede funzionalità, comparazioni) hanno finalità informativa generale. Le informazioni normative, fiscali e tecniche presentate non sostituiscono la consulenza di professionisti qualificati (commercialisti, consulenti del lavoro, ingegneri, avvocati). Domus Group S.r.l. non è responsabile di decisioni assunte dagli utenti esclusivamente sulla base di tali contenuti.</p>
+    <h2>Proprietà intellettuale</h2>
+    <p>Il software Edilizia in Cloud, il codice sorgente, l'interfaccia utente, i marchi "Edilizia in Cloud" e i loghi correlati sono di proprietà esclusiva di Domus Group S.r.l. e protetti dalle leggi italiane ed europee sul diritto d'autore. Riproduzione, distribuzione, decompilazione o reverse engineering sono vietati senza autorizzazione scritta.</p>
+    <h2>Foro competente e legge applicabile</h2>
+    <p>Per ogni controversia relativa al sito o ai contenuti pubblicati è competente il Foro di Milano, salvo diversa norma inderogabile. La legge applicabile è quella italiana, in conformità alle norme europee in materia di consumatori e prestazione di servizi digitali.</p>
+    `,
     links: [
       { href: "/privacy-policy", label: "Privacy Policy" },
       { href: "/termini-e-condizioni", label: "Termini e Condizioni" },
@@ -1170,12 +1283,31 @@ const ROUTES = {
   },
 
   "/dpa": {
-    title: "Data Processing Agreement — Edilizia in Cloud",
+    title: "Data Processing Agreement (DPA) — Edilizia in Cloud",
     description:
-      "DPA di Edilizia in Cloud: accordo sul trattamento dati, ruoli privacy, misure di sicurezza, sub-responsabili e gestione dei dati.",
-    h1: "Data Processing Agreement",
+      "Accordo sul trattamento dei dati GDPR Art. 28 tra Edilizia in Cloud (responsabile) e il cliente impresa edile (titolare): ruoli, misure di sicurezza, sub-responsabili.",
+    h1: "Data Processing Agreement (DPA) GDPR Art. 28",
     intro:
-      "Accordo sul trattamento dei dati personali per Edilizia in Cloud, con ruoli privacy, misure tecniche e organizzative, sub-responsabili, assistenza al titolare e gestione delle richieste.",
+      "Documento contrattuale che regola, ai sensi dell'art. 28 GDPR, il trattamento dei dati personali effettuato da Domus Group S.r.l. (in qualità di responsabile del trattamento) per conto del cliente impresa edile titolare. Disciplina ruoli, finalità, durata, misure tecniche e organizzative di sicurezza, sub-responsabili autorizzati, gestione delle violazioni e supporto al titolare nell'esercizio dei diritti degli interessati.",
+    extra: `
+    <h2>Ruoli ai sensi del GDPR</h2>
+    <p>Quando un'impresa edile utilizza Edilizia in Cloud per gestire dati di clienti, fornitori, dipendenti o subappaltatori, l'impresa è il <strong>titolare del trattamento</strong>. Domus Group S.r.l. agisce in qualità di <strong>responsabile del trattamento</strong> ai sensi dell'art. 28 GDPR, eseguendo le operazioni di trattamento esclusivamente su istruzione documentata del titolare.</p>
+    <h2>Categorie di dati trattati</h2>
+    <ul>
+      <li><strong>Dati identificativi</strong> di clienti e fornitori dell'impresa edile (ragione sociale, P.IVA, indirizzi, contatti)</li>
+      <li><strong>Dati dei dipendenti e collaboratori</strong> dell'impresa (anagrafica, CCNL, presenze, mansionario, retribuzione lorda)</li>
+      <li><strong>Dati di cantiere</strong> (foto, note, geolocalizzazione presenze)</li>
+      <li><strong>Documenti fiscali</strong> (fatture elettroniche, DDT, prima nota)</li>
+    </ul>
+    <h2>Misure tecniche e organizzative di sicurezza</h2>
+    <p>Edilizia in Cloud applica le seguenti misure: cifratura in transito (TLS 1.3) e a riposo (AES-256), autenticazione multi-fattore opzionale per gli amministratori, segregazione dei dati per tenant (row-level security PostgreSQL), backup giornalieri con retention 30 giorni, log degli accessi conservati 12 mesi, datacenter europei conformi a ISO 27001. Nessun dato esce dall'UE.</p>
+    <h2>Sub-responsabili autorizzati</h2>
+    <p>Domus Group S.r.l. utilizza sub-responsabili selezionati per servizi infrastrutturali: cloud provider (datacenter UE), provider di posta transazionale, provider di firma elettronica, provider di fatturazione elettronica SDI. L'elenco completo è disponibile su richiesta scritta al DPO. Il titolare ha diritto di opporsi a nuovi sub-responsabili entro 14 giorni dalla notifica.</p>
+    <h2>Notifica violazioni e supporto al titolare</h2>
+    <p>In caso di violazione di dati personali (data breach) Domus Group notifica al titolare entro 24 ore dalla scoperta, fornendo le informazioni necessarie per l'eventuale notifica al Garante Privacy ex art. 33 GDPR. Domus Group supporta inoltre il titolare nella gestione delle richieste degli interessati (accesso, rettifica, cancellazione, portabilità).</p>
+    <h2>Conservazione e cancellazione dei dati</h2>
+    <p>Alla cessazione del contratto, su scelta del cliente, i dati vengono restituiti in formato strutturato (export JSON/CSV) e successivamente cancellati definitivamente dai sistemi di produzione entro 30 giorni e dai backup entro 90 giorni, salvo obblighi di legge che impongano una conservazione prolungata (es. fatture elettroniche, libro unico del lavoro).</p>
+    `,
     links: [
       { href: "/privacy-policy", label: "Privacy Policy" },
       { href: "/termini-e-condizioni", label: "Termini e Condizioni" },
@@ -1371,7 +1503,27 @@ const ROUTES = {
       "Migra da Primus, EdilNet, TeamSystem, STR Vision, Buildertrend o Excel a Edilizia in Cloud: import assistito di cantieri, fatture, anagrafiche e archivio storico.",
     h1: "Migrazione gestionale edilizia assistita in 48 ore",
     intro:
-      "Passa dal vecchio gestionale a Edilizia in Cloud senza fermare l'attività. Il team importa cantieri, fatture elettroniche, anagrafiche, preventivi, DDT, prima nota, foto e documenti in ambiente di test, poi va live solo dopo la tua validazione.",
+      "Passa dal vecchio gestionale a Edilizia in Cloud senza fermare l'attività. Il team Domus Group importa cantieri, fatture elettroniche, anagrafiche clienti e fornitori, preventivi, DDT, prima nota, foto e documenti in ambiente di test, poi va live solo dopo la tua validazione finale.",
+    extra: `
+    <h2>Come funziona la migrazione del gestionale edilizia</h2>
+    <p>La migrazione assistita di Edilizia in Cloud è strutturata in 4 fasi precise per garantire continuità operativa: audit dei dati esistenti, mappatura dei campi, import in ambiente di test (sandbox), validazione finale e go-live. Tutta l'attività richiede in media 48 ore lavorative e non blocca la fatturazione corrente dell'impresa.</p>
+    <h2>Da quali gestionali edilizia possiamo migrare i tuoi dati</h2>
+    <ul>
+      <li><strong>Primus / Primus DCF / Primus Revolution</strong> (ACCA Software) — preventivi, capitolati, voci di prezzario</li>
+      <li><strong>TeamSystem Construction / TeamSystem Cantieri</strong> — cantieri, fatturazione SDI, contabilità</li>
+      <li><strong>STR Vision CPM</strong> — gestione commesse, computi, contabilità di cantiere</li>
+      <li><strong>EdilNet</strong> — anagrafiche, preventivi, fatture</li>
+      <li><strong>Buildertrend</strong> — progetti, comunicazioni cliente, time tracking</li>
+      <li><strong>Excel, Google Sheets, fogli di calcolo</strong> — anagrafiche e cantieri, anche se non strutturati</li>
+      <li><strong>Fatture in Cloud, Aruba Fatturazione, Danea</strong> — fatture elettroniche storiche e anagrafiche</li>
+    </ul>
+    <h2>Cosa importiamo dal tuo vecchio gestionale</h2>
+    <p>Vengono trasferiti: anagrafiche clienti e fornitori (con P.IVA, codice destinatario SDI, riferimenti), preventivi e capitolati con voci dettagliate, cantieri aperti con stato avanzamento, fatture elettroniche emesse e ricevute (archivio fiscale a norma), DDT e bolle di consegna, ordini fornitori, registro presenze operai, prima nota di cassa, foto e documenti di cantiere, archivio storico DURC e POS. Nessuno dato dell'impresa viene perso nel passaggio.</p>
+    <h2>Tempi e costi della migrazione</h2>
+    <p>La migrazione standard richiede 48 ore lavorative ed è inclusa gratuitamente nei piani Business e Enterprise. Per migrazioni complesse (oltre 50.000 record o multi-azienda con holding) il team valuta un audit dedicato. Nessun costo nascosto: ti viene fornito un preventivo chiaro dopo il primo audit di 30 minuti gratuito.</p>
+    <h2>Continuità del lavoro durante la migrazione</h2>
+    <p>Durante la migrazione l'impresa continua a operare normalmente sul vecchio gestionale. Il go-live avviene in un fine settimana scelto da te, con team Domus Group in supporto live per le prime 8 ore lavorative del lunedì successivo. Se qualcosa non funziona, si torna indietro al vecchio sistema in meno di 1 ora.</p>
+    `,
     links: [
       { href: "/demo", label: "Pianifica Audit Gratuito" },
       { href: "/confronto/vs-primus", label: "Migrare da Primus" },
@@ -1388,12 +1540,12 @@ const ROUTES = {
       provider: {
         "@type": "Organization",
         name: "Edilizia in Cloud",
-        url: "https://www.ediliziaincloud.com",
+        url: "https://www.ediliziaincloud.com/",
       },
       areaServed: "IT",
       availableChannel: {
         "@type": "ServiceChannel",
-        serviceUrl: "https://www.ediliziaincloud.com/pianifica-migrazione",
+        serviceUrl: "https://www.ediliziaincloud.com/pianifica-migrazione/",
       },
       description:
         "Servizio di migrazione assistita per imprese edili da Primus, EdilNet, TeamSystem, STR Vision, Buildertrend, Excel e archivi CSV verso Edilizia in Cloud.",
@@ -1819,28 +1971,80 @@ function resolveRoute(pathname) {
 
     const cityName = cfg.city;
     const region = cfg.region;
+    // v8.6.118 — fix GSC "Pagina duplicata / scansionata non indicizzata".
+    // Le city pages condividevano il template (h1+intro+links uguali),
+    // Google le foldava come duplicati o le ignorava per thin content.
+    // Aggiungiamo:
+    //  - Unique intro che incorpora cfg.description (varia per città)
+    //  - extra body con sezioni differenziate (mercato locale, normativa,
+    //    casi d'uso edili specifici della regione)
+    //  - FAQ schema con domande locali
+    const cityBody = `
+    <h2>Edilizia in Cloud per le imprese edili di ${escHtml(cityName)}</h2>
+    <p>${escHtml(cfg.description)}</p>
+    <p>Le imprese edili che operano a ${escHtml(cityName)} e in tutta la regione ${escHtml(region)} affrontano sfide specifiche: gestione cantieri distribuiti, coordinamento di subappaltatori locali, conformità alle normative regionali ${escHtml(region)} e rapporti con Cassa Edile territoriale. Edilizia in Cloud centralizza ordini, DDT, presenze, fatturazione SDI e contabilità di cantiere in un'unica piattaforma cloud accessibile da smartphone direttamente in cantiere.</p>
+    <h2>Cosa puoi gestire con Edilizia in Cloud a ${escHtml(cityName)}</h2>
+    <ul>
+      <li><strong>Cantieri multipli</strong> in ${escHtml(cityName)}, ${escHtml(region)} e tutto il territorio nazionale</li>
+      <li><strong>Preventivi professionali</strong> con prezzari regionali aggiornati e voci di capitolato per ${escHtml(region)}</li>
+      <li><strong>Fatturazione elettronica SDI</strong> B2B e FatturaPA conforme alle regole AdE</li>
+      <li><strong>Presenze geolocalizzate</strong> degli operai in cantiere a ${escHtml(cityName)}, con timbratura GPS e gestione CCNL Edilizia</li>
+      <li><strong>Subappalti e DURC</strong>: verifica scadenza automatica, alert su POS e polizze</li>
+      <li><strong>Controllo margini</strong> per commessa, confronto preventivo vs consuntivo in tempo reale</li>
+    </ul>
+    <h2>Mercato edile a ${escHtml(cityName)} e tipologia di cantieri</h2>
+    <p>Le imprese edili attive nell'area di ${escHtml(cityName)} servono prevalentemente clientela privata (ristrutturazioni, nuove costruzioni residenziali), appalti pubblici (PNRR, opere infrastrutturali, riqualificazione urbana) e progetti specialistici tipici del territorio ${escHtml(region)}. Edilizia in Cloud è progettato per coprire l'intero ciclo dell'impresa edile italiana, dal primo sopralluogo fino alla fatturazione finale e archivio fiscale a norma.</p>
+    <h2>Onboarding rapido per imprese di ${escHtml(cityName)}</h2>
+    <p>Il setup di Edilizia in Cloud richiede in media 48 ore: import dati da Excel, Primus, TeamSystem o STR Vision, configurazione fatturazione elettronica SDI, attivazione utenti per squadra e formazione iniziale del titolare e del capocantiere. Supporto in italiano via chat, email e telefono direttamente dal team Domus Group.</p>
+    `;
     return {
       title: `Software Gestionale Edilizia ${cityName} | Edilizia in Cloud`,
-      description: seoDescription(cfg
-        ? cfg.description
-        : `Software gestionale per imprese edili a ${cityName}. Gestisci cantieri, preventivi e fatturazione con Edilizia in Cloud.`),
+      description: seoDescription(cfg.description),
       canonical: canonicalUrl(pathname),
       h1: `Software gestionale per imprese edili a ${cityName}`,
-      intro: `Edilizia in Cloud è il software gestionale scelto dalle imprese edili di ${cityName} e ${region}. Gestisci cantieri, preventivi e fatturazione in un'unica piattaforma cloud.`,
+      intro: `${cfg.description} Edilizia in Cloud serve imprese di ${cityName} e dell'intera regione ${region} con cantieri, preventivi, fatturazione SDI e HR in un'unica piattaforma cloud mobile-first.`,
+      extra: cityBody,
       links: [
         { href: "/funzionalita", label: "Funzionalità" },
         { href: "/prezzi", label: "Prezzi" },
-        { href: "/demo", label: "Richiedi Demo" },
+        { href: "/demo", label: `Demo Imprese ${cityName}` },
+        { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
+        { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione SDI" },
         { href: "/per/imprese-costruzione", label: "Per Imprese di Costruzione" },
+        { href: "/software-gestionale-edilizia", label: "Tutte le città" },
       ],
-      jsonLd: {
-        "@context": "https://schema.org",
-        "@type": "LocalBusiness",
-        name: "Edilizia in Cloud",
-        description: `Software gestionale per imprese edili a ${cityName}`,
-        url: canonicalUrl(pathname),
-        areaServed: [cityName, region],
-      },
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "LocalBusiness",
+          name: "Edilizia in Cloud",
+          description: `Software gestionale per imprese edili a ${cityName}, ${region}`,
+          url: canonicalUrl(pathname),
+          areaServed: [{ "@type": "City", name: cityName }, { "@type": "AdministrativeArea", name: region }],
+          provider: { "@type": "Organization", name: "Domus Group S.r.l.", url: "https://www.ediliziaincloud.com/" },
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: `Edilizia in Cloud funziona per imprese edili di ${cityName}?`,
+              acceptedAnswer: { "@type": "Answer", text: `Sì, Edilizia in Cloud è utilizzato da imprese edili di ${cityName} e in tutta la regione ${region}. Il software gestisce cantieri, preventivi, fatturazione SDI, presenze operai e subappalti con prezzari regionali aggiornati per ${region}.` },
+            },
+            {
+              "@type": "Question",
+              name: `Quanto costa Edilizia in Cloud per un'impresa edile di ${cityName}?`,
+              acceptedAnswer: { "@type": "Answer", text: `Edilizia in Cloud parte da 49€/mese con prova gratuita di 31 giorni senza carta di credito. I piani crescono in base al numero di cantieri, utenti e moduli (HR, subappalti, controllo margini).` },
+            },
+            {
+              "@type": "Question",
+              name: `Come migro i dati del vecchio gestionale a Edilizia in Cloud da ${cityName}?`,
+              acceptedAnswer: { "@type": "Answer", text: `Il team Domus Group esegue la migrazione assistita in 48 ore: import da Excel, Primus, TeamSystem, STR Vision o EdilNet. Cantieri, anagrafiche clienti/fornitori, fatture e archivio storico vengono trasferiti in ambiente di test prima del go-live.` },
+            },
+          ],
+        },
+      ],
     };
   }
 
@@ -1953,7 +2157,7 @@ function resolveRoute(pathname) {
       url: canonicalUrl(pathname),
       datePublished: meta.publishedAt || "",
       author: { "@type": "Person", name: "Florin Andriciuc" },
-      publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com" },
+      publisher: { "@type": "Organization", name: "Edilizia in Cloud", url: "https://www.ediliziaincloud.com/" },
       image: meta.coverImage || "https://www.ediliziaincloud.com/og/home.png",
       keywords: meta.tags ? meta.tags.join(", ") : "",
       inLanguage: "it",
