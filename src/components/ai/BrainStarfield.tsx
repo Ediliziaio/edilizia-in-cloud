@@ -30,18 +30,26 @@ interface ShootingStar {
   maxLife: number;
 }
 
-const STAR_COUNT = 80;
-const SHOOTING_INTERVAL_MS = 4500;
+const STAR_COUNT = 50;             // ridotto da 80 → 50 (meno calcoli/frame)
+const SHOOTING_INTERVAL_MS = 6000; // ridotta frequenza comete
+const TARGET_FPS = 30;             // 30fps invece di 60 → ~50% meno CPU
+const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
 export function BrainStarfield() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animRef = useRef<number | null>(null);
   const lastShootRef = useRef<number>(0);
+  const lastFrameRef = useRef<number>(0);
 
   useEffect(() => {
+    // Rispetta preferenza utente per ridurre animazioni (iOS Reduce Motion)
+    const reduceMotion = typeof window !== "undefined"
+      && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
 
     let width = canvas.offsetWidth;
@@ -82,10 +90,11 @@ export function BrainStarfield() {
     ro.observe(canvas);
 
     const draw = (t: number) => {
-      if (!visible) {
-        animRef.current = requestAnimationFrame(draw);
-        return;
-      }
+      animRef.current = requestAnimationFrame(draw);
+      if (!visible) return;
+      // Throttle a 30fps — skip i frame "extra"
+      if (t - lastFrameRef.current < FRAME_INTERVAL) return;
+      lastFrameRef.current = t;
 
       ctx.clearRect(0, 0, width, height);
 
@@ -161,8 +170,6 @@ export function BrainStarfield() {
         ctx.fillStyle = `rgba(255, 220, 150, ${1 - ss.life})`;
         ctx.fill();
       }
-
-      animRef.current = requestAnimationFrame(draw);
     };
 
     animRef.current = requestAnimationFrame(draw);
