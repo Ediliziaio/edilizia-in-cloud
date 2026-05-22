@@ -73,6 +73,11 @@ const ALL_DETECTORS = [
   // con il minor numero di ticket aperti come baseline. Versioni future
   // estenderanno con skill matching + GPS proximity (vedi roadmap).
   "ticket_non_assegnato_4h",
+  // Feature #10 — Auto-onboarding clienti: lead nuovo (status='new', last_activity
+  // IS NULL, creato nelle ultime 24h, contatto con email opt-in) → propone
+  // welcome email personalizzata. Idempotente per opportunity_id. Quando la
+  // company attiva mode=auto_execute per send_welcome_lead, l'invio è automatico.
+  "lead_nuovo_no_touch_24h",
 ] as const;
 type DetectorName = typeof ALL_DETECTORS[number];
 
@@ -807,6 +812,155 @@ async function detectTicketNonAssegnato(
   return result;
 }
 
+/**
+ * Feature #10 — Auto-onboarding lead.
+ *
+ * Detector: lead creato nelle ultime 24h con status='new' e nessuna
+ * activity registrata. Per ognuno propone una welcome email personalizzata.
+ *
+ * Differenza con il detector lead_dormiente_30gg: quello recupera lead
+ * fermi da molto tempo, questo intercetta i lead caldi APPENA arrivati
+ * per accelerare il primo contatto (la "regola dei 5 minuti" del sales).
+ *
+ * Idempotenza per opportunity_id: se il sales già contatta o l'AI ha
+ * già creato proposta pending per quell'opportunità, nessun duplicato.
+ *
+ * action_type `send_welcome_lead` non è (ancora) handler eseguibile in
+ * silvio-execute-action: per ora resta come prompt visivo nella chat
+ * con metadata pronti (contact_email, contact_name, opportunity_name,
+ * value). Quando il handler verrà aggiunto, basta settare la policy
+ * a auto_execute per attivare la sequenza automatica.
+ */
+async function detectLeadNuovoNoTouch(
+  supa: SupabaseClient,
+  companyId: string,
+  defaultUserId: string,
+): Promise<DetectorResult> {
+  const result: DetectorResult = {
+    signal_type: "lead_nuovo_no_touch_24h",
+    proposals_created: 0,
+    proposals_skipped: 0,
+    errors: [],
+  };
+
+  try {
+    const cutoff = new Date();
+    cutoff.setHours(cutoff.getHours() - 24);
+    const cutoffStr = cutoff.toISOString();
+
+    // 1) Trova lead nuovi senza primo touch
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: opps, error: oErr } = await (supa as any)
+      .from("marketing_opportunities")
+      .select("id, name, contact_id, value, source, created_at, last_activity_at, assigned_to")
+      .eq("company_id", companyId)
+      .eq("status", "new")
+      .is("last_activity_at", null)
+      .gte("created_at", cutoffStr)
+      .order("created_at", { ascending: false })
+      .limit(15);
+
+    if (oErr) {
+      if (!oErr.message.includes("does not exist") && !oErr.message.includes("column")) {
+        result.errors.push(`query opportunities new: ${oErr.message}`);
+      }
+      return result;
+    }
+
+    const oppList = (opps ?? []) as Array<Record<string, unknown>>;
+    if (oppList.length === 0) return result;
+
+    // 2) Carica i contatti associati (batch via IN)
+    const contactIds = Array.from(
+      new Set(oppList.map((o) => String(o.contact_id)).filter(Boolean)),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: contacts } = await (supa as any)
+      .from("marketing_contacts")
+      .select("id, first_name, last_name, email, optout_email, company_name, phone")
+      .in("id", contactIds);
+    const contactMap = new Map<string, Record<string, unknown>>();
+    for (const c of (contacts ?? []) as Array<Record<string, unknown>>) {
+      contactMap.set(String(c.id), c);
+    }
+
+    // 3) Per ogni opportunità con contatto+email valida (e opt-in), crea proposta.
+    for (const o of oppList) {
+      const contact = contactMap.get(String(o.contact_id));
+      if (!contact) {
+        result.proposals_skipped += 1;
+        continue;
+      }
+      if (contact.optout_email === true) {
+        // Rispetta opt-out — il lead resta in lista ma niente email proposta.
+        result.proposals_skipped += 1;
+        continue;
+      }
+      const email = typeof contact.email === "string" ? contact.email : null;
+      if (!email || !/\S+@\S+\.\S+/.test(email)) {
+        result.proposals_skipped += 1;
+        continue;
+      }
+
+      const firstName = String(contact.first_name ?? "").trim();
+      const lastName = String(contact.last_name ?? "").trim();
+      const fullName = [firstName, lastName].filter(Boolean).join(" ") || "Cliente";
+      const oppName = String(o.name ?? "—").substring(0, 80);
+      const value = Number(o.value ?? 0);
+      const source = typeof o.source === "string" ? o.source : null;
+      const hoursOpen = o.created_at
+        ? Math.floor((Date.now() - new Date(String(o.created_at)).getTime()) / 3_600_000)
+        : 0;
+
+      const summary = `Nuovo lead "${oppName}" (${fullName}) da ${hoursOpen}h, fonte ${source ?? "—"}` +
+        (value > 0 ? ` — valore stimato €${value.toFixed(0)}.` : ".") +
+        ` Invio email di benvenuto?`;
+
+      const { error: createErr } = await supa.rpc("create_proactive_proposal", {
+        p_company_id: companyId,
+        p_user_id: defaultUserId,
+        p_persona_key: "sales",
+        p_action_type: "send_welcome_lead",
+        p_summary: summary.substring(0, 200),
+        p_payload: {
+          opportunity_id: o.id,
+          opportunity_name: oppName,
+          contact_id: contact.id,
+          contact_email: email,
+          contact_name: fullName,
+          contact_phone: typeof contact.phone === "string" ? contact.phone : null,
+          contact_company: typeof contact.company_name === "string" ? contact.company_name : null,
+          opp_value_eur: value,
+          opp_source: source,
+          // Hint per future handler: la sequenza tipica è T0 (welcome), T+3gg (case study),
+          // T+7gg (proposta call) — l'handler dovrà schedulare le successive.
+          followup_sequence: ["welcome_t0", "case_study_t3", "call_proposal_t7"],
+        },
+        p_signal_type: "lead_nuovo_no_touch_24h",
+        p_signal_entity_id: o.id,
+        p_signal_metadata: {
+          hours_open: hoursOpen,
+          opp_value_eur: value,
+          opp_source: source,
+        },
+        // Yellow: invio email non distruttivo, ma è una comunicazione esterna
+        // → resta soggetta a policy company (di default require_confirmation).
+        p_risk_level: "yellow",
+        // TTL breve: i lead caldi vanno contattati subito o non valgono più.
+        p_ttl_days: 2,
+      });
+      if (createErr) {
+        result.errors.push(`rpc lead ${o.id}: ${createErr.message}`);
+      } else {
+        result.proposals_created += 1;
+      }
+    }
+  } catch (e) {
+    result.errors.push(e instanceof Error ? e.message : String(e));
+  }
+  return result;
+}
+
 const DETECTORS: Record<DetectorName, typeof detectCantieriInRitardo> = {
   cantiere_in_ritardo: detectCantieriInRitardo,
   fattura_scaduta_30gg: detectFattureScadute,
@@ -815,6 +969,7 @@ const DETECTORS: Record<DetectorName, typeof detectCantieriInRitardo> = {
   cashflow_critico_90gg: detectCashflowCritico,
   durc_aziendale_30gg: detectDurcAziendale,
   ticket_non_assegnato_4h: detectTicketNonAssegnato,
+  lead_nuovo_no_touch_24h: detectLeadNuovoNoTouch,
 };
 
 // ════════════════════════════════════════════════════════════════════════════
