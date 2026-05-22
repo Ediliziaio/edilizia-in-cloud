@@ -105,11 +105,12 @@
 
 # ── SPA fallback routing ──────────────────────────────────────────────────────
 # The prerender script (scripts/prerender.mjs) swaps dist/index.html:
-#   1. Renames original SPA shell → dist/_spa-shell.html
+#   1. Renames original SPA shell → dist/_shell/index.html
 #   2. Copies prerendered home (dist/_home/index.html) → dist/index.html
 #
-# Result: Cloudflare serves the prerendered home for "/" (exact file match
-# takes priority over _redirects), and the SPA shell for all non-file routes
-# (auth, admin, etc.) via this catch-all rewrite.
+# Using a directory path (_shell/index.html) instead of a .html file avoids
+# Cloudflare's "Clean URLs" 308 redirect loop (_spa-shell.html → /_spa-shell).
+# Result: "/" serves prerendered home (static file match), auth/admin routes
+# fall through to the SPA shell via this catch-all.
 # IMPORTANTE: i redirect 301 sopra devono stare PRIMA del catch-all 200.
-/*    /_spa-shell.html   200
+/*    /_shell/index.html   200
