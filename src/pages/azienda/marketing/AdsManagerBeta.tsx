@@ -78,6 +78,8 @@ import { MetaTargetingPanel } from "@/components/ads/MetaTargetingPanel";
 import { QuickStartCampaign } from "@/components/ads/QuickStartCampaign";
 import { CampaignCopyEditor } from "@/components/ads/CampaignCopyEditor";
 import { MetaLeadFormBuilder, META_FORM_DEFAULTS } from "@/components/ads/MetaLeadFormBuilder";
+import { AdMediaUploader } from "@/components/ads/AdMediaUploader";
+import { AdVideoUploader } from "@/components/ads/AdVideoUploader";
 import type { Integration, MetaAsset } from "@/types/integrations";
 import type { MetaCampaignRow } from "@/types/metaAds";
 
@@ -684,8 +686,21 @@ function getBudgetPerAd(state: BuilderState) {
 }
 
 function getReadinessItems(state: BuilderState) {
-  const fieldsCount = splitList(state.requiredFields).length;
+  // Resolve current state — preferisce v2 (nuovi campi strutturati) con fallback v1 legacy
+  const lf = state.metaLeadForm;
+  const v2GeoCount = (state.metaGeoLocations?.filter((g) => !g.excluded).length ?? 0);
+  const v1GeoOk = state.zone.trim().length >= 2;
+  const totalFieldsCount = lf
+    ? lf.questions.length
+    : splitList(state.requiredFields).length;
+  const privacyOk = lf?.privacyPolicyUrl?.startsWith("https://") || state.privacyUrl.startsWith("https://");
+  const qualifyingQuestionExists = lf
+    ? lf.questions.some((q) => q.kind === "custom")
+    : state.qualityQuestion.trim().length >= 8;
+  const hasV2Copy = (state.copyDescriptions?.length ?? 0) > 0;
+  const copyDescriptions = hasV2Copy ? (state.copyDescriptions ?? []) : state.copyVariants;
   const budgetPerAd = getBudgetPerAd(state);
+
   return [
     {
       title: "Promessa chiara",
@@ -694,13 +709,15 @@ function getReadinessItems(state: BuilderState) {
     },
     {
       title: "Zona realistica",
-      ok: state.zone.trim().length >= 2 && state.radiusKm >= 5 && state.radiusKm <= 60 && state.ageMin <= state.ageMax,
-      fix: "Scegli città/provincia e un raggio sostenibile per sopralluoghi reali.",
+      ok: (v2GeoCount > 0 || v1GeoOk) && state.ageMin <= state.ageMax,
+      fix: "Aggiungi almeno 1 città/regione nel pannello pubblico, con raggio sostenibile per sopralluoghi.",
     },
     {
       title: "Controlli Meta impostati",
-      ok: state.languages.trim().length >= 2 && state.gender && state.excludedLocations.trim().length >= 8,
-      fix: "Definisci lingua, genere se serve ed esclusioni geografiche/CRM per evitare spreco budget.",
+      ok:
+        (state.languages.trim().length >= 2 || (state.metaLocaleTags?.length ?? 0) > 0) &&
+        !!state.gender,
+      fix: "Definisci lingua, eventualmente genere ed esclusioni per non sprecare budget.",
     },
     {
       title: "Budget test sensato",
@@ -714,18 +731,18 @@ function getReadinessItems(state: BuilderState) {
     },
     {
       title: "Modulo snello",
-      ok: fieldsCount > 0 && fieldsCount <= 6,
-      fix: "Tieni pochi campi e sposta la qualificazione in una domanda mirata.",
+      ok: totalFieldsCount > 0 && totalFieldsCount <= 8,
+      fix: "Tieni pochi campi (3-7 ideali) e sposta la qualificazione in una domanda mirata.",
     },
     {
       title: "Privacy pronta",
-      ok: state.privacyUrl.startsWith("https://"),
+      ok: privacyOk,
       fix: "Usa un link privacy HTTPS verificabile prima del lancio.",
     },
     {
       title: "Qualificazione lead",
-      ok: state.qualityQuestion.trim().length >= 8,
-      fix: "Aggiungi una domanda che filtra urgenza, zona o tipo intervento.",
+      ok: qualifyingQuestionExists,
+      fix: "Aggiungi almeno 1 domanda custom (es. tempistica, tipo immobile, budget) per filtrare i lead.",
     },
     {
       title: "Follow-up immediato",
@@ -734,8 +751,8 @@ function getReadinessItems(state: BuilderState) {
     },
     {
       title: "Copy pronti",
-      ok: state.copyVariants.length >= 3 && state.copyVariants.every((copy) => copy.trim().length >= 35),
-      fix: "Prepara almeno 3 messaggi diversi per testare angoli di vendita.",
+      ok: copyDescriptions.length >= 3 && copyDescriptions.every((c) => c.trim().length >= 35),
+      fix: "Prepara almeno 3 descrizioni copy diverse per testare angoli di vendita.",
     },
     {
       title: "Creatività chiara",
@@ -2173,27 +2190,47 @@ function CampaignBuilderTab({
 
   // Validazione per step (atomica) — utile sia per gating della navigation che per next button.
   const stepValidity = useMemo(() => {
+    // STEP 1: offerta + nome + obiettivo
     const v1 = state.name.trim().length >= 3 && state.offer.trim().length >= 12 && !!state.objective;
+
+    // STEP 2: pubblico — supporta ENTRAMBI i percorsi (v1 zone string, v2 metaGeoLocations[])
+    const hasV2Geo = (state.metaGeoLocations?.filter((g) => !g.excluded).length ?? 0) > 0;
+    const hasV1Geo = state.zone.trim().length >= 2;
+    const hasGeo = hasV2Geo || hasV1Geo;
     const v2 =
-      state.zone.trim().length >= 2 &&
-      state.radiusKm >= 1 &&
+      hasGeo &&
       state.ageMin <= state.ageMax &&
-      state.languages.trim().length >= 2 &&
+      // Lingua: o legacy `languages` string, o `metaLocaleTags[]` ha almeno 1
+      (state.languages.trim().length >= 2 || (state.metaLocaleTags?.length ?? 0) > 0) &&
       state.adSets.length > 0 &&
       state.adSets.every(
         (adSet) =>
           adSet.name.trim().length >= 2 && adSet.dailyBudget >= 5 && adSet.audience.trim().length >= 3,
       );
-    const v3 =
+
+    // STEP 3: modulo — supporta ENTRAMBI (v1 requiredFields string + privacyUrl, v2 metaLeadForm)
+    const lf = state.metaLeadForm;
+    const v2Form = lf && lf.questions.length >= 2 && lf.privacyPolicyUrl.startsWith("https://");
+    const v1Form =
       state.requiredFields.trim().length >= 8 &&
-      state.privacyUrl.trim().startsWith("https://") &&
-      state.followUp.trim().length >= 10;
+      state.privacyUrl.trim().startsWith("https://");
+    const v3 = (v2Form || v1Form) && state.followUp.trim().length >= 10;
+
+    // STEP 4: copy — supporta ENTRAMBI (v1 copyVariants, v2 copyTitles/copyDescriptions/copyHooks)
+    const hasV2Copy = (state.copyTitles?.length ?? 0) > 0 || (state.copyDescriptions?.length ?? 0) > 0 || (state.copyHooks?.length ?? 0) > 0;
+    const v2CopyOk = hasV2Copy && (
+      (state.copyTitles ?? []).every((t) => !t || t.trim().length >= 5) &&
+      (state.copyDescriptions ?? []).every((d) => !d || d.trim().length >= 20) &&
+      (state.copyHooks ?? []).every((h) => !h || h.trim().length >= 10)
+    );
+    const v1CopyOk = state.copyVariants.length > 0 && state.copyVariants.every((copy) => copy.trim().length >= 20);
     const v4 =
-      state.copyVariants.every((copy) => copy.trim().length >= 20) &&
+      (v2CopyOk || v1CopyOk) &&
       state.imagePrompt.trim().length >= 20 &&
       state.creatives.length > 0 &&
       state.creatives.every((creative) => creative.prompt.trim().length >= 20);
-    const v5 = readiness.score >= 60; // soglia minima per consentire salvataggio guidato
+
+    const v5 = readiness.score >= 60;
     return { 1: v1, 2: v2, 3: v3, 4: v4, 5: v5 } as Record<number, boolean>;
   }, [state, readiness.score]);
 
@@ -2978,7 +3015,15 @@ function CampaignBuilderTab({
               </div>
             </div>
             <div className="p-3">
-              <p className="text-sm leading-relaxed text-slate-900">{state.copyVariants[0]}</p>
+              {/* Preview: prefer copyHooks[0] (stop-scroll) + copyDescriptions[0] (corpo) */}
+              {state.copyHooks?.[0] && (
+                <p className="mb-1 text-sm font-bold leading-tight text-slate-950">
+                  {state.copyHooks[0]}
+                </p>
+              )}
+              <p className="text-sm leading-relaxed text-slate-900">
+                {state.copyDescriptions?.[0] ?? state.copyVariants[0] ?? state.offer}
+              </p>
             </div>
             <div className="flex aspect-[4/3] items-center justify-center bg-gradient-to-br from-slate-800 to-orange-500 text-white">
               <div className="text-center">
@@ -2988,11 +3033,14 @@ function CampaignBuilderTab({
               </div>
             </div>
             <div className="flex items-center justify-between border-t p-3">
-              <div>
-                <p className="text-sm font-semibold">{state.name}</p>
+              <div className="min-w-0">
+                {/* Headline = primo titolo se presente, altrimenti nome campagna */}
+                <p className="truncate text-sm font-semibold">{state.copyTitles?.[0] ?? state.name}</p>
                 <p className="text-xs text-slate-500">{objectiveLabel(state.objective)}</p>
               </div>
-              <Button size="sm" variant="secondary">Richiedi preventivo</Button>
+              <Button size="sm" variant="secondary">
+                {state.cta === "GET_QUOTE" ? "Preventivo" : state.cta === "WHATSAPP_MESSAGE" ? "WhatsApp" : "Scopri"}
+              </Button>
             </div>
           </div>
           <CampaignStructurePreview state={state} />
@@ -3243,32 +3291,80 @@ function PlatformSelector({
 }
 
 function LeadFormPreview({ state }: { state: BuilderState }) {
-  const fields = splitList(state.requiredFields);
+  const lf = state.metaLeadForm;
+  // Preferisci metaLeadForm.questions; fallback su requiredFields stringa legacy
+  const questions = lf
+    ? lf.questions.map((q) => {
+        if (q.kind === "prefilled") {
+          const labels: Record<string, string> = {
+            FULL_NAME: "Nome completo", EMAIL: "Email", PHONE: "Telefono",
+            FIRST_NAME: "Nome", LAST_NAME: "Cognome", CITY: "Città", ZIP: "CAP",
+            STREET_ADDRESS: "Indirizzo", STATE: "Provincia", COUNTRY: "Stato",
+            DATE_OF_BIRTH: "Data nascita", GENDER: "Genere",
+          };
+          return { label: labels[q.key] ?? q.key, kind: "prefilled" as const, options: undefined as string[] | undefined };
+        }
+        const c = q as { label: string; options?: string[]; type: string };
+        return { label: c.label, kind: "custom" as const, options: c.options };
+      })
+    : splitList(state.requiredFields).map((f) => ({ label: f, kind: "prefilled" as const, options: undefined }));
+  const introBody = lf?.introBody ?? state.offer;
+  const introHeadline = lf?.introHeadline;
+  const qualifying = lf?.questions.find((q) => q.kind === "custom") as { label: string; options?: string[] } | undefined;
+  const formTypeLabel = lf
+    ? (lf.formType === "MORE_VOLUME" ? "Volume - più rapido" : "Higher Intent - revisione pre-invio")
+    : (state.formIntent === "higher_intent" ? "Con revisione prima dell'invio" : "Veloce, meno passaggi");
   return (
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-950">Modulo lead</p>
-          <p className="text-xs text-slate-500">
-            {state.formIntent === "higher_intent" ? "Con revisione prima dell'invio" : "Veloce, meno passaggi"}
-          </p>
+          <p className="text-sm font-semibold text-slate-950">Modulo lead Meta</p>
+          <p className="text-xs text-slate-500">{formTypeLabel}</p>
         </div>
         <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
           {conversionPlaceLabel(state.conversionPlace)}
         </Badge>
       </div>
-      <p className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">{state.offer}</p>
-      <div className="mt-3 grid gap-2">
-        {fields.slice(0, 6).map((field) => (
-          <div key={field} className="rounded-lg border bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
-            {field}
+      {introHeadline && (
+        <p className="mb-1 text-sm font-semibold text-slate-900">{introHeadline}</p>
+      )}
+      <p className="rounded-xl bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">{introBody}</p>
+      <p className="mt-3 text-[10px] font-semibold uppercase text-slate-500">Campi del modulo ({questions.length})</p>
+      <div className="mt-1 grid gap-1.5">
+        {questions.slice(0, 8).map((field, i) => (
+          <div
+            key={`${field.label}-${i}`}
+            className={cn(
+              "flex items-center justify-between rounded-lg border px-3 py-2 text-xs font-medium",
+              field.kind === "custom" ? "border-violet-200 bg-violet-50 text-violet-900" : "border-slate-200 bg-slate-50 text-slate-700",
+            )}
+          >
+            <span className="truncate">{field.label}</span>
+            <span className="text-[9px] text-slate-500">
+              {field.kind === "custom" ? "custom" : "auto"}
+              {field.options?.length ? ` · ${field.options.length} opz` : ""}
+            </span>
           </div>
         ))}
+        {questions.length > 8 && (
+          <p className="text-[10px] text-slate-500">+ {questions.length - 8} altri campi</p>
+        )}
       </div>
-      <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-        <p className="text-xs font-semibold uppercase text-emerald-700">Domanda qualità</p>
-        <p className="mt-1 text-sm text-emerald-900">{state.qualityQuestion}</p>
-      </div>
+      {qualifying && (
+        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <p className="text-xs font-semibold uppercase text-emerald-700">Qualificazione</p>
+          <p className="mt-1 text-sm text-emerald-900">{qualifying.label}</p>
+          {qualifying.options && qualifying.options.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {qualifying.options.slice(0, 4).map((opt) => (
+                <Badge key={opt} variant="outline" className="border-emerald-300 bg-white text-[9px] text-emerald-700">
+                  {opt}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div className="mt-3 rounded-xl border bg-white p-3">
         <p className="text-xs font-semibold uppercase text-slate-500">Follow-up</p>
         <p className="mt-1 text-sm text-slate-700">{state.followUp}</p>
@@ -4130,6 +4226,26 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* UPLOAD IMMAGINI + VIDEO */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AdMediaUploader
+          companyId={companyId}
+          onUploaded={(media) => {
+            toast.success("Immagine salvata in libreria", {
+              description: media.public_url ? "Pronta da usare nelle campagne." : undefined,
+            });
+          }}
+        />
+        <AdVideoUploader
+          companyId={companyId}
+          onUploaded={(media) => {
+            toast.success("Video salvato in libreria", {
+              description: media.public_url ? "Pronto da usare nelle campagne." : undefined,
+            });
+          }}
+        />
       </div>
 
       {/* LIBRERIA ASSET REALI (ad_media) */}
