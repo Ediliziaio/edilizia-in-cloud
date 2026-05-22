@@ -10,11 +10,13 @@ import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
 import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
+import { useSEO } from "@/hooks/useSEO";
 
 type ViewMode = "login" | "2fa" | "forgot-password";
 
 export default function AdminLogin() {
   const { user, role, isLoading, signIn } = useAuth();
+  useSEO({ title: "Admin Login", noindex: true });
   const [view, setView] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

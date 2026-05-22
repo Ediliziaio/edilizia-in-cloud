@@ -34,15 +34,19 @@ export default function TargetSection() {
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
           }`}
         >
-          <img
-            src="/landing/target-users-edilizia.png"
-            alt="Titolare, responsabile cantiere e ufficio che controllano i numeri dell'impresa edile"
-            width={1792}
-            height={768}
-            loading="lazy"
-            decoding="async"
-            className="h-64 w-full rounded-3xl border border-gray-100 object-cover object-center shadow-sm"
-          />
+          <picture>
+            <source srcSet="/landing/target-users-edilizia.avif" type="image/avif" />
+            <source srcSet="/landing/target-users-edilizia.webp" type="image/webp" />
+            <img
+              src="/landing/target-users-edilizia.webp"
+              alt="Titolare, responsabile cantiere e ufficio che controllano i numeri dell'impresa edile"
+              width={1792}
+              height={768}
+              loading="lazy"
+              decoding="async"
+              className="h-64 w-full rounded-3xl border border-gray-100 object-cover object-center shadow-sm"
+            />
+          </picture>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">

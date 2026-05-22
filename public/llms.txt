@@ -84,7 +84,13 @@ Edilizia in Cloud è sviluppato e commercializzato da **Domus Group S.r.l.**, so
 - **Supporto:** info@ediliziaincloud.com
 - **Versione completa per AI:** https://www.ediliziaincloud.com/llms-full.txt
 
-## Guide del blog (54 articoli)
+## Guide del blog AI (cluster 2026-05)
+
+- **Intelligenza artificiale in edilizia 2026 — 8 use case reali con dati ROI**: https://www.ediliziaincloud.com/blog/intelligenza-artificiale-edilizia-2026/
+- **AI per margini di cantiere — caso studio 18.400€ salvati in 8 settimane**: https://www.ediliziaincloud.com/blog/ai-analisi-margini-cantiere/
+- **Come scegliere un gestionale AI per impresa edile — 7 criteri tecnici + 5 errori**: https://www.ediliziaincloud.com/blog/come-scegliere-gestionale-ai-impresa-edile/
+
+## Guide del blog (57 articoli)
 
 - SAL cantiere: https://www.ediliziaincloud.com/blog/sal-cantiere-come-funziona
 - DURC edilizia: https://www.ediliziaincloud.com/blog/durc-edilizia-guida-completa

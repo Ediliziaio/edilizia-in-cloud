@@ -55,15 +55,19 @@ export default function PainPointsSection() {
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
             }`}
           >
-            <img
-              src="/landing/pain-points-edilizia.png"
-              alt="Imprenditore edile che controlla margini, cassa e costi di cantiere"
-              width={1024}
-              height={1024}
-              loading="lazy"
-              decoding="async"
-              className="h-full w-full rounded-3xl border border-gray-100 object-cover object-[72%_center] shadow-sm"
-            />
+            <picture>
+              <source srcSet="/landing/pain-points-edilizia.avif" type="image/avif" />
+              <source srcSet="/landing/pain-points-edilizia.webp" type="image/webp" />
+              <img
+                src="/landing/pain-points-edilizia.webp"
+                alt="Imprenditore edile che controlla margini, cassa e costi di cantiere"
+                width={1024}
+                height={1024}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full rounded-3xl border border-gray-100 object-cover object-[72%_center] shadow-sm"
+              />
+            </picture>
           </div>
         </div>
 

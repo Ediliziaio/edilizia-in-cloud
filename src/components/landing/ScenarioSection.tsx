@@ -17,29 +17,37 @@ const scenarioB = [
 
 function ScenarioIllustrationA() {
   return (
-    <img
-      src="/landing/scenario-without-control.png"
-      alt="Scenario senza controllo: confusione, fatture e margini in perdita"
-      width={1792}
-      height={768}
-      loading="lazy"
-      decoding="async"
-      className="mb-5 h-40 w-full rounded-xl border border-red-200 object-cover object-center shadow-sm"
-    />
+    <picture>
+      <source srcSet="/landing/scenario-without-control.avif" type="image/avif" />
+      <source srcSet="/landing/scenario-without-control.webp" type="image/webp" />
+      <img
+        src="/landing/scenario-without-control.webp"
+        alt="Scenario senza controllo: confusione, fatture e margini in perdita"
+        width={1792}
+        height={768}
+        loading="lazy"
+        decoding="async"
+        className="mb-5 h-40 w-full rounded-xl border border-red-200 object-cover object-center shadow-sm"
+      />
+    </picture>
   );
 }
 
 function ScenarioIllustrationB() {
   return (
-    <img
-      src="/landing/scenario-with-control.png"
-      alt="Scenario con Edilizia in Cloud: controllo dei cantieri e numeri aggiornati"
-      width={1792}
-      height={768}
-      loading="lazy"
-      decoding="async"
-      className="mb-5 h-40 w-full rounded-xl border border-[#F97415]/25 object-cover object-center shadow-sm"
-    />
+    <picture>
+      <source srcSet="/landing/scenario-with-control.avif" type="image/avif" />
+      <source srcSet="/landing/scenario-with-control.webp" type="image/webp" />
+      <img
+        src="/landing/scenario-with-control.webp"
+        alt="Scenario con Edilizia in Cloud: controllo dei cantieri e numeri aggiornati"
+        width={1792}
+        height={768}
+        loading="lazy"
+        decoding="async"
+        className="mb-5 h-40 w-full rounded-xl border border-[#F97415]/25 object-cover object-center shadow-sm"
+      />
+    </picture>
   );
 }
 

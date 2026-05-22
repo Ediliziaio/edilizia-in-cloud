@@ -7,10 +7,12 @@ import { Loader2 } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useSEO } from "@/hooks/useSEO";
 
 const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
   const { user, role, isLoading } = useAuth();
   const { toast } = useToast();
+  useSEO({ title: "Login", noindex: true });
   const [mustChangePassword, setMustChangePassword] = useState<boolean | null>(null);
   const [checkingPassword, setCheckingPassword] = useState(false);
   // Evita doppio toast/signOut in presenza di StrictMode / re-render multipli.

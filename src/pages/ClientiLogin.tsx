@@ -21,12 +21,14 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
+import { useSEO } from "@/hooks/useSEO";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 type ViewMode = "login" | "forgot" | "2fa";
 
 export default function ClientiLogin() {
   const { user, role, isLoading, signIn, signOut } = useAuth();
+  useSEO({ title: "Portale Clienti", noindex: true });
   const [view, setView] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

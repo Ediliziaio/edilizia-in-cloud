@@ -33,27 +33,7 @@
           }).catch(function () { location.reload(); });
         }
 
-        // Increment DEPLOY_KEY whenever a forced SW reset is needed.
-        // v13 (2026-05-19): utenti continuano a vedere flash della home page
-        // su app.*/admin/* al refresh, seguito da "1 minuto" di caricamento.
-        // Diagnosi: il SW vecchio (pre-selfDestroying) intercetta navigation
-        // e serve HTML stale con Home renderizzata → assertAppPathNotMarketing
-        // rileva dopo 1.5s → nukeAndReload → recovery 15s + bundle fresh.
-        // Bump v13 forza l'unregister immediato sui device residui che non
-        // hanno ancora completato il ciclo selfDestroying.
-        // v12 (2026-05-15): alcuni browser restavano controllati da un vecchio
-        // SW/cache marketing su app.ediliziaincloud.com/login?__recovery=...
-        // mostrando la landing al posto del login. Bump + controllo DOM sotto
-        // forzano pulizia e reload cache-busting anche se il chunk recovery
-        // viene attivato dopo un deploy.
-        // v11 (2026-05-13): forza la pulizia dopo il fix del loop login causato
-        // da token Supabase stale in localStorage + vecchi asset/SW cached.
-        // v10 (2026-05-09): forza la pulizia dei device/localhost che avevano
-        // già applicato v9 ma tenevano ancora asset SPA vecchi in cache.
-        // v9 (2026-04-26): SW non deve più intercettare /auth/v1/* né
-        // /functions/v1/* — quel pattern aveva bloccato il login mobile su
-        // iOS Safari ("Accesso in corso..." infinito). Bump forza l'unregister
-        // del vecchio SW sui device che hanno ancora la versione bacata.
+        // Bump DEPLOY_KEY on forced SW reset (v13: 2026-05-19)
         var DEPLOY_KEY = 'sw_reset_v13';
         try {
           if (!localStorage.getItem(DEPLOY_KEY) && 'serviceWorker' in navigator) {
@@ -142,14 +122,10 @@
         }
       })();
     </script>
-    <title>Gestionale Edilizia Cloud | Software per Imprese Edili</title>
-    <meta name="description" content="Il software cloud per imprese edili italiane. Gestisci cantieri, preventivi, fatturazione e squadre in un'unica piattaforma AI. Prova gratis.">
+    <title>Gestionale Edilizia con AI — Cantieri, Margini, Fatturazione</title>
+    <meta name="description" content="Il gestionale cloud n°1 per imprese edili italiane con AI integrata. Margini cantiere in tempo reale, fatturazione SDI, app cantiere offline. Prova 31 giorni gratis.">
     <meta name="author" content="Edilizia in Cloud" />
     <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1">
-    <!-- v8.6.48 — meta keywords ridotto a 8 termini focus.
-         Google ignora da anni questo tag, Yandex/Naver penalizzano keyword stuffing
-         (prima erano 26 keyword in un solo tag = anti-pattern).
-         Le keyword lunghe sono gestite per-pagina via useSEO. -->
     <meta name="keywords" content="gestionale edilizia, software impresa edile, gestione cantieri, ERP edilizia cloud, fatturazione elettronica edilizia, software edilizia AI, CRM impresa edile, gestionale edilizia 2026">
 
     <!-- Geo / Local SEO -->
@@ -160,20 +136,7 @@
     <meta name="language" content="Italian">
     <meta name="content-language" content="it">
 
-    <!-- Canonical + Hreflang ────────────────────────────────────────────────
-         v8.6.47 — SEO fix critico per Google Search Console:
-         Prima il canonical statico nell'HTML era sempre "/" (homepage), e uno
-         script JS lo sovrascriveva DOPO. Googlebot leggeva spesso il canonical
-         iniziale "/" durante la prima passata → segnale "tutte le pagine
-         puntano alla homepage" → de-indicizzazione massiva.
-         Cause GSC risolte:
-         - "Pagina alternativa con tag canonical appropriato" (calendario-lavori)
-         - "Pagina duplicata, Google ha scelto canonica diversa" (6 pagine)
-         - "Pagina scansionata ma non indicizzata" (5 pagine incl. homepage)
-         Fix: lo script INLINE all'inizio dell'head inserisce subito il
-         canonical corretto via createElement+appendChild PRIMA che il fallback
-         statico venga aggiunto al DOM. Per i crawler no-JS resta il fallback
-         <link> statico (path canonico homepage). -->
+    <!-- Canonical + hreflang: dynamic JS sets correct per-route canonical -->
     <script>
       (function() {
         try {
@@ -212,122 +175,53 @@
         } catch (e) { /* no-op: fallback statico sotto */ }
       })();
     </script>
-    <!-- NESSUN fallback statico di canonical/hreflang/og:url.
-         Motivo: la SPA `dist/index.html` è il fallback per OGNI rotta non
-         prerenderata. Un canonical statico "https://www.ediliziaincloud.com/"
-         si applicherebbe ERRATAMENTE anche a /pianifica-migrazione/, /dpa/,
-         /blog/<slug>/, ecc. — causa diretta delle segnalazioni GSC
-         "Pagina duplicata, Google ha scelto canonica diversa" e
-         "Pagina alternativa con tag canonical appropriato".
-         Strategia attuale:
-         - Bot noti (Googlebot, Bingbot, Claude, GPT, ...) ricevono SSR HTML
-           dal middleware Cloudflare con canonical corretto per rotta.
-         - Browser (utenti reali) eseguono lo script inline sopra che imposta
-           il canonical dinamico sincrono prima del primo render React.
-         - Crawler no-JS sconosciuti: nessun canonical → Google deduce dalla
-           sitemap (preferibile a un canonical sbagliato).
-    -->
-    <!-- Preconnect per risorse critiche.
-         v8.6.109 — Ridotti a 3 (PSI Lighthouse warning '>4 preconnect').
-         Mantenuti solo: supabase (API), fonts.gstatic (font binari).
-         Rimossi: fonts.googleapis (preload del CSS bastian), dns-prefetch
-         supabase (duplicato vs preconnect), r2.dev (non sulla critical path
-         landing). -->
+    <!-- No static canonical fallback — dynamic JS or SSR sets the correct one per route -->
     <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co">
-    <!-- v8.6.123 — Inter font SELF-HOSTED: rimosso preconnect a fonts.gstatic.com -->
-    <!-- v8.6.122 — Prefetch pagine secondarie più visitate dalla home.
-         Le carica in background a bassa priorità DOPO il LCP, così quando
-         l'utente clicca "Demo" o "Prezzi" il chunk è già nella cache.
-         Si attivano solo se non c'è un utente loggato (no spreco su /azienda). -->
-    <script>
-      (function () {
-        if (typeof requestIdleCallback !== "function") return;
-        var path = window.location.pathname || "/";
-        var APP_PREFIXES = /^\/(azienda|admin|cliente|dipendente|venditore|partner|tecnico|campo|portale|login|auth-callback)(\/|$)/;
-        if (APP_PREFIXES.test(path)) return;
-        requestIdleCallback(function () {
-          // Prefetch dei chunk page-marketing-* dopo idle, no-op se già caricati
-          var targets = ["/demo/", "/prezzi/", "/funzionalita/"];
-          targets.forEach(function (href) {
-            var l = document.createElement("link");
-            l.rel = "prefetch";
-            l.href = href;
-            l.as = "document";
-            document.head.appendChild(l);
-          });
-        }, { timeout: 5000 });
-      })();
+
+    <!-- Speculation Rules: prerender /demo /prezzi /funzionalita on idle -->
+    <script type="speculationrules">
+    {
+      "prerender": [
+        {
+          "urls": ["/demo/", "/prezzi/", "/funzionalita/"],
+          "eagerness": "moderate"
+        }
+      ],
+      "prefetch": [
+        {
+          "urls": ["/blog/", "/confronto/", "/chi-siamo/", "/casi-studio/"],
+          "eagerness": "conservative"
+        }
+      ]
+    }
     </script>
 
-    <!-- v8.6.123 — Inter font SELF-HOSTED via /fonts/inter-{subset}-{weight}-normal.woff2
-         Vantaggi vs Google Fonts:
-           • -1 dominio third-party (privacy + performance)
-           • -1 DNS lookup + handshake TLS
-           • Cache headers controllabili (immutable 1y)
-           • Subset minimo: solo latin + latin-ext (no cyrillic/greek/vietnamese)
-           • Body weight 400 preloaded high priority → no FOIT/FOUT su LCP text
-         Risparmio stimato: -100ms mobile 4G, +5-8 punti PSI -->
+    <!-- Inter font self-hosted: subset latin + latin-ext, weights 400/600/700/800.
+         Body weight 400 + heading 700 preloaded high priority. -->
     <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-400-normal.woff2" crossorigin>
     <link rel="preload" as="font" type="font/woff2" href="/fonts/inter-latin-700-normal.woff2" crossorigin>
     <style>
       /* Inline @font-face per 4 weights (400/600/700/800) × 2 subset (latin/latin-ext).
          Unicode-range permette al browser di scaricare SOLO i file dei subset
          effettivamente usati (italiano = latin in 99% dei casi). */
-      @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/inter-latin-400-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-      @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/inter-latin-ext-400-normal.woff2') format('woff2');unicode-range:U+0100-024F,U+0259,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20CF,U+2113,U+2C60-2C7F,U+A720-A7FF}
-      @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/inter-latin-600-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-      @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url('/fonts/inter-latin-ext-600-normal.woff2') format('woff2');unicode-range:U+0100-024F,U+0259,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20CF,U+2113,U+2C60-2C7F,U+A720-A7FF}
-      @font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/inter-latin-700-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-      @font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:swap;src:url('/fonts/inter-latin-ext-700-normal.woff2') format('woff2');unicode-range:U+0100-024F,U+0259,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20CF,U+2113,U+2C60-2C7F,U+A720-A7FF}
-      @font-face{font-family:'Inter';font-style:normal;font-weight:800;font-display:swap;src:url('/fonts/inter-latin-800-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-      @font-face{font-family:'Inter';font-style:normal;font-weight:800;font-display:swap;src:url('/fonts/inter-latin-ext-800-normal.woff2') format('woff2');unicode-range:U+0100-024F,U+0259,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20CF,U+2113,U+2C60-2C7F,U+A720-A7FF}
+      @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:optional;src:url('/fonts/inter-latin-400-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+      @font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:optional;src:url('/fonts/inter-latin-ext-400-normal.woff2') format('woff2');unicode-range:U+0100-024F,U+0259,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20CF,U+2113,U+2C60-2C7F,U+A720-A7FF}
+      @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:optional;src:url('/fonts/inter-latin-600-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+      @font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:optional;src:url('/fonts/inter-latin-ext-600-normal.woff2') format('woff2');unicode-range:U+0100-024F,U+0259,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20CF,U+2113,U+2C60-2C7F,U+A720-A7FF}
+      @font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:optional;src:url('/fonts/inter-latin-700-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+      @font-face{font-family:'Inter';font-style:normal;font-weight:700;font-display:optional;src:url('/fonts/inter-latin-ext-700-normal.woff2') format('woff2');unicode-range:U+0100-024F,U+0259,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20CF,U+2113,U+2C60-2C7F,U+A720-A7FF}
+      @font-face{font-family:'Inter';font-style:normal;font-weight:800;font-display:optional;src:url('/fonts/inter-latin-800-normal.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+      @font-face{font-family:'Inter';font-style:normal;font-weight:800;font-display:optional;src:url('/fonts/inter-latin-ext-800-normal.woff2') format('woff2');unicode-range:U+0100-024F,U+0259,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20CF,U+2113,U+2C60-2C7F,U+A720-A7FF}
     </style>
-    <!--
-      Velocity — Preload hero Unsplash CONDIZIONALE.
-      L'immagine è LCP SOLO sulla landing pubblica e route marketing (city/per/blog).
-      Se l'utente è su /azienda, /admin, /portale-* non la vedrà mai: preloadarla
-      sarebbe uno spreco di 200+ KB di banda mobile in cantiere.
-      Iniettiamo preconnect+preload inline prima che il parser chieda chunks JS,
-      così non perdiamo l'head-start sul LCP dove conta davvero.
-    -->
-    <script>
-      (function () {
-        var path = window.location.pathname || '/';
-        var APP_PREFIXES = /^\/(azienda|admin|cliente|dipendente|venditore|partner|salesperson|customer|employee|tecnico|campo|portale|portale-cliente|login|auth-callback|reset-password)(\/|$)/;
-        if (APP_PREFIXES.test(path)) return; // no-op su route applicative
-        var head = document.head;
-        function add(rel, href, extra) {
-          var l = document.createElement('link');
-          l.rel = rel;
-          l.href = href;
-          if (extra) Object.keys(extra).forEach(function (k) { l.setAttribute(k, extra[k]); });
-          head.appendChild(l);
-        }
-        // v8.6.121 — Hero image SELF-HOSTED: nessun preconnect a Unsplash necessario.
-        // Mobile carica 480w ~38KB, desktop 1024w ~150KB.
-        // Servito same-origin da Cloudflare Pages con cache headers immutable.
-        var preloadLink = document.createElement('link');
-        preloadLink.rel = 'preload';
-        preloadLink.as = 'image';
-        preloadLink.setAttribute('fetchpriority', 'high');
-        preloadLink.href = '/hero/cantiere-1024.webp';
-        preloadLink.setAttribute('imagesrcset',
-          '/hero/cantiere-480.webp 480w,' +
-          '/hero/cantiere-768.webp 768w,' +
-          '/hero/cantiere-1024.webp 1024w,' +
-          '/hero/cantiere-1440.webp 1440w,' +
-          '/hero/cantiere-1920.webp 1920w'
-        );
-        preloadLink.setAttribute('imagesizes', '100vw');
-        head.appendChild(preloadLink);
-      })();
-    </script>
-    <!-- Leaflet CSS loaded lazily by the FleetTrack component — do NOT put here -->
-
+    <!-- Hero preload -->
+    <link rel="preload" as="image" fetchpriority="high"
+      href="/hero/cantiere-1024.webp"
+      imagesrcset="/hero/cantiere-480.webp 480w,/hero/cantiere-768.webp 768w,/hero/cantiere-1024.webp 1024w,/hero/cantiere-1440.webp 1440w,/hero/cantiere-1920.webp 1920w"
+      imagesizes="100vw">
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Gestionale Edilizia Cloud | Software per Imprese Edili">
     <meta property="og:description" content="Il software cloud per imprese edili italiane. Gestisci cantieri, preventivi, fatturazione e squadre in un'unica piattaforma AI. Prova gratis.">
-    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png">
+    <meta property="og:image" content="https://www.ediliziaincloud.com/og/og-default.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:site_name" content="Edilizia in Cloud">
@@ -337,7 +231,7 @@
     <meta name="twitter:site" content="@EdiliziaInCloud" />
     <meta name="twitter:title" content="Gestionale Edilizia Cloud | Software per Imprese Edili">
     <meta name="twitter:description" content="Il software cloud per imprese edili italiane. Gestisci cantieri, preventivi, fatturazione e squadre in un'unica piattaforma AI. Prova gratis.">
-    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7a5d2f3f-4a52-4b31-81c9-fc593d582ee7/id-preview-b70db1cf--c34c07f6-5aea-4505-b4c7-9b00cd75679c.lovable.app-1771279786357.png">
+    <meta name="twitter:image" content="https://www.ediliziaincloud.com/og/og-default.png">
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
@@ -358,19 +252,7 @@
     <!-- IndexNow — notifica aggiornamenti a Bing, Yandex, Naver -->
     <meta name="indexnow-key" content="62ac6a799ade356135bf527565c13e17">
 
-    <!-- v8.6.48 — SoftwareApplication + LocalBusiness rimossi dall'HTML statico.
-         Prima erano serviti su OGNI route → conflitto con i JSON-LD specifici
-         delle pagine Home/Prezzi che dichiaravano prezzi/rating DIVERSI:
-         - HTML statico: lowPrice 79, highPrice 319, rating 4.9
-         - Home.tsx SoftwareApplication: lowPrice 127, highPrice 547, rating 4.8
-         - Home.tsx Product (offers): 99/197/437, rating 4.9
-         Google Rich Results test → "Markup with issues" (3 set prezzi diversi).
-         Soluzione: tengo qui solo schemi sitewide compatibili (WebSite +
-         ItemList). Gli schemi della homepage stanno in Home.tsx.
-         L'Organization globale è dichiarato in Home.tsx (#organization),
-         altre pagine fanno reference via @id per coerenza Knowledge Graph. -->
-
-    <!-- Structured Data: Organization (sitewide identity) -->
+    <!-- Structured Data: Organization (sitewide) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -447,10 +329,7 @@
     }
     </script>
   
-    <!-- FAQPage rimossa dall'HTML statico (caricato su tutte le route) e spostata nel componente -->
-    <!-- Home.tsx tramite JsonLd — visibile solo sulla home page, risolve il "Campo duplicato FAQPage" in GSC -->
-
-    <!-- Google Analytics 4 (GA4) — solo dominio marketing pubblico -->
+    <!-- GA4 — deferred, marketing pages only -->
     <script>
       (function () {
         var GA_ID = 'G-0JZP5N2VW5';
@@ -473,13 +352,6 @@
           cookie_flags: 'SameSite=None;Secure'
         });
 
-        // GTM/GA4 deferred: PageSpeed mobile flaggava GTM come 155KB con 168ms
-        // di thread principale durante il caricamento iniziale → impatta TBT.
-        // Carichiamo lo script solo DOPO uno tra:
-        //   - 3 secondi di idle (catturiamo l'utente "lurker")
-        //   - prima interazione utente (scroll/click/keydown)
-        //   - requestIdleCallback (browser fermo)
-        // così il LCP/FCP non perde tempo CPU per GA.
         var gaLoaded = false;
         function loadGA() {
           if (gaLoaded) return;
@@ -498,11 +370,7 @@
         setTimeout(loadGA, 3500);
       })();
     </script>
-    <!-- v8.6.120 — Critical CSS inline ESPANSO per above-the-fold landing.
-         Copre TUTTO il hero: gradient overlay, h1 testo grosso, buttons CTA,
-         badge micro, layout grid. Permette LCP completo prima che il bundle
-         CSS principale (388KB async) finisca di caricare.
-         Target: ~6KB di critical CSS, vs 388KB bundle async. -->
+    <!-- Critical CSS: above-the-fold hero + layout -->
     <style>
       *,::before,::after{box-sizing:border-box;border:0 solid #e5e7eb}
       html,body{margin:0;padding:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#ffffff;color:#111111;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;line-height:1.5}
@@ -576,31 +444,17 @@
       .border{border-width:1px}.border-2{border-width:2px}
       .transition{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}
 
-      /* Logo navbar height (reserved per evitare CLS quando navbar lazy-loada) */
       header,nav{min-height:64px}
-
-      /* Spinner per fallback se JS ancora caricando */
       @keyframes eic-spin{to{transform:rotate(360deg)}}
       .eic-spin{animation:eic-spin 1s linear infinite}
-
-      /* Respect prefers-reduced-motion */
       @media (prefers-reduced-motion: reduce){
         *,*::before,*::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}
       }
 
-      /* v8.6.122 — content-visibility: auto su sezioni below-the-fold.
-         Browser skip rendering/style/layout/paint per gli elementi fuori
-         dal viewport (intersection observer interno). Riduce drasticamente
-         il main thread time iniziale. contain-intrinsic-size evita CLS
-         dichiarando un placeholder di dimensione approssimativa. */
-      .cv-auto{content-visibility:auto;contain-intrinsic-size:auto 800px}
-      .cv-auto-short{content-visibility:auto;contain-intrinsic-size:auto 400px}
-      .cv-auto-tall{content-visibility:auto;contain-intrinsic-size:auto 1200px}
-
-      /* v8.6.122 — Disabilita animazioni decorative continue su mobile.
-         Su schermi piccoli le animazioni shimmer/marquee/float bruciano CPU
-         senza valore visivo aggiunto (l'utente le vede appena). Solo
-         pulse-glow su indicatori LIVE viene preservata (UX critica). */
+      .contain-content{contain:content}
+      .cv-auto{content-visibility:auto;contain:content;contain-intrinsic-size:auto 800px}
+      .cv-auto-short{content-visibility:auto;contain:content;contain-intrinsic-size:auto 400px}
+      .cv-auto-tall{content-visibility:auto;contain:content;contain-intrinsic-size:auto 1200px}
       @media (max-width: 767px) {
         .animate-shimmer,
         .animate-marquee,

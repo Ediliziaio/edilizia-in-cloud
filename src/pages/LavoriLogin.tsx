@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
 import { CAMPO_ROLES } from "@/types/auth";
+import { useSEO } from "@/hooks/useSEO";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 type ViewMode = "login" | "forgot" | "2fa";
@@ -32,6 +33,7 @@ const BTN_GRADIENT =
 
 export default function LavoriLogin() {
   const { user, role, isLoading, signIn, signOut } = useAuth();
+  useSEO({ title: "Area Lavori", noindex: true });
   const [view, setView] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

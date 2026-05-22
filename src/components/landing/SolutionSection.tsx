@@ -64,15 +64,19 @@ export default function SolutionSection() {
           </div>
 
           <div className="hidden md:flex items-center">
-            <img
-              src="/landing/solution-dashboard-control.png"
-              alt="Imprenditore edile che controlla margini, cassa e perdite su dashboard"
-              width={1024}
-              height={1536}
-              loading="lazy"
-              decoding="async"
-              className="w-full rounded-3xl border border-white/10 object-cover shadow-2xl shadow-black/30"
-            />
+            <picture>
+              <source srcSet="/landing/solution-dashboard-control.avif" type="image/avif" />
+              <source srcSet="/landing/solution-dashboard-control.webp" type="image/webp" />
+              <img
+                src="/landing/solution-dashboard-control.webp"
+                alt="Imprenditore edile che controlla margini, cassa e perdite su dashboard"
+                width={1024}
+                height={1536}
+                loading="lazy"
+                decoding="async"
+                className="w-full rounded-3xl border border-white/10 object-cover shadow-2xl shadow-black/30"
+              />
+            </picture>
           </div>
         </div>
 

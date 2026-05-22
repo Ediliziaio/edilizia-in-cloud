@@ -30,10 +30,10 @@ import { RenderLeadModal } from "@/components/render/RenderLeadModal";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SITE_URL, useSEO } from "@/hooks/useSEO";
 
-const HERO_BEFORE_IMAGE = "/images/render-infissi/demo-prima.jpg";
-const HERO_AFTER_IMAGE = "/images/render-infissi/demo-dopo.png";
-const JOURNEY_BEFORE_IMAGE = "/images/render-infissi/demo-latest-prima.jpg";
-const JOURNEY_AFTER_IMAGE = "/images/render-infissi/demo-latest-dopo.jpg";
+const HERO_BEFORE_IMAGE = "/images/render-infissi/demo-prima.webp";
+const HERO_AFTER_IMAGE = "/images/render-infissi/demo-dopo.webp";
+const JOURNEY_BEFORE_IMAGE = "/images/render-infissi/demo-latest-prima.webp";
+const JOURNEY_AFTER_IMAGE = "/images/render-infissi/demo-latest-dopo.webp";
 const YOUTUBE_RENDER_DEMO_ID = "wBpdDN21vb0";
 const YOUTUBE_RENDER_DEMO_URL = `https://www.youtube.com/watch?v=${YOUTUBE_RENDER_DEMO_ID}`;
 const YOUTUBE_RENDER_DEMO_EMBED_URL = `https://www.youtube-nocookie.com/embed/${YOUTUBE_RENDER_DEMO_ID}?rel=0&modestbranding=1`;

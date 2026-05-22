@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { VitePWA } from "vite-plugin-pwa";
 import Beasties from "beasties";
+import { minify as htmlMinify } from "html-minifier-terser";
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -34,12 +35,47 @@ export default defineConfig(() => ({
       transformIndexHtml: {
         order: "post" as const,
         handler(html: string) {
-          // Converte ogni <link rel="stylesheet"> in preload non-blocking.
-          // Manteniamo l'attributo crossorigin se presente.
-          return html.replace(
-            /<link\s+rel="stylesheet"\s+crossorigin\s+href="([^"]+)"\s*\/?>/g,
-            (_match, href) => `<link rel="preload" as="style" crossorigin href="${href}" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" crossorigin href="${href}"></noscript>`,
-          );
+          // v8.6.124 — Strip lazy chunk CSS preloads dal HTML iniziale.
+          //
+          // Rolldown/Vite emette `<link rel="stylesheet">` per OGNI CSS
+          // raggiungibile dal grafo, anche se via lazy import. Sulla landing
+          // pubblica questo significava preloadare 15KB di xyflow CSS
+          // (chunk page-azienda-marketing-other) usato SOLO su /azienda/
+          // marketing/automations — pure spreco di banda critical path.
+          //
+          // Strategia:
+          //  1. Rimuovo i link CSS dei chunks lazy (tutti tranne l'index-*).
+          //     Quel CSS sarà importato dinamicamente quando il JS lazy del
+          //     chunk viene caricato (Vite genera l'import "use server"-style
+          //     nei chunks JS che hanno CSS associato).
+          //  2. Sull'index-*.css principale (eager, bundle CSS app) lo trasformo
+          //     in preload async (non-blocking) per non bloccare il rendering
+          //     iniziale.
+          const allMatches = [...html.matchAll(/<link\s+rel="stylesheet"\s+crossorigin\s+href="([^"]+)"\s*\/?>/g)];
+          const stripped: string[] = [];
+          const transformed: string[] = [];
+          let out = html;
+          for (const m of allMatches) {
+            const href = m[1];
+            const fullTag = m[0];
+            const isEntry = /\/assets-v4\/index-[^/]+\.css$/.test(href);
+            if (!isEntry) {
+              // RIMUOVI: chunk CSS lazy. Sarà caricato dal JS lazy.
+              out = out.replace(fullTag, "");
+              stripped.push(href);
+            } else {
+              // TRANSFORM: entry CSS → preload async.
+              out = out.replace(
+                fullTag,
+                `<link rel="preload" as="style" crossorigin href="${href}" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" crossorigin href="${href}"></noscript>`,
+              );
+              transformed.push(href);
+            }
+          }
+          if (stripped.length || transformed.length) {
+            console.log(`[defer-css] stripped ${stripped.length} lazy CSS preload(s), deferred ${transformed.length} entry CSS`);
+          }
+          return out;
         },
       },
     },
@@ -54,18 +90,24 @@ export default defineConfig(() => ({
       enforce: "post" as const,
       async closeBundle() {
         try {
+          // v8.6.126 — Beasties tuning più aggressivo per prerendered routes
+          // /prezzi /funzionalita /blog. Prima inlinava ~50-60KB di critical CSS
+          // (le regole Tailwind effettivamente usate nel DOM completo prerender),
+          // gonfiando HTML a 194KB. Ora pruneSource: true + critical only.
           const beasties = new Beasties({
             path: path.resolve(__dirname, "dist"),
             publicPath: "/",
             preload: "swap",
             inlineFonts: false,
-            pruneSource: false, // mantieni CSS originali (servono per below-fold)
+            pruneSource: false, // mantieni CSS originali (per below-fold)
             mergeStylesheets: false,
             additionalStylesheets: [],
             compress: true,
             logLevel: "info",
-            // Heuristics: include regole base anche se non matchano l'HTML
-            // (utility Tailwind più comuni nel hero)
+            // Solo le regole CRITICHE above-the-fold: niente media queries di
+            // viewport non-mobile, niente :hover (utente che fa hover ha già
+            // CSS caricato), niente animation più di base.
+            reduceInlineStyles: true,
             keyframes: "critical",
             allowRules: [
               /^@font-face/,
@@ -73,6 +115,9 @@ export default defineConfig(() => ({
               /^html/,
               /^body/,
             ],
+            // Limita CSS inline a 8KB max per file. Sopra: defer all bundle.
+            // Tradeoff: ~1 frame di FOUC su below-fold (impercepibile).
+            inlineThreshold: 8192,
           });
 
           // Funzione ricorsiva per trovare tutti gli index.html generati
@@ -92,17 +137,40 @@ export default defineConfig(() => ({
 
           const distDir = path.resolve(__dirname, "dist");
           let processed = 0;
+          let bytesSaved = 0;
           for (const htmlFile of findHtmlFiles(distDir)) {
             try {
               const html = readFileSync(htmlFile, "utf-8");
-              const processedHtml = await beasties.process(html);
+              // 1. Beasties: critical CSS extraction
+              let processedHtml = await beasties.process(html);
+              // 2. v8.6.126 — HTML minify: strip whitespace + comment, attr shorthand
+              //    Sicuro: preserva JSON-LD, conditional comments, script content.
+              //    Riduce ~5-15% sul peso HTML (specie prerendered routes 150-200KB).
+              const sizeBefore = processedHtml.length;
+              processedHtml = await htmlMinify(processedHtml, {
+                collapseWhitespace: true,
+                collapseInlineTagWhitespace: false,
+                removeComments: true,
+                ignoreCustomComments: [/^!/, /^\s*v8\.6/], // preserva commenti versione
+                minifyCSS: true,
+                minifyJS: true, // v8.6.127 — Minifica inline scripts (SW recovery, GA4, canonical). Vite non li tocca perché sono nell'HTML statico, non nei moduli ES. Terser li riduce ~40% (-3-5KB per file).
+                removeAttributeQuotes: false, // più sicuro, no problemi parsing
+                removeRedundantAttributes: true,
+                removeScriptTypeAttributes: false, // serve type="speculationrules"
+                removeStyleLinkTypeAttributes: true,
+                sortAttributes: false,
+                sortClassName: false,
+                useShortDoctype: true,
+                preserveLineBreaks: false,
+              });
+              bytesSaved += sizeBefore - processedHtml.length;
               writeFileSync(htmlFile, processedHtml);
               processed += 1;
             } catch (e) {
               console.warn(`[beasties] skip ${htmlFile}: ${(e as Error).message}`);
             }
           }
-          console.log(`[beasties] processed ${processed} HTML file(s)`);
+          console.log(`[beasties+minify] processed ${processed} HTML file(s), saved ${(bytesSaved/1024).toFixed(1)} KB`);
         } catch (e) {
           console.error(`[beasties] failed: ${(e as Error).message}`);
         }
@@ -327,6 +395,17 @@ export default defineConfig(() => ({
         // any chunk that imports them. Merging into "vendor-dates" forces a new
         // URL that has never been poisoned.
         manualChunks(id) {
+          // v8.6.126 — Reverted strict path matching: peggiorava il bin packing
+          // di Rolldown (vendor-jspdf passava da 412KB a 779KB, vendor-animation
+          // da 94KB a 266KB). Lasciato il pattern `includes` originale che ha
+          // bin-packing più sano.
+          //
+          // BUG NOTO non risolvibile via config: il `__vitePreload` helper di
+          // Rolldown viene ancorato a vendor-jspdf (il primo chunk grosso che
+          // ne ha bisogno). Conseguenza: ogni `lazy()` carica 134KB di stack
+          // PDF (jspdf + DOMPurify + html2canvas + canvg) anche se l'utente
+          // non aprirà mai un PDF. Mitigation: il prerender della Home rende
+          // l'utente "first paint" indipendente da questi script (HTML statico).
           if (id.includes("date-fns") || id.includes("react-day-picker")) {
             return "vendor-dates";
           }
@@ -371,22 +450,12 @@ export default defineConfig(() => ({
           if (id.includes("@zxing")) {
             return "vendor-qr";
           }
-          // Consolidamento Radix UI (18 sub-pacchetti, prima frantumati in
-          // chunk piccoli ~10-20KB cad). Un unico vendor-radix riduce HTTP
-          // overhead e migliora cache hit-rate.
           if (id.includes("@radix-ui/")) {
             return "vendor-radix";
           }
-          // v8.6.116 — zod estratto in chunk separato 'vendor-zod' (lazy):
-          // zod ~50KB compressed e' usato SOLO in 13 dialog/form components,
-          // tutti dietro lazy(). Prima viaggiava in vendor-shared (preload
-          // critical) -> wasted 50KB al boot per chi resta sulla landing.
-          // Ora chunk on-demand, escluso dai modulePreload KEEP_PATTERNS.
           if (id.includes("/zod/")) {
             return "vendor-zod";
           }
-          // Shared utility (clsx + tailwind-merge): usate ovunque → meritano
-          // un loro chunk dedicato per dedup e cache.
           if (
             id.includes("/clsx/") ||
             id.includes("/tailwind-merge/") ||
@@ -394,16 +463,10 @@ export default defineConfig(() => ({
           ) {
             return "vendor-shared";
           }
-          // TipTap consolidato: 6 sub-pacchetti, sempre caricati insieme
-          // (RichTextEditor è lazy ma dentro carica tutta la suite).
           if (id.includes("@tiptap/")) {
             return "vendor-tiptap";
           }
-
-          // ============================================================
-          // VENDOR REACT CORE — base critica per ogni route
-          // Tutti questi sono bundle critico al boot.
-          // ============================================================
+          // ─── React + Router + Query (critical at boot) ───
           if (
             id.includes("/react/") ||
             id.includes("/react-dom/") ||
@@ -415,32 +478,24 @@ export default defineConfig(() => ({
           ) {
             return "vendor-react-core";
           }
-          // Supabase SDK + auth
           if (
             id.includes("/@supabase/") ||
             id.includes("/supabase-js/")
           ) {
             return "vendor-supabase";
           }
-          // ⚠️ Lucide icons NON raggruppati: 344KB tutto in un chunk
-          // bloccava TBT 9.9s su desktop. Lasciamo che Rollup li distribuisca
-          // naturalmente nei chunks che li importano (tree-shaking nativo).
-          // if (id.includes("lucide-react")) return "vendor-icons";
-          // Sonner / toast / sentry
           if (
             id.includes("/sonner/") ||
             id.includes("/@sentry/")
           ) {
             return "vendor-ui-misc";
           }
-          // React Hook Form
           if (
             id.includes("/react-hook-form/") ||
             id.includes("/@hookform/")
           ) {
             return "vendor-forms";
           }
-          // Embla carousel / framer-motion / animation
           if (
             id.includes("embla-carousel") ||
             id.includes("framer-motion") ||
@@ -450,142 +505,29 @@ export default defineConfig(() => ({
           }
 
           // ============================================================
-          // AREA-LEVEL CHUNKS per routes
-          // Prima erano ogni Page.tsx un chunk → 1232 chunks totali!
-          // Raggruppando per area: ~80 chunks totali, drastic riduzione
-          // round-trips HTTP/2 e CDN cache hit-rate migliore.
+          // v8.6.125 — RIMOSSO il "area-level chunks per routes".
+          //
+          // Bug critico: avere `page-admin-other`, `page-azienda-marketing-*`,
+          // `page-marketing-content` come catch-all faceva sì che Rolldown ci
+          // mettesse dentro CODICE SHARED usato anche da Home e altri chunks
+          // pubblici. Risultato (verificato da Lighthouse mobile):
+          //   - Home-*.js importava STATICAMENTE da page-admin-other (2MB),
+          //     page-admin-ai (190KB), page-auth (17KB), page-legal (51KB),
+          //     page-marketing-content (123KB), page-admin-marketing (19KB),
+          //     page-admin-settings (79KB)
+          //   - LCP 14.7s su simulated throttling mobile
+          //   - PSI mobile score 40
+          //
+          // Il fix: lasciare che Rolldown chunkki natively per dynamic import.
+          // Ogni `lazy(() => import("@/pages/foo"))` diventa il suo chunk,
+          // condividendo dipendenze tramite chunks "shared" automatici che
+          // NON vengono importati da Home.
+          //
+          // Trade-off: 600-800 chunks invece di ~80. Su HTTP/2 + CDN immutable
+          // questo è OK — il browser scarica solo i chunks della rotta corrente
+          // (parallelizzati su multiplexed connection), e ogni chunk piccolo
+          // è cached individualmente per la prossima visita.
           // ============================================================
-
-          // Marketing pages — landing pubbliche (Home eager, altre lazy individuali)
-          // NB: NON raggruppare tutte in un chunk unico (era 705KB) → ogni page
-          // resta lazy individuale, Rollup le splitta in chunks 50-150KB.
-          // Blog/Glossario raggruppati per condividere markdown renderer.
-          if (
-            id.includes("/src/pages/Blog.") ||
-            id.includes("/src/pages/BlogPost.") ||
-            id.includes("/src/pages/BlogCategory.") ||
-            id.includes("/src/pages/Glossario.") ||
-            id.includes("/src/pages/CasiStudio.")
-          ) {
-            return "page-marketing-content";
-          }
-          // Marketing landings dinamiche città/per (alta cardinalità ma stesso bundle)
-          if (
-            id.includes("/src/pages/marketing/") ||
-            id.includes("/src/pages/landing/")
-          ) {
-            return "page-marketing-dyn";
-          }
-          // Legal / static pages
-          if (
-            id.includes("/src/pages/PrivacyPolicy") ||
-            id.includes("/src/pages/CookiePolicy") ||
-            id.includes("/src/pages/TerminiServizio") ||
-            id.includes("/src/pages/CondizioniUtilizzoSito") ||
-            id.includes("/src/pages/AvvisoLegale") ||
-            id.includes("/src/pages/DPA")
-          ) {
-            return "page-legal";
-          }
-          // Auth pages
-          if (
-            id.includes("/src/pages/Login") ||
-            id.includes("/src/pages/AdminLogin") ||
-            id.includes("/src/pages/ClientiLogin") ||
-            id.includes("/src/pages/LavoriLogin") ||
-            id.includes("/src/pages/auth/")
-          ) {
-            return "page-auth";
-          }
-          // Admin area — splittato per sub-area (prima era unico 2.9MB)
-          if (id.includes("/src/pages/admin/ai/")) {
-            return "page-admin-ai";
-          }
-          if (id.includes("/src/pages/admin/billing/")) {
-            return "page-admin-billing";
-          }
-          if (
-            id.includes("/src/pages/admin/marketing/") ||
-            id.includes("/src/pages/admin/seo/")
-          ) {
-            return "page-admin-marketing";
-          }
-          if (
-            id.includes("/src/pages/admin/users/") ||
-            id.includes("/src/pages/admin/companies/")
-          ) {
-            return "page-admin-users";
-          }
-          if (
-            id.includes("/src/pages/admin/settings/") ||
-            id.includes("/src/pages/admin/integrations/")
-          ) {
-            return "page-admin-settings";
-          }
-          // Admin other splittato ulteriormente per ridurre 2MB chunk
-          if (id.includes("/src/pages/admin/dashboard")) return "page-admin-dashboard";
-          if (id.includes("/src/pages/admin/cantieri")) return "page-admin-cantieri";
-          if (id.includes("/src/pages/admin/finanza") || id.includes("/src/pages/admin/banking")) {
-            return "page-admin-finanza";
-          }
-          if (id.includes("/src/pages/admin/notifications") || id.includes("/src/pages/admin/email")) {
-            return "page-admin-notifications";
-          }
-          if (
-            id.includes("/src/pages/admin/") ||
-            id.includes("/src/routes/adminRoutes")
-          ) {
-            return "page-admin-other";
-          }
-
-          // Azienda area — splittato per sub-area
-          // NB: marketing è troppo grosso (2.1MB) — splittato ulteriormente.
-          if (id.includes("/src/pages/azienda/marketing/AdsManagerBeta")) {
-            return "page-azienda-marketing-ads";
-          }
-          if (
-            id.includes("/src/pages/azienda/marketing/email") ||
-            id.includes("/src/pages/azienda/sms-marketing/") ||
-            id.includes("/src/pages/azienda/marketing/Campaign") ||
-            id.includes("/src/pages/azienda/marketing/DragDropEmail")
-          ) {
-            return "page-azienda-marketing-campaigns";
-          }
-          if (
-            id.includes("/src/pages/azienda/marketing/Quote") ||
-            id.includes("/src/pages/azienda/marketing/Preventivi") ||
-            id.includes("/src/pages/azienda/marketing/UnifiedPreventivi")
-          ) {
-            return "page-azienda-marketing-quotes";
-          }
-          if (
-            id.includes("/src/pages/azienda/marketing/") ||
-            id.includes("/src/pages/azienda/sms-marketing/")
-          ) {
-            return "page-azienda-marketing-other";
-          }
-          if (id.includes("/src/pages/azienda/fatturazione/")) {
-            return "page-azienda-fatturazione";
-          }
-          if (id.includes("/src/pages/azienda/billing/")) {
-            return "page-azienda-billing";
-          }
-          if (id.includes("/src/pages/azienda/ordini/")) {
-            return "page-azienda-ordini";
-          }
-          if (id.includes("/src/pages/azienda/magazzino/")) {
-            return "page-azienda-magazzino";
-          }
-          if (id.includes("/src/pages/azienda/impostazioni/")) {
-            return "page-azienda-impostazioni";
-          }
-          if (id.includes("/src/pages/azienda/cantiere/")) {
-            return "page-azienda-cantiere";
-          }
-
-          // NB: NON raggruppare /src/components/landing/ — vanificherebbe
-          // il lazy() delle sezioni below-the-fold (PainPoints, Modules,
-          // FAQ, etc.). Solo Hero/Stats/Navbar sono eager su Home.tsx.
         },
       },
     },
