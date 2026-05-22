@@ -357,9 +357,8 @@ function buildGraphData(
           source: `p_${pA}`,
           target: `p_${pB}`,
           size: Math.min(3, 0.8 + count * 0.4),
-          fill: "#f97316",
+          fill: "#f9731688", // semi-transparent orange to distinguish from solid edges
           label: `${count} link`,
-          dashed: true,
         });
         connectionsMap.get(`p_${pA}`)?.add(`p_${pB}`);
         connectionsMap.get(`p_${pB}`)?.add(`p_${pA}`);
