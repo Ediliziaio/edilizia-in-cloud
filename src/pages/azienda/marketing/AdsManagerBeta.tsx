@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  ArrowRightCircle,
   BadgeEuro,
   Check,
   ChevronRight,
+  Clapperboard,
   Copy,
   Euro,
   FileText,
+  Film,
+  Filter,
   Image as ImageIcon,
   Info,
   Loader2,
@@ -20,6 +24,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Rocket,
   Search,
   Settings,
@@ -61,7 +66,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import { cn } from "@/lib/utils";
 import { useMetaCampaigns } from "@/hooks/useMetaCampaigns";
-import { useAdsAi } from "@/hooks/useAdsAi";
+import { useAdsAi, type VideoScript, type VideoScriptStyle } from "@/hooks/useAdsAi";
 import { useAdSpendGuard, type AdSpendGuardConfig } from "@/hooks/useAdSpendGuard";
 import { useMetaPixelConfig } from "@/hooks/useMetaPixelConfig";
 import { AdsBotChatPanel } from "@/components/ads/AdsBotChatPanel";
@@ -3993,24 +3998,41 @@ function TreeRow({
 }
 
 /**
- * CreativeStudioTab — genera copy + immagini AI per Meta Ads.
+ * CreativeStudioTab — Studio creativo per Meta/Google Ads.
  *
  * Sezioni:
- *   1. Brief + generatore copy AI (5 varianti + hook + CTA)
- *   2. Generatore immagini AI (DALL-E gpt-image-1, 4 aspect ratio)
- *   3. Libreria asset azienda (ad_media table) — riusabili nei wizard
- *
- * Tutto chiama le edge function ai-ads-copy-generate / ai-ads-image-generate.
+ *   1. Brief unificato + copy AI (5 varianti + hook + CTA)
+ *   2. Generatore immagini AI (DALL-E, prompt separato + preview inline)
+ *   3. Script video AI (timeline a scene, stili multipli)
+ *   4. Upload immagine + video (con preview)
+ *   5. Libreria asset (filtri tipo+formato, delete)
  */
 function CreativeStudioTab({ companyId }: { companyId?: string }) {
+  // ─── Brief unificato ──────────────────────────────────────────────
   const [brief, setBrief] = useState("Serramenti premium con sopralluogo gratuito e posa certificata");
   const [segment, setSegment] = useState("serramenti");
   const [zone, setZone] = useState("");
-  const [aspectRatio, setAspectRatio] = useState<"1:1" | "4:5" | "9:16" | "16:9">("4:5");
-  const [imageQuality, setImageQuality] = useState<"standard" | "hd">("standard");
+
+  // ─── Copy generator ───────────────────────────────────────────────
   const [generatedCopy, setGeneratedCopy] = useState<CopyGenResult | null>(null);
 
-  const { generateCopy, generateImage, isGeneratingCopy, isGeneratingImage } = useAdsAi(companyId);
+  // ─── Image generator (prompt SEPARATO dal brief) ──────────────────
+  const [imagePrompt, setImagePrompt] = useState(brief);
+  const [aspectRatio, setAspectRatio] = useState<"1:1" | "4:5" | "9:16" | "16:9">("4:5");
+  const [imageQuality, setImageQuality] = useState<"standard" | "hd">("standard");
+  const [lastGeneratedImage, setLastGeneratedImage] = useState<{ public_url: string; width_px: number; height_px: number; cost_eur_cents?: number } | null>(null);
+
+  // ─── Video script generator ───────────────────────────────────────
+  const [videoDuration, setVideoDuration] = useState<"15" | "30" | "60">("30");
+  const [videoStyle, setVideoStyle] = useState<VideoScriptStyle>("problema-soluzione");
+  const [generatedScript, setGeneratedScript] = useState<VideoScript | null>(null);
+
+  // ─── Libreria asset filters ───────────────────────────────────────
+  const [mediaKindFilter, setMediaKindFilter] = useState<"all" | "image" | "video">("all");
+  const [mediaFormatFilter, setMediaFormatFilter] = useState<string>("all");
+
+  const { generateCopy, generateImage, generateVideoScript, isGeneratingCopy, isGeneratingImage, isGeneratingScript } = useAdsAi(companyId);
+  const qc = useQueryClient();
 
   // Libreria asset reali da ad_media
   const { data: mediaLib = [] } = useQuery({
@@ -4018,28 +4040,19 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
     queryFn: async () => {
       if (!companyId) return [];
       try {
-        const { data, error } = await (supabase as unknown as {
-          from: (n: string) => {
-            select: (s: string) => {
-              eq: (col: string, val: string) => {
-                order: (col: string, opts: { ascending: boolean }) => {
-                  limit: (n: number) => Promise<{ data: AdMediaItem[] | null; error: { message: string } | null }>;
-                };
-              };
-            };
-          };
-        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
           .from("ad_media")
           .select("id, name, public_url, thumbnail_url, kind, aspect_ratio, source, ai_prompt, tags, created_at, width_px, height_px")
           .eq("company_id", companyId)
           .order("created_at", { ascending: false })
-          .limit(24);
+          .limit(48);
         if (error) {
           const msg = String(error.message ?? "");
           if (msg.includes("does not exist") || msg.includes("schema cache")) return [];
           throw error;
         }
-        return data ?? [];
+        return (data ?? []) as AdMediaItem[];
       } catch {
         return [];
       }
@@ -4048,12 +4061,15 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
     staleTime: 30_000,
   });
 
+  // ─── Handlers ────────────────────────────────────────────────────────────────
+
   const onGenerateCopy = async () => {
     const result = await generateCopy({ brief, segment, zone, variants: 5 });
     if (result) setGeneratedCopy(result);
   };
 
   const onGenerateImage = async (prompt: string) => {
+    setLastGeneratedImage(null);
     const result = await generateImage({
       prompt,
       aspect_ratio: aspectRatio,
@@ -4061,17 +4077,50 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
       tags: [segment, aspectRatio],
     });
     if (result) {
+      setLastGeneratedImage(result);
       toast.success("Immagine generata e salvata in libreria", {
-        description: `${result.width_px}×${result.height_px}px${
-          result.cost_eur_cents ? ` · ${(result.cost_eur_cents / 100).toFixed(3)}€` : ""
-        }`,
+        description: `${result.width_px}×${result.height_px}px${result.cost_eur_cents ? ` · ${(result.cost_eur_cents / 100).toFixed(3)}€` : ""}`,
       });
+      qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
     }
   };
 
+  const onGenerateScript = async () => {
+    setGeneratedScript(null);
+    const result = await generateVideoScript({ brief, segment, zone, duration: videoDuration, style: videoStyle });
+    if (result) setGeneratedScript(result);
+  };
+
+  const deleteMedia = async (id: string) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("ad_media").delete().eq("id", id);
+      qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
+      toast.success("Asset eliminato dalla libreria");
+    } catch {
+      toast.error("Errore durante l'eliminazione");
+    }
+  };
+
+  // Filtered media library
+  const filteredMedia = mediaLib
+    .filter(m => mediaKindFilter === "all" || (mediaKindFilter === "image" ? m.kind !== "video" : m.kind === "video"))
+    .filter(m => mediaFormatFilter === "all" || m.aspect_ratio === mediaFormatFilter);
+
+  // ─── Scene colors for video script ───────────────────────────────────────────
+  const sceneColors = [
+    "border-violet-200 bg-violet-50 text-violet-800",
+    "border-blue-200 bg-blue-50 text-blue-800",
+    "border-orange-200 bg-orange-50 text-orange-800",
+    "border-emerald-200 bg-emerald-50 text-emerald-800",
+    "border-rose-200 bg-rose-50 text-rose-800",
+  ];
+
   return (
     <div className="space-y-5">
+      {/* ─── ROW 1: COPY + IMAGE GENERATORS ─────────────────────────── */}
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+
         {/* COPY GENERATOR */}
         <Card>
           <CardHeader>
@@ -4080,16 +4129,14 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               Genera copy AI
             </CardTitle>
             <CardDescription>
-              5 varianti copy + hook + suggerimenti CTA per Meta Ads, basate sul brief.
+              5 varianti copy + hook + CTA per Meta Ads, basate sul tuo brief.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="Settore">
                 <Select value={segment} onValueChange={setSegment}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="serramenti">Serramenti / Infissi</SelectItem>
                     <SelectItem value="bagni">Ristrutturazione bagni</SelectItem>
@@ -4102,11 +4149,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
                 </Select>
               </Field>
               <Field label="Zona (opzionale)">
-                <Input
-                  value={zone}
-                  onChange={(e) => setZone(e.target.value)}
-                  placeholder="Es. Monza e Brianza"
-                />
+                <Input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Es. Monza e Brianza" />
               </Field>
             </div>
             <Field label="Brief creativo">
@@ -4118,78 +4161,91 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               />
             </Field>
             <Button onClick={onGenerateCopy} disabled={isGeneratingCopy} className="w-full">
-              {isGeneratingCopy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
+              {isGeneratingCopy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {isGeneratingCopy ? "Generazione in corso..." : "Genera 5 copy con AI"}
             </Button>
 
             {generatedCopy && (
               <div className="space-y-3 rounded-xl border bg-slate-50/50 p-3">
-                <div className="text-xs font-semibold uppercase text-slate-500">
-                  Output AI {generatedCopy.model_used ? `(${generatedCopy.model_used})` : ""}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase text-slate-500">
+                    Output AI {generatedCopy.model_used ? `· ${generatedCopy.model_used}` : ""}
+                  </span>
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onGenerateCopy} disabled={isGeneratingCopy}>
+                    <RefreshCw className="mr-1 h-3 w-3" /> Rigenera
+                  </Button>
                 </div>
+
+                {/* Copy variants */}
                 {generatedCopy.copy_variants.map((c, i) => (
                   <div key={i} className="rounded-lg border bg-white p-3 text-sm">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-500">Copy {i + 1}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => {
-                          void navigator.clipboard?.writeText(c);
-                          toast.success("Copy copiato");
-                        }}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500">Variante {i + 1}</span>
+                      <div className="flex items-center gap-1">
+                        <span className={cn("text-[10px] tabular-nums", c.length > 150 ? "text-amber-600" : "text-slate-400")}>
+                          {c.length} car.
+                        </span>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                          onClick={() => { void navigator.clipboard?.writeText(c); toast.success("Copy copiato"); }}>
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                     <p className="leading-relaxed text-slate-800">{c}</p>
                   </div>
                 ))}
+
+                {/* Hooks */}
                 {generatedCopy.hooks.length > 0 && (
                   <div>
-                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Hook</p>
+                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">🪝 Hook</p>
                     <div className="flex flex-wrap gap-1">
                       {generatedCopy.hooks.map((h, i) => (
-                        <Badge key={i} variant="outline" className="border-violet-200 bg-violet-50 text-violet-700">
+                        <button key={i} type="button"
+                          onClick={() => { void navigator.clipboard?.writeText(h); toast.success("Hook copiato"); }}
+                          className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 hover:bg-violet-100">
                           {h}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {generatedCopy.image_prompts.length > 0 && (
-                  <div>
-                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">
-                      Prompt immagine suggeriti
-                    </p>
-                    <div className="space-y-1">
-                      {generatedCopy.image_prompts.map((p, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => onGenerateImage(p)}
-                          disabled={isGeneratingImage}
-                          className="w-full rounded-lg border bg-white p-2 text-left text-xs hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          <span className="mr-1 font-semibold text-orange-600">Genera →</span>
-                          {p}
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
+
+                {/* CTA */}
+                {generatedCopy.cta_suggestions?.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">🎯 CTA suggerite</p>
+                    <div className="flex flex-wrap gap-1">
+                      {generatedCopy.cta_suggestions.map((c, i) => (
+                        <Badge key={i} variant="outline" className="border-orange-200 bg-orange-50 text-orange-700 text-[10px]">{c}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Image prompts → genera immagine */}
+                {generatedCopy.image_prompts.length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase text-slate-500">🖼️ Prompt immagine suggeriti</p>
+                    <div className="space-y-1">
+                      {generatedCopy.image_prompts.map((p, i) => (
+                        <button key={i} type="button"
+                          onClick={() => { setImagePrompt(p); onGenerateImage(p); }}
+                          disabled={isGeneratingImage}
+                          className="w-full rounded-lg border bg-white p-2 text-left text-xs hover:bg-slate-50 disabled:opacity-50">
+                          <span className="mr-1 font-semibold text-orange-600">Genera →</span>{p}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Compliance warnings */}
                 {generatedCopy.warnings.length > 0 && (
                   <Alert className="border-amber-200 bg-amber-50">
                     <AlertTriangle className="h-4 w-4 text-amber-700" />
-                    <AlertTitle>Attenzione compliance</AlertTitle>
-                    <AlertDescription className="text-xs">
-                      {generatedCopy.warnings.join(" · ")}
-                    </AlertDescription>
+                    <AlertTitle>Compliance</AlertTitle>
+                    <AlertDescription className="text-xs">{generatedCopy.warnings.join(" · ")}</AlertDescription>
                   </Alert>
                 )}
               </div>
@@ -4205,191 +4261,399 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               Genera immagine AI
             </CardTitle>
             <CardDescription>
-              DALL-E (gpt-image-1) — l'immagine viene salvata in libreria e riutilizzabile nelle bozze.
+              DALL-E (gpt-image-1) — prompt visivo indipendente dal brief, preview inline.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="Formato">
                 <Select value={aspectRatio} onValueChange={(v) => setAspectRatio(v as typeof aspectRatio)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1:1">1:1 (feed quadrato)</SelectItem>
-                    <SelectItem value="4:5">4:5 (feed verticale — consigliato)</SelectItem>
-                    <SelectItem value="9:16">9:16 (story/reel)</SelectItem>
-                    <SelectItem value="16:9">16:9 (orizzontale)</SelectItem>
+                    <SelectItem value="4:5">4:5 — Feed verticale ✦ consigliato</SelectItem>
+                    <SelectItem value="9:16">9:16 — Story / Reel</SelectItem>
+                    <SelectItem value="1:1">1:1 — Feed quadrato</SelectItem>
+                    <SelectItem value="16:9">16:9 — Orizzontale / Display</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
               <Field label="Qualità">
                 <Select value={imageQuality} onValueChange={(v) => setImageQuality(v as typeof imageQuality)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="standard">Standard (~0.04€)</SelectItem>
-                    <SelectItem value="hd">HD (~0.07€)</SelectItem>
+                    <SelectItem value="standard">Standard ~0.04€</SelectItem>
+                    <SelectItem value="hd">HD ~0.07€ · più nitida</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
             </div>
-            <Field label="Prompt immagine">
+
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <Label className="text-xs font-medium">Prompt visivo</Label>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px] text-slate-500"
+                  onClick={() => setImagePrompt(brief)}>
+                  <RefreshCw className="mr-1 h-3 w-3" /> Usa brief →
+                </Button>
+              </div>
               <Textarea
-                value={brief}
-                onChange={(e) => setBrief(e.target.value)}
+                value={imagePrompt}
+                onChange={(e) => setImagePrompt(e.target.value)}
                 className="min-h-24"
-                placeholder="Descrivi cosa vuoi vedere: contesto, soggetto, atmosfera, palette..."
+                placeholder="Descrivi la scena: operaio che installa finestre, casa appena ristrutturata, prima/dopo, colori caldi, luce naturale..."
               />
-            </Field>
-            <Button
-              onClick={() => onGenerateImage(brief)}
-              disabled={isGeneratingImage}
-              className="w-full"
-            >
-              {isGeneratingImage ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Wand2 className="h-4 w-4" />
-              )}
+            </div>
+
+            <Button onClick={() => onGenerateImage(imagePrompt)} disabled={isGeneratingImage} className="w-full">
+              {isGeneratingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
               {isGeneratingImage ? "Generazione immagine..." : "Genera immagine"}
             </Button>
+
+            {/* Preview inline dopo generazione */}
+            {isGeneratingImage && (
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-orange-200 bg-orange-50 p-6 text-sm text-orange-700">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                DALL-E sta dipingendo...
+              </div>
+            )}
+            {lastGeneratedImage && !isGeneratingImage && (
+              <div className="overflow-hidden rounded-xl border shadow-sm">
+                <div className="relative">
+                  <img src={lastGeneratedImage.public_url} alt="Immagine generata" className="w-full object-cover" />
+                  <div className="absolute right-2 top-2 flex gap-1">
+                    <Badge className="bg-black/60 text-white text-[10px] backdrop-blur-sm">
+                      {lastGeneratedImage.width_px}×{lastGeneratedImage.height_px}
+                      {lastGeneratedImage.cost_eur_cents ? ` · ${(lastGeneratedImage.cost_eur_cents / 100).toFixed(3)}€` : ""}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between bg-slate-50 px-3 py-2">
+                  <span className="text-[11px] text-slate-500">✅ Salvata in Libreria asset</span>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs"
+                      onClick={() => window.open(lastGeneratedImage.public_url, "_blank")}>
+                      Apri
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                      onClick={() => setLastGeneratedImage(null)}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <p className="text-[11px] leading-relaxed text-slate-500">
-              Le immagini vengono salvate automaticamente in <strong>Libreria asset</strong> e riutilizzabili nei wizard delle campagne.
+              Le immagini vengono salvate in <strong>Libreria asset</strong> e riutilizzabili nei wizard campagne.
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* UPLOAD IMMAGINI + VIDEO */}
+      {/* ─── ROW 2: VIDEO SCRIPT GENERATOR ───────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Clapperboard className="h-5 w-5 text-rose-600" />
+            Genera script video AI
+          </CardTitle>
+          <CardDescription>
+            Timeline a scene per Reels / Stories / Feed — usa lo stesso brief, scegli durata e stile narrativo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Durata">
+              <div className="flex gap-2">
+                {(["15", "30", "60"] as const).map((d) => (
+                  <button key={d} type="button"
+                    onClick={() => setVideoDuration(d)}
+                    className={cn(
+                      "flex-1 rounded-lg border py-2 text-sm font-semibold transition",
+                      videoDuration === d
+                        ? "border-rose-500 bg-rose-50 text-rose-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    )}>
+                    {d}s
+                    <span className="ml-1 text-[10px] font-normal text-slate-400">
+                      {d === "15" ? "Stories" : d === "30" ? "Reels" : "Feed"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Stile narrativo">
+              <Select value={videoStyle} onValueChange={(v) => setVideoStyle(v as VideoScriptStyle)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="problema-soluzione">🔥 Problema → Soluzione</SelectItem>
+                  <SelectItem value="prima-dopo">✨ Prima → Dopo</SelectItem>
+                  <SelectItem value="testimonial">💬 Testimonial / Cliente</SelectItem>
+                  <SelectItem value="offerta-diretta">🎯 Offerta diretta + CTA</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+
+          <div className="rounded-xl border bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+            <strong>Brief usato:</strong> {brief || "— inserisci il brief nel generatore copy ↑"}
+          </div>
+
+          <Button onClick={onGenerateScript} disabled={isGeneratingScript || !brief.trim()} className="w-full bg-rose-600 hover:bg-rose-700">
+            {isGeneratingScript ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
+            {isGeneratingScript ? "Generazione script..." : "Genera script video AI"}
+          </Button>
+
+          {/* Script output — timeline a scene */}
+          {generatedScript && !isGeneratingScript && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-rose-600 text-white">{generatedScript.total_duration}</Badge>
+                  <Badge variant="outline" className="border-slate-200 text-slate-600">{generatedScript.platform}</Badge>
+                  {generatedScript.model_used && (
+                    <span className="text-[10px] text-slate-400">{generatedScript.model_used}</span>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" onClick={onGenerateScript} disabled={isGeneratingScript}>
+                  <RefreshCw className="mr-1 h-3 w-3" /> Rigenera
+                </Button>
+              </div>
+
+              {/* Hook headline */}
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                <p className="mb-0.5 text-[10px] font-semibold uppercase text-rose-500">🪝 Hook video</p>
+                <p className="text-sm font-semibold text-rose-900">{generatedScript.hook}</p>
+              </div>
+
+              {/* Scene timeline */}
+              <div className="space-y-2">
+                {generatedScript.scenes.map((scene, i) => (
+                  <div key={i} className={cn("rounded-xl border p-3", sceneColors[i % sceneColors.length])}>
+                    <div className="mb-2 flex items-center gap-2">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/70 text-[10px] font-bold">
+                        {scene.scene}
+                      </div>
+                      <span className="text-xs font-semibold">{scene.label}</span>
+                      <Badge variant="outline" className="ml-auto border-current/30 bg-white/50 text-[9px]">
+                        ⏱ {scene.duration_seconds}s
+                      </Badge>
+                    </div>
+                    <div className="grid gap-1.5 sm:grid-cols-2">
+                      <div>
+                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70">📺 Testo overlay</p>
+                        <p className="text-xs font-semibold leading-snug">{scene.overlay_text}</p>
+                      </div>
+                      <div>
+                        <p className="mb-0.5 text-[9px] font-bold uppercase opacity-70">🎤 Voiceover</p>
+                        <p className="text-xs leading-snug opacity-90">{scene.voiceover}</p>
+                      </div>
+                    </div>
+                    {scene.visual_direction && (
+                      <div className="mt-1.5 rounded-md border border-white/40 bg-white/30 px-2 py-1">
+                        <p className="text-[9px] font-bold uppercase opacity-60">🎬 Regia</p>
+                        <p className="text-[11px] opacity-80">{scene.visual_direction}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA finale */}
+              <div className="flex items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
+                <ArrowRightCircle className="h-4 w-4 shrink-0 text-orange-600" />
+                <div>
+                  <p className="text-[10px] font-semibold uppercase text-orange-500">CTA finale</p>
+                  <p className="text-sm font-semibold text-orange-900">{generatedScript.cta_final}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-xs"
+                  onClick={() => { void navigator.clipboard?.writeText(generatedScript.cta_final); toast.success("CTA copiata"); }}>
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+
+              {/* Copy completo per condividere */}
+              <Button variant="outline" size="sm" className="w-full text-xs"
+                onClick={() => {
+                  const fullScript = [
+                    `🎬 SCRIPT VIDEO ${generatedScript.total_duration} — ${generatedScript.platform}`,
+                    `🪝 Hook: ${generatedScript.hook}`,
+                    "",
+                    ...generatedScript.scenes.map(s =>
+                      `SCENA ${s.scene} (${s.duration_seconds}s) — ${s.label}\n  📺 Overlay: ${s.overlay_text}\n  🎤 Voiceover: ${s.voiceover}${s.visual_direction ? `\n  🎬 Regia: ${s.visual_direction}` : ""}`
+                    ),
+                    "",
+                    `🎯 CTA finale: ${generatedScript.cta_final}`,
+                  ].join("\n");
+                  void navigator.clipboard?.writeText(fullScript);
+                  toast.success("Script completo copiato negli appunti");
+                }}>
+                <Copy className="mr-2 h-3.5 w-3.5" /> Copia script completo
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── ROW 3: UPLOAD IMMAGINI + VIDEO ──────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-2">
         <AdMediaUploader
           companyId={companyId}
           onUploaded={(media) => {
-            toast.success("Immagine salvata in libreria", {
-              description: media.public_url ? "Pronta da usare nelle campagne." : undefined,
-            });
+            toast.success("Immagine salvata in libreria", { description: media.public_url ? "Pronta da usare nelle campagne." : undefined });
+            qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
           }}
         />
         <AdVideoUploader
           companyId={companyId}
           onUploaded={(media) => {
-            toast.success("Video salvato in libreria", {
-              description: media.public_url ? "Pronto da usare nelle campagne." : undefined,
-            });
+            toast.success("Video salvato in libreria", { description: media.public_url ? "Pronto da usare nelle campagne." : undefined });
+            qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
           }}
         />
       </div>
 
-      {/* LIBRERIA ASSET REALI (ad_media) */}
+      {/* ─── ROW 4: LIBRERIA ASSET ───────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="text-lg">Libreria asset</CardTitle>
               <CardDescription>
-                Immagini generate AI o caricate. {mediaLib.length} totali.
+                {mediaLib.length} asset totali · {mediaLib.filter((m) => m.source === "ai_generated").length} AI · {mediaLib.filter((m) => m.source === "upload").length} upload
               </CardDescription>
             </div>
-            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-              {mediaLib.filter((m) => m.source === "ai_generated").length} AI · {mediaLib.filter((m) => m.source === "upload").length} upload
-            </Badge>
+            {/* Filtri */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 rounded-lg border bg-white p-1">
+                <Filter className="ml-1 h-3.5 w-3.5 text-slate-400" />
+                {(["all", "image", "video"] as const).map((k) => (
+                  <button key={k} type="button"
+                    onClick={() => setMediaKindFilter(k)}
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[11px] font-medium transition",
+                      mediaKindFilter === k ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
+                    )}>
+                    {k === "all" ? "Tutti" : k === "image" ? "🖼️ Img" : "🎬 Video"}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 rounded-lg border bg-white p-1">
+                {["all", "1:1", "4:5", "9:16", "16:9"].map((f) => (
+                  <button key={f} type="button"
+                    onClick={() => setMediaFormatFilter(f)}
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[11px] font-medium transition",
+                      mediaFormatFilter === f ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
+                    )}>
+                    {f === "all" ? "Tutti" : f}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           {mediaLib.length === 0 ? (
-            <div className="rounded-xl border border-dashed bg-slate-50 p-8 text-center">
+            <div className="rounded-xl border border-dashed bg-slate-50 p-10 text-center">
               <ImageIcon className="mx-auto mb-2 h-6 w-6 text-slate-400" />
               <p className="text-sm font-semibold text-slate-700">Libreria vuota</p>
               <p className="mt-1 text-xs text-slate-500">
-                Genera un'immagine AI sopra, carica un video, o aspetta che la migration sia applicata.
+                Genera un'immagine AI o carica un video per iniziare.
               </p>
             </div>
+          ) : filteredMedia.length === 0 ? (
+            <div className="rounded-xl border border-dashed bg-slate-50 p-8 text-center">
+              <Filter className="mx-auto mb-2 h-5 w-5 text-slate-400" />
+              <p className="text-sm font-medium text-slate-500">Nessun asset con questi filtri.</p>
+            </div>
           ) : (
-            <>
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                <Badge variant="outline" className="text-[10px]">
-                  🖼️ Immagini: {mediaLib.filter((m) => m.kind === "image" || !m.kind).length}
-                </Badge>
-                <Badge variant="outline" className="text-[10px]">
-                  🎬 Video: {mediaLib.filter((m) => m.kind === "video").length}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {mediaLib.map((m) => {
-                  const isVideo = m.kind === "video";
-                  return (
-                    <div key={m.id} className="overflow-hidden rounded-xl border bg-white">
-                      <div className="relative aspect-square bg-slate-100">
-                        {isVideo && m.public_url ? (
-                          <>
-                            <video
-                              src={m.public_url}
-                              poster={m.thumbnail_url ?? undefined}
-                              className="h-full w-full object-cover"
-                              preload="metadata"
-                              muted
-                              playsInline
-                              onMouseEnter={(e) => { void (e.currentTarget as HTMLVideoElement).play(); }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLVideoElement).pause(); }}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none opacity-100 transition-opacity">
-                              <div className="rounded-full bg-white/90 p-2 shadow-md">
-                                <Play className="h-4 w-4 fill-slate-900 text-slate-900" />
-                              </div>
-                            </div>
-                          </>
-                        ) : m.public_url ? (
-                          <img
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {filteredMedia.map((m) => {
+                const isVideo = m.kind === "video";
+                return (
+                  <div key={m.id} className="group overflow-hidden rounded-xl border bg-white transition hover:shadow-md">
+                    <div className="relative aspect-square bg-slate-100">
+                      {isVideo && m.public_url ? (
+                        <>
+                          <video
                             src={m.public_url}
-                            alt={m.name}
+                            poster={m.thumbnail_url ?? undefined}
                             className="h-full w-full object-cover"
-                            loading="lazy"
+                            preload="metadata"
+                            muted
+                            playsInline
+                            onMouseEnter={(e) => { void (e.currentTarget as HTMLVideoElement).play(); }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLVideoElement).pause(); }}
                           />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <ImageIcon className="h-8 w-8 text-slate-300" />
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                            <div className="rounded-full bg-white/90 p-2 shadow-md">
+                              <Play className="h-4 w-4 fill-slate-900 text-slate-900" />
+                            </div>
                           </div>
-                        )}
-                      </div>
-                      <div className="p-2">
-                        <p className="truncate text-xs font-semibold text-slate-900">{m.name}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-1">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[9px]",
-                              m.source === "ai_generated"
-                                ? "border-violet-200 bg-violet-50 text-violet-700"
-                                : "border-slate-200 bg-slate-50 text-slate-600",
-                            )}
-                          >
-                            {m.source === "ai_generated" ? "AI" : "Upload"}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-[9px]",
-                              isVideo
-                                ? "border-rose-200 bg-rose-50 text-rose-700"
-                                : "border-blue-200 bg-blue-50 text-blue-700",
-                            )}
-                          >
-                            {isVideo ? "🎬 Video" : "🖼️ Img"}
-                          </Badge>
-                          {m.aspect_ratio && (
-                            <Badge variant="outline" className="text-[9px] text-slate-500">
-                              {m.aspect_ratio}
-                            </Badge>
-                          )}
+                        </>
+                      ) : m.public_url ? (
+                        <img src={m.public_url} alt={m.name} className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <ImageIcon className="h-8 w-8 text-slate-300" />
                         </div>
+                      )}
+                      {/* Overlay azioni al hover */}
+                      <div className="absolute inset-0 flex items-end justify-end gap-1 p-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button type="button"
+                                onClick={() => m.public_url && window.open(m.public_url, "_blank")}
+                                className="rounded-md bg-white/90 p-1 shadow-sm hover:bg-white">
+                                <ArrowRightCircle className="h-3.5 w-3.5 text-slate-700" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Apri originale</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button type="button"
+                                onClick={() => void deleteMedia(m.id)}
+                                className="rounded-md bg-white/90 p-1 shadow-sm hover:bg-red-50">
+                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Elimina</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </>
+                    <div className="p-2">
+                      <p className="truncate text-xs font-semibold text-slate-900">{m.name}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        <Badge variant="outline"
+                          className={cn("text-[9px]",
+                            m.source === "ai_generated"
+                              ? "border-violet-200 bg-violet-50 text-violet-700"
+                              : "border-slate-200 bg-slate-50 text-slate-600")}>
+                          {m.source === "ai_generated" ? "✨ AI" : "⬆️ Upload"}
+                        </Badge>
+                        <Badge variant="outline"
+                          className={cn("text-[9px]",
+                            isVideo
+                              ? "border-rose-200 bg-rose-50 text-rose-700"
+                              : "border-blue-200 bg-blue-50 text-blue-700")}>
+                          {isVideo ? "🎬" : "🖼️"}
+                        </Badge>
+                        {m.aspect_ratio && (
+                          <Badge variant="outline" className="text-[9px] text-slate-500">{m.aspect_ratio}</Badge>
+                        )}
+                        {m.width_px && m.height_px && (
+                          <span className="text-[9px] text-slate-400">{m.width_px}×{m.height_px}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
