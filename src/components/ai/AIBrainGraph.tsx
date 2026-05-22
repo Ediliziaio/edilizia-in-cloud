@@ -216,6 +216,7 @@ function buildGraphData(
   colorMode: ColorMode,
   viewMode: "galaxy" | "detail",
   expandedPersonas: Set<string>,
+  viewDim: "2d" | "3d" | "core",
 ): GraphBuildResult {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
@@ -255,6 +256,8 @@ function buildGraphData(
     });
 
   const isGalaxyPure = viewMode === "galaxy" && expandedPersonas.size === 0;
+  // Layout circolare fisso solo in 2D galaxy puro (3D è libero/orbit)
+  const useFixedCircle = isGalaxyPure && viewDim === "2d";
   const RADIUS = 280;
 
   activePersonasList.forEach((p, i) => {
@@ -265,10 +268,10 @@ function buildGraphData(
       ? 20 + Math.round((memCount / maxMemCount) * 18)   // hub 20-38 (era 14-30)
       : 11;
 
-    // Layout circolare deterministico in galaxy puro
+    // Layout circolare deterministico in 2D galaxy puro
     const angle = (i / activePersonasList.length) * Math.PI * 2 - Math.PI / 2;
-    const fx = isGalaxyPure ? Math.cos(angle) * RADIUS : undefined;
-    const fy = isGalaxyPure ? Math.sin(angle) * RADIUS : undefined;
+    const fx = useFixedCircle ? Math.cos(angle) * RADIUS : undefined;
+    const fy = useFixedCircle ? Math.sin(angle) * RADIUS : undefined;
 
     nodes.push({
       id: `p_${p.persona_key}`,
@@ -276,8 +279,8 @@ function buildGraphData(
       fill: catColor,
       size,
       labelVisible: true,
-      // cluster solo quando layout lo supporta (force directed)
-      ...(isGalaxyPure ? {} : { cluster: `cat_${p.category}` }),
+      // cluster solo quando layout lo supporta (sempre force directed ora)
+      cluster: `cat_${p.category}`,
       fx,
       fy,
       data: { type: "persona", persona: p, memoryCount: memCount },
@@ -619,7 +622,10 @@ export default function AIBrainGraph() {
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const graphRef = useRef<GraphCanvasRef | null>(null);
-  const [is3D, setIs3D] = useState(false); // default 2D: cluster meglio leggibili
+  // Vista: 2D piatto | 3D libero | Nucleo rotante (3D + camera orbit auto)
+  const [viewDim, setViewDim] = useState<"2d" | "3d" | "core">("2d");
+  // Compat alias: alcuni vecchi callsite usano ancora is3D
+  const is3D = viewDim !== "2d";
   const [selectedNode, setSelectedNode] = useState<InternalGraphNode | null>(null);
   const [filterPersona, setFilterPersona] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
@@ -700,8 +706,8 @@ export default function AIBrainGraph() {
   // ── Build graph ───────────────────────────────────────────────────────────
 
   const graphData = useMemo(
-    () => buildGraphData(personas, memories, filterPersona, filterType, colorMode, viewMode, expandedPersonas),
-    [personas, memories, filterPersona, filterType, colorMode, viewMode, expandedPersonas],
+    () => buildGraphData(personas, memories, filterPersona, filterType, colorMode, viewMode, expandedPersonas, viewDim),
+    [personas, memories, filterPersona, filterType, colorMode, viewMode, expandedPersonas, viewDim],
   );
 
   const { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks } = graphData;
@@ -1158,6 +1164,22 @@ export default function AIBrainGraph() {
               </button>
             )}
           </div>
+          {/* Toggle Nucleo 3D rotante (effetto WOW) */}
+          <Button
+            size="sm"
+            variant="ghost"
+            className={cn(
+              "h-7 px-2.5 text-[10px] gap-1 backdrop-blur-sm shadow-sm border",
+              viewDim === "core"
+                ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white border-orange-400 hover:opacity-90"
+                : "bg-slate-900/95 text-slate-200 border-slate-600 hover:bg-slate-800 hover:text-white",
+            )}
+            onClick={() => setViewDim(viewDim === "core" ? "2d" : "core")}
+            title={viewDim === "core" ? "Esci dalla modalità Nucleo" : "Nucleo 3D — visione spaziale rotante"}
+          >
+            <Brain className="h-3 w-3" />
+            Nucleo 3D
+          </Button>
           {/* Quick actions: Galassia ↔ Dettaglio toggle (singolo pulsante) */}
           <Button
             size="sm"
@@ -1251,25 +1273,38 @@ export default function AIBrainGraph() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1.5">Dimensione</p>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold mb-1.5">Vista</p>
                   <div className="flex bg-slate-800 rounded-md border border-slate-600 overflow-hidden">
                     <button
                       className={cn(
                         "flex-1 h-7 text-[10px] transition-colors",
-                        !is3D ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
+                        viewDim === "2d" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
-                      onClick={() => setIs3D(false)}
+                      onClick={() => setViewDim("2d")}
+                      title="Vista piatta classica"
                     >
                       2D
                     </button>
                     <button
                       className={cn(
                         "flex-1 h-7 text-[10px] transition-colors border-l border-slate-600",
-                        is3D ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
+                        viewDim === "3d" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
-                      onClick={() => setIs3D(true)}
+                      onClick={() => setViewDim("3d")}
+                      title="Spazio 3D esplorabile (drag per ruotare)"
                     >
                       3D
+                    </button>
+                    <button
+                      className={cn(
+                        "flex-1 h-7 text-[10px] transition-colors border-l border-slate-600 flex items-center justify-center gap-1",
+                        viewDim === "core" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
+                      )}
+                      onClick={() => setViewDim("core")}
+                      title="Nucleo: 3D con rotazione automatica"
+                    >
+                      <Brain className="h-3 w-3" />
+                      Nucleo
                     </button>
                   </div>
                 </div>
@@ -1711,18 +1746,28 @@ export default function AIBrainGraph() {
         edges={edges}
         theme={BRAIN_THEME}
         glOptions={{ alpha: true, antialias: true }}
-        layoutType={is3D ? "forceDirected3d" : "forceDirected2d"}
+        layoutType={viewDim === "2d" ? "forceDirected2d" : "forceDirected3d"}
+        cameraMode={viewDim === "core" ? "orbit" : "rotate"}
         clusterAttribute={
-          viewMode === "galaxy" && expandedPersonas.size === 0 ? undefined : "cluster"
+          viewMode === "galaxy" && expandedPersonas.size === 0 && viewDim === "2d" ? undefined : "cluster"
         }
         layoutOverrides={{
-          // Galaxy pure: forze ridotte → fx/fy comandano (cerchio perfetto)
-          // Detail/expanded: forze normali per layout dinamico
-          clusterStrength: viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 2.0,
-          nodeStrength: viewMode === "galaxy" && expandedPersonas.size === 0 ? -50 : -400,
-          linkDistance: viewMode === "galaxy" && expandedPersonas.size === 0 ? 200 : 80,
-          linkStrengthIntraCluster: 0.7,
-          linkStrengthInterCluster: viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 0.02,
+          // 2D galaxy pure: forze ridotte → fx/fy comandano (cerchio perfetto)
+          // 3D Nucleo: forze attrattive forti → nodi compatti come un atomo
+          // Standard: forze normali
+          clusterStrength: viewDim === "core"
+            ? 0
+            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 2.0),
+          nodeStrength: viewDim === "core"
+            ? -100  // attrazione moderata, nodi compatti
+            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? -50 : -400),
+          linkDistance: viewDim === "core"
+            ? 60  // nodi vicini → effetto nucleo
+            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 200 : 80),
+          linkStrengthIntraCluster: viewDim === "core" ? 1.0 : 0.7,
+          linkStrengthInterCluster: viewDim === "core"
+            ? 0.5  // forte attrazione cross — tutto si lega
+            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 0.02),
         }}
         sizingType="attribute"
         sizingAttribute="size"
