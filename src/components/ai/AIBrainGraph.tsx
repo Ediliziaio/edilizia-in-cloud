@@ -39,8 +39,11 @@ import {
   Brain, Maximize2, Minimize2, RotateCcw,
   Filter, X, Sparkles, Network, Search, Camera,
   Flame, Palette, ChevronRight, ChevronDown,
-  AlertTriangle, Link2, Zap, Ghost,
+  AlertTriangle, Link2, Zap, Ghost, Settings2,
 } from "lucide-react";
+import {
+  Popover, PopoverTrigger, PopoverContent,
+} from "@/components/ui/popover";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -259,7 +262,7 @@ function buildGraphData(
     const memCount = memoriesPerPersona.get(p.persona_key) ?? 0;
 
     const size = viewMode === "galaxy"
-      ? 14 + Math.round((memCount / maxMemCount) * 16)
+      ? 20 + Math.round((memCount / maxMemCount) * 18)   // hub 20-38 (era 14-30)
       : 11;
 
     // Layout circolare deterministico in galaxy puro
@@ -273,7 +276,8 @@ function buildGraphData(
       fill: catColor,
       size,
       labelVisible: true,
-      cluster: `cat_${p.category}`,
+      // cluster solo quando layout lo supporta (force directed)
+      ...(isGalaxyPure ? {} : { cluster: `cat_${p.category}` }),
       fx,
       fy,
       data: { type: "persona", persona: p, memoryCount: memCount },
@@ -1154,93 +1158,34 @@ export default function AIBrainGraph() {
               </button>
             )}
           </div>
-          {/* View mode: Galassia vs Dettaglio */}
-          <div className="flex items-center bg-slate-900/80 rounded-md border border-slate-700 backdrop-blur-sm shadow-sm overflow-hidden">
-            <button
-              className={cn(
-                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors",
-                viewMode === "galaxy"
-                  ? "bg-orange-500 text-white"
-                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
-              )}
-              onClick={() => { setViewMode("galaxy"); setExpandedPersonas(new Set()); }}
-              title="Galassia: solo personas (click per espandere cluster)"
-            >
-              <Brain className="h-3 w-3" />
-              Galassia
-            </button>
-            <button
-              className={cn(
-                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors border-l border-slate-700",
-                viewMode === "detail"
-                  ? "bg-orange-500 text-white"
-                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
-              )}
-              onClick={() => setViewMode("detail")}
-              title="Dettaglio: tutte le memorie visibili"
-            >
-              <Sparkles className="h-3 w-3" />
-              Dettaglio
-            </button>
-          </div>
-
-          {/* Color mode segmented control */}
-          <div className="flex items-center bg-slate-900/80 rounded-md border border-slate-700 backdrop-blur-sm shadow-sm overflow-hidden">
-            <button
-              className={cn(
-                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors",
-                colorMode === "cluster"
-                  ? "bg-orange-500 text-white"
-                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
-              )}
-              onClick={() => setColorMode("cluster")}
-              title="Colore per persona (cluster)"
-            >
-              <Network className="h-3 w-3" />
-              Cluster
-            </button>
-            <button
-              className={cn(
-                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors border-l border-slate-700",
-                colorMode === "type"
-                  ? "bg-orange-500 text-white"
-                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
-              )}
-              onClick={() => setColorMode("type")}
-              title="Colore per tipo memoria"
-            >
-              <Palette className="h-3 w-3" />
-              Tipo
-            </button>
-            <button
-              className={cn(
-                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors border-l border-slate-700",
-                colorMode === "heat"
-                  ? "bg-orange-500 text-white"
-                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
-              )}
-              onClick={() => setColorMode("heat")}
-              title="Heat map: attività (hits + recency)"
-            >
-              <Flame className="h-3 w-3" />
-              Attività
-            </button>
-          </div>
-          {/* 2D/3D */}
+          {/* Quick actions: Galassia ↔ Dettaglio toggle (singolo pulsante) */}
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 px-2.5 text-[10px] bg-slate-900/85 text-slate-200 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
-            onClick={() => setIs3D(!is3D)}
+            className={cn(
+              "h-7 px-2.5 text-[10px] gap-1 backdrop-blur-sm shadow-sm border",
+              viewMode === "detail"
+                ? "bg-orange-500 text-white border-orange-400 hover:bg-orange-600"
+                : "bg-slate-900/85 text-slate-200 border-slate-700 hover:bg-slate-800 hover:text-white",
+            )}
+            onClick={() => {
+              if (viewMode === "galaxy") setViewMode("detail");
+              else { setViewMode("galaxy"); setExpandedPersonas(new Set()); }
+            }}
+            title={viewMode === "galaxy" ? "Mostra tutte le memorie" : "Torna alla vista galassia"}
           >
-            {is3D ? "3D" : "2D"}
+            {viewMode === "galaxy" ? (
+              <><Sparkles className="h-3 w-3" /> Espandi tutto</>
+            ) : (
+              <><Brain className="h-3 w-3" /> Galassia</>
+            )}
           </Button>
           {/* Demo seed (only for demo company) */}
           {isDemoCompany && (
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 px-2 text-[10px] bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300 shadow-sm gap-1"
+              className="h-7 px-2 text-[10px] bg-orange-500/15 text-orange-300 hover:bg-orange-500/25 border border-orange-500/40 shadow-sm gap-1"
               onClick={handleSeedDemo}
               disabled={isSeeding}
               title="Popola con memorie demo realistiche"
@@ -1249,16 +1194,6 @@ export default function AIBrainGraph() {
               {isSeeding ? "Popolo…" : "Demo"}
             </Button>
           )}
-          {/* #9: Export */}
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 bg-slate-900/85 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
-            onClick={handleExport}
-            title="Esporta screenshot PNG"
-          >
-            <Camera className="h-3.5 w-3.5" />
-          </Button>
           {/* Reset */}
           <Button
             size="icon"
@@ -1279,6 +1214,77 @@ export default function AIBrainGraph() {
           >
             {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </Button>
+          {/* Settings popover (advanced options nascoste qui) */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 bg-slate-900/85 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700 backdrop-blur-sm shadow-sm"
+                title="Opzioni avanzate"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-60 p-3 bg-slate-900/95 border-slate-700 text-slate-200 shadow-2xl"
+            >
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1.5">Colore nodi</p>
+                  <div className="flex bg-slate-800 rounded-md border border-slate-700 overflow-hidden">
+                    {(["cluster", "type", "heat"] as ColorMode[]).map((m) => (
+                      <button
+                        key={m}
+                        className={cn(
+                          "flex-1 h-7 text-[10px] flex items-center justify-center gap-1 transition-colors",
+                          colorMode === m ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
+                          m !== "cluster" && "border-l border-slate-700",
+                        )}
+                        onClick={() => setColorMode(m)}
+                      >
+                        {m === "cluster" ? <Network className="h-3 w-3" /> : m === "type" ? <Palette className="h-3 w-3" /> : <Flame className="h-3 w-3" />}
+                        {m === "cluster" ? "Persona" : m === "type" ? "Tipo" : "Attività"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mb-1.5">Dimensione</p>
+                  <div className="flex bg-slate-800 rounded-md border border-slate-700 overflow-hidden">
+                    <button
+                      className={cn(
+                        "flex-1 h-7 text-[10px] transition-colors",
+                        !is3D ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
+                      )}
+                      onClick={() => setIs3D(false)}
+                    >
+                      2D
+                    </button>
+                    <button
+                      className={cn(
+                        "flex-1 h-7 text-[10px] transition-colors border-l border-slate-700",
+                        is3D ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
+                      )}
+                      onClick={() => setIs3D(true)}
+                    >
+                      3D
+                    </button>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-slate-700">
+                  <button
+                    className="w-full h-7 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white rounded-md flex items-center justify-center gap-1.5 transition-colors"
+                    onClick={handleExport}
+                  >
+                    <Camera className="h-3 w-3" />
+                    Esporta screenshot PNG
+                  </button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -1707,17 +1713,16 @@ export default function AIBrainGraph() {
         glOptions={{ alpha: true, antialias: true }}
         layoutType={is3D ? "forceDirected3d" : "forceDirected2d"}
         clusterAttribute={
-          // In galaxy mode senza espansioni: niente cluster (più ordinato)
           viewMode === "galaxy" && expandedPersonas.size === 0 ? undefined : "cluster"
         }
         layoutOverrides={{
-          // Galaxy mode: pochi nodi distanziati → repulsione molto alta
-          // Detail mode: cluster compatti → bilanciato
-          clusterStrength: viewMode === "galaxy" ? 0 : 2.0,
-          nodeStrength: viewMode === "galaxy" && expandedPersonas.size === 0 ? -800 : -400,
-          linkDistance: viewMode === "galaxy" && expandedPersonas.size === 0 ? 180 : 80,
+          // Galaxy pure: forze ridotte → fx/fy comandano (cerchio perfetto)
+          // Detail/expanded: forze normali per layout dinamico
+          clusterStrength: viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 2.0,
+          nodeStrength: viewMode === "galaxy" && expandedPersonas.size === 0 ? -50 : -400,
+          linkDistance: viewMode === "galaxy" && expandedPersonas.size === 0 ? 200 : 80,
           linkStrengthIntraCluster: 0.7,
-          linkStrengthInterCluster: viewMode === "galaxy" && expandedPersonas.size === 0 ? 0.15 : 0.02,
+          linkStrengthInterCluster: viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 0.02,
         }}
         sizingType="attribute"
         sizingAttribute="size"
