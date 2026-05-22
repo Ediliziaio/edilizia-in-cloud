@@ -66,29 +66,11 @@ export function useSessionTimeout(): void {
       }
     };
 
-    // v8.6.103 — Listener auth state minimalista: solo lettura iniziale + reazione
-    // a SIGNED_IN/OUT per markSessionStarted. NB: AuthContext ha già il listener
-    // principale → qui usiamo `getSession()` per popolare al boot senza
-    // contestualizzare un secondo listener concorrente che generava write race
-    // sul localStorage. Su SIGNED_IN futuri, l'unico listener (AuthContext)
-    // aggiornerà il profile; markSessionStarted resta idempotente
-    // (set solo se mancante) quindi un re-call manuale è safe.
-    // Cleanup: early exit se il componente è unmounted (evita warning
-    // "setState on unmounted component" + write inutili a localStorage).
-    // Bug originale: condizione `data.session && !alive` non gestiva
-    // l'unmount quando session=null → continuava a girare inutilmente.
-    void supabase.auth.getSession().then(({ data }) => {
+    // Listener leggero: usa l'INITIAL_SESSION di Supabase invece di chiamare
+    // getSession() al boot, cosi' non compete con AuthContext sul lock storage.
+    const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
       if (!alive) return;
-      try {
-        if (data.session && !localStorage.getItem(STORAGE_KEY)) {
-          localStorage.setItem(STORAGE_KEY, String(Date.now()));
-        }
-      } catch { /* ignore */ }
-    });
-
-    // Un singolo listener — leggero: solo per cleanup al logout.
-    const { data: authSub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") {
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
         try {
           if (!localStorage.getItem(STORAGE_KEY)) {
             localStorage.setItem(STORAGE_KEY, String(Date.now()));

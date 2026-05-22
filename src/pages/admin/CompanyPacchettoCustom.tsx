@@ -36,7 +36,7 @@ import {
   useCreateFeatureBundle,
   type FeatureBundle,
 } from "@/hooks/useFeatureBundles";
-import { exportOfferPdf, type OfferFeature } from "@/lib/pacchetto-custom/exportOfferPdf";
+import type { OfferFeature } from "@/lib/pacchetto-custom/exportOfferPdf";
 import { toast } from "sonner";
 
 interface FlagRow {
@@ -261,7 +261,7 @@ export default function CompanyPacchettoCustom() {
   };
 
   // v8.6.56 — Export PDF offerta commerciale
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (!company) {
       toast.error("Dati azienda non disponibili");
       return;
@@ -280,6 +280,7 @@ export default function CompanyPacchettoCustom() {
       return;
     }
     try {
+      const { exportOfferPdf } = await import("@/lib/pacchetto-custom/exportOfferPdf");
       exportOfferPdf({
         companyName: company.name,
         companyEmail: company.email,

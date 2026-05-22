@@ -1,5 +1,6 @@
-import { jsPDF } from "jspdf";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
+
+type JsPdfDoc = InstanceType<typeof import("jspdf").jsPDF>;
 
 export const RENDER_AI_DISCLAIMER =
   "Render generato con intelligenza artificiale a scopo esclusivamente dimostrativo e illustrativo. L'immagine non rappresenta il risultato finale dell'intervento, che potrà variare in base a rilievi tecnici, materiali scelti, misure reali, condizioni dell'ambiente e fattibilità esecutiva.";
@@ -45,7 +46,7 @@ function imageFormat(dataUrl: string): "PNG" | "JPEG" | "WEBP" {
 }
 
 function fitImage(
-  doc: jsPDF,
+  doc: JsPdfDoc,
   dataUrl: string,
   x: number,
   y: number,
@@ -62,7 +63,7 @@ function fitImage(
 }
 
 function addImageSafe(
-  doc: jsPDF,
+  doc: JsPdfDoc,
   dataUrl: string,
   x: number,
   y: number,
@@ -78,7 +79,7 @@ function addImageSafe(
 }
 
 function drawRoundedBox(
-  doc: jsPDF,
+  doc: JsPdfDoc,
   x: number,
   y: number,
   w: number,
@@ -114,6 +115,7 @@ function isPublicMetadata(item: RenderPdfMetadataItem): boolean {
 }
 
 export async function downloadRenderBeforeAfterPdf(args: DownloadRenderPdfArgs): Promise<void> {
+  const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();

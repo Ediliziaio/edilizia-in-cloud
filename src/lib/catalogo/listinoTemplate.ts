@@ -9,7 +9,6 @@
  *
  * Le colonne variabili (campi personalizzati) vengono accodate dopo quelle fisse.
  */
-import ExcelJS from "exceljs";
 import Papa from "papaparse";
 import type { CompanyCustomFieldDef, CatalogObjectType } from "@/hooks/useCompanyCustomFields";
 
@@ -69,7 +68,8 @@ const TYPE_HINT: Record<string, string> = {
 };
 
 /** Costruisce un Workbook exceljs con foglio principale + foglio istruzioni. */
-export function buildListinoTemplateWorkbook(opts: BuildTemplateOpts): ExcelJS.Workbook {
+export async function buildListinoTemplateWorkbook(opts: BuildTemplateOpts) {
+  const ExcelJS = (await import("exceljs")).default;
   const { objectType, customFields = [], sampleRows = [] } = opts;
   const wb = new ExcelJS.Workbook();
   wb.creator = "Edilizia in Cloud";
@@ -132,7 +132,7 @@ export function buildListinoTemplateWorkbook(opts: BuildTemplateOpts): ExcelJS.W
 
 /** Download xlsx nel browser. */
 export async function downloadListinoTemplateXlsx(opts: BuildTemplateOpts, filename?: string): Promise<void> {
-  const wb = buildListinoTemplateWorkbook(opts);
+  const wb = await buildListinoTemplateWorkbook(opts);
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

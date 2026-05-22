@@ -558,6 +558,7 @@
 
         var BOOT_RECOVERY_KEY = 'eic_boot_recovery_v1';
         var PRIVATE_HOST_RE = /^(app|admin|clienti|lavori)\./;
+        var LOCAL_DEV_HOST_RE = /^(localhost|127\.0\.0\.1)$/;
 
         function clearBrowserAppState() {
           return Promise.all([
@@ -574,9 +575,50 @@
           ]);
         }
 
+        function showBootstrapFallback(reason) {
+          var root = document.getElementById('root');
+          if (!root) return;
+          root.innerHTML = [
+            '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;padding:24px;text-align:center">',
+              '<div style="max-width:420px">',
+                '<div style="width:44px;height:44px;border-radius:999px;background:#fff7ed;color:#ea580c;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-weight:800">!</div>',
+                '<p style="margin:0;font-size:18px;font-weight:700">Caricamento bloccato</p>',
+                '<p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#6b7280">La pagina non ha completato il bootstrap. Riprova senza restare fermo sulla rotellina.</p>',
+                '<p style="margin:12px 0 0;font-size:11px;line-height:1.4;color:#9ca3af">Dettaglio: ' + String(reason || 'bootstrap-timeout').replace(/[<>&"]/g, '') + '</p>',
+                '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px">',
+                  '<button id="eic-boot-retry" style="height:40px;border:0;border-radius:8px;background:#f97316;color:#fff;font-weight:700;padding:0 16px;cursor:pointer">Riprova</button>',
+                  '<button id="eic-boot-reset" style="height:40px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#111;font-weight:700;padding:0 16px;cursor:pointer">Reset cache</button>',
+                '</div>',
+              '</div>',
+            '</div>'
+          ].join('');
+
+          var retry = document.getElementById('eic-boot-retry');
+          var reset = document.getElementById('eic-boot-reset');
+          if (retry) {
+            retry.onclick = function () {
+              try { sessionStorage.removeItem(BOOT_RECOVERY_KEY); } catch (e) {}
+              location.reload();
+            };
+          }
+          if (reset) {
+            reset.onclick = function () {
+              try { sessionStorage.removeItem(BOOT_RECOVERY_KEY); } catch (e) {}
+              clearBrowserAppState().finally(function () {
+                var url = new URL(location.href);
+                url.searchParams.set('__recovery', Date.now().toString());
+                location.replace(url.toString());
+              });
+            };
+          }
+        }
+
         function recoverBootstrap(reason) {
           try {
-            if (sessionStorage.getItem(BOOT_RECOVERY_KEY)) return;
+            if (sessionStorage.getItem(BOOT_RECOVERY_KEY)) {
+              showBootstrapFallback(reason || 'bootstrap-timeout-after-recovery');
+              return;
+            }
             sessionStorage.setItem(BOOT_RECOVERY_KEY, reason || 'bootstrap-timeout');
           } catch (e) {}
 
@@ -595,6 +637,10 @@
         // non ha ancora montato (spinner inline visibile) lo stack è
         // probabilmente bloccato da SW/cache stale → recovery utile prima
         // di vedere "1 minuto" percepito.
+        // In localhost Vite può compilare a freddo per più di 10s: lì evitiamo
+        // reload automatici che peggiorano il loop e mostriamo un fallback
+        // azionabile dopo una soglia più alta.
+        var BOOT_TIMEOUT_MS = LOCAL_DEV_HOST_RE.test(location.hostname) ? 30000 : 10000;
         window.setTimeout(function () {
           var root = document.getElementById('root');
           if (!root) return;
@@ -606,9 +652,13 @@
             !root.querySelector('input, button, a[href*="login"]');
 
           if (stillInitialBootstrap || privateRootStillSpinner) {
+            if (LOCAL_DEV_HOST_RE.test(location.hostname) && stillInitialBootstrap) {
+              showBootstrapFallback('local-dev-bootstrap-timeout');
+              return;
+            }
             recoverBootstrap(stillInitialBootstrap ? 'initial-bootstrap-timeout' : 'private-root-spinner-timeout');
           }
-        }, 10000);
+        }, BOOT_TIMEOUT_MS);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

@@ -95,6 +95,16 @@ function errorText(error: unknown): string {
   try { return JSON.stringify(error); } catch { return String(error); }
 }
 
+function isAbortLikeError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const err = error as { name?: string; code?: string; message?: string };
+  return (
+    err.name === "AbortError" ||
+    err.code === "20" ||
+    (err.message?.toLowerCase().includes("abort") ?? false)
+  );
+}
+
 function isInvalidRefreshTokenError(error: unknown): boolean {
   const text = errorText(error).toLowerCase();
   return (
@@ -285,6 +295,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Validate persisted impersonation token on mount
   useEffect(() => {
+    let cancelled = false;
+
     async function validateImpersonation() {
       const savedToken = sessionStorage.getItem(IMP_TOKEN_KEY);
       const savedCompanyId = sessionStorage.getItem(IMP_COMPANY_KEY);
@@ -296,6 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // super_admin login persisting for a different user.
       if (state.role !== null && state.role !== "super_admin") {
         logger.info("Non-admin role detected with active impersonation session — clearing");
+        if (cancelled) return;
         setImpersonatedCompanyId(null);
         setImpersonationToken(null);
         setImpersonatedCompany(null);
@@ -321,6 +334,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           body: { action: "validate", token: savedToken },
         });
 
+        if (cancelled) return;
         if (!error && data?.valid === false) {
           // Only clear when the edge function explicitly says the token is invalid.
           // Network errors or edge-function failures are treated as "unknown" — keep
@@ -340,6 +354,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     validateImpersonation();
+    return () => { cancelled = true; };
   }, [state.role]);
 
   const fetchUserData = useCallback(async (userId: string, userEmail: string | null | undefined) => {
@@ -578,10 +593,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // risolvere DOPO quella nuova e sovrascrivere `impersonatedCompany` con
     // dati obsoleti. Il flag garantisce che solo la fetch più recente scriva.
     let cancelled = false;
+    const controller = new AbortController();
 
     async function fetchImpersonatedCompany() {
       if (!impersonatedCompanyId) {
-        setImpersonatedCompany(null);
+        if (!cancelled) setImpersonatedCompany(null);
         return;
       }
       // Wait for a valid authenticated session before querying
@@ -591,12 +607,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .from("companies")
         .select("*")
         .eq("id", impersonatedCompanyId)
+        .abortSignal(controller.signal)
         .maybeSingle();
 
       if (cancelled) return;
 
       if (error) {
-        logger.error("Error fetching impersonated company:", error);
+        if (!isAbortLikeError(error)) {
+          logger.error("Error fetching impersonated company:", error);
+        }
         // Do NOT clear impersonatedCompanyId — keep it so we can retry on next auth change.
         setImpersonatedCompany(null);
       } else {
@@ -605,7 +624,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     fetchImpersonatedCompany();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   // impersonationToken is included so that clicking "Accedi" for the SAME company
   // a second time (when impersonatedCompanyId hasn't changed) still re-triggers
   // this effect and re-fetches the company data.
@@ -1314,6 +1336,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch multi-company accesses for multi_company_user and platform roles
   useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
     async function fetchMultiCompanyAccesses() {
       const platformRoles: string[] = [
         "multi_company_user",
@@ -1324,17 +1349,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "platform_implementation",
       ];
       if (!state.user || !state.role || !platformRoles.includes(state.role)) {
-        setMultiCompanyState(prev => ({ ...prev, accesses: [] }));
+        if (!cancelled) setMultiCompanyState(prev => ({ ...prev, accesses: [] }));
         return;
       }
 
       const { data, error } = await supabase
         .from("multi_company_access")
         .select("*, companies:company_id(*)")
-        .eq("user_id", state.user.id);
+        .eq("user_id", state.user.id)
+        .abortSignal(controller.signal);
+
+      if (cancelled) return;
 
       if (error) {
-        logger.error("Error fetching multi-company accesses:", error);
+        if (!isAbortLikeError(error)) {
+          logger.error("Error fetching multi-company accesses:", error);
+        }
         return;
       }
 
@@ -1359,6 +1389,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     fetchMultiCompanyAccesses();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [state.role, state.user?.id]);
 
   const switchMultiCompany = useCallback((companyId: string) => {

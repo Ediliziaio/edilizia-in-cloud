@@ -4,7 +4,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { differenceInDays } from "date-fns";
 import type { CompanyStatus } from "@/types/auth";
 import { queryKeys } from "@/lib/queryKeys";
-import { withClientTimeout } from "@/lib/query-timeout";
+import { createTimeoutSignal } from "@/lib/query-timeout";
+
+const PLAN_QUERY_TIMEOUT_MS = 12_000;
+const USAGE_COUNT_QUERY_TIMEOUT_MS = 8_000;
+const BACKGROUND_PLAN_QUERY_META = { silent: true } as const;
 
 // Lista moduli gestiti dal piano.
 // Tenuta come tipo puro (nessuna const runtime) perché i consumer la usano
@@ -49,52 +53,69 @@ export function useSubscriptionLimits(options: UseSubscriptionLimitsOptions = {}
     queryKey: queryKeys.subscriptionLimits.plan(planId),
     queryFn: async () => {
       if (!planId) return null;
-      const { data, error } = await withClientTimeout(
-        supabase
+      const timeout = createTimeoutSignal(PLAN_QUERY_TIMEOUT_MS);
+      try {
+        const { data, error } = await supabase
           .from("subscription_plans")
           // is_full_plan è opzionale (DB pre-migration può non averla):
           // il SELECT non rompe — Postgrest restituisce undefined se manca.
           .select("id, name, slug, included_modules, max_orders, max_users, price_monthly, price_yearly, is_full_plan")
           .eq("id", planId)
-          .maybeSingle(),
-        "Caricamento piano aziendale",
-        8_000,
-      );
-      if (error) throw error;
-      return data;
+          .abortSignal(timeout.signal)
+          .maybeSingle();
+        if (error) throw error;
+        return data;
+      } finally {
+        timeout.dispose();
+      }
     },
     enabled: !!planId,
     staleTime: 5 * 60 * 1000,
+    meta: BACKGROUND_PLAN_QUERY_META,
   });
 
   // Count orders
   const { data: orderCount = 0, isLoading: ordersLoading } = useQuery({
     queryKey: queryKeys.subscriptionLimits.orderCount(companyId),
     queryFn: async () => {
-      const { count, error } = await withClientTimeout(supabase
-        .from("orders")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!), "Conteggio commesse piano", 8_000);
-      if (error) throw error;
-      return count || 0;
+      const timeout = createTimeoutSignal(USAGE_COUNT_QUERY_TIMEOUT_MS);
+      try {
+        const { count, error } = await supabase
+          .from("orders")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .abortSignal(timeout.signal);
+        if (error) throw error;
+        return count || 0;
+      } finally {
+        timeout.dispose();
+      }
     },
     enabled: !!companyId && includeUsageCounts,
     staleTime: 5 * 60 * 1000,
+    meta: BACKGROUND_PLAN_QUERY_META,
   });
 
   // Count users
   const { data: userCount = 0, isLoading: usersLoading } = useQuery({
     queryKey: queryKeys.subscriptionLimits.userCount(companyId),
     queryFn: async () => {
-      const { count, error } = await withClientTimeout(supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId!), "Conteggio utenti piano", 8_000);
-      if (error) throw error;
-      return count || 0;
+      const timeout = createTimeoutSignal(USAGE_COUNT_QUERY_TIMEOUT_MS);
+      try {
+        const { count, error } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId!)
+          .abortSignal(timeout.signal);
+        if (error) throw error;
+        return count || 0;
+      } finally {
+        timeout.dispose();
+      }
     },
     enabled: !!companyId && includeUsageCounts,
     staleTime: 5 * 60 * 1000,
+    meta: BACKGROUND_PLAN_QUERY_META,
   });
 
   // Trial days

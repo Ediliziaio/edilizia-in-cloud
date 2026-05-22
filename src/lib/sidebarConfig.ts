@@ -58,6 +58,7 @@ export interface NavItem {
   moduleKey?: ModuleKey;
   featureKey?: string;
   isBeta?: boolean;
+  demoCompanyOnly?: boolean;
   category?: "internal" | "marketing";
   subcategory?: string;
   groupLabel?: string;
@@ -182,6 +183,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
+      { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", isBeta: true, demoCompanyOnly: true },
       // 2026-04-27: voce "Fotovoltaico" rimossa dalla sidebar.
       // L'accesso al modulo passa ora dall'Hub Preventivi → tab "Moduli Vendita"
       // (gated dal feature flag modulo_fotovoltaico_attivo). La route resta
@@ -256,4 +258,5 @@ export const marketingNavItems: NavItem[] = [
   { title: "Agenti AI", url: "/azienda/agenti-ai?tipo=custom", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
   { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Zap, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing", subcategory: "mkt_analisi" },
+  { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi", isBeta: true, demoCompanyOnly: true },
 ];

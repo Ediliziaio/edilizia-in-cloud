@@ -276,6 +276,7 @@ const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/Onboard
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
+const AdsManagerBeta = lazy(() => import("@/pages/azienda/marketing/AdsManagerBeta"));
 const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
@@ -598,6 +599,9 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/facebook-forms" element={<Navigate to="/azienda/impostazioni/lead-forms" replace />} />
         <Route path="marketing/reportistica" element={withCompanyPermission("canViewMarketingReports", <FeatureRoute featureKey="marketing_reporting"><ReportisticaPage /></FeatureRoute>)} />
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
+        <Route path="marketing/pubblicita" element={withCompanyPermission("canViewMarketingDashboard", <AdsManagerBeta />)} />
+        <Route path="marketing/ads" element={<Navigate to="/azienda/marketing/pubblicita" replace />} />
+        <Route path="marketing/meta-ads" element={<Navigate to="/azienda/marketing/pubblicita" replace />} />
         <Route path="marketing/sms" element={<Navigate to="/azienda/sms-marketing" replace />} />
         {/* Portale SMS Marketing — route principale con sub-path (gated: sms_marketing) */}
         <Route path="sms-marketing" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage /></FeatureRoute>)} />

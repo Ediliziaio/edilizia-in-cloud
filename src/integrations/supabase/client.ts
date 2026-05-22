@@ -41,6 +41,7 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
   const timeoutMs = getRequestTimeout(input);
   const controller = new AbortController();
   const upstreamSignal = init?.signal;
+  let removeUpstreamAbortListener: (() => void) | null = null;
   const timeoutId = window.setTimeout(() => {
     controller.abort(new DOMException(`Supabase request timeout after ${timeoutMs}ms`, "TimeoutError"));
   }, timeoutMs);
@@ -49,12 +50,17 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
     if (upstreamSignal.aborted) {
       controller.abort(upstreamSignal.reason);
     } else {
-      upstreamSignal.addEventListener("abort", () => controller.abort(upstreamSignal.reason), { once: true });
+      const abortFromUpstream = () => controller.abort(upstreamSignal.reason);
+      upstreamSignal.addEventListener("abort", abortFromUpstream, { once: true });
+      removeUpstreamAbortListener = () => {
+        upstreamSignal.removeEventListener("abort", abortFromUpstream);
+      };
     }
   }
 
   return fetch(input, { ...init, signal: controller.signal }).finally(() => {
     window.clearTimeout(timeoutId);
+    removeUpstreamAbortListener?.();
   });
 }
 

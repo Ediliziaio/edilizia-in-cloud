@@ -69,9 +69,34 @@ if (typeof window !== "undefined" && "requestIdleCallback" in window) {
 // longer exists on the server), Vite fires this event. Force a hard reload so
 // the browser picks up the fresh index.html + new chunk hashes.
 window.addEventListener("vite:preloadError", () => {
-  const KEY = "vite_preload_recovered";
-  if (sessionStorage.getItem(KEY)) return;
-  sessionStorage.setItem(KEY, "1");
+  const LEGACY_KEY = "vite_preload_recovered";
+  const KEY = "vite_preload_recovered_v2";
+  const MAX_AUTO_ATTEMPTS = 3;
+  const TTL_MS = 5 * 60 * 1000;
+  let attemptInfo: { count: number; firstAt: number } = { count: 0, firstAt: Date.now() };
+
+  try {
+    sessionStorage.removeItem(LEGACY_KEY);
+    const raw = sessionStorage.getItem(KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { count?: number; firstAt?: number };
+      if (
+        typeof parsed.count === "number" &&
+        typeof parsed.firstAt === "number" &&
+        Date.now() - parsed.firstAt < TTL_MS
+      ) {
+        attemptInfo = { count: parsed.count, firstAt: parsed.firstAt };
+      }
+    }
+    if (attemptInfo.count >= MAX_AUTO_ATTEMPTS) return;
+    sessionStorage.setItem(KEY, JSON.stringify({
+      count: attemptInfo.count + 1,
+      firstAt: attemptInfo.firstAt,
+    }));
+  } catch {
+    // Storage non disponibile: tentiamo comunque un solo recovery best-effort.
+  }
+
   const url = new URL(window.location.href);
   url.searchParams.set("__recovery", Date.now().toString());
   window.location.replace(url.toString());

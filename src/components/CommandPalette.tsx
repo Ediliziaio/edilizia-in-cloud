@@ -12,6 +12,7 @@ import {
 import { useGlobalSearch, type SearchResult } from "@/hooks/useGlobalSearch";
 import { useAuth } from "@/contexts/AuthContext";
 import { macroAreas } from "@/lib/sidebarConfig";
+import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 
 // 🆕 GAP 1 (Discoverability): personas AI nel command palette
 interface AIPersonaLite {
@@ -131,6 +132,7 @@ const navGroups = macroAreas.map(area => ({
     title: item.title,
     url: item.url,
     icon: item.icon,
+    demoCompanyOnly: item.demoCompanyOnly,
   })),
 }));
 
@@ -138,6 +140,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
+  const isDemoBaseline = effectiveCompany?.id === DEMO_COMPANY_ID;
 
   const { data: results = [], isFetching } = useGlobalSearch(query, effectiveCompany?.id);
 
@@ -235,15 +238,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, {} as Record<string, SearchResult[]>);
 
   const filteredNavGroups = useMemo(() => {
-    if (query.length < 2) return navGroups;
-    const q = query.toLowerCase();
-    return navGroups
+    const visibleGroups = navGroups
       .map(group => ({
         ...group,
-        items: group.items.filter(item => item.title.toLowerCase().includes(q)),
+        items: group.items.filter(item => !item.demoCompanyOnly || isDemoBaseline),
       }))
       .filter(group => group.items.length > 0);
-  }, [query]);
+    if (query.length < 2) return visibleGroups;
+    const q = query.toLowerCase();
+    return visibleGroups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item =>
+          item.title.toLowerCase().includes(q)
+        ),
+      }))
+      .filter(group => group.items.length > 0);
+  }, [query, isDemoBaseline]);
 
   const filteredSettingsItems = useMemo(() => {
     if (query.length < 2) return [];

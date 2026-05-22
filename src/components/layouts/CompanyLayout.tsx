@@ -978,6 +978,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       });
     }
     return items.filter((item) => {
+      if (item.demoCompanyOnly && !isDemoBaseline) return false;
       if (item.url === "/azienda/cruscotto") {
         if (
           !permissions.canViewCruscotto &&

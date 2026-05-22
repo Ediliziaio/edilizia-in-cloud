@@ -33,14 +33,16 @@ const store = {
   listeners: new Set<Listener>(),
   inited: false,
   interval: null as number | null,
+  onlineHandler: null as (() => void) | null,
+  offlineHandler: null as (() => void) | null,
+  pingInFlight: null as Promise<void> | null,
 
   subscribe(listener: Listener) {
     store.listeners.add(listener);
     if (!store.inited) store.init();
     return () => {
       store.listeners.delete(listener);
-      // NB: non spegniamo il singleton anche se 0 listener — il costo è
-      // 1 fetch/30s, e l'overhead di re-init è > del beneficio.
+      if (store.listeners.size === 0) store.destroy();
     };
   },
 
@@ -66,11 +68,11 @@ const store = {
     if (store.inited || typeof window === "undefined") return;
     store.inited = true;
 
-    const onOnline = () => {
+    store.onlineHandler = () => {
       store.setState({ isOnline: true });
       void store.pingBackend();
     };
-    const onOffline = () => {
+    store.offlineHandler = () => {
       store.setState({
         isOnline: false,
         isReachable: false,
@@ -78,8 +80,8 @@ const store = {
       });
     };
 
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", store.onlineHandler);
+    window.addEventListener("offline", store.offlineHandler);
 
     store.interval = window.setInterval(() => {
       if (!navigator.onLine) return;
@@ -87,30 +89,52 @@ const store = {
     }, HEARTBEAT_INTERVAL);
   },
 
-  async pingBackend() {
-    if (!HEARTBEAT_URL.startsWith("https://") || !navigator.onLine) {
-      return;
+  destroy() {
+    if (typeof window !== "undefined") {
+      if (store.onlineHandler) window.removeEventListener("online", store.onlineHandler);
+      if (store.offlineHandler) window.removeEventListener("offline", store.offlineHandler);
     }
-    try {
+    if (store.interval !== null) {
+      window.clearInterval(store.interval);
+    }
+    store.interval = null;
+    store.onlineHandler = null;
+    store.offlineHandler = null;
+    store.inited = false;
+  },
+
+  pingBackend() {
+    if (!HEARTBEAT_URL.startsWith("https://") || !navigator.onLine) {
+      return Promise.resolve();
+    }
+    if (store.pingInFlight) return store.pingInFlight;
+
+    store.pingInFlight = (async () => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), HEARTBEAT_TIMEOUT);
-      const res = await fetch(HEARTBEAT_URL, {
-        method: "GET",
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      clearTimeout(timer);
-      const ok = res.ok || res.status === 401 || res.status === 404;
-      store.setState({
-        isReachable: ok,
-        offlineSince: ok ? null : (store.state.offlineSince ?? Date.now()),
-      });
-    } catch {
-      store.setState({
-        isReachable: false,
-        offlineSince: store.state.offlineSince ?? Date.now(),
-      });
-    }
+      try {
+        const res = await fetch(HEARTBEAT_URL, {
+          method: "GET",
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const ok = res.ok || res.status === 401 || res.status === 404;
+        store.setState({
+          isReachable: ok,
+          offlineSince: ok ? null : (store.state.offlineSince ?? Date.now()),
+        });
+      } catch {
+        store.setState({
+          isReachable: false,
+          offlineSince: store.state.offlineSince ?? Date.now(),
+        });
+      } finally {
+        clearTimeout(timer);
+        store.pingInFlight = null;
+      }
+    })();
+
+    return store.pingInFlight;
   },
 };
 

@@ -262,8 +262,31 @@ export default defineConfig(() => ({
           if (id.includes("date-fns") || id.includes("react-day-picker")) {
             return "vendor-dates";
           }
-          if (id.includes("@react-pdf") || id.includes("jspdf")) {
-            return "vendor-pdf";
+          if (id.includes("jspdf")) {
+            return "vendor-jspdf";
+          }
+          if (
+            id.includes("@react-pdf/font") ||
+            id.includes("fontkit") ||
+            id.includes("unicode-properties") ||
+            id.includes("restructure") ||
+            id.includes("brotli")
+          ) {
+            return "vendor-react-pdf-fonts";
+          }
+          if (
+            id.includes("@react-pdf/layout") ||
+            id.includes("@react-pdf/textkit") ||
+            id.includes("linebreak") ||
+            id.includes("yoga-layout")
+          ) {
+            return "vendor-react-pdf-layout";
+          }
+          if (id.includes("@react-pdf/pdfkit") || id.includes("@react-pdf/png-js")) {
+            return "vendor-react-pdf-core";
+          }
+          if (id.includes("@react-pdf")) {
+            return "vendor-react-pdf";
           }
           if (id.includes("exceljs")) {
             return "vendor-excel";

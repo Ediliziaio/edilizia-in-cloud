@@ -24,7 +24,7 @@
  *     automatico con ZXing senza chiudere il sheet
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BrowserMultiFormatReader } from "@zxing/library";
+import type { BrowserMultiFormatReader } from "@zxing/library";
 import {
   openScannerStream,
   pulseFocus,
@@ -210,28 +210,34 @@ export function useBatchScannerCamera({
     (video: HTMLVideoElement, runId: number) => {
       const stream = streamRef.current;
       if (!stream) return;
-      const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader;
-      try {
-        reader.decodeFromStream(stream, video, (result, err) => {
-          if (cameraRunRef.current !== runId) return;
-          if (result) {
-            onScanRef.current(
-              result.getText(),
-              result.getBarcodeFormat?.()?.toString(),
-            );
-            return;
-          }
-          // err puo essere NotFoundException ad ogni frame senza codice: ignora.
-          // Logghiamo solo errori "veri" (raro).
-          if (err && err.name && err.name !== "NotFoundException" && err.name !== "ChecksumException" && err.name !== "FormatException") {
-            console.warn("[scanner] ZXing decode error:", err.name, err.message);
-          }
-        });
-      } catch (e) {
-        console.error("[scanner] ZXing decodeFromStream failed:", e);
+      void import("@zxing/library").then(({ BrowserMultiFormatReader }) => {
+        if (cameraRunRef.current !== runId) return;
+        const reader = new BrowserMultiFormatReader();
+        readerRef.current = reader;
+        try {
+          reader.decodeFromStream(stream, video, (result, err) => {
+            if (cameraRunRef.current !== runId) return;
+            if (result) {
+              onScanRef.current(
+                result.getText(),
+                result.getBarcodeFormat?.()?.toString(),
+              );
+              return;
+            }
+            // err puo essere NotFoundException ad ogni frame senza codice: ignora.
+            // Logghiamo solo errori "veri" (raro).
+            if (err && err.name && err.name !== "NotFoundException" && err.name !== "ChecksumException" && err.name !== "FormatException") {
+              console.warn("[scanner] ZXing decode error:", err.name, err.message);
+            }
+          });
+        } catch (e) {
+          console.error("[scanner] ZXing decodeFromStream failed:", e);
+          setCameraError("Decoder barcode non disponibile su questo browser. Usa input manuale.");
+        }
+      }).catch((e) => {
+        console.error("[scanner] ZXing library load failed:", e);
         setCameraError("Decoder barcode non disponibile su questo browser. Usa input manuale.");
-      }
+      });
     },
     [],
   );

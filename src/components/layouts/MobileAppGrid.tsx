@@ -14,6 +14,7 @@ import { useBillingMode } from "@/contexts/BillingModeContext";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
+import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
@@ -29,7 +30,8 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
   const { mode: billingMode } = useBillingMode();
   const { isFeatureEnabled, isLoading: flagsLoading } = useFeatureFlags();
   const gatingLoading = limitsLoading || flagsLoading;
-  const { role } = useAuth();
+  const { role, effectiveCompany } = useAuth();
+  const isDemoBaseline = effectiveCompany?.id === DEMO_COMPANY_ID;
   const location = useLocation();
   const [search, setSearch] = useState("");
 
@@ -37,6 +39,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     return (items: NavItem[]) => {
       if (permissions.isLoading) {
         return items.filter((item) => {
+          if (item.demoCompanyOnly && !isDemoBaseline) return false;
           if (item.featureKey === "billing_external" && billingMode !== "external") return false;
           if (item.featureKey === "billing_native" && billingMode !== "native") return false;
           if (item.featureKey && item.featureKey !== "billing_external" && item.featureKey !== "billing_native" && !isFeatureEnabled(item.featureKey)) return false;
@@ -44,6 +47,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         });
       }
       return items.filter((item) => {
+        if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.url === "/azienda/cruscotto") {
           if (!permissions.canViewCruscotto && !permissions.canViewDashboard && !permissions.canViewMarketingDashboard) return false;
         } else if (item.permissionKey && permissions[item.permissionKey as keyof typeof permissions] !== true) {
@@ -56,7 +60,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         return true;
       });
     };
-  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled]);
+  }, [permissions, isModuleEnabled, billingMode, isFeatureEnabled, isDemoBaseline]);
 
   const filteredAreas = useMemo(() => {
     return macroAreas

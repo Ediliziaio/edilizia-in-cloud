@@ -24,6 +24,8 @@ interface State {
  * Invia gli errori alla tabella system_health_metrics per osservabilità centralizzata.
  */
 export class ErrorBoundary extends React.Component<Props, State> {
+  private chunkReloadScheduled = false;
+
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -69,6 +71,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   handleReset = () => {
+    this.chunkReloadScheduled = false;
     this.setState({ hasError: false, error: null });
   };
 
@@ -142,7 +145,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
         // Auto-reload SOLO se sotto la soglia
         if (!tooManyAttempts) {
-          triggerReload();
+          if (!this.chunkReloadScheduled) {
+            this.chunkReloadScheduled = true;
+            window.setTimeout(triggerReload, 0);
+          }
           return (
             <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
               <div className="p-4 rounded-full bg-blue-50 mb-4">

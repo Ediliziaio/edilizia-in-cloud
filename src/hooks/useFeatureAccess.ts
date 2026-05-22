@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { withClientTimeout } from "@/lib/query-timeout";
+import { createTimeoutSignal } from "@/lib/query-timeout";
 import { queryKeys } from "@/lib/queryKeys";
 
 const FEATURE_ACCESS_TIMEOUT_MS = 10_000;
+const FEATURE_ACCESS_QUERY_META = { silent: true } as const;
 
 /**
  * Hook unificato per il gating delle feature.
@@ -161,19 +162,23 @@ export function useFeatureAccess(
     queryKey: queryKeys.featureFlags.companyResolved(companyId),
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await withClientTimeout(
-        supabase.rpc("resolve_company_features", {
-          p_company_id: companyId,
-        }),
-        "Verifica accessi aziendali",
-        FEATURE_ACCESS_TIMEOUT_MS,
-      );
-      if (error) throw error;
-      return (data ?? []) as ResolvedFeatureRow[];
+      const timeout = createTimeoutSignal(FEATURE_ACCESS_TIMEOUT_MS);
+      try {
+        const { data, error } = await supabase
+          .rpc("resolve_company_features", {
+            p_company_id: companyId,
+          })
+          .abortSignal(timeout.signal);
+        if (error) throw error;
+        return (data ?? []) as ResolvedFeatureRow[];
+      } finally {
+        timeout.dispose();
+      }
     },
     enabled: !!companyId && !bypass,
     staleTime: 60 * 1000,
     retry: 0,
+    meta: FEATURE_ACCESS_QUERY_META,
   });
 
   const resolvedFeature = normalizeResolvedFeatureRow(
@@ -192,27 +197,29 @@ export function useFeatureAccess(
       if (!companyId) return null;
       // Cast sui parametri RPC: il tipo generato di supabase-js è unione discriminata
       // di tutte le RPC — qui specializziamo al nostro payload senza `any`.
-      const { data, error } = await withClientTimeout(
-        supabase.rpc(
+      const timeout = createTimeoutSignal(FEATURE_ACCESS_TIMEOUT_MS);
+      try {
+        const { data, error } = await supabase.rpc(
           "resolve_company_feature" as never,
           {
             p_company_id: companyId,
             p_feature_key: featureKey,
           } as never,
-        ),
-        `Verifica accesso ${featureKey}`,
-        FEATURE_ACCESS_TIMEOUT_MS,
-      );
-      if (error) throw error;
-      // La RPC ritorna SETOF RECORD → client normalizza ad array o singolo.
-      const row: ResolveRow | null = Array.isArray(data)
-        ? ((data[0] as ResolveRow | undefined) ?? null)
-        : ((data as ResolveRow | null) ?? null);
-      return row;
+        ).abortSignal(timeout.signal);
+        if (error) throw error;
+        // La RPC ritorna SETOF RECORD → client normalizza ad array o singolo.
+        const row: ResolveRow | null = Array.isArray(data)
+          ? ((data[0] as ResolveRow | undefined) ?? null)
+          : ((data as ResolveRow | null) ?? null);
+        return row;
+      } finally {
+        timeout.dispose();
+      }
     },
     enabled: shouldRunSingleFeatureFallback,
     staleTime: 60 * 1000, // 1 min — override cambiano raramente ma bisogna reagire veloce
     retry: false,
+    meta: FEATURE_ACCESS_QUERY_META,
   });
 
   if (bypass) {

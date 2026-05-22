@@ -8,7 +8,6 @@
  *  - validateRow: ritorna errori di validazione
  *  - computeFuzzyCategoryMatches: Levenshtein fuzzy match per matching categorie
  */
-import ExcelJS from "exceljs";
 import Papa from "papaparse";
 import type { CompanyCustomFieldDef, CatalogObjectType } from "@/hooks/useCompanyCustomFields";
 import { FIXED_COLUMNS } from "./listinoTemplate";
@@ -215,6 +214,7 @@ export function parseCsv(text: string, opts: ParseOpts): ParsedRow[] {
 }
 
 export async function parseExcel(buffer: ArrayBuffer, opts: ParseOpts): Promise<ParsedRow[]> {
+  const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
   // Preferisce foglio "Dati", altrimenti il primo foglio
