@@ -6354,15 +6354,19 @@ function PixelConfigCard({ companyId }: { companyId?: string }) {
   const handleSave = async () => {
     const err = validatePixelId(pixelId);
     if (err) { setPixelIdError(err); return; }
-    const ok = await save({
-      pixel_id: pixelId.trim(),
-      pixel_name: pixelName.trim() || undefined,
-      capi_token: capiToken.trim() || undefined,
-    });
-    if (ok !== false) {
+    try {
+      await save({
+        pixel_id: pixelId.trim(),
+        pixel_name: pixelName.trim() || undefined,
+        capi_token: capiToken.trim() || undefined,
+      });
       setCapiToken("");
       setWizardOpen(false);
       setWizardStep(0);
+    } catch (e) {
+      toast.error("Errore salvataggio Pixel", {
+        description: (e instanceof Error ? e.message : null) ?? "Riprova o controlla la connessione.",
+      });
     }
   };
 

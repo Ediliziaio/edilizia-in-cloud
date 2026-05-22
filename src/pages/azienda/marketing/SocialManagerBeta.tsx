@@ -5,7 +5,7 @@
  * Le connessioni OAuth sono gestite in Impostazioni → Integrazioni → Piattaforme Social.
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -743,15 +743,16 @@ function CalendarioTab({
   }
 
   // ── Stats ──────────────────────────────────────────────────────────────────
+  const reviewCount = posts.filter((p) => p.status === "review").length;
   const statsData = [
-    { label: "Totale programmati", value: posts.filter((p) => p.status === "scheduled").length,  color: "text-blue-600",    bg: "bg-blue-50"    },
+    { label: "Programmati",        value: posts.filter((p) => p.status === "scheduled").length,  color: "text-blue-600",    bg: "bg-blue-50"    },
+    { label: "In revisione",       value: reviewCount,                                            color: "text-amber-600",   bg: "bg-amber-50"   },
     { label: "Pubblicati",         value: posts.filter((p) => p.status === "published").length,  color: "text-emerald-600", bg: "bg-emerald-50" },
-    { label: "Bozze",             value: posts.filter((p) => p.status === "draft").length,       color: "text-slate-600",   bg: "bg-slate-50"   },
-    { label: "Falliti",           value: posts.filter((p) => p.status === "failed").length,      color: "text-red-500",     bg: "bg-red-50"     },
-    { label: "Piattaforme attive", value: new Set(posts.flatMap((p) => p.platforms)).size,       color: "text-orange-600",  bg: "bg-orange-50"  },
+    { label: "Bozze",              value: posts.filter((p) => p.status === "draft").length,       color: "text-slate-600",   bg: "bg-slate-50"   },
+    { label: "Piattaforme",        value: new Set(posts.flatMap((p) => p.platforms)).size,       color: "text-orange-600",  bg: "bg-orange-50"  },
   ];
 
-  // ── Review posts ──────────────────────────────────────────────────────────
+  // ── Review posts (uses reviewCount already computed above in statsData) ───
   const reviewPosts = posts.filter((p) => p.status === "review");
 
   // ── Upcoming posts (next 14 days) ──────────────────────────────────────────
@@ -785,7 +786,7 @@ function CalendarioTab({
                 {reviewPosts.length}
               </span>
             </div>
-            <span className={cn("text-amber-600 transition-transform", reviewExpanded ? "rotate-180" : "")}>▲</span>
+            <ChevronDown className={cn("h-4 w-4 text-amber-600 transition-transform duration-200", reviewExpanded ? "rotate-180" : "")} />
           </button>
 
           {/* Expanded list */}
@@ -1294,28 +1295,6 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
   // ── Content Pillar ────────────────────────────────────────────────────────
   const [activePillarId, setActivePillarId] = useState<string | null>(null);
 
-  const applyPillar = (pillar: ContentPillar) => {
-    if (activePillarId === pillar.id) {
-      // Deselect
-      setActivePillarId(null);
-      return;
-    }
-    setActivePillarId(pillar.id);
-    // Apply hashtags (merge without duplicates)
-    setHashtags((prev) => {
-      const existing = new Set(prev);
-      const merged = [...prev];
-      pillar.hashtags.forEach((h) => { if (!existing.has(h)) merged.push(h); });
-      return merged.slice(0, 30);
-    });
-    // Pre-fill brief hint if brief is empty
-    setBrief((prev) => prev.trim() ? prev : pillar.promptHint);
-    // Switch content type to suggested
-    const ctExists = CONTENT_TYPE_CONFIG.find((c) => c.id === pillar.suggestedContentType);
-    if (ctExists) setContentTypeId(pillar.suggestedContentType);
-    toast.success(`Pillar "${pillar.label}" applicato`, { description: "Hashtag e brief aggiornati." });
-  };
-
   // ── Content type selection ─────────────────────────────────────────────────
   const [contentTypeId, setContentTypeId] = useState("post");
   const contentType = CONTENT_TYPE_CONFIG.find((c) => c.id === contentTypeId) ?? CONTENT_TYPE_CONFIG[0];
@@ -1395,6 +1374,26 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
     fotovoltaico: "Fotovoltaico",
     tetti: "Tetti",
     bagni: "Bagni",
+  };
+
+  // ── Content Pillar handler ─────────────────────────────────────────────────
+  // Declared after all state vars to avoid temporal dead zone issues
+  const applyPillar = (pillar: ContentPillar) => {
+    if (activePillarId === pillar.id) {
+      setActivePillarId(null);
+      return;
+    }
+    setActivePillarId(pillar.id);
+    setHashtags((prev) => {
+      const existing = new Set(prev);
+      const merged = [...prev];
+      pillar.hashtags.forEach((h) => { if (!existing.has(h)) merged.push(h); });
+      return merged.slice(0, 30);
+    });
+    setBrief((prev) => prev.trim() ? prev : pillar.promptHint);
+    const ctExists = CONTENT_TYPE_CONFIG.find((c) => c.id === pillar.suggestedContentType);
+    if (ctExists) setContentTypeId(pillar.suggestedContentType);
+    toast.success(`Pillar "${pillar.label}" applicato`, { description: "Hashtag e brief aggiornati." });
   };
 
   const onGeneratePost = async () => {
@@ -1481,7 +1480,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
     });
     setPostText(""); setHashtags([]); setMediaUrl(null); setScheduledDate(""); setPublishNow(false);
     setCopyVariants([]); setFirstComment(""); setShowFirstComment(false);
-    setPlatformTexts({}); setCrossPlatformMode(false);
+    setPlatformTexts({}); setCrossPlatformMode(false); setActivePillarId(null);
   };
 
   const currentPlatform = PLATFORMS.find((p) => p.id === previewPlatform) ?? PLATFORMS[0];
@@ -1633,7 +1632,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
       {/* ── BRIEF AI ────────────────────────────────────────────────────── */}
       <div className={cn(
         "overflow-hidden rounded-2xl border shadow-sm transition-all duration-300",
-        isBriefOpen ? "border-orange-200 bg-gradient-to-br from-orange-50 via-pink-50/40 to-white" : "border-orange-100 bg-gradient-to-r from-orange-50/70 to-white"
+        isBriefOpen ? "border-orange-200 bg-gradient-to-br from-orange-50 via-amber-50/40 to-white" : "border-orange-100 bg-gradient-to-r from-orange-50/70 to-white"
       )}>
         {!isBriefOpen ? (
           <div className="flex items-center gap-3 px-4 py-2.5">
@@ -1761,7 +1760,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
           {/* Copy variants */}
           {copyVariants.length > 1 && (
             <Card className="overflow-hidden border-orange-200">
-              <div className="h-0.5 bg-gradient-to-r from-orange-400 to-pink-400" />
+              <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
               <CardContent className="pt-3 pb-3">
                 <p className="mb-2 text-xs font-bold text-slate-700">
                   <Sparkles className="mr-1.5 inline h-3.5 w-3.5 text-orange-500" />
@@ -1785,7 +1784,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 
           {/* Text editor */}
           <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-pink-400" />
+            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -2132,7 +2131,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                     };
                     onPostScheduled(reviewPost);
                     toast.success("Post inviato in revisione", { description: "Il titolare riceverà una notifica per approvare." });
-                    setPostText(""); setHashtags([]); setMediaUrl(null); setScheduledDate(""); setCopyVariants([]); setPlatformTexts({}); setCrossPlatformMode(false);
+                    setPostText(""); setHashtags([]); setMediaUrl(null); setScheduledDate(""); setCopyVariants([]); setPlatformTexts({}); setCrossPlatformMode(false); setActivePillarId(null);
                   }}
                   disabled={!(crossPlatformMode ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim()) : postText.trim()) || selectedPlatforms.length === 0}
                   className="w-full rounded-xl border-2 border-dashed border-amber-300 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-40">
@@ -2310,13 +2309,13 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
       {/* ── KPI HERO ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "Reach",          value: da.overview.reach.value,       change: da.overview.reach.change,       suffix: "",  color: "text-orange-600", bg: "bg-orange-50",  icon: Users      },
-          { label: "Impressioni",    value: da.overview.impressions.value, change: da.overview.impressions.change, suffix: "",  color: "text-blue-600",   bg: "bg-blue-50",    icon: Eye        },
-          { label: "Engagement",     value: da.overview.engagement.value,  change: da.overview.engagement.change,  suffix: "%", color: "text-emerald-600",bg: "bg-emerald-50", icon: Heart      },
-          { label: "Nuovi follower", value: da.overview.followers.value,   change: da.overview.followers.change,   suffix: "",  color: "text-pink-600",   bg: "bg-pink-50",    icon: ArrowUpRight },
-        ].map(({ label, value, change, suffix, color, bg, icon: Icon }) => (
+          { label: "Reach",          value: da.overview.reach.value,       change: da.overview.reach.change,       suffix: "",  color: "text-orange-600",  bg: "bg-orange-50",  icon: Users,       accent: "from-orange-400 to-amber-400"    },
+          { label: "Impressioni",    value: da.overview.impressions.value, change: da.overview.impressions.change, suffix: "",  color: "text-blue-600",    bg: "bg-blue-50",    icon: Eye,         accent: "from-blue-400 to-sky-400"        },
+          { label: "Engagement",     value: da.overview.engagement.value,  change: da.overview.engagement.change,  suffix: "%", color: "text-emerald-600", bg: "bg-emerald-50", icon: Heart,       accent: "from-emerald-400 to-teal-400"    },
+          { label: "Nuovi follower", value: da.overview.followers.value,   change: da.overview.followers.change,   suffix: "",  color: "text-pink-600",    bg: "bg-pink-50",    icon: ArrowUpRight,accent: "from-pink-400 to-rose-400"       },
+        ].map(({ label, value, change, suffix, color, bg, icon: Icon, accent }) => (
           <Card key={label} className="overflow-hidden">
-            <div className={cn("h-1 w-full", bg.replace("bg-","bg-gradient-to-r from-").replace("-50","").concat("-400 to-").concat(color.replace("text-","").replace("-600","").concat("-600")))} />
+            <div className={cn("h-1 w-full bg-gradient-to-r", accent)} />
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-2">
                 <div className={cn("flex h-8 w-8 items-center justify-center rounded-xl", bg)}>
@@ -2378,7 +2377,7 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
 
           {/* Platform breakdown */}
           <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-pink-400 to-orange-400" />
+            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Share2 className="h-4 w-4 text-pink-500" /> Performance per piattaforma
@@ -2466,7 +2465,7 @@ function AnaliticsTab({ connectedAccounts }: { connectedAccounts: ConnectedAccou
 
           {/* Content type performance */}
           <Card className="overflow-hidden">
-            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-pink-400" />
+            <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Film className="h-4 w-4 text-orange-500" /> Per tipo di contenuto
@@ -2853,7 +2852,14 @@ function buildGrid(posts: ScheduledPost[]): GridCell[] {
     platform: "instagram",
   }));
 
-  // Scheduled instagram posts
+  // Scheduled instagram posts — deterministic gradient based on post id (no random)
+  const FALLBACK_GRADIENTS = DEMO_MEDIA_ITEMS.map((m) => m.gradient);
+  const deterministicGradient = (id: string) => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) & 0xffff;
+    return FALLBACK_GRADIENTS[hash % FALLBACK_GRADIENTS.length] ?? "from-slate-400 to-slate-600";
+  };
+
   const scheduled: GridCell[] = posts
     .filter((p) => p.platforms.includes("instagram") && (p.status === "scheduled" || p.status === "review"))
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
@@ -2861,7 +2867,7 @@ function buildGrid(posts: ScheduledPost[]): GridCell[] {
     .map((p) => ({
       id: `sched-${p.id}`,
       type: "scheduled",
-      gradient: DEMO_MEDIA_ITEMS[Math.floor(Math.random() * DEMO_MEDIA_ITEMS.length)]?.gradient,
+      gradient: deterministicGradient(p.id),
       text: p.text,
       image_url: p.image_url,
       scheduled_at: p.scheduled_at,
@@ -2886,31 +2892,39 @@ const PILLAR_GRADIENT: Record<string, string> = {
   portfolio: "from-violet-500/80 to-violet-700/80",
 };
 
+// Pillar keyword mapping — defined outside component to avoid recreation on every render
+const PILLAR_KEYWORDS: Record<string, string[]> = {
+  cantiere: ["cantiere", "lavori", "progress", "costruzione"],
+  team: ["team", "squadra", "collaboratori", "operai"],
+  testimonianza: ["testimonianza", "cliente", "soddisfatto", "recensione", "grazie"],
+  educational: ["consiglio", "normativa", "sapevi", "faq", "guida"],
+  promo: ["offerta", "promozione", "preventivo", "sconto", "gratis"],
+  portfolio: ["portfolio", "completato", "prima", "dopo", "risultato", "realizzazione"],
+};
+
+function getCellPillar(cell: GridCell): string | null {
+  if (cell.type !== "scheduled") return null;
+  const text = (cell.text ?? "").toLowerCase();
+  for (const p of CONTENT_PILLARS) {
+    if (p.hashtags.some((h) => text.includes(h.toLowerCase().replace("#", "")))) return p.id;
+    if (PILLAR_KEYWORDS[p.id]?.some((kw) => text.includes(kw))) return p.id;
+  }
+  return null;
+}
+
 function GridPlannerTab({ posts }: { posts: ScheduledPost[] }) {
   const [showLabels, setShowLabels] = useState(true);
   const [highlightPillar, setHighlightPillar] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<GridCell | null>(null);
 
-  const grid = buildGrid(posts);
-
-  const getCellPillar = (cell: GridCell): string | null => {
-    if (cell.type !== "scheduled") return null;
-    const text = (cell.text ?? "").toLowerCase();
-    for (const p of CONTENT_PILLARS) {
-      if (p.hashtags.some((h) => text.includes(h.toLowerCase().replace("#", "")))) return p.id;
-      // Also check pillar keywords
-      const kws: Record<string, string[]> = {
-        cantiere: ["cantiere", "lavori", "progress"],
-        team: ["team", "squadra", "collaboratori"],
-        testimonianza: ["testimonianza", "cliente", "soddisfatto", "recensione"],
-        educational: ["consiglio", "normativa", "sapevi", "faq"],
-        promo: ["offerta", "promozione", "preventivo", "sconto"],
-        portfolio: ["portfolio", "completato", "prima", "dopo", "risultato"],
-      };
-      if (kws[p.id]?.some((kw) => text.includes(kw))) return p.id;
-    }
-    return null;
-  };
+  // Memoize grid so it doesn't rebuild on every state change (toggle labels, etc.)
+  const grid = useMemo(() => buildGrid(posts), [posts]);
+  // Pre-compute pillar per cell to avoid calling getCellPillar multiple times per cell
+  const cellPillars = useMemo(() => {
+    const map: Record<string, string | null> = {};
+    grid.forEach((c) => { map[c.id] = getCellPillar(c); });
+    return map;
+  }, [grid]);
 
   const scheduledCount = grid.filter((c) => c.type === "scheduled").length;
   const publishedCount = grid.filter((c) => c.type === "published").length;
@@ -2976,8 +2990,8 @@ function GridPlannerTab({ posts }: { posts: ScheduledPost[] }) {
 
           {/* Grid */}
           <div className="grid grid-cols-3 gap-0.5 bg-slate-200 p-0.5">
-            {grid.map((cell, idx) => {
-              const pillarId = getCellPillar(cell);
+            {grid.map((cell) => {
+              const pillarId = cellPillars[cell.id] ?? null;
               const pillar = CONTENT_PILLARS.find((p) => p.id === pillarId);
               const isDimmed = highlightPillar !== null && pillarId !== highlightPillar && cell.type !== "published";
               const isHighlighted = highlightPillar !== null && pillarId === highlightPillar;
@@ -3065,8 +3079,9 @@ function GridPlannerTab({ posts }: { posts: ScheduledPost[] }) {
           {selectedCell.text && (
             <p className="text-sm text-slate-700">{selectedCell.text}</p>
           )}
-          {getCellPillar(selectedCell) && (() => {
-            const p = CONTENT_PILLARS.find((p) => p.id === getCellPillar(selectedCell));
+          {(() => {
+            const pid = cellPillars[selectedCell.id];
+            const p = pid ? CONTENT_PILLARS.find((p) => p.id === pid) : null;
             return p ? (
               <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", p.colorBg, p.colorBorder, p.colorText)}>
                 {p.emoji} {p.label}
@@ -3146,13 +3161,19 @@ const SENTIMENT_CONFIG: Record<InboxItem["sentiment"], { icon: string; color: st
   negative: { icon: "😟", color: "text-red-400"     },
 };
 
-function InboxTab() {
+function InboxTab({ onUnreadChange }: { onUnreadChange?: (n: number) => void }) {
   const [items, setItems] = useState<InboxItem[]>(DEMO_INBOX);
   const [filterType, setFilterType] = useState<InboxItemType | "all">("all");
   const [filterStatus, setFilterStatus] = useState<InboxStatus | "all">("all");
   const [filterPlatform, setFilterPlatform] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+
+  // Notify parent when unread count changes so the tab badge stays in sync
+  useEffect(() => {
+    const unread = items.filter((i) => i.status === "unread").length;
+    onUnreadChange?.(unread);
+  }, [items, onUnreadChange]);
 
   const markRead = (id: string) =>
     setItems((prev) => prev.map((i) => (i.id === id && i.status === "unread" ? { ...i, status: "read" } : i)));
@@ -3462,7 +3483,7 @@ function BulkScheduleModal({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseCsv = (raw: string): BulkPost[] => {
-    const lines = raw.trim().split("\n").filter((l) => l.trim());
+    const lines = raw.trim().split(/\r?\n/).filter((l) => l.trim());
     if (lines.length < 2) return [];
     // Skip header
     return lines.slice(1).map((line, idx) => {
@@ -3587,7 +3608,7 @@ function BulkScheduleModal({
                   className="resize-none font-mono text-xs"
                 />
                 <p className="mt-1 text-[10px] text-slate-400">
-                  {csvText.split("\n").filter((l) => l.trim()).length - 1} righe rilevate (esclusa intestazione)
+                  {csvText.trim() ? Math.max(0, csvText.trim().split(/\r?\n/).filter((l) => l.trim()).length - 1) : 0} righe rilevate (esclusa intestazione)
                 </p>
               </div>
             </>
@@ -3595,6 +3616,13 @@ function BulkScheduleModal({
 
           {step === "preview" && (
             <>
+              {parsed.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 rounded-xl border border-red-200 bg-red-50 py-6 text-center">
+                  <span className="text-2xl">⚠️</span>
+                  <p className="text-sm font-semibold text-red-700">Nessuna riga trovata nel CSV</p>
+                  <p className="text-xs text-slate-500">Controlla che il file abbia l'intestazione corretta e almeno una riga di dati.</p>
+                </div>
+              ) : (
               <div className={cn("flex items-center gap-3 rounded-xl border px-3 py-2",
                 errCount === 0 ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")}>
                 <span className="text-lg">{errCount === 0 ? "✅" : "⚠️"}</span>
@@ -3603,6 +3631,7 @@ function BulkScheduleModal({
                   {errCount > 0 && <span className="ml-2 font-bold text-red-600">{errCount} con errori (verranno saltati)</span>}
                 </div>
               </div>
+              )}
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {parsed.map((p) => (
@@ -3731,7 +3760,8 @@ export default function SocialManagerBeta() {
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
   const reviewCount    = posts.filter((p) => p.status === "review").length;
   const mediaCount     = DEMO_MEDIA_ITEMS.length;
-  const inboxUnread    = DEMO_INBOX.filter((i) => i.status === "unread").length;
+  // inboxUnread is kept in sync by InboxTab via onUnreadChange callback
+  const [inboxUnread, setInboxUnread] = useState(() => DEMO_INBOX.filter((i) => i.status === "unread").length);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const tabs = [
@@ -3810,7 +3840,7 @@ export default function SocialManagerBeta() {
               <GridPlannerTab posts={posts} />
             )}
             {activeTab === "inbox" && (
-              <InboxTab />
+              <InboxTab onUnreadChange={setInboxUnread} />
             )}
             {activeTab === "analitiche" && (
               <AnaliticsTab connectedAccounts={connectedAccounts} />
