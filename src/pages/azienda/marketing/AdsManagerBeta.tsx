@@ -6324,176 +6324,291 @@ function ToggleRow({
  *   • Inserire il CAPI access token (cifrato server-side)
  *   • Vedere stato salute (last_event_at, event_match_quality_score)
  */
+/** Pixel Wizard — 4 step guidati per configurare Meta Pixel + CAPI. */
 function PixelConfigCard({ companyId }: { companyId?: string }) {
   const { config, isLoading, save, isSaving } = useMetaPixelConfig(companyId);
+  const [wizardStep, setWizardStep] = useState(0); // 0=dashboard/intro, 1-4=wizard steps
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [pixelId, setPixelId] = useState("");
   const [pixelName, setPixelName] = useState("");
   const [capiToken, setCapiToken] = useState("");
   const [showToken, setShowToken] = useState(false);
+  const [pixelIdError, setPixelIdError] = useState("");
 
-  // Inizializza i campi quando arriva la config dal DB
   useEffect(() => {
     if (config) {
       setPixelId(config.pixel_id ?? "");
       setPixelName(config.pixel_name ?? "");
-      // Non popolare il token (è ***)
     }
   }, [config]);
-
-  const handleSave = async () => {
-    if (!pixelId.trim() || !/^\d{10,20}$/.test(pixelId.trim())) {
-      toast.error("Pixel ID non valido", {
-        description: "Inserisci l'ID numerico del Pixel (10-20 cifre).",
-      });
-      return;
-    }
-    await save({
-      pixel_id: pixelId.trim(),
-      pixel_name: pixelName.trim() || undefined,
-      capi_token: capiToken.trim() || undefined,
-    });
-    setCapiToken(""); // Pulisci il campo dopo save (sicurezza)
-  };
 
   const hasConfig = !!config?.pixel_id;
   const eventQuality = config?.event_match_quality_score ?? null;
 
+  const validatePixelId = (v: string) => {
+    if (!v.trim()) return "Inserisci il Pixel ID";
+    if (!/^\d{10,20}$/.test(v.trim())) return "Il Pixel ID deve contenere solo cifre (10-20 caratteri)";
+    return "";
+  };
+
+  const handleSave = async () => {
+    const err = validatePixelId(pixelId);
+    if (err) { setPixelIdError(err); return; }
+    const ok = await save({
+      pixel_id: pixelId.trim(),
+      pixel_name: pixelName.trim() || undefined,
+      capi_token: capiToken.trim() || undefined,
+    });
+    if (ok !== false) {
+      setCapiToken("");
+      setWizardOpen(false);
+      setWizardStep(0);
+    }
+  };
+
+  const WIZARD_STEPS = [
+    {
+      title: "Dove si trova il Pixel ID",
+      description: "Apri Meta Business Manager e segui questi passaggi:",
+      guide: [
+        { step: "1", text: "Vai su business.facebook.com" },
+        { step: "2", text: "Menu → Origini dati → Pixel" },
+        { step: "3", text: "Seleziona il tuo Pixel e copia l'ID numerico" },
+        { step: "4", text: "L'ID è composto da 15-16 cifre (es. 1234567890123456)" },
+      ],
+      visual: "📊 Meta Business Manager\n└── Origini dati\n    └── Pixel\n        └── 🔢 ID: 1234567890123456",
+      action: null,
+    },
+    {
+      title: "Inserisci il Pixel ID",
+      description: "Incolla l'ID numerico del tuo Pixel Meta:",
+      guide: [],
+      visual: null,
+      action: "pixel_id",
+    },
+    {
+      title: "Genera il CAPI token",
+      description: "Il token CAPI permette l'attribuzione server-side dei lead:",
+      guide: [
+        { step: "1", text: "Vai su business.facebook.com/events_manager" },
+        { step: "2", text: "Seleziona il tuo Pixel" },
+        { step: "3", text: "Tab Impostazioni → sezione Conversions API" },
+        { step: "4", text: "Clicca 'Genera token di accesso'" },
+        { step: "5", text: "Copia il token generato (inizia con EAA...)" },
+      ],
+      visual: "📡 Events Manager\n└── Il tuo Pixel\n    └── Impostazioni\n        └── Conversions API\n            └── 🔑 Genera token",
+      action: null,
+    },
+    {
+      title: "Inserisci il CAPI token",
+      description: "Incolla il token — verrà cifrato e mai esposto:",
+      guide: [],
+      visual: null,
+      action: "capi_token",
+    },
+  ];
+
+  const currentWizardStep = WIZARD_STEPS[wizardStep] ?? WIZARD_STEPS[0];
+
   return (
-    <Card className="border-violet-100 bg-violet-50/30">
+    <Card className="overflow-hidden border-orange-100">
+      <div className="h-0.5 bg-gradient-to-r from-orange-400 to-amber-400" />
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <ShieldCheck className="h-5 w-5 text-violet-600" />
+              <ShieldCheck className="h-5 w-5 text-orange-600" />
               Pixel Meta + Conversions API
             </CardTitle>
             <CardDescription>
               Attribuzione server-side: i lead/commesse vengono inviati a Meta tramite CAPI per ottimizzazione campagne.
             </CardDescription>
           </div>
-          {hasConfig && (
-            <Badge
-              variant="outline"
-              className="border-emerald-200 bg-emerald-50 text-emerald-700"
-            >
-              <Check className="mr-1 h-3 w-3" />
-              Configurato
-            </Badge>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {hasConfig && (
+              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                <Check className="mr-1 h-3 w-3" /> Configurato
+              </Badge>
+            )}
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs"
+              onClick={() => { setWizardOpen((v) => !v); setWizardStep(0); }}>
+              {hasConfig ? "✏️ Modifica" : "🧙 Configura guidato"}
+            </Button>
+          </div>
         </div>
       </CardHeader>
+
       <CardContent className="space-y-4">
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Caricamento...
+            <Loader2 className="h-3 w-3 animate-spin" /> Caricamento...
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Pixel ID Meta">
-            <Input
-              value={pixelId}
-              onChange={(e) => setPixelId(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="Es. 123456789012345"
-              inputMode="numeric"
-            />
-            <p className="mt-1 text-[11px] text-slate-500">
-              Trovi l'ID in Meta Business Settings → Origini dati → Pixel.
-            </p>
-          </Field>
-          <Field label="Nome Pixel (opzionale)">
-            <Input
-              value={pixelName}
-              onChange={(e) => setPixelName(e.target.value)}
-              placeholder="Es. Pixel sito EdiliziaInCloud"
-            />
-          </Field>
-        </div>
-
-        <Field label="Conversions API access token">
-          <div className="relative">
-            <Input
-              type={showToken ? "text" : "password"}
-              value={capiToken}
-              onChange={(e) => setCapiToken(e.target.value)}
-              placeholder={
-                hasConfig
-                  ? "Token già configurato. Inserisci nuovo valore per aggiornare."
-                  : "EAAxxxxx... (Meta CAPI access token)"
-              }
-              className="pr-20"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="absolute right-1 top-1/2 h-7 -translate-y-1/2 px-2 text-xs"
-              onClick={() => setShowToken(!showToken)}
-            >
-              {showToken ? "Nascondi" : "Mostra"}
-            </Button>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Genera il token in Meta Events Manager → Pixel → Impostazioni → Conversions API → Genera token di accesso.
-            Verrà cifrato e mai esposto al frontend.
-          </p>
-        </Field>
-
-        {hasConfig && (
-          <div className="rounded-xl border bg-white p-3">
-            <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Salute eventi</p>
+        {/* ── DASHBOARD quando già configurato ─────────────────────────── */}
+        {hasConfig && !wizardOpen && (
+          <div className="rounded-xl border bg-white p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Salute eventi</p>
+              <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+                eventQuality === null ? "bg-slate-100 text-slate-500"
+                  : eventQuality >= 7 ? "bg-emerald-100 text-emerald-700"
+                  : eventQuality >= 5 ? "bg-amber-100 text-amber-700"
+                  : "bg-red-100 text-red-700")}>
+                {eventQuality !== null ? `⚡ ${eventQuality.toFixed(1)}/10 Match Quality` : "Nessun dato"}
+              </span>
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <p className="text-[11px] text-slate-500">Ultimo evento</p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {config?.last_event_at
-                    ? new Date(config.last_event_at).toLocaleString("it-IT")
-                    : "Nessun evento"}
+              <div className="rounded-lg bg-slate-50 p-2.5">
+                <p className="text-[10px] text-slate-400">Pixel ID</p>
+                <p className="font-mono text-sm font-semibold text-slate-800">{config?.pixel_id}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-2.5">
+                <p className="text-[10px] text-slate-400">Ultimo evento</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {config?.last_event_at ? new Date(config.last_event_at).toLocaleString("it-IT", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                 </p>
               </div>
-              <div>
-                <p className="text-[11px] text-slate-500">Eventi 7gg</p>
-                <p className="text-sm font-semibold text-slate-900">{config?.events_last_7d ?? 0}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-slate-500">Match Quality</p>
-                <div className="flex items-center gap-1">
-                  <p
-                    className={cn(
-                      "text-sm font-bold",
-                      eventQuality === null
-                        ? "text-slate-400"
-                        : eventQuality >= 7
-                        ? "text-emerald-600"
-                        : eventQuality >= 5
-                        ? "text-amber-600"
-                        : "text-red-600",
-                    )}
-                  >
-                    {eventQuality !== null ? eventQuality.toFixed(1) : "—"}
-                  </p>
-                  <span className="text-[10px] text-slate-400">/10</span>
-                </div>
+              <div className="rounded-lg bg-slate-50 p-2.5">
+                <p className="text-[10px] text-slate-400">Eventi 7gg</p>
+                <p className="text-sm font-semibold text-slate-800">{config?.events_last_7d ?? 0}</p>
               </div>
             </div>
             {eventQuality !== null && eventQuality < 6 && (
-              <Alert className="mt-3 border-amber-200 bg-amber-50">
+              <Alert className="border-amber-200 bg-amber-50">
                 <AlertTriangle className="h-4 w-4 text-amber-700" />
                 <AlertDescription className="text-xs">
-                  Match Quality basso ({eventQuality.toFixed(1)}/10). Assicurati di inviare email + telefono hashati in tutti gli eventi.
+                  Match Quality basso ({eventQuality.toFixed(1)}/10). Assicurati di inviare email + telefono hashati negli eventi.
                 </AlertDescription>
               </Alert>
             )}
           </div>
         )}
 
-        <div className="flex justify-end gap-2 border-t pt-3">
-          <Button onClick={handleSave} disabled={isSaving || !pixelId.trim()}>
-            {isSaving && <Loader2 className="h-3 w-3 animate-spin" />}
-            {hasConfig ? "Aggiorna configurazione" : "Salva configurazione"}
-          </Button>
-        </div>
+        {/* ── WIZARD ────────────────────────────────────────────────────── */}
+        {(!hasConfig || wizardOpen) && (
+          <div className="overflow-hidden rounded-2xl border border-orange-200 bg-white">
+            {/* Progress steps */}
+            <div className="flex border-b border-orange-100 bg-orange-50/50 px-4 py-3">
+              {WIZARD_STEPS.map((s, idx) => (
+                <div key={idx} className="flex flex-1 items-center">
+                  <button type="button" onClick={() => idx < wizardStep && setWizardStep(idx)}
+                    className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition",
+                      idx === wizardStep
+                        ? "bg-orange-500 text-white shadow-sm"
+                        : idx < wizardStep
+                          ? "bg-emerald-500 text-white cursor-pointer hover:bg-emerald-600"
+                          : "bg-slate-200 text-slate-500 cursor-default")}>
+                    {idx < wizardStep ? "✓" : idx + 1}
+                  </button>
+                  {idx < WIZARD_STEPS.length - 1 && (
+                    <div className={cn("mx-1 h-0.5 flex-1 rounded-full transition", idx < wizardStep ? "bg-emerald-400" : "bg-slate-200")} />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Step content */}
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-orange-500">Passo {wizardStep + 1} di {WIZARD_STEPS.length}</p>
+                <h3 className="text-base font-bold text-slate-800">{currentWizardStep.title}</h3>
+                <p className="text-sm text-slate-500">{currentWizardStep.description}</p>
+              </div>
+
+              {/* Guide steps */}
+              {currentWizardStep.guide.length > 0 && (
+                <div className="space-y-2">
+                  {currentWizardStep.guide.map(({ step, text }) => (
+                    <div key={step} className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700">{step}</span>
+                      <p className="pt-0.5 text-sm text-slate-700">{text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Visual guide */}
+              {currentWizardStep.visual && (
+                <div className="rounded-xl border border-slate-200 bg-slate-900 px-4 py-3">
+                  <p className="font-mono text-xs leading-relaxed text-emerald-400 whitespace-pre">{currentWizardStep.visual}</p>
+                </div>
+              )}
+
+              {/* Action: Pixel ID input */}
+              {currentWizardStep.action === "pixel_id" && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">Pixel ID *</label>
+                    <Input
+                      value={pixelId}
+                      onChange={(e) => { setPixelId(e.target.value.replace(/[^0-9]/g, "")); setPixelIdError(""); }}
+                      placeholder="Es. 1234567890123456"
+                      inputMode="numeric"
+                      className={pixelIdError ? "border-red-400 focus:ring-red-300" : ""}
+                    />
+                    {pixelIdError && <p className="mt-1 text-[11px] text-red-500">{pixelIdError}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">Nome Pixel (opzionale)</label>
+                    <Input value={pixelName} onChange={(e) => setPixelName(e.target.value)} placeholder="Es. Pixel sito principale" />
+                  </div>
+                </div>
+              )}
+
+              {/* Action: CAPI token input */}
+              {currentWizardStep.action === "capi_token" && (
+                <div className="space-y-2">
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">CAPI Access Token</label>
+                  <div className="relative">
+                    <Input
+                      type={showToken ? "text" : "password"}
+                      value={capiToken}
+                      onChange={(e) => setCapiToken(e.target.value)}
+                      placeholder={hasConfig ? "Token già salvato. Inserisci nuovo per aggiornare." : "EAAxxxxx..."}
+                      className="pr-20"
+                    />
+                    <Button type="button" variant="ghost" size="sm"
+                      className="absolute right-1 top-1/2 h-7 -translate-y-1/2 px-2 text-xs"
+                      onClick={() => setShowToken((v) => !v)}>
+                      {showToken ? "Nascondi" : "Mostra"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">Il token verrà cifrato server-side e mai esposto al frontend. Puoi saltare questo passo e configurarlo in seguito.</p>
+                </div>
+              )}
+
+              {/* Navigation buttons */}
+              <div className="flex items-center justify-between border-t pt-3">
+                <Button variant="ghost" size="sm" disabled={wizardStep === 0}
+                  onClick={() => setWizardStep((s) => s - 1)}>
+                  ← Indietro
+                </Button>
+
+                {wizardStep < WIZARD_STEPS.length - 1 ? (
+                  <Button size="sm"
+                    className="bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600"
+                    onClick={() => {
+                      if (currentWizardStep.action === "pixel_id") {
+                        const err = validatePixelId(pixelId);
+                        if (err) { setPixelIdError(err); return; }
+                      }
+                      setWizardStep((s) => s + 1);
+                    }}>
+                    Avanti →
+                  </Button>
+                ) : (
+                  <Button size="sm" disabled={isSaving || !pixelId.trim()}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600"
+                    onClick={handleSave}>
+                    {isSaving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                    ✓ Salva configurazione
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
