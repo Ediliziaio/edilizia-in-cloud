@@ -94,7 +94,27 @@ Deno.serve(async (req) => {
 
     let totalAutoMatched = 0;
     let totalPendingReview = 0;
+    let totalProposalsCreated = 0;
     const errors: string[] = [];
+
+    // Risolutore user_id per company (necessario per creare ai_action_proposals).
+    // Cache per evitare query ripetute nello stesso run.
+    const defaultUserCache = new Map<string, string | null>();
+    async function getDefaultUserId(cId: string): Promise<string | null> {
+      if (defaultUserCache.has(cId)) return defaultUserCache.get(cId) ?? null;
+      const { data: rl } = await supabase
+        .from("user_roles")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .select("user_id")
+        .eq("company_id", cId)
+        .in("role", ["company_admin", "company_staff"])
+        .limit(1)
+        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const uid = (rl as any)?.user_id ?? null;
+      defaultUserCache.set(cId, uid);
+      return uid;
+    }
 
     for (const cId of companyIds) {
       try {
@@ -195,6 +215,61 @@ Deno.serve(async (req) => {
             totalAutoMatched++;
           } else if (bestMatch && bestMatch.score >= 50) {
             totalPendingReview++;
+
+            // Feature #7 — Match a media confidenza: crea proposta in chat AI
+            // per conferma umana. Senza questo step la transazione restava in
+            // limbo (counter totalPendingReview ma niente UX visibile).
+            // Idempotenza via create_proactive_proposal: se esiste già una
+            // proposta pending per stessa (company, signal, tx_id) viene saltata.
+            try {
+              const userId = await getDefaultUserId(cId);
+              if (userId) {
+                const matchedAmount = Math.min(
+                  Math.abs(tx.amount),
+                  (bestMatch.invoice.total || 0) - (bestMatch.invoice.paid_amount || 0)
+                );
+                const summary = `Bonifico €${Math.abs(tx.amount).toFixed(2)} ` +
+                  `da ${tx.creditor_name ?? tx.debtor_name ?? "—"} ` +
+                  `→ fattura ${bestMatch.invoice.client_company_name ?? "cliente"} ` +
+                  `(€${matchedAmount.toFixed(2)}, match ${bestMatch.score}/100). Confermo riconciliazione?`;
+                const { error: propErr } = await supabase.rpc("create_proactive_proposal", {
+                  p_company_id: cId,
+                  p_user_id: userId,
+                  p_persona_key: "amministrazione",
+                  p_action_type: "confirm_bank_reconciliation",
+                  p_summary: summary.substring(0, 200),
+                  p_payload: {
+                    transaction_id: tx.id,
+                    invoice_id: bestMatch.invoice.id,
+                    matched_amount: matchedAmount,
+                    match_score: bestMatch.score,
+                    tx_amount: Math.abs(tx.amount),
+                    tx_counterparty: tx.creditor_name ?? tx.debtor_name ?? null,
+                    invoice_client: bestMatch.invoice.client_company_name ?? null,
+                    external_tx_id: tx.external_transaction_id,
+                  },
+                  p_signal_type: "bank_match_medium_confidence",
+                  p_signal_entity_id: tx.id,
+                  p_signal_metadata: {
+                    score: bestMatch.score,
+                    confidence: "medium",
+                    matched_amount: matchedAmount,
+                  },
+                  // Yellow: l'azione registra un pagamento → reversibile ma
+                  // tocca contabilità. La policy company decide se richiede
+                  // conferma o auto_execute (mode=auto_execute consigliato solo
+                  // per score >= 70).
+                  p_risk_level: "yellow",
+                  p_ttl_days: 7,
+                });
+                if (!propErr) {
+                  totalProposalsCreated++;
+                }
+              }
+            } catch (propE) {
+              // Non bloccare il run principale per errori di proposta
+              console.warn(`[bank-auto-reconcile] proposal creation failed for tx ${tx.id}:`, propE);
+            }
           }
         }
       } catch (compErr: any) {
@@ -207,6 +282,7 @@ Deno.serve(async (req) => {
       success: true,
       auto_matched: totalAutoMatched,
       pending_review: totalPendingReview,
+      proposals_created: totalProposalsCreated,
       companies_processed: companyIds.length,
       errors: errors.length > 0 ? errors : undefined,
     });
