@@ -75,12 +75,13 @@ import { useAdsNotifications } from "@/hooks/useAdsNotifications";
 import { AdsOnboardingTour } from "@/components/ads/AdsOnboardingTour";
 import { ProviderChoiceDialog } from "@/components/ads/ProviderChoiceDialog";
 import { MetaTargetingPanel } from "@/components/ads/MetaTargetingPanel";
+import { QuickStartCampaign } from "@/components/ads/QuickStartCampaign";
 import type { Integration, MetaAsset } from "@/types/integrations";
 import type { MetaCampaignRow } from "@/types/metaAds";
 
 type AdsTab = "campagne" | "creativita" | "pubblici" | "impostazioni";
 type CampaignStatus = "active" | "paused" | "draft" | "review" | "error";
-type ViewMode = "list" | "wizard" | "detail";
+type ViewMode = "list" | "wizard" | "quickstart" | "detail";
 type CreativeFormat = "image" | "video" | "carousel" | "story";
 type AudienceStrategy = "advantage_plus" | "manual" | "retargeting" | "lookalike";
 type GenderTarget = "all" | "men" | "women";
@@ -888,7 +889,9 @@ export default function AdsManagerBeta() {
   );
 
   const view: ViewMode =
-    mode === "create" || (mode === "edit" && editId)
+    mode === "quickstart"
+      ? "quickstart"
+      : mode === "create" || (mode === "edit" && editId)
       ? "wizard"
       : detailId
       ? "detail"
@@ -925,11 +928,19 @@ export default function AdsManagerBeta() {
   const [providerDialogOpen, setProviderDialogOpen] = useState(false);
   const openWizardNew = () => setProviderDialogOpen(true);
 
-  // Dopo conferma scelta nel dialog → entra nel wizard con platform già settata
-  // via search params (initialPlatform / initialGoogleChannel).
+  // Dopo conferma scelta nel dialog → entra nel wizard (advanced) o nel
+  // QuickStart (quick AI brief parser).
   const handleProviderConfirmed = useCallback(
-    (platform: "meta" | "google", googleChannel?: "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX") => {
-      const params: Record<string, string> = { mode: "create", platform };
+    (
+      platform: "meta" | "google",
+      googleChannel?: "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX",
+      setupMode?: "quick" | "advanced",
+    ) => {
+      const effectiveMode = setupMode ?? "advanced";
+      const params: Record<string, string> = {
+        mode: effectiveMode === "quick" ? "quickstart" : "create",
+        platform,
+      };
       if (platform === "google" && googleChannel) {
         params.googleChannel = googleChannel;
       }
@@ -1003,6 +1014,58 @@ export default function AdsManagerBeta() {
             </Button>
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  // ---- QUICK START (AI brief parser, 60s) ----
+  if (view === "quickstart") {
+    return (
+      <div className="min-h-screen bg-slate-50/70">
+        <QuickStartCampaign
+          companyId={companyId}
+          companyName={companyName}
+          companyCity={effectiveCompany?.city ?? null}
+          onCancel={() => backToList()}
+          onConfirm={async (parsed) => {
+            // Costruisci BuilderState a partire dal risultato AI
+            const seeded: BuilderState = {
+              ...DEFAULT_BUILDER,
+              platform: (initialPlatformFromUrl ?? "meta") as "meta" | "google",
+              name: parsed.name,
+              objective: parsed.objective,
+              offer: parsed.offer,
+              dailyBudget: parsed.dailyBudget,
+              ageMin: parsed.ageMin,
+              ageMax: parsed.ageMax,
+              gender: parsed.gender,
+              cta: parsed.cta,
+              zone: parsed.suggestedCities[0] ?? DEFAULT_BUILDER.zone,
+              interests: parsed.suggestedInterests.join(", "),
+              copyBrief: parsed.offer,
+              copyVariants: [parsed.copy, ...parsed.hooks].slice(0, 5).filter(Boolean),
+              imagePrompt: `Foto realistica per campagna "${parsed.name}". ${parsed.offer}`,
+            };
+            seeded.adSets = buildDefaultAdSets(seeded);
+            seeded.creatives = buildDefaultCreatives(seeded);
+            try {
+              const draft = await saveDraft(seeded);
+              toast.success("Bozza creata in 60 secondi!", {
+                description: `${draft.name} è in PAUSED — revisionala e pubblica quando vuoi.`,
+              });
+              openDetail(draft.id);
+            } catch (err) {
+              toast.error("Errore salvataggio", { description: String((err as Error).message ?? err) });
+            }
+          }}
+          onCustomize={(parsed) => {
+            // Apri il wizard pieno con i campi precompilati via sessionStorage
+            try {
+              sessionStorage.setItem("ads_quickstart_seed", JSON.stringify(parsed));
+            } catch { /* ignore */ }
+            setSearchParams({ mode: "create", platform: initialPlatformFromUrl ?? "meta" });
+          }}
+        />
       </div>
     );
   }

@@ -10,7 +10,7 @@
  * Dopo la conferma, lo step viene salvato in BuilderState.platform.
  */
 import { useState } from "react";
-import { Check, Facebook, Globe, Megaphone, Search, Sparkles, Target, Tv, Youtube } from "lucide-react";
+import { Check, Facebook, Globe, Megaphone, Search, Sparkles, Target, Tv, Wand2, Youtube, Zap } from "lucide-react";
 
 import {
   Dialog,
@@ -30,7 +30,7 @@ export type GoogleAdsChannel = "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: (provider: AdProvider, googleChannel?: GoogleAdsChannel) => void;
+  onConfirm: (provider: AdProvider, googleChannel?: GoogleAdsChannel, mode?: "quick" | "advanced") => void;
 }
 
 const GOOGLE_CHANNELS: Array<{
@@ -68,28 +68,92 @@ const GOOGLE_CHANNELS: Array<{
 export function ProviderChoiceDialog({ open, onOpenChange, onConfirm }: Props) {
   const [selected, setSelected] = useState<AdProvider | null>(null);
   const [googleChannel, setGoogleChannel] = useState<GoogleAdsChannel>("SEARCH");
+  const [mode, setMode] = useState<"quick" | "advanced">("quick");
 
   const handleConfirm = () => {
     if (!selected) return;
     if (selected === "google") {
-      onConfirm("google", googleChannel);
+      onConfirm("google", googleChannel, mode);
     } else {
-      onConfirm("meta");
+      onConfirm("meta", undefined, mode);
     }
     onOpenChange(false);
     setSelected(null);
+    setMode("quick");
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Su quale piattaforma vuoi pubblicare?</DialogTitle>
+          <DialogTitle>Crea una nuova campagna pubblicitaria</DialogTitle>
           <DialogDescription>
-            Meta e Google hanno gestioni completamente diverse. Scegli adesso così il
-            wizard si adatta automaticamente.
+            1) Scegli la modalità · 2) Scegli la piattaforma · Click Continua.
           </DialogDescription>
         </DialogHeader>
+
+        {/* MODE SELECTOR — Quick Start vs Avanzato */}
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase text-slate-600">
+            ⚡ Modalità di setup
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setMode("quick")}
+              className={cn(
+                "flex items-start gap-3 rounded-xl border p-3 text-left",
+                mode === "quick"
+                  ? "border-yellow-400 bg-yellow-50 ring-2 ring-yellow-200"
+                  : "border-slate-200 bg-white hover:border-slate-300",
+              )}
+            >
+              <div className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                mode === "quick" ? "bg-yellow-500 text-white" : "bg-slate-100 text-slate-600",
+              )}>
+                <Zap className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-sm font-semibold text-slate-950">Quick Start AI</p>
+                  <Badge className="bg-emerald-500 text-[9px] text-white">~60s</Badge>
+                </div>
+                <p className="text-[11px] leading-tight text-slate-600">
+                  Scrivi cosa vuoi in italiano normale, l'AI prepara tutto: pubblico, copy, budget.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMode("advanced")}
+              className={cn(
+                "flex items-start gap-3 rounded-xl border p-3 text-left",
+                mode === "advanced"
+                  ? "border-slate-400 bg-white ring-2 ring-slate-200"
+                  : "border-slate-200 bg-white hover:border-slate-300",
+              )}
+            >
+              <div className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                mode === "advanced" ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-600",
+              )}>
+                <Wand2 className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-950">Wizard avanzato</p>
+                <p className="text-[11px] leading-tight text-slate-600">
+                  5 step guidati: targeting fine, A/B test, automazioni. Per chi sa già cosa fare.
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <p className="mt-2 text-xs font-semibold uppercase text-slate-600">
+          📣 Piattaforma
+        </p>
 
         <div className="grid gap-3 sm:grid-cols-2">
           {/* META CARD */}
