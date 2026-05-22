@@ -63,6 +63,11 @@ const ALL_DETECTORS = [
   // Feature #2 — Self-healing cashflow: quando forecast 90gg è negativo,
   // l'AI prepara proposte di sollecito ai top debitori per recuperare cassa.
   "cashflow_critico_90gg",
+  // Feature #3 — Compliance Autopilot: DURC aziendale in scadenza nei prossimi
+  // 30gg → propone richiesta nuovo DURC. La richiesta a INPS resta manuale (non
+  // ci sono API ufficiali certificate per l'auto-renew), ma l'AI prepara il
+  // task con tutti i dati necessari per non perdere la scadenza.
+  "durc_aziendale_30gg",
 ] as const;
 type DetectorName = typeof ALL_DETECTORS[number];
 
@@ -532,12 +537,121 @@ async function detectCashflowCritico(
   return result;
 }
 
+/**
+ * Feature #3 — Compliance Autopilot: DURC aziendale.
+ *
+ * Scansiona durc_documents per i DURC dell'azienda stessa (target_type='self',
+ * status='active') in scadenza nei prossimi 30gg o già scaduti. Crea proposte
+ * di rinnovo distinguendo le 3 fasi:
+ *
+ *   • scaduto da N gg     → red, urgente, blocco appalti
+ *   • scadenza <= 7gg     → red, prossima
+ *   • scadenza <= 30gg    → yellow, pianifica
+ *
+ * L'action_type `renew_company_durc` non è (ancora) implementato come handler
+ * eseguibile in silvio-execute-action: questa proposta serve come reminder
+ * proattivo (mode='propose' default → blocca esecuzione, mostra in UI).
+ *
+ * Il giorno in cui si implementerà l'integrazione INPS, basterà aggiungere
+ * l'handler corrispondente — la proposta è già pronta con i metadati corretti.
+ */
+async function detectDurcAziendale(
+  supa: SupabaseClient,
+  companyId: string,
+  defaultUserId: string,
+): Promise<DetectorResult> {
+  const result: DetectorResult = {
+    signal_type: "durc_aziendale_30gg",
+    proposals_created: 0,
+    proposals_skipped: 0,
+    errors: [],
+  };
+
+  try {
+    const limit = new Date();
+    limit.setDate(limit.getDate() + 30);
+    const limitStr = limit.toISOString().slice(0, 10);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supa as any)
+      .from("durc_documents")
+      .select("id, data_scadenza, esito, numero_protocollo, target_type, status")
+      .eq("company_id", companyId)
+      .eq("target_type", "self")
+      .eq("status", "active")
+      .lt("data_scadenza", limitStr)
+      .not("data_scadenza", "is", null)
+      .order("data_scadenza", { ascending: true })
+      .limit(5);
+
+    if (error) {
+      // Tabella opzionale → degrade silent.
+      if (!error.message.includes("does not exist") && !error.message.includes("column")) {
+        result.errors.push(`query durc_documents self: ${error.message}`);
+      }
+      return result;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (const d of (data ?? []) as Array<Record<string, unknown>>) {
+      const scadenzaStr = String(d.data_scadenza);
+      const scadenza = new Date(scadenzaStr);
+      const daysToExpiry = Math.floor((scadenza.getTime() - today.getTime()) / 86_400_000);
+      const isExpired = daysToExpiry < 0;
+      const isUrgent = daysToExpiry <= 7;
+      const protocollo = typeof d.numero_protocollo === "string" ? d.numero_protocollo : null;
+      const summary = isExpired
+        ? `DURC aziendale SCADUTO da ${Math.abs(daysToExpiry)}gg${protocollo ? ` (prot. ${protocollo})` : ""} — rischio blocco appalti, richiedo nuovo`
+        : isUrgent
+          ? `DURC aziendale scade tra ${daysToExpiry}gg${protocollo ? ` (prot. ${protocollo})` : ""} — preparo richiesta nuovo entro 5gg`
+          : `DURC aziendale scade tra ${daysToExpiry}gg${protocollo ? ` (prot. ${protocollo})` : ""} — pianifica rinnovo`;
+
+      const { error: createErr } = await supa.rpc("create_proactive_proposal", {
+        p_company_id: companyId,
+        p_user_id: defaultUserId,
+        p_persona_key: "compliance",
+        p_action_type: "renew_company_durc",
+        p_summary: summary.substring(0, 200),
+        p_payload: {
+          durc_id: d.id,
+          days_to_expiry: daysToExpiry,
+          is_expired: isExpired,
+          numero_protocollo: protocollo,
+          esito: d.esito,
+          suggested_action: "richiesta_durc_inps",
+          // Promemoria UX: il bottone "Esegui" in chat aprirà la procedura
+          // manuale di richiesta INPS finché non avremo handler API.
+          manual_followup: true,
+        },
+        p_signal_type: "durc_aziendale_30gg",
+        p_signal_entity_id: d.id,
+        p_signal_metadata: {
+          days_to_expiry: daysToExpiry,
+          is_expired: isExpired,
+          esito: d.esito,
+        },
+        p_risk_level: isExpired || isUrgent ? "red" : "yellow",
+        p_ttl_days: isUrgent ? 3 : 7,
+      });
+      if (createErr) {
+        result.errors.push(`rpc durc self ${d.id}: ${createErr.message}`);
+      } else {
+        result.proposals_created += 1;
+      }
+    }
+  } catch (e) {
+    result.errors.push(e instanceof Error ? e.message : String(e));
+  }
+  return result;
+}
+
 const DETECTORS: Record<DetectorName, typeof detectCantieriInRitardo> = {
   cantiere_in_ritardo: detectCantieriInRitardo,
   fattura_scaduta_30gg: detectFattureScadute,
   durc_scadenza_subappaltatore: detectDurcInScadenza,
   lead_dormiente_30gg: detectLeadDormienti,
   cashflow_critico_90gg: detectCashflowCritico,
+  durc_aziendale_30gg: detectDurcAziendale,
 };
 
 // ════════════════════════════════════════════════════════════════════════════
