@@ -25,7 +25,6 @@ import {
   Globe2,
   Loader2,
   MapPin,
-  Plus,
   Search,
   Sparkles,
   Trash2,
@@ -36,7 +35,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";

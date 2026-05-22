@@ -28,7 +28,6 @@ import {
   HelpCircle,
   Mail,
   MapPin,
-  MessageSquareText,
   Phone,
   Plus,
   ScrollText,
