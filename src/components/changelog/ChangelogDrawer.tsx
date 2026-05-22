@@ -149,7 +149,6 @@ export function ChangelogDrawer() {
                     </div>
                     <div
                       className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
-                      // eslint-disable-next-line react/no-danger
                       dangerouslySetInnerHTML={{ __html: renderMarkdownLite(entry.body_md) }}
                     />
                     {entry.cta_url && (() => {

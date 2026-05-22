@@ -40,8 +40,9 @@ const CompanyRoutesContainer = lazy(() => import("@/routes/companyRoutes"));
 const TecnicoRoutesContainer = lazy(() => import("@/routes/tecnicoRoutes"));
 const CampoRoutesContainer = lazy(() => import("@/routes/campoRoutes"));
 import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from "@/routes/portalRoutes";
-import { tecnicoRoutes } from "@/routes/tecnicoRoutes";
-import { campoRoutes } from "@/routes/campoRoutes";
+// 🛠️ 2026-05-22: tecnicoRoutes/campoRoutes ora caricati via lazy containers
+// (TecnicoRoutesContainer/CampoRoutesContainer sopra) → rimossi gli import diretti
+// che non erano più usati (lint error: 'tecnicoRoutes'/'campoRoutes' defined but never used).
 import { portaleClienteRoutes } from "@/routes/portaleClienteRoutes";
 
 // Suspense fallback — full-screen overlay (fixed inset-0 z-40) per evitare

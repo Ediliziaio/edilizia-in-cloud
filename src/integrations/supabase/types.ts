@@ -39,6 +39,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      _audit_pre_migration_snapshots: {
+        Row: {
+          id: string
+          migration_label: string
+          row_count: number | null
+          sample_rows: Json | null
+          table_name: string
+          taken_at: string | null
+        }
+        Insert: {
+          id?: string
+          migration_label: string
+          row_count?: number | null
+          sample_rows?: Json | null
+          table_name: string
+          taken_at?: string | null
+        }
+        Update: {
+          id?: string
+          migration_label?: string
+          row_count?: number | null
+          sample_rows?: Json | null
+          table_name?: string
+          taken_at?: string | null
+        }
+        Relationships: []
+      }
+      action_proposals_audit_log: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          event_data: Json | null
+          event_type: string
+          id: string
+          ip_address: unknown
+          proposal_id: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          ip_address?: unknown
+          proposal_id: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown
+          proposal_id?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_proposals_audit_log_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "ai_action_proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       active_impersonations: {
         Row: {
           admin_user_id: string
@@ -463,6 +534,203 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      ai_act_compliance_status: {
+        Row: {
+          category: string
+          completed_at: string | null
+          created_at: string
+          evidence_link: string | null
+          id: string
+          last_audit_at: string | null
+          next_audit_due: string | null
+          notes: string | null
+          priority: string | null
+          related_track: string | null
+          requirement: string
+          responsible_role: string | null
+          status: string
+          target_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          completed_at?: string | null
+          created_at?: string
+          evidence_link?: string | null
+          id?: string
+          last_audit_at?: string | null
+          next_audit_due?: string | null
+          notes?: string | null
+          priority?: string | null
+          related_track?: string | null
+          requirement: string
+          responsible_role?: string | null
+          status: string
+          target_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          completed_at?: string | null
+          created_at?: string
+          evidence_link?: string | null
+          id?: string
+          last_audit_at?: string | null
+          next_audit_due?: string | null
+          notes?: string | null
+          priority?: string | null
+          related_track?: string | null
+          requirement?: string
+          responsible_role?: string | null
+          status?: string
+          target_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_action_proposals: {
+        Row: {
+          action_type: string
+          applied_at: string | null
+          applied_result: Json | null
+          auto_generated: boolean
+          batch_id: string | null
+          batch_position: number | null
+          company_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          is_reversible: boolean | null
+          message_id: string | null
+          payload: Json
+          persona_key: string
+          rejection_feedback_text: string | null
+          rejection_reason_category: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          risk_level: string
+          session_id: string | null
+          signal_entity_id: string | null
+          signal_metadata: Json | null
+          signal_type: string | null
+          status: string
+          summary: string
+          undo_reason: string | null
+          undo_window_seconds: number | null
+          undone_at: string | null
+          undone_by: string | null
+          user_edit_diff: Json | null
+          user_edited_at: string | null
+          user_edited_by: string | null
+          user_edited_payload: Json | null
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          applied_at?: string | null
+          applied_result?: Json | null
+          auto_generated?: boolean
+          batch_id?: string | null
+          batch_position?: number | null
+          company_id: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_reversible?: boolean | null
+          message_id?: string | null
+          payload: Json
+          persona_key: string
+          rejection_feedback_text?: string | null
+          rejection_reason_category?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          risk_level?: string
+          session_id?: string | null
+          signal_entity_id?: string | null
+          signal_metadata?: Json | null
+          signal_type?: string | null
+          status?: string
+          summary: string
+          undo_reason?: string | null
+          undo_window_seconds?: number | null
+          undone_at?: string | null
+          undone_by?: string | null
+          user_edit_diff?: Json | null
+          user_edited_at?: string | null
+          user_edited_by?: string | null
+          user_edited_payload?: Json | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          applied_at?: string | null
+          applied_result?: Json | null
+          auto_generated?: boolean
+          batch_id?: string | null
+          batch_position?: number | null
+          company_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_reversible?: boolean | null
+          message_id?: string | null
+          payload?: Json
+          persona_key?: string
+          rejection_feedback_text?: string | null
+          rejection_reason_category?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          risk_level?: string
+          session_id?: string | null
+          signal_entity_id?: string | null
+          signal_metadata?: Json | null
+          signal_type?: string | null
+          status?: string
+          summary?: string
+          undo_reason?: string | null
+          undo_window_seconds?: number | null
+          undone_at?: string | null
+          undone_by?: string | null
+          user_edit_diff?: Json | null
+          user_edited_at?: string | null
+          user_edited_by?: string | null
+          user_edited_payload?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_action_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_action_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_action_proposals_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "ai_persona_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_action_proposals_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_persona_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_agent_audit_log: {
         Row: {
@@ -1344,6 +1612,470 @@ export type Database = {
           },
         ]
       }
+      ai_brain_chat_summaries: {
+        Row: {
+          channel_id: string | null
+          company_id: string
+          created_at: string
+          embedding: string | null
+          id: string
+          key_facts: Json | null
+          messages_count: number
+          period_end: string
+          period_start: string
+          promoted: boolean
+          promoted_to: string | null
+          session_id: string | null
+          summary: string
+          topics: string[] | null
+          user_id: string
+        }
+        Insert: {
+          channel_id?: string | null
+          company_id: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          key_facts?: Json | null
+          messages_count?: number
+          period_end: string
+          period_start: string
+          promoted?: boolean
+          promoted_to?: string | null
+          session_id?: string | null
+          summary: string
+          topics?: string[] | null
+          user_id: string
+        }
+        Update: {
+          channel_id?: string | null
+          company_id?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          key_facts?: Json | null
+          messages_count?: number
+          period_end?: string
+          period_start?: string
+          promoted?: boolean
+          promoted_to?: string | null
+          session_id?: string | null
+          summary?: string
+          topics?: string[] | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_brain_chat_summaries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_brain_chat_summaries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_brain_chat_summaries_promoted_to_fkey"
+            columns: ["promoted_to"]
+            isOneToOne: false
+            referencedRelation: "ai_brain_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_brain_chat_summaries_promoted_to_fkey"
+            columns: ["promoted_to"]
+            isOneToOne: false
+            referencedRelation: "v_kb_quality_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_brain_documents: {
+        Row: {
+          anti_patterns: Json | null
+          avg_retrieval_similarity: number | null
+          category: string | null
+          category_path: string | null
+          chunk_id: string | null
+          company_id: string | null
+          content: string
+          content_hash: string
+          deleted_at: string | null
+          embedding: string | null
+          embedding_dim: number | null
+          embedding_model: string | null
+          hits_count: number | null
+          id: string
+          ingested_at: string
+          is_universal_for_vertical: boolean | null
+          kb_section: string | null
+          kb_subsection: string | null
+          language: string
+          last_used_at: string | null
+          last_verified_at: string | null
+          metadata: Json
+          persona_keys: string[] | null
+          replaces_doc_id: string | null
+          scope: string
+          source_hash: string | null
+          source_id: string | null
+          source_path: string | null
+          source_type: string
+          title: string | null
+          updated_at: string
+          valid_until: string | null
+          vertical_key: string | null
+          visibility_roles: string[] | null
+        }
+        Insert: {
+          anti_patterns?: Json | null
+          avg_retrieval_similarity?: number | null
+          category?: string | null
+          category_path?: string | null
+          chunk_id?: string | null
+          company_id?: string | null
+          content: string
+          content_hash: string
+          deleted_at?: string | null
+          embedding?: string | null
+          embedding_dim?: number | null
+          embedding_model?: string | null
+          hits_count?: number | null
+          id?: string
+          ingested_at?: string
+          is_universal_for_vertical?: boolean | null
+          kb_section?: string | null
+          kb_subsection?: string | null
+          language?: string
+          last_used_at?: string | null
+          last_verified_at?: string | null
+          metadata?: Json
+          persona_keys?: string[] | null
+          replaces_doc_id?: string | null
+          scope?: string
+          source_hash?: string | null
+          source_id?: string | null
+          source_path?: string | null
+          source_type: string
+          title?: string | null
+          updated_at?: string
+          valid_until?: string | null
+          vertical_key?: string | null
+          visibility_roles?: string[] | null
+        }
+        Update: {
+          anti_patterns?: Json | null
+          avg_retrieval_similarity?: number | null
+          category?: string | null
+          category_path?: string | null
+          chunk_id?: string | null
+          company_id?: string | null
+          content?: string
+          content_hash?: string
+          deleted_at?: string | null
+          embedding?: string | null
+          embedding_dim?: number | null
+          embedding_model?: string | null
+          hits_count?: number | null
+          id?: string
+          ingested_at?: string
+          is_universal_for_vertical?: boolean | null
+          kb_section?: string | null
+          kb_subsection?: string | null
+          language?: string
+          last_used_at?: string | null
+          last_verified_at?: string | null
+          metadata?: Json
+          persona_keys?: string[] | null
+          replaces_doc_id?: string | null
+          scope?: string
+          source_hash?: string | null
+          source_id?: string | null
+          source_path?: string | null
+          source_type?: string
+          title?: string | null
+          updated_at?: string
+          valid_until?: string | null
+          vertical_key?: string | null
+          visibility_roles?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_brain_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_brain_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_brain_documents_replaces_doc_id_fkey"
+            columns: ["replaces_doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_brain_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_brain_documents_replaces_doc_id_fkey"
+            columns: ["replaces_doc_id"]
+            isOneToOne: false
+            referencedRelation: "v_kb_quality_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_brain_documents_backup_pre_track2: {
+        Row: {
+          backed_up_at: string | null
+          category: string | null
+          company_id: string | null
+          content: string | null
+          content_hash: string | null
+          deleted_at: string | null
+          embedding: string | null
+          hits_count: number | null
+          id: string | null
+          ingested_at: string | null
+          language: string | null
+          last_used_at: string | null
+          metadata: Json | null
+          scope: string | null
+          source_hash: string | null
+          source_id: string | null
+          source_path: string | null
+          source_type: string | null
+          title: string | null
+          updated_at: string | null
+          visibility_roles: string[] | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          category?: string | null
+          company_id?: string | null
+          content?: string | null
+          content_hash?: string | null
+          deleted_at?: string | null
+          embedding?: string | null
+          hits_count?: number | null
+          id?: string | null
+          ingested_at?: string | null
+          language?: string | null
+          last_used_at?: string | null
+          metadata?: Json | null
+          scope?: string | null
+          source_hash?: string | null
+          source_id?: string | null
+          source_path?: string | null
+          source_type?: string | null
+          title?: string | null
+          updated_at?: string | null
+          visibility_roles?: string[] | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          category?: string | null
+          company_id?: string | null
+          content?: string | null
+          content_hash?: string | null
+          deleted_at?: string | null
+          embedding?: string | null
+          hits_count?: number | null
+          id?: string | null
+          ingested_at?: string | null
+          language?: string | null
+          last_used_at?: string | null
+          metadata?: Json | null
+          scope?: string | null
+          source_hash?: string | null
+          source_id?: string | null
+          source_path?: string | null
+          source_type?: string | null
+          title?: string | null
+          updated_at?: string | null
+          visibility_roles?: string[] | null
+        }
+        Relationships: []
+      }
+      ai_brain_facts: {
+        Row: {
+          company_id: string
+          confidence: number
+          created_at: string
+          enabled: boolean
+          fact_key: string
+          fact_value: Json
+          hit_count: number
+          hits_count: number
+          id: string
+          last_used_at: string | null
+          notes: string | null
+          source: string
+          source_user_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          confidence?: number
+          created_at?: string
+          enabled?: boolean
+          fact_key: string
+          fact_value: Json
+          hit_count?: number
+          hits_count?: number
+          id?: string
+          last_used_at?: string | null
+          notes?: string | null
+          source?: string
+          source_user_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          confidence?: number
+          created_at?: string
+          enabled?: boolean
+          fact_key?: string
+          fact_value?: Json
+          hit_count?: number
+          hits_count?: number
+          id?: string
+          last_used_at?: string | null
+          notes?: string | null
+          source?: string
+          source_user_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_brain_facts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_brain_facts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_call_ledger: {
+        Row: {
+          applied_markup_pct: number
+          company_id: string
+          cost_billed_eur: number
+          cost_real_eur: number
+          cost_real_usd: number
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          fallback_index: number
+          fx_usd_to_eur: number
+          id: string
+          idempotency_key: string
+          margin_eur: number | null
+          metadata: Json | null
+          model_used: string
+          persona_key: string | null
+          pricing_override_id: string | null
+          status: string
+          task_key: string
+          tier_key: string
+          tokens_in: number
+          tokens_out: number
+          used_primary: boolean
+          user_id: string | null
+        }
+        Insert: {
+          applied_markup_pct: number
+          company_id: string
+          cost_billed_eur?: number
+          cost_real_eur?: number
+          cost_real_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          fallback_index?: number
+          fx_usd_to_eur?: number
+          id?: string
+          idempotency_key: string
+          margin_eur?: number | null
+          metadata?: Json | null
+          model_used: string
+          persona_key?: string | null
+          pricing_override_id?: string | null
+          status?: string
+          task_key: string
+          tier_key: string
+          tokens_in?: number
+          tokens_out?: number
+          used_primary?: boolean
+          user_id?: string | null
+        }
+        Update: {
+          applied_markup_pct?: number
+          company_id?: string
+          cost_billed_eur?: number
+          cost_real_eur?: number
+          cost_real_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          fallback_index?: number
+          fx_usd_to_eur?: number
+          id?: string
+          idempotency_key?: string
+          margin_eur?: number | null
+          metadata?: Json | null
+          model_used?: string
+          persona_key?: string | null
+          pricing_override_id?: string | null
+          status?: string
+          task_key?: string
+          tier_key?: string
+          tokens_in?: number
+          tokens_out?: number
+          used_primary?: boolean
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_call_ledger_pricing_override_id_fkey"
+            columns: ["pricing_override_id"]
+            isOneToOne: false
+            referencedRelation: "ai_pricing_overrides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_campaign_contacts: {
         Row: {
           campaign_id: string
@@ -1648,6 +2380,108 @@ export type Database = {
           },
         ]
       }
+      ai_company_action_permissions: {
+        Row: {
+          action_type: string
+          allowed_roles: string[]
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          max_daily_executions: number | null
+          mode: string
+          notes: string | null
+          requires_company_admin: boolean
+          risk_level: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          action_type: string
+          allowed_roles?: string[]
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          max_daily_executions?: number | null
+          mode?: string
+          notes?: string | null
+          requires_company_admin?: boolean
+          risk_level?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          action_type?: string
+          allowed_roles?: string[]
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          max_daily_executions?: number | null
+          mode?: string
+          notes?: string | null
+          requires_company_admin?: boolean
+          risk_level?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_company_action_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_company_action_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_constitutional_preamble: {
+        Row: {
+          activated_at: string | null
+          active: boolean
+          approved_by_role: string | null
+          content: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          notes: string | null
+          version: number
+        }
+        Insert: {
+          activated_at?: string | null
+          active?: boolean
+          approved_by_role?: string | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          version: number
+        }
+        Update: {
+          activated_at?: string | null
+          active?: boolean
+          approved_by_role?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          notes?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       ai_conversations_v2: {
         Row: {
           agent_id: string
@@ -1755,6 +2589,87 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_council_usage_log: {
+        Row: {
+          company_id: string
+          created_at: string
+          current_persona: string | null
+          decomposition: Json | null
+          duration_ms: number | null
+          estimated_complexity: string | null
+          id: string
+          involved_areas: string[] | null
+          involved_personas: string[] | null
+          is_multi_area: boolean
+          primary_area: string | null
+          query_preview: string | null
+          sub_outputs: Json | null
+          synthesis_text: string | null
+          synthesis_used: boolean | null
+          total_cost_eur: number
+          total_personas_invoked: number
+          total_tokens: number
+          user_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          current_persona?: string | null
+          decomposition?: Json | null
+          duration_ms?: number | null
+          estimated_complexity?: string | null
+          id?: string
+          involved_areas?: string[] | null
+          involved_personas?: string[] | null
+          is_multi_area: boolean
+          primary_area?: string | null
+          query_preview?: string | null
+          sub_outputs?: Json | null
+          synthesis_text?: string | null
+          synthesis_used?: boolean | null
+          total_cost_eur?: number
+          total_personas_invoked?: number
+          total_tokens?: number
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          current_persona?: string | null
+          decomposition?: Json | null
+          duration_ms?: number | null
+          estimated_complexity?: string | null
+          id?: string
+          involved_areas?: string[] | null
+          involved_personas?: string[] | null
+          is_multi_area?: boolean
+          primary_area?: string | null
+          query_preview?: string | null
+          sub_outputs?: Json | null
+          synthesis_text?: string | null
+          synthesis_used?: boolean | null
+          total_cost_eur?: number
+          total_personas_invoked?: number
+          total_tokens?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_council_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_council_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1986,7 +2901,12 @@ export type Database = {
           blocked_reason: string | null
           calls_blocked: boolean | null
           company_id: string
+          hard_cap_eur_monthly: number | null
           id: string
+          mtd_period_start: string
+          mtd_spent_eur: number
+          soft_cap_eur_monthly: number
+          soft_cap_warning_sent_at: string | null
           total_recharged_eur: number | null
           total_spent_eur: number | null
           updated_at: string | null
@@ -2004,7 +2924,12 @@ export type Database = {
           blocked_reason?: string | null
           calls_blocked?: boolean | null
           company_id: string
+          hard_cap_eur_monthly?: number | null
           id?: string
+          mtd_period_start?: string
+          mtd_spent_eur?: number
+          soft_cap_eur_monthly?: number
+          soft_cap_warning_sent_at?: string | null
           total_recharged_eur?: number | null
           total_spent_eur?: number | null
           updated_at?: string | null
@@ -2022,7 +2947,12 @@ export type Database = {
           blocked_reason?: string | null
           calls_blocked?: boolean | null
           company_id?: string
+          hard_cap_eur_monthly?: number | null
           id?: string
+          mtd_period_start?: string
+          mtd_spent_eur?: number
+          soft_cap_eur_monthly?: number
+          soft_cap_warning_sent_at?: string | null
           total_recharged_eur?: number | null
           total_spent_eur?: number | null
           updated_at?: string | null
@@ -2043,6 +2973,120 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_demo_default_models: {
+        Row: {
+          company_id: string
+          id: string
+          model_id: string
+          notes: string | null
+          set_at: string
+          set_by: string | null
+          task_key: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          model_id: string
+          notes?: string | null
+          set_at?: string
+          set_by?: string | null
+          task_key: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          model_id?: string
+          notes?: string | null
+          set_at?: string
+          set_by?: string | null
+          task_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_demo_default_models_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_demo_default_models_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_dpia_documents: {
+        Row: {
+          applicable_to_systems: string[] | null
+          approved_by_ceo: string | null
+          approved_by_ceo_at: string | null
+          approved_by_cto: string | null
+          approved_by_cto_at: string | null
+          approved_by_dpo: string | null
+          approved_by_dpo_at: string | null
+          content_md: string
+          created_at: string
+          created_by: string | null
+          id: string
+          metadata: Json | null
+          mitigations: Json | null
+          next_review_due: string | null
+          risks_identified: Json | null
+          scope_description: string | null
+          status: string
+          title: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          applicable_to_systems?: string[] | null
+          approved_by_ceo?: string | null
+          approved_by_ceo_at?: string | null
+          approved_by_cto?: string | null
+          approved_by_cto_at?: string | null
+          approved_by_dpo?: string | null
+          approved_by_dpo_at?: string | null
+          content_md: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json | null
+          mitigations?: Json | null
+          next_review_due?: string | null
+          risks_identified?: Json | null
+          scope_description?: string | null
+          status: string
+          title: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          applicable_to_systems?: string[] | null
+          approved_by_ceo?: string | null
+          approved_by_ceo_at?: string | null
+          approved_by_cto?: string | null
+          approved_by_cto_at?: string | null
+          approved_by_dpo?: string | null
+          approved_by_dpo_at?: string | null
+          content_md?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json | null
+          mitigations?: Json | null
+          next_review_due?: string | null
+          risks_identified?: Json | null
+          scope_description?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
       }
       ai_elevenlabs_config: {
         Row: {
@@ -2140,6 +3184,164 @@ export type Database = {
           },
         ]
       }
+      ai_kb_external_sources: {
+        Row: {
+          consecutive_errors: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          enabled: boolean
+          frequency_hours: number
+          id: string
+          last_change_detected_at: string | null
+          last_content_hash: string | null
+          last_error: string | null
+          last_status: string | null
+          last_synced_at: string | null
+          name: string
+          scrape_config: Json
+          scrape_strategy: string
+          target_category_path: string | null
+          target_company_id: string | null
+          target_doc_id: string | null
+          target_language: string
+          target_scope: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          consecutive_errors?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          enabled?: boolean
+          frequency_hours?: number
+          id?: string
+          last_change_detected_at?: string | null
+          last_content_hash?: string | null
+          last_error?: string | null
+          last_status?: string | null
+          last_synced_at?: string | null
+          name: string
+          scrape_config?: Json
+          scrape_strategy: string
+          target_category_path?: string | null
+          target_company_id?: string | null
+          target_doc_id?: string | null
+          target_language?: string
+          target_scope?: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          consecutive_errors?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          enabled?: boolean
+          frequency_hours?: number
+          id?: string
+          last_change_detected_at?: string | null
+          last_content_hash?: string | null
+          last_error?: string | null
+          last_status?: string | null
+          last_synced_at?: string | null
+          name?: string
+          scrape_config?: Json
+          scrape_strategy?: string
+          target_category_path?: string | null
+          target_company_id?: string | null
+          target_doc_id?: string | null
+          target_language?: string
+          target_scope?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_kb_external_sources_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_kb_external_sources_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_kb_external_sources_target_doc_id_fkey"
+            columns: ["target_doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_brain_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_kb_external_sources_target_doc_id_fkey"
+            columns: ["target_doc_id"]
+            isOneToOne: false
+            referencedRelation: "v_kb_quality_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_kb_qa_pairs: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          created_by: string | null
+          enabled: boolean | null
+          expected_answer: string
+          forbidden_phrases: string[] | null
+          id: string
+          last_run_at: string | null
+          last_run_details: Json | null
+          last_status: string | null
+          min_similarity: number | null
+          must_cite_doc_ids: string[] | null
+          question: string
+          tags: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          enabled?: boolean | null
+          expected_answer: string
+          forbidden_phrases?: string[] | null
+          id?: string
+          last_run_at?: string | null
+          last_run_details?: Json | null
+          last_status?: string | null
+          min_similarity?: number | null
+          must_cite_doc_ids?: string[] | null
+          question: string
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          enabled?: boolean | null
+          expected_answer?: string
+          forbidden_phrases?: string[] | null
+          id?: string
+          last_run_at?: string | null
+          last_run_details?: Json | null
+          last_status?: string | null
+          min_similarity?: number | null
+          must_cite_doc_ids?: string[] | null
+          question?: string
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ai_knowledge_base_v2: {
         Row: {
           category_id: string | null
@@ -2224,6 +3426,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_literacy_training: {
+        Row: {
+          certificate_url: string | null
+          completed_at: string | null
+          course_id: string
+          course_title: string
+          course_version: string | null
+          created_at: string
+          enrolled_at: string | null
+          id: string
+          metadata: Json | null
+          next_recertification_due: string | null
+          score: number | null
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          user_role: string | null
+        }
+        Insert: {
+          certificate_url?: string | null
+          completed_at?: string | null
+          course_id: string
+          course_title: string
+          course_version?: string | null
+          created_at?: string
+          enrolled_at?: string | null
+          id?: string
+          metadata?: Json | null
+          next_recertification_due?: string | null
+          score?: number | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          certificate_url?: string | null
+          completed_at?: string | null
+          course_id?: string
+          course_title?: string
+          course_version?: string | null
+          created_at?: string
+          enrolled_at?: string | null
+          id?: string
+          metadata?: Json | null
+          next_recertification_due?: string | null
+          score?: number | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          user_role?: string | null
+        }
+        Relationships: []
       }
       ai_model_catalog: {
         Row: {
@@ -2388,6 +3647,7 @@ export type Database = {
         Row: {
           company_id: string | null
           cost_billed_eur: number | null
+          cost_is_estimated: boolean | null
           cost_real_eur: number | null
           cost_usd: number | null
           credit_tx_id: string | null
@@ -2415,6 +3675,7 @@ export type Database = {
         Insert: {
           company_id?: string | null
           cost_billed_eur?: number | null
+          cost_is_estimated?: boolean | null
           cost_real_eur?: number | null
           cost_usd?: number | null
           credit_tx_id?: string | null
@@ -2442,6 +3703,7 @@ export type Database = {
         Update: {
           company_id?: string | null
           cost_billed_eur?: number | null
+          cost_is_estimated?: boolean | null
           cost_real_eur?: number | null
           cost_usd?: number | null
           credit_tx_id?: string | null
@@ -2482,6 +3744,720 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_payg_topups: {
+        Row: {
+          applied_at: string | null
+          bonus_pct: number | null
+          company_id: string
+          created_at: string
+          credits_eur: number
+          failed_reason: string | null
+          id: string
+          package_price_eur: number
+          status: string
+          stripe_charge_id: string | null
+          stripe_invoice_id: string | null
+          stripe_payment_intent_id: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          applied_at?: string | null
+          bonus_pct?: number | null
+          company_id: string
+          created_at?: string
+          credits_eur: number
+          failed_reason?: string | null
+          id?: string
+          package_price_eur: number
+          status?: string
+          stripe_charge_id?: string | null
+          stripe_invoice_id?: string | null
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          applied_at?: string | null
+          bonus_pct?: number | null
+          company_id?: string
+          created_at?: string
+          credits_eur?: number
+          failed_reason?: string | null
+          id?: string
+          package_price_eur?: number
+          status?: string
+          stripe_charge_id?: string | null
+          stripe_invoice_id?: string | null
+          stripe_payment_intent_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_payg_topups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_payg_topups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_persona_memory: {
+        Row: {
+          company_id: string
+          confidence: number | null
+          content: string
+          created_at: string
+          created_by: string | null
+          enabled: boolean | null
+          expires_at: string | null
+          hits_count: number | null
+          id: string
+          last_used_at: string | null
+          memory_type: string
+          persona_key: string
+          source: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id: string
+          confidence?: number | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean | null
+          expires_at?: string | null
+          hits_count?: number | null
+          id?: string
+          last_used_at?: string | null
+          memory_type: string
+          persona_key: string
+          source?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          confidence?: number | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean | null
+          expires_at?: string | null
+          hits_count?: number | null
+          id?: string
+          last_used_at?: string | null
+          memory_type?: string
+          persona_key?: string
+          source?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_persona_memory_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_persona_memory_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_persona_messages: {
+        Row: {
+          ai_thinking: string | null
+          citations_missing: boolean | null
+          citations_used: string[] | null
+          confidence: string | null
+          content: string
+          cost_billed_eur: number | null
+          created_at: string
+          followup_suggestions: string[] | null
+          id: string
+          invalid_citations: string[] | null
+          ledger_id: string | null
+          metadata: Json | null
+          model_used: string | null
+          no_rag_prefix: boolean | null
+          rag_min_similarity: number | null
+          rag_source_count: number | null
+          rag_sources: Json | null
+          requires_human_review: boolean | null
+          role: string
+          session_id: string
+          tokens_in: number | null
+          tokens_out: number | null
+          tool_call_id: string | null
+          tool_calls: Json | null
+          uncertainty_reasons: string[] | null
+        }
+        Insert: {
+          ai_thinking?: string | null
+          citations_missing?: boolean | null
+          citations_used?: string[] | null
+          confidence?: string | null
+          content: string
+          cost_billed_eur?: number | null
+          created_at?: string
+          followup_suggestions?: string[] | null
+          id?: string
+          invalid_citations?: string[] | null
+          ledger_id?: string | null
+          metadata?: Json | null
+          model_used?: string | null
+          no_rag_prefix?: boolean | null
+          rag_min_similarity?: number | null
+          rag_source_count?: number | null
+          rag_sources?: Json | null
+          requires_human_review?: boolean | null
+          role: string
+          session_id: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+          uncertainty_reasons?: string[] | null
+        }
+        Update: {
+          ai_thinking?: string | null
+          citations_missing?: boolean | null
+          citations_used?: string[] | null
+          confidence?: string | null
+          content?: string
+          cost_billed_eur?: number | null
+          created_at?: string
+          followup_suggestions?: string[] | null
+          id?: string
+          invalid_citations?: string[] | null
+          ledger_id?: string | null
+          metadata?: Json | null
+          model_used?: string | null
+          no_rag_prefix?: boolean | null
+          rag_min_similarity?: number | null
+          rag_source_count?: number | null
+          rag_sources?: Json | null
+          requires_human_review?: boolean | null
+          role?: string
+          session_id?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_call_id?: string | null
+          tool_calls?: Json | null
+          uncertainty_reasons?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_persona_messages_ledger_id_fkey"
+            columns: ["ledger_id"]
+            isOneToOne: false
+            referencedRelation: "ai_call_ledger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_persona_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_persona_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_persona_permissions: {
+        Row: {
+          allowed: boolean
+          app_role: string | null
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          persona_key: string
+          reason: string
+          user_id: string | null
+        }
+        Insert: {
+          allowed: boolean
+          app_role?: string | null
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          persona_key: string
+          reason: string
+          user_id?: string | null
+        }
+        Update: {
+          allowed?: boolean
+          app_role?: string | null
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          persona_key?: string
+          reason?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_persona_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_persona_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_persona_prompt_ab_test: {
+        Row: {
+          active: boolean
+          company_id: string | null
+          control_count: number
+          control_csat_n: number | null
+          control_csat_sum: number | null
+          control_prompt: string
+          control_rejections: number
+          created_at: string
+          ends_at: string
+          id: string
+          persona_key: string
+          starts_at: string
+          traffic_pct_variant: number
+          variant_count: number
+          variant_csat_n: number | null
+          variant_csat_sum: number | null
+          variant_prompt: string
+          variant_proposal_id: string | null
+          variant_rejections: number
+        }
+        Insert: {
+          active?: boolean
+          company_id?: string | null
+          control_count?: number
+          control_csat_n?: number | null
+          control_csat_sum?: number | null
+          control_prompt: string
+          control_rejections?: number
+          created_at?: string
+          ends_at: string
+          id?: string
+          persona_key: string
+          starts_at?: string
+          traffic_pct_variant: number
+          variant_count?: number
+          variant_csat_n?: number | null
+          variant_csat_sum?: number | null
+          variant_prompt: string
+          variant_proposal_id?: string | null
+          variant_rejections?: number
+        }
+        Update: {
+          active?: boolean
+          company_id?: string | null
+          control_count?: number
+          control_csat_n?: number | null
+          control_csat_sum?: number | null
+          control_prompt?: string
+          control_rejections?: number
+          created_at?: string
+          ends_at?: string
+          id?: string
+          persona_key?: string
+          starts_at?: string
+          traffic_pct_variant?: number
+          variant_count?: number
+          variant_csat_n?: number | null
+          variant_csat_sum?: number | null
+          variant_prompt?: string
+          variant_proposal_id?: string | null
+          variant_rejections?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_persona_prompt_ab_test_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_persona_prompt_ab_test_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_persona_prompt_ab_test_variant_proposal_id_fkey"
+            columns: ["variant_proposal_id"]
+            isOneToOne: false
+            referencedRelation: "ai_persona_prompt_proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_persona_prompt_proposals: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          current_prompt: string
+          current_version: number
+          example_rejections: Json | null
+          generated_at: string
+          generated_by_model: string | null
+          id: string
+          persona_key: string
+          promoted_at: string | null
+          proposed_diff_summary: string | null
+          proposed_prompt: string
+          rationale: string | null
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          rolled_back_at: string | null
+          status: string
+          test_ended_at: string | null
+          test_results: Json | null
+          test_started_at: string | null
+          test_traffic_pct: number | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          current_prompt: string
+          current_version: number
+          example_rejections?: Json | null
+          generated_at?: string
+          generated_by_model?: string | null
+          id?: string
+          persona_key: string
+          promoted_at?: string | null
+          proposed_diff_summary?: string | null
+          proposed_prompt: string
+          rationale?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rolled_back_at?: string | null
+          status?: string
+          test_ended_at?: string | null
+          test_results?: Json | null
+          test_started_at?: string | null
+          test_traffic_pct?: number | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          current_prompt?: string
+          current_version?: number
+          example_rejections?: Json | null
+          generated_at?: string
+          generated_by_model?: string | null
+          id?: string
+          persona_key?: string
+          promoted_at?: string | null
+          proposed_diff_summary?: string | null
+          proposed_prompt?: string
+          rationale?: string | null
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          rolled_back_at?: string | null
+          status?: string
+          test_ended_at?: string | null
+          test_results?: Json | null
+          test_started_at?: string | null
+          test_traffic_pct?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_persona_prompt_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_persona_prompt_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_persona_prompt_proposals_persona_key_fkey"
+            columns: ["persona_key"]
+            isOneToOne: false
+            referencedRelation: "ai_personas"
+            referencedColumns: ["persona_key"]
+          },
+          {
+            foreignKeyName: "ai_persona_prompt_proposals_persona_key_fkey"
+            columns: ["persona_key"]
+            isOneToOne: false
+            referencedRelation: "ai_personas_public"
+            referencedColumns: ["persona_key"]
+          },
+        ]
+      }
+      ai_persona_sessions: {
+        Row: {
+          archived: boolean
+          company_id: string
+          created_at: string
+          id: string
+          language: string
+          last_message_at: string
+          message_count: number
+          persona_key: string
+          title: string
+          total_cost_billed_eur: number
+          total_tokens_in: number
+          total_tokens_out: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          company_id: string
+          created_at?: string
+          id?: string
+          language?: string
+          last_message_at?: string
+          message_count?: number
+          persona_key: string
+          title?: string
+          total_cost_billed_eur?: number
+          total_tokens_in?: number
+          total_tokens_out?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          language?: string
+          last_message_at?: string
+          message_count?: number
+          persona_key?: string
+          title?: string
+          total_cost_billed_eur?: number
+          total_tokens_in?: number
+          total_tokens_out?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_persona_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_persona_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_personas: {
+        Row: {
+          allowed_roles: Json
+          allowed_tools: Json
+          category: string
+          color: string | null
+          created_at: string
+          data_scope: string
+          display_name: string
+          enabled: boolean
+          example_questions: string[]
+          icon: string | null
+          id: string
+          is_system: boolean
+          kb_areas_filter: string[] | null
+          mission: string
+          persona_key: string
+          recommended_model: string | null
+          recommended_tier_key: string
+          short_label: string
+          sort_order: number
+          system_prompt: string
+          system_prompt_updated_at: string | null
+          system_prompt_updated_by: string | null
+          system_prompt_version: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allowed_roles?: Json
+          allowed_tools?: Json
+          category?: string
+          color?: string | null
+          created_at?: string
+          data_scope?: string
+          display_name: string
+          enabled?: boolean
+          example_questions?: string[]
+          icon?: string | null
+          id?: string
+          is_system?: boolean
+          kb_areas_filter?: string[] | null
+          mission: string
+          persona_key: string
+          recommended_model?: string | null
+          recommended_tier_key?: string
+          short_label: string
+          sort_order?: number
+          system_prompt: string
+          system_prompt_updated_at?: string | null
+          system_prompt_updated_by?: string | null
+          system_prompt_version?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allowed_roles?: Json
+          allowed_tools?: Json
+          category?: string
+          color?: string | null
+          created_at?: string
+          data_scope?: string
+          display_name?: string
+          enabled?: boolean
+          example_questions?: string[]
+          icon?: string | null
+          id?: string
+          is_system?: boolean
+          kb_areas_filter?: string[] | null
+          mission?: string
+          persona_key?: string
+          recommended_model?: string | null
+          recommended_tier_key?: string
+          short_label?: string
+          sort_order?: number
+          system_prompt?: string
+          system_prompt_updated_at?: string | null
+          system_prompt_updated_by?: string | null
+          system_prompt_version?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      ai_personas_backup_20260505_track1: {
+        Row: {
+          allowed_roles: Json | null
+          allowed_tools: Json | null
+          backed_up_at: string | null
+          category: string | null
+          color: string | null
+          created_at: string | null
+          data_scope: string | null
+          display_name: string | null
+          enabled: boolean | null
+          icon: string | null
+          id: string | null
+          is_system: boolean | null
+          kb_areas_filter: string[] | null
+          mission: string | null
+          persona_key: string | null
+          recommended_model: string | null
+          recommended_tier_key: string | null
+          short_label: string | null
+          sort_order: number | null
+          system_prompt: string | null
+          system_prompt_updated_at: string | null
+          system_prompt_updated_by: string | null
+          system_prompt_version: number | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          allowed_roles?: Json | null
+          allowed_tools?: Json | null
+          backed_up_at?: string | null
+          category?: string | null
+          color?: string | null
+          created_at?: string | null
+          data_scope?: string | null
+          display_name?: string | null
+          enabled?: boolean | null
+          icon?: string | null
+          id?: string | null
+          is_system?: boolean | null
+          kb_areas_filter?: string[] | null
+          mission?: string | null
+          persona_key?: string | null
+          recommended_model?: string | null
+          recommended_tier_key?: string | null
+          short_label?: string | null
+          sort_order?: number | null
+          system_prompt?: string | null
+          system_prompt_updated_at?: string | null
+          system_prompt_updated_by?: string | null
+          system_prompt_version?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          allowed_roles?: Json | null
+          allowed_tools?: Json | null
+          backed_up_at?: string | null
+          category?: string | null
+          color?: string | null
+          created_at?: string | null
+          data_scope?: string | null
+          display_name?: string | null
+          enabled?: boolean | null
+          icon?: string | null
+          id?: string | null
+          is_system?: boolean | null
+          kb_areas_filter?: string[] | null
+          mission?: string | null
+          persona_key?: string | null
+          recommended_model?: string | null
+          recommended_tier_key?: string | null
+          short_label?: string | null
+          sort_order?: number | null
+          system_prompt?: string | null
+          system_prompt_updated_at?: string | null
+          system_prompt_updated_by?: string | null
+          system_prompt_version?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       ai_phone_numbers_v2: {
         Row: {
@@ -2551,9 +4527,12 @@ export type Database = {
           display_label: string
           enabled: boolean | null
           id: string
+          markup_max: number | null
           markup_multiplier: number
           min_charge_eur: number | null
+          model_pattern: string | null
           notes: string | null
+          pricing_rationale: string | null
           task_kind: string
           updated_at: string | null
           updated_by_user_id: string | null
@@ -2564,9 +4543,12 @@ export type Database = {
           display_label: string
           enabled?: boolean | null
           id?: string
+          markup_max?: number | null
           markup_multiplier?: number
           min_charge_eur?: number | null
+          model_pattern?: string | null
           notes?: string | null
+          pricing_rationale?: string | null
           task_kind: string
           updated_at?: string | null
           updated_by_user_id?: string | null
@@ -2577,14 +4559,450 @@ export type Database = {
           display_label?: string
           enabled?: boolean | null
           id?: string
+          markup_max?: number | null
           markup_multiplier?: number
           min_charge_eur?: number | null
+          model_pattern?: string | null
           notes?: string | null
+          pricing_rationale?: string | null
           task_kind?: string
           updated_at?: string | null
           updated_by_user_id?: string | null
         }
         Relationships: []
+      }
+      ai_pricing_overrides: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          custom_markup_pct: number | null
+          discount_pct: number | null
+          enabled: boolean
+          id: string
+          promo_code: string | null
+          reason: string
+          tier_key: string | null
+          updated_at: string
+          updated_by: string | null
+          valid_from: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          custom_markup_pct?: number | null
+          discount_pct?: number | null
+          enabled?: boolean
+          id?: string
+          promo_code?: string | null
+          reason: string
+          tier_key?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          custom_markup_pct?: number | null
+          discount_pct?: number | null
+          enabled?: boolean
+          id?: string
+          promo_code?: string | null
+          reason?: string
+          tier_key?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          valid_from?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_pricing_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_pricing_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_pricing_overrides_tier_key_fkey"
+            columns: ["tier_key"]
+            isOneToOne: false
+            referencedRelation: "ai_pricing_tiers"
+            referencedColumns: ["tier_key"]
+          },
+        ]
+      }
+      ai_pricing_tiers: {
+        Row: {
+          cost_per_1m_input_eur: number
+          cost_per_1m_output_eur: number
+          created_at: string
+          customer_label: string
+          display_name_to_company: string
+          enabled: boolean
+          id: string
+          markup_pct: number
+          retail_per_1m_input_eur: number | null
+          retail_per_1m_output_eur: number | null
+          sort_order: number
+          tier_description: string | null
+          tier_key: string
+          tier_label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cost_per_1m_input_eur: number
+          cost_per_1m_output_eur: number
+          created_at?: string
+          customer_label?: string
+          display_name_to_company?: string
+          enabled?: boolean
+          id?: string
+          markup_pct?: number
+          retail_per_1m_input_eur?: number | null
+          retail_per_1m_output_eur?: number | null
+          sort_order?: number
+          tier_description?: string | null
+          tier_key: string
+          tier_label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cost_per_1m_input_eur?: number
+          cost_per_1m_output_eur?: number
+          created_at?: string
+          customer_label?: string
+          display_name_to_company?: string
+          enabled?: boolean
+          id?: string
+          markup_pct?: number
+          retail_per_1m_input_eur?: number | null
+          retail_per_1m_output_eur?: number | null
+          sort_order?: number
+          tier_description?: string | null
+          tier_key?: string
+          tier_label?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      ai_prompt_feedback_aggregates: {
+        Row: {
+          approval_count: number | null
+          company_id: string
+          computed_at: string | null
+          edit_count: number | null
+          example_payload: Json | null
+          example_user_feedback: string | null
+          id: string
+          period_end: string
+          period_start: string
+          persona_key: string
+          rejection_category: string | null
+          rejection_count: number | null
+          tool_name: string | null
+          undo_count: number | null
+        }
+        Insert: {
+          approval_count?: number | null
+          company_id: string
+          computed_at?: string | null
+          edit_count?: number | null
+          example_payload?: Json | null
+          example_user_feedback?: string | null
+          id?: string
+          period_end: string
+          period_start: string
+          persona_key: string
+          rejection_category?: string | null
+          rejection_count?: number | null
+          tool_name?: string | null
+          undo_count?: number | null
+        }
+        Update: {
+          approval_count?: number | null
+          company_id?: string
+          computed_at?: string | null
+          edit_count?: number | null
+          example_payload?: Json | null
+          example_user_feedback?: string | null
+          id?: string
+          period_end?: string
+          period_start?: string
+          persona_key?: string
+          rejection_category?: string | null
+          rejection_count?: number | null
+          tool_name?: string | null
+          undo_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompt_feedback_aggregates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_prompt_feedback_aggregates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_provider_reconciliation: {
+        Row: {
+          created_at: string
+          delta_eur: number | null
+          id: string
+          invoiced_amount_eur: number | null
+          invoiced_amount_usd: number | null
+          ledger_total_real_eur: number
+          ledger_total_real_usd: number
+          margin_eur: number | null
+          notes: string | null
+          period_month: string
+          provider: string
+          reconciled_at: string | null
+          reconciled_by: string | null
+          revenue_eur: number
+          status: string
+          total_calls: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delta_eur?: number | null
+          id?: string
+          invoiced_amount_eur?: number | null
+          invoiced_amount_usd?: number | null
+          ledger_total_real_eur?: number
+          ledger_total_real_usd?: number
+          margin_eur?: number | null
+          notes?: string | null
+          period_month: string
+          provider?: string
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          revenue_eur?: number
+          status?: string
+          total_calls?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delta_eur?: number | null
+          id?: string
+          invoiced_amount_eur?: number | null
+          invoiced_amount_usd?: number | null
+          ledger_total_real_eur?: number
+          ledger_total_real_usd?: number
+          margin_eur?: number | null
+          notes?: string | null
+          period_month?: string
+          provider?: string
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          revenue_eur?: number
+          status?: string
+          total_calls?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_rbac_violations: {
+        Row: {
+          attempted_message: string | null
+          attempted_persona_key: string
+          client_ip: string | null
+          company_id: string
+          created_at: string
+          id: string
+          notified_at: string | null
+          notified_owner: boolean
+          reason: string
+          user_agent: string | null
+          user_id: string
+          user_role: string | null
+        }
+        Insert: {
+          attempted_message?: string | null
+          attempted_persona_key: string
+          client_ip?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          notified_owner?: boolean
+          reason: string
+          user_agent?: string | null
+          user_id: string
+          user_role?: string | null
+        }
+        Update: {
+          attempted_message?: string | null
+          attempted_persona_key?: string
+          client_ip?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          notified_owner?: boolean
+          reason?: string
+          user_agent?: string | null
+          user_id?: string
+          user_role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_rbac_violations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_rbac_violations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_router_config: {
+        Row: {
+          category: string
+          created_at: string
+          default_params: Json
+          enabled: boolean
+          estimated_cost_per_million: number | null
+          fallback_models: Json
+          id: string
+          primary_model: string
+          task_description: string | null
+          task_key: string
+          task_label: string
+          tier_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          default_params?: Json
+          enabled?: boolean
+          estimated_cost_per_million?: number | null
+          fallback_models?: Json
+          id?: string
+          primary_model: string
+          task_description?: string | null
+          task_key: string
+          task_label: string
+          tier_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          default_params?: Json
+          enabled?: boolean
+          estimated_cost_per_million?: number | null
+          fallback_models?: Json
+          id?: string
+          primary_model?: string
+          task_description?: string | null
+          task_key?: string
+          task_label?: string
+          tier_key?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_router_usage_log: {
+        Row: {
+          company_id: string | null
+          completion_tokens: number
+          cost_usd: number
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          fallback_index: number
+          id: string
+          model_used: string
+          prompt_tokens: number
+          status: string
+          task_key: string
+          total_tokens: number
+          used_primary: boolean
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          completion_tokens?: number
+          cost_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          fallback_index?: number
+          id?: string
+          model_used: string
+          prompt_tokens?: number
+          status?: string
+          task_key: string
+          total_tokens?: number
+          used_primary?: boolean
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          completion_tokens?: number
+          cost_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          fallback_index?: number
+          id?: string
+          model_used?: string
+          prompt_tokens?: number
+          status?: string
+          task_key?: string
+          total_tokens?: number
+          used_primary?: boolean
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_router_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_router_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_subscriptions: {
         Row: {
@@ -2632,6 +5050,264 @@ export type Database = {
             foreignKeyName: "ai_subscriptions_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_system_classification: {
+        Row: {
+          ai_act_obligations: string[]
+          ai_model_used: string | null
+          approved_at: string | null
+          approved_by: string | null
+          classification_version: string
+          classified_at: string
+          classified_by: string | null
+          created_at: string
+          data_read: string[] | null
+          data_written: string[] | null
+          enabled: boolean
+          human_oversight_level: string | null
+          human_oversight_measures: string | null
+          id: string
+          incident_response_procedure: string | null
+          known_limitations: string | null
+          metadata: Json | null
+          name: string
+          next_review_due: string | null
+          owner_business: string | null
+          owner_technical: string | null
+          purpose: string
+          risk_category: string
+          risk_motivation: string
+          system_type: string
+          transparency_measures: string | null
+          updated_at: string
+          user_disclaimer: string | null
+        }
+        Insert: {
+          ai_act_obligations?: string[]
+          ai_model_used?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          classification_version?: string
+          classified_at?: string
+          classified_by?: string | null
+          created_at?: string
+          data_read?: string[] | null
+          data_written?: string[] | null
+          enabled?: boolean
+          human_oversight_level?: string | null
+          human_oversight_measures?: string | null
+          id: string
+          incident_response_procedure?: string | null
+          known_limitations?: string | null
+          metadata?: Json | null
+          name: string
+          next_review_due?: string | null
+          owner_business?: string | null
+          owner_technical?: string | null
+          purpose: string
+          risk_category: string
+          risk_motivation: string
+          system_type?: string
+          transparency_measures?: string | null
+          updated_at?: string
+          user_disclaimer?: string | null
+        }
+        Update: {
+          ai_act_obligations?: string[]
+          ai_model_used?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          classification_version?: string
+          classified_at?: string
+          classified_by?: string | null
+          created_at?: string
+          data_read?: string[] | null
+          data_written?: string[] | null
+          enabled?: boolean
+          human_oversight_level?: string | null
+          human_oversight_measures?: string | null
+          id?: string
+          incident_response_procedure?: string | null
+          known_limitations?: string | null
+          metadata?: Json | null
+          name?: string
+          next_review_due?: string | null
+          owner_business?: string | null
+          owner_technical?: string | null
+          purpose?: string
+          risk_category?: string
+          risk_motivation?: string
+          system_type?: string
+          transparency_measures?: string | null
+          updated_at?: string
+          user_disclaimer?: string | null
+        }
+        Relationships: []
+      }
+      ai_test_quota: {
+        Row: {
+          company_id: string
+          daily_calls_cap: number
+          monthly_cost_cap_usd: number
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          daily_calls_cap?: number
+          monthly_cost_cap_usd?: number
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          daily_calls_cap?: number
+          monthly_cost_cap_usd?: number
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_test_quota_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_test_quota_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_test_runs: {
+        Row: {
+          company_id: string
+          cost_usd: number
+          created_at: string
+          error: string | null
+          feature: string
+          forced_by_user: boolean | null
+          id: string
+          input_tokens: number | null
+          latency_ms: number | null
+          model_id: string
+          openrouter_generation_id: string | null
+          output_tokens: number | null
+          persona_key: string | null
+          prompt_excerpt: string | null
+          provider: string
+          rating_notes: string | null
+          response_excerpt: string | null
+          task_key: string | null
+          user_id: string | null
+          user_rating: number | null
+        }
+        Insert: {
+          company_id: string
+          cost_usd?: number
+          created_at?: string
+          error?: string | null
+          feature: string
+          forced_by_user?: boolean | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          model_id: string
+          openrouter_generation_id?: string | null
+          output_tokens?: number | null
+          persona_key?: string | null
+          prompt_excerpt?: string | null
+          provider: string
+          rating_notes?: string | null
+          response_excerpt?: string | null
+          task_key?: string | null
+          user_id?: string | null
+          user_rating?: number | null
+        }
+        Update: {
+          company_id?: string
+          cost_usd?: number
+          created_at?: string
+          error?: string | null
+          feature?: string
+          forced_by_user?: boolean | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          model_id?: string
+          openrouter_generation_id?: string | null
+          output_tokens?: number | null
+          persona_key?: string | null
+          prompt_excerpt?: string | null
+          provider?: string
+          rating_notes?: string | null
+          response_excerpt?: string | null
+          task_key?: string | null
+          user_id?: string | null
+          user_rating?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_test_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_test_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage_alerts_log: {
+        Row: {
+          alert_month: string
+          channel: string
+          company_id: string
+          id: string
+          sent_at: string
+          threshold_pct: number
+        }
+        Insert: {
+          alert_month: string
+          channel: string
+          company_id: string
+          id?: string
+          sent_at?: string
+          threshold_pct: number
+        }
+        Update: {
+          alert_month?: string
+          channel?: string
+          company_id?: string
+          id?: string
+          sent_at?: string
+          threshold_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_alerts_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_usage_alerts_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
@@ -4011,6 +6687,7 @@ export type Database = {
           griglia_unita: string | null
           id: string
           immagine_url: string | null
+          macrocategoria_id: string | null
           manodopera_costo_acquisto: number
           manodopera_modalita: string
           manodopera_prezzo_vendita: number
@@ -4051,6 +6728,7 @@ export type Database = {
           griglia_unita?: string | null
           id?: string
           immagine_url?: string | null
+          macrocategoria_id?: string | null
           manodopera_costo_acquisto?: number
           manodopera_modalita?: string
           manodopera_prezzo_vendita?: number
@@ -4091,6 +6769,7 @@ export type Database = {
           griglia_unita?: string | null
           id?: string
           immagine_url?: string | null
+          macrocategoria_id?: string | null
           manodopera_costo_acquisto?: number
           manodopera_modalita?: string
           manodopera_prezzo_vendita?: number
@@ -4136,6 +6815,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_families_macrocategoria_id_fkey"
+            columns: ["macrocategoria_id"]
+            isOneToOne: false
+            referencedRelation: "listino_macrocategorie"
             referencedColumns: ["id"]
           },
           {
@@ -4291,6 +6977,144 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      article_family_templates: {
+        Row: {
+          assi_default: Json
+          categoria_slug: string | null
+          created_at: string
+          created_by: string | null
+          custom_field_defaults: Json
+          descrizione: string | null
+          griglia_asse_x_label: string | null
+          griglia_asse_y_label: string | null
+          griglia_default: Json | null
+          griglia_unita: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          materiale: string | null
+          modalita_prezzo_base: string
+          nome: string
+          prezzo_base_vendita: number | null
+          sort_order: number
+          tags: string[]
+          thumbnail_url: string | null
+          tipologia: string | null
+          unit_of_measure: string | null
+          updated_at: string
+          vat_rate: number | null
+          vertical_slug: string
+        }
+        Insert: {
+          assi_default?: Json
+          categoria_slug?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_field_defaults?: Json
+          descrizione?: string | null
+          griglia_asse_x_label?: string | null
+          griglia_asse_y_label?: string | null
+          griglia_default?: Json | null
+          griglia_unita?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          materiale?: string | null
+          modalita_prezzo_base?: string
+          nome: string
+          prezzo_base_vendita?: number | null
+          sort_order?: number
+          tags?: string[]
+          thumbnail_url?: string | null
+          tipologia?: string | null
+          unit_of_measure?: string | null
+          updated_at?: string
+          vat_rate?: number | null
+          vertical_slug: string
+        }
+        Update: {
+          assi_default?: Json
+          categoria_slug?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_field_defaults?: Json
+          descrizione?: string | null
+          griglia_asse_x_label?: string | null
+          griglia_asse_y_label?: string | null
+          griglia_default?: Json | null
+          griglia_unita?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          materiale?: string | null
+          modalita_prezzo_base?: string
+          nome?: string
+          prezzo_base_vendita?: number | null
+          sort_order?: number
+          tags?: string[]
+          thumbnail_url?: string | null
+          tipologia?: string | null
+          unit_of_measure?: string | null
+          updated_at?: string
+          vat_rate?: number | null
+          vertical_slug?: string
+        }
+        Relationships: []
+      }
+      article_photo_templates: {
+        Row: {
+          categoria_slug: string | null
+          created_at: string
+          created_by: string | null
+          descrizione: string | null
+          id: string
+          image_url: string
+          is_active: boolean
+          materiale: string | null
+          nome: string
+          sort_order: number
+          tags: string[]
+          thumbnail_url: string | null
+          tipologia: string | null
+          updated_at: string
+          vertical_slug: string
+        }
+        Insert: {
+          categoria_slug?: string | null
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          image_url: string
+          is_active?: boolean
+          materiale?: string | null
+          nome: string
+          sort_order?: number
+          tags?: string[]
+          thumbnail_url?: string | null
+          tipologia?: string | null
+          updated_at?: string
+          vertical_slug: string
+        }
+        Update: {
+          categoria_slug?: string | null
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          materiale?: string | null
+          nome?: string
+          sort_order?: number
+          tags?: string[]
+          thumbnail_url?: string | null
+          tipologia?: string | null
+          updated_at?: string
+          vertical_slug?: string
+        }
+        Relationships: []
       }
       article_templates: {
         Row: {
@@ -5038,6 +7862,7 @@ export type Database = {
         Row: {
           allow_multiple_opportunities: boolean
           allow_reentry: boolean
+          bulk_trigger_config: Json | null
           category: string
           company_id: string
           config_json: Json
@@ -5064,6 +7889,7 @@ export type Database = {
         Insert: {
           allow_multiple_opportunities?: boolean
           allow_reentry?: boolean
+          bulk_trigger_config?: Json | null
           category?: string
           company_id: string
           config_json?: Json
@@ -5090,6 +7916,7 @@ export type Database = {
         Update: {
           allow_multiple_opportunities?: boolean
           allow_reentry?: boolean
+          bulk_trigger_config?: Json | null
           category?: string
           company_id?: string
           config_json?: Json
@@ -6337,6 +9164,76 @@ export type Database = {
           },
         ]
       }
+      bulk_scheduler_runs: {
+        Row: {
+          channel_breakdown: Json
+          company_id: string
+          error_summary: string | null
+          finished_at: string | null
+          flow_id: string
+          id: string
+          metadata: Json
+          scheduled_for: string
+          sent_failed: number
+          sent_ok: number
+          started_at: string
+          status: string
+          targets_resolved: number
+        }
+        Insert: {
+          channel_breakdown?: Json
+          company_id: string
+          error_summary?: string | null
+          finished_at?: string | null
+          flow_id: string
+          id?: string
+          metadata?: Json
+          scheduled_for: string
+          sent_failed?: number
+          sent_ok?: number
+          started_at?: string
+          status?: string
+          targets_resolved?: number
+        }
+        Update: {
+          channel_breakdown?: Json
+          company_id?: string
+          error_summary?: string | null
+          finished_at?: string | null
+          flow_id?: string
+          id?: string
+          metadata?: Json
+          scheduled_for?: string
+          sent_failed?: number
+          sent_ok?: number
+          started_at?: string
+          status?: string
+          targets_resolved?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_scheduler_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bulk_scheduler_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_scheduler_runs_flow_id_fkey"
+            columns: ["flow_id"]
+            isOneToOne: false
+            referencedRelation: "automation_flows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bundle_prodotti: {
         Row: {
           attivo: boolean | null
@@ -6461,6 +9358,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      business_verticals: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          default_family_template: string | null
+          default_tariff_template: string | null
+          description: string | null
+          display_name: string
+          enabled: boolean | null
+          enabled_personas: string[]
+          estimated_avg_revenue: number | null
+          has_render_module: boolean | null
+          icon: string | null
+          id: string
+          kb_areas: string[]
+          parent_vertical: string | null
+          recommended_plan: string | null
+          render_categories: string[] | null
+          short_label: string
+          sort_order: number | null
+          vertical_key: string
+          vertical_personas: string[] | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          default_family_template?: string | null
+          default_tariff_template?: string | null
+          description?: string | null
+          display_name: string
+          enabled?: boolean | null
+          enabled_personas?: string[]
+          estimated_avg_revenue?: number | null
+          has_render_module?: boolean | null
+          icon?: string | null
+          id?: string
+          kb_areas?: string[]
+          parent_vertical?: string | null
+          recommended_plan?: string | null
+          render_categories?: string[] | null
+          short_label: string
+          sort_order?: number | null
+          vertical_key: string
+          vertical_personas?: string[] | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          default_family_template?: string | null
+          default_tariff_template?: string | null
+          description?: string | null
+          display_name?: string
+          enabled?: boolean | null
+          enabled_personas?: string[]
+          estimated_avg_revenue?: number | null
+          has_render_module?: boolean | null
+          icon?: string | null
+          id?: string
+          kb_areas?: string[]
+          parent_vertical?: string | null
+          recommended_plan?: string | null
+          render_categories?: string[] | null
+          short_label?: string
+          sort_order?: number | null
+          vertical_key?: string
+          vertical_personas?: string[] | null
+        }
+        Relationships: []
       }
       call_logs: {
         Row: {
@@ -6964,6 +9930,355 @@ export type Database = {
           },
         ]
       }
+      cantiere_allocations: {
+        Row: {
+          ai_reasoning: string | null
+          ai_suggested: boolean | null
+          cantiere_id: string
+          company_id: string
+          conflict_with: string | null
+          created_at: string | null
+          employee_id: string | null
+          end_date: string
+          hours_per_day: number | null
+          id: string
+          mezzo_id: string | null
+          resource_type: string
+          start_date: string
+          status: string
+          subcontractor_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_reasoning?: string | null
+          ai_suggested?: boolean | null
+          cantiere_id: string
+          company_id: string
+          conflict_with?: string | null
+          created_at?: string | null
+          employee_id?: string | null
+          end_date: string
+          hours_per_day?: number | null
+          id?: string
+          mezzo_id?: string | null
+          resource_type: string
+          start_date: string
+          status?: string
+          subcontractor_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_reasoning?: string | null
+          ai_suggested?: boolean | null
+          cantiere_id?: string
+          company_id?: string
+          conflict_with?: string | null
+          created_at?: string | null
+          employee_id?: string | null
+          end_date?: string
+          hours_per_day?: number | null
+          id?: string
+          mezzo_id?: string | null
+          resource_type?: string
+          start_date?: string
+          status?: string
+          subcontractor_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_conflict_with_fkey"
+            columns: ["conflict_with"]
+            isOneToOne: false
+            referencedRelation: "allocation_conflicts"
+            referencedColumns: ["conflict_id_1"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_conflict_with_fkey"
+            columns: ["conflict_with"]
+            isOneToOne: false
+            referencedRelation: "allocation_conflicts"
+            referencedColumns: ["conflict_id_2"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_conflict_with_fkey"
+            columns: ["conflict_with"]
+            isOneToOne: false
+            referencedRelation: "cantiere_allocations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatore_compliance_status"
+            referencedColumns: ["subappaltatore_id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatori"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cantiere_camera_devices: {
+        Row: {
+          ai_analysis_enabled: boolean | null
+          ai_check_dpi: boolean | null
+          ai_check_equipment_compliance: boolean | null
+          ai_check_falls: boolean | null
+          ai_check_fire_smoke: boolean | null
+          ai_check_unauthorized_persons: boolean | null
+          alert_email: string | null
+          alert_phone: string | null
+          alert_severity_threshold: string | null
+          cantiere_id: string | null
+          company_id: string
+          created_at: string | null
+          device_name: string
+          device_token: string | null
+          device_type: string | null
+          id: string
+          ingest_interval_sec: number | null
+          is_active: boolean | null
+          last_frame_at: string | null
+          last_seen_at: string | null
+          manufacturer: string | null
+          model: string | null
+          serial_number: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_analysis_enabled?: boolean | null
+          ai_check_dpi?: boolean | null
+          ai_check_equipment_compliance?: boolean | null
+          ai_check_falls?: boolean | null
+          ai_check_fire_smoke?: boolean | null
+          ai_check_unauthorized_persons?: boolean | null
+          alert_email?: string | null
+          alert_phone?: string | null
+          alert_severity_threshold?: string | null
+          cantiere_id?: string | null
+          company_id: string
+          created_at?: string | null
+          device_name: string
+          device_token?: string | null
+          device_type?: string | null
+          id?: string
+          ingest_interval_sec?: number | null
+          is_active?: boolean | null
+          last_frame_at?: string | null
+          last_seen_at?: string | null
+          manufacturer?: string | null
+          model?: string | null
+          serial_number?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_analysis_enabled?: boolean | null
+          ai_check_dpi?: boolean | null
+          ai_check_equipment_compliance?: boolean | null
+          ai_check_falls?: boolean | null
+          ai_check_fire_smoke?: boolean | null
+          ai_check_unauthorized_persons?: boolean | null
+          alert_email?: string | null
+          alert_phone?: string | null
+          alert_severity_threshold?: string | null
+          cantiere_id?: string | null
+          company_id?: string
+          created_at?: string | null
+          device_name?: string
+          device_token?: string | null
+          device_type?: string | null
+          id?: string
+          ingest_interval_sec?: number | null
+          is_active?: boolean | null
+          last_frame_at?: string | null
+          last_seen_at?: string | null
+          manufacturer?: string | null
+          model?: string | null
+          serial_number?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cantiere_camera_devices_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_camera_devices_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_camera_devices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cantiere_camera_devices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cantiere_risk_predictions: {
+        Row: {
+          actual_completion_date: string | null
+          ai_cost_billed_eur: number | null
+          ai_mitigations: Json | null
+          ai_persona_used: string | null
+          alert_sent_at: string | null
+          cantiere_id: string
+          company_id: string
+          contractual_deadline: string | null
+          contributing_factors: Json | null
+          created_at: string | null
+          current_avanzamento_pct: number | null
+          delay_days_predicted: number | null
+          delay_probability_pct: number | null
+          id: string
+          planned_avanzamento_pct: number | null
+          predicted_completion_date: string | null
+          prediction_accuracy_score: number | null
+          prediction_date: string
+          primary_causes: Json | null
+          risk_level: string | null
+          velocity_average: number | null
+          velocity_last_4w: number | null
+        }
+        Insert: {
+          actual_completion_date?: string | null
+          ai_cost_billed_eur?: number | null
+          ai_mitigations?: Json | null
+          ai_persona_used?: string | null
+          alert_sent_at?: string | null
+          cantiere_id: string
+          company_id: string
+          contractual_deadline?: string | null
+          contributing_factors?: Json | null
+          created_at?: string | null
+          current_avanzamento_pct?: number | null
+          delay_days_predicted?: number | null
+          delay_probability_pct?: number | null
+          id?: string
+          planned_avanzamento_pct?: number | null
+          predicted_completion_date?: string | null
+          prediction_accuracy_score?: number | null
+          prediction_date?: string
+          primary_causes?: Json | null
+          risk_level?: string | null
+          velocity_average?: number | null
+          velocity_last_4w?: number | null
+        }
+        Update: {
+          actual_completion_date?: string | null
+          ai_cost_billed_eur?: number | null
+          ai_mitigations?: Json | null
+          ai_persona_used?: string | null
+          alert_sent_at?: string | null
+          cantiere_id?: string
+          company_id?: string
+          contractual_deadline?: string | null
+          contributing_factors?: Json | null
+          created_at?: string | null
+          current_avanzamento_pct?: number | null
+          delay_days_predicted?: number | null
+          delay_probability_pct?: number | null
+          id?: string
+          planned_avanzamento_pct?: number | null
+          predicted_completion_date?: string | null
+          prediction_accuracy_score?: number | null
+          prediction_date?: string
+          primary_causes?: Json | null
+          risk_level?: string | null
+          velocity_average?: number | null
+          velocity_last_4w?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cantiere_risk_predictions_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_risk_predictions_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_risk_predictions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cantiere_risk_predictions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cantiere_segnalazioni: {
         Row: {
           company_id: string
@@ -7032,6 +10347,13 @@ export type Database = {
             foreignKeyName: "cantiere_segnalazioni_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "cantiere_segnalazioni_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -7047,6 +10369,71 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cantiere_video_frames: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          ai_dpi_compliance_pct: number | null
+          ai_overall_severity: string | null
+          ai_persona_used: string | null
+          ai_persons_detected: number | null
+          ai_summary: string | null
+          ai_violations: Json | null
+          alert_sent: boolean | null
+          alert_sent_at: string | null
+          cantiere_id: string | null
+          company_id: string
+          created_at: string | null
+          device_id: string
+          frame_captured_at: string | null
+          frame_storage_path: string
+          id: string
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_dpi_compliance_pct?: number | null
+          ai_overall_severity?: string | null
+          ai_persona_used?: string | null
+          ai_persons_detected?: number | null
+          ai_summary?: string | null
+          ai_violations?: Json | null
+          alert_sent?: boolean | null
+          alert_sent_at?: string | null
+          cantiere_id?: string | null
+          company_id: string
+          created_at?: string | null
+          device_id: string
+          frame_captured_at?: string | null
+          frame_storage_path: string
+          id?: string
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          ai_dpi_compliance_pct?: number | null
+          ai_overall_severity?: string | null
+          ai_persona_used?: string | null
+          ai_persons_detected?: number | null
+          ai_summary?: string | null
+          ai_violations?: Json | null
+          alert_sent?: boolean | null
+          alert_sent_at?: string | null
+          cantiere_id?: string | null
+          company_id?: string
+          created_at?: string | null
+          device_id?: string
+          frame_captured_at?: string | null
+          frame_storage_path?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cantiere_video_frames_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "cantiere_camera_devices"
             referencedColumns: ["id"]
           },
         ]
@@ -7115,6 +10502,194 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capomastro_briefings: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          ai_message: string
+          ai_persona_used: string | null
+          briefing_date: string
+          cantiere_id: string
+          capomastro_responded: boolean
+          capomastro_response: string | null
+          capomastro_user_id: string
+          channel: string
+          company_id: string
+          created_at: string
+          error_message: string | null
+          external_message_id: string | null
+          id: string
+          lavorazioni_piano: Json | null
+          materiali_disponibili: Json | null
+          materiali_in_arrivo: Json | null
+          operai_count: number | null
+          operai_ids: string[] | null
+          read_at: string | null
+          retry_channel: string | null
+          safety_alerts: Json | null
+          sent_at: string | null
+          weather_data: Json | null
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_message: string
+          ai_persona_used?: string | null
+          briefing_date: string
+          cantiere_id: string
+          capomastro_responded?: boolean
+          capomastro_response?: string | null
+          capomastro_user_id: string
+          channel: string
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          external_message_id?: string | null
+          id?: string
+          lavorazioni_piano?: Json | null
+          materiali_disponibili?: Json | null
+          materiali_in_arrivo?: Json | null
+          operai_count?: number | null
+          operai_ids?: string[] | null
+          read_at?: string | null
+          retry_channel?: string | null
+          safety_alerts?: Json | null
+          sent_at?: string | null
+          weather_data?: Json | null
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          ai_message?: string
+          ai_persona_used?: string | null
+          briefing_date?: string
+          cantiere_id?: string
+          capomastro_responded?: boolean
+          capomastro_response?: string | null
+          capomastro_user_id?: string
+          channel?: string
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          external_message_id?: string | null
+          id?: string
+          lavorazioni_piano?: Json | null
+          materiali_disponibili?: Json | null
+          materiali_in_arrivo?: Json | null
+          operai_count?: number | null
+          operai_ids?: string[] | null
+          read_at?: string | null
+          retry_channel?: string | null
+          safety_alerts?: Json | null
+          sent_at?: string | null
+          weather_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capomastro_briefings_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capomastro_briefings_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capomastro_briefings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "capomastro_briefings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cashflow_forecast_snapshots: {
+        Row: {
+          ai_confidence: number | null
+          ai_cost_billed_eur: number | null
+          ai_persona_used: string
+          ai_recommendations: Json | null
+          company_id: string
+          created_at: string
+          daily_balances: Json
+          first_risk_date: string | null
+          forecast_date: string
+          horizon_days: number
+          id: string
+          max_balance_eur: number | null
+          min_balance_date: string | null
+          min_balance_eur: number | null
+          risk_days_count: number | null
+          risk_days_list: Json | null
+          scenario: string
+          starting_balance_eur: number | null
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string
+          ai_recommendations?: Json | null
+          company_id: string
+          created_at?: string
+          daily_balances: Json
+          first_risk_date?: string | null
+          forecast_date: string
+          horizon_days?: number
+          id?: string
+          max_balance_eur?: number | null
+          min_balance_date?: string | null
+          min_balance_eur?: number | null
+          risk_days_count?: number | null
+          risk_days_list?: Json | null
+          scenario: string
+          starting_balance_eur?: number | null
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string
+          ai_recommendations?: Json | null
+          company_id?: string
+          created_at?: string
+          daily_balances?: Json
+          first_risk_date?: string | null
+          forecast_date?: string
+          horizon_days?: number
+          id?: string
+          max_balance_eur?: number | null
+          min_balance_date?: string | null
+          min_balance_eur?: number | null
+          risk_days_count?: number | null
+          risk_days_list?: Json | null
+          scenario?: string
+          starting_balance_eur?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashflow_forecast_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cashflow_forecast_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -7249,6 +10824,63 @@ export type Database = {
           },
         ]
       }
+      central_audit_log: {
+        Row: {
+          actor_email: string | null
+          actor_role: string | null
+          actor_user_id: string | null
+          after_data: Json | null
+          before_data: Json | null
+          changed_fields: string[] | null
+          company_id: string | null
+          id: string
+          ip_address: unknown
+          notes: string | null
+          occurred_at: string
+          operation: string
+          request_id: string | null
+          row_pk: string | null
+          table_name: string
+          user_agent: string | null
+        }
+        Insert: {
+          actor_email?: string | null
+          actor_role?: string | null
+          actor_user_id?: string | null
+          after_data?: Json | null
+          before_data?: Json | null
+          changed_fields?: string[] | null
+          company_id?: string | null
+          id?: string
+          ip_address?: unknown
+          notes?: string | null
+          occurred_at?: string
+          operation: string
+          request_id?: string | null
+          row_pk?: string | null
+          table_name: string
+          user_agent?: string | null
+        }
+        Update: {
+          actor_email?: string | null
+          actor_role?: string | null
+          actor_user_id?: string | null
+          after_data?: Json | null
+          before_data?: Json | null
+          changed_fields?: string[] | null
+          company_id?: string | null
+          id?: string
+          ip_address?: unknown
+          notes?: string | null
+          occurred_at?: string
+          operation?: string
+          request_id?: string | null
+          row_pk?: string | null
+          table_name?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       cespiti: {
         Row: {
           aliquota_amm: number
@@ -7333,6 +10965,246 @@ export type Database = {
             columns: ["sede_id"]
             isOneToOne: false
             referencedRelation: "sedi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cfo_weekly_reports: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          ai_narrative: string | null
+          ai_persona_used: string | null
+          ai_top_actions: Json | null
+          cantieri_attivi: number | null
+          cashflow_min_30d: number | null
+          company_id: string
+          created_at: string | null
+          dso_giorni: number | null
+          email_opened_at: string | null
+          email_sent_at: string | null
+          fatturato_eur: number | null
+          fatturato_target_eur: number | null
+          id: string
+          incassi_eur: number | null
+          week_end: string
+          week_start: string
+          whatsapp_sent_at: string | null
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_narrative?: string | null
+          ai_persona_used?: string | null
+          ai_top_actions?: Json | null
+          cantieri_attivi?: number | null
+          cashflow_min_30d?: number | null
+          company_id: string
+          created_at?: string | null
+          dso_giorni?: number | null
+          email_opened_at?: string | null
+          email_sent_at?: string | null
+          fatturato_eur?: number | null
+          fatturato_target_eur?: number | null
+          id?: string
+          incassi_eur?: number | null
+          week_end: string
+          week_start: string
+          whatsapp_sent_at?: string | null
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          ai_narrative?: string | null
+          ai_persona_used?: string | null
+          ai_top_actions?: Json | null
+          cantieri_attivi?: number | null
+          cashflow_min_30d?: number | null
+          company_id?: string
+          created_at?: string | null
+          dso_giorni?: number | null
+          email_opened_at?: string | null
+          email_sent_at?: string | null
+          fatturato_eur?: number | null
+          fatturato_target_eur?: number | null
+          id?: string
+          incassi_eur?: number | null
+          week_end?: string
+          week_start?: string
+          whatsapp_sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cfo_weekly_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cfo_weekly_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cg_aliquote_imposte: {
+        Row: {
+          addizionale_ires_pct: number
+          base_irap_include_personale: boolean
+          company_id: string
+          created_at: string
+          irap_pct: number
+          ires_pct: number
+          note: string | null
+          updated_at: string
+        }
+        Insert: {
+          addizionale_ires_pct?: number
+          base_irap_include_personale?: boolean
+          company_id: string
+          created_at?: string
+          irap_pct?: number
+          ires_pct?: number
+          note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          addizionale_ires_pct?: number
+          base_irap_include_personale?: boolean
+          company_id?: string
+          created_at?: string
+          irap_pct?: number
+          ires_pct?: number
+          note?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_aliquote_imposte_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_aliquote_imposte_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cg_budget: {
+        Row: {
+          anno: number
+          codice: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          importo: number
+          note: string | null
+          updated_at: string
+        }
+        Insert: {
+          anno: number
+          codice: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          importo: number
+          note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anno?: number
+          codice?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          importo?: number
+          note?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cg_cash_flow_manuali: {
+        Row: {
+          anno: number
+          categoria: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          descrizione: string
+          id: string
+          importo: number
+          mese: number
+          note: string | null
+          ricorrente: boolean
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          anno: number
+          categoria: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          descrizione: string
+          id?: string
+          importo: number
+          mese: number
+          note?: string | null
+          ricorrente?: boolean
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          anno?: number
+          categoria?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string
+          id?: string
+          importo?: number
+          mese?: number
+          note?: string | null
+          ricorrente?: boolean
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_cash_flow_manuali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_cash_flow_manuali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -7448,6 +11320,180 @@ export type Database = {
           },
         ]
       }
+      cg_loans: {
+        Row: {
+          banca: string
+          capitale_iniziale: number
+          capitale_residuo: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data_fine: string
+          data_inizio: string
+          descrizione: string | null
+          durata_mesi: number
+          id: string
+          is_active: boolean
+          note: string | null
+          rata_mensile: number
+          rate_pagate: number
+          tasso_pct: number
+          updated_at: string
+        }
+        Insert: {
+          banca: string
+          capitale_iniziale: number
+          capitale_residuo: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data_fine: string
+          data_inizio: string
+          descrizione?: string | null
+          durata_mesi: number
+          id?: string
+          is_active?: boolean
+          note?: string | null
+          rata_mensile: number
+          rate_pagate?: number
+          tasso_pct?: number
+          updated_at?: string
+        }
+        Update: {
+          banca?: string
+          capitale_iniziale?: number
+          capitale_residuo?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_fine?: string
+          data_inizio?: string
+          descrizione?: string | null
+          durata_mesi?: number
+          id?: string
+          is_active?: boolean
+          note?: string | null
+          rata_mensile?: number
+          rate_pagate?: number
+          tasso_pct?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_loans_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_loans_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cg_note_voci: {
+        Row: {
+          anno: number
+          codice_voce: string
+          company_id: string
+          contenuto: string
+          created_at: string
+          created_by: string | null
+          id: string
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          anno: number
+          codice_voce: string
+          company_id: string
+          contenuto: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          scope: string
+          updated_at?: string
+        }
+        Update: {
+          anno?: number
+          codice_voce?: string
+          company_id?: string
+          contenuto?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_note_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_note_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cg_piano_snapshots: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          scenario_id: string | null
+          snapshot_data: Json
+          versione_label: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          scenario_id?: string | null
+          snapshot_data: Json
+          versione_label: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          scenario_id?: string | null
+          snapshot_data?: Json
+          versione_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_piano_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_piano_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cg_rating_snapshot: {
         Row: {
           classe_rating: string
@@ -7504,6 +11550,63 @@ export type Database = {
           },
           {
             foreignKeyName: "cg_rating_snapshot_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cg_riconciliazione_commercialista: {
+        Row: {
+          anno: number
+          company_id: string
+          costi_dichiarati: number | null
+          created_at: string
+          id: string
+          imposte_dichiarate: number | null
+          note: string | null
+          patrimonio_netto_dichiarato: number | null
+          ricavi_dichiarati: number | null
+          updated_at: string
+          utile_dichiarato: number | null
+        }
+        Insert: {
+          anno: number
+          company_id: string
+          costi_dichiarati?: number | null
+          created_at?: string
+          id?: string
+          imposte_dichiarate?: number | null
+          note?: string | null
+          patrimonio_netto_dichiarato?: number | null
+          ricavi_dichiarati?: number | null
+          updated_at?: string
+          utile_dichiarato?: number | null
+        }
+        Update: {
+          anno?: number
+          company_id?: string
+          costi_dichiarati?: number | null
+          created_at?: string
+          id?: string
+          imposte_dichiarate?: number | null
+          note?: string | null
+          patrimonio_netto_dichiarato?: number | null
+          ricavi_dichiarati?: number | null
+          updated_at?: string
+          utile_dichiarato?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cg_riconciliazione_commercialista_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cg_riconciliazione_commercialista_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -7660,8 +11763,379 @@ export type Database = {
           },
         ]
       }
+      client_margin_history: {
+        Row: {
+          accepted_quotes: number | null
+          avg_acceptance_margin_pct: number | null
+          avg_negotiation_discount_pct: number | null
+          company_id: string
+          computed_at: string | null
+          customer_id: string | null
+          customer_name: string | null
+          id: string
+          last_accepted_at: string | null
+          last_quote_at: string | null
+          loyalty_score: number | null
+          preferred_payment_terms: string | null
+          total_quotes: number | null
+          typical_project_size_eur: number | null
+        }
+        Insert: {
+          accepted_quotes?: number | null
+          avg_acceptance_margin_pct?: number | null
+          avg_negotiation_discount_pct?: number | null
+          company_id: string
+          computed_at?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          id?: string
+          last_accepted_at?: string | null
+          last_quote_at?: string | null
+          loyalty_score?: number | null
+          preferred_payment_terms?: string | null
+          total_quotes?: number | null
+          typical_project_size_eur?: number | null
+        }
+        Update: {
+          accepted_quotes?: number | null
+          avg_acceptance_margin_pct?: number | null
+          avg_negotiation_discount_pct?: number | null
+          company_id?: string
+          computed_at?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          id?: string
+          last_accepted_at?: string | null
+          last_quote_at?: string | null
+          loyalty_score?: number | null
+          preferred_payment_terms?: string | null
+          total_quotes?: number | null
+          typical_project_size_eur?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_margin_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "client_margin_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_margin_history_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commercial_proposals: {
+        Row: {
+          about_us_section: string | null
+          ai_cost_billed_eur: number | null
+          ai_persona_used: string | null
+          brand_logo_url: string | null
+          brand_primary_color: string | null
+          brand_secondary_color: string | null
+          case_studies_referenced: string[] | null
+          company_id: string
+          cover_title: string | null
+          created_at: string | null
+          cta_section: string | null
+          customer_id: string | null
+          customer_signed_at: string | null
+          faq: Json | null
+          guarantees_section: string | null
+          id: string
+          opened_at: string | null
+          outcome: string | null
+          page_views: Json | null
+          pdf_pages_count: number | null
+          pdf_storage_path: string | null
+          proposal_version: number | null
+          quote_id: string | null
+          resulted_in_order_id: string | null
+          sent_at: string | null
+          signed_url: string | null
+          solution_summary: string | null
+          updated_at: string | null
+          why_us_points: Json | null
+        }
+        Insert: {
+          about_us_section?: string | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
+          brand_logo_url?: string | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
+          case_studies_referenced?: string[] | null
+          company_id: string
+          cover_title?: string | null
+          created_at?: string | null
+          cta_section?: string | null
+          customer_id?: string | null
+          customer_signed_at?: string | null
+          faq?: Json | null
+          guarantees_section?: string | null
+          id?: string
+          opened_at?: string | null
+          outcome?: string | null
+          page_views?: Json | null
+          pdf_pages_count?: number | null
+          pdf_storage_path?: string | null
+          proposal_version?: number | null
+          quote_id?: string | null
+          resulted_in_order_id?: string | null
+          sent_at?: string | null
+          signed_url?: string | null
+          solution_summary?: string | null
+          updated_at?: string | null
+          why_us_points?: Json | null
+        }
+        Update: {
+          about_us_section?: string | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
+          brand_logo_url?: string | null
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
+          case_studies_referenced?: string[] | null
+          company_id?: string
+          cover_title?: string | null
+          created_at?: string | null
+          cta_section?: string | null
+          customer_id?: string | null
+          customer_signed_at?: string | null
+          faq?: Json | null
+          guarantees_section?: string | null
+          id?: string
+          opened_at?: string | null
+          outcome?: string | null
+          page_views?: Json | null
+          pdf_pages_count?: number | null
+          pdf_storage_path?: string | null
+          proposal_version?: number | null
+          quote_id?: string | null
+          resulted_in_order_id?: string | null
+          sent_at?: string | null
+          signed_url?: string | null
+          solution_summary?: string | null
+          updated_at?: string | null
+          why_us_points?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "commercial_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_proposals_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_proposals_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+          {
+            foreignKeyName: "commercial_proposals_resulted_in_order_id_fkey"
+            columns: ["resulted_in_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_proposals_resulted_in_order_id_fkey"
+            columns: ["resulted_in_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commercial_visit_debriefs: {
+        Row: {
+          ai_buying_signals: Json | null
+          ai_competitors_mentioned: Json | null
+          ai_cost_billed_eur: number | null
+          ai_estimated_close_probability_pct: number | null
+          ai_estimated_value_eur: number | null
+          ai_intent: string | null
+          ai_intent_confidence: number | null
+          ai_objections: Json | null
+          ai_persona_used: string | null
+          ai_sentiment: string | null
+          ai_sentiment_score: number | null
+          ai_suggested_actions: Json | null
+          ai_suggested_next_visit_days: number | null
+          ai_summary: string | null
+          audio_duration_sec: number | null
+          audio_storage_path: string | null
+          audio_transcript: string | null
+          company_id: string
+          created_at: string | null
+          free_notes: string | null
+          id: string
+          image_paths: string[] | null
+          related_order_id: string | null
+          related_quote_id: string | null
+          status: string
+          updated_at: string | null
+          visit_date: string | null
+          visit_location: string | null
+          visited_by_user_id: string | null
+          visited_contact_id: string | null
+        }
+        Insert: {
+          ai_buying_signals?: Json | null
+          ai_competitors_mentioned?: Json | null
+          ai_cost_billed_eur?: number | null
+          ai_estimated_close_probability_pct?: number | null
+          ai_estimated_value_eur?: number | null
+          ai_intent?: string | null
+          ai_intent_confidence?: number | null
+          ai_objections?: Json | null
+          ai_persona_used?: string | null
+          ai_sentiment?: string | null
+          ai_sentiment_score?: number | null
+          ai_suggested_actions?: Json | null
+          ai_suggested_next_visit_days?: number | null
+          ai_summary?: string | null
+          audio_duration_sec?: number | null
+          audio_storage_path?: string | null
+          audio_transcript?: string | null
+          company_id: string
+          created_at?: string | null
+          free_notes?: string | null
+          id?: string
+          image_paths?: string[] | null
+          related_order_id?: string | null
+          related_quote_id?: string | null
+          status?: string
+          updated_at?: string | null
+          visit_date?: string | null
+          visit_location?: string | null
+          visited_by_user_id?: string | null
+          visited_contact_id?: string | null
+        }
+        Update: {
+          ai_buying_signals?: Json | null
+          ai_competitors_mentioned?: Json | null
+          ai_cost_billed_eur?: number | null
+          ai_estimated_close_probability_pct?: number | null
+          ai_estimated_value_eur?: number | null
+          ai_intent?: string | null
+          ai_intent_confidence?: number | null
+          ai_objections?: Json | null
+          ai_persona_used?: string | null
+          ai_sentiment?: string | null
+          ai_sentiment_score?: number | null
+          ai_suggested_actions?: Json | null
+          ai_suggested_next_visit_days?: number | null
+          ai_summary?: string | null
+          audio_duration_sec?: number | null
+          audio_storage_path?: string | null
+          audio_transcript?: string | null
+          company_id?: string
+          created_at?: string | null
+          free_notes?: string | null
+          id?: string
+          image_paths?: string[] | null
+          related_order_id?: string | null
+          related_quote_id?: string | null
+          status?: string
+          updated_at?: string | null
+          visit_date?: string | null
+          visit_location?: string | null
+          visited_by_user_id?: string | null
+          visited_contact_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_visit_debriefs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "commercial_visit_debriefs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_visit_debriefs_related_order_id_fkey"
+            columns: ["related_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_visit_debriefs_related_order_id_fkey"
+            columns: ["related_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_visit_debriefs_related_quote_id_fkey"
+            columns: ["related_quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_visit_debriefs_related_quote_id_fkey"
+            columns: ["related_quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+          {
+            foreignKeyName: "commercial_visit_debriefs_visited_contact_id_fkey"
+            columns: ["visited_contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "commercial_visit_debriefs_visited_contact_id_fkey"
+            columns: ["visited_contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
+          aedix_brain_opt_in: boolean | null
+          aedix_brain_opt_in_at: string | null
+          aedix_brain_opt_in_version: string | null
           ai_crediti: number | null
           ai_crediti_bonus: number | null
           ai_crediti_soglia_allerta: number | null
@@ -7672,6 +12146,7 @@ export type Database = {
           alert_open_tickets_threshold: number | null
           alert_runway_days_warning: number | null
           allowed_ips: string[] | null
+          anno_fondazione: number | null
           annual_revenue_range: string | null
           bank_account_holder: string | null
           bank_iban: string | null
@@ -7688,6 +12163,9 @@ export type Database = {
           brand_secondary_color: string | null
           brand_text_on_primary: string | null
           business_name: string | null
+          cfo_weekly_report_day: string | null
+          cfo_weekly_report_enabled: boolean | null
+          cfo_weekly_report_hour: number | null
           company_size: string | null
           computo_ai_monthly_count: number | null
           computo_ai_monthly_limit: number | null
@@ -7697,19 +12175,31 @@ export type Database = {
           customer_portal_enabled: boolean
           dunning_started_at: string | null
           dunning_status: string | null
+          dynamic_pricing_default_margin_pct: number
+          dynamic_pricing_enabled: boolean
+          dynamic_pricing_min_margin_pct: number
           email: string
           employee_count: number | null
           enforce_2fa: boolean
           enforce_2fa_roles: string[] | null
           failure_alert_sent_at: string | null
+          fatt_zero_touch_enabled: boolean
+          fatt_zero_touch_hitl_threshold_eur: number
           fiscal_code: string | null
           fleet_track_enabled: boolean
           fv_data_attivazione: string | null
           fv_modulo_attivo: boolean | null
           fv_setup_completato: boolean | null
           fv_setup_step: number | null
+          giornale_auto_enabled: boolean
+          giornale_auto_hour: number
+          giornale_auto_notify_dl: boolean
           id: string
+          inbound_email_address: string | null
           is_platform_admin_company: boolean
+          jit_auto_send_threshold_eur: number
+          jit_reorder_enabled: boolean
+          jit_safety_buffer_pct: number
           last_failure_at: string | null
           last_payment_failure_at: string | null
           legal_address: string | null
@@ -7722,8 +12212,12 @@ export type Database = {
           messaging_beta_enabled: boolean
           monthly_orders_target: number | null
           monthly_revenue_target: number | null
+          morning_briefing_enabled: boolean
+          morning_briefing_hour: number
+          morning_briefing_minute: number
           name: string
           notes: string | null
+          numero_rea: string | null
           onboarding_vertical_completed: boolean
           operational_address: string | null
           operational_city: string | null
@@ -7744,9 +12238,21 @@ export type Database = {
           referred_by: string | null
           region: string | null
           render_monthly_override: number | null
+          sal_auto_enabled: boolean
+          sal_auto_frequency_days: number
+          sal_auto_threshold_pct: number
+          sal_ritenute_garanzia_pct: number
           sdi_code: string | null
+          secondary_verticals: string[] | null
           sector: Database["public"]["Enums"]["company_sector"]
           security_notifications: Json | null
+          sr_default_anticipo_pct: number | null
+          sr_default_consulente_id: string | null
+          sr_default_iva_percentuale: number | null
+          sr_default_valido_giorni: number | null
+          sr_microsito_enabled: boolean | null
+          sr_referral_amount_eur: number | null
+          sr_varianti_enabled: boolean | null
           status: string
           storage_override_mb: number | null
           stripe_customer_id: string | null
@@ -7758,14 +12264,25 @@ export type Database = {
           updated_at: string
           vat_number: string | null
           vertical: string | null
+          vertical_key: string | null
           verticals_secondari: string[]
           website: string | null
+          weekly_reports_default_tone: string
+          weekly_reports_enabled: boolean
+          weekly_reports_send_friday_hour: number
           white_label_enabled: boolean
           white_label_enabled_at: string | null
           white_label_enabled_by: string | null
           white_label_monthly_price: number | null
+          winback_dormancy_threshold_days: number
+          winback_enabled: boolean
+          winback_max_per_week: number
+          winback_require_hitl: boolean
         }
         Insert: {
+          aedix_brain_opt_in?: boolean | null
+          aedix_brain_opt_in_at?: string | null
+          aedix_brain_opt_in_version?: string | null
           ai_crediti?: number | null
           ai_crediti_bonus?: number | null
           ai_crediti_soglia_allerta?: number | null
@@ -7776,6 +12293,7 @@ export type Database = {
           alert_open_tickets_threshold?: number | null
           alert_runway_days_warning?: number | null
           allowed_ips?: string[] | null
+          anno_fondazione?: number | null
           annual_revenue_range?: string | null
           bank_account_holder?: string | null
           bank_iban?: string | null
@@ -7792,6 +12310,9 @@ export type Database = {
           brand_secondary_color?: string | null
           brand_text_on_primary?: string | null
           business_name?: string | null
+          cfo_weekly_report_day?: string | null
+          cfo_weekly_report_enabled?: boolean | null
+          cfo_weekly_report_hour?: number | null
           company_size?: string | null
           computo_ai_monthly_count?: number | null
           computo_ai_monthly_limit?: number | null
@@ -7801,19 +12322,31 @@ export type Database = {
           customer_portal_enabled?: boolean
           dunning_started_at?: string | null
           dunning_status?: string | null
+          dynamic_pricing_default_margin_pct?: number
+          dynamic_pricing_enabled?: boolean
+          dynamic_pricing_min_margin_pct?: number
           email: string
           employee_count?: number | null
           enforce_2fa?: boolean
           enforce_2fa_roles?: string[] | null
           failure_alert_sent_at?: string | null
+          fatt_zero_touch_enabled?: boolean
+          fatt_zero_touch_hitl_threshold_eur?: number
           fiscal_code?: string | null
           fleet_track_enabled?: boolean
           fv_data_attivazione?: string | null
           fv_modulo_attivo?: boolean | null
           fv_setup_completato?: boolean | null
           fv_setup_step?: number | null
+          giornale_auto_enabled?: boolean
+          giornale_auto_hour?: number
+          giornale_auto_notify_dl?: boolean
           id?: string
+          inbound_email_address?: string | null
           is_platform_admin_company?: boolean
+          jit_auto_send_threshold_eur?: number
+          jit_reorder_enabled?: boolean
+          jit_safety_buffer_pct?: number
           last_failure_at?: string | null
           last_payment_failure_at?: string | null
           legal_address?: string | null
@@ -7826,8 +12359,12 @@ export type Database = {
           messaging_beta_enabled?: boolean
           monthly_orders_target?: number | null
           monthly_revenue_target?: number | null
+          morning_briefing_enabled?: boolean
+          morning_briefing_hour?: number
+          morning_briefing_minute?: number
           name: string
           notes?: string | null
+          numero_rea?: string | null
           onboarding_vertical_completed?: boolean
           operational_address?: string | null
           operational_city?: string | null
@@ -7848,9 +12385,21 @@ export type Database = {
           referred_by?: string | null
           region?: string | null
           render_monthly_override?: number | null
+          sal_auto_enabled?: boolean
+          sal_auto_frequency_days?: number
+          sal_auto_threshold_pct?: number
+          sal_ritenute_garanzia_pct?: number
           sdi_code?: string | null
+          secondary_verticals?: string[] | null
           sector?: Database["public"]["Enums"]["company_sector"]
           security_notifications?: Json | null
+          sr_default_anticipo_pct?: number | null
+          sr_default_consulente_id?: string | null
+          sr_default_iva_percentuale?: number | null
+          sr_default_valido_giorni?: number | null
+          sr_microsito_enabled?: boolean | null
+          sr_referral_amount_eur?: number | null
+          sr_varianti_enabled?: boolean | null
           status?: string
           storage_override_mb?: number | null
           stripe_customer_id?: string | null
@@ -7862,14 +12411,25 @@ export type Database = {
           updated_at?: string
           vat_number?: string | null
           vertical?: string | null
+          vertical_key?: string | null
           verticals_secondari?: string[]
           website?: string | null
+          weekly_reports_default_tone?: string
+          weekly_reports_enabled?: boolean
+          weekly_reports_send_friday_hour?: number
           white_label_enabled?: boolean
           white_label_enabled_at?: string | null
           white_label_enabled_by?: string | null
           white_label_monthly_price?: number | null
+          winback_dormancy_threshold_days?: number
+          winback_enabled?: boolean
+          winback_max_per_week?: number
+          winback_require_hitl?: boolean
         }
         Update: {
+          aedix_brain_opt_in?: boolean | null
+          aedix_brain_opt_in_at?: string | null
+          aedix_brain_opt_in_version?: string | null
           ai_crediti?: number | null
           ai_crediti_bonus?: number | null
           ai_crediti_soglia_allerta?: number | null
@@ -7880,6 +12440,7 @@ export type Database = {
           alert_open_tickets_threshold?: number | null
           alert_runway_days_warning?: number | null
           allowed_ips?: string[] | null
+          anno_fondazione?: number | null
           annual_revenue_range?: string | null
           bank_account_holder?: string | null
           bank_iban?: string | null
@@ -7896,6 +12457,9 @@ export type Database = {
           brand_secondary_color?: string | null
           brand_text_on_primary?: string | null
           business_name?: string | null
+          cfo_weekly_report_day?: string | null
+          cfo_weekly_report_enabled?: boolean | null
+          cfo_weekly_report_hour?: number | null
           company_size?: string | null
           computo_ai_monthly_count?: number | null
           computo_ai_monthly_limit?: number | null
@@ -7905,19 +12469,31 @@ export type Database = {
           customer_portal_enabled?: boolean
           dunning_started_at?: string | null
           dunning_status?: string | null
+          dynamic_pricing_default_margin_pct?: number
+          dynamic_pricing_enabled?: boolean
+          dynamic_pricing_min_margin_pct?: number
           email?: string
           employee_count?: number | null
           enforce_2fa?: boolean
           enforce_2fa_roles?: string[] | null
           failure_alert_sent_at?: string | null
+          fatt_zero_touch_enabled?: boolean
+          fatt_zero_touch_hitl_threshold_eur?: number
           fiscal_code?: string | null
           fleet_track_enabled?: boolean
           fv_data_attivazione?: string | null
           fv_modulo_attivo?: boolean | null
           fv_setup_completato?: boolean | null
           fv_setup_step?: number | null
+          giornale_auto_enabled?: boolean
+          giornale_auto_hour?: number
+          giornale_auto_notify_dl?: boolean
           id?: string
+          inbound_email_address?: string | null
           is_platform_admin_company?: boolean
+          jit_auto_send_threshold_eur?: number
+          jit_reorder_enabled?: boolean
+          jit_safety_buffer_pct?: number
           last_failure_at?: string | null
           last_payment_failure_at?: string | null
           legal_address?: string | null
@@ -7930,8 +12506,12 @@ export type Database = {
           messaging_beta_enabled?: boolean
           monthly_orders_target?: number | null
           monthly_revenue_target?: number | null
+          morning_briefing_enabled?: boolean
+          morning_briefing_hour?: number
+          morning_briefing_minute?: number
           name?: string
           notes?: string | null
+          numero_rea?: string | null
           onboarding_vertical_completed?: boolean
           operational_address?: string | null
           operational_city?: string | null
@@ -7952,9 +12532,21 @@ export type Database = {
           referred_by?: string | null
           region?: string | null
           render_monthly_override?: number | null
+          sal_auto_enabled?: boolean
+          sal_auto_frequency_days?: number
+          sal_auto_threshold_pct?: number
+          sal_ritenute_garanzia_pct?: number
           sdi_code?: string | null
+          secondary_verticals?: string[] | null
           sector?: Database["public"]["Enums"]["company_sector"]
           security_notifications?: Json | null
+          sr_default_anticipo_pct?: number | null
+          sr_default_consulente_id?: string | null
+          sr_default_iva_percentuale?: number | null
+          sr_default_valido_giorni?: number | null
+          sr_microsito_enabled?: boolean | null
+          sr_referral_amount_eur?: number | null
+          sr_varianti_enabled?: boolean | null
           status?: string
           storage_override_mb?: number | null
           stripe_customer_id?: string | null
@@ -7966,12 +12558,20 @@ export type Database = {
           updated_at?: string
           vat_number?: string | null
           vertical?: string | null
+          vertical_key?: string | null
           verticals_secondari?: string[]
           website?: string | null
+          weekly_reports_default_tone?: string
+          weekly_reports_enabled?: boolean
+          weekly_reports_send_friday_hour?: number
           white_label_enabled?: boolean
           white_label_enabled_at?: string | null
           white_label_enabled_by?: string | null
           white_label_monthly_price?: number | null
+          winback_dormancy_threshold_days?: number
+          winback_enabled?: boolean
+          winback_max_per_week?: number
+          winback_require_hitl?: boolean
         }
         Relationships: [
           {
@@ -7996,46 +12596,128 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "companies_sr_default_consulente_id_fkey"
+            columns: ["sr_default_consulente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "companies_subscription_plan_id_fkey"
             columns: ["subscription_plan_id"]
             isOneToOne: false
             referencedRelation: "subscription_plans"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "companies_vertical_fk"
+            columns: ["vertical_key"]
+            isOneToOne: false
+            referencedRelation: "business_verticals"
+            referencedColumns: ["vertical_key"]
+          },
         ]
       }
       company_activity_log: {
         Row: {
           action: string
+          actor_name: string | null
+          actor_role: string | null
+          actor_user_id: string | null
+          after_snapshot: Json | null
+          before_snapshot: Json | null
+          brain_doc_id: string | null
+          category: string | null
+          changes: Json | null
           company_id: string
           created_at: string
+          description: string | null
           details: Json | null
+          event_type: string | null
           id: string
+          importance: string | null
+          ip_address: unknown
+          metadata: Json | null
+          source_function: string | null
           target_id: string | null
+          target_label: string | null
+          target_table: string | null
           target_type: string | null
+          trace_id: string | null
+          user_agent: string | null
           user_id: string
         }
         Insert: {
           action: string
+          actor_name?: string | null
+          actor_role?: string | null
+          actor_user_id?: string | null
+          after_snapshot?: Json | null
+          before_snapshot?: Json | null
+          brain_doc_id?: string | null
+          category?: string | null
+          changes?: Json | null
           company_id: string
           created_at?: string
+          description?: string | null
           details?: Json | null
+          event_type?: string | null
           id?: string
+          importance?: string | null
+          ip_address?: unknown
+          metadata?: Json | null
+          source_function?: string | null
           target_id?: string | null
+          target_label?: string | null
+          target_table?: string | null
           target_type?: string | null
+          trace_id?: string | null
+          user_agent?: string | null
           user_id: string
         }
         Update: {
           action?: string
+          actor_name?: string | null
+          actor_role?: string | null
+          actor_user_id?: string | null
+          after_snapshot?: Json | null
+          before_snapshot?: Json | null
+          brain_doc_id?: string | null
+          category?: string | null
+          changes?: Json | null
           company_id?: string
           created_at?: string
+          description?: string | null
           details?: Json | null
+          event_type?: string | null
           id?: string
+          importance?: string | null
+          ip_address?: unknown
+          metadata?: Json | null
+          source_function?: string | null
           target_id?: string | null
+          target_label?: string | null
+          target_table?: string | null
           target_type?: string | null
+          trace_id?: string | null
+          user_agent?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "company_activity_log_brain_doc_id_fkey"
+            columns: ["brain_doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_brain_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_activity_log_brain_doc_id_fkey"
+            columns: ["brain_doc_id"]
+            isOneToOne: false
+            referencedRelation: "v_kb_quality_alerts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "company_activity_log_company_id_fkey"
             columns: ["company_id"]
@@ -8045,6 +12727,74 @@ export type Database = {
           },
           {
             foreignKeyName: "company_activity_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_activity_summary: {
+        Row: {
+          brain_doc_id: string | null
+          company_id: string
+          created_at: string
+          highlights: Json | null
+          id: string
+          period_end: string
+          period_start: string
+          scope: string
+          stats: Json | null
+          summary: string
+        }
+        Insert: {
+          brain_doc_id?: string | null
+          company_id: string
+          created_at?: string
+          highlights?: Json | null
+          id?: string
+          period_end: string
+          period_start: string
+          scope: string
+          stats?: Json | null
+          summary: string
+        }
+        Update: {
+          brain_doc_id?: string | null
+          company_id?: string
+          created_at?: string
+          highlights?: Json | null
+          id?: string
+          period_end?: string
+          period_start?: string
+          scope?: string
+          stats?: Json | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_activity_summary_brain_doc_id_fkey"
+            columns: ["brain_doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_brain_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_activity_summary_brain_doc_id_fkey"
+            columns: ["brain_doc_id"]
+            isOneToOne: false
+            referencedRelation: "v_kb_quality_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_activity_summary_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_activity_summary_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -8206,6 +12956,81 @@ export type Database = {
             foreignKeyName: "company_auto_topup_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_billing_details: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          company_id: string
+          country: string
+          created_at: string
+          invoice_email: string | null
+          legal_name: string | null
+          payment_method: string | null
+          pec: string | null
+          postal_code: string | null
+          province: string | null
+          sdi_code: string | null
+          tax_code: string | null
+          updated_at: string
+          updated_by: string | null
+          vat_number: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          company_id: string
+          country?: string
+          created_at?: string
+          invoice_email?: string | null
+          legal_name?: string | null
+          payment_method?: string | null
+          pec?: string | null
+          postal_code?: string | null
+          province?: string | null
+          sdi_code?: string | null
+          tax_code?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vat_number?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          city?: string | null
+          company_id?: string
+          country?: string
+          created_at?: string
+          invoice_email?: string | null
+          legal_name?: string | null
+          payment_method?: string | null
+          pec?: string | null
+          postal_code?: string | null
+          province?: string | null
+          sdi_code?: string | null
+          tax_code?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          vat_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_billing_details_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_billing_details_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
@@ -8562,6 +13387,66 @@ export type Database = {
           },
         ]
       }
+      company_data_network_consent: {
+        Row: {
+          audit_log: Json | null
+          company_id: string
+          consent_given_at: string | null
+          consent_given_by: string | null
+          consent_revoked_at: string | null
+          consent_revoked_by: string | null
+          consent_status: string
+          consent_version: string
+          created_at: string
+          exclude_specific_metrics: string[] | null
+          metrics_categories_opted: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          audit_log?: Json | null
+          company_id: string
+          consent_given_at?: string | null
+          consent_given_by?: string | null
+          consent_revoked_at?: string | null
+          consent_revoked_by?: string | null
+          consent_status?: string
+          consent_version?: string
+          created_at?: string
+          exclude_specific_metrics?: string[] | null
+          metrics_categories_opted?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          audit_log?: Json | null
+          company_id?: string
+          consent_given_at?: string | null
+          consent_given_by?: string | null
+          consent_revoked_at?: string | null
+          consent_revoked_by?: string | null
+          consent_status?: string
+          consent_version?: string
+          created_at?: string
+          exclude_specific_metrics?: string[] | null
+          metrics_categories_opted?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_data_network_consent_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_data_network_consent_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_email_domains: {
         Row: {
           company_id: string
@@ -8764,6 +13649,7 @@ export type Database = {
       }
       company_feature_overrides: {
         Row: {
+          access_level: Database["public"]["Enums"]["feature_access_level"]
           company_id: string
           created_at: string | null
           expires_at: string | null
@@ -8780,6 +13666,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          access_level?: Database["public"]["Enums"]["feature_access_level"]
           company_id: string
           created_at?: string | null
           expires_at?: string | null
@@ -8796,6 +13683,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          access_level?: Database["public"]["Enums"]["feature_access_level"]
           company_id?: string
           created_at?: string | null
           expires_at?: string | null
@@ -9160,6 +14048,78 @@ export type Database = {
           },
         ]
       }
+      company_photo_library: {
+        Row: {
+          categoria_slug: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          descrizione: string | null
+          id: string
+          image_url: string
+          is_active: boolean
+          nome: string
+          sort_order: number
+          storage_path: string | null
+          tags: string[]
+          thumbnail_url: string | null
+          tipologia: string | null
+          updated_at: string
+          vertical_slug: string | null
+        }
+        Insert: {
+          categoria_slug?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          image_url: string
+          is_active?: boolean
+          nome: string
+          sort_order?: number
+          storage_path?: string | null
+          tags?: string[]
+          thumbnail_url?: string | null
+          tipologia?: string | null
+          updated_at?: string
+          vertical_slug?: string | null
+        }
+        Update: {
+          categoria_slug?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          descrizione?: string | null
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          nome?: string
+          sort_order?: number
+          storage_path?: string | null
+          tags?: string[]
+          thumbnail_url?: string | null
+          tipologia?: string | null
+          updated_at?: string
+          vertical_slug?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_photo_library_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_photo_library_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_qr_codes: {
         Row: {
           access_level: string
@@ -9354,6 +14314,8 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           id: string
+          last_credit_grant_at: string | null
+          last_grant_period_start: string | null
           plan_id: string
           status: string
           stripe_subscription_id: string | null
@@ -9370,6 +14332,8 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          last_credit_grant_at?: string | null
+          last_grant_period_start?: string | null
           plan_id: string
           status?: string
           stripe_subscription_id?: string | null
@@ -9386,6 +14350,8 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           id?: string
+          last_credit_grant_at?: string | null
+          last_grant_period_start?: string | null
           plan_id?: string
           status?: string
           stripe_subscription_id?: string | null
@@ -9453,6 +14419,119 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_pricing_signals: {
+        Row: {
+          company_id: string
+          competitor_name: string
+          created_at: string | null
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          observed_at: string
+          product_category: string
+          signal_description: string | null
+          signal_type: string | null
+          signal_unit: string | null
+          signal_value: number | null
+          source: string | null
+          source_ref_id: string | null
+          zone: string | null
+        }
+        Insert: {
+          company_id: string
+          competitor_name: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          observed_at?: string
+          product_category: string
+          signal_description?: string | null
+          signal_type?: string | null
+          signal_unit?: string | null
+          signal_value?: number | null
+          source?: string | null
+          source_ref_id?: string | null
+          zone?: string | null
+        }
+        Update: {
+          company_id?: string
+          competitor_name?: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          observed_at?: string
+          product_category?: string
+          signal_description?: string | null
+          signal_type?: string | null
+          signal_unit?: string | null
+          signal_value?: number | null
+          source?: string | null
+          source_ref_id?: string | null
+          zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_pricing_signals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "competitor_pricing_signals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaint_interactions: {
+        Row: {
+          channel: string | null
+          company_id: string
+          complaint_id: string
+          content: string | null
+          created_at: string | null
+          id: string
+          interaction_type: string
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          channel?: string | null
+          company_id: string
+          complaint_id: string
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          interaction_type: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          channel?: string | null
+          company_id?: string
+          complaint_id?: string
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          interaction_type?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_interactions_complaint_id_fkey"
+            columns: ["complaint_id"]
+            isOneToOne: false
+            referencedRelation: "customer_complaints"
             referencedColumns: ["id"]
           },
         ]
@@ -9573,6 +14652,12 @@ export type Database = {
           importo_impresa: number | null
           is_included: boolean | null
           is_modified: boolean | null
+          match_confidence: number | null
+          match_type: string | null
+          matched_family_id: string | null
+          matched_name: string | null
+          matched_tariffa_id: string | null
+          matched_template_id: string | null
           ordine: number | null
           prezzo_unitario_computo: number | null
           prezzo_unitario_impresa: number | null
@@ -9599,6 +14684,12 @@ export type Database = {
           importo_impresa?: number | null
           is_included?: boolean | null
           is_modified?: boolean | null
+          match_confidence?: number | null
+          match_type?: string | null
+          matched_family_id?: string | null
+          matched_name?: string | null
+          matched_tariffa_id?: string | null
+          matched_template_id?: string | null
           ordine?: number | null
           prezzo_unitario_computo?: number | null
           prezzo_unitario_impresa?: number | null
@@ -9625,6 +14716,12 @@ export type Database = {
           importo_impresa?: number | null
           is_included?: boolean | null
           is_modified?: boolean | null
+          match_confidence?: number | null
+          match_type?: string | null
+          matched_family_id?: string | null
+          matched_name?: string | null
+          matched_tariffa_id?: string | null
+          matched_template_id?: string | null
           ordine?: number | null
           prezzo_unitario_computo?: number | null
           prezzo_unitario_impresa?: number | null
@@ -9861,6 +14958,160 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contratti_documents: {
+        Row: {
+          ai_generated_raw: Json | null
+          ai_model_used: string | null
+          appaltatore_indirizzo: string | null
+          appaltatore_nome: string | null
+          appaltatore_pi: string | null
+          approved_at: string | null
+          approved_by: string | null
+          committente_cf: string | null
+          committente_indirizzo: string | null
+          committente_nome: string | null
+          committente_pi: string | null
+          company_id: string
+          contenuto_html: string | null
+          contenuto_md: string | null
+          created_at: string
+          created_by: string | null
+          data_fine_prevista: string | null
+          data_inizio_lavori: string | null
+          durata_giorni: number | null
+          garanzia_anni: number | null
+          generated_by: string | null
+          id: string
+          importo_totale_eur: number | null
+          modalita_pagamento: string | null
+          numero_contratto: string | null
+          oggetto_lavori: string | null
+          order_id: string | null
+          pdf_storage_path: string | null
+          pdf_url: string | null
+          penale_ritardo_eur_giorno: number | null
+          status: string
+          ubicazione_cantiere: string | null
+          updated_at: string
+          versione: number
+        }
+        Insert: {
+          ai_generated_raw?: Json | null
+          ai_model_used?: string | null
+          appaltatore_indirizzo?: string | null
+          appaltatore_nome?: string | null
+          appaltatore_pi?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          committente_cf?: string | null
+          committente_indirizzo?: string | null
+          committente_nome?: string | null
+          committente_pi?: string | null
+          company_id: string
+          contenuto_html?: string | null
+          contenuto_md?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_fine_prevista?: string | null
+          data_inizio_lavori?: string | null
+          durata_giorni?: number | null
+          garanzia_anni?: number | null
+          generated_by?: string | null
+          id?: string
+          importo_totale_eur?: number | null
+          modalita_pagamento?: string | null
+          numero_contratto?: string | null
+          oggetto_lavori?: string | null
+          order_id?: string | null
+          pdf_storage_path?: string | null
+          pdf_url?: string | null
+          penale_ritardo_eur_giorno?: number | null
+          status?: string
+          ubicazione_cantiere?: string | null
+          updated_at?: string
+          versione?: number
+        }
+        Update: {
+          ai_generated_raw?: Json | null
+          ai_model_used?: string | null
+          appaltatore_indirizzo?: string | null
+          appaltatore_nome?: string | null
+          appaltatore_pi?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          committente_cf?: string | null
+          committente_indirizzo?: string | null
+          committente_nome?: string | null
+          committente_pi?: string | null
+          company_id?: string
+          contenuto_html?: string | null
+          contenuto_md?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_fine_prevista?: string | null
+          data_inizio_lavori?: string | null
+          durata_giorni?: number | null
+          garanzia_anni?: number | null
+          generated_by?: string | null
+          id?: string
+          importo_totale_eur?: number | null
+          modalita_pagamento?: string | null
+          numero_contratto?: string | null
+          oggetto_lavori?: string | null
+          order_id?: string | null
+          pdf_storage_path?: string | null
+          pdf_url?: string | null
+          penale_ritardo_eur_giorno?: number | null
+          status?: string
+          ubicazione_cantiere?: string | null
+          updated_at?: string
+          versione?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contratti_documents_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "contratti_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_documents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_documents_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contratti_documents_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -10282,6 +15533,198 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_complaints: {
+        Row: {
+          ai_category: string | null
+          ai_compensation_suggested: number | null
+          ai_cost_billed_eur: number | null
+          ai_emotional_tone: Json | null
+          ai_intent: string | null
+          ai_keywords: Json | null
+          ai_persona_used: string | null
+          ai_risk_assessment: Json | null
+          ai_root_cause_hypothesis: string | null
+          ai_sentiment: string | null
+          ai_sentiment_score: number | null
+          ai_subcategory: string | null
+          ai_suggested_actions: Json | null
+          ai_suggested_response: string | null
+          ai_summary: string | null
+          ai_urgency: string | null
+          assigned_to: string | null
+          attachments: Json | null
+          company_id: string
+          contact_id: string | null
+          created_at: string | null
+          customer_email: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          customer_satisfied: boolean | null
+          escalated: boolean | null
+          escalated_at: string | null
+          escalated_to: string | null
+          escalation_reason: string | null
+          id: string
+          language: string | null
+          raw_text: string
+          related_order_id: string | null
+          related_quote_id: string | null
+          resolution_action_taken: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          source: string
+          source_ref_id: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          ai_category?: string | null
+          ai_compensation_suggested?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_emotional_tone?: Json | null
+          ai_intent?: string | null
+          ai_keywords?: Json | null
+          ai_persona_used?: string | null
+          ai_risk_assessment?: Json | null
+          ai_root_cause_hypothesis?: string | null
+          ai_sentiment?: string | null
+          ai_sentiment_score?: number | null
+          ai_subcategory?: string | null
+          ai_suggested_actions?: Json | null
+          ai_suggested_response?: string | null
+          ai_summary?: string | null
+          ai_urgency?: string | null
+          assigned_to?: string | null
+          attachments?: Json | null
+          company_id: string
+          contact_id?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          customer_satisfied?: boolean | null
+          escalated?: boolean | null
+          escalated_at?: string | null
+          escalated_to?: string | null
+          escalation_reason?: string | null
+          id?: string
+          language?: string | null
+          raw_text: string
+          related_order_id?: string | null
+          related_quote_id?: string | null
+          resolution_action_taken?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source: string
+          source_ref_id?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          ai_category?: string | null
+          ai_compensation_suggested?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_emotional_tone?: Json | null
+          ai_intent?: string | null
+          ai_keywords?: Json | null
+          ai_persona_used?: string | null
+          ai_risk_assessment?: Json | null
+          ai_root_cause_hypothesis?: string | null
+          ai_sentiment?: string | null
+          ai_sentiment_score?: number | null
+          ai_subcategory?: string | null
+          ai_suggested_actions?: Json | null
+          ai_suggested_response?: string | null
+          ai_summary?: string | null
+          ai_urgency?: string | null
+          assigned_to?: string | null
+          attachments?: Json | null
+          company_id?: string
+          contact_id?: string | null
+          created_at?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          customer_satisfied?: boolean | null
+          escalated?: boolean | null
+          escalated_at?: string | null
+          escalated_to?: string | null
+          escalation_reason?: string | null
+          id?: string
+          language?: string | null
+          raw_text?: string
+          related_order_id?: string | null
+          related_quote_id?: string | null
+          resolution_action_taken?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source?: string
+          source_ref_id?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_complaints_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_complaints_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_complaints_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "customer_complaints_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_complaints_related_order_id_fkey"
+            columns: ["related_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_complaints_related_order_id_fkey"
+            columns: ["related_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_complaints_related_quote_id_fkey"
+            columns: ["related_quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_complaints_related_quote_id_fkey"
+            columns: ["related_quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+        ]
+      }
       customer_documents: {
         Row: {
           company_id: string
@@ -10346,6 +15789,87 @@ export type Database = {
           },
         ]
       }
+      customer_ltv_snapshots: {
+        Row: {
+          ai_model_used: string | null
+          ai_reasoning: string | null
+          azione_consigliata: string | null
+          churn_risk: string | null
+          client_display_name: string | null
+          client_key: string
+          company_id: string
+          computed_at: string
+          fatturato_storico_eur: number | null
+          frequenza_ordini_mesi: number | null
+          giorni_dall_ultimo_ordine: number | null
+          id: string
+          ltv_predetto_12m_eur: number | null
+          ltv_predetto_24m_eur: number | null
+          ordini_totali: number | null
+          payment_delay_avg_gg: number | null
+          primo_ordine_data: string | null
+          ticket_medio_eur: number | null
+          ultimo_ordine_data: string | null
+        }
+        Insert: {
+          ai_model_used?: string | null
+          ai_reasoning?: string | null
+          azione_consigliata?: string | null
+          churn_risk?: string | null
+          client_display_name?: string | null
+          client_key: string
+          company_id: string
+          computed_at?: string
+          fatturato_storico_eur?: number | null
+          frequenza_ordini_mesi?: number | null
+          giorni_dall_ultimo_ordine?: number | null
+          id?: string
+          ltv_predetto_12m_eur?: number | null
+          ltv_predetto_24m_eur?: number | null
+          ordini_totali?: number | null
+          payment_delay_avg_gg?: number | null
+          primo_ordine_data?: string | null
+          ticket_medio_eur?: number | null
+          ultimo_ordine_data?: string | null
+        }
+        Update: {
+          ai_model_used?: string | null
+          ai_reasoning?: string | null
+          azione_consigliata?: string | null
+          churn_risk?: string | null
+          client_display_name?: string | null
+          client_key?: string
+          company_id?: string
+          computed_at?: string
+          fatturato_storico_eur?: number | null
+          frequenza_ordini_mesi?: number | null
+          giorni_dall_ultimo_ordine?: number | null
+          id?: string
+          ltv_predetto_12m_eur?: number | null
+          ltv_predetto_24m_eur?: number | null
+          ordini_totali?: number | null
+          payment_delay_avg_gg?: number | null
+          primo_ordine_data?: string | null
+          ticket_medio_eur?: number | null
+          ultimo_ordine_data?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_ltv_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_ltv_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_messages: {
         Row: {
           body: string
@@ -10402,6 +15926,132 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_weekly_reports: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          ai_narrative: string | null
+          ai_persona_used: string | null
+          cantiere_id: string
+          company_id: string
+          created_at: string
+          customer_feedback: string | null
+          customer_id: string | null
+          customer_responded: boolean | null
+          email_message_id: string | null
+          email_opened_at: string | null
+          email_sent_at: string | null
+          error_message: string | null
+          id: string
+          metrics_snapshot: Json | null
+          pdf_pages: number | null
+          pdf_size_bytes: number | null
+          pdf_storage_path: string | null
+          status: string
+          trigger_source: string
+          triggered_by_persona: string | null
+          triggered_by_user_id: string | null
+          updated_at: string
+          week_end: string
+          week_start: string
+          whatsapp_message_id: string | null
+          whatsapp_sent_at: string | null
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_narrative?: string | null
+          ai_persona_used?: string | null
+          cantiere_id: string
+          company_id: string
+          created_at?: string
+          customer_feedback?: string | null
+          customer_id?: string | null
+          customer_responded?: boolean | null
+          email_message_id?: string | null
+          email_opened_at?: string | null
+          email_sent_at?: string | null
+          error_message?: string | null
+          id?: string
+          metrics_snapshot?: Json | null
+          pdf_pages?: number | null
+          pdf_size_bytes?: number | null
+          pdf_storage_path?: string | null
+          status?: string
+          trigger_source: string
+          triggered_by_persona?: string | null
+          triggered_by_user_id?: string | null
+          updated_at?: string
+          week_end: string
+          week_start: string
+          whatsapp_message_id?: string | null
+          whatsapp_sent_at?: string | null
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          ai_narrative?: string | null
+          ai_persona_used?: string | null
+          cantiere_id?: string
+          company_id?: string
+          created_at?: string
+          customer_feedback?: string | null
+          customer_id?: string | null
+          customer_responded?: boolean | null
+          email_message_id?: string | null
+          email_opened_at?: string | null
+          email_sent_at?: string | null
+          error_message?: string | null
+          id?: string
+          metrics_snapshot?: Json | null
+          pdf_pages?: number | null
+          pdf_size_bytes?: number | null
+          pdf_storage_path?: string | null
+          status?: string
+          trigger_source?: string
+          triggered_by_persona?: string | null
+          triggered_by_user_id?: string | null
+          updated_at?: string
+          week_end?: string
+          week_start?: string
+          whatsapp_message_id?: string | null
+          whatsapp_sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_weekly_reports_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_weekly_reports_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_weekly_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_weekly_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_weekly_reports_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -10615,6 +16265,48 @@ export type Database = {
           },
         ]
       }
+      data_network_etl_audit: {
+        Row: {
+          benchmarks_published: number | null
+          benchmarks_suppressed: number | null
+          companies_processed: number | null
+          computed_at: string | null
+          details: Json | null
+          duration_ms: number | null
+          id: string
+          metrics_processed: number | null
+          run_id: string
+          status: string
+          step: string
+        }
+        Insert: {
+          benchmarks_published?: number | null
+          benchmarks_suppressed?: number | null
+          companies_processed?: number | null
+          computed_at?: string | null
+          details?: Json | null
+          duration_ms?: number | null
+          id?: string
+          metrics_processed?: number | null
+          run_id: string
+          status: string
+          step: string
+        }
+        Update: {
+          benchmarks_published?: number | null
+          benchmarks_suppressed?: number | null
+          companies_processed?: number | null
+          computed_at?: string | null
+          details?: Json | null
+          duration_ms?: number | null
+          id?: string
+          metrics_processed?: number | null
+          run_id?: string
+          status?: string
+          step?: string
+        }
+        Relationships: []
+      }
       ddt_ricezione: {
         Row: {
           attachments: Json
@@ -10737,6 +16429,72 @@ export type Database = {
           },
         ]
       }
+      demand_index_snapshots: {
+        Row: {
+          capacity_utilization_pct: number | null
+          company_id: string
+          created_at: string | null
+          demand_index: number | null
+          id: string
+          notes: string | null
+          pipeline_value_eur: number | null
+          pipeline_value_prev_year_eur: number | null
+          quotes_count_30d: number | null
+          quotes_count_30d_prev_year: number | null
+          quotes_count_avg_3y_30d: number | null
+          season_factor: number | null
+          season_label: string | null
+          snapshot_date: string
+        }
+        Insert: {
+          capacity_utilization_pct?: number | null
+          company_id: string
+          created_at?: string | null
+          demand_index?: number | null
+          id?: string
+          notes?: string | null
+          pipeline_value_eur?: number | null
+          pipeline_value_prev_year_eur?: number | null
+          quotes_count_30d?: number | null
+          quotes_count_30d_prev_year?: number | null
+          quotes_count_avg_3y_30d?: number | null
+          season_factor?: number | null
+          season_label?: string | null
+          snapshot_date?: string
+        }
+        Update: {
+          capacity_utilization_pct?: number | null
+          company_id?: string
+          created_at?: string | null
+          demand_index?: number | null
+          id?: string
+          notes?: string | null
+          pipeline_value_eur?: number | null
+          pipeline_value_prev_year_eur?: number | null
+          quotes_count_30d?: number | null
+          quotes_count_30d_prev_year?: number | null
+          quotes_count_avg_3y_30d?: number | null
+          season_factor?: number | null
+          season_label?: string | null
+          snapshot_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demand_index_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "demand_index_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discount_rules: {
         Row: {
           approva_oltre_pct: number | null
@@ -10812,6 +16570,297 @@ export type Database = {
             columns: ["salesperson_id"]
             isOneToOne: false
             referencedRelation: "salespeople"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      distance_matrix_cache: {
+        Row: {
+          computed_at: string | null
+          destination_location_id: string
+          distance_meters: number | null
+          duration_seconds: number | null
+          duration_traffic_seconds: number | null
+          expires_at: string | null
+          id: string
+          origin_location_id: string
+          source: string | null
+        }
+        Insert: {
+          computed_at?: string | null
+          destination_location_id: string
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          duration_traffic_seconds?: number | null
+          expires_at?: string | null
+          id?: string
+          origin_location_id: string
+          source?: string | null
+        }
+        Update: {
+          computed_at?: string | null
+          destination_location_id?: string
+          distance_meters?: number | null
+          duration_seconds?: number | null
+          duration_traffic_seconds?: number | null
+          expires_at?: string | null
+          id?: string
+          origin_location_id?: string
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distance_matrix_cache_destination_location_id_fkey"
+            columns: ["destination_location_id"]
+            isOneToOne: false
+            referencedRelation: "geocoded_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "distance_matrix_cache_origin_location_id_fkey"
+            columns: ["origin_location_id"]
+            isOneToOne: false
+            referencedRelation: "geocoded_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_analysis_results: {
+        Row: {
+          brain_doc_id: string | null
+          classification_confidence: number | null
+          company_id: string
+          cost_eur: number | null
+          created_at: string
+          doc_subtype: string | null
+          doc_type: string
+          error_message: string | null
+          file_name: string | null
+          file_size_bytes: number | null
+          id: string
+          mime_type: string | null
+          pages_count: number | null
+          parser_used: string
+          processing_time_ms: number | null
+          raw_text: string | null
+          related_entities: Json | null
+          sha256_hash: string | null
+          status: string
+          storage_bucket: string
+          storage_path: string
+          structured_fields: Json | null
+          updated_at: string
+          uploaded_by: string | null
+          validation_warnings: Json | null
+        }
+        Insert: {
+          brain_doc_id?: string | null
+          classification_confidence?: number | null
+          company_id: string
+          cost_eur?: number | null
+          created_at?: string
+          doc_subtype?: string | null
+          doc_type: string
+          error_message?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          pages_count?: number | null
+          parser_used: string
+          processing_time_ms?: number | null
+          raw_text?: string | null
+          related_entities?: Json | null
+          sha256_hash?: string | null
+          status?: string
+          storage_bucket: string
+          storage_path: string
+          structured_fields?: Json | null
+          updated_at?: string
+          uploaded_by?: string | null
+          validation_warnings?: Json | null
+        }
+        Update: {
+          brain_doc_id?: string | null
+          classification_confidence?: number | null
+          company_id?: string
+          cost_eur?: number | null
+          created_at?: string
+          doc_subtype?: string | null
+          doc_type?: string
+          error_message?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          mime_type?: string | null
+          pages_count?: number | null
+          parser_used?: string
+          processing_time_ms?: number | null
+          raw_text?: string | null
+          related_entities?: Json | null
+          sha256_hash?: string | null
+          status?: string
+          storage_bucket?: string
+          storage_path?: string
+          structured_fields?: Json | null
+          updated_at?: string
+          uploaded_by?: string | null
+          validation_warnings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_analysis_results_brain_doc_id_fkey"
+            columns: ["brain_doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_brain_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_analysis_results_brain_doc_id_fkey"
+            columns: ["brain_doc_id"]
+            isOneToOne: false
+            referencedRelation: "v_kb_quality_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_analysis_results_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "document_analysis_results_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_link_policy: {
+        Row: {
+          always_confirm: boolean
+          auto_execute_threshold: number | null
+          doc_type: string
+          notes: string | null
+          show_alternatives: boolean
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          always_confirm?: boolean
+          auto_execute_threshold?: number | null
+          doc_type: string
+          notes?: string | null
+          show_alternatives?: boolean
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          always_confirm?: boolean
+          auto_execute_threshold?: number | null
+          doc_type?: string
+          notes?: string | null
+          show_alternatives?: boolean
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      document_link_suggestions: {
+        Row: {
+          auto_executed: boolean | null
+          candidate_entity_id: string
+          candidate_entity_table: string
+          candidate_label: string
+          candidate_summary: Json | null
+          combined_score: number
+          company_id: string
+          created_at: string
+          decided_at: string | null
+          doc_type: string
+          file_name: string
+          id: string
+          layer1_deterministic_match: boolean | null
+          layer2_fuzzy_score: number | null
+          layer3_ai_score: number | null
+          rank: number
+          reasoning: string | null
+          rejected: boolean | null
+          resulting_attachment_id: string | null
+          storage_bucket: string
+          storage_path: string
+          user_chosen: boolean | null
+        }
+        Insert: {
+          auto_executed?: boolean | null
+          candidate_entity_id: string
+          candidate_entity_table: string
+          candidate_label: string
+          candidate_summary?: Json | null
+          combined_score: number
+          company_id: string
+          created_at?: string
+          decided_at?: string | null
+          doc_type: string
+          file_name: string
+          id?: string
+          layer1_deterministic_match?: boolean | null
+          layer2_fuzzy_score?: number | null
+          layer3_ai_score?: number | null
+          rank: number
+          reasoning?: string | null
+          rejected?: boolean | null
+          resulting_attachment_id?: string | null
+          storage_bucket: string
+          storage_path: string
+          user_chosen?: boolean | null
+        }
+        Update: {
+          auto_executed?: boolean | null
+          candidate_entity_id?: string
+          candidate_entity_table?: string
+          candidate_label?: string
+          candidate_summary?: Json | null
+          combined_score?: number
+          company_id?: string
+          created_at?: string
+          decided_at?: string | null
+          doc_type?: string
+          file_name?: string
+          id?: string
+          layer1_deterministic_match?: boolean | null
+          layer2_fuzzy_score?: number | null
+          layer3_ai_score?: number | null
+          rank?: number
+          reasoning?: string | null
+          rejected?: boolean | null
+          resulting_attachment_id?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          user_chosen?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_link_suggestions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "document_link_suggestions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_link_suggestions_resulting_attachment_id_fkey"
+            columns: ["resulting_attachment_id"]
+            isOneToOne: false
+            referencedRelation: "entity_attachments"
             referencedColumns: ["id"]
           },
         ]
@@ -11634,6 +17683,115 @@ export type Database = {
           },
         ]
       }
+      dunning_actions: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          ai_message: string | null
+          ai_persona_used: string
+          ai_tone: string | null
+          channel: string
+          company_id: string
+          created_at: string
+          customer_id: string | null
+          customer_response: string | null
+          executed_at: string | null
+          external_message_id: string | null
+          id: string
+          invoice_id: string
+          next_action_id: string | null
+          outcome: string | null
+          paid_at: string | null
+          parent_action_id: string | null
+          scheduled_at: string
+          step_n: number
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_message?: string | null
+          ai_persona_used?: string
+          ai_tone?: string | null
+          channel: string
+          company_id: string
+          created_at?: string
+          customer_id?: string | null
+          customer_response?: string | null
+          executed_at?: string | null
+          external_message_id?: string | null
+          id?: string
+          invoice_id: string
+          next_action_id?: string | null
+          outcome?: string | null
+          paid_at?: string | null
+          parent_action_id?: string | null
+          scheduled_at: string
+          step_n: number
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          ai_message?: string | null
+          ai_persona_used?: string
+          ai_tone?: string | null
+          channel?: string
+          company_id?: string
+          created_at?: string
+          customer_id?: string | null
+          customer_response?: string | null
+          executed_at?: string | null
+          external_message_id?: string | null
+          id?: string
+          invoice_id?: string
+          next_action_id?: string | null
+          outcome?: string | null
+          paid_at?: string | null
+          parent_action_id?: string | null
+          scheduled_at?: string
+          step_n?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dunning_actions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "dunning_actions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_actions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_actions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_actions_next_action_id_fkey"
+            columns: ["next_action_id"]
+            isOneToOne: false
+            referencedRelation: "dunning_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_actions_parent_action_id_fkey"
+            columns: ["parent_action_id"]
+            isOneToOne: false
+            referencedRelation: "dunning_actions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dunning_attempts: {
         Row: {
           company_id: string
@@ -11732,6 +17890,187 @@ export type Database = {
           variables?: Json | null
         }
         Relationships: []
+      }
+      dunning_policies: {
+        Row: {
+          company_id: string
+          created_at: string
+          default_aggressiveness: string
+          enable_auto_voice_call: boolean
+          enable_legal_letter: boolean
+          enabled: boolean
+          id: string
+          preferred_channels: Json
+          step_days: number[]
+          threshold_high_value_eur: number
+          threshold_pa_eur: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          default_aggressiveness?: string
+          enable_auto_voice_call?: boolean
+          enable_legal_letter?: boolean
+          enabled?: boolean
+          id?: string
+          preferred_channels?: Json
+          step_days?: number[]
+          threshold_high_value_eur?: number
+          threshold_pa_eur?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          default_aggressiveness?: string
+          enable_auto_voice_call?: boolean
+          enable_legal_letter?: boolean
+          enabled?: boolean
+          id?: string
+          preferred_channels?: Json
+          step_days?: number[]
+          threshold_high_value_eur?: number
+          threshold_pa_eur?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dunning_policies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "dunning_policies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      durc_documents: {
+        Row: {
+          ai_confidence: number | null
+          ai_parsed: boolean
+          alert_15d_sent_at: string | null
+          alert_30d_sent_at: string | null
+          alert_7d_sent_at: string | null
+          alert_expired_sent_at: string | null
+          alert_irregolare_sent_at: string | null
+          company_id: string
+          created_at: string
+          data_emissione: string | null
+          data_richiesta: string | null
+          data_scadenza: string | null
+          enti_irregolari: string[] | null
+          esito: string
+          id: string
+          irregularity_amount: number | null
+          irregularity_details: string | null
+          numero_protocollo: string | null
+          pdf_size_bytes: number | null
+          pdf_storage_path: string | null
+          requested_by_user_id: string | null
+          source: string
+          status: string
+          superseded_by: string | null
+          target_codice_fiscale: string | null
+          target_denominazione: string | null
+          target_id: string | null
+          target_partita_iva: string | null
+          target_type: string
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_parsed?: boolean
+          alert_15d_sent_at?: string | null
+          alert_30d_sent_at?: string | null
+          alert_7d_sent_at?: string | null
+          alert_expired_sent_at?: string | null
+          alert_irregolare_sent_at?: string | null
+          company_id: string
+          created_at?: string
+          data_emissione?: string | null
+          data_richiesta?: string | null
+          data_scadenza?: string | null
+          enti_irregolari?: string[] | null
+          esito: string
+          id?: string
+          irregularity_amount?: number | null
+          irregularity_details?: string | null
+          numero_protocollo?: string | null
+          pdf_size_bytes?: number | null
+          pdf_storage_path?: string | null
+          requested_by_user_id?: string | null
+          source: string
+          status?: string
+          superseded_by?: string | null
+          target_codice_fiscale?: string | null
+          target_denominazione?: string | null
+          target_id?: string | null
+          target_partita_iva?: string | null
+          target_type: string
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_parsed?: boolean
+          alert_15d_sent_at?: string | null
+          alert_30d_sent_at?: string | null
+          alert_7d_sent_at?: string | null
+          alert_expired_sent_at?: string | null
+          alert_irregolare_sent_at?: string | null
+          company_id?: string
+          created_at?: string
+          data_emissione?: string | null
+          data_richiesta?: string | null
+          data_scadenza?: string | null
+          enti_irregolari?: string[] | null
+          esito?: string
+          id?: string
+          irregularity_amount?: number | null
+          irregularity_details?: string | null
+          numero_protocollo?: string | null
+          pdf_size_bytes?: number | null
+          pdf_storage_path?: string | null
+          requested_by_user_id?: string | null
+          source?: string
+          status?: string
+          superseded_by?: string | null
+          target_codice_fiscale?: string | null
+          target_denominazione?: string | null
+          target_id?: string | null
+          target_partita_iva?: string | null
+          target_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "durc_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "durc_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "durc_documents_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "durc_documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       duvri_documents: {
         Row: {
@@ -12081,6 +18420,81 @@ export type Database = {
             columns: ["tabella_id"]
             isOneToOne: false
             referencedRelation: "eic_tabelle_finanziamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_attachments: {
+        Row: {
+          company_id: string
+          created_at: string
+          filename: string
+          id: string
+          inbox_id: string | null
+          mime_type: string | null
+          outbox_id: string | null
+          size_bytes: number
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          filename: string
+          id?: string
+          inbox_id?: string | null
+          mime_type?: string | null
+          outbox_id?: string | null
+          size_bytes?: number
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          filename?: string
+          id?: string
+          inbox_id?: string | null
+          mime_type?: string | null
+          outbox_id?: string | null
+          size_bytes?: number
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_attachments_inbox_id_fkey"
+            columns: ["inbox_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_attachments_inbox_id_fkey"
+            columns: ["inbox_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_attachments_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "email_outbox"
             referencedColumns: ["id"]
           },
         ]
@@ -12521,28 +18935,37 @@ export type Database = {
       }
       email_folders: {
         Row: {
+          color: string | null
           company_id: string
           created_at: string
           folder_type: string
+          icon: string | null
           id: string
           name: string
           parent_id: string | null
+          user_id: string | null
         }
         Insert: {
+          color?: string | null
           company_id: string
           created_at?: string
           folder_type?: string
+          icon?: string | null
           id?: string
           name: string
           parent_id?: string | null
+          user_id?: string | null
         }
         Update: {
+          color?: string | null
           company_id?: string
           created_at?: string
           folder_type?: string
+          icon?: string | null
           id?: string
           name?: string
           parent_id?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -12564,6 +18987,286 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_inbox: {
+        Row: {
+          ai_action_proposal_id: string | null
+          ai_category: string | null
+          ai_error: string | null
+          ai_extracted: Json | null
+          ai_priority: string | null
+          ai_processed_at: string | null
+          ai_suggested_action: string | null
+          ai_summary: string | null
+          attachments: Json | null
+          company_id: string
+          created_at: string
+          folder_id: string | null
+          from_email: string
+          from_name: string | null
+          id: string
+          in_reply_to: string | null
+          is_archived: boolean
+          is_read: boolean
+          is_starred: boolean
+          is_trashed: boolean
+          matched_contact_id: string | null
+          matched_order_id: string | null
+          message_id: string | null
+          oauth_connection_id: string | null
+          raw_html: string | null
+          raw_text: string | null
+          received_at: string
+          references_ids: string[] | null
+          status: string
+          subject: string | null
+          thread_id: string | null
+          to_email: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          ai_action_proposal_id?: string | null
+          ai_category?: string | null
+          ai_error?: string | null
+          ai_extracted?: Json | null
+          ai_priority?: string | null
+          ai_processed_at?: string | null
+          ai_suggested_action?: string | null
+          ai_summary?: string | null
+          attachments?: Json | null
+          company_id: string
+          created_at?: string
+          folder_id?: string | null
+          from_email: string
+          from_name?: string | null
+          id?: string
+          in_reply_to?: string | null
+          is_archived?: boolean
+          is_read?: boolean
+          is_starred?: boolean
+          is_trashed?: boolean
+          matched_contact_id?: string | null
+          matched_order_id?: string | null
+          message_id?: string | null
+          oauth_connection_id?: string | null
+          raw_html?: string | null
+          raw_text?: string | null
+          received_at?: string
+          references_ids?: string[] | null
+          status?: string
+          subject?: string | null
+          thread_id?: string | null
+          to_email: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          ai_action_proposal_id?: string | null
+          ai_category?: string | null
+          ai_error?: string | null
+          ai_extracted?: Json | null
+          ai_priority?: string | null
+          ai_processed_at?: string | null
+          ai_suggested_action?: string | null
+          ai_summary?: string | null
+          attachments?: Json | null
+          company_id?: string
+          created_at?: string
+          folder_id?: string | null
+          from_email?: string
+          from_name?: string | null
+          id?: string
+          in_reply_to?: string | null
+          is_archived?: boolean
+          is_read?: boolean
+          is_starred?: boolean
+          is_trashed?: boolean
+          matched_contact_id?: string | null
+          matched_order_id?: string | null
+          message_id?: string | null
+          oauth_connection_id?: string | null
+          raw_html?: string | null
+          raw_text?: string | null
+          received_at?: string
+          references_ids?: string[] | null
+          status?: string
+          subject?: string | null
+          thread_id?: string | null
+          to_email?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_inbox_ai_action_proposal_id_fkey"
+            columns: ["ai_action_proposal_id"]
+            isOneToOne: false
+            referencedRelation: "ai_action_proposals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_matched_contact_id_fkey"
+            columns: ["matched_contact_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_matched_order_id_fkey"
+            columns: ["matched_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_matched_order_id_fkey"
+            columns: ["matched_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "email_oauth_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_oauth_connections_meta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_folder"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_thread"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "email_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_thread"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_inbox_labels: {
+        Row: {
+          applied_at: string
+          inbox_id: string
+          label_id: string
+        }
+        Insert: {
+          applied_at?: string
+          inbox_id: string
+          label_id: string
+        }
+        Update: {
+          applied_at?: string
+          inbox_id?: string
+          label_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_inbox_labels_inbox_id_fkey"
+            columns: ["inbox_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_labels_inbox_id_fkey"
+            columns: ["inbox_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_labels_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "email_labels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_labels: {
+        Row: {
+          color: string
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_system: boolean
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          color?: string
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_labels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_labels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -12692,6 +19395,126 @@ export type Database = {
           },
         ]
       }
+      email_oauth_connections: {
+        Row: {
+          access_token_enc: string | null
+          company_id: string
+          consecutive_errors: number
+          created_at: string
+          email_address: string
+          emails_fetched_total: number
+          expires_at: string | null
+          id: string
+          imap_host: string | null
+          imap_port: number | null
+          imap_secure: boolean | null
+          imap_username: string | null
+          last_sync_error: string | null
+          last_synced_at: string | null
+          last_test_at: string | null
+          last_test_error: string | null
+          last_test_ok: boolean | null
+          password_enc: string | null
+          poll_enabled: boolean
+          poll_interval_minutes: number
+          provider: string
+          provider_label: string | null
+          provider_metadata: Json | null
+          refresh_token_enc: string | null
+          scopes: string[] | null
+          smtp_host: string | null
+          smtp_port: number | null
+          smtp_secure: boolean | null
+          status: string
+          sync_from_date: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          access_token_enc?: string | null
+          company_id: string
+          consecutive_errors?: number
+          created_at?: string
+          email_address: string
+          emails_fetched_total?: number
+          expires_at?: string | null
+          id?: string
+          imap_host?: string | null
+          imap_port?: number | null
+          imap_secure?: boolean | null
+          imap_username?: string | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          last_test_at?: string | null
+          last_test_error?: string | null
+          last_test_ok?: boolean | null
+          password_enc?: string | null
+          poll_enabled?: boolean
+          poll_interval_minutes?: number
+          provider: string
+          provider_label?: string | null
+          provider_metadata?: Json | null
+          refresh_token_enc?: string | null
+          scopes?: string[] | null
+          smtp_host?: string | null
+          smtp_port?: number | null
+          smtp_secure?: boolean | null
+          status?: string
+          sync_from_date?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          access_token_enc?: string | null
+          company_id?: string
+          consecutive_errors?: number
+          created_at?: string
+          email_address?: string
+          emails_fetched_total?: number
+          expires_at?: string | null
+          id?: string
+          imap_host?: string | null
+          imap_port?: number | null
+          imap_secure?: boolean | null
+          imap_username?: string | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          last_test_at?: string | null
+          last_test_error?: string | null
+          last_test_ok?: boolean | null
+          password_enc?: string | null
+          poll_enabled?: boolean
+          poll_interval_minutes?: number
+          provider?: string
+          provider_label?: string | null
+          provider_metadata?: Json | null
+          refresh_token_enc?: string | null
+          scopes?: string[] | null
+          smtp_host?: string | null
+          smtp_port?: number | null
+          smtp_secure?: boolean | null
+          status?: string
+          sync_from_date?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_oauth_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_oauth_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_optin_tokens: {
         Row: {
           company_id: string
@@ -12750,6 +19573,180 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_otp_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          ip_address: unknown
+          user_agent: string | null
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      email_outbox: {
+        Row: {
+          attachments: Json | null
+          attempts: number
+          bcc_emails: string[] | null
+          body_html: string | null
+          body_text: string | null
+          cc_emails: string[] | null
+          company_id: string
+          created_at: string
+          id: string
+          in_reply_to_id: string | null
+          last_error: string | null
+          max_attempts: number
+          oauth_connection_id: string | null
+          provider_message_id: string | null
+          provider_response: Json | null
+          reply_to: string | null
+          scheduled_for: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          thread_id: string | null
+          to_emails: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attachments?: Json | null
+          attempts?: number
+          bcc_emails?: string[] | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[] | null
+          company_id: string
+          created_at?: string
+          id?: string
+          in_reply_to_id?: string | null
+          last_error?: string | null
+          max_attempts?: number
+          oauth_connection_id?: string | null
+          provider_message_id?: string | null
+          provider_response?: Json | null
+          reply_to?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          thread_id?: string | null
+          to_emails: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attachments?: Json | null
+          attempts?: number
+          bcc_emails?: string[] | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[] | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          in_reply_to_id?: string | null
+          last_error?: string | null
+          max_attempts?: number
+          oauth_connection_id?: string | null
+          provider_message_id?: string | null
+          provider_response?: Json | null
+          reply_to?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          thread_id?: string | null
+          to_emails?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_outbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_outbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_in_reply_to_id_fkey"
+            columns: ["in_reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_in_reply_to_id_fkey"
+            columns: ["in_reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "email_oauth_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_oauth_connections_meta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "email_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_threads"
             referencedColumns: ["id"]
           },
         ]
@@ -12914,6 +19911,72 @@ export type Database = {
           },
         ]
       }
+      email_threads: {
+        Row: {
+          company_id: string
+          created_at: string
+          first_received_at: string
+          has_attachments: boolean
+          has_starred: boolean
+          id: string
+          last_received_at: string
+          message_count: number
+          participants: string[]
+          preview: string | null
+          subject_normalized: string
+          unread_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          first_received_at?: string
+          has_attachments?: boolean
+          has_starred?: boolean
+          id?: string
+          last_received_at?: string
+          message_count?: number
+          participants?: string[]
+          preview?: string | null
+          subject_normalized: string
+          unread_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          first_received_at?: string
+          has_attachments?: boolean
+          has_starred?: boolean
+          id?: string
+          last_received_at?: string
+          message_count?: number
+          participants?: string[]
+          preview?: string | null
+          subject_normalized?: string
+          unread_count?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_threads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_threads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_attachments: {
         Row: {
           created_at: string
@@ -12959,6 +20022,312 @@ export type Database = {
             foreignKeyName: "employee_attachments_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_attachments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_dpi_consegne: {
+        Row: {
+          company_id: string
+          consegna_date: string
+          created_at: string | null
+          dpi_brand: string | null
+          dpi_serial: string | null
+          dpi_size: string | null
+          dpi_type: string
+          employee_id: string
+          expiry_date: string | null
+          id: string
+          modulo_consegna_path: string | null
+          return_date: string | null
+          status: string | null
+        }
+        Insert: {
+          company_id: string
+          consegna_date: string
+          created_at?: string | null
+          dpi_brand?: string | null
+          dpi_serial?: string | null
+          dpi_size?: string | null
+          dpi_type: string
+          employee_id: string
+          expiry_date?: string | null
+          id?: string
+          modulo_consegna_path?: string | null
+          return_date?: string | null
+          status?: string | null
+        }
+        Update: {
+          company_id?: string
+          consegna_date?: string
+          created_at?: string | null
+          dpi_brand?: string | null
+          dpi_serial?: string | null
+          dpi_size?: string | null
+          dpi_type?: string
+          employee_id?: string
+          expiry_date?: string | null
+          id?: string
+          modulo_consegna_path?: string | null
+          return_date?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_dpi_consegne_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "employee_dpi_consegne_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_dpi_consegne_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_dpi_consegne_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_formations: {
+        Row: {
+          attestato_numero: string | null
+          attestato_path: string | null
+          company_id: string
+          created_at: string | null
+          data_completamento: string
+          data_scadenza: string | null
+          employee_id: string
+          ente_erogante: string | null
+          formation_type: string
+          id: string
+          ore_durata: number | null
+          status: string | null
+        }
+        Insert: {
+          attestato_numero?: string | null
+          attestato_path?: string | null
+          company_id: string
+          created_at?: string | null
+          data_completamento: string
+          data_scadenza?: string | null
+          employee_id: string
+          ente_erogante?: string | null
+          formation_type: string
+          id?: string
+          ore_durata?: number | null
+          status?: string | null
+        }
+        Update: {
+          attestato_numero?: string | null
+          attestato_path?: string | null
+          company_id?: string
+          created_at?: string | null
+          data_completamento?: string
+          data_scadenza?: string | null
+          employee_id?: string
+          ente_erogante?: string | null
+          formation_type?: string
+          id?: string
+          ore_durata?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_formations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "employee_formations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_formations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_formations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_skills: {
+        Row: {
+          certificate_expiry: string | null
+          certificate_path: string | null
+          certified: boolean | null
+          company_id: string
+          created_at: string | null
+          employee_id: string
+          id: string
+          last_used_at: string | null
+          productivity_score: number | null
+          proficiency_level: number
+          skill_key: string
+          total_hours_in_skill: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          certificate_expiry?: string | null
+          certificate_path?: string | null
+          certified?: boolean | null
+          company_id: string
+          created_at?: string | null
+          employee_id: string
+          id?: string
+          last_used_at?: string | null
+          productivity_score?: number | null
+          proficiency_level: number
+          skill_key: string
+          total_hours_in_skill?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          certificate_expiry?: string | null
+          certificate_path?: string | null
+          certified?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          employee_id?: string
+          id?: string
+          last_used_at?: string | null
+          productivity_score?: number | null
+          proficiency_level?: number
+          skill_key?: string
+          total_hours_in_skill?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_skills_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "employee_skills_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_skills_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_skills_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_visite_mediche: {
+        Row: {
+          certificato_path: string | null
+          company_id: string
+          created_at: string | null
+          data_prossima: string | null
+          data_visita: string
+          employee_id: string
+          esito: string | null
+          id: string
+          medico_competente: string | null
+          prescrizioni: string | null
+          visita_type: string | null
+        }
+        Insert: {
+          certificato_path?: string | null
+          company_id: string
+          created_at?: string | null
+          data_prossima?: string | null
+          data_visita: string
+          employee_id: string
+          esito?: string | null
+          id?: string
+          medico_competente?: string | null
+          prescrizioni?: string | null
+          visita_type?: string | null
+        }
+        Update: {
+          certificato_path?: string | null
+          company_id?: string
+          created_at?: string | null
+          data_prossima?: string | null
+          data_visita?: string
+          employee_id?: string
+          esito?: string | null
+          id?: string
+          medico_competente?: string | null
+          prescrizioni?: string | null
+          visita_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_visite_mediche_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "employee_visite_mediche_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_visite_mediche_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "employee_visite_mediche_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -12967,60 +20336,138 @@ export type Database = {
       employees: {
         Row: {
           area: string
+          ccnl_applicato: string | null
           company_id: string
+          contratto_storage_path: string | null
           created_at: string
+          data_assunzione: string | null
+          data_inizio_lavoro: string | null
+          dpi_consegna_data: string | null
+          dpi_consegnati: Json | null
+          dpi_modulo_path: string | null
           email: string | null
           first_name: string
+          formazione_sicurezza_attestato_path: string | null
+          formazione_sicurezza_completed: boolean
+          formazione_sicurezza_data: string | null
+          formazione_sicurezza_scadenza: string | null
           gross_salary: number
           id: string
           inps_rate: number | null
           is_active: boolean
           last_name: string
+          livello_inquadramento: string | null
           monthly_hours: number
           net_salary: number
+          onboarding_completed_at: string | null
+          onboarding_started_at: string | null
+          onboarding_status: string
+          ore_settimana: number | null
           phone: string | null
           phone_whatsapp: string | null
+          portal_credentials_sent_at: string | null
+          portal_user_id: string | null
+          qualifica: string | null
+          retribuzione_lorda_annua: number | null
           role_type: string
+          unilav_inviato_at: string | null
+          unilav_protocollo: string | null
+          unilav_storage_path: string | null
           updated_at: string
           user_id: string | null
+          visita_medica_data: string | null
+          visita_medica_esito: string | null
+          visita_medica_storage_path: string | null
         }
         Insert: {
           area?: string
+          ccnl_applicato?: string | null
           company_id: string
+          contratto_storage_path?: string | null
           created_at?: string
+          data_assunzione?: string | null
+          data_inizio_lavoro?: string | null
+          dpi_consegna_data?: string | null
+          dpi_consegnati?: Json | null
+          dpi_modulo_path?: string | null
           email?: string | null
           first_name: string
+          formazione_sicurezza_attestato_path?: string | null
+          formazione_sicurezza_completed?: boolean
+          formazione_sicurezza_data?: string | null
+          formazione_sicurezza_scadenza?: string | null
           gross_salary?: number
           id?: string
           inps_rate?: number | null
           is_active?: boolean
           last_name: string
+          livello_inquadramento?: string | null
           monthly_hours?: number
           net_salary?: number
+          onboarding_completed_at?: string | null
+          onboarding_started_at?: string | null
+          onboarding_status?: string
+          ore_settimana?: number | null
           phone?: string | null
           phone_whatsapp?: string | null
+          portal_credentials_sent_at?: string | null
+          portal_user_id?: string | null
+          qualifica?: string | null
+          retribuzione_lorda_annua?: number | null
           role_type?: string
+          unilav_inviato_at?: string | null
+          unilav_protocollo?: string | null
+          unilav_storage_path?: string | null
           updated_at?: string
           user_id?: string | null
+          visita_medica_data?: string | null
+          visita_medica_esito?: string | null
+          visita_medica_storage_path?: string | null
         }
         Update: {
           area?: string
+          ccnl_applicato?: string | null
           company_id?: string
+          contratto_storage_path?: string | null
           created_at?: string
+          data_assunzione?: string | null
+          data_inizio_lavoro?: string | null
+          dpi_consegna_data?: string | null
+          dpi_consegnati?: Json | null
+          dpi_modulo_path?: string | null
           email?: string | null
           first_name?: string
+          formazione_sicurezza_attestato_path?: string | null
+          formazione_sicurezza_completed?: boolean
+          formazione_sicurezza_data?: string | null
+          formazione_sicurezza_scadenza?: string | null
           gross_salary?: number
           id?: string
           inps_rate?: number | null
           is_active?: boolean
           last_name?: string
+          livello_inquadramento?: string | null
           monthly_hours?: number
           net_salary?: number
+          onboarding_completed_at?: string | null
+          onboarding_started_at?: string | null
+          onboarding_status?: string
+          ore_settimana?: number | null
           phone?: string | null
           phone_whatsapp?: string | null
+          portal_credentials_sent_at?: string | null
+          portal_user_id?: string | null
+          qualifica?: string | null
+          retribuzione_lorda_annua?: number | null
           role_type?: string
+          unilav_inviato_at?: string | null
+          unilav_protocollo?: string | null
+          unilav_storage_path?: string | null
           updated_at?: string
           user_id?: string | null
+          visita_medica_data?: string | null
+          visita_medica_esito?: string | null
+          visita_medica_storage_path?: string | null
         }
         Relationships: [
           {
@@ -13032,6 +20479,90 @@ export type Database = {
           },
           {
             foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entity_attachments: {
+        Row: {
+          ai_payload: Json | null
+          ai_suggested: boolean
+          attached_at: string
+          attached_by: string
+          company_id: string
+          deleted_at: string | null
+          deleted_by: string | null
+          doc_subtype: string | null
+          doc_type: string | null
+          entity_id: string
+          entity_table: string
+          file_name: string
+          file_size: number | null
+          id: string
+          link_confidence: number | null
+          link_reasoning: string | null
+          mime_type: string | null
+          storage_bucket: string
+          storage_path: string
+          user_confirmed: boolean
+        }
+        Insert: {
+          ai_payload?: Json | null
+          ai_suggested?: boolean
+          attached_at?: string
+          attached_by: string
+          company_id: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          doc_subtype?: string | null
+          doc_type?: string | null
+          entity_id: string
+          entity_table: string
+          file_name: string
+          file_size?: number | null
+          id?: string
+          link_confidence?: number | null
+          link_reasoning?: string | null
+          mime_type?: string | null
+          storage_bucket?: string
+          storage_path: string
+          user_confirmed?: boolean
+        }
+        Update: {
+          ai_payload?: Json | null
+          ai_suggested?: boolean
+          attached_at?: string
+          attached_by?: string
+          company_id?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          doc_subtype?: string | null
+          doc_type?: string | null
+          entity_id?: string
+          entity_table?: string
+          file_name?: string
+          file_size?: number | null
+          id?: string
+          link_confidence?: number | null
+          link_reasoning?: string | null
+          mime_type?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          user_confirmed?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "entity_attachments_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -13087,6 +20618,69 @@ export type Database = {
             columns: ["field_id"]
             isOneToOne: false
             referencedRelation: "marketing_custom_fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entity_embeddings: {
+        Row: {
+          company_id: string
+          content: string
+          created_at: string
+          embedded_at: string | null
+          embedding: string | null
+          embedding_model: string
+          entity_id: string
+          entity_type: string
+          id: string
+          is_dirty: boolean
+          metadata: Json | null
+          source_updated_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          content: string
+          created_at?: string
+          embedded_at?: string | null
+          embedding?: string | null
+          embedding_model?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          is_dirty?: boolean
+          metadata?: Json | null
+          source_updated_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          content?: string
+          created_at?: string
+          embedded_at?: string | null
+          embedding?: string | null
+          embedding_model?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          is_dirty?: boolean
+          metadata?: Json | null
+          source_updated_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_embeddings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "entity_embeddings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -13155,6 +20749,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      etl_staging_metrics: {
+        Row: {
+          computed_at: string | null
+          data_period_end: string | null
+          data_period_start: string | null
+          id: string
+          metric_category: string
+          metric_key: string
+          pseudo_company_id: string
+          run_id: string
+          segment_data: Json | null
+          unit: string | null
+          value: number | null
+        }
+        Insert: {
+          computed_at?: string | null
+          data_period_end?: string | null
+          data_period_start?: string | null
+          id?: string
+          metric_category: string
+          metric_key: string
+          pseudo_company_id: string
+          run_id: string
+          segment_data?: Json | null
+          unit?: string | null
+          value?: number | null
+        }
+        Update: {
+          computed_at?: string | null
+          data_period_end?: string | null
+          data_period_start?: string | null
+          id?: string
+          metric_category?: string
+          metric_key?: string
+          pseudo_company_id?: string
+          run_id?: string
+          segment_data?: Json | null
+          unit?: string | null
+          value?: number | null
+        }
+        Relationships: []
       }
       expense_report_items: {
         Row: {
@@ -13523,6 +21159,146 @@ export type Database = {
           },
         ]
       }
+      fatt_zero_touch_runs: {
+        Row: {
+          action_proposal_id: string | null
+          ai_cost_total_eur: number
+          ai_persona_used: string
+          amount_total_eur: number | null
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          customer_id: string | null
+          customer_notification_channels: string[] | null
+          customer_notified_at: string | null
+          error_message: string | null
+          error_step: string | null
+          hitl_reason: string | null
+          hitl_required: boolean
+          id: string
+          invoice_id: string | null
+          next_retry_at: string | null
+          order_id: string | null
+          retries: number
+          sal_id: string | null
+          sdi_message_id: string | null
+          sdi_status: string | null
+          status: string
+          steps_log: Json
+          trigger_data: Json | null
+          trigger_source: string
+          updated_at: string
+        }
+        Insert: {
+          action_proposal_id?: string | null
+          ai_cost_total_eur?: number
+          ai_persona_used?: string
+          amount_total_eur?: number | null
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_notification_channels?: string[] | null
+          customer_notified_at?: string | null
+          error_message?: string | null
+          error_step?: string | null
+          hitl_reason?: string | null
+          hitl_required?: boolean
+          id?: string
+          invoice_id?: string | null
+          next_retry_at?: string | null
+          order_id?: string | null
+          retries?: number
+          sal_id?: string | null
+          sdi_message_id?: string | null
+          sdi_status?: string | null
+          status?: string
+          steps_log?: Json
+          trigger_data?: Json | null
+          trigger_source: string
+          updated_at?: string
+        }
+        Update: {
+          action_proposal_id?: string | null
+          ai_cost_total_eur?: number
+          ai_persona_used?: string
+          amount_total_eur?: number | null
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_notification_channels?: string[] | null
+          customer_notified_at?: string | null
+          error_message?: string | null
+          error_step?: string | null
+          hitl_reason?: string | null
+          hitl_required?: boolean
+          id?: string
+          invoice_id?: string | null
+          next_retry_at?: string | null
+          order_id?: string | null
+          retries?: number
+          sal_id?: string | null
+          sdi_message_id?: string | null
+          sdi_status?: string | null
+          status?: string
+          steps_log?: Json
+          trigger_data?: Json | null
+          trigger_source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fatt_zero_touch_runs_action_proposal_id_fkey"
+            columns: ["action_proposal_id"]
+            isOneToOne: false
+            referencedRelation: "ai_action_proposals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fatt_zero_touch_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fatt_zero_touch_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fatt_zero_touch_runs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fatt_zero_touch_runs_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fatt_zero_touch_runs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fatt_zero_touch_runs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fattura_ordine: {
         Row: {
           company_id: string
@@ -13601,6 +21377,12 @@ export type Database = {
       }
       fatture_ricevute: {
         Row: {
+          ai_classificata_at: string | null
+          ai_classify_model: string | null
+          ai_riassunto: string | null
+          anomalie_rilevate: Json | null
+          categoria_ai: string | null
+          categoria_confidenza: number | null
           cedente_cap: string | null
           cedente_cf: string | null
           cedente_comune: string | null
@@ -13617,12 +21399,17 @@ export type Database = {
           iva_totale: number | null
           note: string | null
           numero_fattura: string
+          order_id_suggerito: string | null
+          order_match_confidenza: number | null
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
           pdf_url: string | null
           prima_nota_id: string | null
           riepilogo_iva: Json | null
           righe: Json | null
           sdi_id_trasmissione: string | null
           sdi_progressivo: string | null
+          sottocategoria_ai: string | null
           stato: string
           tipo_documento: string
           totale_documento: number | null
@@ -13631,6 +21418,12 @@ export type Database = {
           xml_url: string | null
         }
         Insert: {
+          ai_classificata_at?: string | null
+          ai_classify_model?: string | null
+          ai_riassunto?: string | null
+          anomalie_rilevate?: Json | null
+          categoria_ai?: string | null
+          categoria_confidenza?: number | null
           cedente_cap?: string | null
           cedente_cf?: string | null
           cedente_comune?: string | null
@@ -13647,12 +21440,17 @@ export type Database = {
           iva_totale?: number | null
           note?: string | null
           numero_fattura: string
+          order_id_suggerito?: string | null
+          order_match_confidenza?: number | null
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
           pdf_url?: string | null
           prima_nota_id?: string | null
           riepilogo_iva?: Json | null
           righe?: Json | null
           sdi_id_trasmissione?: string | null
           sdi_progressivo?: string | null
+          sottocategoria_ai?: string | null
           stato?: string
           tipo_documento?: string
           totale_documento?: number | null
@@ -13661,6 +21459,12 @@ export type Database = {
           xml_url?: string | null
         }
         Update: {
+          ai_classificata_at?: string | null
+          ai_classify_model?: string | null
+          ai_riassunto?: string | null
+          anomalie_rilevate?: Json | null
+          categoria_ai?: string | null
+          categoria_confidenza?: number | null
           cedente_cap?: string | null
           cedente_cf?: string | null
           cedente_comune?: string | null
@@ -13677,12 +21481,17 @@ export type Database = {
           iva_totale?: number | null
           note?: string | null
           numero_fattura?: string
+          order_id_suggerito?: string | null
+          order_match_confidenza?: number | null
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
           pdf_url?: string | null
           prima_nota_id?: string | null
           riepilogo_iva?: Json | null
           righe?: Json | null
           sdi_id_trasmissione?: string | null
           sdi_progressivo?: string | null
+          sottocategoria_ai?: string | null
           stato?: string
           tipo_documento?: string
           totale_documento?: number | null
@@ -13703,6 +21512,20 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fatture_ricevute_order_id_suggerito_fkey"
+            columns: ["order_id_suggerito"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fatture_ricevute_order_id_suggerito_fkey"
+            columns: ["order_id_suggerito"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -13799,6 +21622,75 @@ export type Database = {
           },
         ]
       }
+      feature_bundles: {
+        Row: {
+          category: string | null
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          feature_keys: string[]
+          icon: string | null
+          id: string
+          is_active: boolean
+          is_template: boolean
+          name: string
+          position: number
+          price_monthly: number | null
+          price_yearly: number | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          feature_keys?: string[]
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          is_template?: boolean
+          name: string
+          position?: number
+          price_monthly?: number | null
+          price_yearly?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          feature_keys?: string[]
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          is_template?: boolean
+          name?: string
+          position?: number
+          price_monthly?: number | null
+          price_yearly?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_bundles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "feature_bundles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feature_flags: {
         Row: {
           created_at: string
@@ -13834,6 +21726,244 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      feature_unlock_requests: {
+        Row: {
+          action_label: string | null
+          assigned_to: string | null
+          company_id: string
+          created_at: string
+          feature_key: string
+          id: string
+          message: string | null
+          requested_by: string | null
+          requested_email: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          source_url: string | null
+          status: string
+        }
+        Insert: {
+          action_label?: string | null
+          assigned_to?: string | null
+          company_id: string
+          created_at?: string
+          feature_key: string
+          id?: string
+          message?: string | null
+          requested_by?: string | null
+          requested_email?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_url?: string | null
+          status?: string
+        }
+        Update: {
+          action_label?: string | null
+          assigned_to?: string | null
+          company_id?: string
+          created_at?: string
+          feature_key?: string
+          id?: string
+          message?: string | null
+          requested_by?: string | null
+          requested_email?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source_url?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_unlock_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "feature_unlock_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_anomalies: {
+        Row: {
+          ai_confidence: number | null
+          ai_description: string
+          ai_recommendation: string | null
+          alert_channels: string[] | null
+          alert_sent_at: string | null
+          amount: number | null
+          anomaly_type: string
+          company_id: string
+          counterparty_iban: string | null
+          counterparty_name: string | null
+          created_at: string
+          id: string
+          related_invoice_ids: string[] | null
+          related_transaction_ids: string[] | null
+          resolution_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          severity: string
+          status: string
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_description: string
+          ai_recommendation?: string | null
+          alert_channels?: string[] | null
+          alert_sent_at?: string | null
+          amount?: number | null
+          anomaly_type: string
+          company_id: string
+          counterparty_iban?: string | null
+          counterparty_name?: string | null
+          created_at?: string
+          id?: string
+          related_invoice_ids?: string[] | null
+          related_transaction_ids?: string[] | null
+          resolution_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          severity: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_description?: string
+          ai_recommendation?: string | null
+          alert_channels?: string[] | null
+          alert_sent_at?: string | null
+          amount?: number | null
+          anomaly_type?: string
+          company_id?: string
+          counterparty_iban?: string | null
+          counterparty_name?: string | null
+          created_at?: string
+          id?: string
+          related_invoice_ids?: string[] | null
+          related_transaction_ids?: string[] | null
+          resolution_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          severity?: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_anomalies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "financial_anomalies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_anomalies_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_reports: {
+        Row: {
+          ade_protocol_number: string | null
+          ade_response: Json | null
+          ai_cost_billed_eur: number | null
+          ai_persona_used: string | null
+          ai_validation_warnings: Json | null
+          company_id: string
+          created_at: string | null
+          data_summary: Json | null
+          id: string
+          pdf_storage_path: string | null
+          period_end: string
+          period_start: string
+          report_type: string
+          reviewed_by_commercialista_at: string | null
+          status: string
+          submitted_at: string | null
+          updated_at: string | null
+          xml_storage_path: string | null
+        }
+        Insert: {
+          ade_protocol_number?: string | null
+          ade_response?: Json | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
+          ai_validation_warnings?: Json | null
+          company_id: string
+          created_at?: string | null
+          data_summary?: Json | null
+          id?: string
+          pdf_storage_path?: string | null
+          period_end: string
+          period_start: string
+          report_type: string
+          reviewed_by_commercialista_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string | null
+          xml_storage_path?: string | null
+        }
+        Update: {
+          ade_protocol_number?: string | null
+          ade_response?: Json | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
+          ai_validation_warnings?: Json | null
+          company_id?: string
+          created_at?: string | null
+          data_summary?: Json | null
+          id?: string
+          pdf_storage_path?: string | null
+          period_end?: string
+          period_start?: string
+          report_type?: string
+          reviewed_by_commercialista_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string | null
+          xml_storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fiscal_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       flow_execution_runs: {
         Row: {
@@ -14078,6 +22208,14 @@ export type Database = {
       foto_cantiere: {
         Row: {
           accuracy_meters: number | null
+          ai_analizzata_at: string | null
+          ai_dpi_compliance: Json | null
+          ai_fase_lavoro: string | null
+          ai_model_used: string | null
+          ai_problemi_rilevati: Json | null
+          ai_qualita_livello: string | null
+          ai_qualita_score: number | null
+          ai_riassunto: string | null
           company_id: string
           created_at: string | null
           descrizione: string | null
@@ -14095,6 +22233,14 @@ export type Database = {
         }
         Insert: {
           accuracy_meters?: number | null
+          ai_analizzata_at?: string | null
+          ai_dpi_compliance?: Json | null
+          ai_fase_lavoro?: string | null
+          ai_model_used?: string | null
+          ai_problemi_rilevati?: Json | null
+          ai_qualita_livello?: string | null
+          ai_qualita_score?: number | null
+          ai_riassunto?: string | null
           company_id: string
           created_at?: string | null
           descrizione?: string | null
@@ -14112,6 +22258,14 @@ export type Database = {
         }
         Update: {
           accuracy_meters?: number | null
+          ai_analizzata_at?: string | null
+          ai_dpi_compliance?: Json | null
+          ai_fase_lavoro?: string | null
+          ai_model_used?: string | null
+          ai_problemi_rilevati?: Json | null
+          ai_qualita_livello?: string | null
+          ai_qualita_score?: number | null
+          ai_riassunto?: string | null
           company_id?: string
           created_at?: string | null
           descrizione?: string | null
@@ -14154,6 +22308,114 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      foto_cantiere_analysis: {
+        Row: {
+          ai_confidence: number | null
+          ai_cost_billed_eur: number | null
+          ai_model: string | null
+          ai_persona_used: string
+          alert_channels: string[] | null
+          alert_sent_at: string | null
+          cantiere_id: string
+          company_id: string
+          created_at: string
+          detected_elements: Json | null
+          foto_id: string
+          has_critical_issue: boolean
+          id: string
+          order_score: number | null
+          overall_score: number | null
+          quality_issues: Json | null
+          quality_score: number | null
+          recommendations: string | null
+          safety_issues: Json | null
+          safety_score: number | null
+          vertical_specific_checks: Json | null
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_model?: string | null
+          ai_persona_used?: string
+          alert_channels?: string[] | null
+          alert_sent_at?: string | null
+          cantiere_id: string
+          company_id: string
+          created_at?: string
+          detected_elements?: Json | null
+          foto_id: string
+          has_critical_issue?: boolean
+          id?: string
+          order_score?: number | null
+          overall_score?: number | null
+          quality_issues?: Json | null
+          quality_score?: number | null
+          recommendations?: string | null
+          safety_issues?: Json | null
+          safety_score?: number | null
+          vertical_specific_checks?: Json | null
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_model?: string | null
+          ai_persona_used?: string
+          alert_channels?: string[] | null
+          alert_sent_at?: string | null
+          cantiere_id?: string
+          company_id?: string
+          created_at?: string
+          detected_elements?: Json | null
+          foto_id?: string
+          has_critical_issue?: boolean
+          id?: string
+          order_score?: number | null
+          overall_score?: number | null
+          quality_issues?: Json | null
+          quality_score?: number | null
+          recommendations?: string | null
+          safety_issues?: Json | null
+          safety_score?: number | null
+          vertical_specific_checks?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "foto_cantiere_analysis_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "foto_cantiere_analysis_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "foto_cantiere_analysis_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "foto_cantiere_analysis_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "foto_cantiere_analysis_foto_id_fkey"
+            columns: ["foto_id"]
+            isOneToOne: false
+            referencedRelation: "foto_cantiere"
             referencedColumns: ["id"]
           },
         ]
@@ -15644,6 +23906,63 @@ export type Database = {
           },
         ]
       }
+      geocoded_locations: {
+        Row: {
+          company_id: string
+          full_address: string
+          geocoded_at: string | null
+          geocoder_source: string | null
+          id: string
+          lat: number | null
+          lng: number | null
+          metadata: Json | null
+          normalized_address: string | null
+          reference_id: string | null
+          reference_type: string
+        }
+        Insert: {
+          company_id: string
+          full_address: string
+          geocoded_at?: string | null
+          geocoder_source?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          metadata?: Json | null
+          normalized_address?: string | null
+          reference_id?: string | null
+          reference_type: string
+        }
+        Update: {
+          company_id?: string
+          full_address?: string
+          geocoded_at?: string | null
+          geocoder_source?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          metadata?: Json | null
+          normalized_address?: string | null
+          reference_id?: string | null
+          reference_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geocoded_locations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "geocoded_locations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       giornale_foto: {
         Row: {
           caption: string | null
@@ -15704,15 +24023,23 @@ export type Database = {
       }
       giornale_lavori: {
         Row: {
+          ai_confidence: number | null
+          ai_cost_billed_eur: number | null
+          ai_persona_used: string | null
+          archived_at: string | null
+          archived_storage_path: string | null
           avanzamento_percentuale: number | null
           company_id: string
           condizioni_meteo: string | null
           created_at: string
           created_by: string | null
           data_lavori: string
+          dl_notification_method: string | null
+          dl_notified_at: string | null
           firma_capocantiere: string | null
           firmato_da: string | null
           firmato_il: string | null
+          generation_method: string
           id: string
           latitude: number | null
           lavorazioni_eseguite: string
@@ -15721,19 +24048,33 @@ export type Database = {
           note: string | null
           order_id: string
           personale_presente: number | null
+          pm_signature_hash: string | null
+          pm_signed_at: string | null
+          source_ddt_ids: string[] | null
+          source_foto_ids: string[] | null
+          source_rapportini_ids: string[] | null
+          source_segnalazioni_ids: string[] | null
           temperatura: string | null
           visibile_cliente: boolean | null
         }
         Insert: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
+          archived_at?: string | null
+          archived_storage_path?: string | null
           avanzamento_percentuale?: number | null
           company_id: string
           condizioni_meteo?: string | null
           created_at?: string
           created_by?: string | null
           data_lavori?: string
+          dl_notification_method?: string | null
+          dl_notified_at?: string | null
           firma_capocantiere?: string | null
           firmato_da?: string | null
           firmato_il?: string | null
+          generation_method?: string
           id?: string
           latitude?: number | null
           lavorazioni_eseguite: string
@@ -15742,19 +24083,33 @@ export type Database = {
           note?: string | null
           order_id: string
           personale_presente?: number | null
+          pm_signature_hash?: string | null
+          pm_signed_at?: string | null
+          source_ddt_ids?: string[] | null
+          source_foto_ids?: string[] | null
+          source_rapportini_ids?: string[] | null
+          source_segnalazioni_ids?: string[] | null
           temperatura?: string | null
           visibile_cliente?: boolean | null
         }
         Update: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
+          archived_at?: string | null
+          archived_storage_path?: string | null
           avanzamento_percentuale?: number | null
           company_id?: string
           condizioni_meteo?: string | null
           created_at?: string
           created_by?: string | null
           data_lavori?: string
+          dl_notification_method?: string | null
+          dl_notified_at?: string | null
           firma_capocantiere?: string | null
           firmato_da?: string | null
           firmato_il?: string | null
+          generation_method?: string
           id?: string
           latitude?: number | null
           lavorazioni_eseguite?: string
@@ -15763,6 +24118,12 @@ export type Database = {
           note?: string | null
           order_id?: string
           personale_presente?: number | null
+          pm_signature_hash?: string | null
+          pm_signed_at?: string | null
+          source_ddt_ids?: string[] | null
+          source_foto_ids?: string[] | null
+          source_rapportini_ids?: string[] | null
+          source_segnalazioni_ids?: string[] | null
           temperatura?: string | null
           visibile_cliente?: boolean | null
         }
@@ -16378,66 +24739,197 @@ export type Database = {
           },
         ]
       }
+      hr_assenze: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          company_id: string
+          created_at: string
+          data_fine: string
+          data_inizio: string
+          employee_id: string
+          giustificativo_storage_path: string | null
+          id: string
+          note: string | null
+          ore_giorno: number
+          status: string
+          tipo_assenza: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          company_id: string
+          created_at?: string
+          data_fine: string
+          data_inizio: string
+          employee_id: string
+          giustificativo_storage_path?: string | null
+          id?: string
+          note?: string | null
+          ore_giorno?: number
+          status?: string
+          tipo_assenza: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          company_id?: string
+          created_at?: string
+          data_fine?: string
+          data_inizio?: string
+          employee_id?: string
+          giustificativo_storage_path?: string | null
+          id?: string
+          note?: string | null
+          ore_giorno?: number
+          status?: string
+          tipo_assenza?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_assenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_assenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_assenze_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "hr_assenze_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hr_cedolini: {
         Row: {
+          ai_confidence: number | null
+          ai_cost_billed_eur: number | null
+          ai_persona_used: string | null
           anno: number
           company_id: string
+          consulente_reviewed_at: string | null
+          consulente_user_id: string | null
           contributi_dipendente: number | null
           created_at: string
           data_emissione: string | null
           data_pagamento: string | null
           employee_id: string
+          generation_method: string
           id: string
+          indennita_alta_quota_eur: number | null
+          indennita_disagio_eur: number | null
+          indennita_trasferta_eur: number | null
           lordo: number | null
           mese: number
           netto: number | null
           note: string | null
+          ore_assenza_giustificate: number | null
+          ore_assenza_non_giustificate: number | null
           ore_lavorate: number | null
+          ore_ordinarie: number | null
           ore_straordinario: number | null
+          ore_straordinario_100: number | null
+          ore_straordinario_25: number | null
+          ore_straordinario_50: number | null
           pdf_url: string | null
           ritenute_irpef: number | null
+          source_rapportini_ids: string[] | null
           stato: string
           updated_at: string
+          validation_warnings: Json | null
         }
         Insert: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
           anno: number
           company_id: string
+          consulente_reviewed_at?: string | null
+          consulente_user_id?: string | null
           contributi_dipendente?: number | null
           created_at?: string
           data_emissione?: string | null
           data_pagamento?: string | null
           employee_id: string
+          generation_method?: string
           id?: string
+          indennita_alta_quota_eur?: number | null
+          indennita_disagio_eur?: number | null
+          indennita_trasferta_eur?: number | null
           lordo?: number | null
           mese: number
           netto?: number | null
           note?: string | null
+          ore_assenza_giustificate?: number | null
+          ore_assenza_non_giustificate?: number | null
           ore_lavorate?: number | null
+          ore_ordinarie?: number | null
           ore_straordinario?: number | null
+          ore_straordinario_100?: number | null
+          ore_straordinario_25?: number | null
+          ore_straordinario_50?: number | null
           pdf_url?: string | null
           ritenute_irpef?: number | null
+          source_rapportini_ids?: string[] | null
           stato?: string
           updated_at?: string
+          validation_warnings?: Json | null
         }
         Update: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
           anno?: number
           company_id?: string
+          consulente_reviewed_at?: string | null
+          consulente_user_id?: string | null
           contributi_dipendente?: number | null
           created_at?: string
           data_emissione?: string | null
           data_pagamento?: string | null
           employee_id?: string
+          generation_method?: string
           id?: string
+          indennita_alta_quota_eur?: number | null
+          indennita_disagio_eur?: number | null
+          indennita_trasferta_eur?: number | null
           lordo?: number | null
           mese?: number
           netto?: number | null
           note?: string | null
+          ore_assenza_giustificate?: number | null
+          ore_assenza_non_giustificate?: number | null
           ore_lavorate?: number | null
+          ore_ordinarie?: number | null
           ore_straordinario?: number | null
+          ore_straordinario_100?: number | null
+          ore_straordinario_25?: number | null
+          ore_straordinario_50?: number | null
           pdf_url?: string | null
           ritenute_irpef?: number | null
+          source_rapportini_ids?: string[] | null
           stato?: string
           updated_at?: string
+          validation_warnings?: Json | null
         }
         Relationships: [
           {
@@ -16453,6 +24945,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_cedolini_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
           },
           {
             foreignKeyName: "hr_cedolini_employee_id_fkey"
@@ -16589,6 +25088,69 @@ export type Database = {
             columns: ["profilo_id"]
             isOneToOne: false
             referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_onboarding_steps: {
+        Row: {
+          ai_generated_content: string | null
+          completed_at: string | null
+          created_at: string
+          document_path: string | null
+          employee_id: string
+          error_message: string | null
+          external_reference: string | null
+          id: string
+          retries: number
+          status: string
+          step_key: string
+          step_order: number
+          updated_at: string
+        }
+        Insert: {
+          ai_generated_content?: string | null
+          completed_at?: string | null
+          created_at?: string
+          document_path?: string | null
+          employee_id: string
+          error_message?: string | null
+          external_reference?: string | null
+          id?: string
+          retries?: number
+          status?: string
+          step_key: string
+          step_order: number
+          updated_at?: string
+        }
+        Update: {
+          ai_generated_content?: string | null
+          completed_at?: string | null
+          created_at?: string
+          document_path?: string | null
+          employee_id?: string
+          error_message?: string | null
+          external_reference?: string | null
+          id?: string
+          retries?: number
+          status?: string
+          step_key?: string
+          step_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_onboarding_steps_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "hr_onboarding_steps_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
         ]
@@ -16779,6 +25341,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_profili_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
           },
           {
             foreignKeyName: "hr_profili_employee_id_fkey"
@@ -18428,6 +26997,7 @@ export type Database = {
           company_id: string
           id: string
           is_muted: boolean | null
+          is_pinned: boolean
           joined_at: string
           last_read_at: string | null
           notification_pref: string | null
@@ -18439,6 +27009,7 @@ export type Database = {
           company_id: string
           id?: string
           is_muted?: boolean | null
+          is_pinned?: boolean
           joined_at?: string
           last_read_at?: string | null
           notification_pref?: string | null
@@ -18450,6 +27021,7 @@ export type Database = {
           company_id?: string
           id?: string
           is_muted?: boolean | null
+          is_pinned?: boolean
           joined_at?: string
           last_read_at?: string | null
           notification_pref?: string | null
@@ -18482,53 +27054,95 @@ export type Database = {
       }
       internal_chat_messages: {
         Row: {
+          ai_confidence: string | null
+          ai_requires_human_review: boolean | null
           attachment_name: string | null
           attachment_url: string | null
           channel_id: string
           company_id: string
           content: string
+          council_data: Json | null
           created_at: string
+          followup_suggestions: string[] | null
           id: string
           is_edited: boolean
           is_pinned: boolean | null
+          last_cost_usd: number | null
+          last_generation_id: string | null
+          last_input_tokens: number | null
+          last_latency_ms: number | null
+          last_model_id: string | null
+          last_output_tokens: number | null
+          last_provider: string | null
           mentions: string[] | null
           message_type: string | null
+          rag_min_similarity: number | null
+          rag_sources: Json | null
           reactions: Json | null
           reply_to_id: string | null
+          requested_model_id: string | null
           sender_id: string
           updated_at: string
         }
         Insert: {
+          ai_confidence?: string | null
+          ai_requires_human_review?: boolean | null
           attachment_name?: string | null
           attachment_url?: string | null
           channel_id: string
           company_id: string
           content: string
+          council_data?: Json | null
           created_at?: string
+          followup_suggestions?: string[] | null
           id?: string
           is_edited?: boolean
           is_pinned?: boolean | null
+          last_cost_usd?: number | null
+          last_generation_id?: string | null
+          last_input_tokens?: number | null
+          last_latency_ms?: number | null
+          last_model_id?: string | null
+          last_output_tokens?: number | null
+          last_provider?: string | null
           mentions?: string[] | null
           message_type?: string | null
+          rag_min_similarity?: number | null
+          rag_sources?: Json | null
           reactions?: Json | null
           reply_to_id?: string | null
+          requested_model_id?: string | null
           sender_id: string
           updated_at?: string
         }
         Update: {
+          ai_confidence?: string | null
+          ai_requires_human_review?: boolean | null
           attachment_name?: string | null
           attachment_url?: string | null
           channel_id?: string
           company_id?: string
           content?: string
+          council_data?: Json | null
           created_at?: string
+          followup_suggestions?: string[] | null
           id?: string
           is_edited?: boolean
           is_pinned?: boolean | null
+          last_cost_usd?: number | null
+          last_generation_id?: string | null
+          last_input_tokens?: number | null
+          last_latency_ms?: number | null
+          last_model_id?: string | null
+          last_output_tokens?: number | null
+          last_provider?: string | null
           mentions?: string[] | null
           message_type?: string | null
+          rag_min_similarity?: number | null
+          rag_sources?: Json | null
           reactions?: Json | null
           reply_to_id?: string | null
+          requested_model_id?: string | null
           sender_id?: string
           updated_at?: string
         }
@@ -18862,6 +27476,8 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           credited_invoice_id: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           document_type: string
           due_date: string | null
           external_id: string | null
@@ -18911,6 +27527,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           credited_invoice_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           document_type?: string
           due_date?: string | null
           external_id?: string | null
@@ -18960,6 +27578,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           credited_invoice_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           document_type?: string
           due_date?: string | null
           external_id?: string | null
@@ -19047,6 +27667,189 @@ export type Database = {
             columns: ["sede_id"]
             isOneToOne: false
             referencedRelation: "sedi"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kb_aggregated_benchmarks: {
+        Row: {
+          cluster_segment: Json
+          computed_at: string
+          data_period_end: string | null
+          data_period_start: string | null
+          id: string
+          max_value: number | null
+          mean: number | null
+          median: number | null
+          metadata: Json | null
+          metric_category: string
+          metric_key: string
+          min_value: number | null
+          p10: number | null
+          p25: number | null
+          p75: number | null
+          p90: number | null
+          sample_size: number
+          std_dev: number | null
+          unit: string | null
+        }
+        Insert: {
+          cluster_segment: Json
+          computed_at?: string
+          data_period_end?: string | null
+          data_period_start?: string | null
+          id?: string
+          max_value?: number | null
+          mean?: number | null
+          median?: number | null
+          metadata?: Json | null
+          metric_category: string
+          metric_key: string
+          min_value?: number | null
+          p10?: number | null
+          p25?: number | null
+          p75?: number | null
+          p90?: number | null
+          sample_size: number
+          std_dev?: number | null
+          unit?: string | null
+        }
+        Update: {
+          cluster_segment?: Json
+          computed_at?: string
+          data_period_end?: string | null
+          data_period_start?: string | null
+          id?: string
+          max_value?: number | null
+          mean?: number | null
+          median?: number | null
+          metadata?: Json | null
+          metric_category?: string
+          metric_key?: string
+          min_value?: number | null
+          p10?: number | null
+          p25?: number | null
+          p75?: number | null
+          p90?: number | null
+          sample_size?: number
+          std_dev?: number | null
+          unit?: string | null
+        }
+        Relationships: []
+      }
+      lead_first_touch_runs: {
+        Row: {
+          ai_cost_total_eur: number
+          ai_persona_used: string
+          appointment_at: string | null
+          company_id: string
+          contact_address: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          conversation_messages_count: number
+          created_at: string
+          customer_responded: boolean
+          customer_response_at: string | null
+          enrichment_data: Json | null
+          first_touch_channel: string | null
+          first_touch_latency_ms: number | null
+          first_touch_message: string | null
+          first_touch_sent_at: string | null
+          id: string
+          lead_id: string | null
+          outcome: string | null
+          passed_to_user_id: string | null
+          qualification_score: number | null
+          raw_payload: Json | null
+          sla_met: boolean | null
+          sla_target_seconds: number
+          source_campaign: string | null
+          source_channel: string
+          source_creative_id: string | null
+          source_landing_url: string | null
+          updated_at: string
+          vertical_interest: string | null
+        }
+        Insert: {
+          ai_cost_total_eur?: number
+          ai_persona_used?: string
+          appointment_at?: string | null
+          company_id: string
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          conversation_messages_count?: number
+          created_at?: string
+          customer_responded?: boolean
+          customer_response_at?: string | null
+          enrichment_data?: Json | null
+          first_touch_channel?: string | null
+          first_touch_latency_ms?: number | null
+          first_touch_message?: string | null
+          first_touch_sent_at?: string | null
+          id?: string
+          lead_id?: string | null
+          outcome?: string | null
+          passed_to_user_id?: string | null
+          qualification_score?: number | null
+          raw_payload?: Json | null
+          sla_met?: boolean | null
+          sla_target_seconds?: number
+          source_campaign?: string | null
+          source_channel: string
+          source_creative_id?: string | null
+          source_landing_url?: string | null
+          updated_at?: string
+          vertical_interest?: string | null
+        }
+        Update: {
+          ai_cost_total_eur?: number
+          ai_persona_used?: string
+          appointment_at?: string | null
+          company_id?: string
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          conversation_messages_count?: number
+          created_at?: string
+          customer_responded?: boolean
+          customer_response_at?: string | null
+          enrichment_data?: Json | null
+          first_touch_channel?: string | null
+          first_touch_latency_ms?: number | null
+          first_touch_message?: string | null
+          first_touch_sent_at?: string | null
+          id?: string
+          lead_id?: string | null
+          outcome?: string | null
+          passed_to_user_id?: string | null
+          qualification_score?: number | null
+          raw_payload?: Json | null
+          sla_met?: boolean | null
+          sla_target_seconds?: number
+          source_campaign?: string | null
+          source_channel?: string
+          source_creative_id?: string | null
+          source_landing_url?: string | null
+          updated_at?: string
+          vertical_interest?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_first_touch_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "lead_first_touch_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -19251,6 +28054,13 @@ export type Database = {
             foreignKeyName: "leave_balances_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "leave_balances_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -19327,7 +28137,62 @@ export type Database = {
             foreignKeyName: "leave_requests_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "leave_requests_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lifecycle_email_sends: {
+        Row: {
+          company_id: string | null
+          delivery_status: string
+          email_to: string | null
+          id: string
+          metadata: Json | null
+          sent_at: string
+          template_key: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          delivery_status?: string
+          email_to?: string | null
+          id?: string
+          metadata?: Json | null
+          sent_at?: string
+          template_key: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          delivery_status?: string
+          email_to?: string | null
+          id?: string
+          metadata?: Json | null
+          sent_at?: string
+          template_key?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifecycle_email_sends_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "lifecycle_email_sends_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -19613,42 +28478,161 @@ export type Database = {
           },
         ]
       }
-      listino_macrocategorie: {
+      listino_griglia_history: {
         Row: {
-          attivo: boolean
-          colore: string | null
+          changed_at: string | null
+          changed_by: string | null
           company_id: string
-          created_at: string
-          descrizione: string | null
-          icona: string | null
+          family_id: string
+          griglia_id: string
           id: string
-          nome: string
+          operation: string
+          prezzo_acquisto: number | null
+          prezzo_vendita: number | null
+          valore_x: number | null
+          valore_y: number | null
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          company_id: string
+          family_id: string
+          griglia_id: string
+          id?: string
+          operation: string
+          prezzo_acquisto?: number | null
+          prezzo_vendita?: number | null
+          valore_x?: number | null
+          valore_y?: number | null
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          company_id?: string
+          family_id?: string
+          griglia_id?: string
+          id?: string
+          operation?: string
+          prezzo_acquisto?: number | null
+          prezzo_vendita?: number | null
+          valore_x?: number | null
+          valore_y?: number | null
+        }
+        Relationships: []
+      }
+      listino_macrocategoria_fields: {
+        Row: {
+          created_at: string
+          field_help: string | null
+          field_key: string
+          field_label: string
+          field_options: Json | null
+          field_placeholder: string | null
+          field_type: string
+          field_unit: string | null
+          id: string
+          macrocategoria_id: string
+          required: boolean
+          show_in_pdf: boolean
+          show_in_picker: boolean
           sort_order: number
           updated_at: string
         }
         Insert: {
-          attivo?: boolean
-          colore?: string | null
-          company_id: string
           created_at?: string
-          descrizione?: string | null
-          icona?: string | null
+          field_help?: string | null
+          field_key: string
+          field_label: string
+          field_options?: Json | null
+          field_placeholder?: string | null
+          field_type: string
+          field_unit?: string | null
           id?: string
-          nome: string
+          macrocategoria_id: string
+          required?: boolean
+          show_in_pdf?: boolean
+          show_in_picker?: boolean
           sort_order?: number
           updated_at?: string
         }
         Update: {
+          created_at?: string
+          field_help?: string | null
+          field_key?: string
+          field_label?: string
+          field_options?: Json | null
+          field_placeholder?: string | null
+          field_type?: string
+          field_unit?: string | null
+          id?: string
+          macrocategoria_id?: string
+          required?: boolean
+          show_in_pdf?: boolean
+          show_in_picker?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listino_macrocategoria_fields_macrocategoria_id_fkey"
+            columns: ["macrocategoria_id"]
+            isOneToOne: false
+            referencedRelation: "listino_macrocategorie"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listino_macrocategorie: {
+        Row: {
+          attivo: boolean
+          categoria_tipo: string
+          colore: string | null
+          company_id: string
+          created_at: string
+          descrizione: string | null
+          descrizione_estesa: string | null
+          icona: string | null
+          id: string
+          immagine_url: string | null
+          mostra_pagina_dedicata_pdf: boolean
+          nome: string
+          sort_order: number
+          updated_at: string
+          verticali_abilitati: string[]
+        }
+        Insert: {
           attivo?: boolean
+          categoria_tipo?: string
+          colore?: string | null
+          company_id: string
+          created_at?: string
+          descrizione?: string | null
+          descrizione_estesa?: string | null
+          icona?: string | null
+          id?: string
+          immagine_url?: string | null
+          mostra_pagina_dedicata_pdf?: boolean
+          nome: string
+          sort_order?: number
+          updated_at?: string
+          verticali_abilitati?: string[]
+        }
+        Update: {
+          attivo?: boolean
+          categoria_tipo?: string
           colore?: string | null
           company_id?: string
           created_at?: string
           descrizione?: string | null
+          descrizione_estesa?: string | null
           icona?: string | null
           id?: string
+          immagine_url?: string | null
+          mostra_pagina_dedicata_pdf?: boolean
           nome?: string
           sort_order?: number
           updated_at?: string
+          verticali_abilitati?: string[]
         }
         Relationships: [
           {
@@ -20368,6 +29352,14 @@ export type Database = {
       marketing_contacts: {
         Row: {
           address: string | null
+          ai_intent_signals: Json | null
+          ai_next_action: string | null
+          ai_predicted_value_eur: number | null
+          ai_score: number | null
+          ai_score_model: string | null
+          ai_score_reasoning: string | null
+          ai_score_tier: string | null
+          ai_scored_at: string | null
           assigned_to: string | null
           attr_campaign: string | null
           attr_content: string | null
@@ -20383,6 +29375,8 @@ export type Database = {
           created_at: string
           customer_profile_id: string | null
           date_of_birth: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           email: string | null
           first_name: string
           fiscal_code: string | null
@@ -20424,6 +29418,14 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_intent_signals?: Json | null
+          ai_next_action?: string | null
+          ai_predicted_value_eur?: number | null
+          ai_score?: number | null
+          ai_score_model?: string | null
+          ai_score_reasoning?: string | null
+          ai_score_tier?: string | null
+          ai_scored_at?: string | null
           assigned_to?: string | null
           attr_campaign?: string | null
           attr_content?: string | null
@@ -20439,6 +29441,8 @@ export type Database = {
           created_at?: string
           customer_profile_id?: string | null
           date_of_birth?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           first_name: string
           fiscal_code?: string | null
@@ -20480,6 +29484,14 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_intent_signals?: Json | null
+          ai_next_action?: string | null
+          ai_predicted_value_eur?: number | null
+          ai_score?: number | null
+          ai_score_model?: string | null
+          ai_score_reasoning?: string | null
+          ai_score_tier?: string | null
+          ai_scored_at?: string | null
           assigned_to?: string | null
           attr_campaign?: string | null
           attr_content?: string | null
@@ -20495,6 +29507,8 @@ export type Database = {
           created_at?: string
           customer_profile_id?: string | null
           date_of_birth?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           first_name?: string
           fiscal_code?: string | null
@@ -20565,12 +29579,70 @@ export type Database = {
           },
         ]
       }
+      marketing_custom_field_folders: {
+        Row: {
+          color: string | null
+          company_id: string
+          created_at: string
+          deleted_at: string | null
+          icon: string | null
+          id: string
+          name: string
+          object_type: string | null
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          company_id: string
+          created_at?: string
+          deleted_at?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          object_type?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          company_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          object_type?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_custom_field_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "marketing_custom_field_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_custom_fields: {
         Row: {
           company_id: string
           created_at: string
+          deleted_at: string | null
           field_type: string
+          folder_id: string | null
+          help_text: string | null
           id: string
+          is_required: boolean
           name: string
           object_type: string
           options: string[] | null
@@ -20580,8 +29652,12 @@ export type Database = {
         Insert: {
           company_id: string
           created_at?: string
+          deleted_at?: string | null
           field_type?: string
+          folder_id?: string | null
+          help_text?: string | null
           id?: string
+          is_required?: boolean
           name: string
           object_type?: string
           options?: string[] | null
@@ -20591,8 +29667,12 @@ export type Database = {
         Update: {
           company_id?: string
           created_at?: string
+          deleted_at?: string | null
           field_type?: string
+          folder_id?: string | null
+          help_text?: string | null
           id?: string
+          is_required?: boolean
           name?: string
           object_type?: string
           options?: string[] | null
@@ -20612,6 +29692,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_custom_fields_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_custom_field_folders"
             referencedColumns: ["id"]
           },
         ]
@@ -20686,6 +29773,8 @@ export type Database = {
           competitor_won: string | null
           contact_id: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           expected_close_date: string | null
           follower_id: string | null
           fv_progetto_id: string | null
@@ -20720,6 +29809,8 @@ export type Database = {
           competitor_won?: string | null
           contact_id: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           expected_close_date?: string | null
           follower_id?: string | null
           fv_progetto_id?: string | null
@@ -20754,6 +29845,8 @@ export type Database = {
           competitor_won?: string | null
           contact_id?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           expected_close_date?: string | null
           follower_id?: string | null
           fv_progetto_id?: string | null
@@ -21115,6 +30208,196 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      material_consumption_daily: {
+        Row: {
+          company_id: string
+          consumption_date: string
+          created_at: string
+          id: string
+          material_name: string
+          material_sku: string | null
+          order_id: string
+          qty_balance: number | null
+          qty_in: number
+          qty_out: number
+          source_ddt_ids: string[] | null
+          source_rapportini_ids: string[] | null
+          unita_misura: string
+        }
+        Insert: {
+          company_id: string
+          consumption_date: string
+          created_at?: string
+          id?: string
+          material_name: string
+          material_sku?: string | null
+          order_id: string
+          qty_balance?: number | null
+          qty_in?: number
+          qty_out?: number
+          source_ddt_ids?: string[] | null
+          source_rapportini_ids?: string[] | null
+          unita_misura?: string
+        }
+        Update: {
+          company_id?: string
+          consumption_date?: string
+          created_at?: string
+          id?: string
+          material_name?: string
+          material_sku?: string | null
+          order_id?: string
+          qty_balance?: number | null
+          qty_in?: number
+          qty_out?: number
+          source_ddt_ids?: string[] | null
+          source_rapportini_ids?: string[] | null
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_consumption_daily_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "material_consumption_daily_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_consumption_daily_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_consumption_daily_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_predictions: {
+        Row: {
+          basis: Json | null
+          company_id: string
+          confidence: number | null
+          created_at: string
+          horizon_days: number
+          id: string
+          material_name: string
+          material_sku: string | null
+          order_id: string
+          prediction_date: string
+          qty_predicted: number
+          unita_misura: string
+        }
+        Insert: {
+          basis?: Json | null
+          company_id: string
+          confidence?: number | null
+          created_at?: string
+          horizon_days: number
+          id?: string
+          material_name: string
+          material_sku?: string | null
+          order_id: string
+          prediction_date: string
+          qty_predicted: number
+          unita_misura?: string
+        }
+        Update: {
+          basis?: Json | null
+          company_id?: string
+          confidence?: number | null
+          created_at?: string
+          horizon_days?: number
+          id?: string
+          material_name?: string
+          material_sku?: string | null
+          order_id?: string
+          prediction_date?: string
+          qty_predicted?: number
+          unita_misura?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_predictions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "material_predictions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_predictions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_predictions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      material_price_index: {
+        Row: {
+          created_at: string | null
+          id: string
+          index_date: string
+          material_key: string
+          metadata: Json | null
+          price_eur_kg: number | null
+          price_eur_unit: number | null
+          source: string | null
+          source_url: string | null
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          index_date: string
+          material_key: string
+          metadata?: Json | null
+          price_eur_kg?: number | null
+          price_eur_unit?: number | null
+          source?: string | null
+          source_url?: string | null
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          index_date?: string
+          material_key?: string
+          metadata?: Json | null
+          price_eur_kg?: number | null
+          price_eur_unit?: number | null
+          source?: string | null
+          source_url?: string | null
+          unit?: string | null
+        }
+        Relationships: []
       }
       message_templates: {
         Row: {
@@ -22254,6 +31537,8 @@ export type Database = {
       }
       onboarding_steps: {
         Row: {
+          action_label: string | null
+          action_url: string | null
           auto_check_key: string | null
           created_at: string
           description: string | null
@@ -22264,6 +31549,8 @@ export type Database = {
           title: string
         }
         Insert: {
+          action_label?: string | null
+          action_url?: string | null
           auto_check_key?: string | null
           created_at?: string
           description?: string | null
@@ -22274,6 +31561,8 @@ export type Database = {
           title: string
         }
         Update: {
+          action_label?: string | null
+          action_url?: string | null
           auto_check_key?: string | null
           created_at?: string
           description?: string | null
@@ -22296,7 +31585,7 @@ export type Database = {
       onboarding_templates: {
         Row: {
           created_at: string
-          created_by: string
+          created_by: string | null
           description: string | null
           id: string
           is_default: boolean | null
@@ -22305,7 +31594,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          created_by: string
+          created_by?: string | null
           description?: string | null
           id?: string
           is_default?: boolean | null
@@ -22314,7 +31603,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           is_default?: boolean | null
@@ -22536,6 +31825,13 @@ export type Database = {
           total_cost?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "order_employees_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
           {
             foreignKeyName: "order_employees_employee_id_fkey"
             columns: ["employee_id"]
@@ -22966,6 +32262,7 @@ export type Database = {
           paid_date: string | null
           payment_method: string | null
           position: number | null
+          product_code: string | null
           purchase_price: number | null
           quantity: number | null
           quantity_received: number | null
@@ -23009,6 +32306,7 @@ export type Database = {
           paid_date?: string | null
           payment_method?: string | null
           position?: number | null
+          product_code?: string | null
           purchase_price?: number | null
           quantity?: number | null
           quantity_received?: number | null
@@ -23052,6 +32350,7 @@ export type Database = {
           paid_date?: string | null
           payment_method?: string | null
           position?: number | null
+          product_code?: string | null
           purchase_price?: number | null
           quantity?: number | null
           quantity_received?: number | null
@@ -23422,6 +32721,7 @@ export type Database = {
           balance_expected_date: string | null
           balance_paid: boolean | null
           balance_paid_date: string | null
+          capomastro_user_id: string | null
           client_address: string | null
           client_company: string | null
           client_email: string | null
@@ -23432,6 +32732,8 @@ export type Database = {
           created_by: string | null
           current_status_id: string | null
           customer_id: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           deposit_2_amount: number | null
           deposit_2_expected_date: string | null
           deposit_2_paid: boolean | null
@@ -23441,6 +32743,8 @@ export type Database = {
           deposit_paid: boolean | null
           deposit_paid_date: string | null
           description: string
+          dl_notification_email: string | null
+          dl_notification_phone: string | null
           expected_date: string | null
           financing_amount: number | null
           financing_cost: number | null
@@ -23449,6 +32753,7 @@ export type Database = {
           financing_paid_date: string | null
           fulfillment_status: string | null
           fv_progetto_id: string | null
+          giornale_auto_enabled: boolean
           has_building_bonus: boolean
           id: string
           indirizzo_lavori: string | null
@@ -23467,6 +32772,7 @@ export type Database = {
           updated_at: string
           vat_rate: number | null
           warehouse_arrival_date: string | null
+          weekly_report_enabled: boolean
           work_address: string | null
           work_description: string | null
           work_end_date: string | null
@@ -23478,6 +32784,7 @@ export type Database = {
           balance_expected_date?: string | null
           balance_paid?: boolean | null
           balance_paid_date?: string | null
+          capomastro_user_id?: string | null
           client_address?: string | null
           client_company?: string | null
           client_email?: string | null
@@ -23488,6 +32795,8 @@ export type Database = {
           created_by?: string | null
           current_status_id?: string | null
           customer_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           deposit_2_amount?: number | null
           deposit_2_expected_date?: string | null
           deposit_2_paid?: boolean | null
@@ -23497,6 +32806,8 @@ export type Database = {
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description: string
+          dl_notification_email?: string | null
+          dl_notification_phone?: string | null
           expected_date?: string | null
           financing_amount?: number | null
           financing_cost?: number | null
@@ -23505,6 +32816,7 @@ export type Database = {
           financing_paid_date?: string | null
           fulfillment_status?: string | null
           fv_progetto_id?: string | null
+          giornale_auto_enabled?: boolean
           has_building_bonus?: boolean
           id?: string
           indirizzo_lavori?: string | null
@@ -23523,6 +32835,7 @@ export type Database = {
           updated_at?: string
           vat_rate?: number | null
           warehouse_arrival_date?: string | null
+          weekly_report_enabled?: boolean
           work_address?: string | null
           work_description?: string | null
           work_end_date?: string | null
@@ -23534,6 +32847,7 @@ export type Database = {
           balance_expected_date?: string | null
           balance_paid?: boolean | null
           balance_paid_date?: string | null
+          capomastro_user_id?: string | null
           client_address?: string | null
           client_company?: string | null
           client_email?: string | null
@@ -23544,6 +32858,8 @@ export type Database = {
           created_by?: string | null
           current_status_id?: string | null
           customer_id?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           deposit_2_amount?: number | null
           deposit_2_expected_date?: string | null
           deposit_2_paid?: boolean | null
@@ -23553,6 +32869,8 @@ export type Database = {
           deposit_paid?: boolean | null
           deposit_paid_date?: string | null
           description?: string
+          dl_notification_email?: string | null
+          dl_notification_phone?: string | null
           expected_date?: string | null
           financing_amount?: number | null
           financing_cost?: number | null
@@ -23561,6 +32879,7 @@ export type Database = {
           financing_paid_date?: string | null
           fulfillment_status?: string | null
           fv_progetto_id?: string | null
+          giornale_auto_enabled?: boolean
           has_building_bonus?: boolean
           id?: string
           indirizzo_lavori?: string | null
@@ -23579,6 +32898,7 @@ export type Database = {
           updated_at?: string
           vat_rate?: number | null
           warehouse_arrival_date?: string | null
+          weekly_report_enabled?: boolean
           work_address?: string | null
           work_description?: string | null
           work_end_date?: string | null
@@ -24179,8 +33499,120 @@ export type Database = {
           },
         ]
       }
+      pipeline_forecasts: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          ai_insights: string | null
+          ai_persona_used: string | null
+          company_id: string
+          created_at: string | null
+          forecast_30d_eur: number | null
+          forecast_60d_eur: number | null
+          forecast_90d_eur: number | null
+          forecast_date: string
+          hot_quotes_ids: string[] | null
+          id: string
+          pipeline_total_eur: number | null
+          pipeline_weighted_eur: number | null
+          quotes_in_pipeline_count: number | null
+          stale_quotes_ids: string[] | null
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_insights?: string | null
+          ai_persona_used?: string | null
+          company_id: string
+          created_at?: string | null
+          forecast_30d_eur?: number | null
+          forecast_60d_eur?: number | null
+          forecast_90d_eur?: number | null
+          forecast_date?: string
+          hot_quotes_ids?: string[] | null
+          id?: string
+          pipeline_total_eur?: number | null
+          pipeline_weighted_eur?: number | null
+          quotes_in_pipeline_count?: number | null
+          stale_quotes_ids?: string[] | null
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          ai_insights?: string | null
+          ai_persona_used?: string | null
+          company_id?: string
+          created_at?: string | null
+          forecast_30d_eur?: number | null
+          forecast_60d_eur?: number | null
+          forecast_90d_eur?: number | null
+          forecast_date?: string
+          hot_quotes_ids?: string[] | null
+          id?: string
+          pipeline_total_eur?: number | null
+          pipeline_weighted_eur?: number | null
+          quotes_in_pipeline_count?: number | null
+          stale_quotes_ids?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_forecasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pipeline_forecasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_ai_budgets: {
+        Row: {
+          fallback_model_tier: string | null
+          hard_cap_pct: number
+          monthly_budget_eur: number
+          on_hard_cap: string
+          on_soft_cap: string
+          payg_enabled: boolean
+          payg_packages: Json
+          plan_key: string
+          soft_cap_pct: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          fallback_model_tier?: string | null
+          hard_cap_pct?: number
+          monthly_budget_eur: number
+          on_hard_cap?: string
+          on_soft_cap?: string
+          payg_enabled?: boolean
+          payg_packages?: Json
+          plan_key: string
+          soft_cap_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          fallback_model_tier?: string | null
+          hard_cap_pct?: number
+          monthly_budget_eur?: number
+          on_hard_cap?: string
+          on_soft_cap?: string
+          payg_enabled?: boolean
+          payg_packages?: Json
+          plan_key?: string
+          soft_cap_pct?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       plan_feature_defaults: {
         Row: {
+          access_level: Database["public"]["Enums"]["feature_access_level"]
           created_at: string
           credit_type: string | null
           credits_included: number | null
@@ -24193,6 +33625,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          access_level?: Database["public"]["Enums"]["feature_access_level"]
           created_at?: string
           credit_type?: string | null
           credits_included?: number | null
@@ -24205,6 +33638,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_level?: Database["public"]["Enums"]["feature_access_level"]
           created_at?: string
           credit_type?: string | null
           credits_included?: number | null
@@ -24232,6 +33666,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_ai_usage_log: {
+        Row: {
+          cost_real_usd: number
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          metadata: Json
+          model_used: string
+          operation_key: string
+          provider: string
+          status: string
+          tokens_in: number
+          tokens_out: number
+          user_id: string | null
+        }
+        Insert: {
+          cost_real_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json
+          model_used: string
+          operation_key: string
+          provider: string
+          status?: string
+          tokens_in?: number
+          tokens_out?: number
+          user_id?: string | null
+        }
+        Update: {
+          cost_real_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json
+          model_used?: string
+          operation_key?: string
+          provider?: string
+          status?: string
+          tokens_in?: number
+          tokens_out?: number
+          user_id?: string | null
+        }
+        Relationships: []
       }
       platform_announcements: {
         Row: {
@@ -24266,6 +33748,57 @@ export type Database = {
           target_status?: string
           title?: string
           type?: string
+        }
+        Relationships: []
+      }
+      platform_changelog_entries: {
+        Row: {
+          body_md: string
+          category: string
+          created_at: string
+          cta_label: string | null
+          cta_url: string | null
+          emoji: string | null
+          id: string
+          is_pinned: boolean
+          is_published: boolean
+          published_at: string
+          published_by: string | null
+          target_audience: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body_md: string
+          category?: string
+          created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
+          emoji?: string | null
+          id?: string
+          is_pinned?: boolean
+          is_published?: boolean
+          published_at?: string
+          published_by?: string | null
+          target_audience?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body_md?: string
+          category?: string
+          created_at?: string
+          cta_label?: string | null
+          cta_url?: string | null
+          emoji?: string | null
+          id?: string
+          is_pinned?: boolean
+          is_published?: boolean
+          published_at?: string
+          published_by?: string | null
+          target_audience?: string[] | null
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -24417,6 +33950,7 @@ export type Database = {
           plans_included: string[] | null
           price_per_month: number | null
           sort_order: number | null
+          supports_preview: boolean
         }
         Insert: {
           category?: string | null
@@ -24431,6 +33965,7 @@ export type Database = {
           plans_included?: string[] | null
           price_per_month?: number | null
           sort_order?: number | null
+          supports_preview?: boolean
         }
         Update: {
           category?: string | null
@@ -24445,6 +33980,7 @@ export type Database = {
           plans_included?: string[] | null
           price_per_month?: number | null
           sort_order?: number | null
+          supports_preview?: boolean
         }
         Relationships: []
       }
@@ -24869,75 +34405,135 @@ export type Database = {
       }
       pos_documents: {
         Row: {
+          ai_cost_billed_eur: number | null
+          ai_persona_used: string | null
           company_id: string
           created_at: string
           created_by: string | null
+          cronoprogramma: Json | null
           data_fine_prevista: string | null
           data_inizio: string | null
+          datore_lavoro_signed_at: string | null
+          document_type: string | null
+          dpi_required: Json | null
           dpi_richiesti: Json | null
           firmato_da: string | null
           firmato_il: string | null
+          formazioni_required: Json | null
           generated_by: string | null
           generated_content: string | null
           id: string
+          identificazione_cantiere: Json | null
           indirizzo_cantiere: string
+          individuazione_rischi: Json | null
+          misure_prevenzione: Json | null
           numero_lavoratori: number | null
           order_id: string
+          organizzazione_cantiere: Json | null
+          pages_count: number | null
+          pdf_storage_path: string | null
           pdf_url: string | null
           procedure_operative: string | null
           responsabile_sicurezza: string | null
+          riferimenti_normativi: Json | null
           rischi_presenti: Json | null
+          rls_signed_at: string | null
+          rspp_signed_at: string | null
+          rspp_user_id: string | null
           status: string
+          superseded_by: string | null
           tipo_lavori: string
           updated_at: string
+          valid_from: string | null
+          valid_until: string | null
           version: number
         }
         Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
           company_id: string
           created_at?: string
           created_by?: string | null
+          cronoprogramma?: Json | null
           data_fine_prevista?: string | null
           data_inizio?: string | null
+          datore_lavoro_signed_at?: string | null
+          document_type?: string | null
+          dpi_required?: Json | null
           dpi_richiesti?: Json | null
           firmato_da?: string | null
           firmato_il?: string | null
+          formazioni_required?: Json | null
           generated_by?: string | null
           generated_content?: string | null
           id?: string
+          identificazione_cantiere?: Json | null
           indirizzo_cantiere: string
+          individuazione_rischi?: Json | null
+          misure_prevenzione?: Json | null
           numero_lavoratori?: number | null
           order_id: string
+          organizzazione_cantiere?: Json | null
+          pages_count?: number | null
+          pdf_storage_path?: string | null
           pdf_url?: string | null
           procedure_operative?: string | null
           responsabile_sicurezza?: string | null
+          riferimenti_normativi?: Json | null
           rischi_presenti?: Json | null
+          rls_signed_at?: string | null
+          rspp_signed_at?: string | null
+          rspp_user_id?: string | null
           status?: string
+          superseded_by?: string | null
           tipo_lavori: string
           updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
           version?: number
         }
         Update: {
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
           company_id?: string
           created_at?: string
           created_by?: string | null
+          cronoprogramma?: Json | null
           data_fine_prevista?: string | null
           data_inizio?: string | null
+          datore_lavoro_signed_at?: string | null
+          document_type?: string | null
+          dpi_required?: Json | null
           dpi_richiesti?: Json | null
           firmato_da?: string | null
           firmato_il?: string | null
+          formazioni_required?: Json | null
           generated_by?: string | null
           generated_content?: string | null
           id?: string
+          identificazione_cantiere?: Json | null
           indirizzo_cantiere?: string
+          individuazione_rischi?: Json | null
+          misure_prevenzione?: Json | null
           numero_lavoratori?: number | null
           order_id?: string
+          organizzazione_cantiere?: Json | null
+          pages_count?: number | null
+          pdf_storage_path?: string | null
           pdf_url?: string | null
           procedure_operative?: string | null
           responsabile_sicurezza?: string | null
+          riferimenti_normativi?: Json | null
           rischi_presenti?: Json | null
+          rls_signed_at?: string | null
+          rspp_signed_at?: string | null
+          rspp_user_id?: string | null
           status?: string
+          superseded_by?: string | null
           tipo_lavori?: string
           updated_at?: string
+          valid_from?: string | null
+          valid_until?: string | null
           version?: number
         }
         Relationships: [
@@ -24968,6 +34564,276 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_documents_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "pos_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pratiche_edilizie: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          ai_persona_used: string | null
+          ai_reasoning: string | null
+          ai_recommended_type: string | null
+          cantiere_id: string | null
+          company_id: string
+          comune: string | null
+          created_at: string | null
+          data_inizio_lavori: string | null
+          data_invio: string | null
+          documenti_caricati: Json | null
+          documenti_mancanti: Json | null
+          documenti_richiesti: Json | null
+          id: string
+          next_action: string | null
+          next_action_deadline: string | null
+          protocollo_sue: string | null
+          provincia: string | null
+          scadenza_silenzio_assenso: string | null
+          status: string
+          tipo_pratica: string
+          updated_at: string | null
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
+          ai_reasoning?: string | null
+          ai_recommended_type?: string | null
+          cantiere_id?: string | null
+          company_id: string
+          comune?: string | null
+          created_at?: string | null
+          data_inizio_lavori?: string | null
+          data_invio?: string | null
+          documenti_caricati?: Json | null
+          documenti_mancanti?: Json | null
+          documenti_richiesti?: Json | null
+          id?: string
+          next_action?: string | null
+          next_action_deadline?: string | null
+          protocollo_sue?: string | null
+          provincia?: string | null
+          scadenza_silenzio_assenso?: string | null
+          status?: string
+          tipo_pratica: string
+          updated_at?: string | null
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string | null
+          ai_reasoning?: string | null
+          ai_recommended_type?: string | null
+          cantiere_id?: string | null
+          company_id?: string
+          comune?: string | null
+          created_at?: string | null
+          data_inizio_lavori?: string | null
+          data_invio?: string | null
+          documenti_caricati?: Json | null
+          documenti_mancanti?: Json | null
+          documenti_richiesti?: Json | null
+          id?: string
+          next_action?: string | null
+          next_action_deadline?: string | null
+          protocollo_sue?: string | null
+          provincia?: string | null
+          scadenza_silenzio_assenso?: string | null
+          status?: string
+          tipo_pratica?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pratiche_edilizie_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pratiche_edilizie_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pratiche_edilizie_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pratiche_edilizie_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      preventivo_da_foto_runs: {
+        Row: {
+          audio_duration_sec: number | null
+          audio_storage_path: string | null
+          audio_transcript: string | null
+          budget_hint_eur: number | null
+          cantiere_address: string | null
+          cantiere_comune: string | null
+          cantiere_provincia: string | null
+          capture_mode: string | null
+          company_id: string
+          computo_draft: Json | null
+          computo_total_eur: number | null
+          created_at: string
+          customer_id: string | null
+          description: string | null
+          error_message: string | null
+          error_step: string | null
+          extracted_customer_data: Json | null
+          extracted_products: Json | null
+          extraction_confidence: number | null
+          id: string
+          image_storage_paths: string[] | null
+          lead_email: string | null
+          lead_name: string | null
+          lead_phone: string | null
+          quote_id: string | null
+          reviewed_at: string | null
+          reviewed_by_user_id: string | null
+          sketch_storage_paths: string[] | null
+          source: string
+          status: string
+          updated_at: string
+          urgenza: string | null
+          user_corrections: Json | null
+          user_review_completed_at: string | null
+          vertical_key: string | null
+          vision_cost_billed_eur: number | null
+          vision_persona_used: string | null
+          vision_results: Json | null
+        }
+        Insert: {
+          audio_duration_sec?: number | null
+          audio_storage_path?: string | null
+          audio_transcript?: string | null
+          budget_hint_eur?: number | null
+          cantiere_address?: string | null
+          cantiere_comune?: string | null
+          cantiere_provincia?: string | null
+          capture_mode?: string | null
+          company_id: string
+          computo_draft?: Json | null
+          computo_total_eur?: number | null
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          error_message?: string | null
+          error_step?: string | null
+          extracted_customer_data?: Json | null
+          extracted_products?: Json | null
+          extraction_confidence?: number | null
+          id?: string
+          image_storage_paths?: string[] | null
+          lead_email?: string | null
+          lead_name?: string | null
+          lead_phone?: string | null
+          quote_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by_user_id?: string | null
+          sketch_storage_paths?: string[] | null
+          source: string
+          status?: string
+          updated_at?: string
+          urgenza?: string | null
+          user_corrections?: Json | null
+          user_review_completed_at?: string | null
+          vertical_key?: string | null
+          vision_cost_billed_eur?: number | null
+          vision_persona_used?: string | null
+          vision_results?: Json | null
+        }
+        Update: {
+          audio_duration_sec?: number | null
+          audio_storage_path?: string | null
+          audio_transcript?: string | null
+          budget_hint_eur?: number | null
+          cantiere_address?: string | null
+          cantiere_comune?: string | null
+          cantiere_provincia?: string | null
+          capture_mode?: string | null
+          company_id?: string
+          computo_draft?: Json | null
+          computo_total_eur?: number | null
+          created_at?: string
+          customer_id?: string | null
+          description?: string | null
+          error_message?: string | null
+          error_step?: string | null
+          extracted_customer_data?: Json | null
+          extracted_products?: Json | null
+          extraction_confidence?: number | null
+          id?: string
+          image_storage_paths?: string[] | null
+          lead_email?: string | null
+          lead_name?: string | null
+          lead_phone?: string | null
+          quote_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by_user_id?: string | null
+          sketch_storage_paths?: string[] | null
+          source?: string
+          status?: string
+          updated_at?: string
+          urgenza?: string | null
+          user_corrections?: Json | null
+          user_review_completed_at?: string | null
+          vertical_key?: string | null
+          vision_cost_billed_eur?: number | null
+          vision_persona_used?: string | null
+          vision_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "preventivo_da_foto_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "preventivo_da_foto_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventivo_da_foto_runs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventivo_da_foto_runs_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventivo_da_foto_runs_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
           },
         ]
       }
@@ -25267,9 +35133,135 @@ export type Database = {
           },
         ]
       }
+      pricing_suggestions: {
+        Row: {
+          accepted_by_customer: boolean | null
+          ai_confidence: number | null
+          ai_cost_billed_eur: number | null
+          ai_persona_used: string
+          ai_reasoning: string | null
+          company_id: string
+          computo_line_id: string | null
+          cost_real_eur: number | null
+          created_at: string
+          customer_id: string | null
+          economy_price_eur: number | null
+          final_price_eur: number | null
+          final_variant_chosen: string | null
+          id: string
+          market_avg_eur: number | null
+          market_p90_eur: number | null
+          premium_price_eur: number | null
+          price_history_avg_eur: number | null
+          price_history_samples: number | null
+          qty: number | null
+          quote_id: string | null
+          standard_price_eur: number | null
+          suggested_margin_pct: number | null
+          suggested_price_eur: number | null
+          unita_misura: string | null
+          voce_descrizione: string
+        }
+        Insert: {
+          accepted_by_customer?: boolean | null
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string
+          ai_reasoning?: string | null
+          company_id: string
+          computo_line_id?: string | null
+          cost_real_eur?: number | null
+          created_at?: string
+          customer_id?: string | null
+          economy_price_eur?: number | null
+          final_price_eur?: number | null
+          final_variant_chosen?: string | null
+          id?: string
+          market_avg_eur?: number | null
+          market_p90_eur?: number | null
+          premium_price_eur?: number | null
+          price_history_avg_eur?: number | null
+          price_history_samples?: number | null
+          qty?: number | null
+          quote_id?: string | null
+          standard_price_eur?: number | null
+          suggested_margin_pct?: number | null
+          suggested_price_eur?: number | null
+          unita_misura?: string | null
+          voce_descrizione: string
+        }
+        Update: {
+          accepted_by_customer?: boolean | null
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_persona_used?: string
+          ai_reasoning?: string | null
+          company_id?: string
+          computo_line_id?: string | null
+          cost_real_eur?: number | null
+          created_at?: string
+          customer_id?: string | null
+          economy_price_eur?: number | null
+          final_price_eur?: number | null
+          final_variant_chosen?: string | null
+          id?: string
+          market_avg_eur?: number | null
+          market_p90_eur?: number | null
+          premium_price_eur?: number | null
+          price_history_avg_eur?: number | null
+          price_history_samples?: number | null
+          qty?: number | null
+          quote_id?: string | null
+          standard_price_eur?: number | null
+          suggested_margin_pct?: number | null
+          suggested_price_eur?: number | null
+          unita_misura?: string | null
+          voce_descrizione?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_suggestions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "pricing_suggestions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_suggestions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_suggestions_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_suggestions_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+        ]
+      }
       prima_nota_entries: {
         Row: {
           account_label: string | null
+          ai_confidence: number | null
+          ai_reasoning: string | null
+          alternative_matches: Json | null
           amount: number
           attachment_name: string | null
           attachment_url: string | null
@@ -25290,6 +35282,8 @@ export type Database = {
           order_id: string | null
           order_item_id: string | null
           payment_method: string | null
+          reconciliation_audit_log: Json | null
+          reconciliation_method: string | null
           reference_number: string | null
           scadenza_id: string | null
           supplier_id: string | null
@@ -25297,6 +35291,9 @@ export type Database = {
         }
         Insert: {
           account_label?: string | null
+          ai_confidence?: number | null
+          ai_reasoning?: string | null
+          alternative_matches?: Json | null
           amount: number
           attachment_name?: string | null
           attachment_url?: string | null
@@ -25317,6 +35314,8 @@ export type Database = {
           order_id?: string | null
           order_item_id?: string | null
           payment_method?: string | null
+          reconciliation_audit_log?: Json | null
+          reconciliation_method?: string | null
           reference_number?: string | null
           scadenza_id?: string | null
           supplier_id?: string | null
@@ -25324,6 +35323,9 @@ export type Database = {
         }
         Update: {
           account_label?: string | null
+          ai_confidence?: number | null
+          ai_reasoning?: string | null
+          alternative_matches?: Json | null
           amount?: number
           attachment_name?: string | null
           attachment_url?: string | null
@@ -25344,6 +35346,8 @@ export type Database = {
           order_id?: string | null
           order_item_id?: string | null
           payment_method?: string | null
+          reconciliation_audit_log?: Json | null
+          reconciliation_method?: string | null
           reference_number?: string | null
           scadenza_id?: string | null
           supplier_id?: string | null
@@ -25429,6 +35433,90 @@ export type Database = {
           },
         ]
       }
+      product_aliases: {
+        Row: {
+          alias_normalized: string | null
+          alias_text: string
+          article_template_id: string | null
+          company_id: string
+          confidence: number | null
+          created_at: string | null
+          created_by: string | null
+          family_id: string | null
+          id: string
+          last_used_at: string | null
+          learned_from: string
+          tariffa_id: string | null
+          use_count: number | null
+        }
+        Insert: {
+          alias_normalized?: string | null
+          alias_text: string
+          article_template_id?: string | null
+          company_id: string
+          confidence?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          family_id?: string | null
+          id?: string
+          last_used_at?: string | null
+          learned_from?: string
+          tariffa_id?: string | null
+          use_count?: number | null
+        }
+        Update: {
+          alias_normalized?: string | null
+          alias_text?: string
+          article_template_id?: string | null
+          company_id?: string
+          confidence?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          family_id?: string | null
+          id?: string
+          last_used_at?: string | null
+          learned_from?: string
+          tariffa_id?: string | null
+          use_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_aliases_article_template_id_fkey"
+            columns: ["article_template_id"]
+            isOneToOne: false
+            referencedRelation: "article_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_aliases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "product_aliases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_aliases_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_aliases_tariffa_id_fkey"
+            columns: ["tariffa_id"]
+            isOneToOne: false
+            referencedRelation: "tariffe_aziendali"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
@@ -25438,6 +35526,7 @@ export type Database = {
           blocked_at: string | null
           blocked_by: string | null
           business_name: string | null
+          changelog_last_seen_at: string | null
           city: string | null
           company_id: string | null
           country: string | null
@@ -25460,6 +35549,7 @@ export type Database = {
           phone: string | null
           portal_disabled: boolean
           postal_code: string | null
+          preferred_briefing_channel: string
           province: string | null
           require_2fa: boolean
           salesperson_id: string | null
@@ -25468,6 +35558,7 @@ export type Database = {
           site_postal_code: string | null
           site_province: string | null
           updated_at: string
+          winback_opt_out: boolean
         }
         Insert: {
           address?: string | null
@@ -25477,6 +35568,7 @@ export type Database = {
           blocked_at?: string | null
           blocked_by?: string | null
           business_name?: string | null
+          changelog_last_seen_at?: string | null
           city?: string | null
           company_id?: string | null
           country?: string | null
@@ -25499,6 +35591,7 @@ export type Database = {
           phone?: string | null
           portal_disabled?: boolean
           postal_code?: string | null
+          preferred_briefing_channel?: string
           province?: string | null
           require_2fa?: boolean
           salesperson_id?: string | null
@@ -25507,6 +35600,7 @@ export type Database = {
           site_postal_code?: string | null
           site_province?: string | null
           updated_at?: string
+          winback_opt_out?: boolean
         }
         Update: {
           address?: string | null
@@ -25516,6 +35610,7 @@ export type Database = {
           blocked_at?: string | null
           blocked_by?: string | null
           business_name?: string | null
+          changelog_last_seen_at?: string | null
           city?: string | null
           company_id?: string | null
           country?: string | null
@@ -25538,6 +35633,7 @@ export type Database = {
           phone?: string | null
           portal_disabled?: boolean
           postal_code?: string | null
+          preferred_briefing_channel?: string
           province?: string | null
           require_2fa?: boolean
           salesperson_id?: string | null
@@ -25546,6 +35642,7 @@ export type Database = {
           site_postal_code?: string | null
           site_province?: string | null
           updated_at?: string
+          winback_opt_out?: boolean
         }
         Relationships: [
           {
@@ -25635,6 +35732,339 @@ export type Database = {
           valid_until?: string | null
         }
         Relationships: []
+      }
+      proposed_purchase_orders: {
+        Row: {
+          actual_cost_eur: number | null
+          ai_persona_used: string
+          alternative_suppliers: Json | null
+          company_id: string
+          created_at: string
+          delivered_at: string | null
+          expected_delivery_date: string | null
+          external_po_id: string | null
+          for_cantiere_id: string | null
+          id: string
+          items: Json
+          optimal_send_date: string | null
+          proposal_reason: string | null
+          proposed_supplier_id: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          total_amount_eur: number | null
+          updated_at: string
+        }
+        Insert: {
+          actual_cost_eur?: number | null
+          ai_persona_used?: string
+          alternative_suppliers?: Json | null
+          company_id: string
+          created_at?: string
+          delivered_at?: string | null
+          expected_delivery_date?: string | null
+          external_po_id?: string | null
+          for_cantiere_id?: string | null
+          id?: string
+          items: Json
+          optimal_send_date?: string | null
+          proposal_reason?: string | null
+          proposed_supplier_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          total_amount_eur?: number | null
+          updated_at?: string
+        }
+        Update: {
+          actual_cost_eur?: number | null
+          ai_persona_used?: string
+          alternative_suppliers?: Json | null
+          company_id?: string
+          created_at?: string
+          delivered_at?: string | null
+          expected_delivery_date?: string | null
+          external_po_id?: string | null
+          for_cantiere_id?: string | null
+          id?: string
+          items?: Json
+          optimal_send_date?: string | null
+          proposal_reason?: string | null
+          proposed_supplier_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          total_amount_eur?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposed_purchase_orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "proposed_purchase_orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposed_purchase_orders_external_po_id_fkey"
+            columns: ["external_po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposed_purchase_orders_for_cantiere_id_fkey"
+            columns: ["for_cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposed_purchase_orders_for_cantiere_id_fkey"
+            columns: ["for_cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposed_purchase_orders_proposed_supplier_id_fkey"
+            columns: ["proposed_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_procurement_report"
+            referencedColumns: ["supplier_id"]
+          },
+          {
+            foreignKeyName: "proposed_purchase_orders_proposed_supplier_id_fkey"
+            columns: ["proposed_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_chat_messages: {
+        Row: {
+          company_id: string
+          content: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          role: string
+          session_id: string
+        }
+        Insert: {
+          company_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role: string
+          session_id: string
+        }
+        Update: {
+          company_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "public_chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_chat_sessions: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          collected_data: Json | null
+          collected_email: string | null
+          collected_intent: string | null
+          collected_name: string | null
+          collected_phone: string | null
+          company_id: string
+          ended_at: string | null
+          id: string
+          last_message_at: string | null
+          marketing_contact_id: string | null
+          message_count: number | null
+          qualified_at: string | null
+          source_page: string | null
+          source_referrer: string | null
+          started_at: string | null
+          status: string
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          visitor_country: string | null
+          visitor_ip: unknown
+          visitor_token: string
+          visitor_user_agent: string | null
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          collected_data?: Json | null
+          collected_email?: string | null
+          collected_intent?: string | null
+          collected_name?: string | null
+          collected_phone?: string | null
+          company_id: string
+          ended_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          marketing_contact_id?: string | null
+          message_count?: number | null
+          qualified_at?: string | null
+          source_page?: string | null
+          source_referrer?: string | null
+          started_at?: string | null
+          status?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_country?: string | null
+          visitor_ip?: unknown
+          visitor_token: string
+          visitor_user_agent?: string | null
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          collected_data?: Json | null
+          collected_email?: string | null
+          collected_intent?: string | null
+          collected_name?: string | null
+          collected_phone?: string | null
+          company_id?: string
+          ended_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          marketing_contact_id?: string | null
+          message_count?: number | null
+          qualified_at?: string | null
+          source_page?: string | null
+          source_referrer?: string | null
+          started_at?: string | null
+          status?: string
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_country?: string | null
+          visitor_ip?: unknown
+          visitor_token?: string
+          visitor_user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_chat_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "public_chat_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_chat_sessions_marketing_contact_id_fkey"
+            columns: ["marketing_contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "public_chat_sessions_marketing_contact_id_fkey"
+            columns: ["marketing_contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_chatbot_settings: {
+        Row: {
+          ai_persona: string | null
+          auto_handoff_after_messages: number | null
+          bot_name: string | null
+          collect_email_required: boolean | null
+          collect_phone_required: boolean | null
+          company_id: string
+          created_at: string | null
+          daily_session_limit: number | null
+          enabled: boolean | null
+          primary_color: string | null
+          public_widget_token: string | null
+          rate_limit_per_minute: number | null
+          updated_at: string | null
+          vertical_key: string | null
+          welcome_message: string | null
+        }
+        Insert: {
+          ai_persona?: string | null
+          auto_handoff_after_messages?: number | null
+          bot_name?: string | null
+          collect_email_required?: boolean | null
+          collect_phone_required?: boolean | null
+          company_id: string
+          created_at?: string | null
+          daily_session_limit?: number | null
+          enabled?: boolean | null
+          primary_color?: string | null
+          public_widget_token?: string | null
+          rate_limit_per_minute?: number | null
+          updated_at?: string | null
+          vertical_key?: string | null
+          welcome_message?: string | null
+        }
+        Update: {
+          ai_persona?: string | null
+          auto_handoff_after_messages?: number | null
+          bot_name?: string | null
+          collect_email_required?: boolean | null
+          collect_phone_required?: boolean | null
+          company_id?: string
+          created_at?: string | null
+          daily_session_limit?: number | null
+          enabled?: boolean | null
+          primary_color?: string | null
+          public_widget_token?: string | null
+          rate_limit_per_minute?: number | null
+          updated_at?: string | null
+          vertical_key?: string | null
+          welcome_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_chatbot_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "public_chatbot_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       purchase_order_items: {
         Row: {
@@ -26140,6 +36570,141 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_preventivo_analisi"
             referencedColumns: ["quote_id"]
+          },
+        ]
+      }
+      quote_clause_templates: {
+        Row: {
+          active: boolean | null
+          applicable_to: Json | null
+          category: string
+          company_id: string
+          content: string
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          sort_order: number | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          applicable_to?: Json | null
+          category: string
+          company_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          sort_order?: number | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          applicable_to?: Json | null
+          category?: string
+          company_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          sort_order?: number | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_clause_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "quote_clause_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quote_generation_audit: {
+        Row: {
+          ai_confidence: string | null
+          ai_cost_eur: number | null
+          ai_duration_ms: number | null
+          ai_thinking: string | null
+          benchmark_comparison: Json | null
+          brief_input: string
+          cashflow_impact: Json | null
+          clauses_included: string[] | null
+          company_id: string
+          created_at: string | null
+          feasibility_warnings: Json | null
+          id: string
+          listino_items_used: Json | null
+          margin_strategy: Json | null
+          parsed_brief: Json | null
+          quote_id: string | null
+          upsell_suggestions: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_confidence?: string | null
+          ai_cost_eur?: number | null
+          ai_duration_ms?: number | null
+          ai_thinking?: string | null
+          benchmark_comparison?: Json | null
+          brief_input: string
+          cashflow_impact?: Json | null
+          clauses_included?: string[] | null
+          company_id: string
+          created_at?: string | null
+          feasibility_warnings?: Json | null
+          id?: string
+          listino_items_used?: Json | null
+          margin_strategy?: Json | null
+          parsed_brief?: Json | null
+          quote_id?: string | null
+          upsell_suggestions?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_confidence?: string | null
+          ai_cost_eur?: number | null
+          ai_duration_ms?: number | null
+          ai_thinking?: string | null
+          benchmark_comparison?: Json | null
+          brief_input?: string
+          cashflow_impact?: Json | null
+          clauses_included?: string[] | null
+          company_id?: string
+          created_at?: string | null
+          feasibility_warnings?: Json | null
+          id?: string
+          listino_items_used?: Json | null
+          margin_strategy?: Json | null
+          parsed_brief?: Json | null
+          quote_id?: string | null
+          upsell_suggestions?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_generation_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "quote_generation_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -26857,6 +37422,13 @@ export type Database = {
       }
       quotes: {
         Row: {
+          ai_close_factors: Json | null
+          ai_close_probability_pct: number | null
+          ai_cost_billed_eur: number | null
+          ai_last_predicted_at: string | null
+          ai_pdf_run_id: string | null
+          ai_persona_used: string | null
+          ai_predicted_close_date: string | null
           approval_status: string | null
           assigned_to: string | null
           client_address: string | null
@@ -26873,14 +37445,23 @@ export type Database = {
           created_at: string
           created_by: string
           custom_field_values: Json | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           discount_amount: number | null
           discount_percent: number | null
           expires_at: string | null
+          financing_amount: number | null
+          financing_calculation_json: Json | null
+          financing_monthly_rate: number | null
+          financing_num_installments: number | null
+          financing_table_id: string | null
+          financing_total_due: number | null
           firma_digitale_abilitata: boolean | null
           id: string
           indirizzo_lavori: string | null
           internal_notes: string | null
+          is_ai_generated: boolean
           km_cantiere: number | null
           margine_pct_snapshot: number | null
           margine_totale_percentuale: number | null
@@ -26929,6 +37510,13 @@ export type Database = {
           viewed_at: string | null
         }
         Insert: {
+          ai_close_factors?: Json | null
+          ai_close_probability_pct?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_last_predicted_at?: string | null
+          ai_pdf_run_id?: string | null
+          ai_persona_used?: string | null
+          ai_predicted_close_date?: string | null
           approval_status?: string | null
           assigned_to?: string | null
           client_address?: string | null
@@ -26945,14 +37533,23 @@ export type Database = {
           created_at?: string
           created_by: string
           custom_field_values?: Json | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
           expires_at?: string | null
+          financing_amount?: number | null
+          financing_calculation_json?: Json | null
+          financing_monthly_rate?: number | null
+          financing_num_installments?: number | null
+          financing_table_id?: string | null
+          financing_total_due?: number | null
           firma_digitale_abilitata?: boolean | null
           id?: string
           indirizzo_lavori?: string | null
           internal_notes?: string | null
+          is_ai_generated?: boolean
           km_cantiere?: number | null
           margine_pct_snapshot?: number | null
           margine_totale_percentuale?: number | null
@@ -27001,6 +37598,13 @@ export type Database = {
           viewed_at?: string | null
         }
         Update: {
+          ai_close_factors?: Json | null
+          ai_close_probability_pct?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_last_predicted_at?: string | null
+          ai_pdf_run_id?: string | null
+          ai_persona_used?: string | null
+          ai_predicted_close_date?: string | null
           approval_status?: string | null
           assigned_to?: string | null
           client_address?: string | null
@@ -27017,14 +37621,23 @@ export type Database = {
           created_at?: string
           created_by?: string
           custom_field_values?: Json | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           discount_amount?: number | null
           discount_percent?: number | null
           expires_at?: string | null
+          financing_amount?: number | null
+          financing_calculation_json?: Json | null
+          financing_monthly_rate?: number | null
+          financing_num_installments?: number | null
+          financing_table_id?: string | null
+          financing_total_due?: number | null
           firma_digitale_abilitata?: boolean | null
           id?: string
           indirizzo_lavori?: string | null
           internal_notes?: string | null
+          is_ai_generated?: boolean
           km_cantiere?: number | null
           margine_pct_snapshot?: number | null
           margine_totale_percentuale?: number | null
@@ -27074,6 +37687,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "quotes_ai_pdf_run_id_fkey"
+            columns: ["ai_pdf_run_id"]
+            isOneToOne: false
+            referencedRelation: "preventivo_da_foto_runs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "quotes_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -27106,6 +37726,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_financing_table_id_fkey"
+            columns: ["financing_table_id"]
+            isOneToOne: false
+            referencedRelation: "eic_tabelle_finanziamento"
             referencedColumns: ["id"]
           },
           {
@@ -28431,6 +39058,7 @@ export type Database = {
           price_paid_eur: number
           price_per_credit_eur: number
           purchased_at: string
+          source: string
           status: string
           stripe_payment_intent_id: string | null
         }
@@ -28444,6 +39072,7 @@ export type Database = {
           price_paid_eur: number
           price_per_credit_eur: number
           purchased_at?: string
+          source?: string
           status?: string
           stripe_payment_intent_id?: string | null
         }
@@ -28457,6 +39086,7 @@ export type Database = {
           price_paid_eur?: number
           price_per_credit_eur?: number
           purchased_at?: string
+          source?: string
           status?: string
           stripe_payment_intent_id?: string | null
         }
@@ -28480,6 +39110,13 @@ export type Database = {
             columns: ["pack_id"]
             isOneToOne: false
             referencedRelation: "render_credit_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_credit_purchases_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_render_packs"
             referencedColumns: ["id"]
           },
         ]
@@ -29422,6 +40059,7 @@ export type Database = {
           error_message: string | null
           foto_analisi: Json | null
           id: string
+          idempotency_key: string | null
           margin_eur: number | null
           meta: Json
           opportunity_id: string | null
@@ -29430,8 +40068,11 @@ export type Database = {
           processing_started_at: string | null
           prompt_blocks: Json | null
           prompt_char_count: number | null
+          prompt_original: string | null
+          prompt_retried: boolean | null
           prompt_used: string | null
           prompt_version: string | null
+          provider_chain_used: Json | null
           provider_key: string | null
           provider_model: string | null
           provider_request_id: string | null
@@ -29456,6 +40097,7 @@ export type Database = {
           error_message?: string | null
           foto_analisi?: Json | null
           id?: string
+          idempotency_key?: string | null
           margin_eur?: number | null
           meta?: Json
           opportunity_id?: string | null
@@ -29464,8 +40106,11 @@ export type Database = {
           processing_started_at?: string | null
           prompt_blocks?: Json | null
           prompt_char_count?: number | null
+          prompt_original?: string | null
+          prompt_retried?: boolean | null
           prompt_used?: string | null
           prompt_version?: string | null
+          provider_chain_used?: Json | null
           provider_key?: string | null
           provider_model?: string | null
           provider_request_id?: string | null
@@ -29490,6 +40135,7 @@ export type Database = {
           error_message?: string | null
           foto_analisi?: Json | null
           id?: string
+          idempotency_key?: string | null
           margin_eur?: number | null
           meta?: Json
           opportunity_id?: string | null
@@ -29498,8 +40144,11 @@ export type Database = {
           processing_started_at?: string | null
           prompt_blocks?: Json | null
           prompt_char_count?: number | null
+          prompt_original?: string | null
+          prompt_retried?: boolean | null
           prompt_used?: string | null
           prompt_version?: string | null
+          provider_chain_used?: Json | null
           provider_key?: string | null
           provider_model?: string | null
           provider_request_id?: string | null
@@ -30023,6 +40672,330 @@ export type Database = {
             columns: ["sal_id"]
             isOneToOne: false
             referencedRelation: "sal_subappaltatori"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      route_plans: {
+        Row: {
+          ai_suggestions: Json | null
+          company_id: string
+          created_at: string | null
+          created_by: string | null
+          employee_id: string | null
+          end_location_id: string | null
+          id: string
+          notes: string | null
+          optimization_strategy: string | null
+          plan_date: string
+          start_location_id: string | null
+          status: string
+          stops: Json | null
+          total_distance_km: number | null
+          total_drive_time_min: number | null
+          total_duration_min: number | null
+          total_work_time_min: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_suggestions?: Json | null
+          company_id: string
+          created_at?: string | null
+          created_by?: string | null
+          employee_id?: string | null
+          end_location_id?: string | null
+          id?: string
+          notes?: string | null
+          optimization_strategy?: string | null
+          plan_date: string
+          start_location_id?: string | null
+          status?: string
+          stops?: Json | null
+          total_distance_km?: number | null
+          total_drive_time_min?: number | null
+          total_duration_min?: number | null
+          total_work_time_min?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_suggestions?: Json | null
+          company_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          employee_id?: string | null
+          end_location_id?: string | null
+          id?: string
+          notes?: string | null
+          optimization_strategy?: string | null
+          plan_date?: string
+          start_location_id?: string | null
+          status?: string
+          stops?: Json | null
+          total_distance_km?: number | null
+          total_drive_time_min?: number | null
+          total_duration_min?: number | null
+          total_work_time_min?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_plans_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "route_plans_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_plans_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "route_plans_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_plans_end_location_id_fkey"
+            columns: ["end_location_id"]
+            isOneToOne: false
+            referencedRelation: "geocoded_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "route_plans_start_location_id_fkey"
+            columns: ["start_location_id"]
+            isOneToOne: false
+            referencedRelation: "geocoded_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sal: {
+        Row: {
+          ai_confidence: number | null
+          ai_cost_billed_eur: number | null
+          ai_narrative: string | null
+          ai_persona_used: string | null
+          ai_validation_blocking: boolean
+          ai_validation_warnings: Json | null
+          approved_at: string | null
+          approved_by: string | null
+          company_id: string
+          created_at: string
+          data_sal: string
+          detrazione_anticipi: number | null
+          detrazione_sal_precedenti: number | null
+          generation_method: string
+          id: string
+          importo: number | null
+          importo_lordo: number | null
+          importo_netto: number | null
+          numero_progressivo: number | null
+          order_id: string
+          pct_avanzamento: number | null
+          pct_avanzamento_totale: number | null
+          pdf_storage_path: string | null
+          ritenuta_legge_296: number | null
+          ritenute_garanzia: number | null
+          signed_at: string | null
+          signed_by: string | null
+          source_ddt_ids: string[] | null
+          source_period_end: string | null
+          source_period_start: string | null
+          source_rapportini_ids: string[] | null
+          source_subappaltatori_sal_ids: string[] | null
+          status: string
+          trigger_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_narrative?: string | null
+          ai_persona_used?: string | null
+          ai_validation_blocking?: boolean
+          ai_validation_warnings?: Json | null
+          approved_at?: string | null
+          approved_by?: string | null
+          company_id: string
+          created_at?: string
+          data_sal?: string
+          detrazione_anticipi?: number | null
+          detrazione_sal_precedenti?: number | null
+          generation_method?: string
+          id?: string
+          importo?: number | null
+          importo_lordo?: number | null
+          importo_netto?: number | null
+          numero_progressivo?: number | null
+          order_id: string
+          pct_avanzamento?: number | null
+          pct_avanzamento_totale?: number | null
+          pdf_storage_path?: string | null
+          ritenuta_legge_296?: number | null
+          ritenute_garanzia?: number | null
+          signed_at?: string | null
+          signed_by?: string | null
+          source_ddt_ids?: string[] | null
+          source_period_end?: string | null
+          source_period_start?: string | null
+          source_rapportini_ids?: string[] | null
+          source_subappaltatori_sal_ids?: string[] | null
+          status?: string
+          trigger_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_cost_billed_eur?: number | null
+          ai_narrative?: string | null
+          ai_persona_used?: string | null
+          ai_validation_blocking?: boolean
+          ai_validation_warnings?: Json | null
+          approved_at?: string | null
+          approved_by?: string | null
+          company_id?: string
+          created_at?: string
+          data_sal?: string
+          detrazione_anticipi?: number | null
+          detrazione_sal_precedenti?: number | null
+          generation_method?: string
+          id?: string
+          importo?: number | null
+          importo_lordo?: number | null
+          importo_netto?: number | null
+          numero_progressivo?: number | null
+          order_id?: string
+          pct_avanzamento?: number | null
+          pct_avanzamento_totale?: number | null
+          pdf_storage_path?: string | null
+          ritenuta_legge_296?: number | null
+          ritenute_garanzia?: number | null
+          signed_at?: string | null
+          signed_by?: string | null
+          source_ddt_ids?: string[] | null
+          source_period_end?: string | null
+          source_period_start?: string | null
+          source_rapportini_ids?: string[] | null
+          source_subappaltatori_sal_ids?: string[] | null
+          status?: string
+          trigger_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sal_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sal_auto_generation_runs: {
+        Row: {
+          ai_cost_eur: number | null
+          company_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          order_id: string
+          sal_generated_id: string | null
+          status: string
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          ai_cost_eur?: number | null
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          order_id: string
+          sal_generated_id?: string | null
+          status?: string
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          ai_cost_eur?: number | null
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          order_id?: string
+          sal_generated_id?: string | null
+          status?: string
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sal_auto_generation_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sal_auto_generation_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_auto_generation_runs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_auto_generation_runs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_auto_generation_runs_sal_generated_id_fkey"
+            columns: ["sal_generated_id"]
+            isOneToOne: false
+            referencedRelation: "sal"
             referencedColumns: ["id"]
           },
         ]
@@ -31313,6 +42286,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "signature_requests_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+          {
             foreignKeyName: "signature_requests_sessione_id_fkey"
             columns: ["sessione_id"]
             isOneToOne: false
@@ -31320,6 +42300,2249 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      silvio_action_log: {
+        Row: {
+          action_id: string | null
+          action_type: string
+          contact_email: string | null
+          contact_id: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          cost_provider: string | null
+          cost_usd: number | null
+          created_at: string
+          error_message: string | null
+          id: string
+          initiated_by: string
+          ok: boolean | null
+          payload: Json | null
+          policy_mode: string | null
+          result: Json | null
+        }
+        Insert: {
+          action_id?: string | null
+          action_type: string
+          contact_email?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          cost_provider?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          initiated_by?: string
+          ok?: boolean | null
+          payload?: Json | null
+          policy_mode?: string | null
+          result?: Json | null
+        }
+        Update: {
+          action_id?: string | null
+          action_type?: string
+          contact_email?: string | null
+          contact_id?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          cost_provider?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          initiated_by?: string
+          ok?: boolean | null
+          payload?: Json | null
+          policy_mode?: string | null
+          result?: Json | null
+        }
+        Relationships: []
+      }
+      silvio_action_queue: {
+        Row: {
+          action_type: string
+          approved_at: string | null
+          approved_by: string | null
+          attempts: number | null
+          created_at: string
+          executed_at: string | null
+          id: string
+          initiated_by: string
+          initiated_by_user: string | null
+          last_error: string | null
+          max_attempts: number | null
+          payload: Json
+          requires_approval: boolean | null
+          result: Json | null
+          scheduled_for: string
+          started_at: string | null
+          status: string
+          step_index: number | null
+          workflow_id: string | null
+          workflow_run_id: string | null
+        }
+        Insert: {
+          action_type: string
+          approved_at?: string | null
+          approved_by?: string | null
+          attempts?: number | null
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          initiated_by?: string
+          initiated_by_user?: string | null
+          last_error?: string | null
+          max_attempts?: number | null
+          payload: Json
+          requires_approval?: boolean | null
+          result?: Json | null
+          scheduled_for?: string
+          started_at?: string | null
+          status?: string
+          step_index?: number | null
+          workflow_id?: string | null
+          workflow_run_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          attempts?: number | null
+          created_at?: string
+          executed_at?: string | null
+          id?: string
+          initiated_by?: string
+          initiated_by_user?: string | null
+          last_error?: string | null
+          max_attempts?: number | null
+          payload?: Json
+          requires_approval?: boolean | null
+          result?: Json | null
+          scheduled_for?: string
+          started_at?: string | null
+          status?: string
+          step_index?: number | null
+          workflow_id?: string | null
+          workflow_run_id?: string | null
+        }
+        Relationships: []
+      }
+      silvio_admin_alerts: {
+        Row: {
+          acted_at: string | null
+          acted_by: string | null
+          action_id: string | null
+          category: string
+          created_at: string
+          dedup_key: string | null
+          description: string | null
+          expires_at: string | null
+          id: string
+          occurrences: number | null
+          related_entity: Json | null
+          severity: string
+          status: string
+          suggested_action: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          acted_at?: string | null
+          acted_by?: string | null
+          action_id?: string | null
+          category: string
+          created_at?: string
+          dedup_key?: string | null
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          occurrences?: number | null
+          related_entity?: Json | null
+          severity: string
+          status?: string
+          suggested_action?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          acted_at?: string | null
+          acted_by?: string | null
+          action_id?: string | null
+          category?: string
+          created_at?: string
+          dedup_key?: string | null
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          occurrences?: number | null
+          related_entity?: Json | null
+          severity?: string
+          status?: string
+          suggested_action?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      silvio_admin_briefings: {
+        Row: {
+          content_md: string
+          created_at: string
+          for_date: string
+          generated_by: string | null
+          generation_cost_usd: number | null
+          highlights: Json | null
+          id: string
+          sent_email: boolean | null
+          sent_telegram: boolean | null
+          snapshot: Json | null
+        }
+        Insert: {
+          content_md: string
+          created_at?: string
+          for_date: string
+          generated_by?: string | null
+          generation_cost_usd?: number | null
+          highlights?: Json | null
+          id?: string
+          sent_email?: boolean | null
+          sent_telegram?: boolean | null
+          snapshot?: Json | null
+        }
+        Update: {
+          content_md?: string
+          created_at?: string
+          for_date?: string
+          generated_by?: string | null
+          generation_cost_usd?: number | null
+          highlights?: Json | null
+          id?: string
+          sent_email?: boolean | null
+          sent_telegram?: boolean | null
+          snapshot?: Json | null
+        }
+        Relationships: []
+      }
+      silvio_admin_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          cost_usd: number | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          model_id: string | null
+          role: string
+          tokens_completion: number | null
+          tokens_prompt: number | null
+          tool_calls: Json | null
+          tool_results: Json | null
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          cost_usd?: number | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          model_id?: string | null
+          role: string
+          tokens_completion?: number | null
+          tokens_prompt?: number | null
+          tool_calls?: Json | null
+          tool_results?: Json | null
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          cost_usd?: number | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          model_id?: string | null
+          role?: string
+          tokens_completion?: number | null
+          tokens_prompt?: number | null
+          tool_calls?: Json | null
+          tool_results?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      silvio_admin_personas: {
+        Row: {
+          created_at: string
+          debate_opponent: string | null
+          display_name: string
+          emoji: string | null
+          enabled: boolean | null
+          example_questions: string[] | null
+          forbidden_topics: string[]
+          handoff_to: string[] | null
+          mission: string
+          motto: string | null
+          panel_partners: string[] | null
+          persona_key: string
+          recommended_model: string | null
+          required_role: string | null
+          scope_topics: string[]
+          short_label: string
+          sort_order: number | null
+          system_prompt_addendum: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          debate_opponent?: string | null
+          display_name: string
+          emoji?: string | null
+          enabled?: boolean | null
+          example_questions?: string[] | null
+          forbidden_topics?: string[]
+          handoff_to?: string[] | null
+          mission: string
+          motto?: string | null
+          panel_partners?: string[] | null
+          persona_key: string
+          recommended_model?: string | null
+          required_role?: string | null
+          scope_topics?: string[]
+          short_label: string
+          sort_order?: number | null
+          system_prompt_addendum: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          debate_opponent?: string | null
+          display_name?: string
+          emoji?: string | null
+          enabled?: boolean | null
+          example_questions?: string[] | null
+          forbidden_topics?: string[]
+          handoff_to?: string[] | null
+          mission?: string
+          motto?: string | null
+          panel_partners?: string[] | null
+          persona_key?: string
+          recommended_model?: string | null
+          required_role?: string | null
+          scope_topics?: string[]
+          short_label?: string
+          sort_order?: number | null
+          system_prompt_addendum?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      silvio_admin_refusals: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          id: string
+          persona_key: string | null
+          query: string
+          refusal_category: string | null
+          refusal_reason: string
+          suggestion: string | null
+          user_id: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          persona_key?: string | null
+          query: string
+          refusal_category?: string | null
+          refusal_reason: string
+          suggestion?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          persona_key?: string | null
+          query?: string
+          refusal_category?: string | null
+          refusal_reason?: string
+          suggestion?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      silvio_agent_artifacts: {
+        Row: {
+          agent_key: string | null
+          artifact_type: string
+          content_json: Json
+          content_md: string | null
+          created_at: string
+          id: string
+          mission_id: string
+          task_id: string | null
+          title: string
+        }
+        Insert: {
+          agent_key?: string | null
+          artifact_type?: string
+          content_json?: Json
+          content_md?: string | null
+          created_at?: string
+          id?: string
+          mission_id: string
+          task_id?: string | null
+          title: string
+        }
+        Update: {
+          agent_key?: string | null
+          artifact_type?: string
+          content_json?: Json
+          content_md?: string | null
+          created_at?: string
+          id?: string
+          mission_id?: string
+          task_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_agent_artifacts_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_artifacts_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_artifacts_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_artifacts_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_mission_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_artifacts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_agent_blackboard: {
+        Row: {
+          agent_key: string | null
+          confidence: number | null
+          content: string
+          created_at: string
+          entry_type: string
+          evidence: Json
+          id: string
+          mission_id: string
+          task_id: string | null
+          title: string
+          visibility: string
+        }
+        Insert: {
+          agent_key?: string | null
+          confidence?: number | null
+          content: string
+          created_at?: string
+          entry_type: string
+          evidence?: Json
+          id?: string
+          mission_id: string
+          task_id?: string | null
+          title: string
+          visibility?: string
+        }
+        Update: {
+          agent_key?: string | null
+          confidence?: number | null
+          content?: string
+          created_at?: string
+          entry_type?: string
+          evidence?: Json
+          id?: string
+          mission_id?: string
+          task_id?: string | null
+          title?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_agent_blackboard_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_blackboard_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_blackboard_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_blackboard_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_mission_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_blackboard_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_agent_evaluations: {
+        Row: {
+          created_at: string
+          evaluator_agent_key: string
+          hallucination_risk: string
+          id: string
+          missing_evidence: boolean
+          mission_id: string
+          needs_human_approval: boolean
+          notes: string | null
+          quality_score: number | null
+          risk_score: number | null
+          verdict: string
+        }
+        Insert: {
+          created_at?: string
+          evaluator_agent_key?: string
+          hallucination_risk?: string
+          id?: string
+          missing_evidence?: boolean
+          mission_id: string
+          needs_human_approval?: boolean
+          notes?: string | null
+          quality_score?: number | null
+          risk_score?: number | null
+          verdict?: string
+        }
+        Update: {
+          created_at?: string
+          evaluator_agent_key?: string
+          hallucination_risk?: string
+          id?: string
+          missing_evidence?: boolean
+          mission_id?: string
+          needs_human_approval?: boolean
+          notes?: string | null
+          quality_score?: number | null
+          risk_score?: number | null
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_agent_evaluations_evaluator_agent_key_fkey"
+            columns: ["evaluator_agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_evaluations_evaluator_agent_key_fkey"
+            columns: ["evaluator_agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_evaluations_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_evaluations_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_mission_summary"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_agent_memory: {
+        Row: {
+          agent_key: string
+          confidence: number | null
+          content: string
+          created_at: string
+          enabled: boolean
+          expires_at: string | null
+          hits_count: number
+          id: string
+          last_used_at: string | null
+          memory_status: string
+          memory_type: string
+          source: string | null
+          source_mission_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_key: string
+          confidence?: number | null
+          content: string
+          created_at?: string
+          enabled?: boolean
+          expires_at?: string | null
+          hits_count?: number
+          id?: string
+          last_used_at?: string | null
+          memory_status?: string
+          memory_type?: string
+          source?: string | null
+          source_mission_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_key?: string
+          confidence?: number | null
+          content?: string
+          created_at?: string
+          enabled?: boolean
+          expires_at?: string | null
+          hits_count?: number
+          id?: string
+          last_used_at?: string | null
+          memory_status?: string
+          memory_type?: string
+          source?: string | null
+          source_mission_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_agent_memory_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_memory_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_memory_source_mission_id_fkey"
+            columns: ["source_mission_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_memory_source_mission_id_fkey"
+            columns: ["source_mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_mission_summary"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_agent_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          metadata: Json
+          mission_id: string
+          receiver_agent_key: string | null
+          role: string
+          sender_agent_key: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          mission_id: string
+          receiver_agent_key?: string | null
+          role: string
+          sender_agent_key?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          mission_id?: string
+          receiver_agent_key?: string | null
+          role?: string
+          sender_agent_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_agent_messages_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_messages_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_mission_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_messages_receiver_agent_key_fkey"
+            columns: ["receiver_agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_messages_receiver_agent_key_fkey"
+            columns: ["receiver_agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_messages_sender_agent_key_fkey"
+            columns: ["sender_agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_messages_sender_agent_key_fkey"
+            columns: ["sender_agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+        ]
+      }
+      silvio_agent_missions: {
+        Row: {
+          completed_at: string | null
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          id: string
+          last_error: string | null
+          metadata: Json
+          mode: string
+          next_action: string | null
+          objective: string
+          priority: string
+          review_requested_at: string | null
+          selected_agents: string[]
+          started_at: string | null
+          status: string
+          summary_md: string | null
+          title: string
+          total_cost_usd: number
+          total_tokens: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_error?: string | null
+          metadata?: Json
+          mode?: string
+          next_action?: string | null
+          objective: string
+          priority?: string
+          review_requested_at?: string | null
+          selected_agents?: string[]
+          started_at?: string | null
+          status?: string
+          summary_md?: string | null
+          title: string
+          total_cost_usd?: number
+          total_tokens?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_error?: string | null
+          metadata?: Json
+          mode?: string
+          next_action?: string | null
+          objective?: string
+          priority?: string
+          review_requested_at?: string | null
+          selected_agents?: string[]
+          started_at?: string | null
+          status?: string
+          summary_md?: string | null
+          title?: string
+          total_cost_usd?: number
+          total_tokens?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      silvio_agent_registry: {
+        Row: {
+          agent_key: string
+          allowed_tools: string[]
+          created_at: string
+          display_name: string
+          enabled: boolean
+          max_cost_usd: number
+          max_runtime_seconds: number
+          mission: string
+          model_tier_key: string
+          operating_mode: string
+          output_contract: Json
+          persona_keys: string[]
+          risk_level: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          agent_key: string
+          allowed_tools?: string[]
+          created_at?: string
+          display_name: string
+          enabled?: boolean
+          max_cost_usd?: number
+          max_runtime_seconds?: number
+          mission: string
+          model_tier_key?: string
+          operating_mode?: string
+          output_contract?: Json
+          persona_keys?: string[]
+          risk_level?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_key?: string
+          allowed_tools?: string[]
+          created_at?: string
+          display_name?: string
+          enabled?: boolean
+          max_cost_usd?: number
+          max_runtime_seconds?: number
+          mission?: string
+          model_tier_key?: string
+          operating_mode?: string
+          output_contract?: Json
+          persona_keys?: string[]
+          risk_level?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      silvio_agent_tasks: {
+        Row: {
+          agent_key: string
+          completed_at: string | null
+          cost_usd: number
+          created_at: string
+          error_message: string | null
+          id: string
+          input_context: Json
+          mission_id: string
+          model_id: string | null
+          objective: string
+          output: Json
+          output_md: string | null
+          sort_order: number
+          started_at: string | null
+          status: string
+          tokens_total: number
+          updated_at: string
+        }
+        Insert: {
+          agent_key: string
+          completed_at?: string | null
+          cost_usd?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_context?: Json
+          mission_id: string
+          model_id?: string | null
+          objective: string
+          output?: Json
+          output_md?: string | null
+          sort_order?: number
+          started_at?: string | null
+          status?: string
+          tokens_total?: number
+          updated_at?: string
+        }
+        Update: {
+          agent_key?: string
+          completed_at?: string | null
+          cost_usd?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          input_context?: Json
+          mission_id?: string
+          model_id?: string | null
+          objective?: string
+          output?: Json
+          output_md?: string | null
+          sort_order?: number
+          started_at?: string | null
+          status?: string
+          tokens_total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_agent_tasks_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tasks_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tasks_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tasks_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_mission_summary"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_agent_tool_calls: {
+        Row: {
+          agent_key: string | null
+          cost_usd: number
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          input: Json
+          mission_id: string
+          output: Json
+          status: string
+          task_id: string | null
+          tool_name: string
+        }
+        Insert: {
+          agent_key?: string | null
+          cost_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input?: Json
+          mission_id: string
+          output?: Json
+          status?: string
+          task_id?: string | null
+          tool_name: string
+        }
+        Update: {
+          agent_key?: string | null
+          cost_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input?: Json
+          mission_id?: string
+          output?: Json
+          status?: string
+          task_id?: string | null
+          tool_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_agent_tool_calls_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tool_calls_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tool_calls_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tool_calls_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_mission_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tool_calls_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_agent_tool_permissions: {
+        Row: {
+          agent_key: string
+          created_at: string
+          enabled: boolean
+          execution_mode: string
+          max_calls_per_mission: number
+          tool_key: string
+        }
+        Insert: {
+          agent_key: string
+          created_at?: string
+          enabled?: boolean
+          execution_mode?: string
+          max_calls_per_mission?: number
+          tool_key: string
+        }
+        Update: {
+          agent_key?: string
+          created_at?: string
+          enabled?: boolean
+          execution_mode?: string
+          max_calls_per_mission?: number
+          tool_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_agent_tool_permissions_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tool_permissions_agent_key_fkey"
+            columns: ["agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_agent_tool_permissions_tool_key_fkey"
+            columns: ["tool_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_tool_registry"
+            referencedColumns: ["tool_key"]
+          },
+        ]
+      }
+      silvio_agent_tool_registry: {
+        Row: {
+          access_mode: string
+          created_at: string
+          default_args: Json
+          description: string
+          display_name: string
+          enabled: boolean
+          risk_level: string
+          rpc_name: string | null
+          timeout_ms: number
+          tool_key: string
+          tool_kind: string
+          updated_at: string
+        }
+        Insert: {
+          access_mode?: string
+          created_at?: string
+          default_args?: Json
+          description: string
+          display_name: string
+          enabled?: boolean
+          risk_level?: string
+          rpc_name?: string | null
+          timeout_ms?: number
+          tool_key: string
+          tool_kind?: string
+          updated_at?: string
+        }
+        Update: {
+          access_mode?: string
+          created_at?: string
+          default_args?: Json
+          description?: string
+          display_name?: string
+          enabled?: boolean
+          risk_level?: string
+          rpc_name?: string | null
+          timeout_ms?: number
+          tool_key?: string
+          tool_kind?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      silvio_alerts: {
+        Row: {
+          alert_type: string
+          company_id: string
+          created_at: string
+          cta_action: string | null
+          cta_label: string | null
+          cta_payload: Json | null
+          dedup_key: string
+          expires_at: string | null
+          id: string
+          message: string
+          notified_at: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          source_id: string | null
+          source_meta: Json | null
+          source_type: string | null
+          status: string
+          target_user_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          alert_type: string
+          company_id: string
+          created_at?: string
+          cta_action?: string | null
+          cta_label?: string | null
+          cta_payload?: Json | null
+          dedup_key: string
+          expires_at?: string | null
+          id?: string
+          message: string
+          notified_at?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity: string
+          source_id?: string | null
+          source_meta?: Json | null
+          source_type?: string | null
+          status?: string
+          target_user_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          alert_type?: string
+          company_id?: string
+          created_at?: string
+          cta_action?: string | null
+          cta_label?: string | null
+          cta_payload?: Json | null
+          dedup_key?: string
+          expires_at?: string | null
+          id?: string
+          message?: string
+          notified_at?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_id?: string | null
+          source_meta?: Json | null
+          source_type?: string | null
+          status?: string
+          target_user_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_automation_policies: {
+        Row: {
+          action_type: string
+          approval_timeout_minutes: number | null
+          conditions: Json | null
+          description: string | null
+          display_label: string | null
+          enabled: boolean | null
+          mode: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          action_type: string
+          approval_timeout_minutes?: number | null
+          conditions?: Json | null
+          description?: string | null
+          display_label?: string | null
+          enabled?: boolean | null
+          mode: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          action_type?: string
+          approval_timeout_minutes?: number | null
+          conditions?: Json | null
+          description?: string | null
+          display_label?: string | null
+          enabled?: boolean | null
+          mode?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      silvio_chief_of_staff_briefs: {
+        Row: {
+          created_at: string
+          decisions_needed: Json
+          experiments_suggested: Json
+          for_date: string
+          generated_by: string | null
+          generation_cost_usd: number
+          id: string
+          next_action: string | null
+          risks: Json
+          snapshot: Json
+          status: string
+          summary_md: string
+          top_priorities: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          decisions_needed?: Json
+          experiments_suggested?: Json
+          for_date: string
+          generated_by?: string | null
+          generation_cost_usd?: number
+          id?: string
+          next_action?: string | null
+          risks?: Json
+          snapshot?: Json
+          status?: string
+          summary_md: string
+          top_priorities?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          decisions_needed?: Json
+          experiments_suggested?: Json
+          for_date?: string
+          generated_by?: string | null
+          generation_cost_usd?: number
+          id?: string
+          next_action?: string | null
+          risks?: Json
+          snapshot?: Json
+          status?: string
+          summary_md?: string
+          top_priorities?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      silvio_decision_log: {
+        Row: {
+          ai_confidence: string | null
+          ai_confidence_level: string | null
+          ai_cost_eur: number | null
+          ai_diagnosis: string | null
+          ai_diagnosis_data: Json | null
+          ai_model_used: string | null
+          ai_options_proposed: Json
+          ai_recommended_option_id: string | null
+          ai_thinking: string | null
+          ai_tokens_total: number | null
+          ai_uncertainty_reasons: string[] | null
+          citations_missing: boolean | null
+          citations_used: string[] | null
+          company_id: string
+          created_at: string
+          decided_at: string | null
+          executed_action_id: string | null
+          executed_at: string | null
+          expires_at: string | null
+          followup_suggestions: string[] | null
+          id: string
+          invalid_citations: string[] | null
+          is_critical: boolean | null
+          last_outcome_check_at: string | null
+          lessons_learned: string | null
+          no_rag_prefix: boolean | null
+          outcome_30d: Json | null
+          outcome_60d: Json | null
+          outcome_90d: Json | null
+          outcome_evaluation: string | null
+          outcome_kpis_tracked: Json | null
+          persona_key: string
+          playbook_id: string | null
+          rag_min_similarity: number | null
+          rag_source_count: number | null
+          rag_sources: Json | null
+          requires_human_review: boolean | null
+          situation_description: string
+          status: string
+          tags: string[] | null
+          trigger_metadata: Json | null
+          trigger_source_id: string | null
+          trigger_source_type: string | null
+          trigger_type: string
+          user_chosen_option_id: string | null
+          user_decided_by: string | null
+          user_id: string | null
+          user_modifications: Json | null
+          user_rationale: string | null
+        }
+        Insert: {
+          ai_confidence?: string | null
+          ai_confidence_level?: string | null
+          ai_cost_eur?: number | null
+          ai_diagnosis?: string | null
+          ai_diagnosis_data?: Json | null
+          ai_model_used?: string | null
+          ai_options_proposed?: Json
+          ai_recommended_option_id?: string | null
+          ai_thinking?: string | null
+          ai_tokens_total?: number | null
+          ai_uncertainty_reasons?: string[] | null
+          citations_missing?: boolean | null
+          citations_used?: string[] | null
+          company_id: string
+          created_at?: string
+          decided_at?: string | null
+          executed_action_id?: string | null
+          executed_at?: string | null
+          expires_at?: string | null
+          followup_suggestions?: string[] | null
+          id?: string
+          invalid_citations?: string[] | null
+          is_critical?: boolean | null
+          last_outcome_check_at?: string | null
+          lessons_learned?: string | null
+          no_rag_prefix?: boolean | null
+          outcome_30d?: Json | null
+          outcome_60d?: Json | null
+          outcome_90d?: Json | null
+          outcome_evaluation?: string | null
+          outcome_kpis_tracked?: Json | null
+          persona_key: string
+          playbook_id?: string | null
+          rag_min_similarity?: number | null
+          rag_source_count?: number | null
+          rag_sources?: Json | null
+          requires_human_review?: boolean | null
+          situation_description: string
+          status?: string
+          tags?: string[] | null
+          trigger_metadata?: Json | null
+          trigger_source_id?: string | null
+          trigger_source_type?: string | null
+          trigger_type: string
+          user_chosen_option_id?: string | null
+          user_decided_by?: string | null
+          user_id?: string | null
+          user_modifications?: Json | null
+          user_rationale?: string | null
+        }
+        Update: {
+          ai_confidence?: string | null
+          ai_confidence_level?: string | null
+          ai_cost_eur?: number | null
+          ai_diagnosis?: string | null
+          ai_diagnosis_data?: Json | null
+          ai_model_used?: string | null
+          ai_options_proposed?: Json
+          ai_recommended_option_id?: string | null
+          ai_thinking?: string | null
+          ai_tokens_total?: number | null
+          ai_uncertainty_reasons?: string[] | null
+          citations_missing?: boolean | null
+          citations_used?: string[] | null
+          company_id?: string
+          created_at?: string
+          decided_at?: string | null
+          executed_action_id?: string | null
+          executed_at?: string | null
+          expires_at?: string | null
+          followup_suggestions?: string[] | null
+          id?: string
+          invalid_citations?: string[] | null
+          is_critical?: boolean | null
+          last_outcome_check_at?: string | null
+          lessons_learned?: string | null
+          no_rag_prefix?: boolean | null
+          outcome_30d?: Json | null
+          outcome_60d?: Json | null
+          outcome_90d?: Json | null
+          outcome_evaluation?: string | null
+          outcome_kpis_tracked?: Json | null
+          persona_key?: string
+          playbook_id?: string | null
+          rag_min_similarity?: number | null
+          rag_source_count?: number | null
+          rag_sources?: Json | null
+          requires_human_review?: boolean | null
+          situation_description?: string
+          status?: string
+          tags?: string[] | null
+          trigger_metadata?: Json | null
+          trigger_source_id?: string | null
+          trigger_source_type?: string | null
+          trigger_type?: string
+          user_chosen_option_id?: string | null
+          user_decided_by?: string | null
+          user_id?: string | null
+          user_modifications?: Json | null
+          user_rationale?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_log_executed_action_id_fkey"
+            columns: ["executed_action_id"]
+            isOneToOne: false
+            referencedRelation: "ai_action_proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_growth_experiments: {
+        Row: {
+          baseline_value: number | null
+          confidence: number | null
+          created_at: string
+          created_from_mission_id: string | null
+          effort: string
+          end_date: string | null
+          expected_impact: string
+          hypothesis: string
+          id: string
+          metadata: Json
+          metric_name: string | null
+          objective_key: string | null
+          owner_agent_key: string | null
+          priority: string
+          result_summary: string | null
+          start_date: string | null
+          status: string
+          target_value: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          baseline_value?: number | null
+          confidence?: number | null
+          created_at?: string
+          created_from_mission_id?: string | null
+          effort?: string
+          end_date?: string | null
+          expected_impact?: string
+          hypothesis: string
+          id?: string
+          metadata?: Json
+          metric_name?: string | null
+          objective_key?: string | null
+          owner_agent_key?: string | null
+          priority?: string
+          result_summary?: string | null
+          start_date?: string | null
+          status?: string
+          target_value?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          baseline_value?: number | null
+          confidence?: number | null
+          created_at?: string
+          created_from_mission_id?: string | null
+          effort?: string
+          end_date?: string | null
+          expected_impact?: string
+          hypothesis?: string
+          id?: string
+          metadata?: Json
+          metric_name?: string | null
+          objective_key?: string | null
+          owner_agent_key?: string | null
+          priority?: string
+          result_summary?: string | null
+          start_date?: string | null
+          status?: string
+          target_value?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_growth_experiments_created_from_mission_id_fkey"
+            columns: ["created_from_mission_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_missions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_growth_experiments_created_from_mission_id_fkey"
+            columns: ["created_from_mission_id"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_mission_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_growth_experiments_objective_key_fkey"
+            columns: ["objective_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_strategic_objectives"
+            referencedColumns: ["objective_key"]
+          },
+          {
+            foreignKeyName: "silvio_growth_experiments_owner_agent_key_fkey"
+            columns: ["owner_agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_growth_experiments_owner_agent_key_fkey"
+            columns: ["owner_agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+        ]
+      }
+      silvio_monitor_events: {
+        Row: {
+          created_at: string
+          id: string
+          metric_key: string
+          metric_value: number | null
+          resolved_at: string | null
+          rule_id: string | null
+          rule_key: string
+          severity: string
+          snapshot: Json
+          status: string
+          summary: string
+          threshold_value: number | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metric_key: string
+          metric_value?: number | null
+          resolved_at?: string | null
+          rule_id?: string | null
+          rule_key: string
+          severity: string
+          snapshot?: Json
+          status?: string
+          summary: string
+          threshold_value?: number | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metric_key?: string
+          metric_value?: number | null
+          resolved_at?: string | null
+          rule_id?: string | null
+          rule_key?: string
+          severity?: string
+          snapshot?: Json
+          status?: string
+          summary?: string
+          threshold_value?: number | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_monitor_events_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_monitor_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_monitor_rules: {
+        Row: {
+          condition_operator: string
+          cooldown_minutes: number
+          created_at: string
+          description: string
+          enabled: boolean
+          id: string
+          last_triggered_at: string | null
+          metadata: Json
+          metric_key: string
+          owner_agent_key: string | null
+          rule_key: string
+          severity: string
+          threshold_value: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          condition_operator: string
+          cooldown_minutes?: number
+          created_at?: string
+          description: string
+          enabled?: boolean
+          id?: string
+          last_triggered_at?: string | null
+          metadata?: Json
+          metric_key: string
+          owner_agent_key?: string | null
+          rule_key: string
+          severity?: string
+          threshold_value: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          condition_operator?: string
+          cooldown_minutes?: number
+          created_at?: string
+          description?: string
+          enabled?: boolean
+          id?: string
+          last_triggered_at?: string | null
+          metadata?: Json
+          metric_key?: string
+          owner_agent_key?: string | null
+          rule_key?: string
+          severity?: string
+          threshold_value?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_monitor_rules_owner_agent_key_fkey"
+            columns: ["owner_agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_monitor_rules_owner_agent_key_fkey"
+            columns: ["owner_agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+        ]
+      }
+      silvio_morning_briefings: {
+        Row: {
+          brief_date: string
+          company_id: string
+          content: string
+          cost_usd: number | null
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          key_points: Json
+          model_used: string | null
+          read_at: string | null
+          severity: string
+          tools_used: Json
+          user_id: string
+        }
+        Insert: {
+          brief_date?: string
+          company_id: string
+          content: string
+          cost_usd?: number | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          key_points?: Json
+          model_used?: string | null
+          read_at?: string | null
+          severity?: string
+          tools_used?: Json
+          user_id: string
+        }
+        Update: {
+          brief_date?: string
+          company_id?: string
+          content?: string
+          cost_usd?: number | null
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          key_points?: Json
+          model_used?: string | null
+          read_at?: string | null
+          severity?: string
+          tools_used?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_morning_briefings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_morning_briefings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_pending_approvals: {
+        Row: {
+          action_id: string
+          context: Json | null
+          created_at: string
+          expires_at: string
+          id: string
+          modified_payload: Json | null
+          preview_md: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          action_id: string
+          context?: Json | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          modified_payload?: Json | null
+          preview_md: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          action_id?: string
+          context?: Json | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          modified_payload?: Json | null
+          preview_md?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_pending_approvals_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_action_queue"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_persona_memory: {
+        Row: {
+          confidence: number | null
+          content: string
+          created_at: string
+          created_by: string | null
+          enabled: boolean | null
+          expires_at: string | null
+          hits_count: number | null
+          id: string
+          last_used_at: string | null
+          memory_type: string
+          persona_key: string
+          source: string | null
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number | null
+          content: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean | null
+          expires_at?: string | null
+          hits_count?: number | null
+          id?: string
+          last_used_at?: string | null
+          memory_type: string
+          persona_key: string
+          source?: string | null
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number | null
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean | null
+          expires_at?: string | null
+          hits_count?: number | null
+          id?: string
+          last_used_at?: string | null
+          memory_type?: string
+          persona_key?: string
+          source?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_persona_memory_persona_key_fkey"
+            columns: ["persona_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_admin_personas"
+            referencedColumns: ["persona_key"]
+          },
+        ]
+      }
+      silvio_playbook_definitions: {
+        Row: {
+          advisory_level: number | null
+          ai_prompt_template: string
+          ai_router_task_key: string
+          anti_patterns: Json
+          category: string
+          created_at: string
+          created_by: string | null
+          data_gathering: Json
+          description: string | null
+          diagnosis_questions: string[] | null
+          enabled: boolean
+          escalation: Json | null
+          id: string
+          is_critical: boolean | null
+          kb_context_areas: string[] | null
+          kpis_to_track: Json
+          max_tokens_per_call: number | null
+          metadata: Json | null
+          options_template: Json
+          priority: number
+          tags: string[] | null
+          title: string
+          triggers: Json
+          updated_at: string
+          updated_by: string | null
+          version: string
+        }
+        Insert: {
+          advisory_level?: number | null
+          ai_prompt_template: string
+          ai_router_task_key?: string
+          anti_patterns?: Json
+          category: string
+          created_at?: string
+          created_by?: string | null
+          data_gathering?: Json
+          description?: string | null
+          diagnosis_questions?: string[] | null
+          enabled?: boolean
+          escalation?: Json | null
+          id: string
+          is_critical?: boolean | null
+          kb_context_areas?: string[] | null
+          kpis_to_track?: Json
+          max_tokens_per_call?: number | null
+          metadata?: Json | null
+          options_template?: Json
+          priority?: number
+          tags?: string[] | null
+          title: string
+          triggers?: Json
+          updated_at?: string
+          updated_by?: string | null
+          version?: string
+        }
+        Update: {
+          advisory_level?: number | null
+          ai_prompt_template?: string
+          ai_router_task_key?: string
+          anti_patterns?: Json
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          data_gathering?: Json
+          description?: string | null
+          diagnosis_questions?: string[] | null
+          enabled?: boolean
+          escalation?: Json | null
+          id?: string
+          is_critical?: boolean | null
+          kb_context_areas?: string[] | null
+          kpis_to_track?: Json
+          max_tokens_per_call?: number | null
+          metadata?: Json | null
+          options_template?: Json
+          priority?: number
+          tags?: string[] | null
+          title?: string
+          triggers?: Json
+          updated_at?: string
+          updated_by?: string | null
+          version?: string
+        }
+        Relationships: []
+      }
+      silvio_self_improvement_log: {
+        Row: {
+          avoid_added: number | null
+          avoid_samples: Json | null
+          duration_ms: number | null
+          errors: Json | null
+          gold_added: number | null
+          gold_samples: Json | null
+          id: string
+          ok: boolean | null
+          period_end: string
+          period_start: string
+          promoted_to_memory: number | null
+          run_at: string
+          runs_analyzed: number | null
+        }
+        Insert: {
+          avoid_added?: number | null
+          avoid_samples?: Json | null
+          duration_ms?: number | null
+          errors?: Json | null
+          gold_added?: number | null
+          gold_samples?: Json | null
+          id?: string
+          ok?: boolean | null
+          period_end: string
+          period_start: string
+          promoted_to_memory?: number | null
+          run_at?: string
+          runs_analyzed?: number | null
+        }
+        Update: {
+          avoid_added?: number | null
+          avoid_samples?: Json | null
+          duration_ms?: number | null
+          errors?: Json | null
+          gold_added?: number | null
+          gold_samples?: Json | null
+          id?: string
+          ok?: boolean | null
+          period_end?: string
+          period_start?: string
+          promoted_to_memory?: number | null
+          run_at?: string
+          runs_analyzed?: number | null
+        }
+        Relationships: []
+      }
+      silvio_strategic_objectives: {
+        Row: {
+          cadence: string
+          created_at: string
+          current_value: number | null
+          description: string
+          enabled: boolean
+          metadata: Json
+          objective_key: string
+          owner_agent_key: string | null
+          priority: string
+          status: string
+          target_metric: string | null
+          target_value: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cadence?: string
+          created_at?: string
+          current_value?: number | null
+          description: string
+          enabled?: boolean
+          metadata?: Json
+          objective_key: string
+          owner_agent_key?: string | null
+          priority?: string
+          status?: string
+          target_metric?: string | null
+          target_value?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cadence?: string
+          created_at?: string
+          current_value?: number | null
+          description?: string
+          enabled?: boolean
+          metadata?: Json
+          objective_key?: string
+          owner_agent_key?: string | null
+          priority?: string
+          status?: string
+          target_metric?: string | null
+          target_value?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_strategic_objectives_owner_agent_key_fkey"
+            columns: ["owner_agent_key"]
+            isOneToOne: false
+            referencedRelation: "silvio_agent_registry"
+            referencedColumns: ["agent_key"]
+          },
+          {
+            foreignKeyName: "silvio_strategic_objectives_owner_agent_key_fkey"
+            columns: ["owner_agent_key"]
+            isOneToOne: false
+            referencedRelation: "v_silvio_agent_performance"
+            referencedColumns: ["agent_key"]
+          },
+        ]
+      }
+      silvio_user_preferences: {
+        Row: {
+          alert_types: Json
+          channels: Json
+          company_id: string | null
+          created_at: string
+          daily_briefing_enabled: boolean
+          daily_briefing_time: string
+          last_briefing_at: string | null
+          last_memory_extract_at: string | null
+          memory_facts_count: number
+          min_severity: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          alert_types?: Json
+          channels?: Json
+          company_id?: string | null
+          created_at?: string
+          daily_briefing_enabled?: boolean
+          daily_briefing_time?: string
+          last_briefing_at?: string | null
+          last_memory_extract_at?: string | null
+          memory_facts_count?: number
+          min_severity?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          alert_types?: Json
+          channels?: Json
+          company_id?: string | null
+          created_at?: string
+          daily_briefing_enabled?: boolean
+          daily_briefing_time?: string
+          last_briefing_at?: string | null
+          last_memory_extract_at?: string | null
+          memory_facts_count?: number
+          min_severity?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_user_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_user_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_workflow_runs: {
+        Row: {
+          completed_at: string | null
+          contact_id: string
+          contact_type: string | null
+          context: Json | null
+          current_step: number
+          id: string
+          last_step_at: string | null
+          started_at: string
+          status: string
+          stop_reason: string | null
+          workflow_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          contact_id: string
+          contact_type?: string | null
+          context?: Json | null
+          current_step?: number
+          id?: string
+          last_step_at?: string | null
+          started_at?: string
+          status?: string
+          stop_reason?: string | null
+          workflow_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          contact_id?: string
+          contact_type?: string | null
+          context?: Json | null
+          current_step?: number
+          id?: string
+          last_step_at?: string | null
+          started_at?: string
+          status?: string
+          stop_reason?: string | null
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_workflow_runs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_workflows: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          steps: Json
+          stop_conditions: Json | null
+          successful_runs: number | null
+          total_runs: number | null
+          trigger: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          steps: Json
+          stop_conditions?: Json | null
+          successful_runs?: number | null
+          total_runs?: number | null
+          trigger: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          steps?: Json
+          stop_conditions?: Json | null
+          successful_runs?: number | null
+          total_runs?: number | null
+          trigger?: Json
+          updated_at?: string
+        }
+        Relationships: []
       }
       site_deliveries: {
         Row: {
@@ -32349,6 +45572,1349 @@ export type Database = {
           },
         ]
       }
+      sr_accessori_progetto: {
+        Row: {
+          altezza_mm: number | null
+          company_id: string
+          created_at: string
+          descrizione: string | null
+          family_id: string | null
+          id: string
+          larghezza_mm: number | null
+          listino_voce_id: string | null
+          modalita_prezzo: string | null
+          note: string | null
+          posa_esclusa: boolean
+          position: number
+          prezzo_totale: number | null
+          prezzo_unitario: number | null
+          progetto_id: string
+          quantita: number
+          serramento_id: string | null
+          supplier_catalog_id: string | null
+          supplier_product_line_id: string | null
+          tipo: string
+          updated_at: string
+          valori_assi: Json | null
+        }
+        Insert: {
+          altezza_mm?: number | null
+          company_id: string
+          created_at?: string
+          descrizione?: string | null
+          family_id?: string | null
+          id?: string
+          larghezza_mm?: number | null
+          listino_voce_id?: string | null
+          modalita_prezzo?: string | null
+          note?: string | null
+          posa_esclusa?: boolean
+          position?: number
+          prezzo_totale?: number | null
+          prezzo_unitario?: number | null
+          progetto_id: string
+          quantita?: number
+          serramento_id?: string | null
+          supplier_catalog_id?: string | null
+          supplier_product_line_id?: string | null
+          tipo: string
+          updated_at?: string
+          valori_assi?: Json | null
+        }
+        Update: {
+          altezza_mm?: number | null
+          company_id?: string
+          created_at?: string
+          descrizione?: string | null
+          family_id?: string | null
+          id?: string
+          larghezza_mm?: number | null
+          listino_voce_id?: string | null
+          modalita_prezzo?: string | null
+          note?: string | null
+          posa_esclusa?: boolean
+          position?: number
+          prezzo_totale?: number | null
+          prezzo_unitario?: number | null
+          progetto_id?: string
+          quantita?: number
+          serramento_id?: string | null
+          supplier_catalog_id?: string | null
+          supplier_product_line_id?: string | null
+          tipo?: string
+          updated_at?: string
+          valori_assi?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_accessori_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_accessori_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_accessori_progetto_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "article_families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_accessori_progetto_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_accessori_progetto_serramento_id_fkey"
+            columns: ["serramento_id"]
+            isOneToOne: false
+            referencedRelation: "sr_serramenti_progetto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_accessori_progetto_supplier_catalog_id_fkey"
+            columns: ["supplier_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_catalogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_accessori_progetto_supplier_product_line_id_fkey"
+            columns: ["supplier_product_line_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_product_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_calcolo_risparmio: {
+        Row: {
+          bolletta_media_anno_eur: number | null
+          calcolato_at: string
+          cashflow: Json | null
+          co2_risparmiata_kg_anno: number | null
+          company_id: string
+          detrazione_aliquota: number | null
+          detrazione_base_eur: number | null
+          detrazione_eur_anno: number | null
+          detrazione_eur_totale: number | null
+          gradi_giorno: number | null
+          id: string
+          inflazione_energia_annua: number | null
+          m2_serramenti: number | null
+          ore_riscaldamento_giorno: number | null
+          payback_anni: number | null
+          prezzo_kwh_termico: number | null
+          progetto_id: string
+          risparmio_eur_anno: number | null
+          risparmio_kwh_anno: number | null
+          risparmio_pct: number | null
+          totale_recuperato_10y: number | null
+          uw_attuale: number | null
+          uw_nuovo: number | null
+          zona_climatica: string | null
+        }
+        Insert: {
+          bolletta_media_anno_eur?: number | null
+          calcolato_at?: string
+          cashflow?: Json | null
+          co2_risparmiata_kg_anno?: number | null
+          company_id: string
+          detrazione_aliquota?: number | null
+          detrazione_base_eur?: number | null
+          detrazione_eur_anno?: number | null
+          detrazione_eur_totale?: number | null
+          gradi_giorno?: number | null
+          id?: string
+          inflazione_energia_annua?: number | null
+          m2_serramenti?: number | null
+          ore_riscaldamento_giorno?: number | null
+          payback_anni?: number | null
+          prezzo_kwh_termico?: number | null
+          progetto_id: string
+          risparmio_eur_anno?: number | null
+          risparmio_kwh_anno?: number | null
+          risparmio_pct?: number | null
+          totale_recuperato_10y?: number | null
+          uw_attuale?: number | null
+          uw_nuovo?: number | null
+          zona_climatica?: string | null
+        }
+        Update: {
+          bolletta_media_anno_eur?: number | null
+          calcolato_at?: string
+          cashflow?: Json | null
+          co2_risparmiata_kg_anno?: number | null
+          company_id?: string
+          detrazione_aliquota?: number | null
+          detrazione_base_eur?: number | null
+          detrazione_eur_anno?: number | null
+          detrazione_eur_totale?: number | null
+          gradi_giorno?: number | null
+          id?: string
+          inflazione_energia_annua?: number | null
+          m2_serramenti?: number | null
+          ore_riscaldamento_giorno?: number | null
+          payback_anni?: number | null
+          prezzo_kwh_termico?: number | null
+          progetto_id?: string
+          risparmio_eur_anno?: number | null
+          risparmio_kwh_anno?: number | null
+          risparmio_pct?: number | null
+          totale_recuperato_10y?: number | null
+          uw_attuale?: number | null
+          uw_nuovo?: number | null
+          zona_climatica?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_calcolo_risparmio_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_calcolo_risparmio_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_calcolo_risparmio_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_cantieri_referenza: {
+        Row: {
+          attiva: boolean | null
+          cap: string | null
+          citta: string | null
+          company_id: string
+          consenso_uso_marketing: boolean | null
+          created_at: string
+          foto_storage_paths: string[] | null
+          id: string
+          lat: number | null
+          lng: number | null
+          materiale_principale:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          numero_serramenti: number | null
+          progetto_origine_id: string | null
+          provincia: string | null
+          testo_breve: string | null
+          tipo_intervento:
+            | Database["public"]["Enums"]["sr_tipo_intervento"]
+            | null
+        }
+        Insert: {
+          attiva?: boolean | null
+          cap?: string | null
+          citta?: string | null
+          company_id: string
+          consenso_uso_marketing?: boolean | null
+          created_at?: string
+          foto_storage_paths?: string[] | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          materiale_principale?:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          numero_serramenti?: number | null
+          progetto_origine_id?: string | null
+          provincia?: string | null
+          testo_breve?: string | null
+          tipo_intervento?:
+            | Database["public"]["Enums"]["sr_tipo_intervento"]
+            | null
+        }
+        Update: {
+          attiva?: boolean | null
+          cap?: string | null
+          citta?: string | null
+          company_id?: string
+          consenso_uso_marketing?: boolean | null
+          created_at?: string
+          foto_storage_paths?: string[] | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          materiale_principale?:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          numero_serramenti?: number | null
+          progetto_origine_id?: string | null
+          provincia?: string | null
+          testo_breve?: string | null
+          tipo_intervento?:
+            | Database["public"]["Enums"]["sr_tipo_intervento"]
+            | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_cantieri_referenza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_cantieri_referenza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_cantieri_referenza_progetto_origine_id_fkey"
+            columns: ["progetto_origine_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_pdf_generation_log: {
+        Row: {
+          company_id: string
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          html_url: string | null
+          id: string
+          pages_count: number | null
+          pdf_url: string | null
+          progetto_id: string
+          status: string
+          user_id: string | null
+          variant: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          html_url?: string | null
+          id?: string
+          pages_count?: number | null
+          pdf_url?: string | null
+          progetto_id: string
+          status?: string
+          user_id?: string | null
+          variant?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          html_url?: string | null
+          id?: string
+          pages_count?: number | null
+          pdf_url?: string | null
+          progetto_id?: string
+          status?: string
+          user_id?: string | null
+          variant?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_pdf_generation_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_pdf_generation_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_pdf_generation_log_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_progetti: {
+        Row: {
+          allow_self_signing: boolean | null
+          cantiere_cap: string | null
+          cantiere_citta: string | null
+          cantiere_condominio: boolean | null
+          cantiere_indirizzo: string | null
+          cantiere_lat: number | null
+          cantiere_lng: number | null
+          cantiere_piano: string | null
+          cantiere_provincia: string | null
+          cantiere_vincoli: string[] | null
+          cantiere_zona_climatica: string | null
+          cliente_cap: string | null
+          cliente_citta: string | null
+          cliente_codice_fiscale: string | null
+          cliente_cognome: string | null
+          cliente_email: string | null
+          cliente_id: string | null
+          cliente_indirizzo: string | null
+          cliente_nome: string | null
+          cliente_provincia: string | null
+          cliente_telefono: string | null
+          co2_risparmiata_t_anno: number | null
+          code: string
+          company_id: string
+          consulente_id: string | null
+          consulenza_at: string | null
+          consulenza_luogo: string | null
+          created_at: string
+          created_by: string | null
+          crono_giorni_collaudo: number | null
+          crono_giorni_posa: number | null
+          crono_giorni_produzione: number | null
+          detrazione_aliquota: number | null
+          detrazione_eur_anno: number | null
+          detrazione_eur_totale: number | null
+          discount_rule_id: string | null
+          esigenze: Json | null
+          fin_anticipo_pct: number | null
+          fin_piani: Json | null
+          fin_tabella_id: string | null
+          fin_tabella_riga_id: string | null
+          firma_cliente_url: string | null
+          firmato_il: string | null
+          id: string
+          incluso_investimento: string[] | null
+          intervento_sintesi: string | null
+          intervento_titolo: string | null
+          iva_inclusa: boolean | null
+          iva_percentuale: number | null
+          materiale_principale:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          metri_quadri_totali: number | null
+          note_cliente: string | null
+          note_interne: string | null
+          opportunita_id: string | null
+          ordine_id: string | null
+          pagamento_milestones: Json | null
+          parent_id: string | null
+          payback_anni: number | null
+          pdf_generated_at: string | null
+          pdf_html_url: string | null
+          pdf_url: string | null
+          perche_noi: string[] | null
+          prossimi_passi: string[] | null
+          public_token: string | null
+          public_url: string | null
+          referral_amount_eur: number | null
+          revision_number: number
+          risparmio_calcolato: boolean | null
+          risparmio_eur_anno: number | null
+          schema_pagamento: string | null
+          sconto_importo: number | null
+          sconto_percentuale: number | null
+          soluzione: Json | null
+          sopralluogo_eseguito_il: string | null
+          sopralluogo_id: string | null
+          stato: Database["public"]["Enums"]["sr_stato_progetto"]
+          testimonianze: Json | null
+          tipo_intervento: Database["public"]["Enums"]["sr_tipo_intervento"]
+          totale_accessori: number | null
+          totale_max: number | null
+          totale_min: number | null
+          totale_serramenti: number | null
+          updated_at: string
+          valido_fino_data: string | null
+          valido_fino_giorni: number | null
+          variante_selezionata: string | null
+          varianti: Json | null
+          varianti_attive: boolean | null
+        }
+        Insert: {
+          allow_self_signing?: boolean | null
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_condominio?: boolean | null
+          cantiere_indirizzo?: string | null
+          cantiere_lat?: number | null
+          cantiere_lng?: number | null
+          cantiere_piano?: string | null
+          cantiere_provincia?: string | null
+          cantiere_vincoli?: string[] | null
+          cantiere_zona_climatica?: string | null
+          cliente_cap?: string | null
+          cliente_citta?: string | null
+          cliente_codice_fiscale?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_indirizzo?: string | null
+          cliente_nome?: string | null
+          cliente_provincia?: string | null
+          cliente_telefono?: string | null
+          co2_risparmiata_t_anno?: number | null
+          code: string
+          company_id: string
+          consulente_id?: string | null
+          consulenza_at?: string | null
+          consulenza_luogo?: string | null
+          created_at?: string
+          created_by?: string | null
+          crono_giorni_collaudo?: number | null
+          crono_giorni_posa?: number | null
+          crono_giorni_produzione?: number | null
+          detrazione_aliquota?: number | null
+          detrazione_eur_anno?: number | null
+          detrazione_eur_totale?: number | null
+          discount_rule_id?: string | null
+          esigenze?: Json | null
+          fin_anticipo_pct?: number | null
+          fin_piani?: Json | null
+          fin_tabella_id?: string | null
+          fin_tabella_riga_id?: string | null
+          firma_cliente_url?: string | null
+          firmato_il?: string | null
+          id?: string
+          incluso_investimento?: string[] | null
+          intervento_sintesi?: string | null
+          intervento_titolo?: string | null
+          iva_inclusa?: boolean | null
+          iva_percentuale?: number | null
+          materiale_principale?:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          metri_quadri_totali?: number | null
+          note_cliente?: string | null
+          note_interne?: string | null
+          opportunita_id?: string | null
+          ordine_id?: string | null
+          pagamento_milestones?: Json | null
+          parent_id?: string | null
+          payback_anni?: number | null
+          pdf_generated_at?: string | null
+          pdf_html_url?: string | null
+          pdf_url?: string | null
+          perche_noi?: string[] | null
+          prossimi_passi?: string[] | null
+          public_token?: string | null
+          public_url?: string | null
+          referral_amount_eur?: number | null
+          revision_number?: number
+          risparmio_calcolato?: boolean | null
+          risparmio_eur_anno?: number | null
+          schema_pagamento?: string | null
+          sconto_importo?: number | null
+          sconto_percentuale?: number | null
+          soluzione?: Json | null
+          sopralluogo_eseguito_il?: string | null
+          sopralluogo_id?: string | null
+          stato?: Database["public"]["Enums"]["sr_stato_progetto"]
+          testimonianze?: Json | null
+          tipo_intervento?: Database["public"]["Enums"]["sr_tipo_intervento"]
+          totale_accessori?: number | null
+          totale_max?: number | null
+          totale_min?: number | null
+          totale_serramenti?: number | null
+          updated_at?: string
+          valido_fino_data?: string | null
+          valido_fino_giorni?: number | null
+          variante_selezionata?: string | null
+          varianti?: Json | null
+          varianti_attive?: boolean | null
+        }
+        Update: {
+          allow_self_signing?: boolean | null
+          cantiere_cap?: string | null
+          cantiere_citta?: string | null
+          cantiere_condominio?: boolean | null
+          cantiere_indirizzo?: string | null
+          cantiere_lat?: number | null
+          cantiere_lng?: number | null
+          cantiere_piano?: string | null
+          cantiere_provincia?: string | null
+          cantiere_vincoli?: string[] | null
+          cantiere_zona_climatica?: string | null
+          cliente_cap?: string | null
+          cliente_citta?: string | null
+          cliente_codice_fiscale?: string | null
+          cliente_cognome?: string | null
+          cliente_email?: string | null
+          cliente_id?: string | null
+          cliente_indirizzo?: string | null
+          cliente_nome?: string | null
+          cliente_provincia?: string | null
+          cliente_telefono?: string | null
+          co2_risparmiata_t_anno?: number | null
+          code?: string
+          company_id?: string
+          consulente_id?: string | null
+          consulenza_at?: string | null
+          consulenza_luogo?: string | null
+          created_at?: string
+          created_by?: string | null
+          crono_giorni_collaudo?: number | null
+          crono_giorni_posa?: number | null
+          crono_giorni_produzione?: number | null
+          detrazione_aliquota?: number | null
+          detrazione_eur_anno?: number | null
+          detrazione_eur_totale?: number | null
+          discount_rule_id?: string | null
+          esigenze?: Json | null
+          fin_anticipo_pct?: number | null
+          fin_piani?: Json | null
+          fin_tabella_id?: string | null
+          fin_tabella_riga_id?: string | null
+          firma_cliente_url?: string | null
+          firmato_il?: string | null
+          id?: string
+          incluso_investimento?: string[] | null
+          intervento_sintesi?: string | null
+          intervento_titolo?: string | null
+          iva_inclusa?: boolean | null
+          iva_percentuale?: number | null
+          materiale_principale?:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          metri_quadri_totali?: number | null
+          note_cliente?: string | null
+          note_interne?: string | null
+          opportunita_id?: string | null
+          ordine_id?: string | null
+          pagamento_milestones?: Json | null
+          parent_id?: string | null
+          payback_anni?: number | null
+          pdf_generated_at?: string | null
+          pdf_html_url?: string | null
+          pdf_url?: string | null
+          perche_noi?: string[] | null
+          prossimi_passi?: string[] | null
+          public_token?: string | null
+          public_url?: string | null
+          referral_amount_eur?: number | null
+          revision_number?: number
+          risparmio_calcolato?: boolean | null
+          risparmio_eur_anno?: number | null
+          schema_pagamento?: string | null
+          sconto_importo?: number | null
+          sconto_percentuale?: number | null
+          soluzione?: Json | null
+          sopralluogo_eseguito_il?: string | null
+          sopralluogo_id?: string | null
+          stato?: Database["public"]["Enums"]["sr_stato_progetto"]
+          testimonianze?: Json | null
+          tipo_intervento?: Database["public"]["Enums"]["sr_tipo_intervento"]
+          totale_accessori?: number | null
+          totale_max?: number | null
+          totale_min?: number | null
+          totale_serramenti?: number | null
+          updated_at?: string
+          valido_fino_data?: string | null
+          valido_fino_giorni?: number | null
+          variante_selezionata?: string | null
+          varianti?: Json | null
+          varianti_attive?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_consulente_id_fkey"
+            columns: ["consulente_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_discount_rule_id_fkey"
+            columns: ["discount_rule_id"]
+            isOneToOne: false
+            referencedRelation: "discount_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_fin_tabella_riga_id_fkey"
+            columns: ["fin_tabella_riga_id"]
+            isOneToOne: false
+            referencedRelation: "eic_tabelle_finanziamento_righe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_progetti_audit: {
+        Row: {
+          company_id: string
+          created_at: string
+          event_data: Json | null
+          event_type: string
+          id: string
+          progetto_id: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          progetto_id: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          progetto_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_progetti_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_audit_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_progetti_media: {
+        Row: {
+          caption: string | null
+          company_id: string
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["sr_media_kind"]
+          pair_situazione_id: string | null
+          position: number
+          posizione_pdf: string | null
+          progetto_id: string
+          serramento_id: string | null
+          storage_path: string
+          url: string | null
+        }
+        Insert: {
+          caption?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["sr_media_kind"]
+          pair_situazione_id?: string | null
+          position?: number
+          posizione_pdf?: string | null
+          progetto_id: string
+          serramento_id?: string | null
+          storage_path: string
+          url?: string | null
+        }
+        Update: {
+          caption?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["sr_media_kind"]
+          pair_situazione_id?: string | null
+          position?: number
+          posizione_pdf?: string | null
+          progetto_id?: string
+          serramento_id?: string | null
+          storage_path?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_media_pair_situazione_id_fkey"
+            columns: ["pair_situazione_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti_media"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_media_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_media_serramento_id_fkey"
+            columns: ["serramento_id"]
+            isOneToOne: false
+            referencedRelation: "sr_serramenti_progetto"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_serramenti_progetto: {
+        Row: {
+          altezza_mm: number | null
+          ambiente: string | null
+          apertura: string | null
+          colore_esterno: string | null
+          colore_interno: string | null
+          company_id: string
+          created_at: string
+          family_id: string | null
+          foto_render_path: string | null
+          foto_storage_path: string | null
+          id: string
+          larghezza_mm: number | null
+          listino_voce_id: string | null
+          macrocategoria_override_id: string | null
+          materiale:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          metri_quadri: number | null
+          note: string | null
+          posa_esclusa: boolean
+          position: number
+          prezzo_totale: number | null
+          prezzo_unitario: number | null
+          progetto_id: string
+          quantita: number
+          serie: string | null
+          supplier_catalog_id: string | null
+          supplier_product_line_id: string | null
+          tipologia: string
+          tipologia_label: string | null
+          updated_at: string
+          valori_assi: Json
+          vetro: string | null
+          vetro_specs: Json | null
+        }
+        Insert: {
+          altezza_mm?: number | null
+          ambiente?: string | null
+          apertura?: string | null
+          colore_esterno?: string | null
+          colore_interno?: string | null
+          company_id: string
+          created_at?: string
+          family_id?: string | null
+          foto_render_path?: string | null
+          foto_storage_path?: string | null
+          id?: string
+          larghezza_mm?: number | null
+          listino_voce_id?: string | null
+          macrocategoria_override_id?: string | null
+          materiale?:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          metri_quadri?: number | null
+          note?: string | null
+          posa_esclusa?: boolean
+          position?: number
+          prezzo_totale?: number | null
+          prezzo_unitario?: number | null
+          progetto_id: string
+          quantita?: number
+          serie?: string | null
+          supplier_catalog_id?: string | null
+          supplier_product_line_id?: string | null
+          tipologia: string
+          tipologia_label?: string | null
+          updated_at?: string
+          valori_assi?: Json
+          vetro?: string | null
+          vetro_specs?: Json | null
+        }
+        Update: {
+          altezza_mm?: number | null
+          ambiente?: string | null
+          apertura?: string | null
+          colore_esterno?: string | null
+          colore_interno?: string | null
+          company_id?: string
+          created_at?: string
+          family_id?: string | null
+          foto_render_path?: string | null
+          foto_storage_path?: string | null
+          id?: string
+          larghezza_mm?: number | null
+          listino_voce_id?: string | null
+          macrocategoria_override_id?: string | null
+          materiale?:
+            | Database["public"]["Enums"]["sr_materiale_principale"]
+            | null
+          metri_quadri?: number | null
+          note?: string | null
+          posa_esclusa?: boolean
+          position?: number
+          prezzo_totale?: number | null
+          prezzo_unitario?: number | null
+          progetto_id?: string
+          quantita?: number
+          serie?: string | null
+          supplier_catalog_id?: string | null
+          supplier_product_line_id?: string | null
+          tipologia?: string
+          tipologia_label?: string | null
+          updated_at?: string
+          valori_assi?: Json
+          vetro?: string | null
+          vetro_specs?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_serramenti_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_serramenti_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_serramenti_progetto_macrocategoria_override_id_fkey"
+            columns: ["macrocategoria_override_id"]
+            isOneToOne: false
+            referencedRelation: "listino_macrocategorie"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_serramenti_progetto_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_serramenti_progetto_supplier_catalog_id_fkey"
+            columns: ["supplier_catalog_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_catalogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_serramenti_progetto_supplier_product_line_id_fkey"
+            columns: ["supplier_product_line_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_product_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_servizi_progetto: {
+        Row: {
+          company_id: string
+          created_at: string
+          descrizione: string
+          id: string
+          note: string | null
+          position: number
+          prezzo_totale_costo: number | null
+          prezzo_totale_vendita: number | null
+          prezzo_unitario_costo: number | null
+          prezzo_unitario_vendita: number | null
+          progetto_id: string
+          quantita: number
+          tariffa_id: string | null
+          unita: string | null
+          updated_at: string
+          variante_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          descrizione: string
+          id?: string
+          note?: string | null
+          position?: number
+          prezzo_totale_costo?: number | null
+          prezzo_totale_vendita?: number | null
+          prezzo_unitario_costo?: number | null
+          prezzo_unitario_vendita?: number | null
+          progetto_id: string
+          quantita?: number
+          tariffa_id?: string | null
+          unita?: string | null
+          updated_at?: string
+          variante_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          descrizione?: string
+          id?: string
+          note?: string | null
+          position?: number
+          prezzo_totale_costo?: number | null
+          prezzo_totale_vendita?: number | null
+          prezzo_unitario_costo?: number | null
+          prezzo_unitario_vendita?: number | null
+          progetto_id?: string
+          quantita?: number
+          tariffa_id?: string | null
+          unita?: string | null
+          updated_at?: string
+          variante_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_manodopera_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_manodopera_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_manodopera_progetto_progetto_id_fkey"
+            columns: ["progetto_id"]
+            isOneToOne: false
+            referencedRelation: "sr_progetti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_manodopera_progetto_tariffa_id_fkey"
+            columns: ["tariffa_id"]
+            isOneToOne: false
+            referencedRelation: "tariffe_aziendali"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_manodopera_progetto_variante_id_fkey"
+            columns: ["variante_id"]
+            isOneToOne: false
+            referencedRelation: "tariffa_costi_varianti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sr_template_pdf: {
+        Row: {
+          anticipo_pct_default: number | null
+          bonus_aggiuntivi: Json | null
+          brand_footer_attivo: boolean | null
+          brand_footer_testo: string | null
+          certificazioni: Json | null
+          chi_siamo_attivo: boolean
+          chi_siamo_foto_url: string | null
+          chi_siamo_testo: string | null
+          chi_siamo_titolo: string | null
+          colore_primario: string | null
+          company_id: string
+          condizioni_legali_attivo: boolean | null
+          condizioni_legali_testo: string | null
+          confronto_attivo: boolean | null
+          confronto_righe: Json | null
+          confronto_titolo: string | null
+          consulente_descrizione_default: string | null
+          created_at: string
+          crono_giorni_collaudo_default: number | null
+          crono_giorni_posa_per_pezzo_default: number | null
+          crono_giorni_produzione_default: number | null
+          early_bird_attivo: boolean | null
+          early_bird_giorni: number | null
+          early_bird_pct: number | null
+          email: string | null
+          esigenze_default: Json | null
+          faq_items: Json | null
+          garanzie: Json | null
+          id: string
+          incluso_default: string[] | null
+          indirizzo_completo: string | null
+          iva_percentuale_default: number | null
+          logo_url: string | null
+          partita_iva: string | null
+          pdf_cover_bg_color: string | null
+          pdf_cover_decoration_style: string
+          pdf_cover_eyebrow: string | null
+          pdf_cover_eyebrow_size: number | null
+          pdf_cover_hero: string | null
+          pdf_cover_image_url: string | null
+          pdf_cover_logo_position: string
+          pdf_cover_overlay_opacity: number | null
+          pdf_cover_overlay_style: string
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_show_decoration: boolean | null
+          pdf_cover_subhero: string | null
+          pdf_cover_subhero_template: string | null
+          pdf_cover_subtitle_size: number | null
+          pdf_cover_text_align: string | null
+          pdf_cover_text_color: string | null
+          pdf_cover_text_vertical: string
+          pdf_cover_title_size: number | null
+          pdf_cta_finale_passi: string[] | null
+          pdf_cta_finale_titolo: string | null
+          pdf_font_family: string
+          pdf_mostra_rata_mensile: boolean
+          pdf_mostra_recupero_fiscale: boolean
+          pdf_mostra_tabella_ecobonus: boolean
+          pdf_pages_order: Json | null
+          pdf_pagine_articolo_dedicate: boolean
+          pdf_perche_noi_metriche: Json
+          pdf_show_legal_footer: boolean
+          pdf_show_revision_footer: boolean
+          perche_noi_default: string[] | null
+          percorso_cliente: Json | null
+          prossimi_passi_default: string[] | null
+          ragione_sociale: string | null
+          recensioni_attivo: boolean
+          render_disclaimer: string | null
+          soluzione_default: Json | null
+          telefono: string | null
+          testimonianze_default: Json | null
+          updated_at: string
+          urgenza_attiva: boolean | null
+          urgenza_descrizione: string | null
+          urgenza_titolo: string | null
+          valido_giorni_default: number | null
+        }
+        Insert: {
+          anticipo_pct_default?: number | null
+          bonus_aggiuntivi?: Json | null
+          brand_footer_attivo?: boolean | null
+          brand_footer_testo?: string | null
+          certificazioni?: Json | null
+          chi_siamo_attivo?: boolean
+          chi_siamo_foto_url?: string | null
+          chi_siamo_testo?: string | null
+          chi_siamo_titolo?: string | null
+          colore_primario?: string | null
+          company_id: string
+          condizioni_legali_attivo?: boolean | null
+          condizioni_legali_testo?: string | null
+          confronto_attivo?: boolean | null
+          confronto_righe?: Json | null
+          confronto_titolo?: string | null
+          consulente_descrizione_default?: string | null
+          created_at?: string
+          crono_giorni_collaudo_default?: number | null
+          crono_giorni_posa_per_pezzo_default?: number | null
+          crono_giorni_produzione_default?: number | null
+          early_bird_attivo?: boolean | null
+          early_bird_giorni?: number | null
+          early_bird_pct?: number | null
+          email?: string | null
+          esigenze_default?: Json | null
+          faq_items?: Json | null
+          garanzie?: Json | null
+          id?: string
+          incluso_default?: string[] | null
+          indirizzo_completo?: string | null
+          iva_percentuale_default?: number | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          pdf_cta_finale_passi?: string[] | null
+          pdf_cta_finale_titolo?: string | null
+          pdf_font_family?: string
+          pdf_mostra_rata_mensile?: boolean
+          pdf_mostra_recupero_fiscale?: boolean
+          pdf_mostra_tabella_ecobonus?: boolean
+          pdf_pages_order?: Json | null
+          pdf_pagine_articolo_dedicate?: boolean
+          pdf_perche_noi_metriche?: Json
+          pdf_show_legal_footer?: boolean
+          pdf_show_revision_footer?: boolean
+          perche_noi_default?: string[] | null
+          percorso_cliente?: Json | null
+          prossimi_passi_default?: string[] | null
+          ragione_sociale?: string | null
+          recensioni_attivo?: boolean
+          render_disclaimer?: string | null
+          soluzione_default?: Json | null
+          telefono?: string | null
+          testimonianze_default?: Json | null
+          updated_at?: string
+          urgenza_attiva?: boolean | null
+          urgenza_descrizione?: string | null
+          urgenza_titolo?: string | null
+          valido_giorni_default?: number | null
+        }
+        Update: {
+          anticipo_pct_default?: number | null
+          bonus_aggiuntivi?: Json | null
+          brand_footer_attivo?: boolean | null
+          brand_footer_testo?: string | null
+          certificazioni?: Json | null
+          chi_siamo_attivo?: boolean
+          chi_siamo_foto_url?: string | null
+          chi_siamo_testo?: string | null
+          chi_siamo_titolo?: string | null
+          colore_primario?: string | null
+          company_id?: string
+          condizioni_legali_attivo?: boolean | null
+          condizioni_legali_testo?: string | null
+          confronto_attivo?: boolean | null
+          confronto_righe?: Json | null
+          confronto_titolo?: string | null
+          consulente_descrizione_default?: string | null
+          created_at?: string
+          crono_giorni_collaudo_default?: number | null
+          crono_giorni_posa_per_pezzo_default?: number | null
+          crono_giorni_produzione_default?: number | null
+          early_bird_attivo?: boolean | null
+          early_bird_giorni?: number | null
+          early_bird_pct?: number | null
+          email?: string | null
+          esigenze_default?: Json | null
+          faq_items?: Json | null
+          garanzie?: Json | null
+          id?: string
+          incluso_default?: string[] | null
+          indirizzo_completo?: string | null
+          iva_percentuale_default?: number | null
+          logo_url?: string | null
+          partita_iva?: string | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_decoration_style?: string
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_eyebrow_size?: number | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_overlay_style?: string
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_show_decoration?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_subtitle_size?: number | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cover_text_vertical?: string
+          pdf_cover_title_size?: number | null
+          pdf_cta_finale_passi?: string[] | null
+          pdf_cta_finale_titolo?: string | null
+          pdf_font_family?: string
+          pdf_mostra_rata_mensile?: boolean
+          pdf_mostra_recupero_fiscale?: boolean
+          pdf_mostra_tabella_ecobonus?: boolean
+          pdf_pages_order?: Json | null
+          pdf_pagine_articolo_dedicate?: boolean
+          pdf_perche_noi_metriche?: Json
+          pdf_show_legal_footer?: boolean
+          pdf_show_revision_footer?: boolean
+          perche_noi_default?: string[] | null
+          percorso_cliente?: Json | null
+          prossimi_passi_default?: string[] | null
+          ragione_sociale?: string | null
+          recensioni_attivo?: boolean
+          render_disclaimer?: string | null
+          soluzione_default?: Json | null
+          telefono?: string | null
+          testimonianze_default?: Json | null
+          updated_at?: string
+          urgenza_attiva?: boolean | null
+          urgenza_descrizione?: string | null
+          urgenza_titolo?: string | null
+          valido_giorni_default?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sr_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sr_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_permissions: {
         Row: {
           can_approve_orders: boolean
@@ -32591,6 +47157,7 @@ export type Database = {
       }
       stock_lotti: {
         Row: {
+          articolo: string | null
           codice_lotto: string
           company_id: string
           created_at: string
@@ -32602,9 +47169,13 @@ export type Database = {
           note: string | null
           posizione: string | null
           quantita: number
+          stock_item_id: string | null
+          supplier_id: string | null
           unita_misura: string | null
+          warehouse_id: string | null
         }
         Insert: {
+          articolo?: string | null
           codice_lotto: string
           company_id: string
           created_at?: string
@@ -32616,9 +47187,13 @@ export type Database = {
           note?: string | null
           posizione?: string | null
           quantita?: number
+          stock_item_id?: string | null
+          supplier_id?: string | null
           unita_misura?: string | null
+          warehouse_id?: string | null
         }
         Update: {
+          articolo?: string | null
           codice_lotto?: string
           company_id?: string
           created_at?: string
@@ -32630,7 +47205,10 @@ export type Database = {
           note?: string | null
           posizione?: string | null
           quantita?: number
+          stock_item_id?: string | null
+          supplier_id?: string | null
           unita_misura?: string | null
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -32647,6 +47225,34 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "stock_lotti_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_stock"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_lotti_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_procurement_report"
+            referencedColumns: ["supplier_id"]
+          },
+          {
+            foreignKeyName: "stock_lotti_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_lotti_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
         ]
       }
       stock_units: {
@@ -32655,6 +47261,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           delivered_at: string | null
+          delivered_order_item_id: string | null
           delivered_shipment_id: string | null
           delivered_to_order_id: string | null
           id: string
@@ -32668,6 +47275,7 @@ export type Database = {
           purchase_ddt_ricezione_id: string | null
           purchase_price: number | null
           reserved_order_id: string | null
+          reserved_order_item_id: string | null
           section_id: string | null
           serial_number: string
           status: string
@@ -32684,6 +47292,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           delivered_at?: string | null
+          delivered_order_item_id?: string | null
           delivered_shipment_id?: string | null
           delivered_to_order_id?: string | null
           id?: string
@@ -32697,6 +47306,7 @@ export type Database = {
           purchase_ddt_ricezione_id?: string | null
           purchase_price?: number | null
           reserved_order_id?: string | null
+          reserved_order_item_id?: string | null
           section_id?: string | null
           serial_number: string
           status?: string
@@ -32713,6 +47323,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           delivered_at?: string | null
+          delivered_order_item_id?: string | null
           delivered_shipment_id?: string | null
           delivered_to_order_id?: string | null
           id?: string
@@ -32726,6 +47337,7 @@ export type Database = {
           purchase_ddt_ricezione_id?: string | null
           purchase_price?: number | null
           reserved_order_id?: string | null
+          reserved_order_item_id?: string | null
           section_id?: string | null
           serial_number?: string
           status?: string
@@ -32750,6 +47362,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_units_delivered_order_item_id_fkey"
+            columns: ["delivered_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
           {
@@ -32785,6 +47404,13 @@ export type Database = {
             columns: ["reserved_order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_units_reserved_order_item_id_fkey"
+            columns: ["reserved_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
           {
@@ -32938,6 +47564,126 @@ export type Database = {
           },
         ]
       }
+      subappaltatori_documenti: {
+        Row: {
+          ai_confidence: number | null
+          ai_extracted_data: Json | null
+          ai_parsed: boolean
+          ai_validity_check: Json | null
+          alert_15d_sent_at: string | null
+          alert_30d_sent_at: string | null
+          alert_expired_sent_at: string | null
+          company_id: string
+          created_at: string
+          data_emissione: string | null
+          esito: string | null
+          id: string
+          irregularity_details: string | null
+          numero_protocollo: string | null
+          pdf_size_bytes: number | null
+          renewal_received_at: string | null
+          renewal_requested_at: string | null
+          scadenza: string | null
+          status: string
+          storage_path: string | null
+          subappaltatore_id: string
+          superseded_by: string | null
+          tipo: string
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_extracted_data?: Json | null
+          ai_parsed?: boolean
+          ai_validity_check?: Json | null
+          alert_15d_sent_at?: string | null
+          alert_30d_sent_at?: string | null
+          alert_expired_sent_at?: string | null
+          company_id: string
+          created_at?: string
+          data_emissione?: string | null
+          esito?: string | null
+          id?: string
+          irregularity_details?: string | null
+          numero_protocollo?: string | null
+          pdf_size_bytes?: number | null
+          renewal_received_at?: string | null
+          renewal_requested_at?: string | null
+          scadenza?: string | null
+          status?: string
+          storage_path?: string | null
+          subappaltatore_id: string
+          superseded_by?: string | null
+          tipo: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_extracted_data?: Json | null
+          ai_parsed?: boolean
+          ai_validity_check?: Json | null
+          alert_15d_sent_at?: string | null
+          alert_30d_sent_at?: string | null
+          alert_expired_sent_at?: string | null
+          company_id?: string
+          created_at?: string
+          data_emissione?: string | null
+          esito?: string | null
+          id?: string
+          irregularity_details?: string | null
+          numero_protocollo?: string | null
+          pdf_size_bytes?: number | null
+          renewal_received_at?: string | null
+          renewal_requested_at?: string | null
+          scadenza?: string | null
+          status?: string
+          storage_path?: string | null
+          subappaltatore_id?: string
+          superseded_by?: string | null
+          tipo?: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subappaltatori_documenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_documenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_documenti_subappaltatore_id_fkey"
+            columns: ["subappaltatore_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatore_compliance_status"
+            referencedColumns: ["subappaltatore_id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_documenti_subappaltatore_id_fkey"
+            columns: ["subappaltatore_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatori"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_documenti_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "subappaltatori_documenti"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subappaltatori_sicurezza: {
         Row: {
           campo_subappaltatore_id: string | null
@@ -32997,6 +47743,13 @@ export type Database = {
           tipo_lavori?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "subappaltatori_sicurezza_campo_subappaltatore_id_fkey"
+            columns: ["campo_subappaltatore_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatore_compliance_status"
+            referencedColumns: ["subappaltatore_id"]
+          },
           {
             foreignKeyName: "subappaltatori_sicurezza_campo_subappaltatore_id_fkey"
             columns: ["campo_subappaltatore_id"]
@@ -33181,12 +47934,14 @@ export type Database = {
           id: string
           included_modules: Json | null
           is_active: boolean
+          is_full_plan: boolean
           max_orders: number
           max_storage_mb: number
           max_users: number
           name: string
           position: number
           price_monthly: number
+          price_per_extra_render_eur: number | null
           price_yearly: number
           sla_resolution_hours: number | null
           sla_response_hours: number | null
@@ -33205,12 +47960,14 @@ export type Database = {
           id?: string
           included_modules?: Json | null
           is_active?: boolean
+          is_full_plan?: boolean
           max_orders?: number
           max_storage_mb?: number
           max_users?: number
           name: string
           position?: number
           price_monthly?: number
+          price_per_extra_render_eur?: number | null
           price_yearly?: number
           sla_resolution_hours?: number | null
           sla_response_hours?: number | null
@@ -33229,12 +47986,14 @@ export type Database = {
           id?: string
           included_modules?: Json | null
           is_active?: boolean
+          is_full_plan?: boolean
           max_orders?: number
           max_storage_mb?: number
           max_users?: number
           name?: string
           position?: number
           price_monthly?: number
+          price_per_extra_render_eur?: number | null
           price_yearly?: number
           sla_resolution_hours?: number | null
           sla_response_hours?: number | null
@@ -33897,6 +48656,572 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_activity_log: {
+        Row: {
+          created_at: string
+          event_data: Json | null
+          event_type: string
+          id: string
+          survey_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          survey_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          survey_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_activity_log_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_areas: {
+        Row: {
+          area_data: Json
+          audio_transcription: string | null
+          audio_url: string | null
+          created_at: string
+          id: string
+          is_complete: boolean
+          name: string
+          notes: string | null
+          position: number
+          survey_id: string
+          updated_at: string
+        }
+        Insert: {
+          area_data?: Json
+          audio_transcription?: string | null
+          audio_url?: string | null
+          created_at?: string
+          id?: string
+          is_complete?: boolean
+          name: string
+          notes?: string | null
+          position?: number
+          survey_id: string
+          updated_at?: string
+        }
+        Update: {
+          area_data?: Json
+          audio_transcription?: string | null
+          audio_url?: string | null
+          created_at?: string
+          id?: string
+          is_complete?: boolean
+          name?: string
+          notes?: string | null
+          position?: number
+          survey_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_areas_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_assignees: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          notes: string | null
+          role: string
+          survey_id: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          notes?: string | null
+          role?: string
+          survey_id: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          notes?: string | null
+          role?: string
+          survey_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_assignees_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_elements: {
+        Row: {
+          area_id: string
+          audio_transcription: string | null
+          audio_url: string | null
+          created_at: string
+          element_label: string | null
+          element_type: string
+          id: string
+          is_complete: boolean
+          missing_required_fields: string[] | null
+          notes: string | null
+          position: number
+          quantity: number
+          survey_id: string
+          updated_at: string
+          values: Json
+        }
+        Insert: {
+          area_id: string
+          audio_transcription?: string | null
+          audio_url?: string | null
+          created_at?: string
+          element_label?: string | null
+          element_type: string
+          id?: string
+          is_complete?: boolean
+          missing_required_fields?: string[] | null
+          notes?: string | null
+          position?: number
+          quantity?: number
+          survey_id: string
+          updated_at?: string
+          values?: Json
+        }
+        Update: {
+          area_id?: string
+          audio_transcription?: string | null
+          audio_url?: string | null
+          created_at?: string
+          element_label?: string | null
+          element_type?: string
+          id?: string
+          is_complete?: boolean
+          missing_required_fields?: string[] | null
+          notes?: string | null
+          position?: number
+          quantity?: number
+          survey_id?: string
+          updated_at?: string
+          values?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_elements_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "survey_areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_elements_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_media: {
+        Row: {
+          annotations: Json | null
+          area_id: string | null
+          checklist_key: string | null
+          checklist_label: string | null
+          created_at: string
+          created_by: string | null
+          duration_seconds: number | null
+          element_id: string | null
+          filename: string | null
+          id: string
+          mime_type: string | null
+          position: number
+          size_bytes: number | null
+          storage_path: string | null
+          survey_id: string
+          taken_at: string | null
+          taken_latitude: number | null
+          taken_longitude: number | null
+          thumbnail_url: string | null
+          transcription: string | null
+          type: string
+          url: string
+        }
+        Insert: {
+          annotations?: Json | null
+          area_id?: string | null
+          checklist_key?: string | null
+          checklist_label?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          element_id?: string | null
+          filename?: string | null
+          id?: string
+          mime_type?: string | null
+          position?: number
+          size_bytes?: number | null
+          storage_path?: string | null
+          survey_id: string
+          taken_at?: string | null
+          taken_latitude?: number | null
+          taken_longitude?: number | null
+          thumbnail_url?: string | null
+          transcription?: string | null
+          type: string
+          url: string
+        }
+        Update: {
+          annotations?: Json | null
+          area_id?: string | null
+          checklist_key?: string | null
+          checklist_label?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          element_id?: string | null
+          filename?: string | null
+          id?: string
+          mime_type?: string | null
+          position?: number
+          size_bytes?: number | null
+          storage_path?: string | null
+          survey_id?: string
+          taken_at?: string | null
+          taken_latitude?: number | null
+          taken_longitude?: number | null
+          thumbnail_url?: string | null
+          transcription?: string | null
+          type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_media_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "survey_areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_media_element_id_fkey"
+            columns: ["element_id"]
+            isOneToOne: false
+            referencedRelation: "survey_elements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_media_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_template_settings: {
+        Row: {
+          company_id: string
+          is_enabled: boolean
+          sort_order: number
+          template_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          is_enabled?: boolean
+          sort_order?: number
+          template_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          is_enabled?: boolean
+          sort_order?: number
+          template_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_template_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "survey_template_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_template_settings_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "survey_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      survey_templates: {
+        Row: {
+          area_label: string
+          area_label_plural: string
+          category: string
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          element_label: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          name: string
+          schema: Json
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          area_label?: string
+          area_label_plural?: string
+          category: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          element_label?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name: string
+          schema?: Json
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          area_label?: string
+          area_label_plural?: string
+          category?: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          element_label?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name?: string
+          schema?: Json
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "survey_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      surveys: {
+        Row: {
+          address: string | null
+          address_number: string | null
+          city: string | null
+          client_id: string | null
+          client_signature_at: string | null
+          client_signature_name: string | null
+          client_signature_url: string | null
+          code: string | null
+          company_id: string
+          completed_at: string | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          duration_minutes: number | null
+          estimate_id: string | null
+          general_audio_transcription: string | null
+          general_audio_url: string | null
+          header_data: Json
+          id: string
+          latitude: number | null
+          longitude: number | null
+          mode: string
+          notes: string | null
+          order_id: string | null
+          pdf_report_url: string | null
+          province: string | null
+          reviewed_at: string | null
+          scheduled_at: string | null
+          signed_at: string | null
+          started_at: string | null
+          status: string
+          supplier_order_id: string | null
+          technician_id: string | null
+          template_id: string
+          template_schema_snapshot: Json | null
+          updated_at: string
+          weather_conditions: string | null
+          zip: string | null
+        }
+        Insert: {
+          address?: string | null
+          address_number?: string | null
+          city?: string | null
+          client_id?: string | null
+          client_signature_at?: string | null
+          client_signature_name?: string | null
+          client_signature_url?: string | null
+          code?: string | null
+          company_id: string
+          completed_at?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          duration_minutes?: number | null
+          estimate_id?: string | null
+          general_audio_transcription?: string | null
+          general_audio_url?: string | null
+          header_data?: Json
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          mode?: string
+          notes?: string | null
+          order_id?: string | null
+          pdf_report_url?: string | null
+          province?: string | null
+          reviewed_at?: string | null
+          scheduled_at?: string | null
+          signed_at?: string | null
+          started_at?: string | null
+          status?: string
+          supplier_order_id?: string | null
+          technician_id?: string | null
+          template_id: string
+          template_schema_snapshot?: Json | null
+          updated_at?: string
+          weather_conditions?: string | null
+          zip?: string | null
+        }
+        Update: {
+          address?: string | null
+          address_number?: string | null
+          city?: string | null
+          client_id?: string | null
+          client_signature_at?: string | null
+          client_signature_name?: string | null
+          client_signature_url?: string | null
+          code?: string | null
+          company_id?: string
+          completed_at?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          duration_minutes?: number | null
+          estimate_id?: string | null
+          general_audio_transcription?: string | null
+          general_audio_url?: string | null
+          header_data?: Json
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          mode?: string
+          notes?: string | null
+          order_id?: string | null
+          pdf_report_url?: string | null
+          province?: string | null
+          reviewed_at?: string | null
+          scheduled_at?: string | null
+          signed_at?: string | null
+          started_at?: string | null
+          status?: string
+          supplier_order_id?: string | null
+          technician_id?: string | null
+          template_id?: string
+          template_schema_snapshot?: Json | null
+          updated_at?: string
+          weather_conditions?: string | null
+          zip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "surveys_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "surveys_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveys_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "survey_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -34677,6 +50002,74 @@ export type Database = {
           },
         ]
       }
+      team_performance_history: {
+        Row: {
+          ai_team_notes: string | null
+          cantiere_id: string | null
+          company_id: string
+          created_at: string | null
+          employee_ids: string[]
+          id: string
+          lavorazione_type: string | null
+          produttivita_score: number | null
+          qualita_score: number | null
+          rispetto_tempi_score: number | null
+        }
+        Insert: {
+          ai_team_notes?: string | null
+          cantiere_id?: string | null
+          company_id: string
+          created_at?: string | null
+          employee_ids: string[]
+          id?: string
+          lavorazione_type?: string | null
+          produttivita_score?: number | null
+          qualita_score?: number | null
+          rispetto_tempi_score?: number | null
+        }
+        Update: {
+          ai_team_notes?: string | null
+          cantiere_id?: string | null
+          company_id?: string
+          created_at?: string | null
+          employee_ids?: string[]
+          id?: string
+          lavorazione_type?: string | null
+          produttivita_score?: number | null
+          qualita_score?: number | null
+          rispetto_tempi_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_performance_history_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_performance_history_cantiere_id_fkey"
+            columns: ["cantiere_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_performance_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "team_performance_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           color: string | null
@@ -34763,6 +50156,229 @@ export type Database = {
           },
           {
             foreignKeyName: "tecnico_gps_consent_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telegram_bot_configs: {
+        Row: {
+          bot_id: number | null
+          bot_token: string
+          bot_username: string
+          company_id: string
+          created_at: string
+          default_persona_key: string
+          enabled: boolean
+          id: string
+          max_messages_per_day: number
+          rate_limit_per_user_per_minute: number
+          updated_at: string
+          webhook_secret: string
+          webhook_url: string | null
+        }
+        Insert: {
+          bot_id?: number | null
+          bot_token: string
+          bot_username: string
+          company_id: string
+          created_at?: string
+          default_persona_key?: string
+          enabled?: boolean
+          id?: string
+          max_messages_per_day?: number
+          rate_limit_per_user_per_minute?: number
+          updated_at?: string
+          webhook_secret: string
+          webhook_url?: string | null
+        }
+        Update: {
+          bot_id?: number | null
+          bot_token?: string
+          bot_username?: string
+          company_id?: string
+          created_at?: string
+          default_persona_key?: string
+          enabled?: boolean
+          id?: string
+          max_messages_per_day?: number
+          rate_limit_per_user_per_minute?: number
+          updated_at?: string
+          webhook_secret?: string
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_bot_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "telegram_bot_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telegram_messages: {
+        Row: {
+          ai_cost_billed_eur: number | null
+          ai_persona_key: string | null
+          ai_response: string | null
+          ai_session_id: string | null
+          ai_tool_calls: Json | null
+          bot_config_id: string
+          content: string | null
+          created_at: string
+          direction: string
+          error_message: string | null
+          id: string
+          mapping_id: string | null
+          media_url: string | null
+          message_type: string
+          processed_at: string | null
+          processing_status: string
+          telegram_message_id: number | null
+        }
+        Insert: {
+          ai_cost_billed_eur?: number | null
+          ai_persona_key?: string | null
+          ai_response?: string | null
+          ai_session_id?: string | null
+          ai_tool_calls?: Json | null
+          bot_config_id: string
+          content?: string | null
+          created_at?: string
+          direction: string
+          error_message?: string | null
+          id?: string
+          mapping_id?: string | null
+          media_url?: string | null
+          message_type: string
+          processed_at?: string | null
+          processing_status?: string
+          telegram_message_id?: number | null
+        }
+        Update: {
+          ai_cost_billed_eur?: number | null
+          ai_persona_key?: string | null
+          ai_response?: string | null
+          ai_session_id?: string | null
+          ai_tool_calls?: Json | null
+          bot_config_id?: string
+          content?: string | null
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          id?: string
+          mapping_id?: string | null
+          media_url?: string | null
+          message_type?: string
+          processed_at?: string | null
+          processing_status?: string
+          telegram_message_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_messages_bot_config_id_fkey"
+            columns: ["bot_config_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_bot_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_messages_mapping_id_fkey"
+            columns: ["mapping_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_user_mappings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telegram_user_mappings: {
+        Row: {
+          active_persona_key: string
+          active_session_id: string | null
+          bot_config_id: string
+          company_id: string
+          created_at: string
+          id: string
+          is_verified: boolean
+          last_message_at: string | null
+          telegram_first_name: string | null
+          telegram_last_name: string | null
+          telegram_user_id: number
+          telegram_username: string | null
+          total_messages_received: number
+          total_messages_sent: number
+          user_id: string | null
+          verification_code: string | null
+          verification_expires_at: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          active_persona_key?: string
+          active_session_id?: string | null
+          bot_config_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_verified?: boolean
+          last_message_at?: string | null
+          telegram_first_name?: string | null
+          telegram_last_name?: string | null
+          telegram_user_id: number
+          telegram_username?: string | null
+          total_messages_received?: number
+          total_messages_sent?: number
+          user_id?: string | null
+          verification_code?: string | null
+          verification_expires_at?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          active_persona_key?: string
+          active_session_id?: string | null
+          bot_config_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_verified?: boolean
+          last_message_at?: string | null
+          telegram_first_name?: string | null
+          telegram_last_name?: string | null
+          telegram_user_id?: number
+          telegram_username?: string | null
+          total_messages_received?: number
+          total_messages_sent?: number
+          user_id?: string | null
+          verification_code?: string | null
+          verification_expires_at?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_user_mappings_bot_config_id_fkey"
+            columns: ["bot_config_id"]
+            isOneToOne: false
+            referencedRelation: "telegram_bot_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_user_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "telegram_user_mappings_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -35184,6 +50800,88 @@ export type Database = {
           },
         ]
       }
+      tool_execution_log: {
+        Row: {
+          channel: string
+          company_id: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          input_payload: Json | null
+          output_payload: Json | null
+          persona_key: string | null
+          proposal_id: string | null
+          risk_level: string
+          session_id: string | null
+          status: string
+          tool_domain: string
+          tool_name: string
+          trace_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          channel: string
+          company_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_payload?: Json | null
+          output_payload?: Json | null
+          persona_key?: string | null
+          proposal_id?: string | null
+          risk_level: string
+          session_id?: string | null
+          status: string
+          tool_domain: string
+          tool_name: string
+          trace_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          channel?: string
+          company_id?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_payload?: Json | null
+          output_payload?: Json | null
+          persona_key?: string | null
+          proposal_id?: string | null
+          risk_level?: string
+          session_id?: string | null
+          status?: string
+          tool_domain?: string
+          tool_name?: string
+          trace_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_execution_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "tool_execution_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tool_execution_log_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "ai_action_proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       topup_outbox: {
         Row: {
           alerted_at: string | null
@@ -35583,6 +51281,75 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_messaging_channels: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          email_enabled: boolean
+          email_override: string | null
+          preferred_order: Json
+          quiet_from: string | null
+          quiet_timezone: string | null
+          quiet_to: string | null
+          silvio_chat_enabled: boolean
+          telegram_chat_id: string | null
+          telegram_verified_at: string | null
+          updated_at: string
+          user_id: string
+          whatsapp_phone: string | null
+          whatsapp_verified_at: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          email_enabled?: boolean
+          email_override?: string | null
+          preferred_order?: Json
+          quiet_from?: string | null
+          quiet_timezone?: string | null
+          quiet_to?: string | null
+          silvio_chat_enabled?: boolean
+          telegram_chat_id?: string | null
+          telegram_verified_at?: string | null
+          updated_at?: string
+          user_id: string
+          whatsapp_phone?: string | null
+          whatsapp_verified_at?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          email_enabled?: boolean
+          email_override?: string | null
+          preferred_order?: Json
+          quiet_from?: string | null
+          quiet_timezone?: string | null
+          quiet_to?: string | null
+          silvio_chat_enabled?: boolean
+          telegram_chat_id?: string | null
+          telegram_verified_at?: string | null
+          updated_at?: string
+          user_id?: string
+          whatsapp_phone?: string | null
+          whatsapp_verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_messaging_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "user_messaging_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -36264,6 +52031,50 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vertical_category_templates"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      vertical_persona_overrides: {
+        Row: {
+          created_at: string | null
+          enabled: boolean | null
+          id: string
+          persona_key: string
+          system_prompt_addendum: string | null
+          updated_at: string | null
+          vertical_kb_filter: string[] | null
+          vertical_key: string
+          vertical_tools_extra: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          persona_key: string
+          system_prompt_addendum?: string | null
+          updated_at?: string | null
+          vertical_kb_filter?: string[] | null
+          vertical_key: string
+          vertical_tools_extra?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean | null
+          id?: string
+          persona_key?: string
+          system_prompt_addendum?: string | null
+          updated_at?: string | null
+          vertical_kb_filter?: string[] | null
+          vertical_key?: string
+          vertical_tools_extra?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vertical_persona_overrides_vertical_key_fkey"
+            columns: ["vertical_key"]
+            isOneToOne: false
+            referencedRelation: "business_verticals"
+            referencedColumns: ["vertical_key"]
           },
         ]
       }
@@ -37187,8 +52998,22 @@ export type Database = {
             foreignKeyName: "warehouse_referenti_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "warehouse_referenti_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_referenti_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatore_compliance_status"
+            referencedColumns: ["subappaltatore_id"]
           },
           {
             foreignKeyName: "warehouse_referenti_subcontractor_id_fkey"
@@ -38355,6 +54180,13 @@ export type Database = {
             foreignKeyName: "whatsapp_messages_operaio_id_fkey"
             columns: ["operaio_id"]
             isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_operaio_id_fkey"
+            columns: ["operaio_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -38483,6 +54315,13 @@ export type Database = {
             foreignKeyName: "whatsapp_sessions_operaio_id_fkey"
             columns: ["operaio_id"]
             isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "whatsapp_sessions_operaio_id_fkey"
+            columns: ["operaio_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -38590,6 +54429,149 @@ export type Database = {
         }
         Relationships: []
       }
+      winback_campaigns: {
+        Row: {
+          ai_analysis: string | null
+          ai_cost_billed_eur: number | null
+          ai_message: string | null
+          ai_offer_summary: string | null
+          ai_persona_used: string
+          channel: string | null
+          company_id: string
+          conversion_value_eur: number | null
+          created_at: string
+          customer_id: string
+          customer_ltv_eur: number | null
+          customer_orders_count: number | null
+          customer_replied: boolean
+          customer_response_text: string | null
+          dormancy_days: number
+          dormancy_score: number | null
+          external_message_id: string | null
+          id: string
+          identified_at: string
+          offered_products: Json | null
+          replied_at: string | null
+          resulted_in_order_id: string | null
+          resulted_in_quote_id: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ai_analysis?: string | null
+          ai_cost_billed_eur?: number | null
+          ai_message?: string | null
+          ai_offer_summary?: string | null
+          ai_persona_used?: string
+          channel?: string | null
+          company_id: string
+          conversion_value_eur?: number | null
+          created_at?: string
+          customer_id: string
+          customer_ltv_eur?: number | null
+          customer_orders_count?: number | null
+          customer_replied?: boolean
+          customer_response_text?: string | null
+          dormancy_days: number
+          dormancy_score?: number | null
+          external_message_id?: string | null
+          id?: string
+          identified_at?: string
+          offered_products?: Json | null
+          replied_at?: string | null
+          resulted_in_order_id?: string | null
+          resulted_in_quote_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_analysis?: string | null
+          ai_cost_billed_eur?: number | null
+          ai_message?: string | null
+          ai_offer_summary?: string | null
+          ai_persona_used?: string
+          channel?: string | null
+          company_id?: string
+          conversion_value_eur?: number | null
+          created_at?: string
+          customer_id?: string
+          customer_ltv_eur?: number | null
+          customer_orders_count?: number | null
+          customer_replied?: boolean
+          customer_response_text?: string | null
+          dormancy_days?: number
+          dormancy_score?: number | null
+          external_message_id?: string | null
+          id?: string
+          identified_at?: string
+          offered_products?: Json | null
+          replied_at?: string | null
+          resulted_in_order_id?: string | null
+          resulted_in_quote_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "winback_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "winback_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "winback_campaigns_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "winback_campaigns_resulted_in_order_id_fkey"
+            columns: ["resulted_in_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "winback_campaigns_resulted_in_order_id_fkey"
+            columns: ["resulted_in_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "winback_campaigns_resulted_in_quote_id_fkey"
+            columns: ["resulted_in_quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "winback_campaigns_resulted_in_quote_id_fkey"
+            columns: ["resulted_in_quote_id"]
+            isOneToOne: false
+            referencedRelation: "v_preventivo_analisi"
+            referencedColumns: ["quote_id"]
+          },
+        ]
+      }
       work_logs: {
         Row: {
           activity_type: string | null
@@ -38634,6 +54616,13 @@ export type Database = {
           work_date?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "work_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
           {
             foreignKeyName: "work_logs_employee_id_fkey"
             columns: ["employee_id"]
@@ -38754,6 +54743,154 @@ export type Database = {
           },
         ]
       }
+      ai_personas_public: {
+        Row: {
+          allowed_roles: Json | null
+          category: string | null
+          color: string | null
+          display_name: string | null
+          enabled: boolean | null
+          example_questions: string[] | null
+          icon: string | null
+          is_system: boolean | null
+          mission: string | null
+          persona_key: string | null
+          recommended_tier_key: string | null
+          short_label: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          allowed_roles?: Json | null
+          category?: string | null
+          color?: string | null
+          display_name?: string | null
+          enabled?: boolean | null
+          example_questions?: string[] | null
+          icon?: string | null
+          is_system?: boolean | null
+          mission?: string | null
+          persona_key?: string | null
+          recommended_tier_key?: string | null
+          short_label?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          allowed_roles?: Json | null
+          category?: string | null
+          color?: string | null
+          display_name?: string | null
+          enabled?: boolean | null
+          example_questions?: string[] | null
+          icon?: string | null
+          is_system?: boolean | null
+          mission?: string | null
+          persona_key?: string | null
+          recommended_tier_key?: string | null
+          short_label?: string | null
+          sort_order?: number | null
+        }
+        Relationships: []
+      }
+      ai_revenue_summary: {
+        Row: {
+          calls: number | null
+          cost_real_eur: number | null
+          day: string | null
+          margin_eur: number | null
+          markup_real_pct: number | null
+          revenue_eur: number | null
+          tokens_in_total: number | null
+          tokens_out_total: number | null
+        }
+        Relationships: []
+      }
+      ai_usage_log: {
+        Row: {
+          company_id: string | null
+          cost_eur: number | null
+          created_at: string | null
+          feature: string | null
+          id: string | null
+          model: string | null
+          provider: string | null
+          source_table: string | null
+          status: string | null
+          task_key: string | null
+          tokens_total: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      allocation_conflicts: {
+        Row: {
+          cantiere_1: string | null
+          cantiere_2: string | null
+          company_id: string | null
+          conflict_id_1: string | null
+          conflict_id_2: string | null
+          employee_id: string | null
+          overlap_end: string | null
+          overlap_start: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_1"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_2"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_1"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_cantiere_id_fkey"
+            columns: ["cantiere_2"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_safety_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       callcenter_lead_journey: {
         Row: {
           appuntamenti_fissati: number | null
@@ -38781,6 +54918,66 @@ export type Database = {
           },
           {
             foreignKeyName: "marketing_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_ai_usage_by_persona_month: {
+        Row: {
+          avg_duration_ms: number | null
+          call_count: number | null
+          company_id: string | null
+          cost_eur: number | null
+          persona_key: string | null
+          usage_month: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_ai_usage_month: {
+        Row: {
+          call_count: number | null
+          cap_status: string | null
+          company_id: string | null
+          hard_cap_pct: number | null
+          monthly_budget_eur: number | null
+          on_hard_cap: string | null
+          on_soft_cap: string | null
+          plan_key: string | null
+          soft_cap_pct: number | null
+          total_billed_eur: number | null
+          total_margin_eur: number | null
+          total_real_eur: number | null
+          usage_month: string | null
+          usage_pct: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -38821,6 +55018,54 @@ export type Database = {
           type: string | null
         }
         Relationships: []
+      }
+      employee_safety_status: {
+        Row: {
+          casco_ok: boolean | null
+          company_id: string | null
+          employee_id: string | null
+          form_generale_ok: boolean | null
+          form_specifica_ok: boolean | null
+          full_name: string | null
+          scarpe_ok: boolean | null
+          visita_ok: boolean | null
+        }
+        Insert: {
+          casco_ok?: never
+          company_id?: string | null
+          employee_id?: string | null
+          form_generale_ok?: never
+          form_specifica_ok?: never
+          full_name?: never
+          scarpe_ok?: never
+          visita_ok?: never
+        }
+        Update: {
+          casco_ok?: never
+          company_id?: string | null
+          employee_id?: string | null
+          form_generale_ok?: never
+          form_specifica_ok?: never
+          full_name?: never
+          scarpe_ok?: never
+          visita_ok?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       fattura_pagamento_stato: {
         Row: {
@@ -38885,11 +55130,18 @@ export type Database = {
           company_id: string | null
           costi: number | null
           cpl: number | null
+          fatturato_fatture: number | null
+          fatturato_ordini: number | null
+          fatturato_pagato: number | null
+          fatture_pagate: number | null
           margine: number | null
           margine_pct: number | null
           mese: string | null
+          n_fatture: number | null
           n_lead: number | null
+          n_ordini: number | null
           n_preventivi: number | null
+          ordini_completati: number | null
           preventivi_vinti: number | null
           ricavi: number | null
           sede_id: string | null
@@ -39063,6 +55315,40 @@ export type Database = {
         }
         Relationships: []
       }
+      subappaltatore_compliance_status: {
+        Row: {
+          cassa_edile_ok: boolean | null
+          company_id: string | null
+          compliance_score: number | null
+          count_irregolari: number | null
+          denominazione: string | null
+          durc_ok: boolean | null
+          dvr_ok: boolean | null
+          next_expiry_30d: string | null
+          polizza_rc_ok: boolean | null
+          pos_ok: boolean | null
+          should_block_payments: boolean | null
+          soa_ok: boolean | null
+          subappaltatore_id: string | null
+          visura_ok: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subappaltatori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       superadmin_service_pnl: {
         Row: {
           cost_eur: number | null
@@ -39120,6 +55406,95 @@ export type Database = {
         }
         Relationships: []
       }
+      v_active_render_packs: {
+        Row: {
+          credits_amount: number | null
+          id: string | null
+          label: string | null
+          price_eur: number | null
+          price_per_credit_eur: number | null
+          sku: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          credits_amount?: number | null
+          id?: string | null
+          label?: string | null
+          price_eur?: number | null
+          price_per_credit_eur?: number | null
+          sku?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          credits_amount?: number | null
+          id?: string | null
+          label?: string | null
+          price_eur?: number | null
+          price_per_credit_eur?: number | null
+          sku?: string | null
+          sort_order?: number | null
+        }
+        Relationships: []
+      }
+      v_ai_confidence_distribution: {
+        Row: {
+          day: string | null
+          high: number | null
+          low: number | null
+          medium: number | null
+          persona_key: string | null
+          requires_review: number | null
+          total: number | null
+          unstructured: number | null
+        }
+        Relationships: []
+      }
+      v_ai_margin_by_model: {
+        Row: {
+          cost_billed_eur: number | null
+          cost_real_eur: number | null
+          day: string | null
+          margin_eur: number | null
+          markup_effettivo_pct: number | null
+          markup_medio_applicato_pct: number | null
+          model_used: string | null
+          n_calls: number | null
+          task_kind: string | null
+          tokens_totali: number | null
+        }
+        Relationships: []
+      }
+      v_ai_real_cost_per_model: {
+        Row: {
+          avg_cost_eur: number | null
+          avg_cost_usd: number | null
+          avg_tokens: number | null
+          avg_tokens_completion: number | null
+          avg_tokens_prompt: number | null
+          max_cost_usd: number | null
+          median_cost_usd: number | null
+          min_cost_usd: number | null
+          model_used: string | null
+          n_calls: number | null
+          prima_chiamata: string | null
+          provider: string | null
+          task_kind_principale: string | null
+          ultima_chiamata: string | null
+        }
+        Relationships: []
+      }
+      v_brain_universal_kb_stats: {
+        Row: {
+          active_chunks: number | null
+          avg_chunk_size_chars: number | null
+          category: string | null
+          last_update: string | null
+          soft_deleted_chunks: number | null
+          total_hits: number | null
+          unique_docs: number | null
+        }
+        Relationships: []
+      }
       v_cg_costi_classificati: {
         Row: {
           anno: number | null
@@ -39146,73 +55521,22 @@ export type Database = {
           iva_amount: number | null
           mese: number | null
           order_id: string | null
+          source: string | null
         }
-        Insert: {
-          anno?: never
-          cliente_id?: string | null
-          company_id?: string | null
-          data?: string | null
-          importo_imponibile?: never
-          invoice_type?: string | null
-          iva_amount?: never
-          mese?: never
-          order_id?: string | null
+        Relationships: []
+      }
+      v_citation_quality_kpis: {
+        Row: {
+          citation_rate_pct: number | null
+          day: string | null
+          invalid_citations_count: number | null
+          messages_with_rag: number | null
+          missing_citations: number | null
+          no_rag_responses: number | null
+          persona_key: string | null
+          total_messages: number | null
         }
-        Update: {
-          anno?: never
-          cliente_id?: string | null
-          company_id?: string | null
-          data?: string | null
-          importo_imponibile?: never
-          invoice_type?: string | null
-          iva_amount?: never
-          mese?: never
-          order_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoices_client_id_fkey"
-            columns: ["cliente_id"]
-            isOneToOne: false
-            referencedRelation: "callcenter_lead_journey"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "invoices_client_id_fkey"
-            columns: ["cliente_id"]
-            isOneToOne: false
-            referencedRelation: "marketing_contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "invoices_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "v_ordine_marginalita"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       v_company_ai_spend: {
         Row: {
@@ -39233,6 +55557,357 @@ export type Database = {
           },
           {
             foreignKeyName: "ai_model_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_council_daily_cost: {
+        Row: {
+          avg_duration_ms: number | null
+          avg_personas_per_call: number | null
+          company_id: string | null
+          complex_calls: number | null
+          day: string | null
+          multi_area_calls: number | null
+          total_calls: number | null
+          total_cost_eur: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_council_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_council_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_decision_log_kpis: {
+        Row: {
+          abandoned_count: number | null
+          avg_decision_hours: number | null
+          company_id: string | null
+          critical_count: number | null
+          decisions_total: number | null
+          executed_count: number | null
+          failed_outcomes: number | null
+          last_decision_at: string | null
+          pct_recommendation_accepted: number | null
+          pending_count: number | null
+          successful_outcomes: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_decision_log_lessons: {
+        Row: {
+          case_count: number | null
+          lessons_collected: string[] | null
+          persona_key: string | null
+          rationales_collected: string[] | null
+          trigger_source_type: string | null
+          trigger_type: string | null
+        }
+        Relationships: []
+      }
+      v_decision_log_outcome_due: {
+        Row: {
+          company_id: string | null
+          days_since_decision: number | null
+          decided_at: string | null
+          id: string | null
+          outcome_period_due: string | null
+          persona_key: string | null
+          situation_description: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          days_since_decision?: never
+          decided_at?: string | null
+          id?: string | null
+          outcome_period_due?: never
+          persona_key?: string | null
+          situation_description?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          days_since_decision?: never
+          decided_at?: string | null
+          id?: string | null
+          outcome_period_due?: never
+          persona_key?: string | null
+          situation_description?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_decision_log_pending: {
+        Row: {
+          ai_confidence_level: string | null
+          ai_recommended_option_id: string | null
+          company_id: string | null
+          created_at: string | null
+          expires_at: string | null
+          hours_pending: number | null
+          id: string | null
+          is_critical: boolean | null
+          options_count: number | null
+          persona_key: string | null
+          situation_description: string | null
+          trigger_type: string | null
+        }
+        Insert: {
+          ai_confidence_level?: string | null
+          ai_recommended_option_id?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          hours_pending?: never
+          id?: string | null
+          is_critical?: boolean | null
+          options_count?: never
+          persona_key?: string | null
+          situation_description?: string | null
+          trigger_type?: string | null
+        }
+        Update: {
+          ai_confidence_level?: string | null
+          ai_recommended_option_id?: string | null
+          company_id?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          hours_pending?: never
+          id?: string | null
+          is_critical?: boolean | null
+          options_count?: never
+          persona_key?: string | null
+          situation_description?: string | null
+          trigger_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_decision_log_playbook_performance: {
+        Row: {
+          avg_ai_cost_eur: number | null
+          executed_count: number | null
+          failed_count: number | null
+          persona_key: string | null
+          proposed_count: number | null
+          success_rate_pct: number | null
+          successful_count: number | null
+          trigger_source_type: string | null
+          trigger_type: string | null
+        }
+        Relationships: []
+      }
+      v_document_analyzer_kpis: {
+        Row: {
+          avg_confidence: number | null
+          avg_processing_ms: number | null
+          company_id: string | null
+          day: string | null
+          doc_type: string | null
+          failed: number | null
+          ok: number | null
+          review_required: number | null
+          total_cost_eur: number | null
+          total_docs: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_analysis_results_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "document_analysis_results_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_email_inbox_pending_count: {
+        Row: {
+          company_id: string | null
+          high_priority_count: number | null
+          last_received_at: string | null
+          new_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_email_oauth_connections_meta: {
+        Row: {
+          company_id: string | null
+          consecutive_errors: number | null
+          created_at: string | null
+          email_address: string | null
+          emails_fetched_total: number | null
+          expires_at: string | null
+          id: string | null
+          imap_host: string | null
+          imap_port: number | null
+          imap_secure: boolean | null
+          imap_username: string | null
+          last_sync_error: string | null
+          last_synced_at: string | null
+          last_test_at: string | null
+          last_test_error: string | null
+          last_test_ok: boolean | null
+          password_masked: string | null
+          poll_enabled: boolean | null
+          poll_interval_minutes: number | null
+          provider: string | null
+          provider_label: string | null
+          smtp_host: string | null
+          smtp_port: number | null
+          smtp_secure: boolean | null
+          status: string | null
+          sync_from_date: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          consecutive_errors?: number | null
+          created_at?: string | null
+          email_address?: string | null
+          emails_fetched_total?: number | null
+          expires_at?: string | null
+          id?: string | null
+          imap_host?: string | null
+          imap_port?: number | null
+          imap_secure?: boolean | null
+          imap_username?: string | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          last_test_at?: string | null
+          last_test_error?: string | null
+          last_test_ok?: boolean | null
+          password_masked?: never
+          poll_enabled?: boolean | null
+          poll_interval_minutes?: number | null
+          provider?: string | null
+          provider_label?: string | null
+          smtp_host?: string | null
+          smtp_port?: number | null
+          smtp_secure?: boolean | null
+          status?: string | null
+          sync_from_date?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          consecutive_errors?: number | null
+          created_at?: string | null
+          email_address?: string | null
+          emails_fetched_total?: number | null
+          expires_at?: string | null
+          id?: string | null
+          imap_host?: string | null
+          imap_port?: number | null
+          imap_secure?: boolean | null
+          imap_username?: string | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          last_test_at?: string | null
+          last_test_error?: string | null
+          last_test_ok?: boolean | null
+          password_masked?: never
+          poll_enabled?: boolean | null
+          poll_interval_minutes?: number | null
+          provider?: string | null
+          provider_label?: string | null
+          smtp_host?: string | null
+          smtp_port?: number | null
+          smtp_secure?: boolean | null
+          status?: string | null
+          sync_from_date?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_oauth_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_oauth_connections_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -39301,6 +55976,290 @@ export type Database = {
           },
           {
             foreignKeyName: "fv_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_kb_external_sources_status: {
+        Row: {
+          consecutive_errors: number | null
+          drift_severity: string | null
+          enabled: boolean | null
+          frequency_hours: number | null
+          id: string | null
+          last_change_detected_at: string | null
+          last_status: string | null
+          last_synced_at: string | null
+          name: string | null
+          schedule_status: string | null
+          scrape_strategy: string | null
+          target_category_path: string | null
+          target_doc_id: string | null
+          target_doc_title: string | null
+          target_language: string | null
+          target_last_verified_at: string | null
+          target_valid_until: string | null
+          url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_kb_external_sources_target_doc_id_fkey"
+            columns: ["target_doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_brain_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_kb_external_sources_target_doc_id_fkey"
+            columns: ["target_doc_id"]
+            isOneToOne: false
+            referencedRelation: "v_kb_quality_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_kb_quality_alerts: {
+        Row: {
+          alert_type: string | null
+          avg_retrieval_similarity: number | null
+          category: string | null
+          category_path: string | null
+          chunk_id: string | null
+          content_length: number | null
+          estimated_tokens: number | null
+          hits_count: number | null
+          id: string | null
+          last_used_at: string | null
+          last_verified_at: string | null
+          severity: string | null
+          title: string | null
+          valid_until: string | null
+        }
+        Relationships: []
+      }
+      v_kb_token_budget: {
+        Row: {
+          avg_hits: number | null
+          category: string | null
+          embeddings_size_mb: number | null
+          estimated_tokens: number | null
+          max_hits: number | null
+          n_docs: number | null
+          n_expired: number | null
+          n_orphaned: number | null
+          reembed_cost_usd: number | null
+          total_chars: number | null
+        }
+        Relationships: []
+      }
+      v_markup_simulator: {
+        Row: {
+          avg_billed_eur_observed: number | null
+          avg_real_cost_eur_observed: number | null
+          display_label: string | null
+          enabled: boolean | null
+          margine_pct_configurato: number | null
+          markup_max: number | null
+          markup_multiplier: number | null
+          model_pattern: string | null
+          n_calls_observed: number | null
+          task_kind: string | null
+        }
+        Relationships: []
+      }
+      v_my_email_inbox: {
+        Row: {
+          ai_category: string | null
+          ai_priority: string | null
+          ai_summary: string | null
+          attachments: Json | null
+          company_id: string | null
+          folder_id: string | null
+          from_email: string | null
+          from_name: string | null
+          id: string | null
+          in_reply_to: string | null
+          is_archived: boolean | null
+          is_read: boolean | null
+          is_starred: boolean | null
+          is_trashed: boolean | null
+          message_id: string | null
+          oauth_connection_id: string | null
+          preview: string | null
+          received_at: string | null
+          status: string | null
+          subject: string | null
+          thread_id: string | null
+          to_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_category?: string | null
+          ai_priority?: string | null
+          ai_summary?: string | null
+          attachments?: Json | null
+          company_id?: string | null
+          folder_id?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          id?: string | null
+          in_reply_to?: string | null
+          is_archived?: boolean | null
+          is_read?: boolean | null
+          is_starred?: boolean | null
+          is_trashed?: boolean | null
+          message_id?: string | null
+          oauth_connection_id?: string | null
+          preview?: never
+          received_at?: string | null
+          status?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          to_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_category?: string | null
+          ai_priority?: string | null
+          ai_summary?: string | null
+          attachments?: Json | null
+          company_id?: string | null
+          folder_id?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          id?: string | null
+          in_reply_to?: string | null
+          is_archived?: boolean | null
+          is_read?: boolean | null
+          is_starred?: boolean | null
+          is_trashed?: boolean | null
+          message_id?: string | null
+          oauth_connection_id?: string | null
+          preview?: never
+          received_at?: string | null
+          status?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          to_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "email_oauth_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_oauth_connections_meta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_folder"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_thread"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "email_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_thread"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_my_email_threads: {
+        Row: {
+          company_id: string | null
+          first_received_at: string | null
+          has_attachments: boolean | null
+          has_starred: boolean | null
+          id: string | null
+          last_from_email: string | null
+          last_from_name: string | null
+          last_received_at: string | null
+          last_subject: string | null
+          message_count: number | null
+          participants: string[] | null
+          preview: string | null
+          subject_normalized: string | null
+          unread_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          first_received_at?: string | null
+          has_attachments?: boolean | null
+          has_starred?: boolean | null
+          id?: string | null
+          last_from_email?: never
+          last_from_name?: never
+          last_received_at?: string | null
+          last_subject?: never
+          message_count?: number | null
+          participants?: string[] | null
+          preview?: string | null
+          subject_normalized?: string | null
+          unread_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          first_received_at?: string | null
+          has_attachments?: boolean | null
+          has_starred?: boolean | null
+          id?: string | null
+          last_from_email?: never
+          last_from_name?: never
+          last_received_at?: string | null
+          last_subject?: never
+          message_count?: number | null
+          participants?: string[] | null
+          preview?: string | null
+          subject_normalized?: string | null
+          unread_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_threads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_threads_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -39380,6 +56339,91 @@ export type Database = {
           },
         ]
       }
+      v_silvio_agent_mission_health: {
+        Row: {
+          active_missions: number | null
+          avg_completed_seconds_7d: number | null
+          computed_at: string | null
+          failed_missions_7d: number | null
+          missions_7d: number | null
+          total_cost_usd_7d: number | null
+          total_tokens_7d: number | null
+          waiting_approval_missions: number | null
+        }
+        Relationships: []
+      }
+      v_silvio_agent_mission_summary: {
+        Row: {
+          actionable_count: number | null
+          completed_at: string | null
+          completed_tasks_count: number | null
+          confidence: number | null
+          created_at: string | null
+          created_by: string | null
+          failed_tasks_count: number | null
+          id: string | null
+          last_error: string | null
+          mode: string | null
+          next_action: string | null
+          objective: string | null
+          priority: string | null
+          review_requested_at: string | null
+          risks_count: number | null
+          selected_agents: string[] | null
+          started_at: string | null
+          status: string | null
+          summary_md: string | null
+          tasks_count: number | null
+          title: string | null
+          total_cost_usd: number | null
+          total_tokens: number | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
+      v_silvio_agent_performance: {
+        Row: {
+          agent_key: string | null
+          approval_required_count: number | null
+          avg_seconds: number | null
+          avg_tokens: number | null
+          display_name: string | null
+          enabled: boolean | null
+          missions_touched: number | null
+          qa_blocked_count: number | null
+          risk_level: string | null
+          tasks_completed: number | null
+          tasks_failed: number | null
+          tasks_total: number | null
+        }
+        Relationships: []
+      }
+      v_silvio_agent_tool_health: {
+        Row: {
+          avg_duration_ms: number | null
+          blocked_calls_7d: number | null
+          failed_calls_7d: number | null
+          last_called_at: string | null
+          last_error_message: string | null
+          p95_duration_ms: number | null
+          tool_name: string | null
+          total_calls_7d: number | null
+        }
+        Relationships: []
+      }
+      v_silvio_kb_stats: {
+        Row: {
+          avg_chunk_size_chars: number | null
+          avg_hits: number | null
+          kb_section: string | null
+          max_hits: number | null
+          n_chunks: number | null
+          n_persona_specific: number | null
+          n_used: number | null
+          total_chars: number | null
+        }
+        Relationships: []
+      }
       v_subappaltatori_dashboard: {
         Row: {
           campo_is_active: boolean | null
@@ -39410,6 +56454,13 @@ export type Database = {
           totale_sal_netto: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "subappaltatori_sicurezza_campo_subappaltatore_id_fkey"
+            columns: ["campo_subappaltatore_id"]
+            isOneToOne: false
+            referencedRelation: "subappaltatore_compliance_status"
+            referencedColumns: ["subappaltatore_id"]
+          },
           {
             foreignKeyName: "subappaltatori_sicurezza_campo_subappaltatore_id_fkey"
             columns: ["campo_subappaltatore_id"]
@@ -39463,6 +56514,7 @@ export type Database = {
       }
     }
     Functions: {
+      _cg_assert_enabled: { Args: { p_company_id: string }; Returns: undefined }
       _dashboard_parse_period: {
         Args: { p_filters: Json }
         Returns: {
@@ -39477,6 +56529,14 @@ export type Database = {
       _looks_like_email: { Args: { s: string }; Returns: boolean }
       _looks_like_fiscal_code: { Args: { s: string }; Returns: boolean }
       _looks_like_phone: { Args: { s: string }; Returns: boolean }
+      _rls_test_count: {
+        Args: { p_table: string; p_user_id: string }
+        Returns: number
+      }
+      activity_category_for_event: {
+        Args: { p_event_type: string; p_target_table: string }
+        Returns: string
+      }
       add_email_credits_with_log: {
         Args: {
           p_amount: number
@@ -39520,7 +56580,120 @@ export type Database = {
         }
         Returns: Json
       }
+      aedix_brain_compute_snapshot: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      aedix_brain_find_outliers: {
+        Args: {
+          p_direction?: string
+          p_metric: string
+          p_top_n?: number
+          p_vertical?: string
+        }
+        Returns: Json
+      }
+      aedix_brain_query_market: {
+        Args: {
+          p_province_code?: string
+          p_region_code?: string
+          p_vertical_key: string
+        }
+        Returns: Json
+      }
+      aedix_brain_query_market_metrics: {
+        Args: {
+          p_employee_band?: string
+          p_province?: string
+          p_region?: string
+          p_revenue_band?: string
+          p_vertical?: string
+        }
+        Returns: Json
+      }
       aggiorna_stati_documenti_operai: { Args: never; Returns: number }
+      ai_ab_test_increment: {
+        Args: {
+          p_csat_score?: number
+          p_is_variant: boolean
+          p_test_id: string
+          p_was_rejected?: boolean
+        }
+        Returns: undefined
+      }
+      ai_assert_company_access: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
+      ai_assert_company_admin_access: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
+      ai_default_action_policy: {
+        Args: { p_action_type: string }
+        Returns: Json
+      }
+      ai_get_prompt_variant: {
+        Args: {
+          p_company_id: string
+          p_persona_key: string
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      ai_is_service_role: { Args: never; Returns: boolean }
+      ai_persona_sessions_bulk_archive: {
+        Args: { p_archived: boolean; p_session_ids: string[] }
+        Returns: number
+      }
+      ai_persona_sessions_stats: {
+        Args: {
+          p_include_archived?: boolean
+          p_period_days?: number
+          p_persona_key?: string
+        }
+        Returns: {
+          messages_count: number
+          sessions_count: number
+          top_persona_count: number
+          top_persona_key: string
+          total_cost_eur: number
+        }[]
+      }
+      ai_test_lab_kpi: {
+        Args: { p_company_id: string; p_from?: string; p_to?: string }
+        Returns: {
+          avg_cost_usd: number
+          avg_input_tokens: number
+          avg_latency_ms: number
+          avg_output_tokens: number
+          avg_rating: number
+          errors_count: number
+          feature: string
+          model_id: string
+          p50_latency_ms: number
+          p95_latency_ms: number
+          provider: string
+          ratings_count: number
+          total_calls: number
+          total_cost_usd: number
+        }[]
+      }
+      ai_top_persona_pain_points: {
+        Args: {
+          p_limit?: number
+          p_min_rate?: number
+          p_min_rejections?: number
+        }
+        Returns: {
+          persona_key: string
+          rejection_category: string
+          rejection_rate: number
+          total_messages: number
+          total_rejections: number
+        }[]
+      }
       approve_leave_request: {
         Args: {
           p_approved: boolean
@@ -39529,6 +56702,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      area_macro_from_region: { Args: { p_region: string }; Returns: string }
       assign_round_robin: { Args: { p_team_id: string }; Returns: string }
       attach_attribution_to_contact: {
         Args: {
@@ -39554,6 +56728,61 @@ export type Database = {
           updated_items: number
         }[]
       }
+      brain_age_facts: { Args: { p_company_id?: string }; Returns: Json }
+      brain_get_facts: {
+        Args: { p_company_id: string; p_min_confidence?: number }
+        Returns: Json
+      }
+      brain_record_fact: {
+        Args: {
+          p_company_id: string
+          p_confidence?: number
+          p_fact_key: string
+          p_fact_value: Json
+          p_notes?: string
+          p_source?: string
+          p_source_user_id?: string
+        }
+        Returns: string
+      }
+      brain_record_hits: { Args: { p_chunk_ids: string[] }; Returns: number }
+      brain_soft_delete_kb_chunks: {
+        Args: { p_active_source_paths: string[] }
+        Returns: number
+      }
+      brain_stats: { Args: { p_company_id: string }; Returns: Json }
+      brain_touch_facts: {
+        Args: { p_company_id: string; p_fact_keys: string[] }
+        Returns: undefined
+      }
+      brain_upsert_document: {
+        Args: {
+          p_category?: string
+          p_company_id: string
+          p_content: string
+          p_content_hash: string
+          p_embedding?: string
+          p_metadata?: Json
+          p_scope?: string
+          p_source_id: string
+          p_source_type: string
+          p_title?: string
+          p_visibility_roles?: string[]
+        }
+        Returns: string
+      }
+      brain_upsert_kb_chunk: {
+        Args: {
+          p_category: string
+          p_content: string
+          p_embedding: string
+          p_metadata?: Json
+          p_source_hash?: string
+          p_source_path: string
+          p_title: string
+        }
+        Returns: Json
+      }
       bulk_assign_salesperson: {
         Args: {
           p_company_id: string
@@ -39561,6 +56790,35 @@ export type Database = {
           p_salesperson_id: string
         }
         Returns: number
+      }
+      bulk_scheduler_due_flows: {
+        Args: never
+        Returns: {
+          company_id: string
+          config: Json
+          flow_id: string
+          flow_name: string
+        }[]
+      }
+      bulk_scheduler_mark_executed: {
+        Args: { p_flow_id: string; p_next_run_at: string }
+        Returns: undefined
+      }
+      bulk_scheduler_resolve_targets: {
+        Args: {
+          p_company_id: string
+          p_target_type: string
+          p_target_value: string
+        }
+        Returns: {
+          email: string
+          first_name: string
+          user_id: string
+        }[]
+      }
+      bump_persona_memory_hit: {
+        Args: { p_memory_id: string }
+        Returns: undefined
       }
       calculate_monthly_commissions: {
         Args: { p_month: number; p_year: number }
@@ -39582,8 +56840,42 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      can_user_use_persona: {
+        Args: { p_persona_key: string; p_user_id: string }
+        Returns: Json
+      }
+      cg_get_aging: {
+        Args: { p_company_id?: string; p_direction?: string }
+        Returns: Json
+      }
+      cg_get_aging_safe: { Args: { p_direction: string }; Returns: Json }
       cg_get_bep: {
         Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_bep_safe: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_budget_consuntivo_forecast: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_budget_consuntivo_forecast_safe: {
+        Args: { p_anno: number }
+        Returns: Json
+      }
+      cg_get_cash_flow_prospettico: {
+        Args: {
+          p_anno?: number
+          p_company_id?: string
+          p_mese_a?: number
+          p_mese_da?: number
+        }
+        Returns: Json
+      }
+      cg_get_cash_flow_prospettico_safe: {
+        Args: { p_anno: number; p_mese_a: number; p_mese_da: number }
         Returns: Json
       }
       cg_get_ce_mensile: {
@@ -39601,6 +56893,20 @@ export type Database = {
           ricavi_cum: number
         }[]
       }
+      cg_get_ce_mensile_dettaglio: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_ce_safe: {
+        Args: {
+          p_anno?: number
+          p_company_id?: string
+          p_mese_a?: number
+          p_mese_da?: number
+          p_modalita?: string
+        }
+        Returns: Json
+      }
       cg_get_conto_economico_riclassificato: {
         Args: {
           p_anno?: number
@@ -39611,8 +56917,70 @@ export type Database = {
         }
         Returns: Json
       }
+      cg_get_dettaglio_voce_mese: {
+        Args: {
+          p_anno?: number
+          p_codice?: string
+          p_company_id?: string
+          p_mese?: number
+        }
+        Returns: Json
+      }
+      cg_get_dettaglio_voce_mese_safe: {
+        Args: { p_anno: number; p_codice: string; p_mese: number }
+        Returns: Json
+      }
+      cg_get_health_check: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_health_check_safe: { Args: { p_anno: number }; Returns: Json }
+      cg_get_imposte_dettaglio: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_imposte_dettaglio_safe: { Args: { p_anno: number }; Returns: Json }
+      cg_get_indici_avanzati: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_indici_avanzati_safe: { Args: { p_anno: number }; Returns: Json }
+      cg_get_marginalita_commesse: {
+        Args: {
+          p_anno?: number
+          p_company_id?: string
+          p_status_filter?: string
+        }
+        Returns: Json
+      }
+      cg_get_marginalita_commesse_safe: {
+        Args: { p_anno: number; p_status_filter: string }
+        Returns: Json
+      }
+      cg_get_pfn: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_pfn_safe: { Args: { p_anno: number }; Returns: Json }
       cg_get_rating: {
         Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_rating_safe: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_riconciliazione: {
+        Args: { p_anno?: number; p_company_id?: string }
+        Returns: Json
+      }
+      cg_get_riconciliazione_safe: { Args: { p_anno: number }; Returns: Json }
+      cg_get_sp_safe: {
+        Args: {
+          p_anno?: number
+          p_company_id?: string
+          p_data_riferimento?: string
+        }
         Returns: Json
       }
       cg_get_stato_patrimoniale_riclassificato: {
@@ -39624,6 +56992,14 @@ export type Database = {
         Returns: Json
       }
       cg_simula_piano_industriale: {
+        Args: {
+          p_anno_partenza?: number
+          p_assumption_id?: string
+          p_company_id?: string
+        }
+        Returns: Json
+      }
+      cg_simula_piano_safe: {
         Args: {
           p_anno_partenza?: number
           p_assumption_id?: string
@@ -39650,10 +57026,33 @@ export type Database = {
         }
         Returns: undefined
       }
+      charge_ai_call: {
+        Args: {
+          p_company_id: string
+          p_cost_real_usd: number
+          p_duration_ms?: number
+          p_error_message?: string
+          p_fallback_index: number
+          p_fx_usd_to_eur: number
+          p_idempotency_key: string
+          p_metadata?: Json
+          p_model_used: string
+          p_persona_key: string
+          p_status?: string
+          p_task_key: string
+          p_tier_key: string
+          p_tokens_in: number
+          p_tokens_out: number
+          p_used_primary: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
       check_ai_credits_available: {
         Args: {
           p_company_id: string
           p_est_cost_usd?: number
+          p_model_hint?: string
           p_task_kind?: string
         }
         Returns: {
@@ -39663,10 +57062,21 @@ export type Database = {
           o_reason: string
         }[]
       }
+      check_ai_router_rate_limit: {
+        Args: {
+          p_caller_id: string
+          p_function_name: string
+          p_max_calls: number
+          p_window_seconds: number
+        }
+        Returns: Json
+      }
       check_and_update_login_attempt: {
         Args: { p_ip_address?: unknown; p_success: boolean; p_user_id: string }
         Returns: Json
       }
+      check_company_budget: { Args: { p_company_id: string }; Returns: Json }
+      check_company_budget_v2: { Args: { p_company_id: string }; Returns: Json }
       check_email_domain_rate_limit: {
         Args: { p_action: string; p_company_id: string }
         Returns: boolean
@@ -39675,9 +57085,7 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: Json
       }
-      check_overdue_scadenze:
-        | { Args: never; Returns: number }
-        | { Args: { p_company_id: string }; Returns: Json }
+      check_overdue_scadenze: { Args: { p_company_id: string }; Returns: Json }
       check_plan_limit: {
         Args: {
           p_company_id: string
@@ -39700,9 +57108,24 @@ export type Database = {
       }
       cleanup_cestino_article_families: { Args: never; Returns: undefined }
       cleanup_cestino_documenti: { Args: never; Returns: undefined }
+      cleanup_inactive_linked_blocks: {
+        Args: { p_company_id: string }
+        Returns: {
+          offerta_id: string
+          remaining_products: number
+          remaining_sections: number
+          removed_cover: boolean
+          removed_legal: boolean
+          removed_terms: boolean
+        }[]
+      }
       cleanup_meta_rate_limit: { Args: never; Returns: undefined }
       cleanup_notifiche_cooldown: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      clone_survey_template: {
+        Args: { p_new_name: string; p_source_id: string }
+        Returns: string
+      }
       clone_template_to_company: {
         Args: { p_name?: string; p_scope?: string; p_template_id: string }
         Returns: string
@@ -39710,6 +57133,10 @@ export type Database = {
       complete_onboarding_step: {
         Args: { p_company_id: string; p_step_key: string }
         Returns: undefined
+      }
+      compute_client_margin_history: {
+        Args: { p_company_id: string }
+        Returns: number
       }
       compute_max_discount: {
         Args: { p_quote_id: string; p_user_id?: string }
@@ -39734,6 +57161,10 @@ export type Database = {
           p_description?: string
           p_metadata?: Json
         }
+        Returns: Json
+      }
+      consume_email_otp: {
+        Args: { p_code: string; p_email: string }
         Returns: Json
       }
       count_listino_usages_for_tipo_impianto: {
@@ -39761,25 +57192,15 @@ export type Database = {
         }
         Returns: string
       }
-      create_oda_from_order:
-        | {
-            Args: {
-              p_company_id: string
-              p_item_ids?: string[]
-              p_order_id: string
-              p_supplier_id: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_company_id: string
-              p_order_id: string
-              p_supplier_id: string
-              p_user_id: string
-            }
-            Returns: string
-          }
+      create_oda_from_order: {
+        Args: {
+          p_company_id: string
+          p_item_ids?: string[]
+          p_order_id: string
+          p_supplier_id: string
+        }
+        Returns: string
+      }
       create_order_atomic: {
         Args: {
           p_installments?: Json
@@ -39790,12 +57211,37 @@ export type Database = {
         }
         Returns: Json
       }
+      create_persona_session: {
+        Args: {
+          p_company_id?: string
+          p_persona_key: string
+          p_title?: string
+          p_user_id?: string
+        }
+        Returns: string
+      }
+      create_proactive_proposal: {
+        Args: {
+          p_action_type: string
+          p_company_id: string
+          p_payload: Json
+          p_persona_key: string
+          p_risk_level?: string
+          p_signal_entity_id: string
+          p_signal_metadata?: Json
+          p_signal_type: string
+          p_summary: string
+          p_ttl_days?: number
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_shipment_atomic: {
         Args: {
           p_ddt_extra?: Json
-          p_order_id: string
-          p_scans: Json
-          p_warehouse_id: string
+          p_order_id?: string
+          p_scans?: Json
+          p_warehouse_id?: string
         }
         Returns: {
           created_movements: number
@@ -39806,6 +57252,48 @@ export type Database = {
         }[]
       }
       create_task_due_notifications: { Args: never; Returns: number }
+      data_network_etl_run: { Args: never; Returns: Json }
+      data_network_set_consent: {
+        Args: {
+          p_company_id: string
+          p_consent_status: string
+          p_exclude_metrics?: string[]
+          p_metrics_categories?: string[]
+        }
+        Returns: Json
+      }
+      ddt_find_purchase_order_candidates: {
+        Args: {
+          p_company_id: string
+          p_ddt_date?: string
+          p_ddt_total_eur?: number
+          p_supplier_id: string
+        }
+        Returns: {
+          amount_match_score: number
+          combined_score: number
+          customer_id: string
+          date_match_score: number
+          expected_delivery_date: string
+          issue_date: string
+          oda_number: string
+          order_description: string
+          order_id: string
+          purchase_order_id: string
+          status: string
+          total_eur: number
+        }[]
+      }
+      ddt_find_supplier_candidates: {
+        Args: { p_company_id: string; p_name: string; p_vat_number: string }
+        Returns: {
+          match_kind: string
+          score: number
+          supplier_id: string
+          supplier_name: string
+          vat_number: string
+        }[]
+      }
       decide_quote_approval: {
         Args: {
           p_approval_id: string
@@ -39903,8 +57391,115 @@ export type Database = {
           search_path_set: boolean
         }[]
       }
+      dimensione_from_revenue_range: {
+        Args: { p_range: string }
+        Returns: string
+      }
       do_recalculate_quote_totals: {
         Args: { p_quote_id: string }
+        Returns: undefined
+      }
+      email_imap_get_credentials: {
+        Args: { p_connection_id: string }
+        Returns: {
+          company_id: string
+          email_address: string
+          imap_host: string
+          imap_port: number
+          imap_secure: boolean
+          imap_username: string
+          password: string
+          smtp_host: string
+          smtp_port: number
+          smtp_secure: boolean
+          user_id: string
+        }[]
+      }
+      email_imap_record_test: {
+        Args: { p_connection_id: string; p_error?: string; p_ok: boolean }
+        Returns: undefined
+      }
+      email_imap_upsert_connection: {
+        Args: {
+          p_email_address: string
+          p_existing_id?: string
+          p_imap_host: string
+          p_imap_port: number
+          p_imap_secure: boolean
+          p_imap_username: string
+          p_password: string
+          p_provider_label?: string
+          p_smtp_host: string
+          p_smtp_port: number
+          p_smtp_secure: boolean
+        }
+        Returns: string
+      }
+      email_inbox_toggle_flag: {
+        Args: { p_email_id: string; p_flag: string; p_value: boolean }
+        Returns: boolean
+      }
+      email_mark_thread_read: { Args: { p_thread_id: string }; Returns: number }
+      email_oauth_decrypt_token: { Args: { p_enc: string }; Returns: string }
+      email_oauth_encrypt_token: { Args: { p_token: string }; Returns: string }
+      email_oauth_get_decrypted_tokens: {
+        Args: { p_connection_id: string }
+        Returns: {
+          access_token: string
+          company_id: string
+          email_address: string
+          expires_at: string
+          provider: string
+          provider_metadata: Json
+          refresh_token: string
+          scopes: string[]
+        }[]
+      }
+      email_oauth_list_due_for_poll: {
+        Args: { p_limit?: number }
+        Returns: {
+          email_address: string
+          id: string
+          provider: string
+        }[]
+      }
+      email_oauth_mark_sync: {
+        Args: {
+          p_connection_id: string
+          p_emails_fetched?: number
+          p_error?: string
+          p_provider_metadata?: Json
+          p_success: boolean
+        }
+        Returns: undefined
+      }
+      email_oauth_upsert_connection: {
+        Args: {
+          p_access_token: string
+          p_company_id: string
+          p_email_address: string
+          p_expires_at: string
+          p_provider: string
+          p_refresh_token: string
+          p_scopes: string[]
+          p_user_id: string
+        }
+        Returns: string
+      }
+      email_seed_user_folders: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      email_thread_increment: {
+        Args: {
+          p_attach?: boolean
+          p_new_participants?: string[]
+          p_preview?: string
+          p_received_at?: string
+          p_starred?: boolean
+          p_thread_id: string
+          p_unread_delta?: number
+        }
         Returns: undefined
       }
       ensure_referral_link: {
@@ -39915,6 +57510,14 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: undefined
       }
+      ensure_user_silvio_admin_channel: {
+        Args: { p_user_id?: string }
+        Returns: string
+      }
+      ensure_user_silvio_channel: {
+        Args: { p_user_id?: string }
+        Returns: string
+      }
       execute_automation: {
         Args: {
           p_company_id: string
@@ -39922,6 +57525,27 @@ export type Database = {
           p_trigger_type: string
         }
         Returns: undefined
+      }
+      expire_old_action_proposals: { Args: never; Returns: number }
+      fn_suggest_markup: {
+        Args: {
+          p_min_calls?: number
+          p_model_pattern: string
+          p_target_margin_pct: number
+        }
+        Returns: {
+          avg_cost_eur: number
+          avg_cost_usd: number
+          current_markup: number
+          diff_pct: number
+          model_used: string
+          n_calls: number
+          suggested_markup: number
+        }[]
+      }
+      fulfillment_status_holds_reserve: {
+        Args: { p_status: string }
+        Returns: boolean
       }
       fv_genera_numero_progetto: {
         Args: { p_company_id: string }
@@ -39954,6 +57578,10 @@ export type Database = {
           sessioni_totali: number
         }[]
       }
+      get_ai_action_permission: {
+        Args: { p_action_type: string; p_company_id: string }
+        Returns: Json
+      }
       get_ai_analytics: {
         Args: { p_company_id: string; p_giorni?: number }
         Returns: Json
@@ -39969,38 +57597,31 @@ export type Database = {
           tasso_risposta: number
         }[]
       }
-      get_attribution_report:
-        | {
-            Args: {
-              p_company_id: string
-              p_date_from: string
-              p_date_to: string
-              p_group_by?: string
-            }
-            Returns: {
-              contacts_created: number
-              conversions: number
-              dimension: string
-              sessions: number
-              unique_visitors: number
-            }[]
-          }
-        | {
-            Args: {
-              p_company_id: string
-              p_date_from: string
-              p_date_to: string
-              p_filter_source?: string
-              p_group_by?: string
-            }
-            Returns: {
-              contacts_created: number
-              conversions: number
-              dimension: string
-              sessions: number
-              unique_visitors: number
-            }[]
-          }
+      get_ai_economics_dashboard: {
+        Args: { p_company_id?: string; p_period?: string }
+        Returns: Json
+      }
+      get_ai_pricing: {
+        Args: { p_company_id: string; p_tier_key: string }
+        Returns: Json
+      }
+      get_ai_router_config: { Args: { p_task_key: string }; Returns: Json }
+      get_attribution_report: {
+        Args: {
+          p_company_id: string
+          p_date_from: string
+          p_date_to: string
+          p_filter_source?: string
+          p_group_by?: string
+        }
+        Returns: {
+          contacts_created: number
+          conversions: number
+          dimension: string
+          sessions: number
+          unique_visitors: number
+        }[]
+      }
       get_auth_email: { Args: never; Returns: string }
       get_automation_counts: {
         Args: { p_company_id: string }
@@ -40151,6 +57772,7 @@ export type Database = {
         Args: { p_company_id: string; p_months_ahead?: number }
         Returns: Json
       }
+      get_chatbot_config: { Args: { p_widget_token: string }; Returns: Json }
       get_company_customers: {
         Args: { p_company_id: string }
         Returns: {
@@ -40200,6 +57822,15 @@ export type Database = {
           user_count: number
         }[]
       }
+      get_company_user_counts_v2: {
+        Args: never
+        Returns: {
+          company_id: string
+          customer_count: number
+          staff_count: number
+          total_count: number
+        }[]
+      }
       get_cruscotto_invoice_stats: {
         Args: { p_company_id: string }
         Returns: Json
@@ -40209,41 +57840,26 @@ export type Database = {
         Returns: Json
       }
       get_customer_stats: { Args: { p_company_id: string }; Returns: Json }
-      get_customers_paginated:
-        | {
-            Args: {
-              p_company_id: string
-              p_has_orders?: string
-              p_limit?: number
-              p_offset?: number
-              p_salesperson_id?: string
-              p_salesperson_none?: boolean
-              p_search?: string
-              p_sort_dir?: string
-              p_sort_field?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_company_id: string
-              p_date_from?: string
-              p_date_to?: string
-              p_has_fiscal_code?: string
-              p_has_orders?: string
-              p_has_phone?: string
-              p_has_site_address?: string
-              p_limit?: number
-              p_offset?: number
-              p_portal_state?: string
-              p_salesperson_id?: string
-              p_salesperson_none?: boolean
-              p_search?: string
-              p_sort_dir?: string
-              p_sort_field?: string
-            }
-            Returns: Json
-          }
+      get_customers_paginated: {
+        Args: {
+          p_company_id: string
+          p_date_from?: string
+          p_date_to?: string
+          p_has_fiscal_code?: string
+          p_has_orders?: string
+          p_has_phone?: string
+          p_has_site_address?: string
+          p_limit?: number
+          p_offset?: number
+          p_portal_state?: string
+          p_salesperson_id?: string
+          p_salesperson_none?: boolean
+          p_search?: string
+          p_sort_dir?: string
+          p_sort_field?: string
+        }
+        Returns: Json
+      }
       get_dashboard: { Args: { p_dashboard_id: string }; Returns: Json }
       get_dashboard_kpis: {
         Args: {
@@ -40319,6 +57935,10 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_industry_benchmark: {
+        Args: { p_company_id: string; p_metric_key: string }
+        Returns: Json
+      }
       get_internal_chat_profiles: {
         Args: { p_company_id: string }
         Returns: {
@@ -40347,6 +57967,7 @@ export type Database = {
           rol_hours_used: number
         }[]
       }
+      get_link_policy: { Args: { p_doc_type: string }; Returns: Json }
       get_low_stock_alerts: {
         Args: { p_company_id: string }
         Returns: {
@@ -40412,6 +58033,15 @@ export type Database = {
           unit_cost: number
         }[]
       }
+      get_persona_memory: {
+        Args: { p_limit?: number; p_persona_key: string }
+        Returns: {
+          content: string
+          hits_count: number
+          memory_type: string
+          source: string
+        }[]
+      }
       get_plan_company_counts: {
         Args: never
         Returns: {
@@ -40419,6 +58049,7 @@ export type Database = {
           subscription_plan_id: string
         }[]
       }
+      get_platform_admin_company_id: { Args: never; Returns: string }
       get_platform_email_stats: {
         Args: { p_date_from?: string; p_date_to?: string }
         Returns: {
@@ -40634,6 +58265,10 @@ export type Database = {
           tasso_show_up: number
         }[]
       }
+      get_vertical_persona_addendum: {
+        Args: { p_company_id: string; p_persona_key: string }
+        Returns: Json
+      }
       get_weighted_pipeline: {
         Args: { p_company_id: string }
         Returns: {
@@ -40658,6 +58293,12 @@ export type Database = {
           total_spend_today: number
         }[]
       }
+      grant_render_credits_for_active_subs: { Args: never; Returns: Json }
+      grant_render_credits_for_subscription: {
+        Args: { p_subscription_id: string }
+        Returns: Json
+      }
+      guess_vertical_from_name: { Args: { p_nome: string }; Returns: string[] }
       has_cost_permission: {
         Args: { p_perm: string; p_user: string }
         Returns: boolean
@@ -40672,6 +58313,16 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      hash_otp_code: { Args: { p_code: string }; Returns: string }
+      import_article_family_template: {
+        Args: {
+          p_company_id: string
+          p_macrocategoria_id?: string
+          p_nome_override?: string
+          p_template_id: string
+        }
+        Returns: string
       }
       increment_agent_stats: {
         Args: {
@@ -40716,7 +58367,9 @@ export type Database = {
         Args: { p_warehouse_id: string }
         Returns: boolean
       }
+      is_cg_enabled: { Args: { p_company_id?: string }; Returns: boolean }
       is_scopri_plan: { Args: { p_company_id: string }; Returns: boolean }
+      is_silvio_superadmin: { Args: { p_user_id?: string }; Returns: boolean }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
       is_suppressed: {
         Args: { p_company_id?: string; p_email: string }
@@ -40727,6 +58380,107 @@ export type Database = {
         Returns: boolean
       }
       is_warehouse_user: { Args: never; Returns: boolean }
+      kb_external_source_apply_change: {
+        Args: {
+          p_new_content: string
+          p_new_hash: string
+          p_new_metadata?: Json
+          p_new_title: string
+          p_source_id: string
+        }
+        Returns: {
+          new_doc_id: string
+          replaced_doc_id: string
+        }[]
+      }
+      kb_external_source_mark_error: {
+        Args: { p_error: string; p_source_id: string }
+        Returns: undefined
+      }
+      kb_external_source_mark_unchanged: {
+        Args: { p_source_id: string }
+        Returns: undefined
+      }
+      kb_external_sources_due: {
+        Args: { p_limit?: number }
+        Returns: {
+          id: string
+        }[]
+      }
+      kb_run_qa_tests: {
+        Args: { p_qa_pair_id?: string }
+        Returns: {
+          details: Json
+          expected_doc_ids: string[]
+          matched_doc_ids: string[]
+          qa_pair_id: string
+          question: string
+          status: string
+        }[]
+      }
+      kb_test_query: {
+        Args: {
+          p_category_path?: string
+          p_company_id?: string
+          p_include_expired?: boolean
+          p_min_similarity?: number
+          p_query: string
+          p_query_embedding?: string
+          p_top_k?: number
+        }
+        Returns: {
+          anti_patterns_count: number
+          category: string
+          category_path: string
+          chunk_id: string
+          content_preview: string
+          doc_id: string
+          embedding_model: string
+          hits_count: number
+          is_expired: boolean
+          last_used_at: string
+          last_verified_at: string
+          replaces_doc_id: string
+          similarity: number
+          title: string
+          valid_until: string
+        }[]
+      }
+      kb_test_query_multilang: {
+        Args: {
+          p_category_path?: string
+          p_company_id?: string
+          p_cross_lang_fallback?: boolean
+          p_include_expired?: boolean
+          p_language?: string
+          p_min_similarity?: number
+          p_query: string
+          p_query_embedding?: string
+          p_top_k?: number
+        }
+        Returns: {
+          category: string
+          category_path: string
+          chunk_id: string
+          content_preview: string
+          doc_id: string
+          embedding_model: string
+          hits_count: number
+          is_expired: boolean
+          language: string
+          last_used_at: string
+          last_verified_at: string
+          matched_via_fallback: boolean
+          replaces_doc_id: string
+          similarity: number
+          title: string
+          valid_until: string
+        }[]
+      }
+      kb_track_retrieval: {
+        Args: { p_doc_id: string; p_similarity: number }
+        Returns: undefined
+      }
       list_company_members: {
         Args: never
         Returns: {
@@ -40761,6 +58515,92 @@ export type Database = {
         }[]
       }
       list_dashboards: { Args: never; Returns: Json }
+      list_dirty_entities_for_embed: {
+        Args: { p_limit?: number }
+        Returns: {
+          company_id: string
+          content: string
+          entity_id: string
+          entity_type: string
+          id: string
+        }[]
+      }
+      list_survey_templates_with_settings: {
+        Args: never
+        Returns: {
+          area_label: string
+          area_label_plural: string
+          category: string
+          company_id: string
+          created_at: string
+          description: string
+          element_label: string
+          enabled_for_company: boolean
+          id: string
+          is_active: boolean
+          is_system: boolean
+          name: string
+          schema: Json
+          sort_order_for_company: number
+          updated_at: string
+          version: number
+        }[]
+      }
+      literacy_set_completion: {
+        Args: {
+          p_certificate_url?: string
+          p_course_id: string
+          p_recert_months?: number
+          p_score?: number
+          p_user_id: string
+        }
+        Returns: string
+      }
+      log_activity: {
+        Args: {
+          p_actor_user_id: string
+          p_after_snapshot?: Json
+          p_before_snapshot?: Json
+          p_category: string
+          p_changes?: Json
+          p_company_id: string
+          p_description: string
+          p_event_type: string
+          p_importance?: string
+          p_metadata?: Json
+          p_source_function?: string
+          p_target_id: string
+          p_target_label: string
+          p_target_table: string
+          p_trace_id?: string
+        }
+        Returns: string
+      }
+      log_audit_event: {
+        Args: {
+          p_company_id?: string
+          p_ip?: unknown
+          p_notes?: string
+          p_operation: string
+          p_row_pk?: string
+          p_table_name?: string
+          p_user_agent?: string
+        }
+        Returns: string
+      }
+      log_rbac_violation: {
+        Args: {
+          p_attempted_message: string
+          p_attempted_persona: string
+          p_client_ip?: string
+          p_company_id: string
+          p_reason: string
+          p_user_agent?: string
+          p_user_id: string
+          p_user_role: string
+        }
+        Returns: string
+      }
       log_referral_event: {
         Args: {
           p_click_id?: string
@@ -40779,28 +58619,31 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: undefined
       }
-      mark_scadenza_paid:
-        | {
-            Args: {
-              p_amount: number
-              p_notes?: string
-              p_payment_date?: string
-              p_payment_method?: string
-              p_scadenza_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_account_label?: string
-              p_amount: number
-              p_notes?: string
-              p_payment_date?: string
-              p_payment_method?: string
-              p_scadenza_id: string
-            }
-            Returns: Json
-          }
+      mark_entity_embedded: {
+        Args: { p_embedding: string; p_id: string }
+        Returns: undefined
+      }
+      mark_entity_for_embed: {
+        Args: {
+          p_company_id: string
+          p_content: string
+          p_entity_id: string
+          p_entity_type: string
+          p_metadata?: Json
+        }
+        Returns: undefined
+      }
+      mark_scadenza_paid: {
+        Args: {
+          p_account_label?: string
+          p_amount: number
+          p_notes?: string
+          p_payment_date?: string
+          p_payment_method?: string
+          p_scadenza_id: string
+        }
+        Returns: Json
+      }
       mask_pii_email: { Args: { input: string }; Returns: string }
       mask_pii_phone: { Args: { input: string }; Returns: string }
       match_articles: {
@@ -40822,6 +58665,59 @@ export type Database = {
           similarity: number
           sku: string
           unit_of_measure: string
+        }[]
+      }
+      match_brain: {
+        Args: {
+          p_company_id: string
+          p_include_universal?: boolean
+          p_match_count?: number
+          p_min_similarity?: number
+          p_query_embedding: string
+          p_source_types?: string[]
+          p_universal_categories?: string[]
+        }
+        Returns: {
+          category: string
+          content: string
+          id: string
+          metadata: Json
+          scope: string
+          similarity: number
+          source_id: string
+          source_type: string
+          title: string
+        }[]
+      }
+      match_brain_universal: {
+        Args: {
+          p_kb_areas?: string[]
+          p_match_count?: number
+          p_min_similarity?: number
+          p_query_embedding: string
+        }
+        Returns: {
+          area: string
+          content: string
+          id: string
+          metadata: Json
+          similarity: number
+          title: string
+        }[]
+      }
+      match_brain_vertical_universal: {
+        Args: {
+          p_match_count?: number
+          p_match_threshold?: number
+          p_query_embedding: string
+          p_vertical_keys: string[]
+        }
+        Returns: {
+          content: string
+          id: string
+          similarity: number
+          title: string
+          vertical_key: string
         }[]
       }
       match_families_semantic: {
@@ -40891,6 +58787,7 @@ export type Database = {
           recharged: boolean
         }[]
       }
+      next_contratto_numero: { Args: { p_company_id: string }; Returns: string }
       normalized_order_balance_amount: {
         Args: {
           p_balance: number
@@ -40929,6 +58826,31 @@ export type Database = {
         }
         Returns: number
       }
+      order_has_employee_for_user: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: boolean
+      }
+      order_has_item_in_my_warehouse: {
+        Args: { _order_id: string }
+        Returns: boolean
+      }
+      order_has_salesperson_for_user: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: boolean
+      }
+      pick_silvio_admin_persona: {
+        Args: { p_query: string }
+        Returns: {
+          display_name: string
+          emoji: string
+          invocation_hint: string
+          match_score: number
+          motto: string
+          persona_key: string
+          short_label: string
+          system_prompt_addendum: string
+        }[]
+      }
       populate_broadcast_recipients: {
         Args: {
           p_broadcast_id: string
@@ -40937,13 +58859,41 @@ export type Database = {
         }
         Returns: number
       }
+      precheck_ai_credit: {
+        Args: { p_company_id: string; p_estimated_cost_eur?: number }
+        Returns: Json
+      }
       profile_display_name: {
         Args: { p_profile: Database["public"]["Tables"]["profiles"]["Row"] }
         Returns: string
       }
+      pseudo_company_id: { Args: { p_company_id: string }; Returns: string }
+      purchase_extra_render_credit: {
+        Args: {
+          p_company_id: string
+          p_credits?: number
+          p_stripe_payment_intent?: string
+        }
+        Returns: Json
+      }
       recalculate_invoice_totals: {
         Args: { p_invoice_id: string }
         Returns: undefined
+      }
+      recall_persona_memory: {
+        Args: {
+          p_company_id: string
+          p_limit?: number
+          p_persona_key: string
+          p_user_id?: string
+        }
+        Returns: {
+          content: string
+          hits_count: number
+          id: string
+          memory_type: string
+          source: string
+        }[]
       }
       receive_from_oda_via_scans: {
         Args: {
@@ -40959,6 +58909,34 @@ export type Database = {
           oda_now_complete: boolean
           shipped_items: number
         }[]
+      }
+      record_persona_memory: {
+        Args: {
+          p_company_id: string
+          p_confidence?: number
+          p_content: string
+          p_memory_type: string
+          p_persona_key: string
+          p_source?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      record_persona_message: {
+        Args: {
+          p_content: string
+          p_cost_billed_eur?: number
+          p_ledger_id?: string
+          p_metadata?: Json
+          p_model_used?: string
+          p_role: string
+          p_session_id: string
+          p_tokens_in?: number
+          p_tokens_out?: number
+          p_tool_call_id?: string
+          p_tool_calls?: Json
+        }
+        Returns: string
       }
       record_referral_conversion: {
         Args: {
@@ -41009,6 +58987,7 @@ export type Database = {
         }
         Returns: string
       }
+      reset_ai_monthly_counters: { Args: never; Returns: Json }
       reset_daily_budget_if_needed: {
         Args: { p_company_id: string }
         Returns: undefined
@@ -41016,11 +58995,13 @@ export type Database = {
       resolve_company_feature: {
         Args: { p_company_id: string; p_feature_key: string }
         Returns: {
+          access_level: Database["public"]["Enums"]["feature_access_level"]
           expires_at: string
           is_enabled: boolean
           limit_value: number
           price_override: number
           source: string
+          supports_preview: boolean
         }[]
       }
       resolve_company_features: {
@@ -41062,6 +59043,11 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      restore_record: { Args: { p_id: string; p_table: string }; Returns: Json }
+      rilascia_numero_documento: {
+        Args: { p_documento_id: string }
+        Returns: boolean
       }
       sanitize_customer_profile: {
         Args: { p_customer_id: string }
@@ -41116,9 +59102,96 @@ export type Database = {
           similarity: number
         }[]
       }
+      search_company_activity: {
+        Args: {
+          p_actor_user_id?: string
+          p_categories?: string[]
+          p_company_id: string
+          p_event_types?: string[]
+          p_from?: string
+          p_limit?: number
+          p_min_importance?: string
+          p_query_text?: string
+          p_target_table?: string
+          p_to?: string
+        }
+        Returns: {
+          actor_name: string
+          actor_user_id: string
+          category: string
+          changes: Json
+          created_at: string
+          description: string
+          event_type: string
+          id: string
+          importance: string
+          metadata: Json
+          target_id: string
+          target_label: string
+          target_table: string
+        }[]
+      }
+      search_entities_semantic: {
+        Args: {
+          p_company_id: string
+          p_entity_types?: string[]
+          p_min_similarity?: number
+          p_query_embedding: string
+          p_top_k?: number
+        }
+        Returns: {
+          content: string
+          entity_id: string
+          entity_type: string
+          id: string
+          metadata: Json
+          similarity: number
+        }[]
+      }
+      search_silvio_knowledge: {
+        Args: {
+          p_kb_sections?: string[]
+          p_min_similarity?: number
+          p_persona_key?: string
+          p_query_embedding: string
+          p_top_k?: number
+        }
+        Returns: {
+          chunk_id: string
+          content: string
+          doc_id: string
+          kb_section: string
+          kb_subsection: string
+          persona_keys: string[]
+          similarity: number
+          source_path: string
+          title: string
+        }[]
+      }
+      seed_default_auto_topup: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
+      seed_macro_fields_from_vertical: {
+        Args: { p_macro_id: string; p_vertical: string }
+        Returns: number
+      }
       seed_tipi_documento_operaio: {
         Args: { p_company_id: string }
         Returns: undefined
+      }
+      set_ai_action_permission: {
+        Args: {
+          p_action_type: string
+          p_allowed_roles?: string[]
+          p_company_id: string
+          p_max_daily_executions?: number
+          p_mode: string
+          p_notes?: string
+          p_requires_company_admin?: boolean
+          p_risk_level?: string
+        }
+        Returns: Json
       }
       set_company_role_dashboard: {
         Args: {
@@ -41137,6 +59210,1822 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      silvio_action_queue_claim: {
+        Args: { p_max?: number }
+        Returns: {
+          action_type: string
+          attempts: number
+          id: string
+          initiated_by: string
+          max_attempts: number
+          payload: Json
+          step_index: number
+          workflow_run_id: string
+        }[]
+      }
+      silvio_admin_alert_upsert: {
+        Args: {
+          p_category: string
+          p_dedup_key: string
+          p_description: string
+          p_expires_at?: string
+          p_related?: Json
+          p_severity: string
+          p_suggested?: string
+          p_title: string
+        }
+        Returns: string
+      }
+      silvio_admin_alerts_runner: { Args: never; Returns: Json }
+      silvio_admin_resolve_approval: {
+        Args: {
+          p_approval_id: string
+          p_modified_payload?: Json
+          p_resolution_note?: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      silvio_admin_update_queue_action: {
+        Args: { p_action_id: string; p_operation: string }
+        Returns: undefined
+      }
+      silvio_agent_resolve_mission: {
+        Args: { p_mission_id: string; p_note?: string; p_resolution: string }
+        Returns: undefined
+      }
+      silvio_ai_capabilities_index: { Args: never; Returns: Json }
+      silvio_ai_customer_display_name: {
+        Args: {
+          p_client_company: string
+          p_client_name: string
+          p_email: string
+          p_first_name: string
+          p_last_name: string
+        }
+        Returns: string
+      }
+      silvio_ai_usage_stats: {
+        Args: { p_company_id?: string; p_days_back?: number }
+        Returns: Json
+      }
+      silvio_alerts_stats: { Args: { p_company_id: string }; Returns: Json }
+      silvio_cashflow_forecast_90d: {
+        Args: {
+          p_apply_delay?: boolean
+          p_company_id: string
+          p_weeks?: number
+        }
+        Returns: Json
+      }
+      silvio_cleanup_old_alerts: { Args: never; Returns: number }
+      silvio_cleanup_old_uploads: {
+        Args: never
+        Returns: {
+          deleted_count: number
+          errors_count: number
+        }[]
+      }
+      silvio_cluster_tickets: {
+        Args: { p_min_cluster?: number; p_period?: string }
+        Returns: Json
+      }
+      silvio_compliance_status_export: { Args: never; Returns: Json }
+      silvio_compute_customer_ltv: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_create_alert: {
+        Args: {
+          p_alert_type: string
+          p_company_id: string
+          p_cta_action?: string
+          p_cta_label?: string
+          p_cta_payload?: Json
+          p_dedup_key: string
+          p_expires_at?: string
+          p_message: string
+          p_severity: string
+          p_source_id?: string
+          p_source_meta?: Json
+          p_source_type?: string
+          p_target_user_id?: string
+          p_title: string
+        }
+        Returns: string
+      }
+      silvio_create_alert_with_decision_log: {
+        Args: {
+          p_alert_type: string
+          p_company_id: string
+          p_is_critical?: boolean
+          p_kpis_to_track?: Json
+          p_message: string
+          p_metadata?: Json
+          p_options?: Json
+          p_persona_key?: string
+          p_recommended?: string
+          p_severity: string
+          p_source_id?: string
+          p_source_type?: string
+          p_title: string
+        }
+        Returns: Json
+      }
+      silvio_create_invoice_draft: {
+        Args: {
+          p_amount?: number
+          p_company_id: string
+          p_notes?: string
+          p_order_id: string
+          p_rata_type: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_create_quote_draft: {
+        Args: {
+          p_client_address?: string
+          p_client_email?: string
+          p_client_name: string
+          p_client_phone?: string
+          p_company_id: string
+          p_default_vat_rate?: number
+          p_description?: string
+          p_indirizzo_lavori?: string
+          p_internal_notes?: string
+          p_items?: Json
+          p_tipo_lavoro?: string
+          p_title?: string
+          p_user_id: string
+          p_validity_days?: number
+        }
+        Returns: Json
+      }
+      silvio_create_task: {
+        Args: {
+          p_due_date?: string
+          p_notes?: string
+          p_related_to?: string
+          p_related_type?: string
+          p_title: string
+        }
+        Returns: Json
+      }
+      silvio_decision_log_audit_export: {
+        Args: { p_company_id?: string; p_from?: string; p_to?: string }
+        Returns: Json
+      }
+      silvio_decision_log_check_outcomes_cron: { Args: never; Returns: Json }
+      silvio_decision_log_decide: {
+        Args: {
+          p_chosen_option_id: string
+          p_decision_id: string
+          p_executed_action_id?: string
+          p_user_modifications?: Json
+          p_user_rationale?: string
+        }
+        Returns: undefined
+      }
+      silvio_decision_log_decide_by_action: {
+        Args: {
+          p_action_proposal_id: string
+          p_chosen_option_id?: string
+          p_executed?: boolean
+          p_execution_result?: Json
+          p_user_modifications?: Json
+          p_user_rationale?: string
+        }
+        Returns: string
+      }
+      silvio_decision_log_expire_old: { Args: never; Returns: number }
+      silvio_decision_log_propose: {
+        Args: {
+          p_ai_cost_eur?: number
+          p_ai_model?: string
+          p_ai_tokens?: number
+          p_company_id: string
+          p_confidence?: string
+          p_diagnosis?: string
+          p_diagnosis_data?: Json
+          p_is_critical?: boolean
+          p_kpis_to_track?: Json
+          p_options?: Json
+          p_persona_key: string
+          p_playbook_id?: string
+          p_recommended?: string
+          p_situation: string
+          p_tags?: string[]
+          p_trigger_metadata?: Json
+          p_trigger_source_id: string
+          p_trigger_source_type: string
+          p_trigger_type: string
+        }
+        Returns: string
+      }
+      silvio_decision_log_record_outcome: {
+        Args: {
+          p_decision_id: string
+          p_evaluation?: string
+          p_lessons?: string
+          p_outcome_data: Json
+          p_period: string
+        }
+        Returns: undefined
+      }
+      silvio_detect_alerts: { Args: { p_company_id: string }; Returns: Json }
+      silvio_detect_alerts_all_companies: { Args: never; Returns: Json }
+      silvio_detect_cashflow_alerts: {
+        Args: { p_company_id: string }
+        Returns: number
+      }
+      silvio_detect_frodi_anomalie: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_dismiss_alert: { Args: { p_alert_id: string }; Returns: boolean }
+      silvio_draft_followup_email: {
+        Args: { p_context_hint?: string; p_lead_id: string; p_tone?: string }
+        Returns: Json
+      }
+      silvio_draft_ticket_reply: {
+        Args: { p_ticket_id: string; p_tone?: string }
+        Returns: Json
+      }
+      silvio_employees_workload: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_executive_report: { Args: { p_company_id: string }; Returns: Json }
+      silvio_expire_alerts: { Args: never; Returns: number }
+      silvio_fattura_categorie_summary: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_fatture_anomalie_detect: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_foto_cantiere_summary: {
+        Args: { p_company_id: string; p_order_id?: string }
+        Returns: Json
+      }
+      silvio_get_ai_costs_summary: {
+        Args: { p_period?: string }
+        Returns: Json
+      }
+      silvio_get_briefing_alerts: {
+        Args: {
+          p_company_id: string
+          p_limit?: number
+          p_min_severity?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_get_chat_for_extraction: {
+        Args: {
+          p_channel_id: string
+          p_lookback_hours?: number
+          p_user_id: string
+        }
+        Returns: {
+          content: string
+          created_at: string
+          role: string
+        }[]
+      }
+      silvio_get_customer_history: {
+        Args: { p_company_id: string; p_days?: number }
+        Returns: Json
+      }
+      silvio_get_lead_detail: { Args: { p_lead_id: string }; Returns: Json }
+      silvio_get_memory_context: {
+        Args: {
+          p_company_id: string
+          p_max_summaries?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_get_mrr_breakdown: { Args: { p_period?: string }; Returns: Json }
+      silvio_get_quote_for_review: {
+        Args: { p_quote_id: string }
+        Returns: Json
+      }
+      silvio_get_revenue_forecast: {
+        Args: { p_months_ahead?: number }
+        Returns: Json
+      }
+      silvio_get_system_classification: {
+        Args: { p_system_id: string }
+        Returns: Json
+      }
+      silvio_get_top_customers_by_revenue: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      silvio_get_unpaid_customers: { Args: { p_limit?: number }; Returns: Json }
+      silvio_invoke_edge: {
+        Args: { p_body?: Json; p_function_name: string }
+        Returns: number
+      }
+      silvio_kb_track_citation: {
+        Args: { p_doc_ids: string[] }
+        Returns: undefined
+      }
+      silvio_list_leads: {
+        Args: {
+          p_days_since_contact?: number
+          p_limit?: number
+          p_score_min?: number
+          p_status?: string
+        }
+        Returns: Json
+      }
+      silvio_list_tickets: {
+        Args: { p_limit?: number; p_priority?: string; p_status?: string }
+        Returns: Json
+      }
+      silvio_mark_memory_extracted: {
+        Args: {
+          p_company_id: string
+          p_facts_added?: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      silvio_payment_delay_pattern: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_playbook_list_active: {
+        Args: never
+        Returns: {
+          advisory_level: number
+          category: string
+          enabled: boolean
+          id: string
+          kpis_count: number
+          last_updated: string
+          options_count: number
+          title: string
+          triggers_count: number
+          version: string
+        }[]
+      }
+      silvio_playbook_match: {
+        Args: {
+          p_alert_type?: string
+          p_trigger_source_type?: string
+          p_trigger_type: string
+        }
+        Returns: {
+          ai_prompt_template: string
+          ai_router_task_key: string
+          anti_patterns: Json
+          category: string
+          data_gathering: Json
+          description: string
+          diagnosis_questions: string[]
+          escalation: Json
+          id: string
+          is_critical: boolean
+          kb_context_areas: string[]
+          kpis_to_track: Json
+          max_tokens_per_call: number
+          options_template: Json
+          tags: string[]
+          title: string
+          version: string
+        }[]
+      }
+      silvio_playbook_performance: {
+        Args: { p_days_back?: number; p_playbook_id: string }
+        Returns: Json
+      }
+      silvio_pricing_history: {
+        Args: { p_company_id: string; p_item_name: string }
+        Returns: Json
+      }
+      silvio_promote_alert_to_proposal: {
+        Args: { p_alert_id: string }
+        Returns: string
+      }
+      silvio_rate_response: {
+        Args: { p_message_id: string; p_rating: number }
+        Returns: Json
+      }
+      silvio_record_memory_summary: {
+        Args: {
+          p_channel_id: string
+          p_company_id: string
+          p_embedding?: string
+          p_key_facts?: Json
+          p_messages_count?: number
+          p_period_end: string
+          p_period_start: string
+          p_session_id: string
+          p_summary: string
+          p_topics?: string[]
+          p_user_id: string
+        }
+        Returns: string
+      }
+      silvio_self_improvement_aggregate: {
+        Args: { p_days?: number }
+        Returns: Json
+      }
+      silvio_self_improvement_promote: { Args: never; Returns: number }
+      silvio_team_availability: {
+        Args: {
+          p_company_id: string
+          p_data_fine?: string
+          p_data_inizio?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_aggiorna_giornale_evento: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_data: string
+          p_evento_descrizione: string
+          p_evento_type: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_aggiorna_preventivo_da_foto_results: {
+        Args: {
+          p_company_id: string
+          p_computo_draft: Json
+          p_computo_total_eur: number
+          p_quote_id?: string
+          p_run_id: string
+          p_status?: string
+          p_vision_cost_billed_eur: number
+          p_vision_results: Json
+        }
+        Returns: Json
+      }
+      silvio_tool_aggiorna_skill_da_rapportini: {
+        Args: {
+          p_company_id: string
+          p_employee_id: string
+          p_period_end?: string
+          p_period_start?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_aggiorna_step_onboarding: {
+        Args: {
+          p_ai_content?: string
+          p_company_id: string
+          p_document_path?: string
+          p_employee_id: string
+          p_error_message?: string
+          p_external_reference?: string
+          p_status: string
+          p_step_key: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_analizza_cause_ritardo: {
+        Args: { p_cantiere_id: string; p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_analizza_competenze_operaio: {
+        Args: { p_company_id: string; p_employee_id: string }
+        Returns: Json
+      }
+      silvio_tool_analizza_proposal_engagement: {
+        Args: { p_company_id: string; p_proposal_id: string }
+        Returns: Json
+      }
+      silvio_tool_analizza_qualita_foto: {
+        Args: {
+          p_ai_confidence?: number
+          p_ai_cost_billed_eur?: number
+          p_ai_model?: string
+          p_company_id: string
+          p_detected_elements?: Json
+          p_foto_id: string
+          p_order_score: number
+          p_quality_issues?: Json
+          p_quality_score: number
+          p_recommendations?: string
+          p_safety_issues?: Json
+          p_safety_score: number
+          p_user_id: string
+          p_vertical_specific_checks?: Json
+        }
+        Returns: Json
+      }
+      silvio_tool_analizza_squadra_storia: {
+        Args: { p_company_id: string; p_employee_ids: string[] }
+        Returns: Json
+      }
+      silvio_tool_analizza_storico_pricing_cliente: {
+        Args: { p_company_id: string; p_customer_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_anomalie_aperte: {
+        Args: {
+          p_company_id: string
+          p_severity_min?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_apply_capture_review: {
+        Args: { p_company_id: string; p_corrections: Json; p_run_id: string }
+        Returns: Json
+      }
+      silvio_tool_apply_complaint_analysis: {
+        Args: { p_analysis: Json; p_company_id: string; p_complaint_id: string }
+        Returns: Json
+      }
+      silvio_tool_apply_computo_review: {
+        Args: {
+          p_company_id: string
+          p_computo_id: string
+          p_config: Json
+          p_items: Json
+        }
+        Returns: Json
+      }
+      silvio_tool_apply_visit_debrief_analysis: {
+        Args: { p_analysis: Json; p_company_id: string; p_debrief_id: string }
+        Returns: Json
+      }
+      silvio_tool_approva_giornale: {
+        Args: {
+          p_company_id: string
+          p_giornale_id: string
+          p_observations?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_approva_sal: {
+        Args: {
+          p_company_id: string
+          p_force_proceed_with_warnings?: boolean
+          p_observations?: string
+          p_sal_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_approve_proposal_with_edits: {
+        Args: {
+          p_company_id: string
+          p_edit_reasoning?: string
+          p_proposal_id: string
+          p_user_edited_payload: Json
+        }
+        Returns: Json
+      }
+      silvio_tool_archivia_documento_subappaltatore: {
+        Args: {
+          p_ai_extracted_data?: Json
+          p_company_id: string
+          p_data_emissione: string
+          p_esito?: string
+          p_numero_protocollo?: string
+          p_scadenza: string
+          p_storage_path?: string
+          p_subappaltatore_id: string
+          p_tipo: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_archivia_durc_manuale: {
+        Args: {
+          p_company_id: string
+          p_data_emissione: string
+          p_data_scadenza: string
+          p_enti_irregolari?: string[]
+          p_esito: string
+          p_irregularity_details?: string
+          p_numero_protocollo?: string
+          p_pdf_storage_path?: string
+          p_target_denominazione: string
+          p_target_id: string
+          p_target_partita_iva: string
+          p_target_type: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_avanza_fatt_zero_touch: {
+        Args: {
+          p_company_id: string
+          p_metadata?: Json
+          p_new_status: string
+          p_run_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_avvia_onboarding: {
+        Args: {
+          p_ccnl?: string
+          p_company_id: string
+          p_data_assunzione?: string
+          p_employee_id: string
+          p_livello?: string
+          p_ore_settimana?: number
+          p_qualifica?: string
+          p_ral_eur?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_batch_approve_proposals: {
+        Args: { p_company_id: string; p_proposal_ids: string[] }
+        Returns: Json
+      }
+      silvio_tool_blocca_operaio_da_cantiere: {
+        Args: { p_company_id: string; p_employee_id: string; p_reason: string }
+        Returns: Json
+      }
+      silvio_tool_calcola_costo_ritardo: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_delay_days: number
+        }
+        Returns: Json
+      }
+      silvio_tool_calcola_ore_mese_dipendente: {
+        Args: {
+          p_company_id: string
+          p_employee_id: string
+          p_month: number
+          p_user_id: string
+          p_year: number
+        }
+        Returns: Json
+      }
+      silvio_tool_cashflow_status: {
+        Args: { p_company_id: string; p_days_back?: number }
+        Returns: Json
+      }
+      silvio_tool_checklist_documenti_pratica: {
+        Args: { p_company_id: string; p_pratica_id: string }
+        Returns: Json
+      }
+      silvio_tool_chiedi_riassunto_settimana: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_chiudi_lead_first_touch: {
+        Args: {
+          p_appointment_at?: string
+          p_company_id: string
+          p_outcome: string
+          p_passed_to_user_id?: string
+          p_run_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_company_kpi: { Args: { p_company_id: string }; Returns: Json }
+      silvio_tool_compone_sal_da_rapportini: {
+        Args: {
+          p_company_id: string
+          p_force_regenerate?: boolean
+          p_order_id: string
+          p_period_end?: string
+          p_period_start?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_compute_prompt_feedback: {
+        Args: { p_company_id: string; p_days_back?: number }
+        Returns: Json
+      }
+      silvio_tool_crea_lead_first_touch: {
+        Args: {
+          p_company_id: string
+          p_contact_address?: string
+          p_contact_email?: string
+          p_contact_name?: string
+          p_contact_phone?: string
+          p_raw_payload?: Json
+          p_source_campaign?: string
+          p_source_channel: string
+          p_source_landing_url?: string
+          p_user_id: string
+          p_vertical_interest?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_crea_preventivo_da_foto: {
+        Args: {
+          p_budget_hint_eur?: number
+          p_cantiere_address?: string
+          p_company_id: string
+          p_customer_id?: string
+          p_description?: string
+          p_image_storage_paths?: string[]
+          p_lead_email?: string
+          p_lead_name?: string
+          p_lead_phone?: string
+          p_sketch_storage_paths?: string[]
+          p_source: string
+          p_urgenza?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_crea_proposta_ordine_fornitore: {
+        Args: {
+          p_company_id: string
+          p_expected_delivery_date?: string
+          p_for_cantiere_id: string
+          p_items: Json
+          p_optimal_send_date?: string
+          p_proposal_reason: string
+          p_supplier_id: string
+          p_total_amount_eur: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_crea_winback_draft: {
+        Args: {
+          p_ai_analysis: string
+          p_ai_cost_billed_eur?: number
+          p_ai_message: string
+          p_ai_offer_summary: string
+          p_channel?: string
+          p_company_id: string
+          p_customer_id: string
+          p_customer_ltv_eur: number
+          p_customer_orders_count: number
+          p_dormancy_days: number
+          p_dormancy_score: number
+          p_offered_products: Json
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_create_capture_run: {
+        Args: {
+          p_audio_path?: string
+          p_capture_mode: string
+          p_company_id: string
+          p_description?: string
+          p_image_paths?: string[]
+          p_vertical_key?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_create_complaint: {
+        Args: {
+          p_company_id: string
+          p_contact_id?: string
+          p_customer_email?: string
+          p_customer_name?: string
+          p_customer_phone?: string
+          p_raw_text: string
+          p_related_order_id?: string
+          p_related_quote_id?: string
+          p_source: string
+        }
+        Returns: Json
+      }
+      silvio_tool_create_visit_debrief: {
+        Args: {
+          p_audio_path?: string
+          p_company_id: string
+          p_contact_id?: string
+          p_free_notes?: string
+          p_image_paths?: string[]
+          p_order_id?: string
+          p_quote_id?: string
+          p_visit_location?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_detect_duplicate_payments: {
+        Args: { p_company_id: string; p_days_back?: number; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_durc_status_self: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_fatture_restanti: {
+        Args: {
+          p_company_id: string
+          p_limit?: number
+          p_only_unpaid?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_flag_anomalia: {
+        Args: {
+          p_ai_confidence?: number
+          p_ai_description: string
+          p_ai_recommendation?: string
+          p_amount?: number
+          p_anomaly_type: string
+          p_company_id: string
+          p_counterparty_name?: string
+          p_severity: string
+          p_transaction_id?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_formazioni_in_scadenza: {
+        Args: { p_company_id: string; p_days_ahead?: number }
+        Returns: {
+          data_scadenza: string
+          employee_id: string
+          formation_type: string
+          giorni_residui: number
+        }[]
+      }
+      silvio_tool_genera_cedolino_dipendente: {
+        Args: {
+          p_company_id: string
+          p_employee_id: string
+          p_force_regenerate?: boolean
+          p_month: number
+          p_user_id: string
+          p_year: number
+        }
+        Returns: Json
+      }
+      silvio_tool_genera_cu_anno: {
+        Args: { p_company_id: string; p_year: number }
+        Returns: Json
+      }
+      silvio_tool_genera_duvri_cantiere: {
+        Args: { p_cantiere_id: string; p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_genera_f24_mese: {
+        Args: { p_company_id: string; p_month: number; p_year: number }
+        Returns: Json
+      }
+      silvio_tool_genera_giornale: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_data?: string
+          p_force_regenerate?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_genera_lipe_trimestrale: {
+        Args: { p_company_id: string; p_quarter: number; p_year: number }
+        Returns: Json
+      }
+      silvio_tool_genera_modulo_consegna_dpi: {
+        Args: { p_company_id: string; p_dpi_items: Json; p_employee_id: string }
+        Returns: Json
+      }
+      silvio_tool_genera_piano_recovery_cantiere: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_target_date?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_genera_pos_cantiere: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_force_regenerate?: boolean
+        }
+        Returns: Json
+      }
+      silvio_tool_genera_proposal_commerciale: {
+        Args: {
+          p_company_id: string
+          p_force_regenerate?: boolean
+          p_quote_id: string
+          p_target_audience?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_genera_relazione_tecnica: {
+        Args: {
+          p_company_id: string
+          p_pratica_id: string
+          p_template_type?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_genera_report_cfo_settimanale: {
+        Args: {
+          p_company_id: string
+          p_force_regenerate?: boolean
+          p_week_start?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_genera_reportino_committente: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_force_regenerate?: boolean
+          p_trigger_source?: string
+          p_triggered_by_persona?: string
+          p_user_id: string
+          p_week_start?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_get_capture_run: {
+        Args: { p_company_id: string; p_run_id: string }
+        Returns: Json
+      }
+      silvio_tool_get_cashflow_forecast_scenarios: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_get_dynamic_pricing_factors: {
+        Args: {
+          p_company_id: string
+          p_material_keys?: string[]
+          p_product_category?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_get_pipeline_forecast: {
+        Args: { p_company_id: string; p_horizon_days?: number }
+        Returns: Json
+      }
+      silvio_tool_get_proposal_audit_log: {
+        Args: { p_company_id: string; p_proposal_id: string }
+        Returns: {
+          created_at: string
+          event_data: Json
+          event_type: string
+          user_id: string
+        }[]
+      }
+      silvio_tool_identifica_conflitti_allocazione: {
+        Args: { p_company_id: string }
+        Returns: {
+          cantiere_1: string
+          cantiere_2: string
+          conflict_id_1: string
+          conflict_id_2: string
+          employee_id: string
+          overlap_end: string
+          overlap_start: string
+        }[]
+      }
+      silvio_tool_identifica_quotes_da_followup: {
+        Args: { p_company_id: string; p_priority_threshold?: number }
+        Returns: {
+          ai_close_probability_pct: number
+          client_name: string
+          giorni_da_invio: number
+          quote_id: string
+          quote_number: string
+          status: string
+          total: number
+        }[]
+      }
+      silvio_tool_identifica_tipo_pratica: {
+        Args: {
+          p_company_id: string
+          p_tipologia_intervento: string
+          p_ubicazione?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_identify_dormant_customers: {
+        Args: {
+          p_company_id: string
+          p_threshold_days?: number
+          p_top_n?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_invia_lipe_ade: {
+        Args: { p_company_id: string; p_report_id: string }
+        Returns: Json
+      }
+      silvio_tool_invia_proposal_cliente: {
+        Args: {
+          p_channels?: string[]
+          p_company_id: string
+          p_message?: string
+          p_proposal_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_invia_report_cfo: {
+        Args: {
+          p_channels?: string[]
+          p_company_id: string
+          p_report_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lavori_pose_periodo: {
+        Args: {
+          p_company_id: string
+          p_days?: number
+          p_include_materials?: boolean
+          p_start_date?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_cantieri_a_rischio: {
+        Args: { p_company_id: string; p_risk_level_min?: string }
+        Returns: {
+          cantiere_id: string
+          delay_days_predicted: number
+          delay_probability_pct: number
+          prediction_date: string
+          risk_level: string
+        }[]
+      }
+      silvio_tool_lista_cantieri_per_briefing: {
+        Args: { p_briefing_date?: string; p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_lista_cedolini_da_revisionare: {
+        Args: {
+          p_company_id: string
+          p_month?: number
+          p_user_id: string
+          p_year?: number
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_dipendenti_oggi: {
+        Args: {
+          p_company_id: string
+          p_only_active?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_documenti_in_scadenza: {
+        Args: { p_company_id: string; p_days_ahead?: number; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_lista_email_thread: {
+        Args: {
+          p_company_id: string
+          p_days_back?: number
+          p_limit?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_fatt_zero_touch_runs: {
+        Args: {
+          p_company_id: string
+          p_limit?: number
+          p_status_filter?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_foto_critical_recenti: {
+        Args: { p_company_id: string; p_days_back?: number; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_lista_lead_first_touch: {
+        Args: {
+          p_company_id: string
+          p_days_back?: number
+          p_outcome_filter?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_onboarding_in_corso: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_lista_preventivi_da_foto_draft: {
+        Args: {
+          p_company_id: string
+          p_status_filter?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_proposte_ordini_pending: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_lista_reclami_aperti: {
+        Args: { p_company_id: string; p_urgency_min?: string }
+        Returns: {
+          ai_category: string
+          ai_sentiment: string
+          ai_summary: string
+          ai_urgency: string
+          created_at: string
+          customer_name: string
+          escalated: boolean
+          hours_since_created: number
+          id: string
+          status: string
+        }[]
+      }
+      silvio_tool_lista_sal_in_attesa: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_lista_scadenze: {
+        Args: {
+          p_company_id: string
+          p_days_ahead?: number
+          p_only_unpaid?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_scadenze_durc: {
+        Args: { p_company_id: string; p_giorni?: number; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_lista_stockout_imminenti: {
+        Args: { p_company_id: string; p_days_ahead?: number; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_lista_storico_prezzi_griglia: {
+        Args: { p_company_id: string; p_family_id: string; p_limit?: number }
+        Returns: {
+          changed_at: string
+          changed_by: string
+          griglia_id: string
+          id: string
+          operation: string
+          prezzo_acquisto: number
+          prezzo_vendita: number
+          valore_x: number
+          valore_y: number
+        }[]
+      }
+      silvio_tool_lista_subappaltatori_compliance: {
+        Args: {
+          p_company_id: string
+          p_only_non_compliant?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_transazioni: {
+        Args: {
+          p_company_id: string
+          p_days_back?: number
+          p_limit?: number
+          p_only_unmatched?: boolean
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lista_violazioni_attive: {
+        Args: { p_company_id: string; p_hours_back?: number }
+        Returns: {
+          ai_overall_severity: string
+          ai_summary: string
+          ai_violations: Json
+          cantiere_id: string
+          device_id: string
+          device_name: string
+          frame_captured_at: string
+          frame_id: string
+        }[]
+      }
+      silvio_tool_lista_visite_a_rischio: {
+        Args: { p_company_id: string; p_days_back?: number }
+        Returns: {
+          ai_close_probability_pct: number
+          ai_estimated_value_eur: number
+          ai_intent: string
+          ai_summary: string
+          contact_id: string
+          days_since_visit: number
+          debrief_id: string
+          visit_date: string
+        }[]
+      }
+      silvio_tool_lista_winback_campaigns: {
+        Args: {
+          p_company_id: string
+          p_status_filter?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_log_briefing_sent: {
+        Args: {
+          p_ai_cost_billed_eur?: number
+          p_ai_message: string
+          p_briefing_date: string
+          p_cantiere_id: string
+          p_capomastro_user_id: string
+          p_channel: string
+          p_company_id: string
+          p_external_message_id?: string
+          p_safety_alerts?: Json
+          p_user_id: string
+          p_weather_data?: Json
+        }
+        Returns: Json
+      }
+      silvio_tool_log_first_touch_sent: {
+        Args: {
+          p_ai_cost_eur?: number
+          p_channel: string
+          p_company_id: string
+          p_latency_ms: number
+          p_message: string
+          p_qualification_score?: number
+          p_run_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lookup_contact_live: {
+        Args: {
+          p_company_id: string
+          p_email?: string
+          p_name_hint?: string
+          p_phone?: string
+        }
+        Returns: {
+          city: string
+          company_name: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          match_confidence: number
+          match_type: string
+          phone: string
+        }[]
+      }
+      silvio_tool_match_product_alias: {
+        Args: { p_alias_text: string; p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_monitoraggio_pratica_status: {
+        Args: { p_company_id: string; p_pratica_id?: string }
+        Returns: {
+          cantiere_id: string
+          giorni_a_silenzio: number
+          giorni_da_invio: number
+          next_action: string
+          pratica_id: string
+          status: string
+          tipo_pratica: string
+        }[]
+      }
+      silvio_tool_monthly_performance: {
+        Args: { p_company_id: string; p_month: number; p_year: number }
+        Returns: Json
+      }
+      silvio_tool_operai_non_conformi_sicurezza: {
+        Args: { p_company_id: string }
+        Returns: {
+          casco_ok: boolean
+          employee_id: string
+          form_generale_ok: boolean
+          form_specifica_ok: boolean
+          full_name: string
+          scarpe_ok: boolean
+          visita_ok: boolean
+        }[]
+      }
+      silvio_tool_opt_out_winback: {
+        Args: { p_customer_id: string; p_reason?: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_optimize_route_nearest_neighbor: {
+        Args: {
+          p_company_id: string
+          p_default_stop_min?: number
+          p_end_location_id?: string
+          p_start_location_id: string
+          p_stop_location_ids: string[]
+        }
+        Returns: Json
+      }
+      silvio_tool_orders_summary: {
+        Args: { p_company_id: string; p_limit?: number; p_status?: string }
+        Returns: Json
+      }
+      silvio_tool_ottimizza_allocazioni_settimana: {
+        Args: {
+          p_company_id: string
+          p_scenario?: string
+          p_start_date?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_overdue_payments: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_pianifica_cantiere: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_end_date?: string
+          p_resources: Json
+          p_start_date?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_pianifica_dunning_step: {
+        Args: {
+          p_ai_message?: string
+          p_ai_tone?: string
+          p_channel?: string
+          p_company_id: string
+          p_invoice_id: string
+          p_scheduled_at: string
+          p_step_n: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_predici_consumo_materiali: {
+        Args: {
+          p_company_id: string
+          p_horizon_days?: number
+          p_order_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_predici_data_fine_cantiere: {
+        Args: { p_cantiere_id: string; p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_prenota_formazione_operaio: {
+        Args: {
+          p_company_id: string
+          p_data_completamento?: string
+          p_employee_id: string
+          p_ente_erogante?: string
+          p_formation_type: string
+        }
+        Returns: Json
+      }
+      silvio_tool_prepara_invio_sue: {
+        Args: { p_company_id: string; p_pratica_id: string }
+        Returns: Json
+      }
+      silvio_tool_prevedi_impatto_ritardo: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_delay_days: number
+        }
+        Returns: Json
+      }
+      silvio_tool_propose_action: {
+        Args: {
+          p_action_type: string
+          p_company_id: string
+          p_payload: Json
+          p_persona_key?: string
+          p_risk_level?: string
+          p_session_id?: string
+          p_summary: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_qualify_public_lead: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
+      silvio_tool_quotes_summary: {
+        Args: { p_company_id: string; p_status?: string }
+        Returns: Json
+      }
+      silvio_tool_received_invoices: {
+        Args: { p_company_id: string; p_status?: string }
+        Returns: Json
+      }
+      silvio_tool_record_competitor_signal: {
+        Args: {
+          p_company_id: string
+          p_competitor_name: string
+          p_description?: string
+          p_product_category: string
+          p_signal_type: string
+          p_signal_value?: number
+          p_source?: string
+          p_zone?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_register_camera_device: {
+        Args: {
+          p_alert_email?: string
+          p_alert_phone?: string
+          p_cantiere_id: string
+          p_company_id: string
+          p_device_name: string
+          p_device_type: string
+        }
+        Returns: Json
+      }
+      silvio_tool_register_product_alias: {
+        Args: {
+          p_alias_text: string
+          p_article_template_id?: string
+          p_company_id: string
+          p_confidence?: number
+          p_family_id?: string
+          p_learned_from?: string
+          p_tariffa_id?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_registra_assenza: {
+        Args: {
+          p_company_id: string
+          p_data_fine: string
+          p_data_inizio: string
+          p_employee_id: string
+          p_giustificativo_path?: string
+          p_note?: string
+          p_ore_giorno?: number
+          p_tipo_assenza: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_reject_proposal: {
+        Args: { p_company_id: string; p_proposal_id: string; p_reason?: string }
+        Returns: Json
+      }
+      silvio_tool_resolve_complaint: {
+        Args: {
+          p_action_taken?: string
+          p_company_id: string
+          p_complaint_id: string
+          p_customer_satisfied?: boolean
+          p_resolution_notes: string
+        }
+        Returns: Json
+      }
+      silvio_tool_revenue_forecast: {
+        Args: { p_company_id: string; p_days_ahead?: number }
+        Returns: Json
+      }
+      silvio_tool_revenue_needed_next_month: {
+        Args: {
+          p_company_id: string
+          p_margin_pct?: number
+          p_target_month?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_richiedi_rinnovo_documento: {
+        Args: {
+          p_company_id: string
+          p_deadline?: string
+          p_doc_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_save_cashflow_snapshot: {
+        Args: {
+          p_ai_confidence?: number
+          p_ai_cost_billed_eur?: number
+          p_ai_recommendations: Json
+          p_company_id: string
+          p_daily_balances: Json
+          p_first_risk_date: string
+          p_max_balance_eur: number
+          p_min_balance_date: string
+          p_min_balance_eur: number
+          p_risk_days_count: number
+          p_risk_days_list: Json
+          p_scenario: string
+          p_starting_balance_eur: number
+        }
+        Returns: Json
+      }
+      silvio_tool_save_route_plan: {
+        Args: {
+          p_company_id: string
+          p_employee_id: string
+          p_end_location_id: string
+          p_plan_date: string
+          p_start_location_id: string
+          p_stops: Json
+          p_strategy?: string
+          p_total_distance_km: number
+          p_total_duration_min: number
+        }
+        Returns: Json
+      }
+      silvio_tool_search_orders: {
+        Args: { p_company_id: string; p_query: string }
+        Returns: Json
+      }
+      silvio_tool_simula_intervento_cashflow: {
+        Args: {
+          p_amount: number
+          p_company_id: string
+          p_description?: string
+          p_intervention_type: string
+          p_target_date: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_simula_what_if_pricing: {
+        Args: {
+          p_company_id: string
+          p_margin_change_pct: number
+          p_quote_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_sposta_allocazione: {
+        Args: {
+          p_allocation_id: string
+          p_company_id: string
+          p_new_end: string
+          p_new_start: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
+      silvio_tool_stato_sicurezza_operaio: {
+        Args: { p_company_id: string; p_employee_id: string }
+        Returns: Json
+      }
+      silvio_tool_stima_probabilita_close_quote: {
+        Args: { p_company_id: string; p_quote_id: string }
+        Returns: Json
+      }
+      silvio_tool_storico_pagamenti: {
+        Args: { p_company_id: string; p_customer_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_storico_pricing_voce: {
+        Args: {
+          p_company_id: string
+          p_months_back?: number
+          p_user_id: string
+          p_voce_descrizione: string
+        }
+        Returns: Json
+      }
+      silvio_tool_subappaltatori_summary: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_suggerisci_azione_per_quote: {
+        Args: { p_company_id: string; p_quote_id: string }
+        Returns: Json
+      }
+      silvio_tool_suggerisci_prezzo_voce: {
+        Args: {
+          p_ai_confidence?: number
+          p_ai_cost_billed_eur?: number
+          p_ai_reasoning?: string
+          p_company_id: string
+          p_cost_real_eur: number
+          p_customer_id?: string
+          p_qty: number
+          p_quote_id?: string
+          p_unita_misura: string
+          p_user_id: string
+          p_voce_descrizione: string
+        }
+        Returns: Json
+      }
+      silvio_tool_suggerisci_squadra_cantiere: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_lavorazione?: string
+          p_team_size?: number
+        }
+        Returns: Json
+      }
+      silvio_tool_suppliers_summary: {
+        Args: { p_company_id: string; p_search?: string }
+        Returns: Json
+      }
+      silvio_tool_team_summary: {
+        Args: { p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_top_ai_issues: {
+        Args: { p_company_id: string; p_top_n?: number }
+        Returns: {
+          persona_key: string
+          rejection_category: string
+          rejection_count: number
+          rejection_rate_pct: number
+          tool_name: string
+          total_count: number
+        }[]
+      }
+      silvio_tool_top_customers: {
+        Args: { p_company_id: string; p_limit?: number }
+        Returns: Json
+      }
+      silvio_tool_top_performer_lavorazione: {
+        Args: { p_company_id: string; p_skill_key: string; p_top_n?: number }
+        Returns: {
+          employee_id: string
+          first_name: string
+          last_name: string
+          productivity_score: number
+          proficiency_level: number
+          total_hours: number
+        }[]
+      }
+      silvio_tool_trend_qualita_cantiere: {
+        Args: {
+          p_cantiere_id: string
+          p_company_id: string
+          p_period_days?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_trova_case_studies_simili: {
+        Args: {
+          p_company_id: string
+          p_quote_id: string
+          p_similarity_threshold?: number
+        }
+        Returns: Json
+      }
+      silvio_tool_trova_slot_liberi: {
+        Args: {
+          p_company_id: string
+          p_durata_minuti?: number
+          p_giorni_avanti?: number
+          p_orario_fine?: string
+          p_orario_inizio?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_undo_executed_action: {
+        Args: { p_company_id: string; p_proposal_id: string; p_reason?: string }
+        Returns: Json
+      }
+      silvio_tool_valida_dpi_operai_cantiere: {
+        Args: { p_cantiere_id: string; p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_verifica_anagrafica_fattura: {
+        Args: { p_company_id: string; p_customer_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_verifica_completezza_pratica: {
+        Args: { p_company_id: string; p_pratica_id: string }
+        Returns: Json
+      }
+      silvio_tool_verifica_completion_onboarding: {
+        Args: { p_company_id: string; p_employee_id: string; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_verifica_durc: {
+        Args: {
+          p_company_id: string
+          p_target_id?: string
+          p_target_type?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_verifica_formazioni_operai: {
+        Args: { p_cantiere_id: string; p_company_id: string }
+        Returns: Json
+      }
+      silvio_tool_verifica_quadrature_contabili: {
+        Args: {
+          p_company_id: string
+          p_period_end: string
+          p_period_start: string
+        }
+        Returns: Json
+      }
+      silvio_tool_warehouse_status: {
+        Args: { p_company_id: string; p_search?: string }
+        Returns: Json
+      }
+      silvio_top_at_risk_customers: {
+        Args: { p_company_id: string; p_limit?: number }
+        Returns: Json
+      }
+      silvio_top_value_customers: {
+        Args: { p_company_id: string; p_limit?: number }
+        Returns: Json
+      }
+      silvio_universal_search: {
+        Args: { p_company_id: string; p_limit?: number; p_query: string }
+        Returns: Json
+      }
+      silvio_update_experiment_status: {
+        Args: {
+          p_experiment_id: string
+          p_result_summary?: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      silvio_users_for_morning_brief: {
+        Args: { p_lookback_days?: number }
+        Returns: {
+          company_id: string
+          last_seen: string
+          user_id: string
+        }[]
+      }
+      silvio_users_needing_memory_extract: {
+        Args: { p_lookback_hours?: number; p_min_messages?: number }
+        Returns: {
+          channel_id: string
+          company_id: string
+          last_message_at: string
+          messages_count: number
+          user_id: string
+        }[]
+      }
+      silvio_workflow_advance: { Args: { p_run_id: string }; Returns: Json }
+      silvio_workflow_start: {
+        Args: {
+          p_contact_id: string
+          p_contact_type?: string
+          p_context?: Json
+          p_workflow_id: string
+        }
+        Returns: string
+      }
+      soft_delete_record: {
+        Args: { p_id: string; p_table: string }
+        Returns: Json
+      }
+      sr_cantieri_referenza_vicini: {
+        Args: {
+          p_lat: number
+          p_limit?: number
+          p_lng: number
+          p_raggio_km?: number
+        }
+        Returns: {
+          citta: string
+          distanza_km: number
+          foto_storage_paths: string[]
+          id: string
+          testo_breve: string
+        }[]
+      }
+      sr_cleanup_expired_public_tokens: { Args: never; Returns: number }
+      sr_converti_in_ordine: {
+        Args: {
+          p_anticipo_eur?: number
+          p_importo_eur?: number
+          p_progetto_id: string
+        }
+        Returns: string
+      }
+      sr_create_progetto_da_sopralluogo: {
+        Args: { p_cliente_id?: string; p_sopralluogo_id: string }
+        Returns: string
+      }
+      sr_progetti_audit_recent: {
+        Args: { p_limit?: number; p_progetto_id: string }
+        Returns: {
+          created_at: string
+          event_data: Json
+          event_type: string
+          user_email: string
+        }[]
+      }
       staff_update_own_password_flag: {
         Args: { _must_change: boolean }
         Returns: undefined
@@ -41148,6 +61037,38 @@ export type Database = {
       superadmin_can_access_company: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
+      }
+      surveys_assigned_to_me: {
+        Args: never
+        Returns: {
+          address: string
+          assigned_at: string
+          city: string
+          client_id: string
+          code: string
+          id: string
+          is_complete: boolean
+          my_role: string
+          notes: string
+          order_id: string
+          scheduled_at: string
+          status: string
+          template_category: string
+          template_name: string
+        }[]
+      }
+      take_pre_migration_snapshot: {
+        Args: {
+          p_migration_label: string
+          p_sample_size?: number
+          p_table: string
+        }
+        Returns: Json
+      }
+      telegram_generate_verification_code: { Args: never; Returns: Json }
+      toggle_survey_template: {
+        Args: { p_enabled: boolean; p_template_id: string }
+        Returns: undefined
       }
       topup_service_credits: {
         Args: { p_amount: number; p_company_id: string; p_service: string }
@@ -41215,6 +61136,18 @@ export type Database = {
           warehouse_name: string
         }[]
       }
+      wh_get_lotti_in_scadenza: {
+        Args: { p_company_id?: string; p_days_ahead?: number }
+        Returns: Json
+      }
+      wh_get_valorizzazione: {
+        Args: {
+          p_company_id?: string
+          p_method?: string
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role:
@@ -41243,6 +61176,7 @@ export type Database = {
         | "pittura"
         | "ristrutturazioni"
         | "altro"
+      feature_access_level: "disabled" | "preview" | "enabled"
       message_channel: "email" | "sms" | "whatsapp" | "nota_interna"
       message_direction: "out" | "in"
       message_status: "pending" | "sent" | "delivered" | "read" | "failed"
@@ -41276,6 +61210,33 @@ export type Database = {
         | "preventivo_accettato"
         | "giornale_lavori_inserito"
         | "nota_interna"
+      sr_materiale_principale:
+        | "alluminio"
+        | "pvc"
+        | "legno"
+        | "alluminio_legno"
+        | "acciaio"
+        | "misto"
+      sr_media_kind:
+        | "situazione"
+        | "prodotto"
+        | "cantiere_simile"
+        | "render"
+        | "allegato"
+      sr_stato_progetto:
+        | "bozza"
+        | "da_consegnare"
+        | "consegnato"
+        | "in_valutazione"
+        | "accettato"
+        | "rifiutato"
+        | "scaduto"
+        | "archiviato"
+      sr_tipo_intervento:
+        | "sostituzione"
+        | "nuova_costruzione"
+        | "ristrutturazione"
+        | "manutenzione"
       ticket_priority: "bassa" | "normale" | "alta" | "urgente"
       ticket_status: "aperto" | "in_lavorazione" | "risolto"
       tipo_agente_enum: "vocale" | "chat" | "whatsapp" | "interno" | "campagna"
@@ -41437,6 +61398,7 @@ export const Constants = {
         "ristrutturazioni",
         "altro",
       ],
+      feature_access_level: ["disabled", "preview", "enabled"],
       message_channel: ["email", "sms", "whatsapp", "nota_interna"],
       message_direction: ["out", "in"],
       message_status: ["pending", "sent", "delivered", "read", "failed"],
@@ -41470,6 +61432,37 @@ export const Constants = {
         "preventivo_accettato",
         "giornale_lavori_inserito",
         "nota_interna",
+      ],
+      sr_materiale_principale: [
+        "alluminio",
+        "pvc",
+        "legno",
+        "alluminio_legno",
+        "acciaio",
+        "misto",
+      ],
+      sr_media_kind: [
+        "situazione",
+        "prodotto",
+        "cantiere_simile",
+        "render",
+        "allegato",
+      ],
+      sr_stato_progetto: [
+        "bozza",
+        "da_consegnare",
+        "consegnato",
+        "in_valutazione",
+        "accettato",
+        "rifiutato",
+        "scaduto",
+        "archiviato",
+      ],
+      sr_tipo_intervento: [
+        "sostituzione",
+        "nuova_costruzione",
+        "ristrutturazione",
+        "manutenzione",
       ],
       ticket_priority: ["bassa", "normale", "alta", "urgente"],
       ticket_status: ["aperto", "in_lavorazione", "risolto"],
