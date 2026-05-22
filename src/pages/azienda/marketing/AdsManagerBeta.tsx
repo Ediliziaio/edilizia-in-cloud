@@ -76,6 +76,7 @@ import { AdsOnboardingTour } from "@/components/ads/AdsOnboardingTour";
 import { ProviderChoiceDialog } from "@/components/ads/ProviderChoiceDialog";
 import { MetaTargetingPanel } from "@/components/ads/MetaTargetingPanel";
 import { QuickStartCampaign } from "@/components/ads/QuickStartCampaign";
+import { CampaignCopyEditor } from "@/components/ads/CampaignCopyEditor";
 import type { Integration, MetaAsset } from "@/types/integrations";
 import type { MetaCampaignRow } from "@/types/metaAds";
 
@@ -201,6 +202,15 @@ interface BuilderState {
   metaExcludedInterestTags?: import("@/types/metaAds").MetaSearchResult[];
   metaLocaleTags?: import("@/types/metaAds").MetaSearchResult[];
   metaPlacements?: import("@/types/metaAds").MetaPlacementsConfig;
+  /**
+   * Copy strutturato — 3 blocchi separati (titoli/descrizioni/hook).
+   * `copyVariants` legacy resta sincronizzato con `copyDescriptions`.
+   */
+  copyTitles?: string[];
+  copyDescriptions?: string[];
+  copyHooks?: string[];
+  /** Asset selezionati dalla libreria ad_media (immagini/video) */
+  selectedMediaIds?: string[];
 }
 
 interface CampaignTemplate {
@@ -529,6 +539,11 @@ const DEFAULT_BUILDER: BuilderState = {
   metaExcludedInterestTags: [],
   metaLocaleTags: [],
   metaPlacements: { automatic: true },
+  // Copy strutturato 3-blocchi (popolato da CampaignCopyEditor)
+  copyTitles: [],
+  copyDescriptions: [],
+  copyHooks: [],
+  selectedMediaIds: [],
 };
 
 DEFAULT_BUILDER.adSets = buildDefaultAdSets(DEFAULT_BUILDER);
@@ -2745,53 +2760,80 @@ function CampaignBuilderTab({
 
           {step === 4 && (
             <div className="space-y-5">
-              <Field label="Brief per AI copy">
-                <Textarea value={state.copyBrief} onChange={(event) => update("copyBrief", event.target.value)} className="min-h-24" />
+              {/* Brief — usato come input per AI */}
+              <Field label="Brief per il copy AI (cosa vuoi comunicare)">
+                <Textarea
+                  value={state.copyBrief}
+                  onChange={(event) => update("copyBrief", event.target.value)}
+                  className="min-h-20"
+                  placeholder="Es. Sopralluogo gratuito, posa certificata, detrazioni fiscali incluse."
+                />
               </Field>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-950">5 varianti copy</p>
-                  <p className="text-xs text-slate-500">Ogni variante diventerà un annuncio separato nello stesso pubblico.</p>
+
+              {/* === 3-BLOCK COPY EDITOR (titoli + descrizioni + hook) === */}
+              <CampaignCopyEditor
+                companyId={companyId}
+                brief={state.copyBrief || state.offer}
+                segment={state.templateId}
+                zone={state.zone}
+                offer={state.offer}
+                value={{
+                  titles: state.copyTitles ?? [],
+                  descriptions: state.copyDescriptions ?? state.copyVariants ?? [],
+                  hooks: state.copyHooks ?? [],
+                }}
+                onChange={(next) => {
+                  setState((prev) => ({
+                    ...prev,
+                    copyTitles: next.titles,
+                    copyDescriptions: next.descriptions,
+                    copyHooks: next.hooks,
+                    // Sync legacy copyVariants per backward-compat con codice ad
+                    copyVariants: next.legacyCopyVariants ?? next.descriptions,
+                  }));
+                }}
+              />
+
+              {/* === ASSET MEDIA — collega creatività dalla libreria === */}
+              <div className="rounded-2xl border bg-white p-4">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-950">🎨 Asset visivi</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Carica o genera immagini/video nella scheda <strong>Creatività</strong>. Verranno usati come asset per gli annunci.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Naviga al tab Creatività mantenendo bozza state in sessionStorage
+                      try {
+                        sessionStorage.setItem("ads_wizard_resume", "1");
+                      } catch { /* ignore */ }
+                      window.open("/azienda/marketing/ads-manager?tab=creativita", "_blank");
+                    }}
+                  >
+                    Apri Creatività ↗
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={regenerateCopy}
-                  disabled={isGeneratingCopy}
-                >
-                  {isGeneratingCopy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                  {isGeneratingCopy ? "Generazione..." : "Rigenera con AI"}
-                </Button>
+                <Field label="Prompt immagine/video (per generazione AI nello studio)">
+                  <Textarea
+                    value={state.imagePrompt}
+                    onChange={(event) => update("imagePrompt", event.target.value)}
+                    className="min-h-20"
+                    placeholder="Es. Foto realistica di infissi moderni in casa luminosa italiana, prima/dopo elegante."
+                  />
+                </Field>
               </div>
-              <div className="grid gap-3">
-                {state.copyVariants.map((copy, index) => (
-                  <Field key={index} label={`Copy ${index + 1}`}>
-                    <Textarea
-                      value={copy}
-                      onChange={(event) => {
-                        const next = [...state.copyVariants];
-                        next[index] = event.target.value;
-                        update("copyVariants", next);
-                      }}
-                      className="min-h-20"
-                    />
-                  </Field>
-                ))}
-              </div>
+
               <CreativeMixPlanner
                 creatives={state.creatives}
                 onAdd={addCreative}
                 onRemove={removeCreative}
                 onUpdate={updateCreative}
               />
-              <Field label="Prompt immagine/video">
-                <Textarea value={state.imagePrompt} onChange={(event) => update("imagePrompt", event.target.value)} className="min-h-24" />
-              </Field>
             </div>
           )}
 
@@ -4041,51 +4083,93 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               <ImageIcon className="mx-auto mb-2 h-6 w-6 text-slate-400" />
               <p className="text-sm font-semibold text-slate-700">Libreria vuota</p>
               <p className="mt-1 text-xs text-slate-500">
-                Genera un'immagine AI sopra o aspetta che la migration sia applicata.
+                Genera un'immagine AI sopra, carica un video, o aspetta che la migration sia applicata.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {mediaLib.map((m) => (
-                <div key={m.id} className="overflow-hidden rounded-xl border bg-white">
-                  <div className="aspect-square bg-slate-100">
-                    {m.public_url ? (
-                      <img
-                        src={m.public_url}
-                        alt={m.name}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center">
-                        <ImageIcon className="h-8 w-8 text-slate-300" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-2">
-                    <p className="truncate text-xs font-semibold text-slate-900">{m.name}</p>
-                    <div className="mt-1 flex items-center gap-1">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "text-[9px]",
-                          m.source === "ai_generated"
-                            ? "border-violet-200 bg-violet-50 text-violet-700"
-                            : "border-slate-200 bg-slate-50 text-slate-600",
+            <>
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                <Badge variant="outline" className="text-[10px]">
+                  🖼️ Immagini: {mediaLib.filter((m) => m.kind === "image" || !m.kind).length}
+                </Badge>
+                <Badge variant="outline" className="text-[10px]">
+                  🎬 Video: {mediaLib.filter((m) => m.kind === "video").length}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {mediaLib.map((m) => {
+                  const isVideo = m.kind === "video";
+                  return (
+                    <div key={m.id} className="overflow-hidden rounded-xl border bg-white">
+                      <div className="relative aspect-square bg-slate-100">
+                        {isVideo && m.public_url ? (
+                          <>
+                            <video
+                              src={m.public_url}
+                              poster={m.thumbnail_url ?? undefined}
+                              className="h-full w-full object-cover"
+                              preload="metadata"
+                              muted
+                              playsInline
+                              onMouseEnter={(e) => { void (e.currentTarget as HTMLVideoElement).play(); }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLVideoElement).pause(); }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none opacity-100 transition-opacity">
+                              <div className="rounded-full bg-white/90 p-2 shadow-md">
+                                <Play className="h-4 w-4 fill-slate-900 text-slate-900" />
+                              </div>
+                            </div>
+                          </>
+                        ) : m.public_url ? (
+                          <img
+                            src={m.public_url}
+                            alt={m.name}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center">
+                            <ImageIcon className="h-8 w-8 text-slate-300" />
+                          </div>
                         )}
-                      >
-                        {m.source === "ai_generated" ? "AI" : "Upload"}
-                      </Badge>
-                      {m.aspect_ratio && (
-                        <Badge variant="outline" className="text-[9px] text-slate-500">
-                          {m.aspect_ratio}
-                        </Badge>
-                      )}
+                      </div>
+                      <div className="p-2">
+                        <p className="truncate text-xs font-semibold text-slate-900">{m.name}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[9px]",
+                              m.source === "ai_generated"
+                                ? "border-violet-200 bg-violet-50 text-violet-700"
+                                : "border-slate-200 bg-slate-50 text-slate-600",
+                            )}
+                          >
+                            {m.source === "ai_generated" ? "AI" : "Upload"}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[9px]",
+                              isVideo
+                                ? "border-rose-200 bg-rose-50 text-rose-700"
+                                : "border-blue-200 bg-blue-50 text-blue-700",
+                            )}
+                          >
+                            {isVideo ? "🎬 Video" : "🖼️ Img"}
+                          </Badge>
+                          {m.aspect_ratio && (
+                            <Badge variant="outline" className="text-[9px] text-slate-500">
+                              {m.aspect_ratio}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

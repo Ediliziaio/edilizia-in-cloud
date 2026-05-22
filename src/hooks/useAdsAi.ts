@@ -27,6 +27,10 @@ export interface CopyGenInput {
 
 export interface CopyGenResult {
   copy_variants: string[];
+  /** Titoli brevi punchy (≤40 char) per headline ad */
+  titles?: string[];
+  /** Descrizioni / primary text 90-180 char */
+  descriptions?: string[];
   hooks: string[];
   cta_suggestions: string[];
   image_prompts: string[];
