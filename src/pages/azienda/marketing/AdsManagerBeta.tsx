@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -4020,6 +4020,15 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
 
   // ─── Image generator (prompt SEPARATO dal brief) ──────────────────
   const [imagePrompt, setImagePrompt] = useState(brief);
+  // Traccia l'ultimo brief sincronizzato: se imagePrompt === prevBriefRef.current
+  // allora l'utente non ha modificato manualmente il prompt → si può aggiornare.
+  const prevBriefRef = useRef(brief);
+  useEffect(() => {
+    if (imagePrompt === prevBriefRef.current) {
+      setImagePrompt(brief);
+    }
+    prevBriefRef.current = brief;
+  }, [brief]); // eslint-disable-line react-hooks/exhaustive-deps
   const [aspectRatio, setAspectRatio] = useState<"1:1" | "4:5" | "9:16" | "16:9">("4:5");
   const [imageQuality, setImageQuality] = useState<"standard" | "hd">("standard");
   const [lastGeneratedImage, setLastGeneratedImage] = useState<{ public_url: string; width_px: number; height_px: number; cost_eur_cents?: number } | null>(null);
@@ -4322,6 +4331,14 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
               {isGeneratingCopy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {isGeneratingCopy ? "Generazione copy..." : "Genera 5 copy con AI"}
             </Button>
+
+            {isGeneratingCopy && (
+              <div className="space-y-2 rounded-xl border border-violet-100 bg-violet-50/40 p-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-16 animate-pulse rounded-lg bg-violet-100/70" />
+                ))}
+              </div>
+            )}
 
             {!generatedCopy && !isGeneratingCopy && (
               <div className="rounded-xl border border-dashed border-violet-100 bg-gradient-to-b from-violet-50/60 to-transparent p-4">
@@ -6060,20 +6077,6 @@ function PerformancePanel({
       onSync={syncNow}
       targetCplCents={targetCplCents}
     />
-  );
-}
-
-function SettingsCheck({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border bg-white p-3">
-      <div>
-        <p className="text-sm font-semibold text-slate-950">{label}</p>
-        <p className="text-xs text-slate-500">{detail}</p>
-      </div>
-      <Badge variant="outline" className={ok ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
-        {ok ? "OK" : "Da configurare"}
-      </Badge>
-    </div>
   );
 }
 
