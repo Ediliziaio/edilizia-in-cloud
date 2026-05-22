@@ -209,6 +209,8 @@ function buildGraphData(
   filterPersona: string | null,
   filterType: string | null,
   colorMode: ColorMode,
+  viewMode: "galaxy" | "detail",
+  expandedPersonas: Set<string>,
 ): GraphBuildResult {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
@@ -229,30 +231,50 @@ function buildGraphData(
   const oldest = Math.min(...filtered.map((m) => new Date(m.created_at).getTime()), now);
   const timeRange = Math.max(1, now - oldest);
 
-  // Persona nodes
+  // Persona nodes — dimensione proporzionale al # memorie (visione "galassia")
   const personaMap = new Map(personas.map((p) => [p.persona_key, p]));
+  const memoriesPerPersona = new Map<string, number>();
+  for (const m of filtered) {
+    memoriesPerPersona.set(m.persona_key, (memoriesPerPersona.get(m.persona_key) ?? 0) + 1);
+  }
+  const maxMemCount = Math.max(1, ...memoriesPerPersona.values());
+
   for (const pKey of activePersonaKeys) {
     const p = personaMap.get(pKey);
     if (!p) continue;
     const catColor = PERSONA_CATEGORY_COLORS[p.category] ?? PERSONA_CATEGORY_COLORS.default;
+    const memCount = memoriesPerPersona.get(pKey) ?? 0;
+
+    // In galaxy mode: dimensione grande proporzionale (12-30)
+    // In detail mode: dimensione fissa media (10)
+    const size = viewMode === "galaxy"
+      ? 12 + Math.round((memCount / maxMemCount) * 18)
+      : 10;
+
     nodes.push({
       id: `p_${p.persona_key}`,
-      label: p.display_name,
+      label: `${p.display_name}${viewMode === "galaxy" ? ` · ${memCount}` : ""}`,
       fill: catColor,
-      size: 10,
+      size,
       labelVisible: true,         // Persona labels sempre visibili
-      // #3: cluster by persona category
       cluster: `cat_${p.category}`,
-      data: { type: "persona", persona: p },
+      data: { type: "persona", persona: p, memoryCount: memCount },
     });
     connectionsMap.set(`p_${p.persona_key}`, new Set());
   }
 
   // Memory nodes + edges
+  // In galaxy mode mostriamo SOLO le memorie delle personas espanse — il resto
+  // resta "compresso" nel nodo persona (size proporzionale)
+  const showAllMemories = viewMode === "detail";
+  const visibleMemories = showAllMemories
+    ? filtered
+    : filtered.filter((m) => expandedPersonas.has(m.persona_key));
+
   const keywordsMap = new Map<string, Set<string>>();
   const memoryByPersona = new Map<string, string[]>(); // persona_key → [memId, ...]
 
-  for (const m of filtered) {
+  for (const m of visibleMemories) {
     const memId = `m_${m.id}`;
     const hits = m.hits_count ?? 0;
     const size = Math.min(6, Math.max(2, 2 + Math.log2(hits + 1)));
@@ -315,14 +337,23 @@ function buildGraphData(
   }
 
   // Memory ↔ Memory cross-edges (semantic overlap)
+  // Per calcolare i ponti cross-persona ho bisogno di analizzare TUTTE le memorie
+  // anche se non sono visualizzate (in galaxy mode). Calcolo le cross-persona
+  // da tutte le filtered, ma genero edges memory↔memory solo per memorie visibili.
+  const allKeywordsMap = new Map<string, Set<string>>();
+  for (const m of filtered) {
+    allKeywordsMap.set(`m_${m.id}`, extractKeywords(m.content));
+  }
+  const allMemIds = [...allKeywordsMap.keys()];
+
   const memIds = [...keywordsMap.keys()];
   const crossEdgeSet = new Set<string>();
   for (let i = 0; i < memIds.length; i++) {
     const kwA = keywordsMap.get(memIds[i])!;
-    const memA = filtered.find((m) => `m_${m.id}` === memIds[i])!;
+    const memA = visibleMemories.find((m) => `m_${m.id}` === memIds[i])!;
     for (let j = i + 1; j < memIds.length; j++) {
       const kwB = keywordsMap.get(memIds[j])!;
-      const memB = filtered.find((m) => `m_${m.id}` === memIds[j])!;
+      const memB = visibleMemories.find((m) => `m_${m.id}` === memIds[j])!;
       let overlap = 0;
       for (const w of kwA) {
         if (kwB.has(w)) overlap++;
@@ -360,22 +391,53 @@ function buildGraphData(
     }
   }
 
-  // #2: Add cross-persona edges (dashed)
-  for (const [pA, targets] of crossPersonaLinks) {
+  // Calcolo cross-persona da TUTTE le memorie (anche non visibili in galaxy mode)
+  // per mostrare i ponti persona↔persona corretti
+  const allCrossPersona = new Map<string, Map<string, number>>();
+  for (let i = 0; i < allMemIds.length; i++) {
+    const kwA = allKeywordsMap.get(allMemIds[i])!;
+    const memA = filtered.find((m) => `m_${m.id}` === allMemIds[i]);
+    if (!memA) continue;
+    for (let j = i + 1; j < allMemIds.length; j++) {
+      const kwB = allKeywordsMap.get(allMemIds[j])!;
+      const memB = filtered.find((m) => `m_${m.id}` === allMemIds[j]);
+      if (!memB || memA.persona_key === memB.persona_key) continue;
+      let overlap = 0;
+      for (const w of kwA) {
+        if (kwB.has(w)) overlap++;
+        if (overlap >= KEYWORD_OVERLAP_THRESHOLD) break;
+      }
+      if (overlap >= KEYWORD_OVERLAP_THRESHOLD) {
+        const [pA, pB] = [memA.persona_key, memB.persona_key].sort();
+        if (!allCrossPersona.has(pA)) allCrossPersona.set(pA, new Map());
+        const existing = allCrossPersona.get(pA)!.get(pB) ?? 0;
+        allCrossPersona.get(pA)!.set(pB, existing + 1);
+      }
+    }
+  }
+
+  // #2: Add cross-persona edges
+  for (const [pA, targets] of allCrossPersona) {
     for (const [pB, count] of targets) {
-      if (count >= 1) {
+      if (count >= 1 && activePersonaKeys.has(pA) && activePersonaKeys.has(pB)) {
         edges.push({
           id: `e_xp_${pA}_${pB}`,
           source: `p_${pA}`,
           target: `p_${pB}`,
-          size: Math.min(3, 0.8 + count * 0.4),
-          fill: "#f9731688", // semi-transparent orange to distinguish from solid edges
-          label: `${count} link`,
+          size: Math.min(4, 0.8 + count * 0.4),
+          fill: "#fb923c", // orange-400 ben visibile su nero
+          label: `${count}`,
         });
         connectionsMap.get(`p_${pA}`)?.add(`p_${pB}`);
         connectionsMap.get(`p_${pB}`)?.add(`p_${pA}`);
       }
     }
+  }
+
+  // Aggiorna crossPersonaLinks con il calcolo completo (per insights)
+  crossPersonaLinks.clear();
+  for (const [pA, targets] of allCrossPersona) {
+    crossPersonaLinks.set(pA, targets);
   }
 
   return { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks };
@@ -462,7 +524,7 @@ function computeInsights(
 
 // ─── Custom dark theme ────────────────────────────────────────────────────────
 
-// Theme ispirato a knowledge graph viz professionali (sfondo dark + grid)
+// Theme ispirato a knowledge graph viz professionali (sfondo nero deep)
 const BRAIN_THEME = {
   ...lightTheme,
   canvas: {
@@ -489,15 +551,16 @@ const BRAIN_THEME = {
   },
   edge: {
     ...lightTheme.edge,
-    fill: "#475569",                // slate-600 (sottile su dark)
+    fill: "#64748b",                // slate-500
     activeFill: "#fb923c",
-    opacity: 0.18,                  // molto sottile come riferimento
-    selectedOpacity: 0.9,
-    inactiveOpacity: 0.03,
+    opacity: 0.5,                   // edges visibili ma non invadenti
+    selectedOpacity: 1,
+    inactiveOpacity: 0.08,
     label: {
       ...lightTheme.edge.label,
-      color: "#94a3b8",
-      activeColor: "#f1f5f9",
+      color: "#cbd5e1",
+      activeColor: "#ffffff",
+      fontSize: 4,
     },
   },
   arrow: {
@@ -509,16 +572,16 @@ const BRAIN_THEME = {
     activeFill: "#f97316",
   },
   cluster: {
-    stroke: "#334155",              // slate-700
-    fill: "#1e293b",
-    opacity: 0.25,
-    selectedOpacity: 0.5,
-    inactiveOpacity: 0.05,
+    stroke: "#1e1e1e",
+    fill: "#0a0a0a",
+    opacity: 0,                    // anelli cluster invisibili (riducono rumore)
+    selectedOpacity: 0,
+    inactiveOpacity: 0,
     label: {
-      stroke: "#0f172a",
-      color: "#94a3b8",
-      fontSize: 3,
-      offset: [0, -2, 0] as [number, number, number],
+      stroke: "#000000",
+      color: "transparent",         // niente label cluster automatici
+      fontSize: 0,
+      offset: [0, 0, 0] as [number, number, number],
     },
   },
   lasso: {
@@ -540,6 +603,8 @@ export default function AIBrainGraph() {
   const [fullscreen, setFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [colorMode, setColorMode] = useState<ColorMode>("cluster");
+  const [viewMode, setViewMode] = useState<"galaxy" | "detail">("galaxy"); // galaxy=solo persone, detail=tutte le memorie
+  const [expandedPersonas, setExpandedPersonas] = useState<Set<string>>(new Set());
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [hoveredEdge, setHoveredEdge] = useState<{ id: string; x: number; y: number } | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
@@ -606,8 +671,8 @@ export default function AIBrainGraph() {
   // ── Build graph ───────────────────────────────────────────────────────────
 
   const graphData = useMemo(
-    () => buildGraphData(personas, memories, filterPersona, filterType, colorMode),
-    [personas, memories, filterPersona, filterType, colorMode],
+    () => buildGraphData(personas, memories, filterPersona, filterType, colorMode, viewMode, expandedPersonas),
+    [personas, memories, filterPersona, filterType, colorMode, viewMode, expandedPersonas],
   );
 
   const { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks } = graphData;
@@ -648,8 +713,20 @@ export default function AIBrainGraph() {
   // ── Interactions ──────────────────────────────────────────────────────────
 
   const handleNodeClick = useCallback((node: InternalGraphNode) => {
+    // In galaxy mode: click su persona = toggle expand/collapse
+    if (viewMode === "galaxy" && node.data?.type === "persona") {
+      const pKey = node.data.persona.persona_key;
+      setExpandedPersonas((prev) => {
+        const next = new Set(prev);
+        if (next.has(pKey)) next.delete(pKey);
+        else next.add(pKey);
+        return next;
+      });
+      setSelectedNode(node);
+      return;
+    }
     setSelectedNode((prev) => prev?.id === node.id ? null : node);
-  }, []);
+  }, [viewMode]);
 
   // #5: Double-click persona → zoom cinematico
   const handleNodeDoubleClick = useCallback((node: InternalGraphNode) => {
@@ -805,14 +882,15 @@ export default function AIBrainGraph() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  // Dark grid background (CSS-only, no extra deps)
+  // Dark elegant background — nero deep con sottile radial gradient + grid
   const gridBgStyle: React.CSSProperties = {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#000000",
     backgroundImage: `
-      linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px)
+      radial-gradient(ellipse at center, rgba(30, 30, 50, 0.4) 0%, transparent 70%),
+      linear-gradient(rgba(100, 100, 130, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(100, 100, 130, 0.04) 1px, transparent 1px)
     `,
-    backgroundSize: "32px 32px",
+    backgroundSize: "100% 100%, 40px 40px, 40px 40px",
   };
 
   if (isLoading) {
@@ -909,6 +987,36 @@ export default function AIBrainGraph() {
               </button>
             )}
           </div>
+          {/* View mode: Galassia vs Dettaglio */}
+          <div className="flex items-center bg-slate-900/80 rounded-md border border-slate-700 backdrop-blur-sm shadow-sm overflow-hidden">
+            <button
+              className={cn(
+                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors",
+                viewMode === "galaxy"
+                  ? "bg-orange-500 text-white"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
+              )}
+              onClick={() => { setViewMode("galaxy"); setExpandedPersonas(new Set()); }}
+              title="Galassia: solo personas (click per espandere cluster)"
+            >
+              <Brain className="h-3 w-3" />
+              Galassia
+            </button>
+            <button
+              className={cn(
+                "h-7 px-2 text-[10px] flex items-center gap-1 transition-colors border-l border-slate-700",
+                viewMode === "detail"
+                  ? "bg-orange-500 text-white"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/80",
+              )}
+              onClick={() => setViewMode("detail")}
+              title="Dettaglio: tutte le memorie visibili"
+            >
+              <Sparkles className="h-3 w-3" />
+              Dettaglio
+            </button>
+          </div>
+
           {/* Color mode segmented control */}
           <div className="flex items-center bg-slate-900/80 rounded-md border border-slate-700 backdrop-blur-sm shadow-sm overflow-hidden">
             <button
@@ -1006,6 +1114,18 @@ export default function AIBrainGraph() {
           </Button>
         </div>
       </div>
+
+      {/* Galaxy mode hint */}
+      {viewMode === "galaxy" && expandedPersonas.size === 0 && nodes.length > 0 && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="bg-slate-900/85 backdrop-blur-sm rounded-full border border-slate-700 px-3 py-1 shadow-lg">
+            <p className="text-[10px] text-slate-300 flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3 text-orange-400" />
+              Click su una persona per espandere il suo cluster di memorie
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Search results count ──────────────────────────────────────────── */}
       {searchSelections !== null && (
@@ -1308,11 +1428,30 @@ export default function AIBrainGraph() {
                       </div>
                     );
                   })()}
-                  <div className="flex gap-1.5 mt-2">
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {viewMode === "galaxy" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 text-[10px] text-orange-400 hover:text-orange-300 hover:bg-orange-500/20 gap-1 px-2 bg-orange-500/10 border border-orange-500/30"
+                        onClick={() => {
+                          const pKey = selectedNode.data.persona.persona_key;
+                          setExpandedPersonas((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(pKey)) next.delete(pKey);
+                            else next.add(pKey);
+                            return next;
+                          });
+                        }}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        {expandedPersonas.has(selectedNode.data.persona.persona_key) ? "Comprimi" : "Espandi"}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 text-[10px] text-orange-600 hover:text-orange-700 hover:bg-orange-50 gap-1 px-2"
+                      className="h-6 text-[10px] text-orange-400 hover:text-orange-300 hover:bg-orange-500/20 gap-1 px-2"
                       onClick={() => {
                         setFilterPersona(selectedNode.data.persona.persona_key);
                         setSelectedNode(null);
