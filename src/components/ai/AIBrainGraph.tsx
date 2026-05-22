@@ -265,8 +265,8 @@ function buildGraphData(
     const memCount = memoriesPerPersona.get(p.persona_key) ?? 0;
 
     const size = viewMode === "galaxy"
-      ? 20 + Math.round((memCount / maxMemCount) * 18)   // hub 20-38 (era 14-30)
-      : 11;
+      ? 12 + Math.round((memCount / maxMemCount) * 10)   // hub 12-22 (più contenuti)
+      : 9;
 
     // Layout circolare deterministico in 2D galaxy puro
     const angle = (i / activePersonasList.length) * Math.PI * 2 - Math.PI / 2;
@@ -1771,9 +1771,9 @@ export default function AIBrainGraph() {
         }}
         sizingType="attribute"
         sizingAttribute="size"
-        defaultNodeSize={4}
-        minNodeSize={2}
-        maxNodeSize={10}
+        defaultNodeSize={3}
+        minNodeSize={1.5}
+        maxNodeSize={5}
         animated
         draggable
         labelType="nodes"
