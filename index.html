@@ -178,18 +178,18 @@
     <!-- No static canonical fallback — dynamic JS or SSR sets the correct one per route -->
     <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co">
 
-    <!-- Speculation Rules: prerender /demo /prezzi /funzionalita on idle -->
+    <!-- Speculation Rules: prefetch HTML only on hover/click.
+         v9.5 cdn-fix: removed `prerender` (moderate) — it was eagerly
+         downloading entire pages (including jspdf 127KB, vendor-animation,
+         vendor-maps, vendor-charts) on home load → lag su mobile.
+         Now uses lightweight `prefetch` con eagerness "conservative":
+         scarica SOLO l'HTML target quando l'utente hovera/clicka un link,
+         non blocca il caricamento iniziale della home. -->
     <script type="speculationrules">
     {
-      "prerender": [
-        {
-          "urls": ["/demo/", "/prezzi/", "/funzionalita/"],
-          "eagerness": "moderate"
-        }
-      ],
       "prefetch": [
         {
-          "urls": ["/blog/", "/confronto/", "/chi-siamo/", "/casi-studio/"],
+          "urls": ["/demo/", "/prezzi/", "/funzionalita/", "/blog/", "/confronto/", "/chi-siamo/", "/casi-studio/"],
           "eagerness": "conservative"
         }
       ]
