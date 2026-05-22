@@ -1,10 +1,11 @@
 /**
- * AIPersonasHub — v8.6.72 (rev. 2026-05-20)
+ * AIPersonasHub — v8.6.73 (rev. 2026-05-22)
  *
- * Hub unificato per le 18 AI Personas — fonde 3 viste in una pagina sola:
+ * Hub unificato per le 18 AI Personas — fonde 4 viste in una pagina sola:
  *   1. 💬 Chat        — interfaccia conversazionale (era /azienda/assistente-ai)
  *   2. 🧠 Memoria     — fatti/preferenze/decisioni che le AI ricordano (era /impostazioni/ai-memoria)
- *   3. 📜 Sessioni    — storico conversazioni (placeholder, futuro)
+ *   3. 🕸️ Cervello    — knowledge graph interattivo 3D (reagraph WebGL)
+ *   4. 📜 Sessioni    — storico conversazioni (placeholder, futuro)
  *
  * Razionale UX:
  * Prima erano 2 pagine separate ("Assistente AI" vs "Memoria AI Personas") con
@@ -23,13 +24,14 @@ import { useSearchParams } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Brain, MessageSquare, History } from "lucide-react";
+import { Brain, MessageSquare, History, Network } from "lucide-react";
 
 const AssistenteAIPage = lazy(() => import("@/pages/azienda/AssistenteAIPage"));
 const AIMemoryPage = lazy(() => import("@/pages/azienda/AIMemoryPage"));
 const AIPersonasSessionsTab = lazy(() => import("./AIPersonasSessionsTab"));
+const AIBrainGraph = lazy(() => import("@/components/ai/AIBrainGraph"));
 
-const VALID_TABS = ["chat", "memoria", "sessioni"] as const;
+const VALID_TABS = ["chat", "memoria", "cervello", "sessioni"] as const;
 type TabKey = (typeof VALID_TABS)[number];
 
 function isValidTab(v: string | null): v is TabKey {
@@ -50,7 +52,7 @@ export default function AIPersonasHub() {
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid grid-cols-3 max-w-xl">
+        <TabsList className="grid grid-cols-4 max-w-2xl">
           <TabsTrigger value="chat" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Chat
@@ -58,6 +60,10 @@ export default function AIPersonasHub() {
           <TabsTrigger value="memoria" className="gap-2">
             <Brain className="h-4 w-4" />
             Memoria
+          </TabsTrigger>
+          <TabsTrigger value="cervello" className="gap-2">
+            <Network className="h-4 w-4" />
+            Cervello
           </TabsTrigger>
           <TabsTrigger value="sessioni" className="gap-2">
             <History className="h-4 w-4" />
@@ -74,6 +80,12 @@ export default function AIPersonasHub() {
         <TabsContent value="memoria" className="mt-4">
           <Suspense fallback={<TabSkeleton />}>
             <AIMemoryPage embedded />
+          </Suspense>
+        </TabsContent>
+
+        <TabsContent value="cervello" className="mt-4">
+          <Suspense fallback={<TabSkeleton />}>
+            <AIBrainGraph />
           </Suspense>
         </TabsContent>
 
