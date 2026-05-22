@@ -31,6 +31,7 @@ import { BrainInsightFeed } from "./BrainInsightFeed";
 import { BrainSemanticSearch } from "./BrainSemanticSearch";
 import { BrainPersonaStats } from "./BrainPersonaStats";
 import { BrainOnboardingTour } from "./BrainOnboardingTour";
+import { BrainMascot } from "./BrainMascot";
 import { GraphCanvas, lightTheme, type GraphNode, type GraphEdge, type GraphCanvasRef } from "reagraph";
 import type { InternalGraphNode, InternalGraphEdge } from "reagraph";
 import { Badge } from "@/components/ui/badge";
@@ -1369,6 +1370,26 @@ export default function AIBrainGraph() {
       {/* Onboarding tour (solo primo accesso, persistito in localStorage) */}
       <BrainOnboardingTour />
 
+      {/* Brain mascot (chiacchiera in basso a destra) */}
+      <BrainMascot
+        memories={memories}
+        personas={personas}
+        crossPersonaLinks={crossPersonaLinks}
+        onNodeClick={(nodeId) => {
+          if (nodeId.startsWith("m_") && viewMode === "galaxy") {
+            const mem = memories.find((m) => `m_${m.id}` === nodeId);
+            if (mem && !expandedPersonas.has(mem.persona_key)) {
+              setExpandedPersonas((prev) => new Set([...prev, mem.persona_key]));
+            }
+          }
+          setTimeout(() => {
+            graphRef.current?.fitNodesInView([nodeId], { fitOnlyIfNodesNotInView: false });
+            const node = nodes.find((n) => n.id === nodeId);
+            if (node) setSelectedNode(node as unknown as InternalGraphNode);
+          }, 100);
+        }}
+      />
+
       {/* LIVE heartbeat indicator */}
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
         <div
@@ -2047,30 +2068,21 @@ export default function AIBrainGraph() {
         // apparivano come puntini neri parassiti nel grafo. La logica di
         // raggruppamento visivo è già nei colori dei nodi e nelle posizioni.
         layoutOverrides={{
-          // 2D galaxy pure: TUTTE le forze quasi zero → fx/fy comandano,
-          //   layout fisso e stabile dal primo render (no shrink animation)
+          // 2D (galaxy + detail con fx/fy precomputed): TUTTE le forze a 0
+          //   → fx/fy comandano interamente, nessuno spostamento, cerchio perfetto
           // 3D Nucleo: forze attrattive forti → nodi compatti come un atomo
-          // Detail/expanded: forze normali per layout dinamico
-          clusterStrength: viewDim === "core"
-            ? 0
-            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 2.0),
-          nodeStrength: viewDim === "core"
-            ? -100
-            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? -5 : -400),
-          linkDistance: viewDim === "core"
-            ? 60
-            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 100 : 80),
-          linkStrengthIntraCluster: viewDim === "core" ? 1.0 : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 0.7),
-          linkStrengthInterCluster: viewDim === "core"
-            ? 0.5
-            : (viewMode === "galaxy" && expandedPersonas.size === 0 ? 0 : 0.02),
+          clusterStrength: viewDim === "core" ? 0 : 0,
+          nodeStrength: viewDim === "core" ? -100 : 0,
+          linkDistance: viewDim === "core" ? 60 : 1,
+          linkStrengthIntraCluster: viewDim === "core" ? 1.0 : 0,
+          linkStrengthInterCluster: viewDim === "core" ? 0.5 : 0,
         }}
         sizingType="attribute"
         sizingAttribute="size"
         defaultNodeSize={3}
         minNodeSize={1.5}
         maxNodeSize={5}
-        animated={!(viewMode === "galaxy" && expandedPersonas.size === 0 && viewDim === "2d")}
+        animated={viewDim !== "2d"}
         draggable
         labelType="nodes"
         edgeInterpolation="curved"
