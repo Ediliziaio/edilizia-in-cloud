@@ -218,7 +218,12 @@ AS $$
   counted AS (
     SELECT g.*, COUNT(*) OVER ()::integer AS total_count
     FROM grouped g
-    ORDER BY g.last_received_at DESC
+  ),
+  ranked AS (
+    SELECT
+      c.*,
+      ROW_NUMBER() OVER (ORDER BY c.last_received_at DESC NULLS LAST) AS row_index
+    FROM counted c
   )
   SELECT
     c.id,
@@ -236,9 +241,10 @@ AS $$
     c.ai_category,
     c.ai_priority,
     c.total_count
-  FROM counted c, params p
-  LIMIT p.safe_limit
-  OFFSET p.safe_offset;
+  FROM ranked c, params p
+  WHERE c.row_index > p.safe_offset
+    AND c.row_index <= (p.safe_offset + p.safe_limit)
+  ORDER BY c.last_received_at DESC NULLS LAST;
 $$;
 
 REVOKE ALL ON FUNCTION public.email_list_threads(
