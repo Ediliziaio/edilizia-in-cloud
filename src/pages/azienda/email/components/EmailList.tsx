@@ -383,6 +383,7 @@ export function EmailList({ filter, selectedThreadId, onSelectThread }: EmailLis
     isLoading,
     isError,
     error,
+    refetch,
     fetchNextPage,
     hasNextPage,
     isFetching,
@@ -412,8 +413,27 @@ export function EmailList({ filter, selectedThreadId, onSelectThread }: EmailLis
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-[76px] rounded-2xl" />)}
         </div>
       ) : isError ? (
-        <div className="m-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
-          Errore caricamento email: {error instanceof Error ? error.message : "riprova tra poco"}
+        <div className="m-3 space-y-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 text-sm text-rose-700">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-semibold">Errore caricamento email</p>
+              <p className="mt-0.5 text-rose-600">
+                {error instanceof Error ? error.message : "Riprova tra poco."}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl border-rose-200 bg-white text-rose-700 hover:bg-rose-100"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+          >
+            {isFetching && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            Riprova
+          </Button>
         </div>
       ) : isEmpty ? (
         <ListEmptyState filter={filter} />

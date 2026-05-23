@@ -228,7 +228,12 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
   });
 
   useEffect(() => {
-    if (!accountId && connections && connections.length > 0) {
+    if (!connections) return;
+    if (connections.length === 0) {
+      if (accountId) setAccountId("");
+      return;
+    }
+    if (!accountId || !connections.some((connection) => connection.id === accountId)) {
       setAccountId(connections[0].id);
     }
   }, [connections, accountId]);
@@ -375,6 +380,7 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
   });
 
   const isSending = sendMutation.isPending;
+  const hasActiveSender = !!accountId && !!connections?.some((connection) => connection.id === accountId);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !isSending && onOpenChange(o)}>
@@ -409,6 +415,11 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {connections && connections.length === 0 && (
+            <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Collega una casella email attiva dalle impostazioni per inviare messaggi.
             </div>
           )}
 
@@ -521,7 +532,7 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-blue-100 bg-slate-50 px-4 py-3">
           <Button
             onClick={() => sendMutation.mutate()}
-            disabled={isSending}
+            disabled={isSending || !hasActiveSender}
             className="gap-2 rounded-xl bg-blue-600 hover:bg-blue-700"
           >
             {isSending ? (

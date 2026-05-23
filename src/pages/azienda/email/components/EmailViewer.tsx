@@ -322,9 +322,12 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
     },
     onSuccess: () => {
       toast.success("Conversazione archiviata");
+      qc.invalidateQueries({ queryKey: ["email-thread-messages", threadId] });
       qc.invalidateQueries({ queryKey: ["email-threads"] });
+      qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
       onClose();
     },
+    onError: (e) => toast.error("Archiviazione fallita", { description: String(e) }),
   });
 
   const summarizeMutation = useMutation({
@@ -424,9 +427,12 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
     },
     onSuccess: () => {
       toast.success("Spostato nel cestino");
+      qc.invalidateQueries({ queryKey: ["email-thread-messages", threadId] });
       qc.invalidateQueries({ queryKey: ["email-threads"] });
+      qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
       onClose();
     },
+    onError: (e) => toast.error("Spostamento nel cestino fallito", { description: String(e) }),
   });
 
   const subject = messages?.[0]?.subject ?? "(senza oggetto)";
