@@ -2,7 +2,6 @@ import {
   AlertTriangle,
   CalendarCheck,
   Euro,
-  Loader2,
   Target,
   Trophy,
   Users,
@@ -15,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdsSalesReport } from "@/hooks/useAdsSalesReport";
 import { cn } from "@/lib/utils";
-import type { AdsSalesPlatform, AdsSalesProviderFilter, AdsSalesReportRow } from "@/lib/reporting/adsSalesReport";
+import type { AdsSalesPlatform, AdsSalesProviderFilter } from "@/lib/reporting/adsSalesReport";
 
 const PROVIDER_LABEL: Record<AdsSalesProviderFilter, string> = {
   all: "Meta + Google",

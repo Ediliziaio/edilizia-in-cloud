@@ -19,7 +19,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
-import { generateEmbeddingsBatch, contentHash, chunkText } from "../_shared/brainEmbed.ts";
+import { generateEmbeddingsBatch, contentHash, chunkTextSliding } from "../_shared/brainEmbed.ts";
 import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 
 interface IngestItem {
@@ -41,6 +41,7 @@ interface BackfillSource {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_CHUNKS_PER_REQUEST = 1000;
 
 function normalizeUuid(value?: string | null): string | null {
   const clean = String(value ?? "").trim();
@@ -145,7 +146,7 @@ serve(async (req: Request) => {
       .from("profiles").select("company_id").eq("id", userId).maybeSingle();
     const companyId: string | null = profile?.company_id ?? null;
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
-    await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
+    const access = await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
 
     const body = await req.json();
     const mode = body?.mode ?? "items";
@@ -233,13 +234,38 @@ serve(async (req: Request) => {
       return jsonResponse({ ok: true, ingested: 0, message: "Nessun item da ingestare" }, 200, corsHeaders);
     }
 
+    const hasUniversalScope = items.some((item) => normalizeScope(item) === "universal");
+    if (hasUniversalScope && !access.isSuperAdmin) {
+      return errorResponse("Forbidden: solo super_admin può scrivere nel Brain universale", 403, corsHeaders);
+    }
+
     // ── Chunking + embedding ────────────────────────────────────────────
     const chunks: Array<IngestItem & { chunk: string; hash: string }> = [];
     for (const item of items) {
-      for (const chunk of chunkText(item.content)) {
-        if (chunk.trim().length < 5) continue;
-        const hash = await contentHash(chunk);
-        chunks.push({ ...item, chunk, hash });
+      const baseMetadata = normalizeMetadata(item.metadata);
+      const itemChunks = chunkTextSliding(item.content);
+      if (chunks.length + itemChunks.length > MAX_CHUNKS_PER_REQUEST) {
+        return errorResponse(
+          `Troppi contenuti da indicizzare in una singola richiesta (${chunks.length + itemChunks.length} chunk, max ${MAX_CHUNKS_PER_REQUEST}). Riduci il batch o usa un backfill più piccolo.`,
+          413,
+          corsHeaders,
+        );
+      }
+
+      for (const chunk of itemChunks) {
+        const content = chunk.content.trim();
+        if (content.length < 5) continue;
+        const hash = await contentHash(content);
+        chunks.push({
+          ...item,
+          metadata: {
+            ...baseMetadata,
+            chunk_index: chunk.index,
+            chunk_total: chunk.total,
+          },
+          chunk: content,
+          hash,
+        });
       }
     }
 

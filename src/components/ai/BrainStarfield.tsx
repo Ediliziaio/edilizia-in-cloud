@@ -1,11 +1,11 @@
 /**
  * BrainStarfield — sfondo animato a stelle per AIBrainGraph.
  *
- * Disegna ~80 puntini luminosi su canvas che pulsano lentamente +
+ * Disegna ~50 puntini luminosi su canvas che pulsano lentamente +
  * 3-4 "stelle cadenti" che attraversano lo schermo. Effetto "spazio
  * profondo / cervello cosmico" senza dipendenze esterne.
  *
- * Performance: 60fps su qualsiasi macchina (canvas 2D semplice).
+ * Performance: target 30fps con canvas 2D leggero.
  * Si stoppa automaticamente quando il componente esce dal viewport
  * via IntersectionObserver.
  */
@@ -54,14 +54,14 @@ export function BrainStarfield() {
 
     let width = canvas.offsetWidth;
     let height = canvas.offsetHeight;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     const resize = () => {
       width = canvas.offsetWidth;
       height = canvas.offsetHeight;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      ctx.scale(dpr, dpr);
+      canvas.width = Math.max(1, Math.floor(width * dpr));
+      canvas.height = Math.max(1, Math.floor(height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
 

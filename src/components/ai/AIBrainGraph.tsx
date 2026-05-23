@@ -17,10 +17,10 @@
  *   9. Export screenshot PNG
  *  10. Stemming italiano basico per NLP migliore
  *
- * Tech: reagraph (WebGL, force-directed 3D) su React.
+ * Tech: SVG renderer proprietario, con posizioni deterministiche e fallback sicuro.
  */
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { forwardRef, useState, useMemo, useCallback, useRef, useEffect, useImperativeHandle } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -33,18 +33,15 @@ import { BrainPersonaStats } from "./BrainPersonaStats";
 import { BrainOnboardingTour } from "./BrainOnboardingTour";
 import { BrainMascot } from "./BrainMascot";
 import { BrainPersonaSheet } from "./BrainPersonaSheet";
-import { GraphCanvas, lightTheme, type GraphNode, type GraphEdge, type GraphCanvasRef } from "reagraph";
-import type { InternalGraphNode, InternalGraphEdge } from "reagraph";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Brain, Maximize2, Minimize2, RotateCcw,
-  Filter, X, Sparkles, Network, Search, Camera,
+  Filter, X, Sparkles, Network, Camera,
   Flame, Palette, ChevronRight, ChevronDown,
-  AlertTriangle, Link2, Zap, Ghost, Settings2,
+  Link2, Zap, Ghost, Settings2,
 } from "lucide-react";
 import {
   Popover, PopoverTrigger, PopoverContent,
@@ -70,6 +67,48 @@ interface PersonaLite {
   category: string;
   color: string | null;
   icon: string | null;
+}
+
+interface GraphNodeData {
+  type?: "persona" | "memory";
+  persona?: PersonaLite;
+  memory?: MemoryRow;
+  memoryCount?: number;
+  emoji?: string;
+  typeLabel?: string;
+  personaName?: string;
+  previewLabel?: string;
+  [key: string]: unknown;
+}
+
+interface GraphNode {
+  id: string;
+  label?: string;
+  fill?: string;
+  size?: number;
+  labelVisible?: boolean;
+  cluster?: string;
+  fx?: number;
+  fy?: number;
+  fz?: number;
+  data?: GraphNodeData;
+}
+
+interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  size?: number;
+  fill?: string;
+}
+
+type InternalGraphNode = GraphNode;
+type InternalGraphEdge = GraphEdge;
+
+interface BrainGraphCanvasHandle {
+  centerGraph: (ids?: string[]) => void;
+  fitNodesInView: (ids?: string[], options?: { fitOnlyIfNodesNotInView?: boolean }) => void;
+  exportCanvas: () => string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -118,17 +157,6 @@ const PERSONA_CATEGORY_EMOJI: Record<string, string> = {
   default:    "⚡",
 };
 
-/** Genera SVG data URI con emoji centrato (no background — il nodo colorato fa già da sfondo) */
-function emojiToIconUri(emoji: string): string {
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50%' y='50%' text-anchor='middle' dominant-baseline='central' font-size='70'>${emoji}</text></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-// Pre-compute icon URIs (statici per category)
-const PERSONA_ICONS: Record<string, string> = Object.fromEntries(
-  Object.entries(PERSONA_CATEGORY_EMOJI).map(([cat, emoji]) => [cat, emojiToIconUri(emoji)]),
-);
-
 // ─── Heat map colors (cold → hot) ────────────────────────────────────────────
 
 function heatColor(value: number): string {
@@ -164,6 +192,9 @@ const STOPWORDS = new Set([
 
 const MIN_KEYWORD_LEN = 3;
 const KEYWORD_OVERLAP_THRESHOLD = 2;
+const MAX_KEYWORD_BUCKET_SIZE = 50;
+const MAX_PAIR_CANDIDATES = 20_000;
+const MAX_VISIBLE_MEMORY_CROSS_EDGES = 180;
 
 // ─── #10: Italian stemmer (suffix stripping) ─────────────────────────────────
 // Riduce varianti morfologiche allo stesso stem senza dipendenze esterne.
@@ -222,6 +253,53 @@ function sharedKeywordsDisplay(textA: string, textB: string): string[] {
     }
   }
   return shared;
+}
+
+interface KeywordPairOverlap {
+  a: string;
+  b: string;
+  overlap: number;
+}
+
+function getPairKey(a: string, b: string) {
+  return a < b ? `${a}__${b}` : `${b}__${a}`;
+}
+
+function buildKeywordPairOverlaps(keywordMap: Map<string, Set<string>>): KeywordPairOverlap[] {
+  const inverted = new Map<string, string[]>();
+
+  for (const [nodeId, keywords] of keywordMap) {
+    for (const keyword of keywords) {
+      const list = inverted.get(keyword);
+      if (list) list.push(nodeId);
+      else inverted.set(keyword, [nodeId]);
+    }
+  }
+
+  const counts = new Map<string, { a: string; b: string; overlap: number }>();
+
+  for (const ids of inverted.values()) {
+    if (ids.length < 2 || ids.length > MAX_KEYWORD_BUCKET_SIZE) continue;
+
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = ids[i] < ids[j] ? ids[i] : ids[j];
+        const b = ids[i] < ids[j] ? ids[j] : ids[i];
+        const key = `${a}__${b}`;
+        const existing = counts.get(key);
+
+        if (existing) {
+          existing.overlap += 1;
+        } else if (counts.size < MAX_PAIR_CANDIDATES) {
+          counts.set(key, { a, b, overlap: 1 });
+        }
+      }
+    }
+  }
+
+  return [...counts.values()]
+    .filter((pair) => pair.overlap >= KEYWORD_OVERLAP_THRESHOLD)
+    .sort((a, b) => b.overlap - a.overlap);
 }
 
 // ─── Graph builder ────────────────────────────────────────────────────────────
@@ -286,10 +364,9 @@ function buildGraphData(
       return a.display_name.localeCompare(b.display_name);
     });
 
-  const isGalaxyPure = viewMode === "galaxy" && expandedPersonas.size === 0;
-  // Layout fisso: 2D = cerchio matematico, "core" 3D = sfera Fibonacci
+  // Layout fisso: 2D = cerchio matematico, 3D/core = sfera Fibonacci
   const useFixedCircle = viewDim === "2d";
-  const useFixedSphere = viewDim === "core";
+  const useFixedSphere = viewDim === "3d" || viewDim === "core";
   const RADIUS = 350;        // raggio cerchio (2D) o sfera (3D core)
   const MEM_RADIUS = 70;     // mini-orbite attorno a ogni persona
 
@@ -321,7 +398,7 @@ function buildGraphData(
     });
   }
 
-  activePersonasList.forEach((p, i) => {
+  activePersonasList.forEach((p) => {
     const catColor = PERSONA_CATEGORY_COLORS[p.category] ?? PERSONA_CATEGORY_COLORS.default;
     const memCount = memoriesPerPersona.get(p.persona_key) ?? 0;
 
@@ -359,6 +436,12 @@ function buildGraphData(
   const visibleMemories = showAllMemories
     ? filtered
     : filtered.filter((m) => expandedPersonas.has(m.persona_key));
+  const visibleMemoryByNodeId = new Map(visibleMemories.map((m) => [`m_${m.id}`, m] as const));
+  const filteredMemoryByNodeId = new Map(filtered.map((m) => [`m_${m.id}`, m] as const));
+  const allKeywordsMap = new Map<string, Set<string>>();
+  for (const m of filtered) {
+    allKeywordsMap.set(`m_${m.id}`, extractKeywords(m.content));
+  }
 
   const keywordsMap = new Map<string, Set<string>>();
   const memoryByPersona = new Map<string, string[]>(); // persona_key → [memId, ...]
@@ -459,87 +542,48 @@ function buildGraphData(
     if (!memoryByPersona.has(m.persona_key)) memoryByPersona.set(m.persona_key, []);
     memoryByPersona.get(m.persona_key)!.push(memId);
 
-    keywordsMap.set(memId, extractKeywords(m.content));
+    keywordsMap.set(memId, allKeywordsMap.get(memId) ?? extractKeywords(m.content));
   }
 
   // Memory ↔ Memory cross-edges (semantic overlap)
   // Per calcolare i ponti cross-persona ho bisogno di analizzare TUTTE le memorie
   // anche se non sono visualizzate (in galaxy mode). Calcolo le cross-persona
   // da tutte le filtered, ma genero edges memory↔memory solo per memorie visibili.
-  const allKeywordsMap = new Map<string, Set<string>>();
-  for (const m of filtered) {
-    allKeywordsMap.set(`m_${m.id}`, extractKeywords(m.content));
-  }
-  const allMemIds = [...allKeywordsMap.keys()];
+  const visiblePairOverlaps = buildKeywordPairOverlaps(keywordsMap)
+    .slice(0, MAX_VISIBLE_MEMORY_CROSS_EDGES);
 
-  const memIds = [...keywordsMap.keys()];
-  const crossEdgeSet = new Set<string>();
-  for (let i = 0; i < memIds.length; i++) {
-    const kwA = keywordsMap.get(memIds[i])!;
-    const memA = visibleMemories.find((m) => `m_${m.id}` === memIds[i])!;
-    for (let j = i + 1; j < memIds.length; j++) {
-      const kwB = keywordsMap.get(memIds[j])!;
-      const memB = visibleMemories.find((m) => `m_${m.id}` === memIds[j])!;
-      let overlap = 0;
-      for (const w of kwA) {
-        if (kwB.has(w)) overlap++;
-      }
-      if (overlap >= KEYWORD_OVERLAP_THRESHOLD) {
-        const edgeKey = `${memIds[i]}__${memIds[j]}`;
-        if (!crossEdgeSet.has(edgeKey)) {
-          crossEdgeSet.add(edgeKey);
-          const edgeId = `e_cross_${edgeKey}`;
-          edges.push({
-            id: edgeId,
-            source: memIds[i],
-            target: memIds[j],
-            size: Math.min(2, 0.5 + overlap * 0.3),
-            fill: "#475569",
-          });
+  for (const pair of visiblePairOverlaps) {
+    const memA = visibleMemoryByNodeId.get(pair.a);
+    const memB = visibleMemoryByNodeId.get(pair.b);
+    if (!memA || !memB) continue;
 
-          // #7: store shared keywords for tooltip
-          const shared = sharedKeywordsDisplay(memA.content, memB.content);
-          edgeKeywords.set(edgeId, shared);
+    const edgeKey = getPairKey(pair.a, pair.b);
+    const edgeId = `e_cross_${edgeKey}`;
+    edges.push({
+      id: edgeId,
+      source: pair.a,
+      target: pair.b,
+      size: Math.min(2, 0.5 + pair.overlap * 0.3),
+      fill: "#475569",
+    });
 
-          // Track connections
-          connectionsMap.get(memIds[i])?.add(memIds[j]);
-          connectionsMap.get(memIds[j])?.add(memIds[i]);
-
-          // #2: Track cross-persona links
-          if (memA.persona_key !== memB.persona_key) {
-            const [pA, pB] = [memA.persona_key, memB.persona_key].sort();
-            if (!crossPersonaLinks.has(pA)) crossPersonaLinks.set(pA, new Map());
-            const existing = crossPersonaLinks.get(pA)!.get(pB) ?? 0;
-            crossPersonaLinks.get(pA)!.set(pB, existing + 1);
-          }
-        }
-      }
-    }
+    edgeKeywords.set(edgeId, sharedKeywordsDisplay(memA.content, memB.content));
+    connectionsMap.get(pair.a)?.add(pair.b);
+    connectionsMap.get(pair.b)?.add(pair.a);
   }
 
   // Calcolo cross-persona da TUTTE le memorie (anche non visibili in galaxy mode)
   // per mostrare i ponti persona↔persona corretti
   const allCrossPersona = new Map<string, Map<string, number>>();
-  for (let i = 0; i < allMemIds.length; i++) {
-    const kwA = allKeywordsMap.get(allMemIds[i])!;
-    const memA = filtered.find((m) => `m_${m.id}` === allMemIds[i]);
-    if (!memA) continue;
-    for (let j = i + 1; j < allMemIds.length; j++) {
-      const kwB = allKeywordsMap.get(allMemIds[j])!;
-      const memB = filtered.find((m) => `m_${m.id}` === allMemIds[j]);
-      if (!memB || memA.persona_key === memB.persona_key) continue;
-      let overlap = 0;
-      for (const w of kwA) {
-        if (kwB.has(w)) overlap++;
-        if (overlap >= KEYWORD_OVERLAP_THRESHOLD) break;
-      }
-      if (overlap >= KEYWORD_OVERLAP_THRESHOLD) {
-        const [pA, pB] = [memA.persona_key, memB.persona_key].sort();
-        if (!allCrossPersona.has(pA)) allCrossPersona.set(pA, new Map());
-        const existing = allCrossPersona.get(pA)!.get(pB) ?? 0;
-        allCrossPersona.get(pA)!.set(pB, existing + 1);
-      }
-    }
+  for (const pair of buildKeywordPairOverlaps(allKeywordsMap)) {
+    const memA = filteredMemoryByNodeId.get(pair.a);
+    const memB = filteredMemoryByNodeId.get(pair.b);
+    if (!memA || !memB || memA.persona_key === memB.persona_key) continue;
+
+    const [pA, pB] = [memA.persona_key, memB.persona_key].sort();
+    if (!allCrossPersona.has(pA)) allCrossPersona.set(pA, new Map());
+    const existing = allCrossPersona.get(pA)!.get(pB) ?? 0;
+    allCrossPersona.get(pA)!.set(pB, existing + 1);
   }
 
   // #2: Add cross-persona edges
@@ -595,13 +639,18 @@ function computeInsights(
   personas: PersonaLite[],
 ): Insights {
   const personaMap = new Map(personas.map((p) => [p.persona_key, p]));
+  const memoryByNodeId = new Map(memories.map((m) => [`m_${m.id}`, m] as const));
+  const nodeLabel = (node: GraphNode | undefined) => {
+    const content = node?.data?.memory?.content ?? "";
+    return node?.label ?? node?.data?.previewLabel ?? (content.length > 80 ? `${content.slice(0, 77)}…` : content);
+  };
 
   // God nodes: memory nodes with most connections (excluding persona edges)
   const memoryNodes = nodes.filter((n) => n.data?.type === "memory");
   const ranked = memoryNodes
     .map((n) => ({
       id: n.id,
-      label: n.label ?? "",
+      label: nodeLabel(n),
       connections: (connectionsMap.get(n.id)?.size ?? 0),
     }))
     .sort((a, b) => b.connections - a.connections);
@@ -624,7 +673,7 @@ function computeInsights(
     if (connected) {
       for (const cId of connected) {
         if (cId.startsWith("m_")) {
-          const connMem = memories.find((mm) => `m_${mm.id}` === cId);
+          const connMem = memoryByNodeId.get(cId);
           if (connMem && connMem.persona_key !== m.persona_key) {
             bridgeSet.get(memId)!.add(connMem.persona_key);
           }
@@ -636,7 +685,7 @@ function computeInsights(
     .filter(([, pks]) => pks.size >= 2)
     .map(([memId, pks]) => ({
       id: memId,
-      label: nodes.find((n) => n.id === memId)?.label ?? "",
+      label: nodeLabel(nodes.find((n) => n.id === memId)),
       personasLinked: [...pks].map((pk) => personaMap.get(pk)?.display_name ?? pk),
     }))
     .sort((a, b) => b.personasLinked.length - a.personasLinked.length)
@@ -691,86 +740,318 @@ function computeInsights(
   return { godNodes, orphans, bridges, healthPct, healthBreakdown, totalCrossLinks };
 }
 
-// ─── Custom dark theme ────────────────────────────────────────────────────────
+// ─── Stable SVG graph renderer ────────────────────────────────────────────────
 
-// Theme ispirato a knowledge graph viz professionali (sfondo nero deep)
-const BRAIN_THEME = {
-  ...lightTheme,
-  canvas: {
-    background: "transparent",     // trasparente per mostrare grid background CSS
-    fog: null,
-  },
-  node: {
-    ...lightTheme.node,
-    fill: "#f97316",
-    activeFill: "#fb923c",
-    opacity: 1,
-    selectedOpacity: 1,
-    inactiveOpacity: 0.2,
-    label: {
-      ...lightTheme.node.label,
-      color: "#ffffff",
-      activeColor: "#fbbf24",       // amber-400 per nodo attivo (più visibile)
-      stroke: "#000000",            // outline nero spesso intorno al testo bianco
-      strokeWidth: 4,
-      backgroundColor: "#000000",
-      backgroundOpacity: 0.85,
-      padding: 8,
-      radius: 8,
-      fontSize: 7,
+function truncateLabel(value: string | undefined, max = 22) {
+  if (!value) return "";
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+const DEFAULT_GRAPH_VIEW_BOX = { x: -540, y: -440, width: 1080, height: 880 };
+const GRAPH_ASPECT_RATIO = DEFAULT_GRAPH_VIEW_BOX.width / DEFAULT_GRAPH_VIEW_BOX.height;
+
+function serializeViewBox(viewBox: typeof DEFAULT_GRAPH_VIEW_BOX) {
+  return `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
+}
+
+function svgDataUrlToPngDataUrl(dataUrl: string, width = 1600, height = 1304): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas non disponibile"));
+        return;
+      }
+      ctx.fillStyle = "#020617";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(image, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    image.onerror = () => reject(new Error("Impossibile convertire SVG in PNG"));
+    image.src = dataUrl;
+  });
+}
+
+async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(`${label}: timeout dopo ${Math.round(ms / 1000)} secondi`)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  }
+}
+
+interface BrainGraphCanvasProps {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  selections: string[];
+  viewDim: "2d" | "3d" | "core";
+  onNodeClick: (node: InternalGraphNode) => void;
+  onNodeDoubleClick: (node: InternalGraphNode) => void;
+  onCanvasClick: () => void;
+  onEdgePointerOver: (edge: InternalGraphEdge, event?: { nativeEvent?: MouseEvent }) => void;
+  onEdgePointerOut: () => void;
+}
+
+const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProps>(function BrainGraphCanvas(
+  { nodes, edges, selections, viewDim, onNodeClick, onNodeDoubleClick, onCanvasClick, onEdgePointerOver, onEdgePointerOut },
+  ref,
+) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const selectedSet = useMemo(() => new Set(selections), [selections]);
+  const hasSelection = selectedSet.size > 0;
+  const [viewBox, setViewBox] = useState(DEFAULT_GRAPH_VIEW_BOX);
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node] as const)), [nodes]);
+
+  const positions = useMemo(() => {
+    const map = new Map<string, { x: number; y: number; z: number }>();
+    const fallbackRadius = 330;
+    const total = Math.max(1, nodes.length);
+
+    nodes.forEach((node, index) => {
+      const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
+      const fallback = {
+        x: Math.cos(angle) * fallbackRadius,
+        y: Math.sin(angle) * fallbackRadius,
+        z: 0,
+      };
+      const z = typeof node.fz === "number" ? node.fz : 0;
+      const perspective = viewDim === "3d" || viewDim === "core" ? z * 0.12 : 0;
+      map.set(node.id, {
+        x: (typeof node.fx === "number" ? node.fx : fallback.x) + perspective,
+        y: (typeof node.fy === "number" ? node.fy : fallback.y) - perspective * 0.35,
+        z,
+      });
+    });
+
+    return map;
+  }, [nodes, viewDim]);
+
+  const fitToNodes = useCallback((ids?: string[]) => {
+    const targetIds = ids && ids.length > 0 ? ids : nodes.map((node) => node.id);
+    const targets = targetIds
+      .map((id) => {
+        const pos = positions.get(id);
+        const node = nodeById.get(id);
+        if (!pos || !node) return null;
+        const isPersona = node.data?.type === "persona";
+        const radius = isPersona
+          ? Math.max(16, (node.size ?? 10) * 1.45)
+          : Math.max(5, (node.size ?? 3) * 2.1);
+        return { ...pos, radius };
+      })
+      .filter((target): target is { x: number; y: number; z: number; radius: number } => target !== null);
+
+    if (targets.length === 0) {
+      setViewBox(DEFAULT_GRAPH_VIEW_BOX);
+      return;
+    }
+
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+
+    for (const target of targets) {
+      minX = Math.min(minX, target.x - target.radius);
+      maxX = Math.max(maxX, target.x + target.radius);
+      minY = Math.min(minY, target.y - target.radius);
+      maxY = Math.max(maxY, target.y + target.radius);
+    }
+
+    const padding = targets.length === 1 ? 120 : 150;
+    let width = Math.max(220, maxX - minX + padding * 2);
+    let height = Math.max(180, maxY - minY + padding * 2);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    if (width / height > GRAPH_ASPECT_RATIO) {
+      height = width / GRAPH_ASPECT_RATIO;
+    } else {
+      width = height * GRAPH_ASPECT_RATIO;
+    }
+
+    setViewBox({
+      x: centerX - width / 2,
+      y: centerY - height / 2,
+      width,
+      height,
+    });
+  }, [nodeById, nodes, positions]);
+
+  useEffect(() => {
+    setViewBox(DEFAULT_GRAPH_VIEW_BOX);
+  }, [viewDim]);
+
+  useImperativeHandle(ref, () => ({
+    centerGraph: (ids?: string[]) => fitToNodes(ids),
+    fitNodesInView: (ids?: string[]) => fitToNodes(ids),
+    exportCanvas: () => {
+      if (!svgRef.current) return null;
+      const clone = svgRef.current.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      const serialized = new XMLSerializer().serializeToString(clone);
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
     },
-  },
-  edge: {
-    ...lightTheme.edge,
-    fill: "#fb923c",                // arancio brillante per tutte le edges
-    activeFill: "#ffffff",
-    opacity: 0.7,                   // ben visibile
-    selectedOpacity: 1,
-    inactiveOpacity: 0.1,
-    label: {
-      ...lightTheme.edge.label,
-      color: "transparent",         // nessuna label edges (eliminano i puntini neri)
-      activeColor: "transparent",
-      fontSize: 0,
-    },
-  },
-  arrow: {
-    fill: "#64748b",
-    activeFill: "#fb923c",
-  },
-  ring: {
-    fill: "#fb923c",
-    activeFill: "#f97316",
-  },
-  cluster: {
-    stroke: "#1e1e1e",
-    fill: "#0a0a0a",
-    opacity: 0,                    // anelli cluster invisibili (riducono rumore)
-    selectedOpacity: 0,
-    inactiveOpacity: 0,
-    label: {
-      stroke: "#000000",
-      color: "transparent",         // niente label cluster automatici
-      fontSize: 0,
-      offset: [0, 0, 0] as [number, number, number],
-    },
-  },
-  lasso: {
-    background: "rgba(249,115,22,0.1)",
-    border: "1px solid rgba(249,115,22,0.5)",
-  },
-};
+  }), [fitToNodes]);
+
+  return (
+    <svg
+      ref={svgRef}
+      className="h-full w-full"
+      viewBox={serializeViewBox(viewBox)}
+      role="img"
+      aria-label="Mappa visiva del Cervello AI"
+      onClick={onCanvasClick}
+    >
+      <defs>
+        <radialGradient id="brain-node-glow" cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.9)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </radialGradient>
+        <filter id="brain-soft-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <style>{`
+          @keyframes brain-core-orbit {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          .brain-core-spin {
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: brain-core-orbit 58s linear infinite;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .brain-core-spin { animation: none; }
+          }
+        `}</style>
+      </defs>
+      <g className={viewDim === "core" ? "brain-core-spin" : undefined}>
+        {edges.map((edge) => {
+          const source = positions.get(edge.source);
+          const target = positions.get(edge.target);
+          if (!source || !target) return null;
+          const selected = selectedSet.has(edge.source) || selectedSet.has(edge.target) || selectedSet.has(edge.id);
+          const isCross = edge.id.startsWith("e_cross_") || edge.id.startsWith("e_xp_");
+          const opacity = hasSelection && !selected ? 0.12 : isCross ? 0.66 : 0.34;
+          const width = Math.max(0.8, Math.min(5, edge.size ?? 1));
+          const midX = (source.x + target.x) / 2;
+          const midY = (source.y + target.y) / 2;
+          const curve = isCross ? 24 : 8;
+          const d = `M ${source.x} ${source.y} Q ${midX} ${midY - curve} ${target.x} ${target.y}`;
+          return (
+            <path
+              key={edge.id}
+              d={d}
+              fill="none"
+              stroke={selected ? "#fbbf24" : edge.fill ?? (isCross ? "#fb923c" : "#64748b")}
+              strokeWidth={selected ? width + 1.2 : width}
+              strokeOpacity={opacity}
+              vectorEffect="non-scaling-stroke"
+              onMouseEnter={(event) => onEdgePointerOver(edge, { nativeEvent: event.nativeEvent })}
+              onMouseLeave={onEdgePointerOut}
+            />
+          );
+        })}
+
+        {nodes.map((node) => {
+          const pos = positions.get(node.id);
+          if (!pos) return null;
+          const type = node.data?.type;
+          const selected = selectedSet.has(node.id);
+          const faded = hasSelection && !selected;
+          const isPersona = type === "persona";
+          const radius = isPersona
+            ? Math.max(16, (node.size ?? 10) * 1.45)
+            : Math.max(5, (node.size ?? 3) * 2.1);
+          const fill = node.fill ?? "#f97316";
+          const emoji = isPersona ? String(node.data?.emoji ?? PERSONA_CATEGORY_EMOJI.default) : "";
+          const label = isPersona
+            ? truncateLabel(node.data?.persona?.display_name ?? node.label, 24)
+            : truncateLabel(node.data?.previewLabel ?? node.label, 22);
+
+          return (
+            <g
+              key={node.id}
+              transform={`translate(${pos.x} ${pos.y})`}
+              opacity={faded ? 0.28 : 1}
+              className="cursor-pointer transition-opacity"
+              onClick={(event) => {
+                event.stopPropagation();
+                onNodeClick(node);
+              }}
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                onNodeDoubleClick(node);
+              }}
+            >
+              <circle
+                r={radius + 8}
+                fill={fill}
+                opacity={selected ? 0.22 : isPersona ? 0.14 : 0.08}
+                filter={selected || isPersona ? "url(#brain-soft-glow)" : undefined}
+              />
+              <circle
+                r={radius}
+                fill={fill}
+                stroke={selected ? "#fde68a" : isPersona ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.38)"}
+                strokeWidth={selected ? 3 : isPersona ? 1.5 : 1}
+              />
+              <circle r={Math.max(2, radius * 0.42)} fill="url(#brain-node-glow)" opacity={0.72} />
+              {isPersona && (
+                <text
+                  y="5"
+                  textAnchor="middle"
+                  fontSize={Math.max(12, radius * 0.58)}
+                  className="select-none"
+                >
+                  {emoji}
+                </text>
+              )}
+              {(isPersona || selected) && label && (
+                <text
+                  y={radius + 16}
+                  textAnchor="middle"
+                  fontSize={isPersona ? 12 : 9}
+                  fontWeight={isPersona ? 700 : 500}
+                  fill={selected ? "#fde68a" : "#f8fafc"}
+                  stroke="#020617"
+                  strokeWidth={4}
+                  paintOrder="stroke"
+                  className="select-none"
+                >
+                  {label}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </g>
+    </svg>
+  );
+});
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AIBrainGraph() {
   const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
-  const graphRef = useRef<GraphCanvasRef | null>(null);
+  const graphRef = useRef<BrainGraphCanvasHandle | null>(null);
   // Vista: 2D piatto | 3D libero | Nucleo rotante (3D + camera orbit auto)
   const [viewDim, setViewDim] = useState<"2d" | "3d" | "core">("2d");
-  // Compat alias: alcuni vecchi callsite usano ancora is3D
-  const is3D = viewDim !== "2d";
   const [selectedNode, setSelectedNode] = useState<InternalGraphNode | null>(null);
   const [filterPersona, setFilterPersona] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string | null>(null);
@@ -786,43 +1067,117 @@ export default function AIBrainGraph() {
   const [livePulse, setLivePulse] = useState(false); // pulse animation on the LIVE indicator
   const [timeFilter, setTimeFilter] = useState<"7d" | "30d" | "90d" | "all">("all");
   const [personaSheetKey, setPersonaSheetKey] = useState<string | null>(null);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const livePulseTimeoutRef = useRef<number | null>(null);
 
   const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
 
   // ── Data fetching ─────────────────────────────────────────────────────────
 
-  const { data: personas = [] } = useQuery({
+  const {
+    data: remotePersonas = [],
+    isLoading: isPersonasLoading,
+    isError: isPersonasError,
+    error: personasError,
+    refetch: refetchPersonas,
+  } = useQuery({
     queryKey: ["brain-graph-personas"],
     queryFn: async (): Promise<PersonaLite[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
-        .from("ai_personas_public")
-        .select("persona_key, display_name, category, color, icon")
-        .eq("enabled", true)
-        .order("category");
+      const { data } = await withTimeout(
+        (supabase as any)
+          .from("ai_personas_public")
+          .select("persona_key, display_name, category, color, icon")
+          .eq("enabled", true)
+          .order("category"),
+        8_000,
+        "Caricamento personas AI",
+      );
       return (data ?? []) as PersonaLite[];
     },
     staleTime: 5 * 60_000,
+    retry: 1,
   });
 
-  const { data: memories = [], isLoading } = useQuery({
+  const {
+    data: remoteMemories = [],
+    isLoading: isMemoriesLoading,
+    isError: isMemoriesError,
+    error: memoriesError,
+    refetch: refetchMemories,
+  } = useQuery({
     queryKey: ["brain-graph-memories", effectiveCompany?.id],
     enabled: !!effectiveCompany?.id,
     queryFn: async (): Promise<MemoryRow[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("ai_persona_memory")
-        .select("id, persona_key, memory_type, content, confidence, hits_count, enabled, source, created_at")
-        .eq("company_id", effectiveCompany!.id)
-        .eq("enabled", true)
-        .order("hits_count", { ascending: false })
-        .limit(300);
+      const { data, error } = await withTimeout(
+        (supabase as any)
+          .from("ai_persona_memory")
+          .select("id, persona_key, memory_type, content, confidence, hits_count, enabled, source, created_at")
+          .eq("company_id", effectiveCompany!.id)
+          .eq("enabled", true)
+          .order("hits_count", { ascending: false })
+          .limit(300),
+        8_000,
+        "Caricamento memorie AI",
+      );
       if (error) throw error;
       return (data ?? []) as MemoryRow[];
     },
     staleTime: 30_000,
+    retry: 1,
   });
+
+  const demoFallbackPersonas = useMemo<PersonaLite[]>(() => {
+    const categoryByKey: Record<string, string> = {
+      cfo: "finance",
+      contabile: "finance",
+      pm_cantiere: "operations",
+      commerciale: "sales",
+      hr: "hr",
+      acquisti: "operations",
+      marketing: "marketing",
+      legal: "legal",
+      strategy: "strategy",
+      support: "support",
+      tech: "tech",
+      rspp: "legal",
+    };
+
+    return Object.keys(PERSONA_FALLBACKS).map((key) => ({
+      persona_key: key,
+      display_name: key
+        .split("_")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" "),
+      category: categoryByKey[key] ?? "default",
+      color: null,
+      icon: null,
+    }));
+  }, []);
+
+  const demoFallbackMemories = useMemo<MemoryRow[]>(
+    () => DEMO_MEMORIES.map((memory, index) => ({
+      id: `demo-${index}`,
+      persona_key: memory.persona_key,
+      memory_type: memory.memory_type,
+      content: memory.content,
+      confidence: memory.confidence,
+      hits_count: memory.hits_count,
+      enabled: true,
+      source: "demo_fallback",
+      created_at: new Date(Date.now() - index * 3_600_000).toISOString(),
+    })),
+    [],
+  );
+
+  const useDemoFallback = isDemoCompany
+    && (loadingTimedOut || isPersonasError || isMemoriesError)
+    && (remotePersonas.length === 0 || remoteMemories.length === 0);
+
+  const personas = useDemoFallback && remotePersonas.length === 0 ? demoFallbackPersonas : remotePersonas;
+  const memories = useDemoFallback && remoteMemories.length === 0 ? demoFallbackMemories : remoteMemories;
 
   // ── #4: Real-time subscription ────────────────────────────────────────────
 
@@ -842,12 +1197,22 @@ export default function AIBrainGraph() {
           // Pulse the LIVE indicator briefly + bump event counter
           setRecentEventsCount((n) => n + 1);
           setLivePulse(true);
-          window.setTimeout(() => setLivePulse(false), 1500);
+          if (livePulseTimeoutRef.current !== null) window.clearTimeout(livePulseTimeoutRef.current);
+          livePulseTimeoutRef.current = window.setTimeout(() => {
+            setLivePulse(false);
+            livePulseTimeoutRef.current = null;
+          }, 1500);
           void qc.invalidateQueries({ queryKey: ["brain-graph-memories"] });
         },
       )
       .subscribe();
-    return () => { void supabase.removeChannel(ch); };
+    return () => {
+      if (livePulseTimeoutRef.current !== null) {
+        window.clearTimeout(livePulseTimeoutRef.current);
+        livePulseTimeoutRef.current = null;
+      }
+      void supabase.removeChannel(ch);
+    };
   }, [effectiveCompany?.id, qc]);
 
   // ── Build graph ───────────────────────────────────────────────────────────
@@ -867,6 +1232,18 @@ export default function AIBrainGraph() {
   );
 
   const { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks } = graphData;
+
+  const isGraphLoading = !useDemoFallback && (isPersonasLoading || isMemoriesLoading);
+
+  useEffect(() => {
+    if (!isGraphLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setLoadingTimedOut(true), 10_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [isGraphLoading]);
 
   // ── #6: Insights ──────────────────────────────────────────────────────────
 
@@ -992,7 +1369,6 @@ export default function AIBrainGraph() {
   // #5: Double-click persona → zoom cinematico
   const handleNodeDoubleClick = useCallback((node: InternalGraphNode) => {
     if (node.data?.type === "persona") {
-      const personaKey = node.data.persona.persona_key;
       // Find all memory nodes belonging to this persona
       const relatedIds = [node.id];
       for (const e of edges) {
@@ -1056,10 +1432,11 @@ export default function AIBrainGraph() {
   }, []);
 
   // #9: Export screenshot
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     try {
-      const dataUrl = graphRef.current?.exportCanvas();
-      if (!dataUrl) return;
+      const svgDataUrl = graphRef.current?.exportCanvas();
+      if (!svgDataUrl) return;
+      const dataUrl = await svgDataUrlToPngDataUrl(svgDataUrl);
       const link = document.createElement("a");
       link.download = `cervello-ai-${new Date().toISOString().slice(0, 10)}.png`;
       link.href = dataUrl;
@@ -1075,7 +1452,8 @@ export default function AIBrainGraph() {
     try {
       // Lazy load jsPDF (riduce bundle iniziale)
       const { jsPDF } = await import("jspdf");
-      const dataUrl = graphRef.current?.exportCanvas();
+      const svgDataUrl = graphRef.current?.exportCanvas();
+      const dataUrl = svgDataUrl ? await svgDataUrlToPngDataUrl(svgDataUrl) : null;
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
       const today = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
@@ -1183,7 +1561,7 @@ export default function AIBrainGraph() {
     } catch (err) {
       toast.error("Errore generazione PDF", { description: String((err as Error).message ?? err) });
     }
-  }, [effectiveCompany?.name, totalMemories, totalCrossPersonaLinks, insights.healthPct, personas, memories, heroInsight]);
+  }, [effectiveCompany?.name, totalMemories, totalCrossPersonaLinks, insights.healthPct, stats.personaCount, personas, memories, heroInsight]);
 
   // ── Seed demo: popola memorie realistiche per Demo Azienda ──────────────
   // Mappa ogni persona_key delle memorie demo a un persona_key reale presente
@@ -1272,6 +1650,16 @@ export default function AIBrainGraph() {
     return sel;
   }, [searchSelections, selectedNode, edges]);
 
+  const edgeTooltipPosition = useMemo(() => {
+    if (!hoveredEdge || typeof window === "undefined") return null;
+    const tooltipWidth = 240;
+    const tooltipHeight = 120;
+    return {
+      left: Math.max(12, Math.min(hoveredEdge.x + 12, window.innerWidth - tooltipWidth)),
+      top: Math.max(12, Math.min(hoveredEdge.y - 10, window.innerHeight - tooltipHeight)),
+    };
+  }, [hoveredEdge]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   // Dark elegant background — nero deep con sottile radial gradient + grid
@@ -1285,7 +1673,11 @@ export default function AIBrainGraph() {
     backgroundSize: "100% 100%, 40px 40px, 40px 40px",
   };
 
-  if (isLoading) {
+  const loadError = !useDemoFallback && (isPersonasError || isMemoriesError)
+    ? (personasError as Error | null)?.message ?? (memoriesError as Error | null)?.message ?? "Errore caricamento Cervello AI"
+    : null;
+
+  if (isGraphLoading && !loadingTimedOut) {
     return (
       <div
         className="flex items-center justify-center h-[500px] rounded-xl border border-slate-800"
@@ -1294,6 +1686,34 @@ export default function AIBrainGraph() {
         <div className="flex flex-col items-center gap-3">
           <Brain className="h-10 w-10 text-orange-400 animate-pulse" />
           <p className="text-sm text-slate-300">Caricamento cervello AI…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError || (loadingTimedOut && !useDemoFallback)) {
+    return (
+      <div
+        className="flex items-center justify-center h-[500px] rounded-xl border border-slate-800"
+        style={gridBgStyle}
+      >
+        <div className="flex flex-col items-center gap-3 text-center px-4 max-w-md">
+          <Network className="h-12 w-12 text-orange-400" />
+          <p className="text-sm text-slate-100 font-semibold">Cervello AI non caricato</p>
+          <p className="text-xs text-slate-300">
+            {loadError ?? "Il caricamento sta impiegando troppo tempo"}. Puoi riprovare senza ricaricare tutta la pagina.
+          </p>
+          <Button
+            size="sm"
+            className="mt-2 bg-orange-500 hover:bg-orange-600 text-white"
+            onClick={() => {
+              setLoadingTimedOut(false);
+              void refetchPersonas();
+              void refetchMemories();
+            }}
+          >
+            Riprova
+          </Button>
         </div>
       </div>
     );
@@ -1348,7 +1768,7 @@ export default function AIBrainGraph() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Cervello AI</h3>
-                <p className="text-[11px] text-slate-300">La conoscenza condivisa delle 18 personas</p>
+                <p className="text-[11px] text-slate-600">La conoscenza condivisa delle personas attive</p>
               </div>
             </div>
 
@@ -1366,14 +1786,14 @@ export default function AIBrainGraph() {
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
                   memorie {periodComparison.delta !== 0 ? "vs 7gg" : ""}
                 </div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <div>
                 <div className="text-2xl font-bold text-orange-600 tabular-nums leading-tight">{totalCrossPersonaLinks}</div>
-                <div className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">ponti cross-team</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">ponti cross-team</div>
               </div>
               <div className="h-8 w-px bg-slate-200" />
               <Popover>
@@ -1432,7 +1852,7 @@ export default function AIBrainGraph() {
 
             {/* Filtro temporale */}
             <div className="md:ml-auto flex items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold">Periodo</span>
+              <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Periodo</span>
               <div className="flex bg-white border border-slate-200 rounded-md overflow-hidden shadow-sm">
                 {([
                   { v: "7d", l: "7g" },
@@ -1447,7 +1867,7 @@ export default function AIBrainGraph() {
                       "h-7 px-2 text-[10px] font-medium transition-colors",
                       timeFilter === opt.v
                         ? "bg-orange-500 text-white"
-                        : "text-slate-300 hover:bg-slate-100 hover:text-slate-300",
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
                       i > 0 && "border-l border-slate-200",
                     )}
                   >
@@ -1506,6 +1926,7 @@ export default function AIBrainGraph() {
         memories={memories}
         personas={personas}
         crossPersonaLinks={crossPersonaLinks}
+        className={selectedNode ? "hidden md:block md:right-[19.5rem]" : undefined}
         onNodeClick={(nodeId) => {
           if (nodeId.startsWith("m_") && viewMode === "galaxy") {
             const mem = memories.find((m) => `m_${m.id}` === nodeId);
@@ -1554,18 +1975,23 @@ export default function AIBrainGraph() {
             <Brain className="h-3 w-3 text-orange-400" />
             {stats.personaCount} personas
           </Badge>
-          <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
-            <Sparkles className="h-3 w-3 text-violet-400" />
-            {stats.memoryCount} memorie
-          </Badge>
-          <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
-            <Network className="h-3 w-3 text-emerald-400" />
-            {stats.crossEdges} connessioni
-          </Badge>
+            <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
+              <Sparkles className="h-3 w-3 text-violet-400" />
+              {totalMemories} memorie
+            </Badge>
+            <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
+              <Network className="h-3 w-3 text-emerald-400" />
+              {totalCrossPersonaLinks} connessioni
+            </Badge>
           {stats.xpEdges > 0 && (
             <Badge className="bg-orange-100 text-orange-700 border-orange-300 backdrop-blur-sm text-[10px] gap-1.5">
               <Link2 className="h-3 w-3" />
               {stats.xpEdges} cross-persona
+            </Badge>
+          )}
+          {useDemoFallback && (
+            <Badge className="bg-amber-100 text-amber-800 border-amber-300 backdrop-blur-sm text-[10px] gap-1.5">
+              Anteprima demo
             </Badge>
           )}
         </div>
@@ -1723,7 +2149,7 @@ export default function AIBrainGraph() {
                         viewDim === "3d" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
                       onClick={() => setViewDim("3d")}
-                      title="Spazio 3D esplorabile (drag per ruotare)"
+                      title="Spazio 3D prospettico"
                     >
                       3D
                     </button>
@@ -1979,7 +2405,6 @@ export default function AIBrainGraph() {
               {[...new Set(personas.filter((p) =>
                 memories.some((m) => m.persona_key === p.persona_key && m.enabled)
               ).map((p) => p.category))].map((cat) => {
-                const personasInCat = personas.filter((p) => p.category === cat);
                 const color = PERSONA_CATEGORY_COLORS[cat] ?? PERSONA_CATEGORY_COLORS.default;
                 return (
                   <div key={cat} className="flex items-center gap-1 text-[10px] px-1.5 py-0.5">
@@ -1999,12 +2424,12 @@ export default function AIBrainGraph() {
       </div>
 
       {/* ── #7: Edge tooltip ───────────────────────────────────────────────── */}
-      {hoveredEdge && (
+      {hoveredEdge && edgeTooltipPosition && (
         <div
           className="fixed z-50 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-600 px-3 py-2 shadow-2xl pointer-events-none"
           style={{
-            left: hoveredEdge.x + 12,
-            top: hoveredEdge.y - 10,
+            left: edgeTooltipPosition.left,
+            top: edgeTooltipPosition.top,
             maxWidth: 220,
           }}
         >
@@ -2196,47 +2621,20 @@ export default function AIBrainGraph() {
       )}
 
       {/* ── Graph canvas ───────────────────────────────────────────────────── */}
-      {/* Canvas WebGL — z-index above starfield, nessun filter per nitidezza max */}
+      {/* SVG stabile sopra lo starfield: evita crash WebGL/reagraph e resta esportabile. */}
       <div className="absolute inset-0" style={{ zIndex: 1 }}>
-      <GraphCanvas
-        ref={graphRef}
-        nodes={nodes}
-        edges={edges}
-        theme={BRAIN_THEME}
-        glOptions={{ alpha: true, antialias: true }}
-        layoutType={viewDim === "2d" ? "forceDirected2d" : "forceDirected3d"}
-        cameraMode={viewDim === "core" ? "orbit" : "rotate"}
-        // Rimosso clusterAttribute: i meta-nodes generati dal cluster algorithm
-        // apparivano come puntini neri parassiti nel grafo. La logica di
-        // raggruppamento visivo è già nei colori dei nodi e nelle posizioni.
-        layoutOverrides={{
-          // 2D: forze a 0 → fx/fy comandano puramente (cerchio perfetto)
-          // Core: fx/fy/fz comandano → forze a 0 (sfera fissa)
-          // 3D libero (non core): forze normali → esplorabile manualmente
-          clusterStrength: viewDim === "3d" ? 2.0 : 0,
-          nodeStrength: viewDim === "3d" ? -400 : 0,
-          linkDistance: viewDim === "3d" ? 80 : 1,
-          linkStrengthIntraCluster: viewDim === "3d" ? 0.7 : 0,
-          linkStrengthInterCluster: viewDim === "3d" ? 0.02 : 0,
-        }}
-        sizingType="attribute"
-        sizingAttribute="size"
-        defaultNodeSize={3}
-        minNodeSize={1.5}
-        maxNodeSize={5}
-        animated={viewDim !== "2d"}
-        draggable
-        labelType="nodes"
-        edgeInterpolation="curved"
-        edgeArrowPosition="none"
-        clusterAttribute="cluster"
-        selections={selections}
-        onNodeClick={handleNodeClick}
-        onNodeDoubleClick={handleNodeDoubleClick}
-        onCanvasClick={handleCanvasClick}
-        onEdgePointerOver={handleEdgePointerOver}
-        onEdgePointerOut={handleEdgePointerOut}
-      />
+        <BrainGraphCanvas
+          ref={graphRef}
+          nodes={nodes}
+          edges={edges}
+          selections={selections}
+          viewDim={viewDim}
+          onNodeClick={handleNodeClick}
+          onNodeDoubleClick={handleNodeDoubleClick}
+          onCanvasClick={handleCanvasClick}
+          onEdgePointerOver={handleEdgePointerOver}
+          onEdgePointerOut={handleEdgePointerOut}
+        />
       </div>
       </div>
     </div>

@@ -14,8 +14,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle,
-  ArrowRight,
   CheckCircle2,
   Clapperboard,
   Copy,
@@ -26,7 +24,6 @@ import {
   Info,
   Loader2,
   Play,
-  RefreshCw,
   Sparkles,
   Timer,
   Trash2,

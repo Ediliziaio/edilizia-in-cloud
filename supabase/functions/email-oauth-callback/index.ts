@@ -39,6 +39,51 @@ interface TokenResponse {
 
 const GMAIL_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const OUTLOOK_TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function base64UrlToBytes(value: string): Uint8Array {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
+  const bin = atob(padded);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function base64UrlEncode(value: Uint8Array): string {
+  let bin = "";
+  for (const b of value) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function signStatePayload(payloadB64: string): Promise<string> {
+  const secret = Deno.env.get("EMAIL_OAUTH_STATE_SECRET")
+    ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    ?? "";
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payloadB64));
+  return base64UrlEncode(new Uint8Array(sig));
+}
+
+async function decodeAndVerifyState(state: string): Promise<DecodedState> {
+  if (state.includes(".")) {
+    const [payloadB64, signature] = state.split(".");
+    if (!payloadB64 || !signature) throw new Error("invalid_state");
+    const expected = await signStatePayload(payloadB64);
+    if (signature !== expected) throw new Error("invalid_state_signature");
+    return JSON.parse(decoder.decode(base64UrlToBytes(payloadB64))) as DecodedState;
+  }
+
+  // Compatibilità con redirect già aperti prima dell'hardening.
+  return JSON.parse(atob(state)) as DecodedState;
+}
 
 async function fetchUserEmail(provider: "gmail" | "outlook", accessToken: string): Promise<string | null> {
   try {
@@ -99,12 +144,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Decode state
+  // Decode + verify state
   let stateDecoded: DecodedState;
   try {
-    stateDecoded = JSON.parse(atob(body.state)) as DecodedState;
-  } catch {
-    return new Response(JSON.stringify({ error: "invalid_state" }), {
+    stateDecoded = await decodeAndVerifyState(body.state);
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "invalid_state" }), {
       status: 400, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
@@ -203,6 +248,15 @@ Deno.serve(async (req) => {
       status: 500, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
+
+  // Seed idempotente delle cartelle personali (Inbox/Inviati/Bozze/Spam/Cestino).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supa as any).rpc("email_seed_user_folders", {
+    p_user_id: user.id,
+    p_company_id: stateDecoded.company_id,
+  }).catch((e: unknown) => {
+    console.warn("[email-oauth-callback] folder seed failed:", e);
+  });
 
   return new Response(JSON.stringify({
     success: true,

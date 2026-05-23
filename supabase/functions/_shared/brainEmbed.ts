@@ -9,8 +9,8 @@
  *   2. Default: OpenAI direct (api.openai.com/v1/embeddings)
  *      richiede OPENAI_API_KEY su Supabase secrets.
  *
- * Se entrambi mancano → throw, e l'ingest skippa l'embedding (documento
- * salvato comunque con embedding=NULL, da reindexare in seguito).
+ * Se manca OPENAI_API_KEY → throw. L'edge caller decide se bloccare l'ingest
+ * o salvare il documento senza embedding.
  */
 
 import { fetchWithRetryAndTimeout } from "./fetchWithTimeout.ts";

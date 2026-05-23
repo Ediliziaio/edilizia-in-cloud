@@ -83,37 +83,55 @@ export function BrainSemanticSearch({
     [personas],
   );
 
+  const memoryCountsByPersona = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const memory of memories) {
+      if (!memory.enabled) continue;
+      counts.set(memory.persona_key, (counts.get(memory.persona_key) ?? 0) + 1);
+    }
+    return counts;
+  }, [memories]);
+
+  const searchableMemories = useMemo(() => memories
+    .filter((memory) => memory.enabled)
+    .map((memory) => {
+      const persona = personaMap.get(memory.persona_key);
+      return {
+        memory,
+        persona,
+        contentLower: memory.content.toLowerCase(),
+        personaNameLower: persona?.display_name.toLowerCase() ?? "",
+        typeNameLower: (typeLabels[memory.memory_type] ?? "").toLowerCase(),
+      };
+    }), [memories, personaMap, typeLabels]);
+
   const results = useMemo<SearchResult[]>(() => {
     const q = query.trim().toLowerCase();
     if (q.length < MIN_QUERY_LEN) return [];
+    const qWords = q.split(/\s+/).filter((w) => w.length >= 3);
 
     const scored: SearchResult[] = [];
 
     // Score memorie
-    for (const m of memories) {
-      if (!m.enabled) continue;
-      const content = m.content.toLowerCase();
-      const persona = personaMap.get(m.persona_key);
-      const personaName = persona?.display_name.toLowerCase() ?? "";
-      const typeName = (typeLabels[m.memory_type] ?? "").toLowerCase();
-
+    for (const item of searchableMemories) {
+      const { memory: m, persona, contentLower, personaNameLower, typeNameLower } = item;
       let score = 0;
+
       // Match early in content
-      const pos = content.indexOf(q);
+      const pos = contentLower.indexOf(q);
       if (pos >= 0) {
         score += pos === 0 ? 100 : 70 - Math.min(pos, 30);
       }
       // Word-level match
-      const qWords = q.split(/\s+/);
       let wordMatches = 0;
       for (const w of qWords) {
-        if (w.length >= 3 && content.includes(w)) wordMatches++;
+        if (contentLower.includes(w)) wordMatches++;
       }
       score += wordMatches * 15;
       // Persona name match
-      if (personaName.includes(q)) score += 50;
+      if (personaNameLower.includes(q)) score += 50;
       // Type match
-      if (typeName.includes(q)) score += 30;
+      if (typeNameLower.includes(q)) score += 30;
       // Hit bonus (popolari pesano di più)
       score += Math.min(20, (m.hits_count ?? 0));
 
@@ -141,7 +159,7 @@ export function BrainSemanticSearch({
       else if (name.includes(q)) score += 60;
       if (cat.includes(q)) score += 30;
       if (score > 0) {
-        const memCount = memories.filter((m) => m.enabled && m.persona_key === p.persona_key).length;
+        const memCount = memoryCountsByPersona.get(p.persona_key) ?? 0;
         scored.push({
           type: "persona",
           id: `p_${p.persona_key}`,
@@ -156,7 +174,7 @@ export function BrainSemanticSearch({
 
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, MAX_RESULTS);
-  }, [query, memories, personas, personaMap, typeLabels]);
+  }, [query, personas, searchableMemories, memoryCountsByPersona]);
 
   // Open when typing, close on click outside
   useEffect(() => {

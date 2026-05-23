@@ -52,6 +52,7 @@ interface DecryptedTokens {
 async function refreshTokenIfNeeded(
   supa: SupabaseClient,
   conn: DecryptedTokens,
+  userId: string,
 ): Promise<string> {
   const expiresAt = new Date(conn.expires_at).getTime();
   if (expiresAt > Date.now() + 5 * 60 * 1000) return conn.access_token;
@@ -81,7 +82,7 @@ async function refreshTokenIfNeeded(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supa as any).rpc("email_oauth_upsert_connection", {
     p_company_id: conn.company_id,
-    p_user_id: null,
+    p_user_id: userId,
     p_provider: conn.provider,
     p_email_address: conn.email_address,
     p_access_token: json.access_token,
@@ -98,13 +99,6 @@ function base64UrlEncode(input: string): string {
   let bin = "";
   for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function escapeHeader(s: string): string {
-  // Solo se contiene caratteri non-ASCII fa MIME encoded-word
-  // eslint-disable-next-line no-control-regex
-  if (!/[^\x00-\x7F]/.test(s)) return s;
-  return `=?UTF-8?B?${btoa(unescape(encodeURIComponent(s)))}?=`;
 }
 
 // (buildRFC822 ora importato da _shared/imapSmtpClient.ts con supporto attachments)
@@ -236,6 +230,78 @@ async function downloadAttachments(
   return result;
 }
 
+async function resolveThreadsForUser(userId: string): Promise<void> {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/email-thread-resolver`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({ user_id: userId, batch_size: 50 }),
+    });
+  } catch {
+    // Best effort: l'email inviata resta salvata anche se il resolver è temporaneamente giù.
+  }
+}
+
+async function insertSentCopy(
+  supabase: SupabaseClient,
+  outbox: OutboxRow,
+  fromEmail: string,
+  providerMessageId: string,
+): Promise<void> {
+  const sentAt = new Date().toISOString();
+  const messageId = providerMessageId
+    ? `sent:${outbox.oauth_connection_id}:${providerMessageId}`
+    : `sent:${outbox.id}`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existing } = await (supabase as any)
+    .from("email_inbox")
+    .select("id")
+    .eq("company_id", outbox.company_id)
+    .eq("user_id", outbox.user_id)
+    .eq("message_id", messageId)
+    .maybeSingle();
+
+  const payload = {
+    company_id: outbox.company_id,
+    user_id: outbox.user_id,
+    oauth_connection_id: outbox.oauth_connection_id,
+    thread_id: outbox.thread_id,
+    in_reply_to: null,
+    references_ids: [],
+    message_id: messageId,
+    provider_message_id: providerMessageId,
+    provider_thread_id: null,
+    mailbox_folder: "sent",
+    from_email: fromEmail,
+    from_name: null,
+    to_email: outbox.to_emails.join(", "),
+    cc_emails: outbox.cc_emails ?? [],
+    bcc_emails: outbox.bcc_emails ?? [],
+    subject: outbox.subject,
+    received_at: sentAt,
+    raw_text: outbox.body_text,
+    raw_html: outbox.body_html,
+    attachments: outbox.attachments ?? [],
+    ai_category: "altro",
+    ai_priority: "nessuna",
+    status: "archived",
+    is_read: true,
+    is_archived: true,
+    is_trashed: false,
+  };
+
+  if (existing?.id) {
+    await supabase.from("email_inbox").update(payload).eq("id", existing.id);
+  } else {
+    await supabase.from("email_inbox").insert(payload);
+  }
+  await resolveThreadsForUser(outbox.user_id);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
@@ -290,10 +356,13 @@ Deno.serve(async (req) => {
   try {
     // 3) Carica info connessione (provider type)
     const { data: connRow } = await supabase
-      .from("email_oauth_connections")
-      .select("provider, email_address")
-      .eq("id", outbox.oauth_connection_id)
-      .maybeSingle();
+        .from("email_oauth_connections")
+        .select("provider, email_address, user_id")
+        .eq("id", outbox.oauth_connection_id)
+        .maybeSingle();
+    if (!connRow || connRow.user_id !== outbox.user_id) {
+      throw new Error("email_connection_not_found_or_not_owned");
+    }
     const providerType = (connRow?.provider as "gmail" | "outlook" | "imap" | undefined) ?? null;
 
     // 4) Recupera info reply per threading
@@ -354,6 +423,8 @@ Deno.serve(async (req) => {
           provider_message_id: sent.messageId,
         })
         .eq("id", outbox.id);
+      await insertSentCopy(supabase, outbox, c.email_address, sent.messageId)
+        .catch((e) => console.warn("[email-send] sent copy failed:", e));
       return jsonResponse({
         ok: true,
         outbox_id: outbox.id,
@@ -371,7 +442,7 @@ Deno.serve(async (req) => {
       throw new Error("tokens_not_found_for_connection");
     }
     const tokens = tokensData[0] as DecryptedTokens;
-    const accessToken = await refreshTokenIfNeeded(supabase, tokens);
+    const accessToken = await refreshTokenIfNeeded(supabase, tokens, outbox.user_id);
 
     let providerMessageId = "";
     if (tokens.provider === "gmail") {
@@ -416,10 +487,9 @@ Deno.serve(async (req) => {
       })
       .eq("id", outbox.id);
 
-    // 8) Optional: inserisci copia in email_inbox (folder=sent) per coerenza UI
-    // Nota: Gmail/Outlook salvano automaticamente in Sent del provider; il
-    // polling al prossimo ciclo importerà la copia. Per ora skippiamo l'insert
-    // diretto e lasciamo che il polling normale faccia il lavoro.
+    // 8) Copia locale in Inviati: il polling inbound non legge la cartella Sent.
+    await insertSentCopy(supabase, outbox, tokens.email_address, providerMessageId)
+      .catch((e) => console.warn("[email-send] sent copy failed:", e));
 
     return jsonResponse({
       ok: true,

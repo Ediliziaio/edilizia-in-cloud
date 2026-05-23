@@ -51,10 +51,12 @@ Per ogni email, classifica e estrai:
 
 categorie:
   - "lead"                  → potenziale cliente nuovo (richiesta preventivo, contatto da form/Google/social)
+  - "preventivo"            → richiesta prezzo, offerta, sopralluogo, capitolato o preventivo
   - "cliente_esistente"     → cliente già attivo (conferma, modifica, follow-up)
   - "fornitore"             → ordine, conferma, DDT, comunicazioni dal fornitore
   - "fattura"               → fattura ricevuta (allegato XML/PDF)
   - "pratica_amministrativa" → AdE/Inps/Comune/SCIA/CILA/etc
+  - "support"               → richiesta assistenza, problema operativo, ticket
   - "spam"                  → newsletter, promo, no-reply, phishing
   - "altro"                 → tutto il resto
 
@@ -73,9 +75,11 @@ estratti (campo extracted, JSON):
 
 suggested_action (string snake_case, una sola):
   - "crea_lead_da_email"
+  - "crea_preventivo_da_email"
   - "rispondi_cliente"
   - "carica_fattura_passiva"
   - "gestisci_pratica"
+  - "apri_ticket_support"
   - "archivia"
   - "spam_block"
 

@@ -1,12 +1,11 @@
 /**
- * EmailComposeDialog — finestra compose Gmail-like (Sprint E3)
+ * EmailComposeDialog — finestra compose Gmail-like
  *
  * Modi: new (vuoto) | reply (pre-popolato Re:/quote) | replyAll | forward (Fwd:/quote)
  *
  * - Auto-save bozza in email_outbox ogni 30s (debounced) con status='draft'
  * - Send → status='queued' → invoca edge email-send → status='sending'/'sent'
- * - TipTap rich editor sarebbe ideale, qui per E3 manteniamo textarea +
- *   conversione newline → <br> per HTML basico (E5 upgrade a TipTap)
+ * - Textarea leggera con conversione newline → <br> per HTML basico.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -234,9 +233,14 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
     }
   }, [connections, accountId]);
 
-  // Parse comma-separated emails
+  // Parse comma/semicolon separated emails
   const parseEmails = (raw: string): string[] =>
-    raw.split(",").map((e) => e.trim()).filter((e) => e.length > 0);
+    raw.split(/[;,]/).map((e) => e.trim()).filter((e) => e.length > 0);
+
+  const invalidEmails = (emails: string[]): string[] => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emails.filter((email) => !re.test(email));
+  };
 
   // Auto-save bozza ogni 30s (debounced)
   const saveDraft = useMutation({
@@ -289,7 +293,7 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
   useEffect(() => {
     if (!open) return;
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    if (!to && !subject && !bodyText) return; // niente da salvare
+    if (!to && !subject && !bodyText && !bodyHtml && attachments.length === 0) return; // niente da salvare
     debounceTimerRef.current = window.setTimeout(() => {
       saveDraft.mutate();
     }, 5000);
@@ -297,7 +301,7 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [to, cc, bcc, subject, bodyText, accountId, open]);
+  }, [to, cc, bcc, subject, bodyText, bodyHtml, accountId, attachments, open]);
 
   // Send
   const sendMutation = useMutation({
@@ -306,8 +310,13 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
       if (!userId || !companyId) throw new Error("Not authenticated");
       if (!accountId) throw new Error("Seleziona un account mittente");
       const recipients = parseEmails(to);
+      const ccRecipients = parseEmails(cc);
+      const bccRecipients = parseEmails(bcc);
       if (recipients.length === 0) throw new Error("Aggiungi almeno un destinatario");
+      const invalid = invalidEmails([...recipients, ...ccRecipients, ...bccRecipients]);
+      if (invalid.length > 0) throw new Error(`Email non valida: ${invalid[0]}`);
       if (!subject.trim()) throw new Error("Aggiungi un oggetto");
+      if (attachments.some((a) => a.uploading)) throw new Error("Attendi il caricamento degli allegati");
 
       const payload = {
         user_id: userId,
@@ -316,8 +325,8 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
         thread_id: initial.threadId,
         in_reply_to_id: initial.inReplyToId,
         to_emails: recipients,
-        cc_emails: parseEmails(cc),
-        bcc_emails: parseEmails(bcc),
+        cc_emails: ccRecipients,
+        bcc_emails: bccRecipients,
         subject: subject.trim(),
         body_text: bodyText,
         body_html: bodyHtml || bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
@@ -369,16 +378,16 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
 
   return (
     <Dialog open={open} onOpenChange={(o) => !isSending && onOpenChange(o)}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-4 py-3 border-b shrink-0">
+      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col overflow-hidden rounded-2xl border-blue-100 p-0 shadow-2xl">
+        <DialogHeader className="shrink-0 border-b border-blue-100 bg-blue-50/60 px-4 py-3">
           <DialogTitle className="flex items-center gap-2 text-base">
-            <Mail className="h-4 w-4 text-violet-600" />
+            <Mail className="h-4 w-4 text-blue-600" />
             {context.mode === "reply" || context.mode === "replyAll" ? "Rispondi" :
              context.mode === "forward" ? "Inoltra" : "Nuova email"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        <div className="flex-1 space-y-3 overflow-y-auto bg-white px-4 py-3">
           {/* Account mittente */}
           {connections && connections.length > 0 && (
             <div>
@@ -509,11 +518,11 @@ export function EmailComposeDialog({ open, onOpenChange, context }: EmailCompose
           />
         </div>
 
-        <div className="px-4 py-3 border-t bg-muted/20 flex items-center gap-2 flex-wrap shrink-0">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-blue-100 bg-slate-50 px-4 py-3">
           <Button
             onClick={() => sendMutation.mutate()}
             disabled={isSending}
-            className="gap-2 bg-violet-600 hover:bg-violet-700"
+            className="gap-2 rounded-xl bg-blue-600 hover:bg-blue-700"
           >
             {isSending ? (
               <>

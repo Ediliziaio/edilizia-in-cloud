@@ -7,7 +7,7 @@
  *
  * NO secret leak: ritorna solo boolean "configured" e prefix masked.
  *
- * Auth: company_admin OR super_admin.
+ * Auth: utente autenticato. Non espone secret, solo check booleani e preview mascherati.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Auth: company_admin OR super_admin
+  // Auth: qualunque utente autenticato con profilo aziendale.
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "auth_required" }), {
@@ -88,15 +88,13 @@ Deno.serve(async (req) => {
     });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: roleRow } = await (supa as any)
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .in("role", ["super_admin", "company_admin"])
-    .limit(1)
+  const { data: profile } = await (supa as any)
+    .from("profiles")
+    .select("company_id")
+    .eq("id", user.id)
     .maybeSingle();
-  if (!roleRow) {
-    return new Response(JSON.stringify({ error: "company_admin_required" }), {
+  if (!profile?.company_id) {
+    return new Response(JSON.stringify({ error: "company_profile_required" }), {
       status: 403, headers: { ...cors, "Content-Type": "application/json" },
     });
   }

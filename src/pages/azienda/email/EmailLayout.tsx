@@ -1,16 +1,17 @@
 /**
- * EmailLayout — Sprint E2
+ * EmailLayout — client email 3-pane
  *
  * 3-pane responsive Gmail-style:
  *   ┌─────────┬─────────────┬──────────────────────┐
  *   │ Sidebar │ Thread list │ Thread viewer        │
  *   │ folders │ scrollable  │ messages + actions   │
- *   │ labels  │ unread bold │ reply/forward (E3)   │
+ *   │ labels  │ unread bold │ reply/forward        │
  *   └─────────┴─────────────┴──────────────────────┘
  *
  * Mobile: stack layout, navigazione tra pannelli con pulsanti back.
  */
 import React, { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,7 +22,21 @@ import { EmailViewer } from "./components/EmailViewer";
 import { EmailComposeDialog, type ComposeContext } from "./components/EmailComposeDialog";
 import { EmailSearchBar, type SearchQuery } from "./components/EmailSearchBar";
 import { Button } from "@/components/ui/button";
-import { Mail, Menu, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  FileText,
+  Inbox,
+  LifeBuoy,
+  Mail,
+  Menu,
+  ReceiptText,
+  ShieldAlert,
+  Sparkles,
+  Truck,
+  Users,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type FolderFilter =
@@ -29,10 +44,30 @@ export type FolderFilter =
   | { type: "folder"; folderId: string }
   | { type: "label"; labelId: string };
 
+export type EmailSmartCategory =
+  | "priority"
+  | "lead"
+  | "quote"
+  | "customer"
+  | "supplier"
+  | "invoice"
+  | "admin"
+  | "support"
+  | "spam"
+  | "other";
+
 export interface EmailFilter {
   folder: FolderFilter;
   search?: SearchQuery | null;
   accountId?: string; // filtro per oauth_connection_id
+  category?: EmailSmartCategory;
+}
+
+export interface EmailConnectionSummary {
+  id: string;
+  provider: string;
+  email_address: string;
+  status: string;
 }
 
 interface EmailLayoutProps {
@@ -41,11 +76,15 @@ interface EmailLayoutProps {
 
 export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
   const { user, effectiveCompany } = useAuth();
+  const [searchParams] = useSearchParams();
+  const queryThreadId = searchParams.get("thread_id");
+  const queryCustomerEmail = searchParams.get("customer_email")?.trim() || "";
   const [filter, setFilter] = useState<EmailFilter>({
     folder: initialFilter ?? { type: "system", key: "inbox" },
+    search: queryCustomerEmail ? { raw: queryCustomerEmail, text: queryCustomerEmail } : undefined,
   });
-  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const [mobilePane, setMobilePane] = useState<"sidebar" | "list" | "viewer">("list");
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(queryThreadId);
+  const [mobilePane, setMobilePane] = useState<"sidebar" | "list" | "viewer">(queryThreadId ? "viewer" : "list");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
@@ -55,9 +94,32 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
     setComposeOpen(true);
   }, []);
 
+  const applyFilter = useCallback((next: EmailFilter | ((current: EmailFilter) => EmailFilter)) => {
+    setFilter((current) => typeof next === "function" ? next(current) : next);
+    setSelectedThreadId(null);
+    setMobilePane("list");
+  }, []);
+
   const userId = user?.id;
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
+
+  useEffect(() => {
+    if (queryCustomerEmail) {
+      setFilter((current) => {
+        if (current.search?.raw === queryCustomerEmail) return current;
+        return {
+          ...current,
+          folder: { type: "system", key: "inbox" },
+          search: { raw: queryCustomerEmail, text: queryCustomerEmail },
+        };
+      });
+    }
+    if (queryThreadId) {
+      setSelectedThreadId(queryThreadId);
+      setMobilePane("viewer");
+    }
+  }, [queryCustomerEmail, queryThreadId]);
 
   // Realtime: nuova email arrivata → invalidate query + toast
   useEffect(() => {
@@ -159,15 +221,15 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
   }, [openCompose, selectedThreadId]);
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] bg-background overflow-hidden">
+    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-slate-50">
       {/* Sidebar — fixed on desktop, sheet on mobile */}
       <aside
         className={cn(
-          "border-r bg-muted/20 flex-shrink-0 flex flex-col transition-all",
+          "border-r border-blue-100 bg-white flex-shrink-0 flex flex-col transition-all",
           // Desktop
-          "hidden md:flex md:w-60 lg:w-64",
+          "hidden md:flex md:w-72 lg:w-80",
           // Mobile sheet
-          sidebarOpen && "fixed inset-y-0 left-0 z-50 w-72 flex shadow-xl bg-background",
+          sidebarOpen && "fixed inset-y-0 left-0 z-50 w-80 flex shadow-xl bg-white",
         )}
       >
         <div className="md:hidden p-2 flex justify-end border-b">
@@ -178,10 +240,8 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
         <EmailSidebar
           filter={filter}
           onFilterChange={(f) => {
-            setFilter(f);
-            setSelectedThreadId(null);
+            applyFilter(f);
             setSidebarOpen(false);
-            setMobilePane("list");
           }}
           onCompose={() => openCompose({ mode: "new" })}
           connections={connections ?? []}
@@ -191,7 +251,7 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
       {/* List pane */}
       <section
         className={cn(
-          "flex-1 md:flex-none md:w-[360px] lg:w-[420px] border-r flex flex-col min-w-0",
+          "flex-1 md:flex-none md:w-[390px] lg:w-[470px] border-r border-blue-100 bg-white flex flex-col min-w-0",
           mobilePane !== "list" && "hidden md:flex",
         )}
       >
@@ -203,7 +263,13 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
             <FolderTitle filter={filter.folder} />
           </span>
         </div>
+        <EmailMailboxToolbar
+          filter={filter}
+          onFilterChange={applyFilter}
+          connections={connections ?? []}
+        />
         <EmailSearchBar
+          initialValue={queryCustomerEmail}
           onSearch={(q) => setFilter((f) => ({ ...f, search: q }))}
         />
         <EmailList
@@ -216,7 +282,7 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
       {/* Viewer pane */}
       <section
         className={cn(
-          "flex-1 flex flex-col min-w-0",
+          "flex-1 flex flex-col min-w-0 bg-white",
           mobilePane !== "viewer" && "hidden md:flex",
         )}
       >
@@ -241,33 +307,135 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
   );
 }
 
-function FolderTitle({ filter }: { filter: FolderFilter }) {
+const CATEGORY_FILTERS: Array<{
+  key: "all" | EmailSmartCategory;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { key: "all", label: "Tutte", icon: Inbox },
+  { key: "priority", label: "Da fare", icon: AlertTriangle },
+  { key: "lead", label: "Lead", icon: Sparkles },
+  { key: "quote", label: "Preventivi", icon: FileText },
+  { key: "customer", label: "Clienti", icon: Users },
+  { key: "supplier", label: "Fornitori", icon: Truck },
+  { key: "invoice", label: "Fatture", icon: ReceiptText },
+  { key: "admin", label: "Pratiche", icon: Building2 },
+  { key: "support", label: "Supporto", icon: LifeBuoy },
+  { key: "spam", label: "Spam", icon: ShieldAlert },
+];
+
+function EmailMailboxToolbar({
+  filter,
+  onFilterChange,
+  connections,
+}: {
+  filter: EmailFilter;
+  onFilterChange: (filter: EmailFilter | ((current: EmailFilter) => EmailFilter)) => void;
+  connections: EmailConnectionSummary[];
+}) {
+  const activeAccount = connections.find((connection) => connection.id === filter.accountId);
+  const accountLabel = activeAccount?.email_address ?? "Tutte le caselle";
+  const folderLabel = folderTitleText(filter.folder);
+
+  return (
+    <div className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-4 py-3 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-100">
+              <Mail className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-base font-semibold leading-tight text-slate-900">{folderLabel}</p>
+              <p className="truncate text-xs text-slate-500">{accountLabel}</p>
+            </div>
+          </div>
+        </div>
+        {connections.length > 1 && (
+          <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
+            {connections.length} collegate
+          </span>
+        )}
+      </div>
+
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {CATEGORY_FILTERS.map((category) => {
+          const active = category.key === "all" ? !filter.category : filter.category === category.key;
+          const Icon = category.icon;
+          return (
+            <Button
+              key={category.key}
+              type="button"
+              variant={active ? "secondary" : "ghost"}
+              size="sm"
+              className={cn(
+                "h-8 shrink-0 rounded-full border px-3 text-xs",
+                active
+                  ? "border-blue-100 bg-blue-50 text-blue-800 hover:bg-blue-100"
+                  : "border-transparent bg-white/70 text-slate-600 hover:bg-white hover:text-slate-900",
+              )}
+              onClick={() => onFilterChange((current) => ({
+                ...current,
+                category: category.key === "all" ? undefined : category.key,
+              }))}
+            >
+              <Icon className="h-3.5 w-3.5 mr-1.5" />
+              {category.label}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function folderTitleText(filter: FolderFilter): string {
   if (filter.type === "system") {
     const labels = {
-      inbox: "Inbox",
+      inbox: "Casella postale",
       sent: "Inviati",
       drafts: "Bozze",
-      starred: "Importanti",
+      starred: "Contrassegnata",
       spam: "Spam",
       trash: "Cestino",
-      archive: "Archivio",
+      archive: "Archiviate",
     } as const;
-    return <>{labels[filter.key]}</>;
+    return labels[filter.key];
   }
-  return <>Cartella</>;
+  return "Cartella";
+}
+
+function FolderTitle({ filter }: { filter: FolderFilter }) {
+  return <>{folderTitleText(filter)}</>;
 }
 
 function ViewerEmptyState() {
   return (
-    <div className="flex-1 flex items-center justify-center p-8 text-center bg-muted/10">
-      <div className="max-w-sm">
-        <div className="mx-auto h-16 w-16 rounded-full bg-violet-100 flex items-center justify-center mb-3">
-          <Mail className="h-8 w-8 text-violet-600" />
+    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-white via-blue-50/30 to-orange-50/30 p-8 text-center">
+      <div className="max-w-lg">
+        <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-white shadow-sm">
+          <Mail className="h-8 w-8 text-blue-600" />
         </div>
-        <h3 className="text-base font-semibold">Seleziona un'email</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          Scegli un thread dalla lista per leggerne il contenuto qui.
+        <h3 className="text-base font-semibold text-slate-900">Seleziona un'email</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Scegli un thread dalla lista per leggerlo qui. Silvio può trasformare le email operative in azioni confermabili.
         </p>
+        <div className="mt-5 grid gap-2 text-left sm:grid-cols-3">
+          {[
+            { icon: Truck, title: "Fornitori", text: "Ritardi, conferme e richieste acquisto." },
+            { icon: ReceiptText, title: "DDT", text: "Numeri, date, materiali e anomalie." },
+            { icon: Sparkles, title: "AI", text: "Bozze email, task e proposte ODA." },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.title} className="rounded-2xl border border-blue-100 bg-white/90 p-3 shadow-sm">
+                <Icon className="h-4 w-4 text-blue-600" />
+                <p className="mt-2 text-xs font-semibold text-slate-900">{item.title}</p>
+                <p className="mt-1 text-[11px] leading-snug text-slate-500">{item.text}</p>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

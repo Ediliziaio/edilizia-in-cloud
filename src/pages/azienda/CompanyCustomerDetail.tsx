@@ -592,6 +592,7 @@ export default function CompanyCustomerDetail() {
             customerId={customer.id}
             companyId={effectiveCompany?.id ?? ""}
             customerFullName={fullName}
+            customerEmail={formatCustomerEmail(customer.email)}
             orders={orders}
             preventivi={preventivi}
             tickets={tickets}

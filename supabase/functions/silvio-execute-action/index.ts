@@ -17,6 +17,8 @@
  *   - send_quote_followup: follow-up preventivo
  *   - mark_payment_received: segna rata pagata (con audit)
  *   - create_purchase_order: bozza ordine fornitore
+ *   - update_purchase_order_delay: aggiorna data prevista ODA da email fornitore
+ *   - create_logistics_task: task operativo da email fornitore/DDT
  *   - generic_email: invio email custom
  */
 
@@ -81,6 +83,12 @@ const ACTION_POLICIES: Record<string, {
     requiresStrongConfirmation: true,
   },
   create_purchase_order: {
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+  },
+  update_purchase_order_delay: {
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+  },
+  create_logistics_task: {
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
   },
   create_quote_draft: {
@@ -451,6 +459,8 @@ function buildFinalPayload(
     send_quote_followup: ["quote_id", "client_email", "client_name"],
     mark_payment_received: ["order_id", "rata_type"],
     create_purchase_order: ["stock_id"],
+    update_purchase_order_delay: ["purchase_order_id", "purchase_order_number"],
+    create_logistics_task: ["source_thread_id", "source_email_id"],
     create_invoice_draft: ["order_id", "rata_type"],
     generic_email: ["to"],
   };
@@ -485,6 +495,10 @@ async function dispatchAction(
       return await markPaymentReceived(payload, ctx);
     case "create_purchase_order":
       return await createPurchaseOrderDraft(payload, ctx);
+    case "update_purchase_order_delay":
+      return await updatePurchaseOrderDelay(payload, ctx);
+    case "create_logistics_task":
+      return await createLogisticsTask(payload, ctx);
     case "generic_email":
       return await sendGenericEmail(payload, ctx);
     case "create_quote_draft":
@@ -920,6 +934,89 @@ async function markPaymentReceived(
   };
 }
 
+async function updatePurchaseOrderDelay(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string },
+): Promise<ExecutionResult> {
+  const purchaseOrderId = typeof payload.purchase_order_id === "string" && payload.purchase_order_id.trim()
+    ? payload.purchase_order_id.trim()
+    : null;
+  const purchaseOrderNumber = typeof payload.purchase_order_number === "string" && payload.purchase_order_number.trim()
+    ? payload.purchase_order_number.trim()
+    : null;
+  const newExpectedDeliveryDate = typeof payload.new_expected_delivery_date === "string"
+    ? payload.new_expected_delivery_date.trim()
+    : "";
+  const reason = typeof payload.reason === "string" && payload.reason.trim()
+    ? payload.reason.trim()
+    : "Aggiornamento ricevuto via email fornitore";
+  const sourceEmailId = typeof payload.source_email_id === "string" ? payload.source_email_id : null;
+
+  if (!purchaseOrderId && !purchaseOrderNumber) {
+    return { ok: false, message: "Serve purchase_order_id oppure purchase_order_number per aggiornare la consegna." };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newExpectedDeliveryDate) || Number.isNaN(Date.parse(newExpectedDeliveryDate))) {
+    return { ok: false, message: "new_expected_delivery_date deve essere in formato YYYY-MM-DD." };
+  }
+
+  let query = ctx.supabase
+    .from("purchase_orders")
+    .select("id, oda_number, status, expected_delivery_date, internal_notes, company_id")
+    .eq("company_id", ctx.companyId);
+
+  query = purchaseOrderId
+    ? query.eq("id", purchaseOrderId)
+    : query.eq("oda_number", purchaseOrderNumber);
+
+  const { data: po, error: loadErr } = await query.maybeSingle();
+  if (loadErr) return { ok: false, message: `Lettura ODA fallita: ${loadErr.message}` };
+  if (!po) {
+    return {
+      ok: false,
+      message: purchaseOrderNumber
+        ? `ODA ${purchaseOrderNumber} non trovato. Controlla il riferimento estratto dall'AI.`
+        : "ODA non trovato o non autorizzato per questa azienda.",
+    };
+  }
+
+  const oldDate = po.expected_delivery_date ?? null;
+  const auditLine = [
+    `[AI Email ${new Date().toLocaleString("it-IT")}]`,
+    `consegna aggiornata da ${oldDate ?? "non indicata"} a ${newExpectedDeliveryDate}.`,
+    `Motivo: ${reason}`,
+    sourceEmailId ? `Fonte email: ${sourceEmailId}` : null,
+  ].filter(Boolean).join(" ");
+
+  const nextInternalNotes = [po.internal_notes, auditLine]
+    .filter((value) => typeof value === "string" && value.trim())
+    .join("\n");
+
+  const { error: updateErr } = await ctx.supabase
+    .from("purchase_orders")
+    .update({
+      expected_delivery_date: newExpectedDeliveryDate,
+      internal_notes: nextInternalNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", po.id)
+    .eq("company_id", ctx.companyId);
+
+  if (updateErr) return { ok: false, message: `Aggiornamento ODA fallito: ${updateErr.message}` };
+
+  return {
+    ok: true,
+    message: `Data consegna ODA ${po.oda_number ?? po.id} aggiornata al ${newExpectedDeliveryDate}.`,
+    details: {
+      purchase_order_id: po.id,
+      oda_number: po.oda_number,
+      old_expected_delivery_date: oldDate,
+      new_expected_delivery_date: newExpectedDeliveryDate,
+      source_email_id: sourceEmailId,
+    },
+  };
+}
+
 async function createPurchaseOrderDraft(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload: any,
@@ -928,6 +1025,11 @@ async function createPurchaseOrderDraft(
   const stockId = payload.stock_id as string | undefined;
   const reorderQty = payload.reorder_qty as number | undefined;
   const supplierId = payload.supplier_id as string | undefined;
+  const emailItems = normalizeEmailPurchaseItems(payload.items);
+
+  if (!stockId && emailItems.length > 0) {
+    return await createProposedPurchaseOrderFromEmail(payload, emailItems, ctx);
+  }
 
   if (!stockId) return { ok: false, message: "stock_id mancante" };
 
@@ -996,6 +1098,167 @@ async function createPurchaseOrderDraft(
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
+}
+
+function normalizeEmailPurchaseItems(items: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const row = item as Record<string, unknown>;
+      const name = typeof row.name === "string" && row.name.trim()
+        ? row.name.trim()
+        : typeof row.description === "string" && row.description.trim()
+          ? row.description.trim()
+          : null;
+      if (!name) return null;
+      const qtyRaw = row.qty ?? row.quantity;
+      const qty = typeof qtyRaw === "number"
+        ? qtyRaw
+        : Number(String(qtyRaw ?? "").replace(",", "."));
+      return {
+        material_sku: typeof row.material_sku === "string" ? row.material_sku : typeof row.sku === "string" ? row.sku : null,
+        name,
+        qty: Number.isFinite(qty) && qty > 0 ? qty : null,
+        unit: typeof row.unit === "string" ? row.unit : null,
+        price_estimate: typeof row.price_estimate === "number" ? row.price_estimate : null,
+        note: typeof row.note === "string" ? row.note : null,
+      };
+    })
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .slice(0, 50);
+}
+
+async function findSupplierFromEmailPayload(
+  payload: Record<string, unknown>,
+  ctx: { supabase: SupabaseAdmin; companyId: string },
+): Promise<string | null> {
+  const explicitSupplierId = typeof payload.supplier_id === "string" && payload.supplier_id.trim()
+    ? payload.supplier_id.trim()
+    : null;
+  if (explicitSupplierId) return explicitSupplierId;
+
+  const supplierEmail = typeof payload.supplier_email === "string" && payload.supplier_email.trim()
+    ? payload.supplier_email.trim()
+    : null;
+  const supplierName = typeof payload.supplier_name === "string" && payload.supplier_name.trim()
+    ? payload.supplier_name.trim()
+    : null;
+
+  if (supplierEmail) {
+    const { data } = await ctx.supabase
+      .from("suppliers")
+      .select("id")
+      .eq("company_id", ctx.companyId)
+      .ilike("email", supplierEmail)
+      .maybeSingle();
+    if (data?.id) return data.id as string;
+  }
+
+  if (supplierName) {
+    const { data } = await ctx.supabase
+      .from("suppliers")
+      .select("id")
+      .eq("company_id", ctx.companyId)
+      .ilike("name", supplierName)
+      .maybeSingle();
+    if (data?.id) return data.id as string;
+  }
+
+  return null;
+}
+
+async function createProposedPurchaseOrderFromEmail(
+  payload: Record<string, unknown>,
+  items: Array<Record<string, unknown>>,
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string },
+): Promise<ExecutionResult> {
+  const supplierId = await findSupplierFromEmailPayload(payload, ctx);
+  const proposalReason = typeof payload.proposal_reason === "string" && payload.proposal_reason.trim()
+    ? payload.proposal_reason.trim()
+    : "Proposta ODA generata da email fornitore.";
+  const expectedDeliveryDate = typeof payload.expected_delivery_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.expected_delivery_date)
+    ? payload.expected_delivery_date
+    : null;
+
+  const { data, error } = await ctx.supabase
+    .from("proposed_purchase_orders")
+    .insert({
+      company_id: ctx.companyId,
+      ai_persona_used: "email_ai",
+      proposal_reason: proposalReason,
+      proposed_supplier_id: supplierId,
+      alternative_suppliers: {
+        email: typeof payload.supplier_email === "string" ? payload.supplier_email : null,
+        name: typeof payload.supplier_name === "string" ? payload.supplier_name : null,
+        source: "email_ai",
+        source_thread_id: typeof payload.source_thread_id === "string" ? payload.source_thread_id : null,
+        source_email_id: typeof payload.source_email_id === "string" ? payload.source_email_id : null,
+      },
+      items,
+      expected_delivery_date: expectedDeliveryDate,
+      status: "draft",
+      reviewed_by: null,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { ok: false, message: `Creazione proposta ODA fallita: ${error.message}` };
+  if (!data?.id) return { ok: false, message: "Creazione proposta ODA: nessuna riga inserita." };
+
+  return {
+    ok: true,
+    message: `Proposta ODA creata da email con ${items.length} ${items.length === 1 ? "riga" : "righe"}. Apri Acquisti/Magazzino per verificarla e trasformarla in ordine.`,
+    details: {
+      proposed_purchase_order_id: data.id,
+      supplier_id: supplierId,
+      items_count: items.length,
+      expected_delivery_date: expectedDeliveryDate,
+    },
+  };
+}
+
+async function createLogisticsTask(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  ctx: { supabase: SupabaseAdmin; userId: string; companyId: string },
+): Promise<ExecutionResult> {
+  const title = typeof payload.title === "string" && payload.title.trim()
+    ? payload.title.trim().slice(0, 180)
+    : "Verifica operativa da email";
+  const notes = typeof payload.notes === "string" ? payload.notes.trim().slice(0, 3000) : null;
+  const dueDate = typeof payload.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.due_date)
+    ? payload.due_date
+    : null;
+  const rawPriority = typeof payload.priority === "string" ? payload.priority : "normale";
+  const priority = ["bassa", "normale", "alta", "urgente"].includes(rawPriority) ? rawPriority : "normale";
+  const category = typeof payload.category === "string" && payload.category.trim()
+    ? payload.category.trim().slice(0, 80)
+    : "logistica";
+
+  const { data, error } = await ctx.supabase
+    .from("tasks")
+    .insert({
+      company_id: ctx.companyId,
+      title,
+      notes,
+      status: "da_fare",
+      priority,
+      due_date: dueDate,
+      category,
+      created_by: ctx.userId,
+    })
+    .select("id, title")
+    .maybeSingle();
+
+  if (error) return { ok: false, message: `Creazione task logistica fallita: ${error.message}` };
+  if (!data?.id) return { ok: false, message: "Creazione task logistica: nessuna riga inserita." };
+
+  return {
+    ok: true,
+    message: `Task creato: ${data.title}.`,
+    details: { task_id: data.id, title: data.title, due_date: dueDate, priority },
+  };
 }
 
 async function sendGenericEmail(

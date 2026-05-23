@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   ClipboardList, Euro, Ticket, FileText, ExternalLink,
   CalendarDays, CreditCard, FileSignature, Wrench, Link2, Plus,
-  AlertTriangle, FileCheck2, FileWarning,
+  AlertTriangle, FileCheck2, FileWarning, Mail, MessageSquare, Paperclip, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -87,6 +87,23 @@ interface CustomerDocumentRow {
   created_at: string;
 }
 
+interface CustomerEmailConversationRow {
+  id: string | null;
+  thread_id: string | null;
+  from_email: string | null;
+  from_name: string | null;
+  to_email: string | null;
+  subject: string | null;
+  received_at: string | null;
+  ai_category: string | null;
+  ai_priority: string | null;
+  ai_summary: string | null;
+  attachments: unknown;
+  is_read: boolean | null;
+  preview: string | null;
+  status: string | null;
+}
+
 const CUSTOMER_DOCUMENT_BUCKET = "customer-documents";
 const CUSTOMER_DOCUMENT_LABELS: Record<CustomerDocumentRow["document_type"], string> = {
   contract: "Contratto",
@@ -115,6 +132,7 @@ interface CustomerBusinessTabsProps {
   customerId: string;
   companyId: string;
   customerFullName?: string;
+  customerEmail?: string | null;
   orders: OrderRow[];
   preventivi: PreventivoRow[];
   tickets: TicketRow[];
@@ -154,6 +172,103 @@ function formatDate(dateStr: string | null | undefined): string {
   } catch {
     return "—";
   }
+}
+
+function normalizeEmailForLookup(email: string | null | undefined): string | null {
+  const value = (email ?? "").trim().toLowerCase();
+  return value.includes("@") ? value : null;
+}
+
+function hasEmailAttachments(attachments: unknown): boolean {
+  return Array.isArray(attachments) && attachments.length > 0;
+}
+
+function emailCategoryLabel(category: string | null): string | null {
+  if (!category) return null;
+  const labels: Record<string, string> = {
+    lead: "Lead",
+    lead_new: "Lead",
+    lead_followup: "Follow-up",
+    cliente_esistente: "Cliente",
+    customer: "Cliente",
+    fornitore: "Fornitore",
+    supplier: "Fornitore",
+    ddt: "DDT",
+    fattura: "Fattura",
+    invoice: "Fattura",
+    quote_request: "Preventivo",
+    preventivo: "Preventivo",
+    richiesta_preventivo: "Preventivo",
+    support: "Supporto",
+    assistenza: "Supporto",
+    ticket: "Ticket",
+  };
+  return labels[category] ?? category.replace(/_/g, " ");
+}
+
+async function fetchCustomerEmailConversations(
+  companyId: string,
+  normalizedEmail: string,
+): Promise<CustomerEmailConversationRow[]> {
+  const selectColumns = [
+    "id",
+    "thread_id",
+    "from_email",
+    "from_name",
+    "to_email",
+    "subject",
+    "received_at",
+    "ai_category",
+    "ai_priority",
+    "ai_summary",
+    "attachments",
+    "is_read",
+    "preview",
+    "status",
+  ].join(", ");
+
+  // La view v_my_email_inbox è già filtrata su auth.uid(): qui aggiungiamo solo
+  // il match operativo sul cliente, senza esporre caselle di altri utenti.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+  const baseQuery = () =>
+    client
+      .from("v_my_email_inbox")
+      .select(selectColumns)
+      .eq("company_id", companyId)
+      .order("received_at", { ascending: false })
+      .limit(25);
+
+  const [fromResult, toResult] = await Promise.all([
+    baseQuery().ilike("from_email", normalizedEmail),
+    baseQuery().ilike("to_email", normalizedEmail),
+  ]);
+
+  if (fromResult.error) throw fromResult.error;
+  if (toResult.error) throw toResult.error;
+
+  const byThread = new Map<string, CustomerEmailConversationRow>();
+  const rows = [
+    ...((fromResult.data ?? []) as CustomerEmailConversationRow[]),
+    ...((toResult.data ?? []) as CustomerEmailConversationRow[]),
+  ];
+
+  for (const row of rows) {
+    const key = row.thread_id || row.id;
+    if (!key) continue;
+    const current = byThread.get(key);
+    const currentTime = current?.received_at ? new Date(current.received_at).getTime() : 0;
+    const rowTime = row.received_at ? new Date(row.received_at).getTime() : 0;
+    if (!current || rowTime >= currentTime) byThread.set(key, row);
+  }
+
+  return Array.from(byThread.values())
+    .sort((a, b) => {
+      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0;
+      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0;
+      return bTime - aTime;
+    })
+    .slice(0, 25);
 }
 
 function EmptyState({
@@ -514,11 +629,152 @@ function RateTab({ rate }: { rate: RataRow[] }) {
   );
 }
 
+function EmailConversationsTab({
+  conversations,
+  customerEmail,
+  isLoading,
+  error,
+}: {
+  conversations: CustomerEmailConversationRow[];
+  customerEmail: string | null;
+  isLoading: boolean;
+  error: unknown;
+}) {
+  const navigate = useNavigate();
+  const emailHref = customerEmail
+    ? `/azienda/email?customer_email=${encodeURIComponent(customerEmail)}`
+    : "/azienda/email";
+
+  if (!customerEmail) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <Mail className="h-10 w-10 text-muted-foreground/30 mb-3" />
+        <p className="text-sm font-medium text-muted-foreground">Nessuna email cliente disponibile</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Quando l'anagrafica avrà un indirizzo email reale, qui vedrai le conversazioni collegate.
+        </p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {[0, 1, 2].map((index) => (
+          <div key={index} className="h-16 animate-pulse rounded-lg bg-muted" />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <div className="flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">Conversazioni email non caricate</p>
+            <p className="mt-1 text-xs">Puoi comunque aprire il client email e cercare manualmente {customerEmail}.</p>
+            <Button variant="outline" size="sm" className="mt-2 bg-white" onClick={() => navigate(emailHref)}>
+              Apri client email
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (conversations.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <MessageSquare className="h-10 w-10 text-muted-foreground/30 mb-3" />
+        <p className="text-sm font-medium text-muted-foreground">Nessuna conversazione email trovata</p>
+        <p className="text-xs text-muted-foreground mt-1 mb-3">
+          Ho cercato nelle tue caselle personali collegate usando {customerEmail}.
+        </p>
+        <Button variant="outline" size="sm" onClick={() => navigate(emailHref)}>
+          Cerca nel client email
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 rounded-lg border border-blue-100 bg-blue-50/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-2">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+          <div>
+            <p className="text-sm font-semibold text-blue-950">Conversazioni collegate al cliente</p>
+            <p className="text-xs text-blue-900/70">
+              Vista personale: email inviate o ricevute da {customerEmail}, con categoria AI e allegati.
+            </p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" className="bg-white" onClick={() => navigate(emailHref)}>
+          Apri inbox filtrata
+        </Button>
+      </div>
+
+      <div className="space-y-1">
+        {conversations.map((message) => {
+          const threadId = message.thread_id || message.id;
+          const category = emailCategoryLabel(message.ai_category);
+          const highPriority = message.ai_priority === "alta" || message.ai_priority === "high";
+          const sender = message.from_name || message.from_email || "Sconosciuto";
+          const targetHref = threadId
+            ? `/azienda/email?thread_id=${encodeURIComponent(threadId)}&customer_email=${encodeURIComponent(customerEmail)}`
+            : emailHref;
+
+          return (
+            <button
+              key={threadId ?? `${message.from_email}-${message.received_at}`}
+              type="button"
+              className="group flex w-full items-start justify-between gap-3 rounded-md border border-transparent p-2.5 text-left transition-colors hover:border-blue-100 hover:bg-blue-50/50"
+              onClick={() => navigate(targetHref)}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  {!message.is_read && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />}
+                  <p className="truncate text-sm font-medium">{sender}</p>
+                  {category && (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                      {category}
+                    </Badge>
+                  )}
+                  {highPriority && (
+                    <Badge variant="outline" className="h-5 border-orange-200 bg-orange-50 px-1.5 text-[10px] text-orange-700">
+                      Priorità
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-0.5 truncate text-sm text-foreground">{message.subject || "(senza oggetto)"}</p>
+                <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                  {message.ai_summary || message.preview || "Nessuna anteprima disponibile"}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground">
+                <span>{formatDate(message.received_at)}</span>
+                <div className="flex items-center gap-1">
+                  {hasEmailAttachments(message.attachments) && <Paperclip className="h-3.5 w-3.5" />}
+                  <ExternalLink className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function CustomerBusinessTabs({
   customerId,
+  companyId,
   customerFullName,
+  customerEmail,
   orders,
   preventivi,
   tickets,
@@ -533,6 +789,7 @@ export function CustomerBusinessTabs({
 }: CustomerBusinessTabsProps) {
   useAuth();
   const navigate = useNavigate();
+  const normalizedCustomerEmail = normalizeEmailForLookup(customerEmail);
   const { data: customerDocuments = [] } = useQuery({
     queryKey: ["customer-documents", customerId],
     queryFn: async () => {
@@ -546,6 +803,16 @@ export function CustomerBusinessTabs({
       return (data ?? []) as CustomerDocumentRow[];
     },
     enabled: !!customerId,
+  });
+  const {
+    data: emailConversations = [],
+    isLoading: isLoadingEmailConversations,
+    error: emailConversationsError,
+  } = useQuery({
+    queryKey: ["customer-email-conversations", customerId, companyId, normalizedCustomerEmail],
+    queryFn: () => fetchCustomerEmailConversations(companyId, normalizedCustomerEmail!),
+    enabled: !!companyId && !!normalizedCustomerEmail,
+    staleTime: 60 * 1000,
   });
 
   // Quick actions bar
@@ -610,7 +877,7 @@ export function CustomerBusinessTabs({
         </div>
       )}
 
-      <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 h-auto mb-2">
+      <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto mb-2">
         <TabsTrigger value="ordini" className="text-xs px-1">
           Ordini ({orders.length})
         </TabsTrigger>
@@ -625,6 +892,9 @@ export function CustomerBusinessTabs({
         </TabsTrigger>
         <TabsTrigger value="documenti" className="text-xs px-1">
           Documenti ({fatture.length + customerDocuments.length})
+        </TabsTrigger>
+        <TabsTrigger value="email" className="text-xs px-1">
+          Email ({emailConversations.length})
         </TabsTrigger>
         <TabsTrigger value="appuntamenti" className="text-xs px-1">
           Appuntamenti ({appuntamenti.length})
@@ -651,6 +921,14 @@ export function CustomerBusinessTabs({
           fatture={fatture}
           customerDocuments={customerDocuments}
           anagraficaCollegata={anagraficaCollegata}
+        />
+      </TabsContent>
+      <TabsContent value="email">
+        <EmailConversationsTab
+          conversations={emailConversations}
+          customerEmail={normalizedCustomerEmail}
+          isLoading={isLoadingEmailConversations}
+          error={emailConversationsError}
         />
       </TabsContent>
       <TabsContent value="appuntamenti">

@@ -74,7 +74,7 @@ import {
 } from "@/lib/ads/campaignState";
 import { cn } from "@/lib/utils";
 import { metaCampaignKeys, useMetaCampaigns } from "@/hooks/useMetaCampaigns";
-import { googleAdsCampaignKeys, useGoogleAdsCampaigns } from "@/hooks/useGoogleAdsCampaigns";
+import { useGoogleAdsCampaigns } from "@/hooks/useGoogleAdsCampaigns";
 import { useGoogleAdsStats } from "@/hooks/useGoogleAdsStats";
 import { useAdsAi, type VideoScript, type VideoScriptStyle } from "@/hooks/useAdsAi";
 import { useAdSpendGuard, type AdSpendGuardConfig } from "@/hooks/useAdSpendGuard";

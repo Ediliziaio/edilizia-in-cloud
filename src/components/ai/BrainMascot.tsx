@@ -10,11 +10,12 @@
  * Closeable con X (persiste in sessionStorage — riappare al reload).
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Brain, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MemoryLite {
+  id: string;
   persona_key: string;
   content: string;
   hits_count: number | null;
@@ -39,12 +40,13 @@ interface Props {
   personas: PersonaLite[];
   crossPersonaLinks: Map<string, Map<string, number>>;
   onNodeClick?: (nodeId: string) => void;
+  className?: string;
 }
 
 const STORAGE_KEY = "eic_brain_mascot_dismissed_session";
 const ROTATE_MS = 8000;
 
-export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick }: Props) {
+export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick, className }: Props) {
   // Auto-genera 3-5 messaggi rilevanti
   const messages = useMemo<Message[]>(() => {
     const list: Message[] = [];
@@ -134,6 +136,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
   const [idx, setIdx] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [fade, setFade] = useState(false);
+  const fadeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sessione: se chiuso, rimane chiuso fino a reload
   useEffect(() => {
@@ -146,14 +149,22 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
   useEffect(() => {
     if (dismissed || messages.length <= 1) return;
     const t = setInterval(() => {
+      if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
       setFade(true);
-      setTimeout(() => {
+      fadeTimeoutRef.current = setTimeout(() => {
         setIdx((i) => (i + 1) % messages.length);
         setFade(false);
       }, 250);
     }, ROTATE_MS);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
+    };
   }, [dismissed, messages.length]);
+
+  useEffect(() => {
+    if (idx >= messages.length) setIdx(0);
+  }, [idx, messages.length]);
 
   if (dismissed || messages.length === 0) return null;
   const msg = messages[idx];
@@ -169,8 +180,9 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
       onNodeClick(msg.nodeId);
     } else {
       // Skip al messaggio successivo
+      if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
       setFade(true);
-      setTimeout(() => {
+      fadeTimeoutRef.current = setTimeout(() => {
         setIdx((i) => (i + 1) % messages.length);
         setFade(false);
       }, 150);
@@ -178,7 +190,7 @@ export function BrainMascot({ memories, personas, crossPersonaLinks, onNodeClick
   };
 
   return (
-    <div className="absolute bottom-3 right-3 z-30 max-w-xs pointer-events-auto animate-in slide-in-from-bottom-2 fade-in duration-500">
+    <div className={cn("absolute bottom-3 right-3 z-30 max-w-xs pointer-events-auto animate-in slide-in-from-bottom-2 fade-in duration-500", className)}>
       <div
         className={cn(
           "group relative bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl shadow-2xl shadow-orange-500/20 p-3 pr-7 cursor-pointer transition-all hover:shadow-orange-500/40 hover:scale-[1.02]",

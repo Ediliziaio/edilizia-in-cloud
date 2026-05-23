@@ -25,7 +25,7 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 };
 
 interface InboxRow {
@@ -42,21 +42,6 @@ interface InboxRow {
   is_starred: boolean;
   attachments: unknown;
   raw_text: string | null;
-}
-
-interface ThreadRow {
-  id: string;
-  user_id: string;
-  company_id: string;
-  subject_normalized: string;
-  participants: string[];
-  message_count: number;
-  unread_count: number;
-  has_starred: boolean;
-  has_attachments: boolean;
-  first_received_at: string;
-  last_received_at: string;
-  preview: string | null;
 }
 
 function normalizeSubject(raw: string | null | undefined): string {
@@ -81,6 +66,18 @@ function uniqEmails(...arrs: (string | null | undefined)[][]): string[] {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const cronSecret = req.headers.get("x-cron-secret");
+  const expectedCronSecret = Deno.env.get("PROACTIVE_CRON_SECRET");
+  const isServiceRole = authHeader === `Bearer ${SERVICE_ROLE_KEY}`;
+  const isCron = !!cronSecret && !!expectedCronSecret && cronSecret === expectedCronSecret;
+  if (!isServiceRole && !isCron) {
+    return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
+      status: 401,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
@@ -191,16 +188,10 @@ Deno.serve(async (req) => {
           p_new_participants: participants,
           p_preview: row.raw_text ? row.raw_text.slice(0, 200) : null,
         }).then((r) => {
-          if (r.error) {
-            // Fallback: update diretto se RPC non esiste
-            return supabase
-              .from("email_threads")
-              .update({
-                message_count: 0, // placeholder; RPC dovrebbe occuparsene
-              })
-              .eq("id", threadId!);
-          }
-        }).catch(() => { /* ignora; counter best-effort */ });
+          if (r.error) errors.push(`Increment thread ${threadId}: ${r.error.message}`);
+        }).catch((e) => {
+          errors.push(`Increment thread ${threadId}: ${e instanceof Error ? e.message : String(e)}`);
+        });
       }
 
       // Assegna thread alla email

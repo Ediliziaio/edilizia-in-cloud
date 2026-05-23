@@ -13,7 +13,8 @@
  * rediretto al redirect_uri con `code` e `state`. Il frontend chiama poi
  * email-oauth-callback con il code.
  *
- * Auth: company_admin (per evitare che utenti random colleghino email).
+ * Auth: utente autenticato con azienda attiva. La casella resta personale
+ * (user_id = auth.uid()) e non condivisa con il tenant.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -30,6 +31,7 @@ const OUTLOOK_AUTH_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/a
 const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
   "https://www.googleapis.com/auth/gmail.modify", // per marcare letti
+  "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
 const OUTLOOK_SCOPES = [
@@ -37,8 +39,33 @@ const OUTLOOK_SCOPES = [
   "offline_access",
   "Mail.Read",
   "Mail.ReadWrite",
+  "Mail.Send",
   "User.Read",
 ];
+
+const encoder = new TextEncoder();
+
+function base64UrlEncode(value: string | Uint8Array): string {
+  const bytes = typeof value === "string" ? encoder.encode(value) : value;
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function signStatePayload(payloadB64: string): Promise<string> {
+  const secret = Deno.env.get("EMAIL_OAUTH_STATE_SECRET")
+    ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    ?? "";
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payloadB64));
+  return base64UrlEncode(new Uint8Array(sig));
+}
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -49,7 +76,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Auth: super_admin OR company_admin
+  // Auth: qualsiasi utente autenticato con profilo aziendale.
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "auth_required" }), {
@@ -70,17 +97,16 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Verifica role + estrai company_id
+  // Estrai company_id dal profilo; il collegamento è personale, non serve essere admin.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: roleRow } = await (supa as any)
-    .from("user_roles")
-    .select("role, company_id")
-    .eq("user_id", user.id)
-    .in("role", ["super_admin", "company_admin"])
-    .limit(1)
+  const { data: profile } = await (supa as any)
+    .from("profiles")
+    .select("company_id")
+    .eq("id", user.id)
     .maybeSingle();
-  if (!roleRow) {
-    return new Response(JSON.stringify({ error: "company_admin_required" }), {
+  const companyId = profile?.company_id as string | undefined;
+  if (!companyId) {
+    return new Response(JSON.stringify({ error: "company_profile_required" }), {
       status: 403, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
@@ -97,17 +123,17 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Genera state CSRF-safe (random + signed con shared secret)
+  // Genera state CSRF-safe: payload + firma HMAC server-side.
   const stateRandom = crypto.randomUUID();
-  // Encodiamo info utente nel state per recuperarli nel callback senza DB lookup
   const statePayload = {
     user_id: user.id,
-    company_id: roleRow.company_id,
+    company_id: companyId,
     provider: body.provider,
     nonce: stateRandom,
     iat: Date.now(),
   };
-  const state = btoa(JSON.stringify(statePayload));
+  const payloadB64 = base64UrlEncode(JSON.stringify(statePayload));
+  const state = `${payloadB64}.${await signStatePayload(payloadB64)}`;
 
   let authUrl: string;
   if (body.provider === "gmail") {

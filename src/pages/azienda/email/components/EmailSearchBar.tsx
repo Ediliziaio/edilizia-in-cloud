@@ -13,8 +13,8 @@
  *
  * Token query (testo libero) cerca in subject + raw_text.
  *
- * Il search applica i filtri al frontend usando v_my_email_inbox; per
- * full-text + vector search avanzato (Sprint E5+) servirà un edge dedicato.
+ * Il search applica i filtri su v_my_email_inbox; full-text e ricerca AI
+ * semantica possono essere collegati a un edge dedicato quando necessari.
  */
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -40,7 +40,7 @@ export interface SearchQuery {
 
 const OPERATOR_RE = /(from|to|subject|has|is|before|after):(\S+)/g;
 
-export function parseSearchQuery(raw: string): SearchQuery {
+function parseSearchQuery(raw: string): SearchQuery {
   const q: SearchQuery = { raw };
   let textPart = raw;
   let m;
@@ -67,50 +67,56 @@ export function parseSearchQuery(raw: string): SearchQuery {
 }
 
 interface EmailSearchBarProps {
+  initialValue?: string;
   onSearch: (query: SearchQuery | null) => void;
 }
 
-export function EmailSearchBar({ onSearch }: EmailSearchBarProps) {
-  const [value, setValue] = useState("");
+export function EmailSearchBar({ initialValue = "", onSearch }: EmailSearchBarProps) {
+  const [value, setValue] = useState(initialValue);
   const debRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (initialValue) setValue(initialValue);
+  }, [initialValue]);
 
   useEffect(() => {
     if (debRef.current) clearTimeout(debRef.current);
     debRef.current = window.setTimeout(() => {
-      if (!value.trim()) {
+      const trimmed = value.trim();
+      if (!trimmed || (trimmed.length < 2 && !trimmed.includes(":"))) {
         onSearch(null);
       } else {
-        onSearch(parseSearchQuery(value.trim()));
+        onSearch(parseSearchQuery(trimmed));
       }
-    }, 250);
+    }, 400);
     return () => {
       if (debRef.current) clearTimeout(debRef.current);
     };
   }, [value, onSearch]);
 
   return (
-    <div className="px-3 py-2 border-b bg-background">
+    <div className="border-b border-blue-100 bg-white px-3 py-2">
       <div className="relative flex items-center gap-1">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-blue-500" />
         <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Cerca: from:nome@dominio.it has:attachment …"
-          className="pl-8 pr-8 h-8 text-xs"
+          placeholder="Cerca nello storico: from:nome@dominio.it has:attachment after:2026-05-01"
+          className="h-9 rounded-xl border-blue-100 bg-blue-50/40 pl-8 pr-8 text-xs focus-visible:ring-blue-200"
         />
         {value && (
           <button
             type="button"
             onClick={() => setValue("")}
-            className="absolute right-9 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-9 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         )}
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" title="Operators">
-              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-xl text-blue-600 hover:bg-blue-50" title="Operatori ricerca">
+              <HelpCircle className="h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 text-xs space-y-2 p-3">
@@ -126,7 +132,7 @@ export function EmailSearchBar({ onSearch }: EmailSearchBarProps) {
               <li><Badge variant="outline" className="text-[10px]">after:2026-05-01</Badge></li>
             </ul>
             <p className="text-muted-foreground text-[10px]">
-              Combina più operatori: <code>from:bob has:attachment is:unread</code>
+              Combina più operatori: <code>from:bob has:attachment is:unread</code>. Lo storico viene caricato a pagine, quindi la UI resta fluida anche con molte email.
             </p>
           </PopoverContent>
         </Popover>

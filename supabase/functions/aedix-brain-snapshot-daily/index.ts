@@ -24,9 +24,31 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const expectedSecret =
+    Deno.env.get("PROACTIVE_CRON_SECRET") ??
+    Deno.env.get("INTERNAL_CRON_SECRET") ??
+    Deno.env.get("CRON_SECRET");
+  const authHeader = req.headers.get("authorization") ?? "";
+  const cronSecret = req.headers.get("x-cron-secret");
+  const isServiceRole = !!serviceKey && authHeader === `Bearer ${serviceKey}`;
+
+  if (!isServiceRole && (!expectedSecret || cronSecret !== expectedSecret)) {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (!serviceKey) {
+    return new Response(JSON.stringify({ error: "SUPABASE_SERVICE_ROLE_KEY missing" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    serviceKey,
   );
 
   const t0 = Date.now();

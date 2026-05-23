@@ -157,9 +157,17 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
       if (error) throw new Error(error.message);
       return data;
     },
-    onSuccess: () => {
-      toast.success("Sync forzato lanciato — refresh tra 10-30s");
+    onSuccess: (data) => {
+      const stored = typeof data === "object" && data && "emails_stored" in data
+        ? Number((data as { emails_stored?: number }).emails_stored ?? 0)
+        : null;
+      toast.success("Sync completato", {
+        description: stored == null ? "Aggiorno la lista email." : `${stored} nuove email salvate nel client personale.`,
+      });
       void qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
+      void qc.invalidateQueries({ queryKey: ["email-client-connections"] });
+      void qc.invalidateQueries({ queryKey: ["email-threads"] });
+      void qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
     },
     onError: (e) => toast.error("Errore sync", { description: String(e) }),
   });
@@ -272,10 +280,15 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
         {/* Bottoni connect — disabilita i provider OAuth con secrets mancanti.
             IMAP è sempre disponibile perché usa pgsodium, niente env var. */}
         {(() => {
-          const gmailReady = diag?.checklist?.google_oauth_client_id?.configured !== false
-            && diag?.checklist?.google_oauth_client_secret?.configured !== false;
-          const outlookReady = diag?.checklist?.ms_oauth_client_id?.configured !== false
-            && diag?.checklist?.ms_oauth_client_secret?.configured !== false;
+          const diagUnavailable = diag == null;
+          const gmailReady = diagUnavailable || (
+            diag.checklist?.google_oauth_client_id?.configured !== false
+            && diag.checklist?.google_oauth_client_secret?.configured !== false
+          );
+          const outlookReady = diagUnavailable || (
+            diag.checklist?.ms_oauth_client_id?.configured !== false
+            && diag.checklist?.ms_oauth_client_secret?.configured !== false
+          );
           const gmailTitle = gmailReady
             ? undefined
             : "OAuth Google non configurato — l'admin di piattaforma deve impostare GOOGLE_OAUTH_CLIENT_ID/SECRET";
