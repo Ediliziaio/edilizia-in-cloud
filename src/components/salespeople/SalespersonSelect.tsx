@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserCheck } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import type { CompensationMode } from "@/lib/commissions";
 
 import { Label } from "@/components/ui/label";
 import {
@@ -20,6 +21,7 @@ export interface Salesperson {
   last_name: string;
   commission_type: string;
   commission_value: number;
+  compensation_mode?: CompensationMode | null;
 }
 
 interface SalespersonSelectProps {
@@ -37,7 +39,7 @@ export const SalespersonSelect = React.forwardRef<HTMLDivElement, SalespersonSel
       queryFn: async () => {
         const { data, error } = await supabase
           .from("salespeople")
-          .select("id, first_name, last_name, commission_type, commission_value")
+          .select("id, first_name, last_name, commission_type, commission_value, compensation_mode")
           .eq("company_id", effectiveCompany!.id)
           .eq("is_active", true)
           .order("last_name");
@@ -73,9 +75,11 @@ export const SalespersonSelect = React.forwardRef<HTMLDivElement, SalespersonSel
               <SelectItem key={sp.id} value={sp.id}>
                 {sp.first_name} {sp.last_name}
                 <span className="text-muted-foreground ml-2 text-xs">
-                  ({sp.commission_type === "fixed" 
-                    ? formatCurrency(sp.commission_value) 
-                    : `${sp.commission_value}%`})
+                  ({sp.compensation_mode === "fixed_only"
+                    ? "solo fisso"
+                    : sp.commission_type === "fixed"
+                      ? formatCurrency(sp.commission_value)
+                      : `${sp.commission_value}%`})
                 </span>
               </SelectItem>
             ))}

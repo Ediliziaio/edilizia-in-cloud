@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,7 +8,11 @@ import { MyDayTimeline } from "./MyDayTimeline";
 import { MyDayEmptyState } from "./MyDayEmptyState";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { startOfDay, endOfDay, addDays } from "date-fns";
+import { AlertCircle } from "lucide-react";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { isTaskDoneStatus } from "@/lib/taskStatuses";
 
 interface MyDayViewProps {
   onNewTask: () => void;
@@ -18,11 +22,12 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const userId = user?.id;
+  const queryClient = useQueryClient();
 
   const [editingTask, setEditingTask] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: tasks = [], isLoading } = useQuery({
+  const { data: allTasks = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: [...queryKeys.tasks.all, "my-day", userId, companyId],
     queryFn: async () => {
       if (!companyId || !userId) return [];
@@ -39,13 +44,18 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
         `)
         .eq("company_id", companyId)
         .eq("assigned_to", userId)
-        .neq("status", "completata")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
     enabled: !!companyId && !!userId,
   });
+  const observedStatuses = useMemo(() => Array.from(new Set(allTasks.map((task: any) => task.status).filter(Boolean))), [allTasks]);
+  const { statuses: statusOptions } = useTaskStatuses(companyId, observedStatuses);
+  const tasks = useMemo(
+    () => allTasks.filter((task: any) => !isTaskDoneStatus(task.status, statusOptions)),
+    [allTasks, statusOptions],
+  );
 
   const { overdue, today, tomorrow, thisWeek, noDate, estimatedHoursToday } = useMemo(() => {
     const now = new Date();
@@ -80,12 +90,36 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
     setDialogOpen(true);
   };
 
+  const handleSaved = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50/70 p-4 text-sm text-red-900">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Errore nel caricamento della giornata</p>
+            <p className="mt-1 text-xs text-red-800">
+              {error instanceof Error ? error.message : "Non riesco a leggere le attività in questo momento."}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" className="h-7 border-red-200 bg-white text-red-700 hover:bg-red-100" onClick={() => refetch()}>
+            Riprova
+          </Button>
+        </div>
       </div>
     );
   }
@@ -122,7 +156,7 @@ export function MyDayView({ onNewTask }: MyDayViewProps) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         task={editingTask}
-        onSaved={() => {}}
+        onSaved={handleSaved}
       />
     </div>
   );

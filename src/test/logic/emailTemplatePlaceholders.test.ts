@@ -172,7 +172,7 @@ describe("htmlToPlainText", () => {
 });
 
 describe("TEMPLATE_META registry", () => {
-  it("contiene tutti i template attesi inclusi i lifecycle", () => {
+  it("contiene tutti i template core e lifecycle attesi", () => {
     expect(EDITABLE_TEMPLATE_KEYS.sort()).toEqual(
       [
         "account_verify",

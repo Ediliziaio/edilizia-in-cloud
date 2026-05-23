@@ -7,13 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Plus, Trash2, ListChecks } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { logTaskActivity } from "@/lib/taskActivityLog";
 
 interface TaskChecklistProps {
   taskId: string;
+  companyId?: string;
+  taskTitle?: string;
 }
 
-export function TaskChecklist({ taskId }: TaskChecklistProps) {
+export function TaskChecklist({ taskId, companyId, taskTitle }: TaskChecklistProps) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [newItem, setNewItem] = useState("");
 
   const queryKey = ["task-checklist", taskId];
@@ -39,9 +44,19 @@ export function TaskChecklist({ taskId }: TaskChecklistProps) {
         position: items.length,
       } as any);
       if (error) throw error;
+      await logTaskActivity({
+        companyId,
+        userId: user?.id,
+        taskId,
+        taskTitle,
+        eventType: "task_checklist_item_added",
+        description: "ha aggiunto un elemento checklist",
+        metadata: { title },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ["task-activity-log", companyId, taskId] });
       setNewItem("");
     },
     onError: (e: any) => toast.error(e.message),
@@ -54,16 +69,40 @@ export function TaskChecklist({ taskId }: TaskChecklistProps) {
         .update({ is_completed } as any)
         .eq("id", id);
       if (error) throw error;
+      await logTaskActivity({
+        companyId,
+        userId: user?.id,
+        taskId,
+        taskTitle,
+        eventType: is_completed ? "task_checklist_item_completed" : "task_checklist_item_reopened",
+        description: is_completed ? "ha completato un elemento checklist" : "ha riaperto un elemento checklist",
+        changes: { checklist_item_id: id, is_completed },
+      });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ["task-activity-log", companyId, taskId] });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("task_checklist_items").delete().eq("id", id);
       if (error) throw error;
+      await logTaskActivity({
+        companyId,
+        userId: user?.id,
+        taskId,
+        taskTitle,
+        eventType: "task_checklist_item_deleted",
+        description: "ha eliminato un elemento checklist",
+        changes: { checklist_item_id: id },
+      });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ["task-activity-log", companyId, taskId] });
+    },
   });
 
   const completed = items.filter((i: any) => i.is_completed).length;

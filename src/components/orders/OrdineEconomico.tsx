@@ -50,6 +50,7 @@ export function OrdineEconomico({
       <OrderEconomics
         orderId={orderId}
         totalAmount={totalAmount}
+        collectedAmount={collectedAmount}
         vatRate={vatRate}
         items={items}
       />

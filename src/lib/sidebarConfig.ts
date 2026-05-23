@@ -42,7 +42,6 @@ import {
   Workflow,
   LayoutGrid,
   ShieldAlert,
-  NotebookPen,
   Image,
   Settings,
   Calculator,
@@ -166,7 +165,6 @@ export const macroAreas: MacroArea[] = [
     icon: Users2,
     items: [
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone", featureKey: "hr_personale" },
-      { title: "Giornale Lavori", url: "/azienda/giornale-lavori", icon: NotebookPen, permissionKey: "canViewGiornaleLavori", featureKey: "giornale_lavori" },
       // MP-CLEANUP: "Messaggi Esterni" rimosso (feature legacy sostituita da Hub WhatsApp multi-numero)
     ],
   },

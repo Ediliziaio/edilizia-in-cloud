@@ -88,7 +88,7 @@ export function FeatureRoute({
               o ricarica la pagina.
             </p>
           )}
-          <Button className="mt-5" onClick={refetch} disabled={isFetching}>
+          <Button className="mt-5" onClick={refetch} disabled={isFetching && !loadingTimedOut}>
             {isFetching ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (

@@ -51,6 +51,7 @@ import {
   buildInstallmentsFromLegacy,
   installmentsToLegacyColumns,
 } from "@/lib/orderUtils";
+import { calculateCollectedNetFromInstallments, calculateCommissionGross } from "@/lib/commissions";
 
 interface OrderData {
   id: string;
@@ -136,6 +137,7 @@ function EditOrderInner() {
   const [salespersonData, setSalespersonData] = useState<{
     commission_type: string;
     commission_value: number;
+    compensation_mode?: string | null;
   } | null>(null);
   const [existingSalespersonRecordId, setExistingSalespersonRecordId] = useState<string | null>(null);
 
@@ -236,7 +238,7 @@ function EditOrderInner() {
         .from("order_salespeople")
         .select(`
           id, salesperson_id, commission_type, commission_value,
-          salesperson:salespeople(first_name, last_name, commission_type, commission_value)
+          salesperson:salespeople(first_name, last_name, commission_type, commission_value, compensation_mode)
         `)
         .eq("order_id", id!)
         .maybeSingle();
@@ -252,6 +254,7 @@ function EditOrderInner() {
       setSalespersonData({
         commission_type: existingSalesperson.commission_type,
         commission_value: existingSalesperson.commission_value,
+        compensation_mode: existingSalesperson.salesperson?.compensation_mode || null,
       });
       setExistingSalespersonRecordId(existingSalesperson.id);
     }
@@ -592,9 +595,19 @@ function EditOrderInner() {
 
       // Handle salesperson
       if (salespersonId && salespersonData) {
-        const commissionAmount = salespersonData.commission_type === "fixed"
-          ? salespersonData.commission_value
-          : total * (salespersonData.commission_value / 100);
+        const collectedNet = calculateCollectedNetFromInstallments({
+          installments: installmentsForSave,
+          totalAmount: total,
+          vatRate: vat,
+          financingCost: parseFloat(financingCost) || 0,
+        });
+        const commissionAmount = calculateCommissionGross({
+          commissionType: salespersonData.commission_type,
+          commissionValue: salespersonData.commission_value,
+          compensationMode: salespersonData.compensation_mode,
+          totalAmount: total,
+          collectedAmount: collectedNet,
+        });
 
         if (existingSalespersonRecordId) {
           await supabase.from("order_salespeople").update({
@@ -795,6 +808,7 @@ function EditOrderInner() {
                   setSalespersonData(salesperson ? {
                     commission_type: salesperson.commission_type,
                     commission_value: salesperson.commission_value,
+                    compensation_mode: salesperson.compensation_mode || null,
                   } : null);
                 }}
               />

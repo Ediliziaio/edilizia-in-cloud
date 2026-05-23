@@ -9,12 +9,15 @@ import { MessageSquare, Send, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { logTaskActivity } from "@/lib/taskActivityLog";
 
 interface TaskCommentsProps {
   taskId: string;
+  companyId?: string;
+  taskTitle?: string;
 }
 
-export function TaskComments({ taskId }: TaskCommentsProps) {
+export function TaskComments({ taskId, companyId, taskTitle }: TaskCommentsProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [content, setContent] = useState("");
@@ -52,9 +55,19 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
         content: text,
       } as any);
       if (error) throw error;
+      await logTaskActivity({
+        companyId,
+        userId: user.id,
+        taskId,
+        taskTitle,
+        eventType: "task_comment_added",
+        description: "ha aggiunto un commento",
+        metadata: { preview: text.slice(0, 120) },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ["task-activity-log", companyId, taskId] });
       setContent("");
     },
     onError: (e: any) => toast.error(e.message),
@@ -64,8 +77,19 @@ export function TaskComments({ taskId }: TaskCommentsProps) {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("task_comments").delete().eq("id", id);
       if (error) throw error;
+      await logTaskActivity({
+        companyId,
+        userId: user?.id,
+        taskId,
+        taskTitle,
+        eventType: "task_comment_deleted",
+        description: "ha eliminato un commento",
+      });
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ["task-activity-log", companyId, taskId] });
+    },
   });
 
   const handleSubmit = () => {

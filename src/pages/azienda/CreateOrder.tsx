@@ -219,7 +219,7 @@ function CreateOrderInner() {
         internalNotes: internalNotes || "",
         statusId: statusId || "",
         salespersonId: salespersonId || "",
-        salespersonData: (salespersonData as { commission_type: string; commission_value: number } | null) || null,
+        salespersonData: (salespersonData as { commission_type: string; commission_value: number; compensation_mode?: string | null } | null) || null,
         assignedTo: assignedTo || "",
         destinationWarehouseId: destinationWarehouseId || null,
         sedeId: sedeId ?? null,
@@ -357,6 +357,7 @@ function CreateOrderInner() {
             salesperson_id: values.salesperson_id,
             commission_type: values.salesperson_data.commission_type,
             commission_value: values.salesperson_data.commission_value,
+            compensation_mode: values.salesperson_data.compensation_mode || null,
           }
         : null;
 
@@ -792,6 +793,7 @@ function CreateOrderInner() {
                   setValue("salesperson_data", salesperson ? {
                     commission_type: salesperson.commission_type,
                     commission_value: salesperson.commission_value,
+                    compensation_mode: salesperson.compensation_mode || null,
                   } : null);
                 }}
               />

@@ -147,7 +147,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
-        .select("id, commission_amount, is_paid, paid_date, payment_expected_date, salesperson:salespeople!inner(first_name, last_name, company_id), order:orders!inner(id, order_code, company_id)")
+        .select("id, commission_amount, deduction_amount, is_paid, paid_date, payment_expected_date, salesperson:salespeople!inner(first_name, last_name, company_id), order:orders!inner(id, order_code, company_id)")
         .eq("salesperson.company_id", companyId!);
       if (error) throw error;
       return (data || []) as any[];

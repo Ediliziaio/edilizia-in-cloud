@@ -6,21 +6,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { type TaskStatusDefinition, buildTaskStatusUpdate } from "@/lib/taskStatuses";
 
 interface BulkActionsBarProps {
   selectedIds: Set<string>;
   onClear: () => void;
+  statusOptions?: TaskStatusDefinition[];
 }
 
-export function BulkActionsBar({ selectedIds, onClear }: BulkActionsBarProps) {
+export function BulkActionsBar({ selectedIds, onClear, statusOptions = [] }: BulkActionsBarProps) {
   const queryClient = useQueryClient();
   const count = selectedIds.size;
 
   const handleBulkComplete = async () => {
     const ids = Array.from(selectedIds);
+    const doneStatus = statusOptions.find((status) => status.stage === "done")?.value || "completata";
     const { error } = await supabase
       .from("tasks")
-      .update({ status: "completata", completed_at: new Date().toISOString() })
+      .update(buildTaskStatusUpdate(doneStatus, statusOptions) as any)
       .in("id", ids);
     if (error) {
       toast.error("Errore", { description: error.message });
@@ -55,6 +58,18 @@ export function BulkActionsBar({ selectedIds, onClear }: BulkActionsBarProps) {
     }
   };
 
+  const handleBulkStatus = async (status: string) => {
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("tasks").update(buildTaskStatusUpdate(status, statusOptions) as any).in("id", ids);
+    if (error) {
+      toast.error("Errore", { description: error.message });
+    } else {
+      toast.success(`Stato aggiornato per ${ids.length} attività`);
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+      onClear();
+    }
+  };
+
   if (count === 0) return null;
 
   return (
@@ -76,6 +91,18 @@ export function BulkActionsBar({ selectedIds, onClear }: BulkActionsBarProps) {
           <SelectItem value="normale">Normale</SelectItem>
           <SelectItem value="alta">Alta</SelectItem>
           <SelectItem value="urgente">Urgente</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Select onValueChange={handleBulkStatus}>
+        <SelectTrigger className="w-[160px] h-8 text-sm">
+          <ArrowUpDown className="h-3.5 w-3.5 mr-1.5" />
+          <SelectValue placeholder="Stato" />
+        </SelectTrigger>
+        <SelectContent>
+          {statusOptions.map((status) => (
+            <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
+          ))}
         </SelectContent>
       </Select>
 

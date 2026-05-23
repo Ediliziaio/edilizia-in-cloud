@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/formatters";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 
 export default function MyOrders() {
   const { user } = useAuth();
@@ -43,7 +44,7 @@ export default function MyOrders() {
       const { data, error } = await supabase
         .from("order_salespeople")
         .select(`
-          id, commission_amount, commission_type, commission_value, is_paid, paid_date, created_at,
+          id, commission_amount, deduction_amount, commission_type, commission_value, is_paid, paid_date, created_at,
           order:orders!inner(
             id, order_code, description, total_amount, created_at,
             deposit_paid, deposit_2_paid, balance_paid, vat_rate,
@@ -135,7 +136,7 @@ export default function MyOrders() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
-              {formatCurrency(orders.reduce((sum, o) => sum + Number(o.commission_amount || 0), 0))}
+              {formatCurrency(orders.reduce((sum, o) => sum + calculateStoredCommissionNet(o.commission_amount, o.deduction_amount), 0))}
             </div>
           </CardContent>
         </Card>
@@ -197,7 +198,7 @@ export default function MyOrders() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-medium text-primary">
-                          {formatCurrency(item.commission_amount)}
+                          {formatCurrency(calculateStoredCommissionNet(item.commission_amount, item.deduction_amount))}
                         </TableCell>
                         <TableCell>
                           {item.is_paid ? (

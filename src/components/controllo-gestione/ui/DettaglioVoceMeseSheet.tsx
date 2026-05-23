@@ -37,6 +37,7 @@ const SOURCE_LABELS: Record<DettaglioRiga["source_table"], string> = {
   bank_transactions: "Banca",
   prima_nota: "Prima nota",
   invoices: "Fattura",
+  orders: "Commessa",
   cedolini: "Cedolino",
   cespiti: "Cespite",
 };

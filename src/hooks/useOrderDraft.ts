@@ -10,7 +10,7 @@ export interface OrderDraftData {
   internalNotes: string;
   statusId: string;
   salespersonId: string;
-  salespersonData: { commission_type: string; commission_value: number } | null;
+  salespersonData: { commission_type: string; commission_value: number; compensation_mode?: string | null } | null;
   assignedTo: string;
   destinationWarehouseId: string | null;
   // v8.6.42 — sede operativa per analytics disaggregati

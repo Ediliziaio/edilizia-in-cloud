@@ -9,30 +9,59 @@ import { format, isToday, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { logTaskActivity } from "@/lib/taskActivityLog";
+import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import {
+  type TaskStatusDefinition,
+  buildTaskStatusUpdate,
+  getNextTaskStatusForQuickAction,
+  getTaskStatusEventType,
+  getTaskStatusTransitionDescription,
+  isTaskDoneStatus,
+} from "@/lib/taskStatuses";
 
 interface TaskCardProps {
   task: any;
+  statusOptions?: TaskStatusDefinition[];
   onSelect: () => void;
 }
 
-export function TaskCard({ task, onSelect }: TaskCardProps) {
+export function TaskCard({ task, statusOptions, onSelect }: TaskCardProps) {
   const queryClient = useQueryClient();
-  const isCompleted = task.status === "completata";
+  const { user, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const { statuses: fallbackStatuses } = useTaskStatuses(companyId, [task.status].filter(Boolean));
+  const statuses = statusOptions?.length ? statusOptions : fallbackStatuses;
+  const isCompleted = isTaskDoneStatus(task.status, statuses);
   const isOverdue = !isCompleted && task.due_date && new Date(task.due_date) < new Date();
+  const nextStatus = getNextTaskStatusForQuickAction(task.status, statuses);
 
   const toggleMutation = useMutation({
     mutationFn: async () => {
-      const newStatus = isCompleted ? "da_fare" : "completata";
+      const updates = buildTaskStatusUpdate(nextStatus.value, statuses);
       const { error } = await supabase
         .from("tasks")
-        .update({ status: newStatus, completed_at: newStatus === "completata" ? new Date().toISOString() : null })
+        .update(updates as any)
         .eq("id", task.id);
       if (error) throw error;
+      await logTaskActivity({
+        companyId,
+        userId: user?.id,
+        taskId: task.id,
+        taskTitle: task.title,
+        eventType: getTaskStatusEventType(task.status, nextStatus.value, statuses),
+        description: getTaskStatusTransitionDescription(task.status, nextStatus.value, statuses),
+        changes: updates,
+        beforeSnapshot: task,
+        afterSnapshot: { ...task, ...updates },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
-      if (!isCompleted) toast.success("Attività completata");
+      toast.success(`Stato aggiornato: ${nextStatus.label}`);
     },
   });
 
@@ -79,6 +108,7 @@ export function TaskCard({ task, onSelect }: TaskCardProps) {
               {task.assigned_profile.first_name} {task.assigned_profile.last_name?.[0]}.
             </span>
           )}
+          <TaskStatusBadge status={task.status} statuses={statuses} compact className="h-5 px-1.5 text-[10px]" />
           {scadenzaLabel && (
             <span className={cn("text-[11px] flex items-center gap-0.5", scadenzaLabel.className)}>
               {isOverdue && <AlertTriangle className="h-3 w-3" />}

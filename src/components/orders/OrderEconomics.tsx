@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { TrendingUp, TrendingDown, DollarSign, Receipt, UserCheck, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 
 interface OrderItem {
   name: string;
@@ -16,6 +17,7 @@ interface OrderItem {
 interface OrderEconomicsProps {
   orderId: string;
   totalAmount: number;
+  collectedAmount: number;
   vatRate: number;
   items: OrderItem[];
 }
@@ -30,8 +32,7 @@ interface CostBreakdown {
 
 interface OrderSalesperson {
   id: string;
-  commission_type: string;
-  commission_value: number;
+  commission_amount: number;
   deduction_amount: number;
   salesperson: {
     first_name: string;
@@ -85,8 +86,7 @@ export function OrderEconomics({
         .from("order_salespeople")
         .select(`
           id,
-          commission_type,
-          commission_value,
+          commission_amount,
           deduction_amount,
           salesperson:salespeople(first_name, last_name)
         `)
@@ -161,24 +161,8 @@ export function OrderEconomics({
   const totalLaborNet = totalEmployeeCosts + totalTeamsNet;
   const totalLaborVat = totalTeamsVat;
 
-  // Calculate commissions - totalAmount and collectedAmount are already net (imponibile)
-  const calculateCommission = (type: string, value: number) => {
-    switch (type) {
-      case "fixed":
-        return value;
-      case "percentage_sold":
-        return totalAmount * (value / 100);
-      case "percentage_collected":
-        return totalAmount * (value / 100);
-      default:
-        return 0;
-    }
-  };
-
   const totalCommissions = orderSalespeople.reduce((sum, sp) => {
-    const gross = calculateCommission(sp.commission_type, sp.commission_value);
-    const deduction = sp.deduction_amount || 0;
-    return sum + (gross - deduction);
+    return sum + calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
   }, 0);
 
   // VAT summary

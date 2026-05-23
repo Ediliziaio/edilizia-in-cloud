@@ -1,24 +1,24 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, CheckCircle2, ExternalLink } from "lucide-react";
+import { GripVertical, CheckCircle2, ExternalLink, ChevronRight } from "lucide-react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { format, isBefore, isAfter, addHours } from "date-fns";
 import { cn } from "@/lib/utils";
+import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge";
+import {
+  type TaskStatusDefinition,
+  getNextTaskStatusForQuickAction,
+  isTaskDoneStatus,
+} from "@/lib/taskStatuses";
 
 const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
   bassa:   { label: "Bassa",   className: "bg-muted text-muted-foreground" },
   normale: { label: "Normale", className: "bg-primary/10 text-primary" },
   alta:    { label: "Alta",    className: "bg-warning/10 text-warning" },
   urgente: { label: "Urgente", className: "bg-destructive/10 text-destructive" },
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  da_fare:   "Da fare",
-  in_corso:  "In corso",
-  completata: "Completata",
 };
 
 const ALL_CATEGORY_LABELS: Record<string, string> = {
@@ -40,10 +40,11 @@ interface SortableTaskRowProps {
   onSelect: () => void;
   onToggleComplete: () => void;
   dragDisabled?: boolean;
+  statusOptions?: TaskStatusDefinition[];
 }
 
 export function SortableTaskRow({
-  task, isSelected, onToggleSelect, onSelect, onToggleComplete, dragDisabled = false,
+  task, isSelected, onToggleSelect, onSelect, onToggleComplete, dragDisabled = false, statusOptions,
 }: SortableTaskRowProps) {
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
@@ -56,9 +57,14 @@ export function SortableTaskRow({
 
   const now = new Date();
   const in48h = addHours(now, 48);
-  const isOverdue = task.status !== "completata" && task.due_date && isBefore(new Date(task.due_date), now);
-  const isExpiring = !isOverdue && task.status !== "completata" && task.due_date &&
+  const isCompleted = isTaskDoneStatus(task.status, statusOptions);
+  const nextStatus = getNextTaskStatusForQuickAction(task.status, statusOptions);
+  const isOverdue = !isCompleted && task.due_date && isBefore(new Date(task.due_date), now);
+  const isExpiring = !isOverdue && !isCompleted && task.due_date &&
     isAfter(new Date(task.due_date), now) && isBefore(new Date(task.due_date), in48h);
+  const creatorName = task.creator_profile
+    ? `${task.creator_profile.first_name ?? ""} ${task.creator_profile.last_name ?? ""}`.trim()
+    : "";
 
   const renderCorrelation = () => {
     if (task.order) {
@@ -100,7 +106,7 @@ export function SortableTaskRow({
         isDragging && "opacity-50 bg-muted z-50",
         isOverdue && "bg-destructive/5",
         isExpiring && "bg-warning/5",
-        task.status === "completata" && "opacity-60",
+        isCompleted && "opacity-60",
         isSelected && "bg-primary/5",
       )}
       onClick={onSelect}
@@ -129,10 +135,18 @@ export function SortableTaskRow({
 
       {/* Title */}
       <TableCell className="font-medium">
-        <span className={task.status === "completata" ? "line-through" : ""}>{task.title}</span>
-        {task.is_recurring && (
-          <span className="ml-1.5 text-[10px] text-muted-foreground">↻</span>
-        )}
+        <div className="min-w-[220px]">
+          <div className="flex items-center gap-1.5">
+            <span className={cn("line-clamp-1", isCompleted && "line-through")}>{task.title}</span>
+            {task.is_recurring && (
+              <span className="text-[10px] text-muted-foreground">↻</span>
+            )}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-normal text-muted-foreground">
+            {creatorName && <span>Creata da {creatorName}</span>}
+            {task.notes && <span className="hidden max-w-[260px] truncate md:inline">{task.notes}</span>}
+          </div>
+        </div>
       </TableCell>
 
       {/* Assignee */}
@@ -176,15 +190,14 @@ export function SortableTaskRow({
       <TableCell onClick={(e) => e.stopPropagation()}>
         <button
           className={cn(
-            "inline-flex items-center gap-1.5 text-sm rounded-md px-2 py-1 transition-colors",
-            task.status === "completata"
-              ? "text-primary hover:bg-primary/10"
-              : "text-muted-foreground hover:bg-muted",
+            "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors hover:bg-muted",
           )}
           onClick={onToggleComplete}
+          title={`Porta a ${nextStatus.label}`}
         >
-          <CheckCircle2 className={cn("h-4 w-4", task.status === "completata" && "text-primary")} />
-          {STATUS_LABELS[task.status] || task.status}
+          <CheckCircle2 className={cn("h-4 w-4 text-muted-foreground", isCompleted && "text-emerald-600")} />
+          <TaskStatusBadge status={task.status} statuses={statusOptions} compact />
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60" />
         </button>
       </TableCell>
     </TableRow>

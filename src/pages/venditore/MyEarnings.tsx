@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 
 export default function MyEarnings() {
   const { user } = useAuth();
@@ -53,7 +54,7 @@ export default function MyEarnings() {
       const { data, error } = await supabase
         .from("order_salespeople")
         .select(`
-          id, commission_amount, commission_type, commission_value, 
+          id, commission_amount, deduction_amount, commission_type, commission_value,
           is_paid, paid_date, payment_expected_date, created_at,
           order:orders!inner(id, order_code, total_amount)
         `)
@@ -71,10 +72,10 @@ export default function MyEarnings() {
 
   // Calculate stats
   const stats = useMemo(() => {
-    const totalEarned = commissions.reduce((sum, c) => sum + Number(c.commission_amount || 0), 0);
+    const totalEarned = commissions.reduce((sum, c) => sum + calculateStoredCommissionNet(c.commission_amount, c.deduction_amount), 0);
     const totalPaid = commissions
       .filter((c) => c.is_paid)
-      .reduce((sum, c) => sum + Number(c.commission_amount || 0), 0);
+      .reduce((sum, c) => sum + calculateStoredCommissionNet(c.commission_amount, c.deduction_amount), 0);
     const totalPending = totalEarned - totalPaid;
     const paidPercentage = totalEarned > 0 ? (totalPaid / totalEarned) * 100 : 0;
 
@@ -103,7 +104,7 @@ export default function MyEarnings() {
           const createdAt = new Date(c.created_at);
           return isWithinInterval(createdAt, { start: monthStart, end: monthEnd });
         })
-        .reduce((sum, c) => sum + Number(c.commission_amount || 0), 0);
+        .reduce((sum, c) => sum + calculateStoredCommissionNet(c.commission_amount, c.deduction_amount), 0);
 
       months.push({
         month: format(monthDate, "MMM", { locale: it }),
@@ -288,7 +289,7 @@ export default function MyEarnings() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium text-primary">
-                        {formatCurrency(commission.commission_amount)}
+                        {formatCurrency(calculateStoredCommissionNet(commission.commission_amount, commission.deduction_amount))}
                       </TableCell>
                       <TableCell>
                         {commission.is_paid ? (

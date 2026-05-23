@@ -5,6 +5,8 @@ import type { VoceCE } from "@/hooks/controlloGestione/useCEriclassificato";
 
 interface CETableProps {
   voci: VoceCE[];
+  isVoceClickable?: (voce: VoceCE) => boolean;
+  onVoceClick?: (voce: VoceCE) => void;
 }
 
 function formatPct(p?: number): string {
@@ -16,7 +18,7 @@ function formatPct(p?: number): string {
   }).format(p / 100);
 }
 
-export function CETable({ voci }: CETableProps) {
+export function CETable({ voci, isVoceClickable, onVoceClick }: CETableProps) {
   return (
     <div className="overflow-x-auto rounded-xl border">
       <Table>
@@ -33,12 +35,28 @@ export function CETable({ voci }: CETableProps) {
             const isGrasso = v.tipo === "subtot_grasso";
             const isSub = v.tipo === "subtot";
             const negativo = v.valore < 0;
+            const clickable = isVoceClickable?.(v) ?? false;
             return (
               <TableRow
                 key={v.codice}
+                role={clickable ? "button" : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                title={clickable ? `Apri dettaglio ${v.label}` : undefined}
+                onClick={clickable ? () => onVoceClick?.(v) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onVoceClick?.(v);
+                        }
+                      }
+                    : undefined
+                }
                 className={cn(
                   isGrasso && "bg-primary/5 font-bold",
                   isSub && "bg-muted/50 font-semibold",
+                  clickable && "cursor-pointer hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 )}
               >
                 <TableCell className="font-mono text-xs text-muted-foreground">

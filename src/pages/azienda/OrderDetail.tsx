@@ -61,6 +61,7 @@ import { CreaDDTDialog } from "@/components/orders/CreaDDTDialog";
 import { CreaProformaDialog } from "@/components/orders/CreaProformaDialog";
 import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
+import { calculateCollectedNetFromInstallments } from "@/lib/commissions";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -924,10 +925,12 @@ function OrderDetailInner() {
     );
   }
 
-  // Compute collected amount from installments for commissions
-  const collectedAmount = displayInstallments
-    .filter(i => i.is_paid && i.type !== 'financing')
-    .reduce((sum, i) => sum + i.amount, 0);
+  const collectedAmount = calculateCollectedNetFromInstallments({
+    installments: displayInstallments,
+    totalAmount: order.total_amount,
+    vatRate: order.vat_rate || 22,
+    financingCost: order.financing_cost ?? 0,
+  });
 
   return (
     <div className="min-h-screen bg-slate-50">

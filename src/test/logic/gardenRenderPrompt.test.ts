@@ -4,55 +4,41 @@ import { buildGardenPrompt } from "@/modules/render-giardini/lib/gardenPromptBui
 import type { ConfigurazioneGiardino } from "@/modules/render-giardini/lib/types";
 
 function baseConfig(overrides: Partial<ConfigurazioneGiardino> = {}): ConfigurazioneGiardino {
+  const defaultPrato = { attivo: true, tipo: "prato_resistente" };
+  const defaultAiuole = { attivo: true, tipo: "perimetrale", densita: "media", palette: "verde_strutturale" };
+  const defaultSiepi = { attivo: false, tipo: "schermante_media", altezza: "media" };
+  const defaultAlberi = { attivo: false, quantita: 2, scala: "media", portamento: "ornamentale" };
+  const defaultCamminamenti = { attivo: false, tipo: "stepping_stones" };
+  const defaultGroundCover = { attivo: false, tipo: "ghiaia" };
+  const defaultArredo = { modalita: "mantieni" };
+  const {
+    prato,
+    aiuole,
+    siepi,
+    alberi,
+    camminamenti,
+    ground_cover,
+    arredo,
+    ...restOverrides
+  } = overrides;
+
   return {
     stile: "contemporaneo",
     interventi: ["restyling_completo"],
     target_zones: ["prato_principale", "perimetro"],
-    prato: {
-      attivo: true,
-      tipo: "prato_resistente",
-    },
-    aiuole: {
-      attivo: true,
-      tipo: "perimetrale",
-      densita: "media",
-      palette: "verde_strutturale",
-    },
-    siepi: {
-      attivo: false,
-      tipo: "schermante_media",
-      altezza: "media",
-    },
-    alberi: {
-      attivo: false,
-      quantita: 2,
-      scala: "media",
-      portamento: "ornamentale",
-    },
-    camminamenti: {
-      attivo: false,
-      tipo: "stepping_stones",
-    },
-    ground_cover: {
-      attivo: false,
-      tipo: "ghiaia",
-    },
-    arredo: {
-      modalita: "mantieni",
-    },
     illuminazione: "nessuna",
     declutter: false,
     elementi_da_preservare: ["facciata", "recinzione"],
     elementi_da_rimuovere: [],
     note_libere: "",
-    ...overrides,
-    prato: { attivo: true, tipo: "prato_resistente", ...overrides.prato },
-    aiuole: { attivo: true, tipo: "perimetrale", densita: "media", palette: "verde_strutturale", ...overrides.aiuole },
-    siepi: { attivo: false, tipo: "schermante_media", altezza: "media", ...overrides.siepi },
-    alberi: { attivo: false, quantita: 2, scala: "media", portamento: "ornamentale", ...overrides.alberi },
-    camminamenti: { attivo: false, tipo: "stepping_stones", ...overrides.camminamenti },
-    ground_cover: { attivo: false, tipo: "ghiaia", ...overrides.ground_cover },
-    arredo: { modalita: "mantieni", ...overrides.arredo },
+    ...restOverrides,
+    prato: { ...defaultPrato, ...prato },
+    aiuole: { ...defaultAiuole, ...aiuole },
+    siepi: { ...defaultSiepi, ...siepi },
+    alberi: { ...defaultAlberi, ...alberi },
+    camminamenti: { ...defaultCamminamenti, ...camminamenti },
+    ground_cover: { ...defaultGroundCover, ...ground_cover },
+    arredo: { ...defaultArredo, ...arredo },
   };
 }
 

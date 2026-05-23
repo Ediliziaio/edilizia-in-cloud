@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { createTimeoutSignal } from "@/lib/query-timeout";
 import { queryKeys } from "@/lib/queryKeys";
+import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 
 const FEATURE_ACCESS_TIMEOUT_MS = 10_000;
 const FEATURE_ACCESS_QUERY_META = { silent: true } as const;
@@ -144,7 +145,8 @@ export function useFeatureAccess(
     isImpersonating &&
     !!impersonatedCompanyId &&
     !!impersonationToken;
-  const bypass = directSuperAdminBypass || impersonationSuperAdminBypass;
+  const isDemoBaseline = companyId === DEMO_COMPANY_ID;
+  const bypass = isDemoBaseline || directSuperAdminBypass || impersonationSuperAdminBypass;
 
   // La sidebar usa già `resolve_company_features`; sottoscriverci alla stessa
   // query evita una seconda verifica fragile al primo mount della route. Se il

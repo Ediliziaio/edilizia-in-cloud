@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Calendar, Clock, Tag, FileText, User, ExternalLink, X, Link2,
   Briefcase, Users, TrendingUp, Package, DollarSign, Ticket,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -24,18 +25,24 @@ import { TaskTagPicker } from "./TaskTagPicker";
 import { TaskTagBadge } from "./TaskTagBadge";
 import { TaskCorrelationPicker } from "./TaskCorrelationPicker";
 import { TaskDependencySection } from "./TaskDependencySection";
+import { describeTaskChanges, logTaskActivity, TASK_FIELD_LABELS } from "@/lib/taskActivityLog";
+import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import {
+  type TaskStatusDefinition,
+  buildTaskStatusUpdate,
+  getTaskStatusDefinition,
+  getTaskStatusEventType,
+  getTaskStatusTransitionDescription,
+  isTaskDoneStatus,
+  isTaskReviewStatus,
+} from "@/lib/taskStatuses";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string }> = {
   bassa: { label: "Bassa", emoji: "⚪" },
   normale: { label: "Normale", emoji: "🔵" },
   alta: { label: "Alta", emoji: "🟠" },
   urgente: { label: "Urgente", emoji: "🔴" },
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  da_fare: "Da fare",
-  in_corso: "In corso",
-  completata: "Completata",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -47,6 +54,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   marketing: "Marketing",
   contatti: "Contatti",
   opportunita: "Opportunità",
+};
+
+const TASK_EVENT_LABELS: Record<string, string> = {
+  task_created: "ha creato l'attività",
+  task_updated: "ha modificato l'attività",
+  task_completed: "ha completato l'attività",
+  task_reopened: "ha riaperto l'attività",
+  task_review_requested: "ha mandato l'attività in revisione",
+  task_status_changed: "ha cambiato stato",
+  task_deleted: "ha eliminato l'attività",
 };
 
 interface TaskDetailPanelProps {
@@ -134,10 +151,161 @@ function EditableField({
   );
 }
 
+function formatProfileName(profile: any, fallback = "Utente") {
+  const name = `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
+  return name || fallback;
+}
+
+function TaskActivityLog({
+  task,
+  companyId,
+  creatorName,
+  statusOptions,
+}: {
+  task: any;
+  companyId: string;
+  creatorName: string;
+  statusOptions: TaskStatusDefinition[];
+}) {
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ["task-activity-log", companyId, task?.id],
+    queryFn: async () => {
+      if (!companyId || !task?.id) return [];
+      const { data, error } = await supabase
+        .from("company_activity_log")
+        .select("id, created_at, actor_name, user_id, action, event_type, description, changes, before_snapshot, after_snapshot, details")
+        .eq("company_id", companyId)
+        .eq("target_id", task.id)
+        .or("target_table.eq.tasks,target_type.eq.tasks,target_type.eq.task")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) return [];
+      return (data || []) as any[];
+    },
+    enabled: !!companyId && !!task?.id,
+    staleTime: 15_000,
+  });
+
+  const renderStatusTransition = (log: any) => {
+    const beforeStatus = log.before_snapshot?.status;
+    const afterStatus = log.after_snapshot?.status || log.changes?.status;
+    if (!afterStatus || beforeStatus === afterStatus) return null;
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {beforeStatus && <TaskStatusBadge status={beforeStatus} statuses={statusOptions} compact />}
+        {beforeStatus && <span className="text-[10px] text-muted-foreground">verso</span>}
+        <TaskStatusBadge status={afterStatus} statuses={statusOptions} compact />
+      </div>
+    );
+  };
+
+  const renderChangeBadges = (changes: unknown) => {
+    if (!changes || typeof changes !== "object" || Array.isArray(changes)) return null;
+    const fields = Object.keys(changes as Record<string, unknown>).filter((field) => field !== "updated_at");
+    if (fields.length === 0) return null;
+    return (
+      <div className="mt-1 flex flex-wrap gap-1">
+        {fields.slice(0, 4).map((field) => (
+          <Badge key={field} variant="outline" className="h-5 px-1.5 text-[10px]">
+            {TASK_FIELD_LABELS[field] ?? field}
+          </Badge>
+        ))}
+        {fields.length > 4 && (
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+            +{fields.length - 4}
+          </Badge>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <History className="h-4 w-4 text-muted-foreground" />
+        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Cronologia
+        </span>
+        {logs.length > 0 && (
+          <span className="ml-auto text-[10px] text-muted-foreground">{logs.length}</span>
+        )}
+      </div>
+
+      <div className="rounded-lg border bg-muted/20">
+        {isLoading ? (
+          <div className="space-y-2 p-3">
+            <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
+          </div>
+        ) : logs.length > 0 ? (
+          <div className="divide-y">
+            {logs.map((log: any) => {
+              const eventType = log.event_type || log.action;
+              const actor = log.actor_name || (log.user_id === task.created_by ? creatorName : "Utente");
+              const description = log.description || TASK_EVENT_LABELS[eventType] || "ha aggiornato l'attività";
+              const afterStatus = log.after_snapshot?.status || log.changes?.status;
+              const statusTone = afterStatus ? getTaskStatusDefinition(afterStatus, statusOptions) : null;
+              return (
+                <div key={log.id} className="flex gap-3 p-3">
+                  <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${statusTone?.tone === "amber" ? "bg-amber-500" : statusTone?.tone === "emerald" ? "bg-emerald-500" : statusTone?.tone === "blue" ? "bg-blue-500" : "bg-primary/70"}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm">
+                      <span className="font-medium">{actor}</span>{" "}
+                      <span className="text-muted-foreground">{description}</span>
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {format(new Date(log.created_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                    </p>
+                    {renderStatusTransition(log)}
+                    {renderChangeBadges(log.changes)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-2 p-3">
+            <div className="flex gap-3">
+              <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary/70" />
+              <div>
+                <p className="text-sm">
+                  <span className="font-medium">{creatorName}</span>{" "}
+                  <span className="text-muted-foreground">ha creato l'attività</span>
+                </p>
+                {task.created_at && (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {format(new Date(task.created_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                  </p>
+                )}
+              </div>
+            </div>
+            {task.updated_at && task.updated_at !== task.created_at && (
+              <div className="flex gap-3">
+                <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Ultima modifica registrata</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {format(new Date(task.updated_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                  </p>
+                </div>
+              </div>
+            )}
+            <p className="pl-5 text-[11px] text-muted-foreground">
+              Le nuove modifiche compariranno qui con nome, data e campi cambiati.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
   const queryClient = useQueryClient();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? "";
+  const { statuses: statusOptions } = useTaskStatuses(companyId, [task?.status].filter(Boolean));
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task?.title ?? "");
 
@@ -166,6 +334,22 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
     enabled: !!task?.id,
   });
 
+  const { data: creatorProfile } = useQuery({
+    queryKey: ["task-creator-profile", task?.created_by],
+    queryFn: async () => {
+      if (!task?.created_by) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("id", task.created_by)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!task?.created_by && !task?.creator_profile,
+    staleTime: 5 * 60_000,
+  });
+
   const removeTagMutation = useMutation({
     mutationFn: async (tagId: string) => {
       const { error } = await supabase
@@ -186,10 +370,30 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", task.id);
       if (error) throw error;
+
+      const statusChanged = typeof updates.status === "string";
+      const eventType = statusChanged
+        ? getTaskStatusEventType(task.status, String(updates.status), statusOptions)
+        : "task_updated";
+
+      await logTaskActivity({
+        companyId,
+        userId: user?.id,
+        taskId: task.id,
+        taskTitle: updates.title ? String(updates.title) : task.title,
+        eventType,
+        description: statusChanged
+          ? getTaskStatusTransitionDescription(task.status, String(updates.status), statusOptions)
+          : describeTaskChanges(updates),
+        changes: updates,
+        beforeSnapshot: task as any,
+        afterSnapshot: { ...(task as any), ...updates },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
       queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
+      queryClient.invalidateQueries({ queryKey: ["task-activity-log", companyId, task.id] });
     },
     onError: () => toast.error("Errore nel salvataggio"),
   });
@@ -255,11 +459,13 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 
   if (!task) return null;
 
+  const creatorName = formatProfileName(task.creator_profile || creatorProfile, "Utente");
+
   return (
     <Sheet open={!!task} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+      <SheetContent side="right" className="w-full sm:max-w-xl lg:max-w-2xl p-0 flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b space-y-3">
+        <div className="border-b bg-card p-4 space-y-3">
           {/* Title */}
           <div className="pr-8">
             {editingTitle ? (
@@ -295,16 +501,15 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
             <Select
               value={task.status}
               onValueChange={(val) => updateMutation.mutate({
-                status: val,
-                completed_at: val === "completata" ? new Date().toISOString() : null,
+                ...buildTaskStatusUpdate(val, statusOptions),
               })}
             >
               <SelectTrigger className="h-8 w-auto text-xs gap-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(STATUS_LABELS).map(([v, l]) => (
-                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -323,10 +528,23 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
               </SelectContent>
             </Select>
 
-            {task.status === "completata" && (
-              <Badge variant="secondary" className="text-xs">
-                ✓ Completata
+            <TaskStatusBadge status={task.status} statuses={statusOptions} />
+            {isTaskReviewStatus(task.status, statusOptions) && (
+              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-xs text-amber-800">
+                Controllo responsabile
               </Badge>
+            )}
+            {isTaskDoneStatus(task.status, statusOptions) && (
+              <Badge variant="secondary" className="text-xs">Chiusa</Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <User className="h-3.5 w-3.5" />
+            <span>Creata da <span className="font-medium text-foreground">{creatorName}</span></span>
+            {task.created_at && (
+              <span>
+                il {format(new Date(task.created_at), "d MMM yyyy", { locale: it })}
+              </span>
             )}
           </div>
         </div>
@@ -489,18 +707,22 @@ export function TaskDetailPanel({ task, onClose }: TaskDetailPanelProps) {
 
           {/* Checklist */}
           <Separator />
-          <TaskChecklist taskId={task.id} />
+          <TaskChecklist taskId={task.id} companyId={companyId} taskTitle={task.title} />
 
           {/* Comments */}
           <Separator />
-          <TaskComments taskId={task.id} />
+          <TaskComments taskId={task.id} companyId={companyId} taskTitle={task.title} />
+
+          {/* Cronologia */}
+          <Separator />
+          <TaskActivityLog task={task} companyId={companyId} creatorName={creatorName} statusOptions={statusOptions} />
 
           {/* Meta */}
           <Separator />
           <div className="text-xs text-muted-foreground space-y-1">
             {task.created_at && (
               <p>
-                Creata il{" "}
+                Creata da {creatorName} il{" "}
                 {format(new Date(task.created_at), "d MMM yyyy 'alle' HH:mm", {
                   locale: it,
                 })}

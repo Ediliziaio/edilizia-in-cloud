@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserCheck, Plus, Pencil, Trash2, Loader2, Percent, DollarSign, Receipt, UserPlus, Check, Copy } from "lucide-react";
+import { UserCheck, Plus, Pencil, Trash2, Loader2, Percent, DollarSign, Receipt, UserPlus, Check, Copy, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SalespersonDialog } from "@/components/salespeople/SalespersonDialog";
+import { CommissionRulesDialog } from "@/components/salespeople/CommissionRulesDialog";
 
 export interface Salesperson {
   id: string;
@@ -67,6 +68,7 @@ export function SalespeopleConfig() {
   const companyId = effectiveCompany?.id;
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [rulesDialogOpen, setRulesDialogOpen] = useState(false);
   const [editingSalesperson, setEditingSalesperson] = useState<Salesperson | null>(null);
   
   const [createAccountDialog, setCreateAccountDialog] = useState<{ open: boolean; salesperson: Salesperson | null }>({
@@ -271,9 +273,14 @@ export function SalespeopleConfig() {
             <CardTitle className="flex items-center gap-2"><UserCheck className="h-5 w-5 shrink-0" />Venditori</CardTitle>
             <CardDescription>Gestisci i venditori e le loro provvigioni</CardDescription>
           </div>
-          <Button onClick={handleCreate} size="sm" className="w-full sm:w-auto shrink-0">
-            <Plus className="h-4 w-4 mr-2" />Nuovo Venditore
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button onClick={() => setRulesDialogOpen(true)} size="sm" variant="outline" className="w-full sm:w-auto shrink-0">
+              <Settings2 className="h-4 w-4 mr-2" />Regole provvigioni
+            </Button>
+            <Button onClick={handleCreate} size="sm" className="w-full sm:w-auto shrink-0">
+              <Plus className="h-4 w-4 mr-2" />Nuovo Venditore
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -365,6 +372,12 @@ export function SalespeopleConfig() {
       <SalespersonDialog open={dialogOpen}
         onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditingSalesperson(null); }}
         salesperson={editingSalesperson} onSave={(data) => saveMutation.mutate(data)} isLoading={saveMutation.isPending} />
+
+      <CommissionRulesDialog
+        open={rulesDialogOpen}
+        onOpenChange={setRulesDialogOpen}
+        companyId={companyId}
+      />
 
       {/* Create Account Dialog - Extended */}
       <Dialog open={createAccountDialog.open} onOpenChange={(open) => {

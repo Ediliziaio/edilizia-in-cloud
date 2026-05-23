@@ -17,7 +17,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, ListTodo, Search, LayoutList, Kanban, CalendarDays, CalendarRange, BarChart2, User } from "lucide-react";
+import {
+  Plus, ListTodo, Search, LayoutList, Kanban, CalendarDays, CalendarRange,
+  BarChart2, User, Users, SlidersHorizontal,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -32,22 +35,26 @@ import { toast } from "sonner";
 import { TaskStatCards } from "@/components/tasks/TaskStatCards";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
 import { BulkActionsBar } from "@/components/tasks/BulkActionsBar";
+import { TaskStatusSettingsDialog } from "@/components/tasks/TaskStatusSettingsDialog";
 import { MyDayView } from "@/components/attivita/MyDayView";
 import { TaskQuickAdd } from "@/components/attivita/TaskQuickAdd";
 import { Link, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { logTaskActivity } from "@/lib/taskActivityLog";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import {
+  buildTaskStatusUpdate,
+  getNextTaskStatusForQuickAction,
+  getTaskStatusEventType,
+  getTaskStatusTransitionDescription,
+  isTaskDoneStatus,
+} from "@/lib/taskStatuses";
 
 const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
   bassa: { label: "Bassa", className: "bg-muted text-muted-foreground" },
   normale: { label: "Normale", className: "bg-primary/10 text-primary" },
   alta: { label: "Alta", className: "bg-warning/10 text-warning" },
   urgente: { label: "Urgente", className: "bg-destructive/10 text-destructive" },
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  da_fare: "Da fare",
-  in_corso: "In corso",
-  completata: "Completata",
 };
 
 const ALL_CATEGORY_LABELS: Record<string, string> = {
@@ -69,7 +76,12 @@ const FONTE_OPTIONS = [
 
 const MARKETING_CATEGORIES = ["marketing", "contatti", "opportunita"];
 
-export default function UnifiedTasks() {
+type UnifiedTasksProps = {
+  embedded?: boolean;
+  initialTab?: "myday" | "all";
+};
+
+export default function UnifiedTasks({ embedded = false, initialTab = "myday" }: UnifiedTasksProps = {}) {
   const { effectiveCompany, user, isImpersonating, role } = useAuth() as any;
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -78,16 +90,18 @@ export default function UnifiedTasks() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
+  const [dialogDefaultAssignedTo, setDialogDefaultAssignedTo] = useState<string | null | undefined>(undefined);
   const [filterStatus, setFilterStatus] = useState("active");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterFonte, setFilterFonte] = useState(initialFonte);
   const [filterAssignee, setFilterAssignee] = useState("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState("myday");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar" | "agenda" | "stats">("list");
   const [searchText, setSearchText] = useState("");
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [statusSettingsOpen, setStatusSettingsOpen] = useState(false);
   const debouncedSearch = useDebounce(searchText, 300);
 
   const sensors = useSensors(
@@ -139,10 +153,35 @@ export default function UnifiedTasks() {
         .order("sort_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      const rawTasks = data || [];
+      const creatorIds = [...new Set(rawTasks.map((task: any) => task.created_by).filter(Boolean))];
+      if (creatorIds.length === 0) return rawTasks;
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .in("id", creatorIds);
+
+      const creators = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
+      return rawTasks.map((task: any) => ({
+        ...task,
+        creator_profile: creators.get(task.created_by) || null,
+      }));
     },
     enabled: !!companyId,
   });
+
+  const observedStatuses = useMemo(
+    () => Array.from(new Set(tasks.map((task: any) => task.status).filter(Boolean))),
+    [tasks],
+  );
+  const { statuses: statusOptions, saveStatuses, resetStatuses } = useTaskStatuses(companyId, observedStatuses);
+
+  useEffect(() => {
+    if (!selectedTask) return;
+    const freshTask = tasks.find((task: any) => task.id === selectedTask.id);
+    if (freshTask) setSelectedTask(freshTask);
+  }, [tasks, selectedTask?.id]);
 
   // Extract unique assignees for filter
   // Exclude the current user if they are impersonating (superadmin doesn't belong to this company)
@@ -167,12 +206,14 @@ export default function UnifiedTasks() {
   const weekStart = startOfWeek(now, { locale: it });
 
   const stats = useMemo(() => {
-    const active = tasks.filter((t) => t.status !== "completata").length;
-    const expiring = tasks.filter((t) => t.status !== "completata" && t.due_date && isAfter(new Date(t.due_date), now) && isBefore(new Date(t.due_date), in48h)).length;
-    const overdue = tasks.filter((t) => t.status !== "completata" && t.due_date && isBefore(new Date(t.due_date), now)).length;
-    const completedThisWeek = tasks.filter((t) => t.status === "completata" && t.completed_at && isAfter(new Date(t.completed_at), weekStart)).length;
-    return { active, expiring, overdue, completedThisWeek };
-  }, [tasks]);
+    const isDone = (task: any) => isTaskDoneStatus(task.status, statusOptions);
+    const active = tasks.filter((t) => !isDone(t)).length;
+    const inReview = tasks.filter((t) => statusOptions.find((status) => status.value === t.status)?.stage === "review").length;
+    const expiring = tasks.filter((t) => !isDone(t) && t.due_date && isAfter(new Date(t.due_date), now) && isBefore(new Date(t.due_date), in48h)).length;
+    const overdue = tasks.filter((t) => !isDone(t) && t.due_date && isBefore(new Date(t.due_date), now)).length;
+    const completedThisWeek = tasks.filter((t) => isDone(t) && t.completed_at && isAfter(new Date(t.completed_at), weekStart)).length;
+    return { active, inReview, expiring, overdue, completedThisWeek };
+  }, [tasks, statusOptions]);
 
   // Toast notifica al primo caricamento se ci sono task scaduti
   const notifiedRef = useRef(false);
@@ -200,11 +241,12 @@ export default function UnifiedTasks() {
     const now = new Date();
     const in48h = addHours(now, 48);
     return tasks.filter((t) => {
-      if (filterStatus === "active" && t.status === "completata") return false;
+      const isDone = isTaskDoneStatus(t.status, statusOptions);
+      if (filterStatus === "active" && isDone) return false;
       if (filterStatus === "overdue") {
-        if (t.status === "completata" || !t.due_date || !isBefore(new Date(t.due_date), now)) return false;
+        if (isDone || !t.due_date || !isBefore(new Date(t.due_date), now)) return false;
       } else if (filterStatus === "expiring") {
-        if (t.status === "completata" || !t.due_date) return false;
+        if (isDone || !t.due_date) return false;
         const d = new Date(t.due_date);
         if (!isAfter(d, now) || !isBefore(d, in48h)) return false;
       } else if (filterStatus !== "all" && filterStatus !== "active" && t.status !== filterStatus) return false;
@@ -219,7 +261,7 @@ export default function UnifiedTasks() {
       }
       return true;
     });
-  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, filterAssignee, debouncedSearch]);
+  }, [tasks, filterStatus, filterPriority, filterCategory, filterFonte, filterAssignee, debouncedSearch, statusOptions]);
 
   // DnD is only meaningful when showing all tasks unfiltered — otherwise sort_order
   // would be calculated only over the visible subset, corrupting the order of hidden tasks.
@@ -241,22 +283,42 @@ export default function UnifiedTasks() {
     });
   }, [tasks, reorderMutation, queryClient]);
 
+  const openNewTask = useCallback((options?: { assignedTo?: string | null; defaults?: Record<string, unknown> | null }) => {
+    const defaultAssignee =
+      options?.assignedTo !== undefined
+        ? options.assignedTo
+        : ((options?.defaults?.assigned_to as string | null | undefined) ?? user?.id ?? null);
+    setDialogDefaultAssignedTo(defaultAssignee);
+    setEditingTask(options?.defaults ?? null);
+    setDialogOpen(true);
+  }, [user?.id]);
+
   const handleToggleComplete = async (task: any) => {
-    const newStatus = task.status === "completata" ? "da_fare" : "completata";
+    const nextStatus = getNextTaskStatusForQuickAction(task.status, statusOptions);
+    const updates = buildTaskStatusUpdate(nextStatus.value, statusOptions);
     const { error } = await supabase
       .from("tasks")
-      .update({
-        status: newStatus,
-        completed_at: newStatus === "completata" ? new Date().toISOString() : null,
-      })
+      .update(updates)
       .eq("id", task.id);
     if (error) {
       toast.error("Errore", { description: error.message });
       return;
     }
 
+    await logTaskActivity({
+      companyId,
+      userId: user?.id,
+      taskId: task.id,
+      taskTitle: task.title,
+      eventType: getTaskStatusEventType(task.status, nextStatus.value, statusOptions),
+      description: getTaskStatusTransitionDescription(task.status, nextStatus.value, statusOptions),
+      changes: updates,
+      beforeSnapshot: task,
+      afterSnapshot: { ...task, ...updates },
+    });
+
     // Task ricorrente completata → crea la prossima occorrenza
-    if (newStatus === "completata" && task.is_recurring && task.recurrence_rule && task.due_date) {
+    if (isTaskDoneStatus(nextStatus.value, statusOptions) && task.is_recurring && task.recurrence_rule && task.due_date) {
       const base = parseISO(task.due_date);
       let nextDue: Date;
       switch (task.recurrence_rule) {
@@ -290,7 +352,7 @@ export default function UnifiedTasks() {
     queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
   };
 
-  const isOverdue = (task: any) => task.status !== "completata" && task.due_date && isBefore(new Date(task.due_date), now);
+  const isOverdue = (task: any) => !isTaskDoneStatus(task.status, statusOptions) && task.due_date && isBefore(new Date(task.due_date), now);
 
   const handleRefresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
 
@@ -325,34 +387,78 @@ export default function UnifiedTasks() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Attività</h1>
-          <p className="text-muted-foreground">{stats.active} attività attive</p>
+    <div className={embedded ? "space-y-5" : "space-y-6"}>
+      <div className="rounded-xl border bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                Regia operativa
+              </span>
+              {stats.overdue > 0 && (
+                <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive">
+                  {stats.overdue} scadute
+                </span>
+              )}
+            </div>
+            <h1 className={cn("font-bold tracking-tight", embedded ? "text-xl" : "text-2xl")}>
+              {embedded ? "Regia attività" : "Attività"}
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Gestisci attività personali e di team, priorità, scadenze e responsabilità da un unico punto.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button className="gap-2" onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
+              <Plus className="h-4 w-4" />
+              Aggiungi attività
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => openNewTask({ assignedTo: null })}>
+              <Users className="h-4 w-4" />
+              Per team
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={() => setStatusSettingsOpen(true)}>
+              <SlidersHorizontal className="h-4 w-4" />
+              Stati
+            </Button>
+          </div>
         </div>
-        <Button onClick={() => { setEditingTask(null); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuova Attività
-        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="h-10 rounded-lg">
           <TabsTrigger value="myday">La mia giornata</TabsTrigger>
           <TabsTrigger value="all">Tutte le attività</TabsTrigger>
         </TabsList>
 
         <TabsContent value="myday">
-          <MyDayView onNewTask={() => { setEditingTask(null); setDialogOpen(true); }} />
+          <MyDayView onNewTask={() => openNewTask({ assignedTo: user?.id ?? null })} />
         </TabsContent>
 
         <TabsContent value="all">
           <div className="space-y-6">
-            <TaskQuickAdd />
-            <TaskStatCards {...stats} onFilterClick={handleStatFilterClick} />
+            <TaskQuickAdd
+              defaultAssignedTo={user?.id ?? null}
+              onAdvancedCreate={() => openNewTask({ assignedTo: user?.id ?? null })}
+            />
+            <TaskStatCards
+              {...stats}
+              onFilterClick={handleStatFilterClick}
+              onStatusClick={(status) => {
+                setActiveTab("all");
+                setFilterStatus(status);
+              }}
+            />
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-xl border bg-card p-3 shadow-sm">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                  Filtri e vista
+                </div>
+                <span className="text-xs text-muted-foreground">{filteredTasks.length} attività visualizzate</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
               <div className="relative flex-1 min-w-[200px] max-w-xs">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -373,9 +479,9 @@ export default function UnifiedTasks() {
                 <SelectContent>
                   <SelectItem value="all">Tutte</SelectItem>
                   <SelectItem value="active">Attive</SelectItem>
-                  <SelectItem value="da_fare">Da fare</SelectItem>
-                  <SelectItem value="in_corso">In corso</SelectItem>
-                  <SelectItem value="completata">Completate</SelectItem>
+                  {statusOptions.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>{status.label}</SelectItem>
+                  ))}
                   <SelectItem value="expiring">In scadenza (48h)</SelectItem>
                   <SelectItem value="overdue">Scadute</SelectItem>
                 </SelectContent>
@@ -474,6 +580,7 @@ export default function UnifiedTasks() {
                   <BarChart2 className="h-4 w-4" />
                 </button>
               </div>
+              </div>
             </div>
 
             {isLoading ? (
@@ -498,7 +605,7 @@ export default function UnifiedTasks() {
                   <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
                   <h3 className="text-lg font-medium mb-1">Nessuna attività</h3>
                   <p className="text-muted-foreground mb-4">Crea la tua prima attività per iniziare</p>
-                  <Button onClick={() => { setEditingTask(null); setDialogOpen(true); }}>
+                  <Button onClick={() => openNewTask({ assignedTo: user?.id ?? null })}>
                     <Plus className="h-4 w-4 mr-2" /> Nuova Attività
                   </Button>
                 </CardContent>
@@ -515,22 +622,21 @@ export default function UnifiedTasks() {
                 tasks={filteredTasks}
                 onTaskSelect={(task) => setSelectedTask(task)}
                 onNewTaskForDate={(date) => {
-                  setEditingTask({ due_date: date.toISOString().slice(0, 10) });
-                  setDialogOpen(true);
+                  openNewTask({ assignedTo: user?.id ?? null, defaults: { due_date: date.toISOString().slice(0, 10) } });
                 }}
               />
             ) : viewMode === "kanban" ? (
               <TaskKanbanBoard
                 tasks={filteredTasks}
+                statusOptions={statusOptions}
                 onTaskSelect={(task) => setSelectedTask(task)}
                 onAddTaskToColumn={(status) => {
-                  setEditingTask({ status });
-                  setDialogOpen(true);
+                  openNewTask({ assignedTo: user?.id ?? null, defaults: { status } });
                 }}
               />
             ) : (
               <>
-                <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} />
+                <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} />
                 <Card>
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <Table>
@@ -560,6 +666,7 @@ export default function UnifiedTasks() {
                               onSelect={() => setSelectedTask(task)}
                               onToggleComplete={() => handleToggleComplete(task)}
                               dragDisabled={isDragDisabled}
+                              statusOptions={statusOptions}
                             />
                           ))}
                         </SortableContext>
@@ -578,11 +685,20 @@ export default function UnifiedTasks() {
         onOpenChange={setDialogOpen}
         task={editingTask}
         onSaved={handleRefresh}
+        defaultAssignedTo={dialogDefaultAssignedTo}
       />
 
       <TaskDetailPanel
         task={selectedTask}
         onClose={() => setSelectedTask(null)}
+      />
+
+      <TaskStatusSettingsDialog
+        open={statusSettingsOpen}
+        onOpenChange={setStatusSettingsOpen}
+        statuses={statusOptions}
+        onSave={saveStatuses}
+        onReset={resetStatuses}
       />
     </div>
   );

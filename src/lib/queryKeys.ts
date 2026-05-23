@@ -19,6 +19,7 @@ export const queryKeys = {
     detail: (orderId: string | undefined) => ["orders", "detail", orderId] as const,
     statuses: (companyId: string | undefined) => ["orders", "statuses", companyId] as const,
     installments: (orderId: string | undefined) => ["orders", "installments", orderId] as const,
+    commissionLedger: (orderId: string | undefined) => ["orders", "commission-ledger", orderId] as const,
     recent: (companyId: string | undefined) => ["orders", "recent", companyId] as const,
   },
 
@@ -817,6 +818,7 @@ export const queryKeys = {
   salespeople: {
     all: ["salespeople"] as const,
     active: (companyId: string | undefined) => ["salespeople-active", companyId] as const,
+    commissionRules: (companyId: string | undefined) => ["salespeople", "commission-rules", companyId] as const,
   },
 
   // ── Customers List ────────────────────────────────────

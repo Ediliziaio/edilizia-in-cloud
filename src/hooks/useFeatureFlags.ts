@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { createTimeoutSignal } from "@/lib/query-timeout";
+
+const FEATURE_FLAGS_TIMEOUT_MS = 10_000;
 
 interface FeatureFlag {
   key: string;
@@ -80,26 +84,37 @@ export function useFeatureFlags(companyIdOverride?: string) {
   // che scrive `sa_imp_company_id` in sessionStorage + cache profile con
   // role sbagliata potrebbe aprire tutte le feature prima della verifica async.
   const isSuperAdmin = role === "super_admin";
+  const isDemoBaseline = companyId === DEMO_COMPANY_ID;
   const bypass =
-    isSuperAdmin &&
-    isImpersonationReady &&
-    isImpersonating &&
-    !!impersonatedCompanyId &&
-    !!impersonationToken;
+    isDemoBaseline ||
+    (
+      isSuperAdmin &&
+      isImpersonationReady &&
+      isImpersonating &&
+      !!impersonatedCompanyId &&
+      !!impersonationToken
+    );
 
   // Catalog: needed for display metadata (icon, category, name, description)
   // in consumers that introspect the flag list. No longer used for resolution.
   const { data: flags = [], isLoading: flagsLoading } = useQuery({
     queryKey: queryKeys.featureFlags.platform,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("platform_feature_flags")
-        .select("*")
-        .order("sort_order");
-      if (error) throw error;
-      return data as FeatureFlag[];
+      const timeout = createTimeoutSignal(FEATURE_FLAGS_TIMEOUT_MS);
+      try {
+        const { data, error } = await supabase
+          .from("platform_feature_flags")
+          .select("*")
+          .order("sort_order")
+          .abortSignal(timeout.signal);
+        if (error) throw error;
+        return data as FeatureFlag[];
+      } finally {
+        timeout.dispose();
+      }
     },
     staleTime: 5 * 60 * 1000,
+    retry: 0,
   });
 
   // Authoritative resolution via RPC (override > plan.slug > default_value).
@@ -112,60 +127,69 @@ export function useFeatureFlags(companyIdOverride?: string) {
     queryKey: queryKeys.featureFlags.companyResolved(companyId),
     queryFn: async () => {
       if (!companyId) return [] as ResolvedRow[];
+      const timeout = createTimeoutSignal(FEATURE_FLAGS_TIMEOUT_MS);
       // 1) Risolvi via RPC (sorgente di verità per is_enabled)
-      const rpcRes = await supabase.rpc("resolve_company_features", {
-        p_company_id: companyId,
-      });
-      if (rpcRes.error) throw rpcRes.error;
-      const rpcRows = (rpcRes.data ?? []) as ResolvedRow[];
+      try {
+        const rpcRes = await supabase.rpc("resolve_company_features", {
+          p_company_id: companyId,
+        }).abortSignal(timeout.signal);
+        if (rpcRes.error) throw rpcRes.error;
+        const rpcRows = (rpcRes.data ?? []) as ResolvedRow[];
 
-      // 2) Se la RPC NON espone access_level (resolver v2 vecchio), patchamo
-      //    leggendo direttamente plan_feature_defaults + company_feature_overrides.
-      //    Costa 2 query extra ma rende il demo mode operativo subito.
-      const hasAccessLevel = rpcRows.length > 0 && "access_level" in (rpcRows[0] as object);
-      if (hasAccessLevel) return rpcRows;
+        // 2) Se la RPC NON espone access_level (resolver v2 vecchio), patchamo
+        //    leggendo direttamente plan_feature_defaults + company_feature_overrides.
+        //    Costa 2 query extra ma rende il demo mode operativo subito.
+        const hasAccessLevel = rpcRows.length > 0 && "access_level" in (rpcRows[0] as object);
+        if (hasAccessLevel) return rpcRows;
 
-      // Plan id corrente della company
-      const { data: companyRow } = await supabase
-        .from("companies")
-        .select("subscription_plan_id")
-        .eq("id", companyId)
-        .maybeSingle();
-      const planId = companyRow?.subscription_plan_id;
+        // Plan id corrente della company
+        const { data: companyRow } = await supabase
+          .from("companies")
+          .select("subscription_plan_id")
+          .eq("id", companyId)
+          .abortSignal(timeout.signal)
+          .maybeSingle();
+        const planId = companyRow?.subscription_plan_id;
 
-      const [pfdRes, ovRes] = await Promise.all([
-        planId
-          ? supabase
-              .from("plan_feature_defaults")
-              .select("feature_key, is_enabled, access_level")
-              .eq("plan_id", planId)
-          : Promise.resolve({ data: [] as Array<{ feature_key: string; is_enabled: boolean; access_level: string }>, error: null }),
-        supabase
-          .from("company_feature_overrides")
-          .select("feature_key, is_enabled, access_level, expires_at")
-          .eq("company_id", companyId),
-      ]);
-      const pfdByKey = new Map(
-        (pfdRes.data ?? []).map((r) => [r.feature_key, r] as const),
-      );
-      const ovByKey = new Map(
-        (ovRes.data ?? [])
-          .filter((r) => !r.expires_at || new Date(r.expires_at) > new Date())
-          .map((r) => [r.feature_key, r] as const),
-      );
-      // Annota access_level su ogni riga RPC
-      return rpcRows.map((row) => {
-        const ov = ovByKey.get(row.feature_key);
-        const pd = pfdByKey.get(row.feature_key);
-        const accessLevel =
-          (ov?.access_level as FeatureAccessLevel | undefined) ??
-          (pd?.access_level as FeatureAccessLevel | undefined) ??
-          (row.is_enabled ? "enabled" : "disabled");
-        return { ...row, access_level: accessLevel };
-      });
+        const [pfdRes, ovRes] = await Promise.all([
+          planId
+            ? supabase
+                .from("plan_feature_defaults")
+                .select("feature_key, is_enabled, access_level")
+                .eq("plan_id", planId)
+                .abortSignal(timeout.signal)
+            : Promise.resolve({ data: [] as Array<{ feature_key: string; is_enabled: boolean; access_level: string }>, error: null }),
+          supabase
+            .from("company_feature_overrides")
+            .select("feature_key, is_enabled, access_level, expires_at")
+            .eq("company_id", companyId)
+            .abortSignal(timeout.signal),
+        ]);
+        const pfdByKey = new Map(
+          (pfdRes.data ?? []).map((r) => [r.feature_key, r] as const),
+        );
+        const ovByKey = new Map(
+          (ovRes.data ?? [])
+            .filter((r) => !r.expires_at || new Date(r.expires_at) > new Date())
+            .map((r) => [r.feature_key, r] as const),
+        );
+        // Annota access_level su ogni riga RPC
+        return rpcRows.map((row) => {
+          const ov = ovByKey.get(row.feature_key);
+          const pd = pfdByKey.get(row.feature_key);
+          const accessLevel =
+            (ov?.access_level as FeatureAccessLevel | undefined) ??
+            (pd?.access_level as FeatureAccessLevel | undefined) ??
+            (row.is_enabled ? "enabled" : "disabled");
+          return { ...row, access_level: accessLevel };
+        });
+      } finally {
+        timeout.dispose();
+      }
     },
-    enabled: !!companyId,
+    enabled: !!companyId && !bypass,
     staleTime: 60 * 1000,
+    retry: 0,
   });
 
   // v8.6.103 — memoizzato: prima si ricostruiva ad OGNI render del hook
@@ -249,6 +273,6 @@ export function useFeatureFlags(companyIdOverride?: string) {
     isFeaturePreview,
     isFeatureVisible,
     getFeatureAccessLevel,
-    isLoading: flagsLoading || resolvedLoading,
+    isLoading: !bypass && (flagsLoading || resolvedLoading),
   };
 }

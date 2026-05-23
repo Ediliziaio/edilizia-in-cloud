@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 import type {
   ExpectedPayment,
   ExpectedExpense,
@@ -84,7 +85,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
       const { data, error } = await supabase
         .from("order_salespeople")
         .select(`
-          id, commission_amount, payment_expected_date, is_paid,
+          id, commission_amount, deduction_amount, payment_expected_date, is_paid,
           salesperson:salespeople!inner(first_name, last_name, company_id),
           order:orders!inner(id, order_code, company_id)
         `)
@@ -218,7 +219,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
       const { data, error } = await supabase
         .from("order_salespeople")
         .select(`
-          id, commission_amount, paid_date, is_paid,
+          id, commission_amount, deduction_amount, paid_date, is_paid,
           salesperson:salespeople!inner(first_name, last_name, company_id),
           order:orders!inner(id, order_code, company_id)
         `)
@@ -405,7 +406,7 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         salespersonName:
           `${commission.salesperson?.first_name || ""} ${commission.salesperson?.last_name || ""}`.trim() ||
           "Venditore sconosciuto",
-        amount: Number(commission.commission_amount),
+        amount: calculateStoredCommissionNet(commission.commission_amount, commission.deduction_amount),
         expectedDate: commission.payment_expected_date ? new Date(commission.payment_expected_date) : null,
         direction: "out",
       });

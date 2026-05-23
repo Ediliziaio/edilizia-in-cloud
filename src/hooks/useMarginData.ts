@@ -5,6 +5,7 @@ import { calculateNetFromGross } from "@/lib/vatUtils";
 import { recurrenceMultiplier } from "@/lib/forecastTypes";
 import { queryKeys } from "@/lib/queryKeys";
 import { isCustomerProfile } from "@/lib/typeGuards";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 
 export interface OrderMargin {
   orderId: string;
@@ -62,7 +63,7 @@ export function useMarginData(): MarginData {
       cutoff.setMonth(cutoff.getMonth() - 24);
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_code, total_amount, vat_rate, description, created_at, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
+        .select("id, order_code, total_amount, vat_rate, description, created_at, deposit_amount, deposit_paid, deposit_2_amount, deposit_2_paid, balance_amount, balance_paid, financing_amount, financing_paid, financing_cost, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", companyId!)
         .gte("created_at", cutoff.toISOString())
         .order("created_at", { ascending: false })
@@ -112,7 +113,7 @@ export function useMarginData(): MarginData {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_salespeople")
-        .select("order_id, commission_type, commission_value, deduction_amount")
+        .select("order_id, commission_amount, deduction_amount")
         .in("order_id", (ordersRaw || []).map(o => o.id))
         .limit(5000);
       if (error) throw error;
@@ -138,7 +139,7 @@ export function useMarginData(): MarginData {
     staleTime: 5 * 60 * 1000,
   });
 
-  // 6. Active employees (salaries)
+  // 7. Active employees (salaries)
   const { data: employees, isLoading: loadingEmployees } = useQuery({
     queryKey: queryKeys.margin.employees(companyId),
     queryFn: async () => {
@@ -181,20 +182,10 @@ export function useMarginData(): MarginData {
       return sum + netAmount;
     }, 0);
 
-    // Commissions (calculated on imponibile, same logic as OrderEconomics)
+    // Commissions are stored by the commission engine and can include advanced rules.
     const spEntries = (salespeople || []).filter(s => s.order_id === order.id);
     const commissions = spEntries.reduce((sum, sp) => {
-      let gross = 0;
-      switch (sp.commission_type) {
-        case "fixed":
-          gross = sp.commission_value;
-          break;
-        case "percentage_sold":
-        case "percentage_collected":
-          gross = totalAmount * (sp.commission_value / 100);
-          break;
-      }
-      return sum + (gross - (sp.deduction_amount || 0));
+      return sum + calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
     }, 0);
 
     const totalVariableCosts = itemsCostNet + teamsCostNet + commissions;

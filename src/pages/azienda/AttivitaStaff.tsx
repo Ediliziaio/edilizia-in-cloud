@@ -15,6 +15,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   format, isToday, isBefore, startOfDay, startOfMonth, endOfMonth,
   eachDayOfInterval, getDay, addMonths, subMonths, isSameDay, addDays,
+  parseISO,
 } from "date-fns";
 import { it } from "date-fns/locale";
 import {
@@ -28,6 +29,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +66,7 @@ import {
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
 const FeriePersonali = lazy(() => import("@/pages/azienda/FeriePersonali"));
 const CedoliniPersonali = lazy(() => import("@/pages/azienda/CedoliniPersonali"));
+const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Costanti
@@ -93,6 +96,32 @@ const CATEGORY_OPTIONS = [
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
 type TaskFilter = "tutte" | "oggi" | "scadute" | "settimana" | "completate";
+type AddTaskRequest = { date: string; requestId: number };
+
+function InlineLoadError({
+  title,
+  description,
+  onRetry,
+}: {
+  title: string;
+  description?: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50/70 p-4 text-sm text-red-900">
+      <div className="flex items-start gap-3">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">{title}</p>
+          {description && <p className="mt-1 text-xs text-red-800">{description}</p>}
+        </div>
+        <Button variant="outline" size="sm" className="h-7 border-red-200 bg-white text-red-700 hover:bg-red-100" onClick={onRetry}>
+          Riprova
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hook: fetch coordinate azienda
@@ -376,7 +405,7 @@ function TimbraturaSede() {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = format(new Date(), "yyyy-MM-dd");
 
   const { data: profilo, isLoading: loadingProfilo } = useQuery({
     queryKey: ["hr-my-profilo", user?.id, companyId],
@@ -403,8 +432,19 @@ function TimbraturaSede() {
 
   const timbraMutation = useMutation({
     mutationFn: async (tipo: "entrata" | "uscita" | "pausa_inizio" | "pausa_fine") => {
-      const now = new Date().toISOString();
-      const { error } = await supabase.from("hr_timbrature").insert({ company_id: companyId, profilo_id: profilo!.id, tipo, timestamp: now, data_evento: now.slice(0, 10), ora_evento: now.slice(11, 19), lat: null, lng: null, fonte: "web", note: "Sede ufficio" } as any);
+      const now = new Date();
+      const { error } = await supabase.from("hr_timbrature").insert({
+        company_id: companyId,
+        profilo_id: profilo!.id,
+        tipo,
+        timestamp: now.toISOString(),
+        data_evento: format(now, "yyyy-MM-dd"),
+        ora_evento: format(now, "HH:mm:ss"),
+        lat: null,
+        lng: null,
+        fonte: "web",
+        note: "Sede ufficio",
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Timbratura registrata"); queryClient.invalidateQueries({ queryKey: ["hr-timbrature-today"] }); },
@@ -491,7 +531,7 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: "date", label: "Data" },
 ];
 
-function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
+function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | null }) {
   const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
   const companyId = effectiveCompany?.id;
@@ -520,13 +560,13 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
   const [formAssignedTo, setFormAssignedTo] = useState("");
 
   useEffect(() => {
-    if (initialDueDate) { setFormDueDate(initialDueDate); setDialogOpen(true); }
-  }, [initialDueDate]);
+    if (initialDueDate?.date) { setFormDueDate(initialDueDate.date); setDialogOpen(true); }
+  }, [initialDueDate?.requestId, initialDueDate?.date]);
 
   const { data: teamMembers = [] } = useCompanyStaffUsers(isAdmin ? companyId : null);
 
   // ── Fetch tasks — admin vede tutto, staff solo le sue ──
-  const { data: allTasks = [], isLoading } = useQuery({
+  const { data: allTasks = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["my-tasks-all", user?.id, companyId, isAdmin],
     queryFn: async () => {
       let q = supabase
@@ -624,6 +664,8 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
     queryClient.invalidateQueries({ queryKey: ["my-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["calendar-tasks"] });
     queryClient.invalidateQueries({ queryKey: ["team-tasks"] });
+    queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
   };
 
   const createTask = useMutation({
@@ -1027,7 +1069,13 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
             </div>
           )}
 
-          {isLoading ? (
+          {isError ? (
+            <InlineLoadError
+              title="Errore nel caricamento attività"
+              description={error instanceof Error ? error.message : "Non riesco a leggere le attività in questo momento."}
+              onRetry={() => refetch()}
+            />
+          ) : isLoading ? (
             <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
           ) : (
             <div className="space-y-4">
@@ -1239,7 +1287,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: string | null }) {
 function TabAttivita() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin";
-  const [addTaskDate, setAddTaskDate] = useState<string | null>(null);
+  const [addTaskDate, setAddTaskDate] = useState<AddTaskRequest | null>(null);
 
   return (
     <div className="space-y-6">
@@ -1250,12 +1298,159 @@ function TabAttivita() {
           {isAdmin ? <TaskTeam /> : <TimbraturaSede />}
         </div>
       </div>
+      {isAdmin && <TeamTaskPulse />}
       {/* Riga 2: Calendario (1/2) + Le mie attività (1/2) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <MiniCalendario onAddTask={setAddTaskDate} />
+        <MiniCalendario onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })} />
         <MieAttivita initialDueDate={addTaskDate} />
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Regia rapida — indicatori operativi per admin
+// ─────────────────────────────────────────────────────────────────────────────
+function TeamTaskPulse() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  const { data: tasks = [], isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["team-task-pulse", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(`id, title, status, priority, due_date, assigned_to, category,
+          assignee:profiles!tasks_assigned_to_fkey(first_name, last_name)`)
+        .eq("company_id", companyId!)
+        .neq("status", "completata")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(200);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+
+  const pulse = useMemo(() => {
+    const today = startOfDay(new Date());
+    const openTasks = tasks.filter((task: any) => task.status !== "completata");
+    const getDueDate = (task: any) => task.due_date ? parseISO(task.due_date) : null;
+    const overdue = openTasks.filter((task: any) => {
+      const dueDate = getDueDate(task);
+      return dueDate && isBefore(dueDate, today) && !isToday(dueDate);
+    });
+    const dueToday = openTasks.filter((task: any) => {
+      const dueDate = getDueDate(task);
+      return dueDate && isToday(dueDate);
+    });
+    const urgent = openTasks.filter((task: any) => task.priority === "urgente");
+    const unassigned = openTasks.filter((task: any) => !task.assigned_to);
+    const unique = new Map<string, any>();
+    [...overdue, ...urgent, ...dueToday, ...unassigned].forEach((task: any) => unique.set(task.id, task));
+
+    return {
+      overdue,
+      dueToday,
+      urgent,
+      unassigned,
+      priorities: Array.from(unique.values()).slice(0, 6),
+      openCount: openTasks.length,
+    };
+  }, [tasks]);
+
+  const metrics = [
+    { label: "Scadute", value: pulse.overdue.length, className: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300" },
+    { label: "Urgenti", value: pulse.urgent.length, className: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/40 dark:bg-orange-950/20 dark:text-orange-300" },
+    { label: "Oggi", value: pulse.dueToday.length, className: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300" },
+    { label: "Senza assegnatario", value: pulse.unassigned.length, className: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300" },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ArrowUpCircle className="h-4 w-4" />Regia rapida
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Vista sintetica sulle attività aperte di tutta l'azienda.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5" asChild>
+            <Link to="/azienda/attivita?tab=regia">
+              Apri regia <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <InlineLoadError
+            title="Errore nel caricamento della regia"
+            description={error instanceof Error ? error.message : "Non riesco a leggere le attività aziendali in questo momento."}
+            onRetry={() => refetch()}
+          />
+        ) : isLoading ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-20 w-full" />)}
+            </div>
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : pulse.openCount === 0 ? (
+          <div className="rounded-lg border border-dashed py-8 text-center text-muted-foreground">
+            <CheckCircle2 className="mx-auto mb-2 h-8 w-8 opacity-50" />
+            <p className="text-sm">Nessuna attività aperta da gestire</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {metrics.map((metric) => (
+                <div key={metric.label} className={`rounded-lg border p-3 ${metric.className}`}>
+                  <p className="text-xs font-medium opacity-80">{metric.label}</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums">{metric.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-lg border">
+              <div className="flex items-center justify-between border-b px-3 py-2">
+                <p className="text-sm font-semibold">Priorità da guardare</p>
+                <Badge variant="secondary" className="text-xs">{pulse.openCount} aperte</Badge>
+              </div>
+              {pulse.priorities.length === 0 ? (
+                <p className="px-3 py-4 text-sm text-muted-foreground">Nessuna criticità immediata.</p>
+              ) : (
+                <div className="divide-y">
+                  {pulse.priorities.map((task: any) => {
+                    const priority = PRIORITY_CONFIG[task.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+                    const dueDate = task.due_date ? parseISO(task.due_date) : null;
+                    const scaduta = dueDate && isBefore(dueDate, startOfDay(new Date())) && !isToday(dueDate);
+                    const assigneeName = [task.assignee?.first_name, task.assignee?.last_name].filter(Boolean).join(" ") || "Non assegnata";
+
+                    return (
+                      <div key={task.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                        <div className={`h-2 w-2 shrink-0 rounded-full ${priority.dotClass}`} />
+                        <span className="min-w-[180px] flex-1 truncate font-medium">{task.title}</span>
+                        <span className="text-xs text-muted-foreground">{assigneeName}</span>
+                        {task.category && <Badge variant="outline" className="text-[10px]">{task.category}</Badge>}
+                        {dueDate && (
+                          <Badge variant="outline" className={`text-[10px] ${scaduta ? "border-red-200 bg-red-50 text-red-700" : isToday(dueDate) ? "border-amber-200 bg-amber-50 text-amber-700" : ""}`}>
+                            {scaduta ? "Scaduta" : isToday(dueDate) ? "Oggi" : format(dueDate, "d MMM", { locale: it })}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1271,7 +1466,7 @@ function TaskTeam() {
   const teamMembers = rawTeamMembers.filter((member) => member.id !== user?.id);
 
   // Fetch team tasks
-  const { data: teamTasks = [], isLoading } = useQuery({
+  const { data: teamTasks = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["team-tasks", companyId, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1317,7 +1512,13 @@ function TaskTeam() {
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {isError ? (
+          <InlineLoadError
+            title="Errore nel caricamento task team"
+            description={error instanceof Error ? error.message : "Non riesco a leggere le attività del team in questo momento."}
+            onRetry={() => refetch()}
+          />
+        ) : isLoading ? (
           <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
         ) : filteredTasks.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
@@ -1371,17 +1572,40 @@ function TabFallback() {
 export default function AttivitaStaff() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin";
-  const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") || "attivita";
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab") || "attivita";
+  const allowedTabs = isAdmin
+    ? ["attivita", "regia"]
+    : ["attivita", "timbrature", "ferie", "cedolini"];
+  const activeTab = allowedTabs.includes(requestedTab) ? requestedTab : "attivita";
+
+  useEffect(() => {
+    if (requestedTab === activeTab) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (activeTab === "attivita") next.delete("tab");
+      else next.set("tab", activeTab);
+      return next;
+    }, { replace: true });
+  }, [activeTab, requestedTab, setSearchParams]);
+
+  const handleTabChange = (tab: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === "attivita") next.delete("tab");
+      else next.set("tab", tab);
+      return next;
+    }, { replace: true });
+  };
 
   return (
     <div className="space-y-6 p-6">
       <AttivitaHeader />
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         {isAdmin ? (
-          <TabsList className="max-w-[200px]">
-            <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Attività</span></TabsTrigger>
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Dashboard</span></TabsTrigger>
+            <TabsTrigger value="regia" className="gap-1.5"><Users className="h-4 w-4" /><span className="hidden sm:inline">Regia attività</span></TabsTrigger>
           </TabsList>
         ) : (
           <TabsList className="grid w-full grid-cols-4 max-w-xl">
@@ -1392,6 +1616,13 @@ export default function AttivitaStaff() {
           </TabsList>
         )}
         <TabsContent value="attivita" className="mt-6"><TabAttivita /></TabsContent>
+        {isAdmin && (
+          <TabsContent value="regia" className="mt-6">
+            <Suspense fallback={<TabFallback />}>
+              <UnifiedTasks embedded initialTab="all" />
+            </Suspense>
+          </TabsContent>
+        )}
         {!isAdmin && (
           <>
             <TabsContent value="timbrature" className="mt-6"><Suspense fallback={<TabFallback />}><TimbraturePersonali /></Suspense></TabsContent>

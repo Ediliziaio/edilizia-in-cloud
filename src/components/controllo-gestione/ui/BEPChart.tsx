@@ -1,7 +1,8 @@
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { useCEMensile } from "@/hooks/controlloGestione/useCEriclassificato";
+import { useMemo } from "react";
+import { useCEMensile, useCEMensileDettaglio } from "@/hooks/controlloGestione/useCEriclassificato";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { ChartSkeleton } from "@/components/controllo-gestione/skeletons/ChartSkeleton";
 import { ErrorBlock } from "@/components/controllo-gestione/ui/ErrorBlock";
@@ -12,12 +13,45 @@ interface BEPChartProps {
 }
 
 const MESI_BREVI = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+const COSTO_CODES = ["03", "04", "05", "06", "07", "08", "09", "10", "11", "14", "15"];
 
 export function BEPChart({ anno }: BEPChartProps) {
-  const { data, isLoading, isError, refetch } = useCEMensile(anno);
+  const primary = useCEMensile(anno);
+  const fallback = useCEMensileDettaglio(anno);
+
+  const fallbackData = useMemo(() => {
+    if (!fallback.data?.mesi?.length) return [];
+    let ricaviCum = 0;
+    let costiCum = 0;
+    return fallback.data.mesi.map((mese) => {
+      const getValue = (codice: string) =>
+        mese.voci.find((voce) => voce.codice === codice)?.valore ?? 0;
+      ricaviCum += getValue("01");
+      costiCum += COSTO_CODES.reduce((acc, codice) => acc + getValue(codice), 0);
+      return {
+        mese: mese.mese,
+        ricavi_cum: ricaviCum,
+        costi_totali_cum: costiCum,
+        bep_cum: null,
+      };
+    });
+  }, [fallback.data]);
+
+  const data = primary.data?.length ? primary.data : fallbackData;
+  const isLoading = primary.isLoading && fallback.isLoading;
+  const isError = primary.isError && fallback.isError;
 
   if (isLoading) return <ChartSkeleton />;
-  if (isError) return <ErrorBlock onRetry={() => refetch()} />;
+  if (isError) {
+    return (
+      <ErrorBlock
+        onRetry={() => {
+          void primary.refetch();
+          void fallback.refetch();
+        }}
+      />
+    );
+  }
   if (!data || data.length === 0) {
     return (
       <EmptyState

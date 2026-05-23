@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, X, Lock, ArrowRight, Search, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { isTaskDoneStatus } from "@/lib/taskStatuses";
 
 const PRIORITY_DOT: Record<string, string> = {
   bassa:   "bg-slate-400",
@@ -83,6 +85,8 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
 
   const blockerIds = new Set(blockers.map((t) => t.id));
   const blockingIds = new Set(blocking.map((t) => t.id));
+  const observedStatuses = [...blockers, ...blocking, ...allTasks].map((task) => task.status).filter(Boolean);
+  const { statuses: statusOptions } = useTaskStatuses(companyId, observedStatuses);
 
   const addMutation = useMutation({
     mutationFn: async (dependsOnId: string) => {
@@ -116,7 +120,7 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
     return t.title.toLowerCase().includes(search.toLowerCase());
   });
 
-  const hasBlockers = blockers.some((t) => t.status !== "completata");
+  const hasBlockers = blockers.some((t) => !isTaskDoneStatus(t.status, statusOptions));
 
   return (
     <div className="space-y-2">
@@ -168,7 +172,7 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
                   >
                     <span className={cn("w-2 h-2 rounded-full shrink-0", PRIORITY_DOT[t.priority] ?? "bg-slate-400")} />
                     <span className="flex-1 text-sm truncate">{t.title}</span>
-                    {t.status === "completata" && (
+                    {isTaskDoneStatus(t.status, statusOptions) && (
                       <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
                     )}
                   </button>
@@ -190,13 +194,13 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
           {blockers.map((t) => (
             <div key={t.id} className={cn(
               "flex items-center gap-2 rounded border px-2.5 py-1.5",
-              t.status !== "completata" ? "border-warning/40 bg-warning/5" : "border-border",
+              !isTaskDoneStatus(t.status, statusOptions) ? "border-warning/40 bg-warning/5" : "border-border",
             )}>
               <span className={cn("w-2 h-2 rounded-full shrink-0", PRIORITY_DOT[t.priority] ?? "bg-slate-400")} />
-              <span className={cn("flex-1 text-sm truncate", t.status === "completata" && "line-through text-muted-foreground")}>
+              <span className={cn("flex-1 text-sm truncate", isTaskDoneStatus(t.status, statusOptions) && "line-through text-muted-foreground")}>
                 {t.title}
               </span>
-              {t.status === "completata"
+              {isTaskDoneStatus(t.status, statusOptions)
                 ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
                 : <Lock className="h-3 w-3 text-warning shrink-0" />
               }
@@ -220,7 +224,7 @@ export function TaskDependencySection({ taskId, companyId }: TaskDependencySecti
             <div key={t.id} className="flex items-center gap-2 rounded border px-2.5 py-1.5 border-primary/20 bg-primary/5">
               <ArrowRight className="h-3 w-3 text-primary shrink-0" />
               <span className="flex-1 text-sm truncate">{t.title}</span>
-              {t.status === "completata" && (
+              {isTaskDoneStatus(t.status, statusOptions) && (
                 <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
               )}
             </div>

@@ -15,6 +15,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 import {
   ComposedChart,
   Bar,
@@ -242,7 +243,7 @@ export function TreasuryTab({
 
     const commissionItems = paidCommissions.map((c: any) => ({
       date: c.paid_date,
-      amount: Number(c.commission_amount),
+      amount: calculateStoredCommissionNet(c.commission_amount, c.deduction_amount),
     }));
 
     const costiVariabiliChildren: TreeNode[] = [

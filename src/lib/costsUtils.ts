@@ -6,6 +6,7 @@ import { format, startOfMonth, endOfMonth, addMonths, addDays, isBefore, isAfter
 import { it } from "date-fns/locale";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 
 export interface UnifiedCost {
   id: string;
@@ -194,7 +195,7 @@ export function buildCommissionCosts(commissionCosts: any[]): UnifiedCost[] {
     id: `${COST_ID_PREFIX.COMMISSION}${item.id}`,
     name: `${item.salesperson?.first_name || ""} ${item.salesperson?.last_name || ""}`.trim() || "Venditore",
     cost_type: "variable",
-    amount: Number(item.commission_amount) || 0,
+    amount: calculateStoredCommissionNet(item.commission_amount, item.deduction_amount),
     category: "Provvigioni",
     recurrence: "once",
     due_date: item.payment_expected_date || "9999-12-31",

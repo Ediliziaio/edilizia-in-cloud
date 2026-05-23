@@ -6,12 +6,9 @@ import {
   Cell, PieChart, Pie,
 } from "recharts";
 import { CheckCircle2, Clock, TrendingUp, ListTodo } from "lucide-react";
-
-const STATUS_COLORS: Record<string, string> = {
-  da_fare:    "#94a3b8",
-  in_corso:   "#3b82f6",
-  completata: "#22c55e",
-};
+import { useAuth } from "@/contexts/AuthContext";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { TASK_STATUS_TONE_CLASSES, isTaskDoneStatus } from "@/lib/taskStatuses";
 const PRIORITY_COLORS: Record<string, string> = {
   bassa:   "#94a3b8",
   normale: "#3b82f6",
@@ -88,15 +85,18 @@ function HorizontalBar({ label, count, total, color }: {
 }
 
 export function TaskStatsView({ tasks }: TaskStatsViewProps) {
+  const { effectiveCompany } = useAuth();
+  const observedStatuses = useMemo(() => Array.from(new Set(tasks.map((task) => task.status).filter(Boolean))), [tasks]);
+  const { statuses: statusOptions } = useTaskStatuses(effectiveCompany?.id, observedStatuses);
+
   const stats = useMemo(() => {
     const total = tasks.length;
-    const completed = tasks.filter((t) => t.status === "completata").length;
-    const inProgress = tasks.filter((t) => t.status === "in_corso").length;
+    const completed = tasks.filter((t) => isTaskDoneStatus(t.status, statusOptions)).length;
     const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
     // Avg hours to complete (only completed tasks with both created_at and completed_at)
     const completionTimes = tasks
-      .filter((t) => t.status === "completata" && t.created_at && t.completed_at)
+      .filter((t) => isTaskDoneStatus(t.status, statusOptions) && t.created_at && t.completed_at)
       .map((t) => differenceInHours(new Date(t.completed_at!), new Date(t.created_at!)));
     const avgHours = completionTimes.length > 0
       ? Math.round(completionTimes.reduce((s, h) => s + h, 0) / completionTimes.length)
@@ -106,16 +106,16 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
     const last14 = Array.from({ length: 14 }, (_, i) => {
       const day = subDays(startOfDay(new Date()), 13 - i);
       const count = tasks.filter(
-        (t) => t.status === "completata" && t.completed_at && isSameDay(new Date(t.completed_at), day)
+        (t) => isTaskDoneStatus(t.status, statusOptions) && t.completed_at && isSameDay(new Date(t.completed_at), day)
       ).length;
       return { day: format(day, "dd/MM"), count };
     });
 
     // By status
-    const byStatus = Object.entries(STATUS_COLORS).map(([s, color]) => ({
-      name: s === "da_fare" ? "Da fare" : s === "in_corso" ? "In corso" : "Completate",
-      value: tasks.filter((t) => t.status === s).length,
-      color,
+    const byStatus = statusOptions.map((status) => ({
+      name: status.label,
+      value: tasks.filter((t) => t.status === status.value).length,
+      color: TASK_STATUS_TONE_CLASSES[status.tone]?.chart || "#64748b",
     })).filter((e) => e.value > 0);
 
     // By priority
@@ -137,8 +137,8 @@ export function TaskStatsView({ tasks }: TaskStatsViewProps) {
       .slice(0, 6)
       .map(([cat, count]) => ({ label: CATEGORY_LABELS[cat] ?? cat, count }));
 
-    return { total, completed, inProgress, completionRate, avgHours, last14, byStatus, byPriority, byCategory };
-  }, [tasks]);
+    return { total, completed, completionRate, avgHours, last14, byStatus, byPriority, byCategory };
+  }, [tasks, statusOptions]);
 
   return (
     <div className="space-y-6">

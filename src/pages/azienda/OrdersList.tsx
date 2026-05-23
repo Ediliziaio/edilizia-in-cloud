@@ -10,6 +10,11 @@ import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
 const SopralluoghiList = lazy(() => import("@/pages/azienda/sopralluoghi/SopralluoghiList"));
+const OrderCommissionsOverview = lazy(() =>
+  import("@/components/orders/OrderCommissionsOverview").then((module) => ({
+    default: module.OrderCommissionsOverview,
+  }))
+);
 import { OrdersFilterSidebar, INITIAL_FILTER_STATE, countActiveFilters, type OrdersFilterState } from "@/components/orders/OrdersFilterSidebar";
 import PurchaseOrdersList from "@/pages/azienda/PurchaseOrdersList";
 import DDTRicezioneList from "@/pages/azienda/DDTRicezioneList";
@@ -31,6 +36,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { calculateNetFromGross } from "@/lib/vatUtils";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -165,8 +171,8 @@ function OrdersListInner() {
   const selectedYear = yearFilter !== "all" ? Number(yearFilter) : null;
   const hasSelectedYear = Number.isInteger(selectedYear);
 
-  // Statuses must be fetched first so lastStatusId is available for the orders query
-  const { data: statuses = [] } = useQuery({
+  // Gli stati servono per i filtri workflow, ma non devono bloccare i KPI economici.
+  const { data: statuses = [], isLoading: isLoadingStatuses } = useQuery({
     queryKey: ["order-statuses", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -192,7 +198,7 @@ function OrdersListInner() {
     ? workflowStatuses.reduce((max, s) => s.position > max.position ? s : max, workflowStatuses[0]).id
     : null;
 
-  const { data: ordersResult, isLoading } = useQuery({
+  const { data: ordersResult, isLoading: isLoadingOrders, isError: isOrdersError, error: ordersError, refetch: refetchOrders } = useQuery({
     queryKey: ["orders", effectiveCompany?.id, page, pageSize, debouncedSearch, statusFilter, paymentFilter, customerFilter, yearFilter, amountMin, amountMax, salespersonFilter, laborFilter, supplierFilter, hideCompleted, lastStatusId, supportStatusId, contractDateRange, warehouseDateRange, expectedDateRange, sortField, sortDir],
     queryFn: async () => {
       if (!effectiveCompany?.id) return { orders: [] as OrderWithDetails[], totalCount: 0 };
@@ -246,7 +252,7 @@ function OrdersListInner() {
           id, order_code, description, total_amount, deposit_amount, balance_amount,
           vat_rate, created_at, expected_date, work_start_date, work_end_date,
           warehouse_arrival_date, customer_id, current_status_id, payment_type,
-          financing_amount, deposit_2_amount, has_building_bonus,
+          financing_amount, financing_cost, deposit_2_amount, has_building_bonus,
           deposit_paid, deposit_2_paid, balance_paid, financing_paid,
           order_type,
           customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
@@ -320,17 +326,19 @@ function OrdersListInner() {
       return { orders: data as OrderWithDetails[], totalCount: count ?? 0 };
     },
     enabled: !!effectiveCompany?.id,
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
 
   const rawOrders = ordersResult?.orders ?? EMPTY_ORDERS;
   const totalCount = ordersResult?.totalCount ?? 0;
+  const isOrdersLoading = !!effectiveCompany?.id && !isOrdersError && (isLoadingOrders || !ordersResult);
 
   // KPI stats principali: reagiscono solo all'annualità, non ai filtri operativi
   // come stato, ricerca, pagamento o vista. Così restano numeri di controllo,
   // ma possono essere letti per anno quando serve.
-  const { data: globalStats } = useQuery({
+  const { data: globalStats, isLoading: isLoadingGlobalStats, isError: isGlobalStatsError } = useQuery({
     queryKey: ["orders-global-stats", effectiveCompany?.id, yearFilter, lastStatusId, supportStatusId],
     queryFn: async () => {
       const EMPTY = { totalOrders: 0, totalGross: 0, collected: 0, pending: 0, countAssistenza: 0, countCompletati: 0, countDaCompletare: 0 };
@@ -360,6 +368,7 @@ function OrdersListInner() {
       return { totalOrders: rows.length, totalGross, collected, pending, countAssistenza, countCompletati, countDaCompletare };
     },
     enabled: !!effectiveCompany?.id,
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -387,7 +396,7 @@ function OrdersListInner() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const { data: monthlyOrders = [] } = useQuery({
+  const { data: monthlyOrders = [], isLoading: isLoadingMonthlyOrders, isError: isMonthlyOrdersError } = useQuery({
     queryKey: ["orders-monthly-sales-chart", effectiveCompany?.id, yearFilter],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -421,6 +430,7 @@ function OrdersListInner() {
       return data ?? [];
     },
     enabled: !!effectiveCompany?.id,
+    placeholderData: (previousData) => previousData,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -533,7 +543,7 @@ function OrdersListInner() {
       if (orderIds.length === 0) return [];
       const { data, error } = await supabase
         .from("order_salespeople")
-        .select("order_id, commission_type, commission_value, deduction_amount, salesperson_id, salesperson:salespeople(id, first_name, last_name)")
+        .select("order_id, commission_amount, deduction_amount, salesperson_id, salesperson:salespeople(id, first_name, last_name)")
         .in("order_id", orderIds);
       if (error) throw error;
       return data;
@@ -774,21 +784,10 @@ function OrdersListInner() {
       teamCostsByOrder.set(t.order_id, (teamCostsByOrder.get(t.order_id) || 0) + netAmount);
     }
 
-    // Aggregate commissions per order
+    // Aggregate commissions per order. Stored values are the authoritative output of the commission engine.
     const commissionsByOrder = new Map<string, number>();
     for (const sp of salespeopleData) {
-      const totalAmount = orderAmountMap.get(sp.order_id) || 0;
-      let commission = 0;
-      switch (sp.commission_type) {
-        case "fixed":
-          commission = sp.commission_value;
-          break;
-        case "percentage_sold":
-        case "percentage_collected":
-          commission = totalAmount * (sp.commission_value / 100);
-          break;
-      }
-      commission -= sp.deduction_amount || 0;
+      const commission = calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
       commissionsByOrder.set(sp.order_id, (commissionsByOrder.get(sp.order_id) || 0) + commission);
     }
 
@@ -1188,7 +1187,7 @@ function OrdersListInner() {
       .select(`
         id, order_code, description, total_amount, deposit_amount, balance_amount,
         deposit_2_amount, vat_rate, created_at, expected_date, warehouse_arrival_date,
-        payment_type, financing_amount, financing_paid, deposit_paid, deposit_2_paid, balance_paid,
+        payment_type, financing_amount, financing_cost, financing_paid, deposit_paid, deposit_2_paid, balance_paid,
         customer:profiles!orders_customer_id_fkey(first_name, last_name, email),
         status:order_statuses!orders_current_status_id_fkey(name)
       `)
@@ -1238,13 +1237,12 @@ function OrdersListInner() {
         supabase.from("order_items").select("order_id, purchase_price, quantity, vat_rate").in("order_id", exportOrderIds),
         supabase.from("order_employees").select("order_id, total_cost").in("order_id", exportOrderIds),
         supabase.from("order_external_teams").select("order_id, total_cost, vat_rate").in("order_id", exportOrderIds),
-        supabase.from("order_salespeople").select("order_id, commission_type, commission_value, deduction_amount").in("order_id", exportOrderIds),
+        supabase.from("order_salespeople").select("order_id, commission_amount, deduction_amount").in("order_id", exportOrderIds),
       ]);
       if (itemsRes.error || employeesRes.error || teamsRes.error || salespeopleRes.error) {
         toast({ title: "Export parziale", description: "Non riesco a calcolare tutti i margini, riprova tra poco.", variant: "destructive" });
         return null;
       }
-      const orderAmountMap = new Map((allOrders || []).map((o) => [o.id, o.total_amount || 0]));
       const costAccumulator = new Map<string, number>();
       for (const item of itemsRes.data || []) {
         const gross = (item.purchase_price || 0) * (item.quantity || 1);
@@ -1259,14 +1257,8 @@ function OrdersListInner() {
         costAccumulator.set(team.order_id, (costAccumulator.get(team.order_id) || 0) + netAmount);
       }
       for (const sp of salespeopleRes.data || []) {
-        const totalAmount = orderAmountMap.get(sp.order_id) || 0;
-        const commission =
-          sp.commission_type === "fixed"
-            ? sp.commission_value || 0
-            : sp.commission_type === "percentage_sold" || sp.commission_type === "percentage_collected"
-              ? totalAmount * ((sp.commission_value || 0) / 100)
-              : 0;
-        costAccumulator.set(sp.order_id, (costAccumulator.get(sp.order_id) || 0) + commission - (sp.deduction_amount || 0));
+        const commission = calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
+        costAccumulator.set(sp.order_id, (costAccumulator.get(sp.order_id) || 0) + commission);
       }
       for (const order of allOrders || []) {
         const variableCosts = costAccumulator.get(order.id) || 0;
@@ -1518,6 +1510,14 @@ function OrdersListInner() {
     return { success, errors };
   }, [effectiveCompany?.id, queryClient]);
 
+  const hasStatsError = (isGlobalStatsError && !globalStats) || (isMonthlyOrdersError && monthlyOrders.length === 0);
+  const isEconomicStatsLoading = !!effectiveCompany?.id && !hasStatsError && (
+    isLoadingGlobalStats ||
+    isLoadingMonthlyOrders ||
+    !globalStats
+  );
+  const isWorkflowStatsLoading = isEconomicStatsLoading || (!!effectiveCompany?.id && isLoadingStatuses);
+
   return (
     <div className="flex flex-col gap-4 pb-20 sm:gap-6 sm:pb-0">
       {/* Header */}
@@ -1706,10 +1706,19 @@ function OrdersListInner() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Commesse totali</span>
-                    <span className="block truncate text-xl font-bold text-white">{stats.totalOrders}</span>
-                    <span className="mt-0.5 block text-xs text-blue-50/70">
-                      media mese {monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}
-                    </span>
+                    {isEconomicStatsLoading ? (
+                      <>
+                        <Skeleton className="mt-1 h-7 w-14 bg-white/20" />
+                        <Skeleton className="mt-1 h-3 w-24 bg-white/15" />
+                      </>
+                    ) : (
+                      <>
+                        <span className="block truncate text-xl font-bold text-white">{stats.totalOrders}</span>
+                        <span className="mt-0.5 block text-xs text-blue-50/70">
+                          media mese {monthlySalesAverages.ordersPerMonth.toLocaleString("it-IT", { maximumFractionDigits: 1 })}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -1721,12 +1730,21 @@ function OrdersListInner() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Totale venduto</span>
-                    <span className="block truncate text-xl font-bold text-white">
-                      {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-blue-50/70">
-                      media commessa {monthlySalesAverages.soldPerOrder.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
-                    </span>
+                    {isEconomicStatsLoading ? (
+                      <>
+                        <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
+                        <Skeleton className="mt-1 h-3 w-32 bg-white/15" />
+                      </>
+                    ) : (
+                      <>
+                        <span className="block truncate text-xl font-bold text-white">
+                          {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-blue-50/70">
+                          media commessa {monthlySalesAverages.soldPerOrder.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -1738,12 +1756,21 @@ function OrdersListInner() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Incassato</span>
-                    <span className="block truncate text-xl font-bold text-white">
-                      {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-blue-50/70">
-                      media mese {monthlySalesAverages.collectedPerMonth.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
-                    </span>
+                    {isEconomicStatsLoading ? (
+                      <>
+                        <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
+                        <Skeleton className="mt-1 h-3 w-28 bg-white/15" />
+                      </>
+                    ) : (
+                      <>
+                        <span className="block truncate text-xl font-bold text-white">
+                          {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-blue-50/70">
+                          media mese {monthlySalesAverages.collectedPerMonth.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -1755,12 +1782,21 @@ function OrdersListInner() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">Da incassare</span>
-                    <span className="block truncate text-xl font-bold text-white">
-                      {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-blue-50/70">
-                      {monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del venduto
-                    </span>
+                    {isEconomicStatsLoading ? (
+                      <>
+                        <Skeleton className="mt-1 h-7 w-28 bg-white/20" />
+                        <Skeleton className="mt-1 h-3 w-24 bg-white/15" />
+                      </>
+                    ) : (
+                      <>
+                        <span className="block truncate text-xl font-bold text-white">
+                          {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-blue-50/70">
+                          {monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del venduto
+                        </span>
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -1785,77 +1821,97 @@ function OrdersListInner() {
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl border border-blue-100 bg-white px-3 py-2 shadow-sm">
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Venduto periodo</p>
-                <p className="mt-0.5 text-base font-bold text-slate-950">
-                  {monthlySalesTotals.venduto.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
-                </p>
+                {isEconomicStatsLoading ? (
+                  <Skeleton className="mt-1 h-5 w-20" />
+                ) : (
+                  <p className="mt-0.5 text-base font-bold text-slate-950">
+                    {monthlySalesTotals.venduto.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                  </p>
+                )}
               </div>
               <div className="rounded-xl border border-orange-100 bg-white px-3 py-2 shadow-sm">
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Incassato periodo</p>
-                <p className="mt-0.5 text-base font-bold text-orange-600">
-                  {monthlySalesTotals.incassato.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
-                </p>
+                {isEconomicStatsLoading ? (
+                  <Skeleton className="mt-1 h-5 w-20" />
+                ) : (
+                  <p className="mt-0.5 text-base font-bold text-orange-600">
+                    {monthlySalesTotals.incassato.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+                  </p>
+                )}
               </div>
               <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                 <p className="text-[10px] font-semibold uppercase text-slate-500">Commesse periodo</p>
-                <p className="mt-0.5 text-base font-bold text-slate-950">
-                  {monthlySalesTotals.commesse.toLocaleString("it-IT")}
-                </p>
+                {isEconomicStatsLoading ? (
+                  <Skeleton className="mt-1 h-5 w-12" />
+                ) : (
+                  <p className="mt-0.5 text-base font-bold text-slate-950">
+                    {monthlySalesTotals.commesse.toLocaleString("it-IT")}
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="mt-4 h-[240px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={monthlySalesChart} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                  <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
-                  <YAxis
-                    yAxisId="money"
-                    tickLine={false}
-                    axisLine={false}
-                    fontSize={10}
-                    stroke="#94a3b8"
-                    tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
-                  />
-                  <YAxis
-                    yAxisId="count"
-                    orientation="right"
-                    tickLine={false}
-                    axisLine={false}
-                    fontSize={10}
-                    stroke="#94a3b8"
-                    allowDecimals={false}
-                  />
-                  <RechartsTooltip
-                    cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: "1px solid #e2e8f0",
-                      boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                    }}
-                    formatter={(value, name) => {
-                      if (name === "commesse") {
-                        return [Number(value).toLocaleString("it-IT"), "N. commesse"];
-                      }
-                      return [
-                        Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
-                        name === "venduto" ? "Venduto" : "Incassato",
-                      ];
-                    }}
-                    labelFormatter={(label) => `Mese: ${label}`}
-                  />
-                  <Bar yAxisId="money" dataKey="venduto" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                  <Bar yAxisId="money" dataKey="incassato" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                  <Line
-                    yAxisId="count"
-                    type="monotone"
-                    dataKey="commesse"
-                    stroke="#0f172a"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "#0f172a", strokeWidth: 0 }}
-                    activeDot={{ r: 4 }}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
+              {isEconomicStatsLoading ? (
+                <div className="flex h-full items-end gap-2 px-2 pb-4">
+                  {[60, 92, 48, 130, 78, 155, 105, 184].map((height, index) => (
+                    <Skeleton key={index} className="flex-1 rounded-t-md" style={{ height }} />
+                  ))}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={monthlySalesChart} margin={{ top: 8, right: 2, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
+                    <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
+                    <YAxis
+                      yAxisId="money"
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={10}
+                      stroke="#94a3b8"
+                      tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
+                    />
+                    <YAxis
+                      yAxisId="count"
+                      orientation="right"
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize={10}
+                      stroke="#94a3b8"
+                      allowDecimals={false}
+                    />
+                    <RechartsTooltip
+                      cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
+                      }}
+                      formatter={(value, name) => {
+                        if (name === "commesse") {
+                          return [Number(value).toLocaleString("it-IT"), "N. commesse"];
+                        }
+                        return [
+                          Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
+                          name === "venduto" ? "Venduto" : "Incassato",
+                        ];
+                      }}
+                      labelFormatter={(label) => `Mese: ${label}`}
+                    />
+                    <Bar yAxisId="money" dataKey="venduto" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    <Bar yAxisId="money" dataKey="incassato" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    <Line
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="commesse"
+                      stroke="#0f172a"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: "#0f172a", strokeWidth: 0 }}
+                      activeDot={{ r: 4 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </aside>
         </div>
@@ -1869,7 +1925,11 @@ function OrdersListInner() {
             </span>
             <span>
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Da completare</span>
-              <span className="block text-2xl font-bold text-slate-950">{stats.countDaCompletare ?? 0}</span>
+              {isWorkflowStatsLoading ? (
+                <Skeleton className="mt-1 h-8 w-12" />
+              ) : (
+                <span className="block text-2xl font-bold text-slate-950">{stats.countDaCompletare ?? 0}</span>
+              )}
               <span className="text-sm text-slate-500">commesse operative</span>
             </span>
           </div>
@@ -1882,7 +1942,11 @@ function OrdersListInner() {
             </span>
             <span>
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Completati</span>
-              <span className="block text-2xl font-bold text-slate-950">{stats.countCompletati ?? 0}</span>
+              {isWorkflowStatsLoading ? (
+                <Skeleton className="mt-1 h-8 w-12" />
+              ) : (
+                <span className="block text-2xl font-bold text-slate-950">{stats.countCompletati ?? 0}</span>
+              )}
               <span className="text-sm text-slate-500">chiusi operativamente</span>
             </span>
           </div>
@@ -1895,7 +1959,11 @@ function OrdersListInner() {
             </span>
             <span>
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">In assistenza</span>
-              <span className="block text-2xl font-bold text-slate-950">{stats.countAssistenza ?? 0}</span>
+              {isWorkflowStatsLoading ? (
+                <Skeleton className="mt-1 h-8 w-12" />
+              ) : (
+                <span className="block text-2xl font-bold text-slate-950">{stats.countAssistenza ?? 0}</span>
+              )}
               <span className="text-sm text-slate-500">clienti da seguire</span>
             </span>
           </div>
@@ -1908,7 +1976,11 @@ function OrdersListInner() {
             </span>
             <span>
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Margine basso</span>
-              <span className="block text-2xl font-bold text-orange-700">{controlRoom.lowMarginCount}</span>
+              {isOrdersLoading ? (
+                <Skeleton className="mt-1 h-8 w-12" />
+              ) : (
+                <span className="block text-2xl font-bold text-orange-700">{controlRoom.lowMarginCount}</span>
+              )}
               <span className="text-sm text-slate-500">da controllare</span>
             </span>
           </div>
@@ -1978,7 +2050,25 @@ function OrdersListInner() {
           )}
 
           {/* Content */}
-          {isLoading ? (
+          {isOrdersError ? (
+            <Card className="border-red-200 bg-red-50/70">
+              <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                  <div>
+                    <h3 className="font-semibold text-red-950">Errore nel caricamento commesse</h3>
+                    <p className="mt-1 text-sm text-red-800">
+                      La pagina non resta più bloccata in caricamento: puoi riprovare senza ricaricare tutto.
+                      {ordersError instanceof Error && ordersError.message ? ` Dettaglio: ${ordersError.message}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <Button variant="outline" className="border-red-200 bg-white text-red-700 hover:bg-red-100" onClick={() => refetchOrders()}>
+                  Riprova
+                </Button>
+              </CardContent>
+            </Card>
+          ) : isOrdersLoading ? (
             <Card>
               <CardContent className="p-6 space-y-4">
                 {[...Array(6)].map((_, i) => (
@@ -2154,7 +2244,12 @@ export default function OrdersList() {
   const { isFeatureEnabled } = useFeatureFlags();
   const surveysEnabled = isFeatureEnabled("surveys_module");
   const handleTabChange = (tab: string) => {
-    setSearchParams(tab === "ordini" ? {} : { tab });
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === "ordini") next.delete("tab");
+      else next.set("tab", tab);
+      return next;
+    }, { replace: true });
   };
 
   const tabs = [
@@ -2164,21 +2259,26 @@ export default function OrdersList() {
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewForecast },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewOrders },
     { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewOrders },
+    { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewOrders },
   ].filter((t) => t.show);
   const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : "ordini";
 
   useEffect(() => {
     if (requestedTab !== activeTab) {
-      setSearchParams({});
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("tab");
+        return next;
+      }, { replace: true });
     }
   }, [activeTab, requestedTab, setSearchParams]);
 
   return (
     <div className="space-y-4 pb-20 sm:space-y-6 sm:pb-0">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
         <nav
-          className="flex gap-1 overflow-x-auto scroll-smooth px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex min-h-0 items-center gap-1 overflow-x-auto scroll-smooth px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"
           aria-label="Sezioni commesse"
         >
@@ -2191,7 +2291,7 @@ export default function OrdersList() {
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => handleTabChange(t.id)}
-                className={`relative flex shrink-0 items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-all sm:px-4 ${
+                className={`relative flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-all sm:px-3.5 ${
                   isActive
                     ? "bg-orange-50 text-slate-950 font-semibold shadow-sm ring-1 ring-orange-100"
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
@@ -2223,6 +2323,14 @@ export default function OrdersList() {
         <ErrorBoundary title="Errore nel modulo Sopralluoghi">
           <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento sopralluoghi…</div>}>
             <SopralluoghiList />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+
+      {activeTab === "provvigioni" && (
+        <ErrorBoundary title="Errore nel tab Provvigioni">
+          <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Caricamento provvigioni…</div>}>
+            <OrderCommissionsOverview />
           </Suspense>
         </ErrorBoundary>
       )}

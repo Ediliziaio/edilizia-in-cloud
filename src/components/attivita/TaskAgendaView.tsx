@@ -4,18 +4,16 @@ import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { CalendarRange, AlertTriangle, Clock, CalendarDays, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { type TaskStatusDefinition } from "@/lib/taskStatuses";
 
 const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
   bassa:   { label: "Bassa",   className: "bg-muted text-muted-foreground" },
   normale: { label: "Normale", className: "bg-primary/10 text-primary" },
   alta:    { label: "Alta",    className: "bg-warning/10 text-warning" },
   urgente: { label: "Urgente", className: "bg-destructive/10 text-destructive" },
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  da_fare: "Da fare",
-  in_corso: "In corso",
-  completata: "Completata",
 };
 
 interface AgendaTask {
@@ -42,7 +40,7 @@ function dateGroupLabel(dateStr: string): { label: string; sub: string; accent: 
   return { label: format(d, "d MMMM", { locale: it }), sub: format(d, "yyyy"), accent: false };
 }
 
-function TaskRow({ task, overdue, onSelect }: { task: AgendaTask; overdue?: boolean; onSelect: () => void }) {
+function TaskRow({ task, statusOptions, overdue, onSelect }: { task: AgendaTask; statusOptions: TaskStatusDefinition[]; overdue?: boolean; onSelect: () => void }) {
   const priority = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.normale;
   return (
     <div
@@ -66,14 +64,15 @@ function TaskRow({ task, overdue, onSelect }: { task: AgendaTask; overdue?: bool
       <Badge className={cn("text-[10px] px-1.5 py-0 shrink-0", priority.className)}>
         {priority.label}
       </Badge>
-      <span className="text-[10px] text-muted-foreground shrink-0 hidden sm:block">
-        {STATUS_LABELS[task.status] ?? task.status}
-      </span>
+      <TaskStatusBadge status={task.status} statuses={statusOptions} compact className="hidden sm:inline-flex" />
     </div>
   );
 }
 
 export function TaskAgendaView({ tasks, onTaskSelect }: TaskAgendaViewProps) {
+  const { effectiveCompany } = useAuth();
+  const observedStatuses = useMemo(() => Array.from(new Set(tasks.map((task) => task.status).filter(Boolean))), [tasks]);
+  const { statuses: statusOptions } = useTaskStatuses(effectiveCompany?.id, observedStatuses);
   // Use YYYY-MM-DD string comparison to avoid UTC vs local timezone issues
   // (due_date is stored as a date-only string like "2026-03-30")
   const todayStr = format(startOfDay(new Date()), "yyyy-MM-dd");
@@ -115,7 +114,7 @@ export function TaskAgendaView({ tasks, onTaskSelect }: TaskAgendaViewProps) {
             <span className="ml-auto text-xs text-muted-foreground">{overdue.length}</span>
           </div>
           {overdue.map((t) => (
-            <TaskRow key={t.id} task={t} overdue onSelect={() => onTaskSelect(t)} />
+            <TaskRow key={t.id} task={t} statusOptions={statusOptions} overdue onSelect={() => onTaskSelect(t)} />
           ))}
         </div>
       )}
@@ -138,7 +137,7 @@ export function TaskAgendaView({ tasks, onTaskSelect }: TaskAgendaViewProps) {
               <span className="ml-auto text-xs text-muted-foreground">{dateTasks.length}</span>
             </div>
             {dateTasks.map((t) => (
-              <TaskRow key={t.id} task={t} onSelect={() => onTaskSelect(t)} />
+              <TaskRow key={t.id} task={t} statusOptions={statusOptions} onSelect={() => onTaskSelect(t)} />
             ))}
           </div>
         );
@@ -153,7 +152,7 @@ export function TaskAgendaView({ tasks, onTaskSelect }: TaskAgendaViewProps) {
             <span className="ml-auto text-xs text-muted-foreground">{noDate.length}</span>
           </div>
           {noDate.map((t) => (
-            <TaskRow key={t.id} task={t} onSelect={() => onTaskSelect(t)} />
+            <TaskRow key={t.id} task={t} statusOptions={statusOptions} onSelect={() => onTaskSelect(t)} />
           ))}
         </div>
       )}

@@ -1,15 +1,19 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarDays, Trash2, RefreshCw } from "lucide-react";
+import {
+  CalendarDays, Trash2, RefreshCw, Sparkles, User, Users, UserX,
+  ListChecks, Clock, Link2, ChevronDown, Plus, X,
+} from "lucide-react";
 import { TaskTemplatePicker } from "./TaskTemplatePicker";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +24,13 @@ import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
 import { EntityCustomFieldsSection } from "@/components/shared/EntityCustomFieldsSection";
+import { describeTaskChanges, logTaskActivity } from "@/lib/taskActivityLog";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import {
+  buildTaskStatusUpdate,
+  getTaskStatusEventType,
+  getTaskStatusTransitionDescription,
+} from "@/lib/taskStatuses";
 
 const RECURRENCE_OPTIONS = [
   { value: "none",      label: "Nessuna ripetizione" },
@@ -44,6 +55,7 @@ interface TaskData {
   opportunity_id: string | null;
   ticket_id: string | null;
   category: string;
+  estimated_hours?: number | null;
   is_recurring?: boolean;
   recurrence_rule?: string | null;
   recurrence_end_date?: string | null;
@@ -61,6 +73,7 @@ interface TaskDialogProps {
   defaultContactId?: string;
   defaultOpportunityId?: string;
   defaultTicketId?: string;
+  defaultAssignedTo?: string | null;
 }
 
 const PRIORITIES = [
@@ -82,14 +95,75 @@ const CATEGORIES = [
   { value: "assistenza", label: "Assistenza" },
 ];
 
-const STATUSES = [
-  { value: "da_fare", label: "Da fare" },
-  { value: "in_corso", label: "In corso" },
-  { value: "completata", label: "Completata" },
-];
+const MAX_INITIAL_CHECKLIST_ITEMS = 20;
 
-export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId }: TaskDialogProps) {
-  const { effectiveCompany, user, role } = useAuth();
+function inferDueDateFromText(text: string): Date | undefined {
+  const lower = text.toLowerCase();
+  const today = new Date();
+  if (lower.includes("dopodomani")) return addDays(today, 2);
+  if (lower.includes("domani")) return addDays(today, 1);
+  if (lower.includes("oggi")) return today;
+  if (lower.includes("prossima settimana") || lower.includes("settimana prossima")) return addDays(today, 7);
+
+  const match = lower.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/);
+  if (!match) return undefined;
+  const day = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const currentYear = today.getFullYear();
+  const year = match[3] ? Number(match[3].length === 2 ? `20${match[3]}` : match[3]) : currentYear;
+  const parsed = new Date(year, month, day);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function inferPriorityFromText(text: string) {
+  const lower = text.toLowerCase();
+  if (/\b(urgente|subito|immediato|bloccante|scadut[aoe]|oggi)\b/.test(lower)) return "urgente";
+  if (/\b(importante|alta priorita|alta priorità|domani|cliente arrabbiato)\b/.test(lower)) return "alta";
+  if (/\b(quando possibile|bassa|non urgente)\b/.test(lower)) return "bassa";
+  return "normale";
+}
+
+function inferCategoryFromText(text: string) {
+  const lower = text.toLowerCase();
+  if (/\b(ticket|assistenza|segnalazione|bug|problema)\b/.test(lower)) return "assistenza";
+  if (/\b(magazzino|stock|material[ei]|scarico|carico|inventario)\b/.test(lower)) return "magazzino";
+  if (/\b(fattura|pagamento|incasso|saldo|bonifico|scadenza pagamento)\b/.test(lower)) return "pagamenti";
+  if (/\b(costo|spesa|fornitore|consuntivo)\b/.test(lower)) return "costi";
+  if (/\b(cliente|lead|commerciale|preventivo|sopralluogo)\b/.test(lower)) return "marketing";
+  if (/\b(ordine|commessa|cantiere|lavoro|posa|montaggio|installazione)\b/.test(lower)) return "ordini";
+  return "generale";
+}
+
+function inferEstimatedHoursFromText(text: string) {
+  const match = text.toLowerCase().match(/\b(\d+(?:[,.]\d+)?)\s*(?:h|ore|ora)\b/);
+  return match ? match[1].replace(",", ".") : "";
+}
+
+function buildChecklistFromText(text: string) {
+  const lower = text.toLowerCase();
+  if (/\b(montaggio|posa|installazione|cantiere|finestr|serrament)\b/.test(lower)) {
+    return ["Verificare misure e accesso", "Preparare materiali e attrezzatura", "Eseguire intervento", "Caricare foto o note finali"];
+  }
+  if (/\b(ordine|acquisto|fornitore|materiale)\b/.test(lower)) {
+    return ["Verificare quantità", "Confermare disponibilità", "Registrare ordine o consegna", "Aggiornare la commessa"];
+  }
+  if (/\b(cliente|preventivo|sopralluogo|commerciale)\b/.test(lower)) {
+    return ["Contattare il cliente", "Verificare dati e richiesta", "Aggiornare esito", "Programmare follow-up"];
+  }
+  if (/\b(ticket|assistenza|problema|bug)\b/.test(lower)) {
+    return ["Analizzare segnalazione", "Riprodurre o verificare problema", "Applicare soluzione", "Confermare chiusura"];
+  }
+  return ["Verificare dati", "Eseguire attività", "Aggiornare stato"];
+}
+
+function inferTitleFromText(text: string) {
+  const firstLine = text.split(/\n/).map((line) => line.trim()).find(Boolean) || "";
+  const sentence = firstLine.split(/[.!?]/)[0]?.trim() || firstLine;
+  return sentence.length > 110 ? `${sentence.slice(0, 107)}...` : sentence;
+}
+
+export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, defaultAssignedTo }: TaskDialogProps) {
+  const { effectiveCompany, user, profile } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
   const { onlyAssigned } = usePermissions();
@@ -107,13 +181,19 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   const [opportunityId, setOpportunityId] = useState<string>("");
   const [ticketId, setTicketId] = useState<string>("");
   const [category, setCategory] = useState("generale");
+  const [estimatedHours, setEstimatedHours] = useState("");
+  const [initialChecklistItems, setInitialChecklistItems] = useState<string[]>([]);
+  const [checklistDraft, setChecklistDraft] = useState("");
+  const [aiBrief, setAiBrief] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<string>("none");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | undefined>();
   const [saving, setSaving] = useState(false);
+  const { statuses: statusOptions } = useTaskStatuses(companyId, [status].filter(Boolean));
 
   useEffect(() => {
-    if (task) {
+    if (isEditing && task) {
       setTitle(task.title);
       setNotes(task.notes || "");
       setStatus(task.status);
@@ -127,33 +207,121 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       setOpportunityId(task.opportunity_id || "");
       setTicketId(task.ticket_id || "");
       setCategory(task.category);
+      setEstimatedHours(task.estimated_hours != null ? String(task.estimated_hours) : "");
+      setInitialChecklistItems([]);
+      setChecklistDraft("");
+      setAiBrief("");
+      setAdvancedOpen(true);
       setIsRecurring(task.is_recurring ?? false);
       setRecurrenceRule(task.recurrence_rule ?? "none");
       setRecurrenceEndDate(task.recurrence_end_date ? new Date(task.recurrence_end_date) : undefined);
     } else {
-      setTitle("");
-      setNotes("");
-      setStatus("da_fare");
-      setPriority("normale");
-      setDueDate(undefined);
-      setAssignedTo(onlyAssigned && user?.id ? user.id : "");
-      setOrderId(defaultOrderId || "");
-      setStockItemId(defaultStockItemId || "");
-      setCostId(defaultCostId || "");
-      setContactId(defaultContactId || "");
-      setOpportunityId(defaultOpportunityId || "");
-      setTicketId(defaultTicketId || "");
-      setCategory(defaultCategory || "generale");
-      setIsRecurring(false);
-      setRecurrenceRule("none");
-      setRecurrenceEndDate(undefined);
+      setTitle(task?.title || "");
+      setNotes(task?.notes || "");
+      setStatus(task?.status || "da_fare");
+      setPriority(task?.priority || "normale");
+      setDueDate(task?.due_date ? new Date(task.due_date) : undefined);
+      setAssignedTo(task?.assigned_to || defaultAssignedTo || (onlyAssigned && user?.id ? user.id : ""));
+      setOrderId(task?.order_id || defaultOrderId || "");
+      setStockItemId(task?.stock_item_id || defaultStockItemId || "");
+      setCostId(task?.cost_id || defaultCostId || "");
+      setContactId(task?.contact_id || defaultContactId || "");
+      setOpportunityId(task?.opportunity_id || defaultOpportunityId || "");
+      setTicketId(task?.ticket_id || defaultTicketId || "");
+      setCategory(task?.category || defaultCategory || "generale");
+      setEstimatedHours(task?.estimated_hours != null ? String(task.estimated_hours) : "");
+      setInitialChecklistItems([]);
+      setChecklistDraft("");
+      setAiBrief("");
+      setAdvancedOpen(false);
+      setIsRecurring(task?.is_recurring ?? false);
+      setRecurrenceRule(task?.recurrence_rule ?? "none");
+      setRecurrenceEndDate(task?.recurrence_end_date ? new Date(task.recurrence_end_date) : undefined);
     }
-  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, onlyAssigned, user?.id]);
+  }, [task, open, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, defaultAssignedTo, onlyAssigned, user?.id, isEditing]);
 
   // FIX: filtro ruoli staff per escludere customer/referrer
   const { data: assignableUsers = [] } = useCompanyStaffUsers(
     open ? companyId : null
   );
+  const assigneeOptions = useMemo(() => {
+    const map = new Map<string, { id: string; first_name: string; last_name: string }>();
+    if (user?.id) {
+      map.set(user.id, {
+        id: user.id,
+        first_name: profile?.first_name || "Me",
+        last_name: profile?.last_name || "stesso",
+      });
+    }
+    assignableUsers.forEach((u) => map.set(u.id, u));
+    return Array.from(map.values());
+  }, [assignableUsers, profile?.first_name, profile?.last_name, user?.id]);
+
+  const teamAssigneeOptions = useMemo(
+    () => assigneeOptions.filter((option) => option.id !== user?.id),
+    [assigneeOptions, user?.id],
+  );
+
+  const assignMode = !assignedTo || assignedTo === "none"
+    ? "unassigned"
+    : assignedTo === user?.id
+      ? "me"
+      : "team";
+
+  const setAssignMode = (mode: "me" | "team" | "unassigned") => {
+    if (mode === "me" && user?.id) setAssignedTo(user.id);
+    if (mode === "team") setAssignedTo(teamAssigneeOptions[0]?.id || assignedTo || "");
+    if (mode === "unassigned") setAssignedTo("none");
+  };
+
+  const applySmartDraft = () => {
+    const text = aiBrief.trim();
+    if (!text) {
+      toast.error("Scrivi prima cosa deve essere fatto");
+      return;
+    }
+
+    const suggestedTitle = inferTitleFromText(text);
+    if (suggestedTitle) setTitle(suggestedTitle);
+    setNotes((prev) => prev || text);
+    setPriority(inferPriorityFromText(text));
+    setCategory(inferCategoryFromText(text));
+    const due = inferDueDateFromText(text);
+    if (due) setDueDate(due);
+    const hours = inferEstimatedHoursFromText(text);
+    if (hours) setEstimatedHours(hours);
+    setInitialChecklistItems((prev) => prev.length > 0 ? prev : buildChecklistFromText(text));
+
+    const lower = text.toLowerCase();
+    const matchedAssignee = assigneeOptions.find((option) => {
+      const first = option.first_name?.toLowerCase();
+      const last = option.last_name?.toLowerCase();
+      const full = `${option.first_name} ${option.last_name}`.trim().toLowerCase();
+      return (first && lower.includes(first)) || (last && lower.includes(last)) || lower.includes(full);
+    });
+    if (matchedAssignee) setAssignedTo(matchedAssignee.id);
+
+    toast.success("Bozza attività compilata");
+  };
+
+  const addInitialChecklistItem = () => {
+    const value = checklistDraft.trim();
+    if (!value) return;
+    if (initialChecklistItems.length >= MAX_INITIAL_CHECKLIST_ITEMS) {
+      toast.error(`Massimo ${MAX_INITIAL_CHECKLIST_ITEMS} elementi checklist`);
+      return;
+    }
+    setInitialChecklistItems((items) => [...items, value]);
+    setChecklistDraft("");
+  };
+
+  const updateInitialChecklistItem = (index: number, value: string) => {
+    setInitialChecklistItems((items) => items.map((item, itemIndex) => itemIndex === index ? value : item));
+  };
+
+  const removeInitialChecklistItem = (index: number) => {
+    setInitialChecklistItems((items) => items.filter((_, itemIndex) => itemIndex !== index));
+  };
 
   const { data: orders = [] } = useQuery({
     queryKey: queryKeys.taskLookups.orders(companyId),
@@ -236,6 +404,17 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       return;
     }
     if (!companyId || !user) return;
+    const normalizedEstimatedHours = estimatedHours.trim()
+      ? Number(estimatedHours.replace(",", "."))
+      : null;
+    if (normalizedEstimatedHours != null && (!Number.isFinite(normalizedEstimatedHours) || normalizedEstimatedHours < 0)) {
+      toast.error("Stima ore non valida");
+      return;
+    }
+    const checklistItems = initialChecklistItems
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, MAX_INITIAL_CHECKLIST_ITEMS);
 
     setSaving(true);
     try {
@@ -243,7 +422,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         company_id: companyId,
         title: title.trim(),
         notes: notes.trim() || null,
-        status,
+        ...buildTaskStatusUpdate(status, statusOptions),
         priority,
         due_date: dueDate ? format(dueDate, "yyyy-MM-dd") : null,
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
@@ -254,7 +433,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         opportunity_id: (category === "opportunita" || category === "marketing") && opportunityId && opportunityId !== "none" ? opportunityId : null,
         ticket_id: category === "assistenza" && ticketId && ticketId !== "none" ? ticketId : (defaultTicketId || null),
         category,
-        completed_at: status === "completata" ? new Date().toISOString() : null,
+        estimated_hours: normalizedEstimatedHours,
         is_recurring: isRecurring && recurrenceRule !== "none",
         recurrence_rule: isRecurring && recurrenceRule !== "none" ? recurrenceRule : null,
         recurrence_end_date: isRecurring && recurrenceRule !== "none" && recurrenceEndDate
@@ -265,11 +444,53 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
       if (isEditing && task?.id) {
         const { error } = await supabase.from("tasks").update(payload).eq("id", task.id).eq("company_id", companyId!);
         if (error) throw error;
+        const changes = Object.fromEntries(
+          Object.entries(payload).filter(([key, value]) => (task as any)[key] !== value)
+        );
+        const statusChanged = typeof changes.status === "string";
+        await logTaskActivity({
+          companyId,
+          userId: user.id,
+          taskId: task.id,
+          taskTitle: title.trim(),
+          eventType: statusChanged ? getTaskStatusEventType(task.status, String(changes.status), statusOptions) : "task_updated",
+          description: statusChanged
+            ? getTaskStatusTransitionDescription(task.status, String(changes.status), statusOptions)
+            : describeTaskChanges(changes),
+          changes,
+          beforeSnapshot: task as any,
+          afterSnapshot: { ...(task as any), ...payload },
+        });
         toast.success("Attività aggiornata");
       } else {
         payload.created_by = user.id;
-        const { error } = await supabase.from("tasks").insert(payload as any);
+        const { data: createdTask, error } = await supabase
+          .from("tasks")
+          .insert(payload as any)
+          .select("id, title")
+          .single();
         if (error) throw error;
+        if (createdTask?.id && checklistItems.length > 0) {
+          const { error: checklistError } = await supabase.from("task_checklist_items").insert(
+            checklistItems.map((item, index) => ({
+              task_id: createdTask.id,
+              title: item,
+              position: index,
+            })) as any,
+          );
+          if (checklistError) {
+            toast.warning("Attività creata, ma checklist non salvata", { description: checklistError.message });
+          }
+        }
+        await logTaskActivity({
+          companyId,
+          userId: user.id,
+          taskId: createdTask?.id,
+          taskTitle: createdTask?.title || title.trim(),
+          eventType: "task_created",
+          description: "ha creato l'attività",
+          afterSnapshot: payload,
+        });
         toast.success("Attività creata");
       }
 
@@ -286,6 +507,16 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
     if (!task?.id) return;
     setSaving(true);
     try {
+      await logTaskActivity({
+        companyId,
+        userId: user?.id,
+        taskId: task.id,
+        taskTitle: task.title,
+        eventType: "task_deleted",
+        description: "ha eliminato l'attività",
+        beforeSnapshot: task as any,
+        importance: "high",
+      });
       const { error } = await supabase.from("tasks").delete().eq("id", task.id).eq("company_id", companyId!);
       if (error) throw error;
       toast.success("Attività eliminata");
@@ -300,7 +531,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -313,14 +544,20 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
               <TaskTemplatePicker
                 currentTitle={title}
                 currentNotes={notes}
+                currentStatus={status}
                 currentPriority={priority}
                 currentCategory={category}
-                currentEstimatedHours={null}
+                currentEstimatedHours={estimatedHours ? Number(estimatedHours.replace(",", ".")) : null}
+                currentChecklistItems={initialChecklistItems}
+                statusOptions={statusOptions}
                 onApply={(tpl) => {
                   if (tpl.title) setTitle(tpl.title);
                   if (tpl.notes) setNotes(tpl.notes);
+                  if (tpl.status) setStatus(tpl.status);
                   setPriority(tpl.priority);
                   setCategory(tpl.category);
+                  if (tpl.estimated_hours != null) setEstimatedHours(String(tpl.estimated_hours));
+                  if (tpl.checklist_items) setInitialChecklistItems(tpl.checklist_items);
                 }}
               />
             )}
@@ -328,6 +565,30 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
+          {!isEditing && (
+            <div className="rounded-lg border bg-primary/5 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <Label htmlFor="task-ai-brief" className="text-sm font-medium">Assistente AI</Label>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Textarea
+                  id="task-ai-brief"
+                  value={aiBrief}
+                  onChange={(e) => setAiBrief(e.target.value)}
+                  placeholder="Es. Assegna a Luigi montaggio finestre domani, alta priorità, 4 ore"
+                  rows={2}
+                  className="min-h-[68px] bg-background text-sm"
+                  maxLength={800}
+                />
+                <Button type="button" className="h-10 gap-2 sm:self-end" onClick={applySmartDraft}>
+                  <Sparkles className="h-4 w-4" />
+                  Compila
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="title">Titolo *</Label>
             <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Es. Ordinare prodotto X" maxLength={200} />
@@ -338,7 +599,116 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
             <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} maxLength={1000} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {!isEditing && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
+                Checklist iniziale
+              </Label>
+              <div className="rounded-md border bg-muted/20 p-2">
+                {initialChecklistItems.length > 0 && (
+                  <div className="mb-2 space-y-1.5">
+                    {initialChecklistItems.map((item, index) => (
+                      <div key={`checklist-${index}`} className="flex items-center gap-2 rounded-md bg-background px-2 py-1.5">
+                        <Checkbox checked={false} aria-label={`Elemento checklist ${index + 1}`} />
+                        <Input
+                          value={item}
+                          onChange={(e) => updateInitialChecklistItem(index, e.target.value)}
+                          className="h-7 border-0 bg-transparent px-1 text-sm shadow-none focus-visible:ring-0"
+                          maxLength={200}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeInitialChecklistItem(index)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <div className="flex h-9 items-center pl-2">
+                    <Checkbox checked={false} disabled aria-label="Nuovo elemento checklist" />
+                  </div>
+                  <Input
+                    id="initial-checklist-item"
+                    value={checklistDraft}
+                    onChange={(e) => setChecklistDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addInitialChecklistItem();
+                      }
+                    }}
+                    placeholder="Aggiungi elemento checklist..."
+                    className="h-9"
+                    maxLength={200}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={addInitialChecklistItem}
+                    disabled={!checklistDraft.trim()}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Assegna a</Label>
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                type="button"
+                variant={assignMode === "me" ? "default" : "outline"}
+                className="gap-1.5"
+                onClick={() => setAssignMode("me")}
+                disabled={!user?.id}
+              >
+                <User className="h-4 w-4" />
+                Per me
+              </Button>
+              <Button
+                type="button"
+                variant={assignMode === "team" ? "default" : "outline"}
+                className="gap-1.5"
+                onClick={() => setAssignMode("team")}
+                disabled={onlyAssigned || teamAssigneeOptions.length === 0}
+              >
+                <Users className="h-4 w-4" />
+                Team
+              </Button>
+              <Button
+                type="button"
+                variant={assignMode === "unassigned" ? "default" : "outline"}
+                className="gap-1.5"
+                onClick={() => setAssignMode("unassigned")}
+                disabled={onlyAssigned}
+              >
+                <UserX className="h-4 w-4" />
+                Da assegnare
+              </Button>
+            </div>
+            <Select value={assignedTo || "none"} onValueChange={setAssignedTo} disabled={onlyAssigned}>
+              <SelectTrigger><SelectValue placeholder="Nessun assegnatario" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nessuno</SelectItem>
+                {assigneeOptions.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>{u.first_name} {u.last_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label>Priorità</Label>
               <Select value={priority} onValueChange={setPriority}>
@@ -362,9 +732,21 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label>{isEditing ? "Stato" : "Stato iniziale"}</Label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label>Scadenza</Label>
               <Popover>
@@ -380,23 +762,43 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
               </Popover>
             </div>
 
-            {isEditing && (
-              <div className="space-y-2">
-                <Label>Stato</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="estimated-hours" className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                Stima ore
+              </Label>
+              <Input
+                id="estimated-hours"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.25"
+                value={estimatedHours}
+                onChange={(e) => setEstimatedHours(e.target.value)}
+                placeholder="Es. 2.5"
+              />
+            </div>
+
           </div>
 
-          {/* Ripetizione */}
-          <div className="space-y-2 border rounded-md p-3 bg-muted/20">
+          <div className="rounded-md border bg-muted/20">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+              onClick={() => setAdvancedOpen((value) => !value)}
+            >
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <Link2 className="h-4 w-4 text-muted-foreground" />
+                Collegamenti e opzioni
+              </span>
+              <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", advancedOpen && "rotate-180")} />
+            </button>
+          </div>
+
+          {advancedOpen && (
+            <div className="space-y-4 rounded-md border p-3">
+              {/* Ripetizione */}
+              <div className="space-y-2 border rounded-md p-3 bg-muted/20">
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-1.5 cursor-pointer">
                 <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
@@ -456,20 +858,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>Assegna a</Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo} disabled={onlyAssigned}>
-              <SelectTrigger><SelectValue placeholder="Nessun assegnatario" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nessuno</SelectItem>
-                {assignableUsers.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>{u.first_name} {u.last_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              </div>
 
           {(category === "ordini" || category === "pagamenti") && (
             <div className="space-y-2">
@@ -551,6 +940,14 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+              {category === "generale" && (
+                <p className="text-xs text-muted-foreground">
+                  Scegli una categoria specifica per collegare ordine, magazzino, costo, contatto o opportunità.
+                </p>
+              )}
             </div>
           )}
 

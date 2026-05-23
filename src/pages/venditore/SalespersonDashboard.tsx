@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryKeys } from "@/lib/queryKeys";
 import { formatCurrency } from "@/lib/formatters";
+import { calculateStoredCommissionNet } from "@/lib/commissions";
 import { TrendingUp, ShoppingBag, Wallet, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -47,8 +48,8 @@ export default function SalespersonDashboard() {
 
   const totalOrders = commissions.length;
   const totalSold = commissions.reduce((sum, c) => sum + (c.order?.total_amount || 0), 0);
-  const totalEarned = commissions.reduce((sum, c) => sum + c.commission_amount, 0);
-  const paidEarnings = commissions.filter(c => c.is_paid).reduce((sum, c) => sum + c.commission_amount, 0);
+  const totalEarned = commissions.reduce((sum, c) => sum + calculateStoredCommissionNet(c.commission_amount, c.deduction_amount), 0);
+  const paidEarnings = commissions.filter(c => c.is_paid).reduce((sum, c) => sum + calculateStoredCommissionNet(c.commission_amount, c.deduction_amount), 0);
 
   return (
     <div className="space-y-6">

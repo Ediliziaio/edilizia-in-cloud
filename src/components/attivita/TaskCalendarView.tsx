@@ -15,6 +15,9 @@ import { it } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTaskStatuses } from "@/hooks/useTaskStatuses";
+import { isTaskDoneStatus } from "@/lib/taskStatuses";
 
 // ─── Priority colors ──────────────────────────────────────────────────────────
 const PRIORITY_DOT: Record<string, string> = {
@@ -34,6 +37,9 @@ interface TaskCalendarViewProps {
 // ─── Component ────────────────────────────────────────────────────────────────
 export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: TaskCalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const { effectiveCompany } = useAuth();
+  const observedStatuses = useMemo(() => Array.from(new Set(tasks.map((task) => task.status).filter(Boolean))), [tasks]);
+  const { statuses: statusOptions } = useTaskStatuses(effectiveCompany?.id, observedStatuses);
 
   // Raggruppa tasks per due_date (chiave: 'yyyy-MM-dd')
   const tasksByDate = useMemo(() => {
@@ -152,7 +158,7 @@ export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: Task
                       className={cn(
                         "w-full text-left text-[10px] leading-tight px-1 py-0.5 rounded truncate flex items-center gap-1",
                         "hover:opacity-80 transition-opacity",
-                        task.status === "completata"
+                        isTaskDoneStatus(task.status, statusOptions)
                           ? "line-through text-muted-foreground bg-muted/40"
                           : "bg-primary/10 text-primary",
                       )}
@@ -165,7 +171,7 @@ export function TaskCalendarView({ tasks, onTaskSelect, onNewTaskForDate }: Task
                       <span
                         className={cn(
                           "shrink-0 w-1.5 h-1.5 rounded-full",
-                          task.status === "completata"
+                          isTaskDoneStatus(task.status, statusOptions)
                             ? "bg-muted-foreground/40"
                             : (PRIORITY_DOT[task.priority] ?? "bg-primary"),
                         )}

@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LayoutTemplate, Plus, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
+import { TaskStatusBadge } from "./TaskStatusBadge";
+import { type TaskStatusDefinition, getTaskStatusLabel } from "@/lib/taskStatuses";
 
 interface Template {
   id: string;
@@ -19,23 +21,53 @@ interface Template {
   estimated_hours: number | null;
 }
 
+type TemplateExtras = Record<string, {
+  status?: string;
+  checklist_items?: string[];
+}>;
+
 interface TaskTemplatePickerProps {
   // Current form values (to save as template)
   currentTitle: string;
   currentNotes: string;
+  currentStatus: string;
   currentPriority: string;
   currentCategory: string;
   currentEstimatedHours?: number | null;
+  currentChecklistItems?: string[];
+  statusOptions?: TaskStatusDefinition[];
   // Apply callback
-  onApply: (tpl: Omit<Template, "id" | "name">) => void;
+  onApply: (tpl: Omit<Template, "id" | "name"> & { status?: string; checklist_items?: string[] }) => void;
 }
 
 const PRIORITY_LABELS: Record<string, string> = {
   bassa: "Bassa", normale: "Normale", alta: "Alta", urgente: "Urgente",
 };
 
+function extrasKey(companyId?: string | null) {
+  return `edilizia.task-template-extras.${companyId || "global"}`;
+}
+
+function loadTemplateExtras(companyId?: string | null): TemplateExtras {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(extrasKey(companyId));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveTemplateExtra(companyId: string | undefined, templateName: string, extras: TemplateExtras[string]) {
+  if (typeof window === "undefined" || !templateName.trim()) return;
+  const current = loadTemplateExtras(companyId);
+  current[templateName.trim()] = extras;
+  window.localStorage.setItem(extrasKey(companyId), JSON.stringify(current));
+}
+
 export function TaskTemplatePicker({
-  currentTitle, currentNotes, currentPriority, currentCategory, currentEstimatedHours, onApply,
+  currentTitle, currentNotes, currentStatus, currentPriority, currentCategory,
+  currentEstimatedHours, currentChecklistItems = [], statusOptions, onApply,
 }: TaskTemplatePickerProps) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -43,6 +75,7 @@ export function TaskTemplatePicker({
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"list" | "save">("list");
   const [saveName, setSaveName] = useState("");
+  const templateExtras = loadTemplateExtras(companyId);
 
   const { data: templates = [] } = useQuery({
     queryKey: ["task-templates", companyId],
@@ -77,6 +110,10 @@ export function TaskTemplatePicker({
       if (error) throw error;
     },
     onSuccess: () => {
+      saveTemplateExtra(companyId, saveName, {
+        status: currentStatus,
+        checklist_items: currentChecklistItems.map((item) => item.trim()).filter(Boolean),
+      });
       toast.success("Template salvato");
       queryClient.invalidateQueries({ queryKey: ["task-templates", companyId] });
       setSaveName("");
@@ -125,6 +162,9 @@ export function TaskTemplatePicker({
                 </p>
               ) : (
                 templates.map((tpl) => (
+                  (() => {
+                    const extras = templateExtras[tpl.name] || {};
+                    return (
                   <div
                     key={tpl.id}
                     className="flex items-center gap-2 px-3 py-2 hover:bg-muted group"
@@ -132,15 +172,27 @@ export function TaskTemplatePicker({
                     <button
                       className="flex-1 text-left min-w-0"
                       onClick={() => {
-                        onApply({ title: tpl.title, notes: tpl.notes, priority: tpl.priority, category: tpl.category, estimated_hours: tpl.estimated_hours });
+                        onApply({
+                          title: tpl.title,
+                          notes: tpl.notes,
+                          priority: tpl.priority,
+                          category: tpl.category,
+                          estimated_hours: tpl.estimated_hours,
+                          status: extras.status,
+                          checklist_items: extras.checklist_items,
+                        });
                         setOpen(false);
                         toast.success(`Template "${tpl.name}" applicato`);
                       }}
                     >
                       <p className="text-sm font-medium truncate">{tpl.name}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {PRIORITY_LABELS[tpl.priority] ?? tpl.priority} · {tpl.category}
+                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                        {extras.status && (
+                          <TaskStatusBadge status={extras.status} statuses={statusOptions} compact className="h-5 px-1.5 text-[10px]" />
+                        )}
+                        <span>{PRIORITY_LABELS[tpl.priority] ?? tpl.priority} · {tpl.category}</span>
                         {tpl.estimated_hours != null && ` · ${tpl.estimated_hours}h`}
+                        {extras.checklist_items?.length ? ` · ${extras.checklist_items.length} check` : ""}
                       </p>
                     </button>
                     <button
@@ -151,6 +203,8 @@ export function TaskTemplatePicker({
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                    );
+                  })()
                 ))
               )}
             </div>
@@ -173,8 +227,12 @@ export function TaskTemplatePicker({
             </div>
             <div className="text-[10px] text-muted-foreground space-y-0.5">
               <p>Titolo: <span className="text-foreground">{currentTitle || "(vuoto)"}</span></p>
+              <p>Stato: <span className="text-foreground">{getTaskStatusLabel(currentStatus, statusOptions)}</span></p>
               <p>Priorità: <span className="text-foreground">{PRIORITY_LABELS[currentPriority]}</span></p>
               <p>Categoria: <span className="text-foreground">{currentCategory}</span></p>
+              {currentChecklistItems.length > 0 && (
+                <p>Checklist: <span className="text-foreground">{currentChecklistItems.length} elementi</span></p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button

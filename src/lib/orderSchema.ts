@@ -10,6 +10,7 @@ const baseOrderSchema = z.object({
   salesperson_data: z.object({
     commission_type: z.string(),
     commission_value: z.number(),
+    compensation_mode: z.string().optional().nullable(),
   }).nullable().default(null),
   assigned_to: z.string().optional().default(""),
   // Dates

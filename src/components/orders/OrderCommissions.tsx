@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/formatters";
 
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { UserCheck, Percent, DollarSign, Receipt, CalendarIcon, Check, Loader2, Plus, Trash2 } from "lucide-react";
+import { UserCheck, Percent, DollarSign, Receipt, CalendarIcon, Check, Loader2, Plus, Trash2, History, MinusCircle, PlusCircle, RotateCcw } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { calculateCommissionGross, calculateStoredCommissionNet, type CompensationMode } from "@/lib/commissions";
 
 interface OrderSalesperson {
   id: string;
@@ -47,7 +48,20 @@ interface OrderSalesperson {
   salesperson: {
     first_name: string;
     last_name: string;
+    compensation_mode?: CompensationMode | null;
   };
+}
+
+interface CommissionLedgerEntry {
+  id: string;
+  order_salesperson_id: string;
+  entry_type: string;
+  amount_delta: number | string;
+  balance_after: number | string;
+  source: string;
+  description: string | null;
+  effective_date: string;
+  created_at: string;
 }
 
 interface OrderCommissionsProps {
@@ -63,6 +77,27 @@ const COMMISSION_TYPE_LABELS: Record<string, { label: string; icon: React.ReactN
   percentage_sold: { label: "% sul venduto", icon: <Percent className="h-3 w-3" /> },
   percentage_collected: { label: "% sull'incassato", icon: <Receipt className="h-3 w-3" /> },
 };
+
+const COMMISSION_LEDGER_LABELS: Record<string, string> = {
+  base: "Base calcolata",
+  base_adjustment: "Ricalcolo base",
+  deduction: "Decurtazione",
+  deduction_adjustment: "Variazione decurtazione",
+  payment_marked: "Pagamento segnato",
+  payment_reopened: "Pagamento riaperto",
+  payment_expected_updated: "Scadenza aggiornata",
+  rule_changed: "Regola modificata",
+  manual_bonus: "Bonus manuale",
+  manual_malus: "Malus manuale",
+  manual_adjustment: "Rettifica manuale",
+  ai_adjustment: "Rettifica AI",
+  system_note: "Nota sistema",
+};
+
+function ledgerAmount(entry: CommissionLedgerEntry): number {
+  const amount = Number(entry.amount_delta ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
+}
 
 export function OrderCommissions({
   orderId,
@@ -90,12 +125,19 @@ export function OrderCommissions({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("salespeople")
-        .select("id, first_name, last_name, commission_type, commission_value")
+        .select("id, first_name, last_name, commission_type, commission_value, compensation_mode")
         .eq("company_id", effectiveCompany!.id)
         .eq("is_active", true)
         .order("last_name");
       if (error) throw error;
-      return data as { id: string; first_name: string; last_name: string; commission_type: string; commission_value: number }[];
+      return data as {
+        id: string;
+        first_name: string;
+        last_name: string;
+        commission_type: string;
+        commission_value: number;
+        compensation_mode?: CompensationMode | null;
+      }[];
     },
     enabled: !!effectiveCompany?.id && addDialogOpen,
   });
@@ -107,7 +149,7 @@ export function OrderCommissions({
         .from("order_salespeople")
         .select(`
           *,
-          salesperson:salespeople(first_name, last_name)
+          salesperson:salespeople(first_name, last_name, compensation_mode)
         `)
         .eq("order_id", orderId);
 
@@ -117,18 +159,43 @@ export function OrderCommissions({
     enabled: !!orderId,
   });
 
-  // totalAmount and collectedAmount are already net (imponibile), no need to strip VAT again
-  const calculateCommission = (type: string, value: number) => {
-    switch (type) {
-      case "fixed":
-        return value;
-      case "percentage_sold":
-        return totalAmount * (value / 100);
-      case "percentage_collected":
-        return collectedAmount * (value / 100);
-      default:
-        return 0;
-    }
+  const { data: commissionLedger = [] } = useQuery({
+    queryKey: queryKeys.orders.commissionLedger(orderId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_commission_ledger" as never)
+        .select("id, order_salesperson_id, entry_type, amount_delta, balance_after, source, description, effective_date, created_at")
+        .eq("order_id", orderId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        if (error.code === "42P01" || error.code === "PGRST205") return [];
+        throw error;
+      }
+
+      return (data as unknown as CommissionLedgerEntry[]) ?? [];
+    },
+    enabled: !!orderId,
+  });
+
+  const ledgerByOrderSalesperson = useMemo(() => {
+    const groups = new Map<string, CommissionLedgerEntry[]>();
+    commissionLedger.forEach((entry) => {
+      const entries = groups.get(entry.order_salesperson_id) ?? [];
+      entries.push(entry);
+      groups.set(entry.order_salesperson_id, entries);
+    });
+    return groups;
+  }, [commissionLedger]);
+
+  const calculateCommission = (type: string, value: number, compensationMode?: string | null) => {
+    return calculateCommissionGross({
+      commissionType: type,
+      commissionValue: value,
+      compensationMode,
+      totalAmount,
+      collectedAmount,
+    });
   };
 
   const updateCommissionMutation = useMutation({
@@ -150,6 +217,7 @@ export function OrderCommissions({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
       toast.success("Provvigione aggiornata", { description: "Le modifiche sono state salvate." });
     },
     onError: () => {
@@ -162,9 +230,13 @@ export function OrderCommissions({
     mutationFn: async (spId: string) => {
       const sp = availableSalespeople.find(s => s.id === spId);
       if (!sp) throw new Error("Venditore non trovato");
-      const commAmount = sp.commission_type === "fixed"
-        ? sp.commission_value
-        : totalAmount * (sp.commission_value / 100);
+      const commAmount = calculateCommissionGross({
+        commissionType: sp.commission_type,
+        commissionValue: sp.commission_value,
+        compensationMode: sp.compensation_mode,
+        totalAmount,
+        collectedAmount,
+      });
       const { error } = await supabase.from("order_salespeople").insert({
         order_id: orderId,
         salesperson_id: spId,
@@ -176,6 +248,7 @@ export function OrderCommissions({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
       toast.success("Commerciale aggiunto");
       setAddDialogOpen(false);
       setSelectedSalespersonId("");
@@ -191,6 +264,7 @@ export function OrderCommissions({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orderSalespeople.byOrder(orderId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.commissionLedger(orderId) });
       toast.success("Commerciale rimosso");
     },
     onError: () => toast.error("Errore nella rimozione del commerciale"),
@@ -251,7 +325,7 @@ export function OrderCommissions({
   };
 
   const handleUpdateCommission = (sp: OrderSalesperson, type: string, value: number) => {
-    const newAmount = calculateCommission(type, value);
+    const newAmount = calculateCommission(type, value, sp.salesperson.compensation_mode);
     updateCommissionMutation.mutate({
       id: sp.id,
       commission_type: type,
@@ -278,15 +352,13 @@ export function OrderCommissions({
   };
 
   const totalCommissions = orderSalespeople.reduce((sum, sp) => {
-    const gross = calculateCommission(sp.commission_type, sp.commission_value);
-    return sum + (gross - (sp.deduction_amount || 0));
+    return sum + calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
   }, 0);
 
   const unpaidCommissions = orderSalespeople
     .filter(sp => !sp.is_paid)
     .reduce((sum, sp) => {
-      const gross = calculateCommission(sp.commission_type, sp.commission_value);
-      return sum + (gross - (sp.deduction_amount || 0));
+      return sum + calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
     }, 0);
 
   if (isLoading) {
@@ -349,9 +421,8 @@ export function OrderCommissions({
         </CardHeader>
         <CardContent className="space-y-4">
           {orderSalespeople.map((sp) => {
-            const grossAmount = calculateCommission(sp.commission_type, sp.commission_value);
-            const deduction = sp.deduction_amount || 0;
-            const currentAmount = grossAmount - deduction;
+            const currentAmount = calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount);
+            const ledgerEntries = ledgerByOrderSalesperson.get(sp.id) ?? [];
 
             return (
               <div
@@ -501,6 +572,59 @@ export function OrderCommissions({
                     Pagata il {format(new Date(sp.paid_date), "d MMMM yyyy", { locale: it })}
                   </p>
                 )}
+
+                {ledgerEntries.length > 0 && (
+                  <div className="rounded-md border bg-muted/30 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                        <History className="h-3.5 w-3.5" />
+                        Movimenti provvigione
+                      </div>
+                      <Badge variant="secondary" className="text-[11px]">
+                        Saldo {formatCurrency(Number(ledgerEntries[0]?.balance_after ?? currentAmount))}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {ledgerEntries.slice(0, 4).map((entry) => {
+                        const amount = ledgerAmount(entry);
+                        const label = entry.description || COMMISSION_LEDGER_LABELS[entry.entry_type] || "Movimento";
+
+                        return (
+                          <div key={entry.id} className="flex items-center justify-between gap-3 text-xs">
+                            <div className="flex min-w-0 items-center gap-2">
+                              {amount > 0 ? (
+                                <PlusCircle className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                              ) : amount < 0 ? (
+                                <MinusCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
+                              ) : (
+                                <RotateCcw className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              )}
+                              <span className="truncate">{label}</span>
+                              <span className="shrink-0 text-muted-foreground">
+                                {format(new Date(entry.created_at), "dd/MM HH:mm", { locale: it })}
+                              </span>
+                            </div>
+                            <span
+                              className={cn(
+                                "shrink-0 font-medium",
+                                amount > 0 && "text-green-700",
+                                amount < 0 && "text-red-700",
+                                amount === 0 && "text-muted-foreground"
+                              )}
+                            >
+                              {amount === 0 ? "evento" : formatCurrency(amount)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {ledgerEntries.length > 4 && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        +{ledgerEntries.length - 4} movimenti precedenti
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -582,7 +706,11 @@ export function OrderCommissions({
                     <SelectItem key={sp.id} value={sp.id}>
                       {sp.first_name} {sp.last_name}
                       <span className="text-muted-foreground ml-2 text-xs">
-                        ({sp.commission_type === "fixed" ? formatCurrency(sp.commission_value) : `${sp.commission_value}%`})
+                        ({sp.compensation_mode === "fixed_only"
+                          ? "solo fisso"
+                          : sp.commission_type === "fixed"
+                            ? formatCurrency(sp.commission_value)
+                            : `${sp.commission_value}%`})
                       </span>
                     </SelectItem>
                   ))}
