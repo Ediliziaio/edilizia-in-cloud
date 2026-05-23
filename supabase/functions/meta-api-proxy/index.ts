@@ -452,7 +452,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        const fields = "campaign_name,campaign_id,adset_name,adset_id,ad_name,ad_id,impressions,clicks,spend,ctr,cpc,actions,action_values,objective,reach";
+        const fields = "campaign_name,campaign_id,adset_name,adset_id,ad_name,ad_id,impressions,clicks,spend,ctr,cpc,cpm,frequency,actions,action_values,objective,reach";
         let insightsUrl = `https://graph.facebook.com/${apiVersion}/${ad_account_id}/insights?fields=${fields}&time_range={"since":"${date_start}","until":"${date_end}"}&level=${lvl}&limit=500&access_token=${accessToken}`;
         if (increment === "1") {
           insightsUrl += `&time_increment=1`;

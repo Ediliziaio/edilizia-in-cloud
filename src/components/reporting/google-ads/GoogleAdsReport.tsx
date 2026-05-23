@@ -39,6 +39,8 @@ import {
   formatPercent,
   formatNumber,
 } from "@/lib/google-ads/formatters";
+import { AdsSalesReportPanel } from "@/components/reporting/ads-sales/AdsSalesReportPanel";
+import { AdsCallCenterReportPanel } from "@/components/reporting/ads-callcenter/AdsCallCenterReportPanel";
 import type { GoogleAdsCampaign } from "@/types/google-ads";
 
 // ─── Preset di date ──────────────────────────────────────────────────────────
@@ -95,7 +97,17 @@ function KpiCard({
 
 type SortField = keyof Pick<
   GoogleAdsCampaign,
-  "campaign_name" | "impressions" | "clicks" | "ctr" | "spend" | "conversions" | "cpc"
+  | "campaign_name"
+  | "impressions"
+  | "clicks"
+  | "ctr"
+  | "spend"
+  | "conversions"
+  | "conversion_value"
+  | "cost_per_conversion"
+  | "roas"
+  | "search_impression_share"
+  | "cpc"
 >;
 type SortDir = "asc" | "desc";
 
@@ -142,6 +154,12 @@ function SortableTh({
       </span>
     </TableHead>
   );
+}
+
+function formatImpressionShare(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  const percentValue = value <= 1 ? value * 100 : value;
+  return formatPercent(percentValue);
 }
 
 // ─── Componente principale ────────────────────────────────────────────────────
@@ -221,24 +239,41 @@ export default function GoogleAdsReport() {
 
   // Totali riga in fondo
   const totals = useMemo(
-    () => ({
-      impressions: campaigns.reduce((s, c) => s + c.impressions, 0),
-      clicks: campaigns.reduce((s, c) => s + c.clicks, 0),
-      spend: campaigns.reduce((s, c) => s + c.spend, 0),
-      conversions: campaigns.reduce((s, c) => s + c.conversions, 0),
-      ctr:
-        campaigns.reduce((s, c) => s + c.impressions, 0) > 0
-          ? (campaigns.reduce((s, c) => s + c.clicks, 0) /
-              campaigns.reduce((s, c) => s + c.impressions, 0)) *
-            100
-          : 0,
-      cpc:
-        campaigns.reduce((s, c) => s + c.clicks, 0) > 0
-          ? campaigns.reduce((s, c) => s + c.spend, 0) /
-            campaigns.reduce((s, c) => s + c.clicks, 0)
-          : 0,
-    }),
-    [campaigns]
+    () => {
+      const impressions = campaigns.reduce((s, c) => s + c.impressions, 0);
+      const clicks = campaigns.reduce((s, c) => s + c.clicks, 0);
+      const spend = campaigns.reduce((s, c) => s + c.spend, 0);
+      const conversions = campaigns.reduce((s, c) => s + c.conversions, 0);
+      const conversionValue = campaigns.reduce((s, c) => s + c.conversion_value, 0);
+      const shareWeight = campaigns.reduce(
+        (acc, c) => {
+          if (c.search_impression_share === null || c.search_impression_share === undefined) {
+            return acc;
+          }
+          const weight = c.impressions > 0 ? c.impressions : 1;
+          return {
+            value: acc.value + c.search_impression_share * weight,
+            weight: acc.weight + weight,
+          };
+        },
+        { value: 0, weight: 0 },
+      );
+
+      return {
+        impressions,
+        clicks,
+        spend,
+        conversions,
+        conversionValue,
+        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+        cpc: clicks > 0 ? spend / clicks : 0,
+        costPerConversion: conversions > 0 ? spend / conversions : 0,
+        roas: spend > 0 ? conversionValue / spend : 0,
+        searchImpressionShare:
+          shareWeight.weight > 0 ? shareWeight.value / shareWeight.weight : null,
+      };
+    },
+    [campaigns],
   );
 
   // ── Stato: non connesso ──────────────────────────────────────────────────
@@ -258,10 +293,13 @@ export default function GoogleAdsReport() {
         <Alert className="border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" aria-hidden="true" />
           <AlertDescription className="text-blue-800 text-sm">
-            Collega il tuo account Google Ads per visualizzare impressioni, click, costi e
-            conversioni in tempo reale.
+            Collega il tuo account Google Ads per visualizzare impressioni, click, costi,
+            conversioni, valore conversioni, ROAS e quota impressioni in tempo reale.
           </AlertDescription>
         </Alert>
+
+        <AdsSalesReportPanel provider="google" daysBack={Number(preset)} compact />
+        <AdsCallCenterReportPanel provider="google" daysBack={Number(preset)} compact />
 
         <div className="flex flex-col items-center justify-center py-16 text-center border rounded-xl bg-card">
           <Link2 className="h-12 w-12 text-muted-foreground/40 mb-4" aria-hidden="true" />
@@ -359,7 +397,7 @@ export default function GoogleAdsReport() {
       </div>
 
       {/* KPI card */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-9 gap-4">
         <KpiCard
           label="Spesa totale"
           value={isLoading ? "—" : formatCurrency(kpis.totalSpend)}
@@ -394,12 +432,46 @@ export default function GoogleAdsReport() {
           isLoading={isLoading}
         />
         <KpiCard
+          label="Valore conversioni"
+          value={isLoading ? "—" : formatCurrency(kpis.totalConversionValue)}
+          icon={Euro}
+          colorClass="text-green-700"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="CPA medio"
+          value={isLoading ? "—" : formatCurrency(kpis.avgCPA)}
+          icon={Target}
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="ROAS"
+          value={isLoading ? "—" : `${kpis.roas.toFixed(2).replace(".", ",")}x`}
+          icon={TrendingUp}
+          colorClass="text-blue-700"
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Quota impr."
+          value={isLoading ? "—" : formatImpressionShare(kpis.avgSearchImpressionShare)}
+          icon={Eye}
+          isLoading={isLoading}
+        />
+        <KpiCard
           label="CPC medio"
           value={isLoading ? "—" : formatCurrency(kpis.avgCPC)}
           icon={TrendingUp}
           isLoading={isLoading}
         />
       </div>
+
+      <section aria-label="Fatturato generato e Costo per vendita Google Ads">
+        <AdsSalesReportPanel provider="google" daysBack={Number(preset)} compact />
+      </section>
+
+      <section aria-label="Lead ads e chiamate Google Ads">
+        <AdsCallCenterReportPanel provider="google" daysBack={Number(preset)} compact />
+      </section>
 
       {/* Tabella campagne */}
       {isLoading ? (
@@ -478,6 +550,42 @@ export default function GoogleAdsReport() {
                       Conversioni
                     </SortableTh>
                     <SortableTh
+                      field="cost_per_conversion"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      Costo/conv.
+                    </SortableTh>
+                    <SortableTh
+                      field="conversion_value"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      Valore conv.
+                    </SortableTh>
+                    <SortableTh
+                      field="roas"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      ROAS
+                    </SortableTh>
+                    <SortableTh
+                      field="search_impression_share"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      className="text-right"
+                    >
+                      Quota impr.
+                    </SortableTh>
+                    <SortableTh
                       field="cpc"
                       sortField={sortField}
                       sortDir={sortDir}
@@ -516,6 +624,18 @@ export default function GoogleAdsReport() {
                         {formatNumber(c.conversions)}
                       </TableCell>
                       <TableCell className="text-right">
+                        {formatCurrency(c.cost_per_conversion)}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {formatCurrency(c.conversion_value)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {c.roas.toFixed(2).replace(".", ",")}x
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatImpressionShare(c.search_impression_share)}
+                      </TableCell>
+                      <TableCell className="text-right">
                         {formatCurrency(c.cpc)}
                       </TableCell>
                     </TableRow>
@@ -537,6 +657,18 @@ export default function GoogleAdsReport() {
                     </TableCell>
                     <TableCell className="text-right font-semibold text-green-600">
                       {formatNumber(totals.conversions)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(totals.costPerConversion)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatCurrency(totals.conversionValue)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {totals.roas.toFixed(2).replace(".", ",")}x
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {formatImpressionShare(totals.searchImpressionShare)}
                     </TableCell>
                     <TableCell className="text-right font-semibold">
                       {formatCurrency(totals.cpc)}

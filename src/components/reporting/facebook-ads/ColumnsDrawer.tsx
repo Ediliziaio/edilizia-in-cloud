@@ -4,13 +4,16 @@ import { Label } from "@/components/ui/label";
 
 const ALL_COLUMNS_DEF = [
   { key: "campaign_name", label: "Campagna", required: true },
+  { key: "account_name", label: "Account BM", required: true },
   { key: "status", label: "Stato" },
   { key: "clicks", label: "Clic" },
   { key: "spend", label: "Costo" },
   { key: "revenue", label: "Entrate" },
   { key: "roi", label: "ROI %" },
   { key: "cpc", label: "CPC" },
+  { key: "cpm", label: "CPM", required: true },
   { key: "ctr", label: "CTR" },
+  { key: "frequency", label: "Frequenza", required: true },
   { key: "purchases", label: "Vendite" },
   { key: "cps", label: "CPS" },
   { key: "leads", label: "Lead" },

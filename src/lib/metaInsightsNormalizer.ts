@@ -8,6 +8,8 @@
  */
 
 export interface NormalizedCampaignRow {
+  account_id?: string;
+  account_name?: string;
   campaign_id: string;
   campaign_name: string;
   adset_id?: string;
@@ -22,6 +24,8 @@ export interface NormalizedCampaignRow {
   spend: number;
   ctr: number;
   cpc: number;
+  cpm: number;
+  frequency: number;
   conversions: number;
   revenue: number;
   leads: number;
@@ -44,6 +48,7 @@ export interface KPISummary {
   reach: number;
   revenue: number;
   roas: number;
+  cpm: number;
   frequency: number;
 }
 
@@ -122,6 +127,8 @@ export function normalizeInsights(
     const conversions = pickConversions(row, conversionType) || leads;
 
     return {
+      account_id: row.account_id,
+      account_name: row.account_name,
       campaign_id: row.campaign_id || "",
       campaign_name: row.campaign_name || "",
       adset_id: row.adset_id,
@@ -136,6 +143,8 @@ export function normalizeInsights(
       spend,
       ctr: parseFloat(row.ctr) || 0,
       cpc: safeDivide(spend, clicks),
+      cpm: parseFloat(row.cpm) || safeDivide(spend * 1000, parseInt(row.impressions, 10) || 0),
+      frequency: parseFloat(row.frequency) || safeDivide(parseInt(row.impressions, 10) || 0, parseInt(row.reach, 10) || 0),
       conversions,
       revenue,
       leads,
@@ -170,6 +179,7 @@ export function computeKPIs(rows: NormalizedCampaignRow[]): KPISummary {
     cost_per_conversion: safeDivide(totals.spend, totals.conversions),
     cpl: safeDivide(totals.spend, totals.leads),
     roas: safeDivide(totals.revenue, totals.spend),
+    cpm: safeDivide(totals.spend * 1000, totals.impressions),
     frequency: safeDivide(totals.impressions, totals.reach),
   };
 }

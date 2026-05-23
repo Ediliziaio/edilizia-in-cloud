@@ -38,7 +38,7 @@ const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
 interface CreateCampaignRequest {
   company_id: string;
-  ad_account_id: string; // UUID locale (meta_ad_accounts.id)
+  ad_account_id: string; // UUID locale (meta_ad_accounts.id) oppure Meta act_...
   builder_state: BuilderState;
   /** Default: true. Se false, pubblica davvero su Meta. */
   dry_run?: boolean;
@@ -82,6 +82,10 @@ interface BuilderState {
   testDurationDays: number;
   pauseRule: string;
   scaleRule: string;
+  /** Pagina Facebook selezionata nel builder: può essere UUID meta_assets.id o ID Meta. */
+  pageId?: string;
+  /** ID Meta della pagina, se il client lo conosce già. */
+  pageMetaId?: string;
   // Targeting Meta avanzato (v2 — multi-luogo, interests reali, placements)
   metaGeoLocations?: Array<{
     key: string;
@@ -150,6 +154,10 @@ interface CreateResult {
   rolled_back?: boolean;
 }
 
+type MetaFetchResult =
+  | { ok: true; data: { id: string; [k: string]: unknown } }
+  | { ok: false; error?: string };
+
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -202,17 +210,35 @@ Deno.serve(async (req) => {
     }
 
     // LOAD AD ACCOUNT + INTEGRATION
-    const { data: adAccount } = await admin
+    let adAccount: {
+      id: string;
+      ad_account_id: string;
+      integration_id: string;
+      currency: string | null;
+    } | null = null;
+    const { data: adAccountById } = await admin
       .from("meta_ad_accounts")
-      .select("ad_account_id, integration_id, currency")
+      .select("id, ad_account_id, integration_id, currency")
       .eq("id", body.ad_account_id)
       .eq("company_id", body.company_id)
       .maybeSingle();
+    adAccount = adAccountById;
+    if (!adAccount) {
+      const normalized = normalizeActId(body.ad_account_id);
+      const plain = normalized.replace(/^act_/, "");
+      const { data: adAccountByMetaId } = await admin
+        .from("meta_ad_accounts")
+        .select("id, ad_account_id, integration_id, currency")
+        .eq("company_id", body.company_id)
+        .in("ad_account_id", [body.ad_account_id, normalized, plain])
+        .maybeSingle();
+      adAccount = adAccountByMetaId;
+    }
     if (!adAccount) return json({ error: "ad_account_not_found" }, 404, corsHeaders);
 
     // SPEND GUARD CHECK
     if (!dryRun) {
-      const guardCheck = await checkSpendGuard(admin, body.company_id, body.ad_account_id, body.builder_state, isSuperAdmin);
+      const guardCheck = await checkSpendGuard(admin, body.company_id, adAccount.id, body.builder_state, isSuperAdmin);
       if (!guardCheck.allowed) {
         return json({
           error: "spend_guard_blocked",
@@ -222,7 +248,19 @@ Deno.serve(async (req) => {
     }
 
     // BUILD META PAYLOAD
-    const metaPayload = buildMetaPayload(body.builder_state, adAccount.ad_account_id);
+    const pageMetaId = await resolvePageMetaId(
+      admin,
+      body.company_id,
+      adAccount.integration_id,
+      body.builder_state,
+    );
+    if (!pageMetaId && !dryRun) {
+      return json({
+        error: "page_missing",
+        detail: "Seleziona o collega una Pagina Facebook prima di pubblicare la campagna.",
+      }, 400, corsHeaders);
+    }
+    const metaPayload = buildMetaPayload(body.builder_state, adAccount.ad_account_id, pageMetaId);
 
     // DRY RUN — restituisce solo il payload
     if (dryRun) {
@@ -250,26 +288,63 @@ Deno.serve(async (req) => {
     const encKey = await getEncryptionKey();
     const accessToken = await decrypt(integration.access_token_encrypted, encKey);
 
-    // Crea campagna locale in stato 'review' prima del batch (per audit)
-    const { data: localCampaign, error: localErr } = await admin
-      .from("meta_campaigns")
-      .insert({
-        company_id: body.company_id,
-        integration_id: adAccount.integration_id,
-        ad_account_id: body.ad_account_id,
-        name: body.builder_state.name,
-        objective: body.builder_state.objective,
-        status: "review",
-        budget_mode: body.builder_state.budgetMode,
-        daily_budget_cents:
-          body.builder_state.budgetMode === "campaign"
-            ? body.builder_state.dailyBudget * 100
-            : null,
-        builder_state: body.builder_state,
-        created_by: authUser.id,
-      })
-      .select("id")
-      .single();
+    // Crea o riusa la campagna locale in stato 'review' prima del batch (per audit)
+    const localCampaignPayload = {
+      company_id: body.company_id,
+      integration_id: adAccount.integration_id,
+      ad_account_id: adAccount.id,
+      name: body.builder_state.name,
+      objective: body.builder_state.objective,
+      status: "review",
+      budget_mode: body.builder_state.budgetMode,
+      daily_budget_cents: getEffectiveDailyBudgetCents(body.builder_state),
+      builder_state: body.builder_state,
+      publish_error: null,
+      created_by: authUser.id,
+    };
+
+    let localCampaign: { id: string } | null = null;
+    let localErr: { message?: string } | null = null;
+
+    if (body.draft_id) {
+      const { data: existingDraft, error: existingErr } = await admin
+        .from("meta_campaigns")
+        .select("id, meta_campaign_id, status")
+        .eq("id", body.draft_id)
+        .eq("company_id", body.company_id)
+        .maybeSingle();
+
+      if (existingErr || !existingDraft) {
+        return json({
+          error: "draft_not_found",
+          detail: String(existingErr?.message ?? "La bozza indicata non esiste."),
+        }, 404, corsHeaders);
+      }
+      if (existingDraft.meta_campaign_id && existingDraft.status !== "error") {
+        return json({
+          error: "draft_already_published",
+          detail: "Questa bozza risulta già pubblicata su Meta.",
+        }, 409, corsHeaders);
+      }
+
+      const updated = await admin
+        .from("meta_campaigns")
+        .update(localCampaignPayload)
+        .eq("id", body.draft_id)
+        .eq("company_id", body.company_id)
+        .select("id")
+        .single();
+      localCampaign = updated.data;
+      localErr = updated.error;
+    } else {
+      const inserted = await admin
+        .from("meta_campaigns")
+        .insert(localCampaignPayload)
+        .select("id")
+        .single();
+      localCampaign = inserted.data;
+      localErr = inserted.error;
+    }
 
     if (localErr || !localCampaign) {
       const msg = String(localErr?.message ?? "");
@@ -307,15 +382,16 @@ Deno.serve(async (req) => {
       if (!campaignResp.ok) {
         throw new Error(`campaign_create_failed: ${campaignResp.error}`);
       }
-      createdMetaIds.campaign = campaignResp.data.id;
+      const campaignMeta = campaignResp.data;
+      createdMetaIds.campaign = campaignMeta.id;
 
       await admin
         .from("meta_campaigns")
         .update({
-          meta_campaign_id: campaignResp.data.id,
+          meta_campaign_id: campaignMeta.id,
           status: "published",
           last_published_at: new Date().toISOString(),
-          raw: campaignResp.data,
+          raw: campaignMeta,
         })
         .eq("id", localCampaign.id);
 
@@ -323,7 +399,7 @@ Deno.serve(async (req) => {
       for (let i = 0; i < metaPayload.ad_sets.length; i += 1) {
         const adSetPayload = {
           ...metaPayload.ad_sets[i],
-          campaign_id: campaignResp.data.id,
+          campaign_id: campaignMeta.id,
         };
         const r = await metaFetch(
           `https://graph.facebook.com/${apiVersion}/${normalizeActId(adAccount.ad_account_id)}/adsets`,
@@ -334,19 +410,20 @@ Deno.serve(async (req) => {
           errors.push(`adset_${i}_failed:${r.error}`);
           throw new Error(`adset_${i}_failed`);
         }
-        createdMetaIds.adSets.push(r.data.id);
+        const adSetMeta = r.data;
+        createdMetaIds.adSets.push(adSetMeta.id);
 
         const { data: localAdSet } = await admin
           .from("meta_ad_sets")
           .insert({
             company_id: body.company_id,
             campaign_id: localCampaign.id,
-            meta_adset_id: r.data.id,
+            meta_adset_id: adSetMeta.id,
             name: body.builder_state.adSets[i]?.name ?? `Ad Set ${i + 1}`,
             status: "published",
             daily_budget_cents: body.builder_state.adSets[i]?.dailyBudget * 100,
-            targeting: adSetPayload.targeting ?? {},
-            raw: r.data,
+            targeting: metaPayload.ad_sets[i]?.targeting ?? {},
+            raw: adSetMeta,
             last_published_at: new Date().toISOString(),
           })
           .select("id")
@@ -365,21 +442,22 @@ Deno.serve(async (req) => {
           errors.push(`creative_${i}_failed:${r.error}`);
           throw new Error(`creative_${i}_failed`);
         }
-        createdMetaIds.creatives.push(r.data.id);
+        const creativeMeta = r.data;
+        createdMetaIds.creatives.push(creativeMeta.id);
 
         const { data: localCreative } = await admin
           .from("meta_creatives")
           .insert({
             company_id: body.company_id,
-            ad_account_id: body.ad_account_id,
-            meta_creative_id: r.data.id,
+            ad_account_id: adAccount.id,
+            meta_creative_id: creativeMeta.id,
             name: body.builder_state.creatives[i]?.title ?? `Creative ${i + 1}`,
             format: body.builder_state.creatives[i]?.format ?? "image",
             title: body.builder_state.creatives[i]?.title ?? null,
             body: body.builder_state.copyVariants[i] ?? body.builder_state.copyVariants[0] ?? null,
             ai_prompt: body.builder_state.creatives[i]?.prompt ?? null,
             object_story_spec: metaPayload.creatives[i].object_story_spec,
-            raw: r.data,
+            raw: creativeMeta,
             last_published_at: new Date().toISOString(),
           })
           .select("id")
@@ -405,7 +483,8 @@ Deno.serve(async (req) => {
           errors.push(`ad_${i}_failed:${r.error}`);
           throw new Error(`ad_${i}_failed`);
         }
-        createdMetaIds.ads.push(r.data.id);
+        const adMeta = r.data;
+        createdMetaIds.ads.push(adMeta.id);
 
         const { data: localAd } = await admin
           .from("meta_ads")
@@ -413,10 +492,10 @@ Deno.serve(async (req) => {
             company_id: body.company_id,
             adset_id: localIdMap.adSetLocalIds[i],
             creative_id: localIdMap.creativeLocalIds[i],
-            meta_ad_id: r.data.id,
+            meta_ad_id: adMeta.id,
             name: adPayload.name,
             status: "paused",
-            raw: r.data,
+            raw: adMeta,
             last_published_at: new Date().toISOString(),
           })
           .select("id")
@@ -468,6 +547,47 @@ Deno.serve(async (req) => {
 
 /* ----------------------- Spend Guard ----------------------- */
 
+function getEffectiveDailyBudgetCents(state: BuilderState): number {
+  if (state.budgetMode === "campaign") return state.dailyBudget * 100;
+  return state.adSets.reduce((sum, adSet) => sum + (adSet.dailyBudget || 0) * 100, 0);
+}
+
+async function resolvePageMetaId(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  companyId: string,
+  integrationId: string,
+  state: BuilderState,
+): Promise<string | null> {
+  if (state.pageMetaId) return state.pageMetaId;
+
+  if (state.pageId) {
+    const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(state.pageId);
+    if (!looksLikeUuid) return state.pageId;
+
+    const { data: selectedPage } = await admin
+      .from("meta_assets")
+      .select("asset_id")
+      .eq("id", state.pageId)
+      .eq("company_id", companyId)
+      .eq("integration_id", integrationId)
+      .eq("asset_type", "page")
+      .maybeSingle();
+    if (selectedPage?.asset_id) return selectedPage.asset_id;
+  }
+
+  const { data: pages } = await admin
+    .from("meta_assets")
+    .select("asset_id, selected")
+    .eq("company_id", companyId)
+    .eq("integration_id", integrationId)
+    .eq("asset_type", "page")
+    .order("selected", { ascending: false })
+    .limit(1);
+
+  return pages?.[0]?.asset_id ?? null;
+}
+
 async function checkSpendGuard(
   // deno-lint-ignore no-explicit-any
   admin: any,
@@ -515,7 +635,7 @@ async function metaFetch(
   url: string,
   accessToken: string,
   body: Record<string, unknown>,
-): Promise<{ ok: boolean; data?: { id: string; [k: string]: unknown }; error?: string }> {
+): Promise<MetaFetchResult> {
   try {
     const resp = await fetch(url, {
       method: "POST",
@@ -577,7 +697,11 @@ function normalizeActId(adAccountId: string): string {
  *   • Targeting segue lo schema Meta esatto (geo_locations, age_min/max, etc.)
  *   • Special_ad_categories vuoto di default (specificare se housing/employment/credit)
  */
-function buildMetaPayload(state: BuilderState, _adAccountId: string): MetaPayload {
+function buildMetaPayload(
+  state: BuilderState,
+  _adAccountId: string,
+  pageMetaId?: string | null,
+): MetaPayload {
   // CAMPAIGN
   const campaign: Record<string, unknown> = {
     name: state.name,
@@ -731,8 +855,7 @@ function buildMetaPayload(state: BuilderState, _adAccountId: string): MetaPayloa
     return {
       name: creative.title,
       object_story_spec: {
-        // page_id: VA RIEMPITO QUANDO L'UTENTE SCEGLIE LA PAGE NEL WIZARD
-        // Per ora resta null e Meta darà errore: questo verrà settato dal client.
+        ...(pageMetaId ? { page_id: pageMetaId } : {}),
         link_data: {
           message: copy,
           link: state.landingUrl || "https://www.facebook.com",

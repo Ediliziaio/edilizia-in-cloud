@@ -60,7 +60,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import { cn } from "@/lib/utils";
 import { useAdsAi } from "@/hooks/useAdsAi";
+import { useAuthCompany } from "@/contexts/AuthContext";
 import { AdMediaUploader } from "@/components/ads/AdMediaUploader";
+import { useSocialManagerData } from "@/hooks/useSocialManagerData";
+import {
+  parseSocialBulkCsv,
+  SOCIAL_LIVE_PUBLISHING_ENABLED,
+  validateSocialDraft,
+  type SocialBulkPost,
+} from "@/lib/social/publishing";
+import { getSocialMediaPreviewUrl } from "@/lib/social/storage";
+import type { SocialConnectedAccount, SocialMediaItem, SocialScheduledPost } from "@/lib/social/types";
 
 // ─── Platform config ───────────────────────────────────────────────────────────
 
@@ -86,6 +96,8 @@ interface SocialPlatform {
   mediaFormats: string[];
   dailyPostLimit: string;
   apiNote: string;
+  minScheduleDelayMinutes?: number;
+  maxScheduleDays?: number;
 }
 
 const PLATFORMS: SocialPlatform[] = [
@@ -105,6 +117,8 @@ const PLATFORMS: SocialPlatform[] = [
     contentTypes: ["post", "story", "reel", "carosello"],
     schedulingSupport: "native",
     videoOnly: false,
+    minScheduleDelayMinutes: 10,
+    maxScheduleDays: 75,
     requiresAudit: false,
     mediaFormats: ["JPEG", "PNG", "GIF", "MP4"],
     dailyPostLimit: "Nessun limite",
@@ -382,45 +396,9 @@ const CONTENT_PILLARS: ContentPillar[] = [
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-interface ConnectedAccount {
-  platform_id: string;
-  page_id: string;
-  page_name: string;
-  followers?: number;
-  connected_at: string;
-}
-
-interface ScheduledPost {
-  id: string;
-  platforms: string[];
-  contentType: string;
-  text: string;
-  platformTexts?: Record<string, string>;  // caption per-piattaforma
-  image_url?: string;
-  hashtags: string[];
-  firstComment?: string;
-  scheduled_at: string;
-  status: "draft" | "scheduled" | "published" | "failed" | "review";
-  created_at: string;
-  reviewNote?: string;
-}
-
-// ─── Media Library types ───────────────────────────────────────────────────────
-
-interface MediaItem {
-  id: string;
-  type: "image" | "video" | "story";
-  format: "9:16" | "4:5" | "1:1" | "16:9";
-  title: string;
-  tags: string[];
-  usedInPosts: number;
-  usedInAds: number;
-  created_at: string;
-  gradient: string;
-  category: "portfolio" | "promo" | "team" | "cantiere" | "prodotto";
-  aiGenerated: boolean;
-  fileSize: string;
-}
+type ConnectedAccount = SocialConnectedAccount;
+type ScheduledPost = SocialScheduledPost;
+type MediaItem = SocialMediaItem;
 
 // ─── Demo analytics data ───────────────────────────────────────────────────────
 
@@ -511,6 +489,53 @@ const DEMO_MEDIA_ITEMS: MediaItem[] = [
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function normalizeMediaFormat(format: string | undefined): MediaItem["format"] {
+  return format === "9:16" || format === "4:5" || format === "1:1" || format === "16:9" ? format : "4:5";
+}
+
+function pillarToMediaCategory(pillarId: string | null): MediaItem["category"] {
+  if (pillarId === "promo" || pillarId === "portfolio" || pillarId === "team" || pillarId === "cantiere") return pillarId;
+  return "portfolio";
+}
+
+function mediaTypeFromContent(contentTypeId: string): MediaItem["type"] {
+  if (contentTypeId === "story") return "story";
+  if (contentTypeId === "video" || contentTypeId === "reel") return "video";
+  return "image";
+}
+
+function createStoredMediaItem(input: {
+  id?: string;
+  title: string;
+  publicUrl?: string;
+  thumbnailUrl?: string;
+  format?: string;
+  type?: MediaItem["type"];
+  tags?: string[];
+  aiGenerated?: boolean;
+  fileSize?: string;
+  category?: MediaItem["category"];
+}): MediaItem {
+  const id = input.id ?? `social-media-${Date.now()}`;
+  const gradientIndex = Math.abs([...id].reduce((acc, char) => acc + char.charCodeAt(0), 0)) % DEMO_MEDIA_ITEMS.length;
+  return {
+    id,
+    type: input.type ?? "image",
+    format: normalizeMediaFormat(input.format),
+    title: input.title,
+    tags: input.tags ?? [],
+    usedInPosts: 0,
+    usedInAds: 0,
+    created_at: new Date().toISOString(),
+    gradient: DEMO_MEDIA_ITEMS[gradientIndex]?.gradient ?? "from-slate-400 to-slate-700",
+    category: input.category ?? "portfolio",
+    aiGenerated: input.aiGenerated ?? false,
+    fileSize: input.fileSize ?? "media",
+    public_url: input.publicUrl,
+    thumbnail_url: input.thumbnailUrl,
+  };
+}
 
 function Field({ label, children, note }: { label: string; children: React.ReactNode; note?: string }) {
   return (
@@ -1287,10 +1312,20 @@ function CalendarioTab({
 // TAB: CONTENT STUDIO — redesign con Stories + multi-variant + content type cards
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
+function ContentStudioTab({
+  companyId,
+  connectedAccounts,
+  selectedMedia,
+  onSelectedMediaConsumed,
+  onPostScheduled,
+  onMediaStored,
+}: {
   companyId?: string;
   connectedAccounts: ConnectedAccount[];
-  onPostScheduled: (post: ScheduledPost) => void;
+  selectedMedia?: MediaItem | null;
+  onSelectedMediaConsumed?: () => void;
+  onPostScheduled: (post: ScheduledPost) => void | Promise<unknown>;
+  onMediaStored?: (media: MediaItem) => MediaItem | void | Promise<MediaItem | void | unknown>;
 }) {
   // ── Content Pillar ────────────────────────────────────────────────────────
   const [activePillarId, setActivePillarId] = useState<string | null>(null);
@@ -1301,6 +1336,10 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 
   // Filter platforms by content type
   const availablePlatforms = PLATFORMS.filter((p) => contentType.supportedBy.includes(p.id));
+  const connectedPlatformIds = useMemo(
+    () => connectedAccounts.map((account) => account.platform_id),
+    [connectedAccounts],
+  );
 
   // ── Platforms ──────────────────────────────────────────────────────────────
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["facebook", "instagram"]);
@@ -1348,6 +1387,7 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 
   // ── Media ──────────────────────────────────────────────────────────────────
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [selectedLibraryMedia, setSelectedLibraryMedia] = useState<MediaItem | null>(null);
 
   // ── Brief ─────────────────────────────────────────────────────────────────
   const [brief, setBrief] = useState("");
@@ -1375,6 +1415,34 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
     tetti: "Tetti",
     bagni: "Bagni",
   };
+
+  const storeMediaInComposer = useCallback((media: MediaItem, publicUrl?: string) => {
+    setSelectedLibraryMedia(media);
+    if (publicUrl) setMediaUrl(publicUrl);
+    if (!onMediaStored) return;
+    void Promise.resolve(onMediaStored(media))
+      .then((savedMedia) => {
+        if (savedMedia && typeof savedMedia === "object" && "id" in savedMedia) {
+          setSelectedLibraryMedia(savedMedia as MediaItem);
+        }
+      })
+      .catch(() => {
+        // The storage hook already reports the error and keeps the local fallback.
+      });
+  }, [onMediaStored]);
+
+  useEffect(() => {
+    if (!selectedMedia) return;
+    setSelectedLibraryMedia(selectedMedia);
+    const previewUrl = getSocialMediaPreviewUrl(selectedMedia);
+    if (previewUrl) setMediaUrl(previewUrl);
+    if (selectedMedia.type === "story") {
+      setContentTypeId("story");
+    } else if (selectedMedia.type === "video") {
+      setContentTypeId("video");
+    }
+    onSelectedMediaConsumed?.();
+  }, [onSelectedMediaConsumed, selectedMedia]);
 
   // ── Content Pillar handler ─────────────────────────────────────────────────
   // Declared after all state vars to avoid temporal dead zone issues
@@ -1426,7 +1494,18 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
       tags: [segment, contentTypeId],
     });
     if (result) {
-      setMediaUrl(result.public_url);
+      const storedMedia = createStoredMediaItem({
+        id: result.media_id ?? `ai-${Date.now()}`,
+        title: brief.trim().slice(0, 80) || `AI ${contentType.label}`,
+        publicUrl: result.public_url,
+        format: contentType.aspectRatio,
+        type: mediaTypeFromContent(contentTypeId),
+        tags: [segment, contentTypeId],
+        aiGenerated: true,
+        fileSize: "AI",
+        category: pillarToMediaCategory(activePillarId),
+      });
+      storeMediaInComposer(storedMedia, result.public_url);
       qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
       toast.success("Immagine generata");
     }
@@ -1440,6 +1519,76 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
     setHashtagInput("");
   };
 
+  const scheduledAtForValidation = !publishNow && scheduledDate
+    ? new Date(`${scheduledDate}T${scheduledTime}`)
+    : publishNow
+      ? new Date()
+      : null;
+  const selectedMediaPreviewUrl = getSocialMediaPreviewUrl(selectedLibraryMedia);
+  const activeMediaUrl = mediaUrl ?? selectedMediaPreviewUrl;
+  const draftValidation = validateSocialDraft(
+    {
+      selectedPlatforms,
+      connectedPlatformIds,
+      contentType: contentTypeId,
+      fallbackText: postText,
+      textByPlatform: crossPlatformMode ? platformTexts : {},
+      hashtags: contentType.hashtagsAllowed ? hashtags : [],
+      mediaUrl: activeMediaUrl,
+      publishNow,
+      scheduledAt: scheduledAtForValidation,
+      livePublishingEnabled: SOCIAL_LIVE_PUBLISHING_ENABLED,
+    },
+    PLATFORMS,
+  );
+
+  const resetComposer = () => {
+    setPostText("");
+    setHashtags([]);
+    setMediaUrl(null);
+    setSelectedLibraryMedia(null);
+    setScheduledDate("");
+    setPublishNow(false);
+    setCopyVariants([]);
+    setFirstComment("");
+    setShowFirstComment(false);
+    setPlatformTexts({});
+    setCrossPlatformMode(false);
+    setActivePillarId(null);
+  };
+
+  const saveLocalPost = (status: ScheduledPost["status"]) => {
+    if (!draftValidation.canSaveDraft) {
+      toast.error(draftValidation.errors[0] ?? "Completa testo e piattaforme prima di salvare.");
+      return;
+    }
+
+    const scheduledAt = scheduledDate
+      ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString()
+      : new Date(Date.now() + 86400000).toISOString();
+    const localPost: ScheduledPost = {
+      id: `local-${Date.now()}`,
+      platforms: selectedPlatforms,
+      contentType: contentTypeId,
+      text: crossPlatformMode ? (platformTexts[selectedPlatforms[0]] ?? postText) : postText,
+      platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0 ? platformTexts : undefined,
+      image_url: activeMediaUrl ?? undefined,
+      hashtags: contentType.hashtagsAllowed ? hashtags : [],
+      firstComment: firstComment || undefined,
+      scheduled_at: scheduledAt,
+      status,
+      created_at: new Date().toISOString(),
+      reviewNote: status === "review" ? "Revisione locale: nessuna notifica inviata finché il publisher social non è collegato." : undefined,
+      mediaItemId: selectedLibraryMedia?.id,
+    };
+
+    void Promise.resolve(onPostScheduled(localPost));
+    toast.success(status === "review" ? "Post salvato in revisione locale" : "Bozza locale salvata", {
+      description: "Nessuna pubblicazione live è stata inviata alle piattaforme social.",
+    });
+    resetComposer();
+  };
+
   const onSchedulePost = () => {
     // In cross-platform mode, valid if at least one platform has text
     const hasText = crossPlatformMode
@@ -1448,6 +1597,10 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
     if (!hasText) { toast.error("Scrivi il testo del post"); return; }
     if (selectedPlatforms.length === 0) { toast.error("Seleziona almeno una piattaforma"); return; }
     if (!publishNow && !scheduledDate) { toast.error("Seleziona la data di pubblicazione"); return; }
+    if (!draftValidation.canPublishLive) {
+      toast.error(draftValidation.errors[0] ?? "Pubblicazione live non ancora attiva.");
+      return;
+    }
 
     const scheduledAt = publishNow
       ? new Date().toISOString()
@@ -1455,32 +1608,31 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 
     const newPost: ScheduledPost = {
       id: `post-${Date.now()}`,
-      platforms: selectedPlatforms,
+      platforms: draftValidation.connectedSelectedPlatforms,
       contentType: contentTypeId,
       // In cross-platform mode, salva il testo della prima piattaforma come principale
       text: crossPlatformMode
         ? (platformTexts[selectedPlatforms[0]] ?? postText)
         : postText,
-      image_url: mediaUrl ?? undefined,
+      image_url: activeMediaUrl ?? undefined,
       hashtags: contentType.hashtagsAllowed ? hashtags : [],
       firstComment: firstComment || undefined,
       scheduled_at: scheduledAt,
       status: publishNow ? "published" : "scheduled",
       created_at: new Date().toISOString(),
+      mediaItemId: selectedLibraryMedia?.id,
       platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0
         ? platformTexts
         : undefined,
     };
 
     onPostScheduled(newPost);
-    toast.success(publishNow ? "Post pubblicato!" : "Post programmato!", {
+    toast.success(publishNow ? "Richiesta di pubblicazione inviata" : "Post programmato", {
       description: crossPlatformMode
         ? `Testi diversi per ${selectedPlatforms.length} piattaforme — ottimizzato!`
-        : publishNow ? "Visibile sulle tue pagine." : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
+        : publishNow ? "Il publisher social prenderà in carico l'invio." : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
     });
-    setPostText(""); setHashtags([]); setMediaUrl(null); setScheduledDate(""); setPublishNow(false);
-    setCopyVariants([]); setFirstComment(""); setShowFirstComment(false);
-    setPlatformTexts({}); setCrossPlatformMode(false); setActivePillarId(null);
+    resetComposer();
   };
 
   const currentPlatform = PLATFORMS.find((p) => p.id === previewPlatform) ?? PLATFORMS[0];
@@ -1756,6 +1908,14 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
 
           {/* API hints */}
           <ApiPlatformHints selectedPlatforms={selectedPlatforms} contentType={contentTypeId} publishNow={publishNow} />
+          {!SOCIAL_LIVE_PUBLISHING_ENABLED && (
+            <Alert className="border-amber-200 bg-amber-50 py-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-xs text-amber-800">
+                <strong>Modalità bozza locale.</strong> Puoi preparare contenuti e calendario, ma la pubblicazione live sarà disponibile solo quando il publisher social backend sarà collegato.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Copy variants */}
           {copyVariants.length > 1 && (
@@ -1997,23 +2157,54 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
               </div>
             </CardHeader>
             <CardContent>
-              {mediaUrl ? (
+              {activeMediaUrl || selectedLibraryMedia ? (
                 <div className="relative overflow-hidden rounded-xl border">
-                  <img src={mediaUrl} alt="Media" className="max-h-64 w-full object-cover" />
-                  <button type="button" onClick={() => setMediaUrl(null)} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80">
+                  {activeMediaUrl ? (
+                    <img src={activeMediaUrl} alt="Media" className="max-h-64 w-full object-cover" />
+                  ) : selectedLibraryMedia ? (
+                    <div className={cn("flex h-48 flex-col items-center justify-center bg-gradient-to-br px-4 text-center text-white", selectedLibraryMedia.gradient)}>
+                      {selectedLibraryMedia.type === "video" ? <Play className="mb-2 h-9 w-9 text-white/80" /> : <ImageIcon className="mb-2 h-9 w-9 text-white/80" />}
+                      <p className="text-sm font-bold drop-shadow">{selectedLibraryMedia.title}</p>
+                      <p className="mt-1 text-[11px] font-medium text-white/80">{selectedLibraryMedia.format} · dalla galleria</p>
+                    </div>
+                  ) : null}
+                  <button type="button" onClick={() => { setMediaUrl(null); setSelectedLibraryMedia(null); }} className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-white hover:bg-black/80">
                     <X className="h-3.5 w-3.5" />
                   </button>
-                  <div className="bg-slate-50 px-3 py-2"><p className="text-[11px] text-slate-500">✅ {contentType.label} · {contentType.aspectRatio}</p></div>
+                  <div className="bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] text-slate-500">
+                      {selectedLibraryMedia ? `${selectedLibraryMedia.title} · ${selectedLibraryMedia.format}` : `${contentType.label} · ${contentType.aspectRatio}`}
+                    </p>
+                  </div>
                 </div>
               ) : isGeneratingImage ? (
                 <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-200 bg-amber-50 p-8 text-sm text-amber-700">
                   <Loader2 className="h-5 w-5 animate-spin" /> Generazione in corso...
                 </div>
               ) : (
-                <AdMediaUploader companyId={companyId} onUploaded={(media) => { if (media.public_url) setMediaUrl(media.public_url); toast.success("Media caricato"); }} />
+                <AdMediaUploader
+                  companyId={companyId}
+                  onUploaded={(media) => {
+                    if (media.public_url) {
+                      const storedMedia = createStoredMediaItem({
+                        id: media.id,
+                        title: `Media social ${new Date().toLocaleDateString("it-IT")}`,
+                        publicUrl: media.public_url,
+                        format: contentType.aspectRatio,
+                        type: mediaTypeFromContent(contentTypeId),
+                        tags: ["upload", segment, contentTypeId],
+                        aiGenerated: false,
+                        fileSize: "upload",
+                        category: pillarToMediaCategory(activePillarId),
+                      });
+                      storeMediaInComposer(storedMedia, media.public_url);
+                    }
+                    toast.success("Media caricato");
+                  }}
+                />
               )}
               {/* Format hints */}
-              {!mediaUrl && (
+              {!activeMediaUrl && !selectedLibraryMedia && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {Array.from(new Set(selectedPlatforms.flatMap((id) => PLATFORMS.find((p) => p.id === id)?.mediaFormats ?? []))).map((fmt) => (
                     <span key={fmt} className="rounded-full border border-slate-100 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">{fmt}</span>
@@ -2093,49 +2284,56 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                   {selectedPlatforms.includes("linkedin") && (
                     <div className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2 text-[11px] text-blue-700">
                       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
-                      <span>LinkedIn: bozza → pubblicata automaticamente all&apos;orario indicato.</span>
+                      <span>LinkedIn: nessuno scheduling nativo; salva una bozza e usa il reminder per pubblicare manualmente.</span>
                     </div>
                   )}
                 </div>
               )}
 
-              <Button onClick={onSchedulePost} disabled={!(crossPlatformMode ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim()) : postText.trim()) || selectedPlatforms.length === 0}
+              {(draftValidation.errors.length > 0 || draftValidation.warnings.length > 0) && (
+                <div className="space-y-1.5">
+                  {draftValidation.errors.slice(0, 3).map((error) => (
+                    <div key={error} className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  ))}
+                  {draftValidation.warnings.slice(0, 2).map((warning) => (
+                    <div key={warning} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                      <Info className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span>{warning}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button onClick={onSchedulePost} disabled={!draftValidation.canPublishLive || (!publishNow && !scheduledDate)}
                 className={cn("w-full text-white shadow-sm",
                   publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                              : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600")}>
-                {publishNow
-                  ? <><Send className="mr-2 h-4 w-4" />Pubblica ora su {selectedPlatforms.length} piattaform{selectedPlatforms.length === 1 ? "a" : "e"}</>
-                  : <><Calendar className="mr-2 h-4 w-4" />Programma pubblicazione</>}
+                {!SOCIAL_LIVE_PUBLISHING_ENABLED
+                  ? <><Send className="mr-2 h-4 w-4" />Publisher live non attivo</>
+                  : publishNow
+                    ? <><Send className="mr-2 h-4 w-4" />Pubblica ora su {draftValidation.connectedSelectedPlatforms.length} piattaform{draftValidation.connectedSelectedPlatforms.length === 1 ? "a" : "e"}</>
+                    : <><Calendar className="mr-2 h-4 w-4" />Programma pubblicazione</>}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => saveLocalPost("draft")}
+                disabled={!draftValidation.canSaveDraft}
+                className="w-full border-slate-200 text-slate-700"
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Salva bozza locale
               </Button>
               {/* Invia in revisione */}
               {!publishNow && (
                 <button type="button"
-                  onClick={() => {
-                    const hasText = crossPlatformMode
-                      ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim())
-                      : postText.trim();
-                    if (!hasText) { toast.error("Scrivi il testo del post"); return; }
-                    if (selectedPlatforms.length === 0) { toast.error("Seleziona almeno una piattaforma"); return; }
-                    const reviewPost: ScheduledPost = {
-                      id: `post-${Date.now()}`,
-                      platforms: selectedPlatforms,
-                      contentType: contentTypeId,
-                      text: crossPlatformMode ? (platformTexts[selectedPlatforms[0]] ?? postText) : postText,
-                      platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0 ? platformTexts : undefined,
-                      image_url: mediaUrl ?? undefined,
-                      hashtags: contentType.hashtagsAllowed ? hashtags : [],
-                      firstComment: firstComment || undefined,
-                      scheduled_at: scheduledDate ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString() : new Date(Date.now() + 86400000).toISOString(),
-                      status: "review",
-                      created_at: new Date().toISOString(),
-                    };
-                    onPostScheduled(reviewPost);
-                    toast.success("Post inviato in revisione", { description: "Il titolare riceverà una notifica per approvare." });
-                    setPostText(""); setHashtags([]); setMediaUrl(null); setScheduledDate(""); setCopyVariants([]); setPlatformTexts({}); setCrossPlatformMode(false); setActivePillarId(null);
-                  }}
-                  disabled={!(crossPlatformMode ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim()) : postText.trim()) || selectedPlatforms.length === 0}
+                  onClick={() => saveLocalPost("review")}
+                  disabled={!draftValidation.canSaveDraft}
                   className="w-full rounded-xl border-2 border-dashed border-amber-300 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-40">
-                  ⏳ Invia in revisione al titolare
+                  ⏳ Salva in revisione locale
                 </button>
               )}
             </CardContent>
@@ -2174,8 +2372,12 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                   {/* Story/Reel — fullscreen style */}
                   {(isStory || contentTypeId === "reel") ? (
                     <>
-                      {mediaUrl ? (
-                        <img src={mediaUrl} alt="Preview" className="h-full w-full object-cover" />
+                      {activeMediaUrl ? (
+                        <img src={activeMediaUrl} alt="Preview" className="h-full w-full object-cover" />
+                      ) : selectedLibraryMedia ? (
+                        <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)}>
+                          <Smartphone className="h-10 w-10 text-white/70" />
+                        </div>
                       ) : (
                         <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", currentPlatform.gradient, "opacity-20")}>
                           <Smartphone className="h-10 w-10 text-slate-400" />
@@ -2211,8 +2413,12 @@ function ContentStudioTab({ companyId, connectedAccounts, onPostScheduled }: {
                         </div>
                       </div>
                       {/* Media */}
-                      {mediaUrl ? (
-                        <img src={mediaUrl} alt="Post media" className="w-full object-cover" style={{ height: contentType.previewH }} />
+                      {activeMediaUrl ? (
+                        <img src={activeMediaUrl} alt="Post media" className="w-full object-cover" style={{ height: contentType.previewH }} />
+                      ) : selectedLibraryMedia ? (
+                        <div className={cn("flex items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)} style={{ height: contentType.previewH }}>
+                          <ImageIcon className="h-6 w-6 text-white/70" />
+                        </div>
                       ) : (
                         <div className={cn("flex items-center justify-center border-y", currentPlatform.bgLight)} style={{ height: contentType.previewH }}>
                           <ImageIcon className={cn("h-6 w-6 opacity-30", currentPlatform.textColor)} />
@@ -2652,16 +2858,19 @@ const CATEGORY_LABELS: Record<MediaItem["category"], string> = {
 };
 
 function GalleriaTab({
+  mediaItems,
   onUseInPost,
   onUseInAds,
+  onUploadRequested,
 }: {
+  mediaItems: MediaItem[];
   onUseInPost: (item: MediaItem) => void;
   onUseInAds:  (item: MediaItem) => void;
+  onUploadRequested: () => void;
 }) {
   const [typeFilter, setTypeFilter]   = useState<"all" | "image" | "video" | "story">("all");
   const [catFilter,  setCatFilter]    = useState<MediaItem["category"] | "all">("all");
   const [search, setSearch]           = useState("");
-  const [mediaItems]                  = useState<MediaItem[]>(DEMO_MEDIA_ITEMS);
 
   const filtered = mediaItems.filter((m) => {
     if (typeFilter !== "all" && m.type !== typeFilter) return false;
@@ -2675,6 +2884,12 @@ function GalleriaTab({
 
   return (
     <div className="space-y-5">
+      <Alert className="border-amber-200 bg-amber-50 py-2">
+        <Info className="h-4 w-4 text-amber-600" />
+        <AlertDescription className="text-xs text-amber-800">
+          Galleria demo/fallback: usa un media nel composer oppure carica/genera contenuti dalla sezione Crea Post. Se il database social non e' ancora migrato, resta attivo il fallback locale.
+        </AlertDescription>
+      </Alert>
 
       {/* ── HEADER ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2685,7 +2900,7 @@ function GalleriaTab({
           </p>
         </div>
         <Button size="sm" className="gap-1.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm"
-          onClick={() => toast.info("Trascina i file nella zona di upload in Crea Post oppure usa il generatore AI")}>
+          onClick={onUploadRequested}>
           <Upload className="h-3.5 w-3.5" /> Carica media
         </Button>
       </div>
@@ -2811,7 +3026,7 @@ function GalleriaTab({
 
           {/* Upload CTA card */}
           <button type="button"
-            onClick={() => toast.info("Carica da Crea Post → sezione Media, oppure usa il generatore AI immagini")}
+            onClick={onUploadRequested}
             className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 transition hover:border-orange-300 hover:bg-orange-50/40">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-100 to-pink-100">
               <ImagePlus className="h-6 w-6 text-orange-500" />
@@ -2931,6 +3146,12 @@ function GridPlannerTab({ posts }: { posts: ScheduledPost[] }) {
 
   return (
     <div className="space-y-4">
+      <Alert className="border-amber-200 bg-amber-50 py-2">
+        <Info className="h-4 w-4 text-amber-600" />
+        <AlertDescription className="text-xs text-amber-800">
+          Grid planner dimostrativo: i post pubblicati sono esempi, mentre bozze e revisioni locali appaiono come contenuti in programma.
+        </AlertDescription>
+      </Alert>
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3211,6 +3432,12 @@ function InboxTab({ onUnreadChange }: { onUnreadChange?: (n: number) => void }) 
 
   return (
     <div className="space-y-4">
+      <Alert className="border-amber-200 bg-amber-50 py-2">
+        <Info className="h-4 w-4 text-amber-600" />
+        <AlertDescription className="text-xs text-amber-800">
+          Inbox demo locale: le risposte non vengono inviate alle piattaforme finché non è collegata l&apos;integrazione social live.
+        </AlertDescription>
+      </Alert>
 
       {/* ── HEADER STATS ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -3440,41 +3667,18 @@ function InboxTab({ onUnreadChange }: { onUnreadChange?: (n: number) => void }) 
 // BULK SCHEDULE MODAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface BulkPost {
-  row: number;
-  platforms: string[];
-  text: string;
-  hashtags: string[];
-  scheduled_at: string;
-  image_url?: string;
-  status: "ok" | "error";
-  errorMsg?: string;
-}
+type BulkPost = SocialBulkPost;
 
 const CSV_EXAMPLE = `piattaforme,testo,hashtag,data_ora,immagine_url
 instagram;facebook,"Cantiere completato in Via Roma! Qualità e precisione come sempre.","#cantiere #lavorifiniti #impresaedile",2026-06-02T09:00,
 instagram,"Buongiorno dal team! Oggi inizia un nuovo progetto entusiasmante 🏗️","#teamwork #costruzioni",2026-06-03T10:30,
 facebook;linkedin,"Consiglio della settimana: controllate sempre il meteo prima di pianificare i lavori in quota.","#consigliutili #edilizia #sicurezza",2026-06-04T11:00,`;
 
-function parseCsvLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') { inQuotes = !inQuotes; continue; }
-    if (ch === "," && !inQuotes) { result.push(current.trim()); current = ""; continue; }
-    current += ch;
-  }
-  result.push(current.trim());
-  return result;
-}
-
 function BulkScheduleModal({
   onImport,
   onClose,
 }: {
-  onImport: (posts: ScheduledPost[]) => void;
+  onImport: (post: ScheduledPost) => void | Promise<unknown>;
   onClose: () => void;
 }) {
   const [csvText, setCsvText] = useState("");
@@ -3482,38 +3686,7 @@ function BulkScheduleModal({
   const [step, setStep] = useState<"input" | "preview" | "done">("input");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const parseCsv = (raw: string): BulkPost[] => {
-    const lines = raw.trim().split(/\r?\n/).filter((l) => l.trim());
-    if (lines.length < 2) return [];
-    // Skip header
-    return lines.slice(1).map((line, idx) => {
-      const cols = parseCsvLine(line);
-      const [platformsRaw = "", text = "", hashtagsRaw = "", dateRaw = "", imageUrl = ""] = cols;
-      const platforms = platformsRaw.split(";").map((p) => p.trim().toLowerCase()).filter((p) =>
-        PLATFORMS.some((pl) => pl.id === p || pl.name.toLowerCase() === p)
-      ).map((p) => {
-        const found = PLATFORMS.find((pl) => pl.name.toLowerCase() === p || pl.id === p);
-        return found?.id ?? p;
-      });
-      const hashtags = hashtagsRaw.split(/\s+/).map((h) => h.replace(/^#+/, "")).filter(Boolean).map((h) => `#${h}`);
-      const scheduled_at = new Date(dateRaw.trim()).toISOString();
-      const isValidDate = !isNaN(new Date(dateRaw.trim()).getTime());
-      const hasError = platforms.length === 0 || !text.trim() || !isValidDate;
-      return {
-        row: idx + 2,
-        platforms: platforms.length > 0 ? platforms : ["instagram"],
-        text: text.trim(),
-        hashtags,
-        scheduled_at: isValidDate ? scheduled_at : new Date(Date.now() + 86400000).toISOString(),
-        image_url: imageUrl.trim() || undefined,
-        status: hasError ? "error" : "ok",
-        errorMsg: !text.trim() ? "Testo mancante"
-          : platforms.length === 0 ? "Piattaforme non riconosciute"
-          : !isValidDate ? "Data non valida (formato: YYYY-MM-DDTHH:MM)"
-          : undefined,
-      } satisfies BulkPost;
-    });
-  };
+  const parseCsv = (raw: string): BulkPost[] => parseSocialBulkCsv(raw, PLATFORMS);
 
   const handlePreview = () => {
     const rows = parseCsv(csvText);
@@ -3535,7 +3708,7 @@ function BulkScheduleModal({
         status: "scheduled" as const,
         created_at: new Date().toISOString(),
       }));
-    validPosts.forEach((post) => onImport(post));
+    validPosts.forEach((post) => { void onImport(post); });
     setStep("done");
   };
 
@@ -3716,50 +3889,54 @@ export default function SocialManagerBeta() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const activeTab = searchParams.get("tab") ?? "crea-post";
-  const companyId = DEMO_COMPANY_ID;
+  const { effectiveCompany } = useAuthCompany();
+  const companyId = effectiveCompany?.id ?? DEMO_COMPANY_ID;
+  const socialData = useSocialManagerData(companyId);
+  const {
+    connectedAccounts,
+    posts,
+    mediaItems: storedMediaItems,
+    addPost,
+    updatePost,
+    addMedia,
+    isDbBacked,
+  } = socialData;
+  const mediaItems = useMemo(
+    () => storedMediaItems.length > 0 ? storedMediaItems : DEMO_MEDIA_ITEMS,
+    [storedMediaItems],
+  );
+  const [selectedMediaForComposer, setSelectedMediaForComposer] = useState<MediaItem | null>(null);
 
-  const STORAGE_KEY = `eic_social_connections_${companyId}`;
-
-  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as ConnectedAccount[]; } catch { return []; }
-  });
-
-  const [posts, setPosts] = useState<ScheduledPost[]>(() => {
-    try { return JSON.parse(localStorage.getItem(`${STORAGE_KEY}_posts`) ?? "[]") as ScheduledPost[]; } catch { return []; }
-  });
-
-  const setTab = (tab: string) => setSearchParams({ tab }, { replace: true });
+  const setTab = useCallback((tab: string) => setSearchParams({ tab }, { replace: true }), [setSearchParams]);
   const goToIntegrations = useCallback(() => navigate("/azienda/impostazioni/integrazioni"), [navigate]);
 
   const handlePostScheduled = useCallback((post: ScheduledPost) => {
-    setPosts((prev) => {
-      const updated = [post, ...prev];
-      try { localStorage.setItem(`${STORAGE_KEY}_posts`, JSON.stringify(updated)); } catch { /* noop */ }
-      return updated;
-    });
-  }, [STORAGE_KEY]);
+    void addPost(post);
+  }, [addPost]);
 
   const handleUpdatePost = useCallback((id: string, changes: Partial<ScheduledPost>) => {
-    setPosts((prev) => {
-      const updated = prev.map((p) => (p.id === id ? { ...p, ...changes } : p));
-      try { localStorage.setItem(`${STORAGE_KEY}_posts`, JSON.stringify(updated)); } catch { /* noop */ }
-      return updated;
-    });
-  }, [STORAGE_KEY]);
+    void updatePost(id, changes);
+  }, [updatePost]);
 
   const handleUseInPost = useCallback((item: MediaItem) => {
+    setSelectedMediaForComposer(item);
     setTab("crea-post");
-    toast.success(`"${item.title}" selezionato`, { description: "Caricalo nella sezione Media del post." });
-  }, []);
+    toast.success(`"${item.title}" selezionato`, { description: "Il media e' gia' pronto nel composer." });
+  }, [setTab]);
 
   const handleUseInAds = useCallback((item: MediaItem) => {
-    navigate("/azienda/marketing/ads");
+    navigate("/azienda/marketing/pubblicita?tab=creativita");
     toast.success(`"${item.title}" → Ads Manager`, { description: "Selezionalo come creativa nella campagna." });
   }, [navigate]);
 
+  const handleUploadRequested = useCallback(() => {
+    setTab("crea-post");
+    toast.info("Apri la sezione Media del composer per upload o generazione AI.");
+  }, [setTab]);
+
   const scheduledCount = posts.filter((p) => p.status === "scheduled").length;
   const reviewCount    = posts.filter((p) => p.status === "review").length;
-  const mediaCount     = DEMO_MEDIA_ITEMS.length;
+  const mediaCount     = mediaItems.length;
   // inboxUnread is kept in sync by InboxTab via onUnreadChange callback
   const [inboxUnread, setInboxUnread] = useState(() => DEMO_INBOX.filter((i) => i.status === "unread").length);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -3782,7 +3959,9 @@ export default function SocialManagerBeta() {
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white">Beta</Badge>
-              <Badge variant="outline" className="border-slate-200 text-slate-500">Demo Azienda</Badge>
+              <Badge variant="outline" className="border-slate-200 text-slate-500">
+                {isDbBacked ? "Dati azienda" : "Demo Azienda"}
+              </Badge>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">Gestione Social</h1>
             <p className="mt-1 text-sm text-slate-500">Crea, programma e pubblica contenuti su tutte le tue pagine social.</p>
@@ -3831,7 +4010,14 @@ export default function SocialManagerBeta() {
           </div>
           <div className="p-4 md:p-6">
             {activeTab === "crea-post" && (
-              <ContentStudioTab companyId={companyId} connectedAccounts={connectedAccounts} onPostScheduled={handlePostScheduled} />
+              <ContentStudioTab
+                companyId={companyId}
+                connectedAccounts={connectedAccounts}
+                selectedMedia={selectedMediaForComposer}
+                onSelectedMediaConsumed={() => setSelectedMediaForComposer(null)}
+                onPostScheduled={handlePostScheduled}
+                onMediaStored={addMedia}
+              />
             )}
             {activeTab === "calendario" && (
               <CalendarioTab posts={posts} onNewPost={() => setTab("crea-post")} onUpdatePost={handleUpdatePost} />
@@ -3846,7 +4032,7 @@ export default function SocialManagerBeta() {
               <AnaliticsTab connectedAccounts={connectedAccounts} />
             )}
             {activeTab === "galleria" && (
-              <GalleriaTab onUseInPost={handleUseInPost} onUseInAds={handleUseInAds} />
+              <GalleriaTab mediaItems={mediaItems} onUseInPost={handleUseInPost} onUseInAds={handleUseInAds} onUploadRequested={handleUploadRequested} />
             )}
           </div>
         </div>

@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2 } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2, Save, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
@@ -12,9 +12,70 @@ import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegration
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import {
+  buildGoogleAdsAccountPayload,
+  buildGoogleAdsReadinessChecks,
+  formatGoogleCustomerId,
+  isValidGoogleCustomerId,
+} from "@/lib/googleAds/setup";
 import type { Integration, IntegrationStatus, IntegrationHealth } from "@/types/integrations";
+import type { GoogleAdsAccountRow } from "@/types/googleAds";
+
+type GoogleAdsFormState = {
+  customerId: string;
+  customerName: string;
+  managerCustomerId: string;
+  currency: string;
+  timeZone: string;
+  isTestAccount: boolean;
+};
+
+const DEFAULT_GOOGLE_ADS_FORM: GoogleAdsFormState = {
+  customerId: "",
+  customerName: "",
+  managerCustomerId: "",
+  currency: "EUR",
+  timeZone: "Europe/Rome",
+  isTestAccount: false,
+};
+
+function isMissingSchemaError(error: unknown): boolean {
+  const message = String((error as any)?.message ?? (error as any)?.details ?? error ?? "").toLowerCase();
+  return (
+    message.includes("does not exist") ||
+    message.includes("schema cache") ||
+    message.includes("relation") ||
+    message.includes("could not find")
+  );
+}
+
+function googleAdsFormFromAccount(account: GoogleAdsAccountRow | null): GoogleAdsFormState {
+  if (!account) return DEFAULT_GOOGLE_ADS_FORM;
+  return {
+    customerId: formatGoogleCustomerId(account.customer_id) || account.customer_id,
+    customerName: account.customer_name ?? "",
+    managerCustomerId: formatGoogleCustomerId(account.manager_customer_id) || (account.manager_customer_id ?? ""),
+    currency: account.currency ?? "EUR",
+    timeZone: account.time_zone ?? "Europe/Rome",
+    isTestAccount: account.is_test_account,
+  };
+}
+
+async function readFunctionErrorPayload(error: unknown): Promise<{ error?: string; detail?: string } | null> {
+  const response = (error as any)?.context;
+  if (!response || typeof response.clone !== "function") return null;
+  try {
+    return await response.clone().json();
+  } catch {
+    return null;
+  }
+}
 
 function StatusIntegrationCard({ name, description, icon: Icon, iconColor, status, detail }: {
   name: string; description: string; icon: any; iconColor: string;
@@ -66,7 +127,10 @@ export default function SettingsIntegrations() {
   const canManageIntegrations = role === "company_admin" || role === "super_admin";
   const [search, setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [googleAdsDialogOpen, setGoogleAdsDialogOpen] = useState(false);
+  const [googleAdsForm, setGoogleAdsForm] = useState<GoogleAdsFormState>(DEFAULT_GOOGLE_ADS_FORM);
   const [metaConfigMissing, setMetaConfigMissing] = useState(false);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   // Check if global Meta credentials are configured
@@ -173,6 +237,183 @@ export default function SettingsIntegrations() {
   });
 
   const googleAdsIntegration = integrations.find((i) => i.provider === "google_ads");
+
+  const { data: googleAdsAccountsResult, refetch: refetchGoogleAdsAccounts } = useQuery({
+    queryKey: ["integration-google-ads-accounts", companyId],
+    queryFn: async (): Promise<{ accounts: GoogleAdsAccountRow[]; schemaReady: boolean }> => {
+      if (!companyId) return { accounts: [], schemaReady: true };
+      const { data, error } = await (supabase as any)
+        .from("google_ads_accounts")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("selected", { ascending: false })
+        .order("customer_name", { ascending: true });
+      if (error) {
+        if (isMissingSchemaError(error)) return { accounts: [], schemaReady: false };
+        throw error;
+      }
+      return { accounts: (data ?? []) as GoogleAdsAccountRow[], schemaReady: true };
+    },
+    enabled: !!companyId,
+  });
+
+  const googleAdsAccounts = googleAdsAccountsResult?.accounts ?? [];
+  const googleAdsAccountsSchemaReady = googleAdsAccountsResult?.schemaReady ?? true;
+  const selectedGoogleAdsAccount = googleAdsAccounts.find((account) => account.selected) ?? googleAdsAccounts[0] ?? null;
+
+  const { data: googleAdsOfflineStats } = useQuery({
+    queryKey: ["integration-google-ads-offline-events", companyId],
+    queryFn: async (): Promise<{ pending: number | null; schemaReady: boolean }> => {
+      if (!companyId) return { pending: null, schemaReady: true };
+      const { count, error } = await (supabase as any)
+        .from("google_ads_offline_conversion_events")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .in("status", ["pending", "failed"]);
+      if (error) {
+        if (isMissingSchemaError(error)) return { pending: null, schemaReady: false };
+        throw error;
+      }
+      return { pending: count ?? 0, schemaReady: true };
+    },
+    enabled: !!companyId,
+  });
+
+  useEffect(() => {
+    if (!googleAdsDialogOpen) return;
+    setGoogleAdsForm(googleAdsFormFromAccount(selectedGoogleAdsAccount));
+  }, [googleAdsDialogOpen, selectedGoogleAdsAccount?.id]);
+
+  const saveGoogleAdsConnection = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non selezionata.");
+      if (!canManageIntegrations) throw new Error("Permessi insufficienti per gestire Google Ads.");
+      if (!isValidGoogleCustomerId(googleAdsForm.customerId)) {
+        throw new Error("Inserisci un Customer ID Google Ads valido a 10 cifre.");
+      }
+
+      const now = new Date().toISOString();
+      const { data: integration, error: integrationError } = await supabase
+        .from("integrations")
+        .upsert(
+          {
+            company_id: companyId,
+            provider: "google_ads",
+            status: "connected",
+            connected_by: user?.id ?? null,
+            health: "warn",
+            last_error_code: "GOOGLE_ADS_API_PENDING",
+            last_error_message:
+              "Customer ID configurato. Developer Token e OAuth server richiesti per publish, stats live e upload conversioni.",
+            updated_at: now,
+          },
+          { onConflict: "company_id,provider" },
+        )
+        .select("*")
+        .single();
+      if (integrationError) throw integrationError;
+
+      if (!googleAdsAccountsSchemaReady) {
+        return { integration: integration as Integration, accountSaved: false };
+      }
+
+      const accountPayload = buildGoogleAdsAccountPayload({
+        companyId,
+        integrationId: integration.id,
+        customerId: googleAdsForm.customerId,
+        customerName: googleAdsForm.customerName,
+        managerCustomerId: googleAdsForm.managerCustomerId,
+        currency: googleAdsForm.currency,
+        timeZone: googleAdsForm.timeZone,
+        isManager: false,
+        isTestAccount: googleAdsForm.isTestAccount,
+      });
+
+      const clearSelection = await (supabase as any)
+        .from("google_ads_accounts")
+        .update({ selected: false, updated_at: now })
+        .eq("company_id", companyId);
+      if (clearSelection.error && !isMissingSchemaError(clearSelection.error)) {
+        throw clearSelection.error;
+      }
+
+      const { error: accountError } = await (supabase as any)
+        .from("google_ads_accounts")
+        .upsert(accountPayload, { onConflict: "company_id,customer_id" })
+        .select("*")
+        .single();
+      if (accountError) {
+        if (isMissingSchemaError(accountError)) return { integration: integration as Integration, accountSaved: false };
+        throw accountError;
+      }
+
+      return { integration: integration as Integration, accountSaved: true };
+    },
+    onSuccess: async (result) => {
+      await Promise.all([
+        refetch(),
+        refetchGoogleAdsAccounts(),
+        queryClient.invalidateQueries({ queryKey: ["ads-manager-beta", "google-ads-integration", companyId] }),
+        queryClient.invalidateQueries({ queryKey: ["ads-manager-beta", "google-ads-accounts", companyId] }),
+      ]);
+      setGoogleAdsDialogOpen(false);
+      toast.success("Google Ads configurato", {
+        description: result.accountSaved
+          ? "Customer ID salvato. Ora Pubblicita puo usare questo account per campagne e attribution."
+          : "Integrazione salvata. Applica la migration Google Ads per salvare anche l'account selezionato.",
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Configurazione Google Ads non riuscita";
+      toast.error(message);
+    },
+  });
+
+  const testGoogleAdsConnection = async () => {
+    if (!companyId) return;
+    if (!canManageIntegrations) {
+      toast.error("Permessi insufficienti per testare l'integrazione.");
+      return;
+    }
+    if (!selectedGoogleAdsAccount) {
+      toast.error("Configura prima un Customer ID Google Ads.");
+      setGoogleAdsDialogOpen(true);
+      return;
+    }
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error("Sessione scaduta. Effettua di nuovo l'accesso.");
+      const { data, error } = await supabase.functions.invoke("google-crm-conversion-sync", {
+        body: { company_id: companyId },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error) {
+        const payload = await readFunctionErrorPayload(error);
+        if (payload?.error !== "not_configured") {
+          throw new Error(payload?.detail || payload?.error || error.message || "Test Google Ads non riuscito");
+        }
+        toast.info("Google Ads pronto lato CRM", {
+          description:
+            "Il Customer ID e la coda conversioni sono configurati. Per il test API live servono Developer Token e OAuth nei Supabase Secrets.",
+        });
+        return;
+      }
+      if (data?.error === "not_configured") {
+        toast.info("Google Ads pronto lato CRM", {
+          description:
+            "Il Customer ID e la coda conversioni sono configurati. Per il test API live servono Developer Token e OAuth nei Supabase Secrets.",
+        });
+        return;
+      }
+      toast.success("Sync Google Ads verificato", {
+        description: `${data?.pending ?? 0} conversioni CRM in coda per Google Ads.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Test Google Ads non riuscito";
+      toast.error(message);
+    }
+  };
 
   const { data: waConfig } = useQuery({
     queryKey: ["whatsapp-config-status", companyId],
@@ -294,6 +535,36 @@ export default function SettingsIntegrations() {
       }
     : null;
 
+  const googleAdsAccountLabel = selectedGoogleAdsAccount
+    ? `${selectedGoogleAdsAccount.customer_name || "Google Ads"} (${formatGoogleCustomerId(selectedGoogleAdsAccount.customer_id) || selectedGoogleAdsAccount.customer_id})`
+    : null;
+  const googleAdsCustomerIdForReadiness = googleAdsForm.customerId || selectedGoogleAdsAccount?.customer_id || "";
+  const googleAdsApiReady = Boolean(
+    googleAdsIntegration?.status === "connected" &&
+      googleAdsIntegration.health === "ok" &&
+      !googleAdsIntegration.last_error_code,
+  );
+  const googleAdsReadinessChecks = useMemo(
+    () =>
+      buildGoogleAdsReadinessChecks({
+        integrationConnected: googleAdsIntegration?.status === "connected",
+        hasSelectedAccount: Boolean(selectedGoogleAdsAccount) || isValidGoogleCustomerId(googleAdsForm.customerId),
+        hasValidCustomerId: isValidGoogleCustomerId(googleAdsCustomerIdForReadiness),
+        hasApiCredentials: googleAdsApiReady,
+        hasOfflineConversionQueue: googleAdsOfflineStats?.schemaReady ?? false,
+        pendingOfflineEvents: googleAdsOfflineStats?.pending ?? null,
+      }),
+    [
+      googleAdsApiReady,
+      googleAdsCustomerIdForReadiness,
+      googleAdsForm.customerId,
+      googleAdsIntegration?.status,
+      googleAdsOfflineStats?.pending,
+      googleAdsOfflineStats?.schemaReady,
+      selectedGoogleAdsAccount,
+    ],
+  );
+
   const mainIntegrations = useMemo(() => {
     const items = [
       {
@@ -320,7 +591,7 @@ export default function SettingsIntegrations() {
       {
         provider: "google_ads" as const,
         name: "Google Ads",
-        description: "Importa statistiche campagne Google Ads e monitora CPC, impressioni e conversioni nella Reportistica.",
+        description: "Collega Customer ID, campagne Search/PMax e conversioni CRM per costo appuntamento, costo vendita e ROAS.",
         integration: googleAdsIntegration || null,
         stats: null as { pages: number; forms: number } | null,
       },
@@ -517,7 +788,7 @@ export default function SettingsIntegrations() {
               if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else if (item.provider === "google_ads") {
-                toast.info("L'integrazione Google Ads viene configurata dall'amministratore della piattaforma. Contatta il supporto per abilitarla.");
+                setGoogleAdsDialogOpen(true);
               } else {
                 handleMetaConnect();
               }
@@ -530,12 +801,18 @@ export default function SettingsIntegrations() {
               if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
                 navigate("/azienda/impostazioni/calendari-marketing");
               } else if (item.provider === "google_ads") {
-                navigate("/azienda/marketing/reportistica");
+                setGoogleAdsDialogOpen(true);
               } else {
                 handleMetaConnect();
               }
             }}
-            onTest={item.provider === "meta" && item.integration?.status === "connected" ? testMetaConnection : undefined}
+            onTest={
+              item.provider === "meta" && item.integration?.status === "connected"
+                ? testMetaConnection
+                : item.provider === "google_ads" && item.integration?.status === "connected"
+                  ? testGoogleAdsConnection
+                  : undefined
+            }
             canManage={canManageIntegrations}
             disabledReason="Gestione riservata agli amministratori"
             accountLabel={
@@ -543,7 +820,9 @@ export default function SettingsIntegrations() {
                 ? gcalConnection?.google_account_email
                 : item.provider === "apple_calendar"
                   ? appleCalConnection?.apple_id_email
-                  : null
+                  : item.provider === "google_ads"
+                    ? googleAdsAccountLabel
+                    : null
             }
           />
         ))}
@@ -819,6 +1098,167 @@ export default function SettingsIntegrations() {
           Nessuna integrazione trovata per "{search}"
         </div>
       )}
+
+      <Dialog open={googleAdsDialogOpen} onOpenChange={setGoogleAdsDialogOpen}>
+        <DialogContent className="sm:max-w-[760px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Google Ads</DialogTitle>
+            <DialogDescription>
+              Configura l'account Google Ads dell'azienda. Le campagne restano separate da Meta, mentre vendite e appuntamenti CRM alimentano le conversioni offline.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!googleAdsAccountsSchemaReady && (
+            <Alert className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900/50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-sm">Schema Google Ads da applicare</AlertTitle>
+              <AlertDescription className="text-xs text-amber-900 dark:text-amber-200">
+                Posso salvare lo stato dell'integrazione, ma la tabella account Google Ads non risulta ancora disponibile nel database.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="google-ads-customer-id">Customer ID</Label>
+                  <Input
+                    id="google-ads-customer-id"
+                    placeholder="123-456-7890"
+                    value={googleAdsForm.customerId}
+                    onChange={(event) =>
+                      setGoogleAdsForm((current) => ({ ...current, customerId: event.target.value }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Lo trovi in alto a destra dentro Google Ads. Accetto anche il formato con trattini.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="google-ads-customer-name">Nome account</Label>
+                  <Input
+                    id="google-ads-customer-name"
+                    placeholder="Azienda Search"
+                    value={googleAdsForm.customerName}
+                    onChange={(event) =>
+                      setGoogleAdsForm((current) => ({ ...current, customerName: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="google-ads-manager-id">Manager Customer ID</Label>
+                  <Input
+                    id="google-ads-manager-id"
+                    placeholder="Opzionale, MCC"
+                    value={googleAdsForm.managerCustomerId}
+                    onChange={(event) =>
+                      setGoogleAdsForm((current) => ({ ...current, managerCustomerId: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="google-ads-currency">Valuta</Label>
+                    <Input
+                      id="google-ads-currency"
+                      value={googleAdsForm.currency}
+                      onChange={(event) =>
+                        setGoogleAdsForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="google-ads-time-zone">Fuso</Label>
+                    <Input
+                      id="google-ads-time-zone"
+                      value={googleAdsForm.timeZone}
+                      onChange={(event) =>
+                        setGoogleAdsForm((current) => ({ ...current, timeZone: event.target.value }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+                <div>
+                  <Label htmlFor="google-ads-test-account">Account test</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Attivalo se il Customer ID e un account sandbox o non deve pubblicare campagne reali.
+                  </p>
+                </div>
+                <Switch
+                  id="google-ads-test-account"
+                  checked={googleAdsForm.isTestAccount}
+                  onCheckedChange={(checked) =>
+                    setGoogleAdsForm((current) => ({ ...current, isTestAccount: checked }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Prontezza operativa</p>
+              <div className="space-y-2">
+                {googleAdsReadinessChecks.map((check) => {
+                  const Icon =
+                    check.status === "ok" ? CheckCircle2 : check.status === "blocked" ? XCircle : AlertTriangle;
+                  return (
+                    <div
+                      key={check.key}
+                      className={cn(
+                        "rounded-md border p-3",
+                        check.status === "ok" && "border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20",
+                        check.status === "warning" && "border-amber-200 bg-amber-50/60 dark:bg-amber-950/20",
+                        check.status === "blocked" && "border-destructive/20 bg-destructive/5",
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon
+                          className={cn(
+                            "h-4 w-4",
+                            check.status === "ok" && "text-emerald-600",
+                            check.status === "warning" && "text-amber-600",
+                            check.status === "blocked" && "text-destructive",
+                          )}
+                        />
+                        <p className="text-sm font-medium">{check.label}</p>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{check.detail}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setGoogleAdsDialogOpen(false)}>
+              Chiudi
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                !canManageIntegrations ||
+                !isValidGoogleCustomerId(googleAdsForm.customerId) ||
+                saveGoogleAdsConnection.isPending
+              }
+              onClick={() => saveGoogleAdsConnection.mutate()}
+            >
+              {saveGoogleAdsConnection.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Salva Google Ads
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <MetaIntegrationWizard
         open={wizardOpen}

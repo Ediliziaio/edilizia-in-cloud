@@ -39,6 +39,7 @@ interface LegacyDraft {
   id: string;
   name: string;
   objective: string;
+  status?: MetaCampaignStatus;
   budgetCents: number;
   zone: string;
   adSets: number;
@@ -49,6 +50,10 @@ interface LegacyDraft {
   copyVariants: string[];
   imagePrompt: string;
   builderState?: Record<string, unknown>;
+  adAccountId?: string | null;
+  integrationId?: string | null;
+  metaCampaignId?: string | null;
+  publishError?: string | null;
 }
 
 /* ----------------------- LIST ----------------------- */
@@ -115,12 +120,12 @@ export function useMetaCampaigns(companyId: string | undefined) {
       .map((d) => ({
         id: d.id,
         company_id: companyId ?? "",
-        integration_id: null,
-        ad_account_id: null,
-        meta_campaign_id: null,
+        integration_id: d.integrationId ?? null,
+        ad_account_id: d.adAccountId ?? null,
+        meta_campaign_id: d.metaCampaignId ?? null,
         name: d.name,
         objective: (d.objective || "OUTCOME_LEADS") as MetaCampaignRow["objective"],
-        status: "draft" as MetaCampaignStatus,
+        status: (d.status ?? "draft") as MetaCampaignStatus,
         buying_type: "AUCTION",
         budget_mode: "adset",
         daily_budget_cents: d.budgetCents,
@@ -133,7 +138,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
         raw: null,
         last_published_at: null,
         last_synced_at: null,
-        publish_error: null,
+        publish_error: d.publishError ?? null,
         created_at: d.createdAt,
         updated_at: d.updatedAt ?? d.createdAt,
         created_by: null,
@@ -186,6 +191,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
             id: `draft-${Date.now()}`,
             name: input.name,
             objective: input.objective,
+            status: "draft",
             budgetCents: input.daily_budget_cents,
             zone:
               ((input.builder_state as Record<string, unknown>)?.zone as string) ??
@@ -202,6 +208,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
             imagePrompt:
               (((input.builder_state as Record<string, unknown>)?.imagePrompt as string) ?? ""),
             builderState: input.builder_state,
+            adAccountId: input.ad_account_id ?? null,
           };
           if (storageKey) {
             const next = [draft, ...legacyDrafts].slice(0, 30);
@@ -280,6 +287,62 @@ export function useMetaCampaigns(companyId: string | undefined) {
     },
   });
 
+  const updateStatusMutation = useMutation({
+    mutationFn: async (input: {
+      id: string;
+      status: MetaCampaignStatus;
+      publish_error?: string | null;
+    }): Promise<MetaCampaignRow | LegacyDraft> => {
+      if (!companyId) throw new Error("no_company_id");
+
+      try {
+        const { data, error } = await metaTable("meta_campaigns")
+          .update({
+            status: input.status,
+            publish_error: input.publish_error ?? null,
+          })
+          .eq("id", input.id)
+          .eq("company_id", companyId)
+          .select("*")
+          .single();
+        if (!error && data) return data as MetaCampaignRow;
+        throw error;
+      } catch (err) {
+        const msg = String((err as Error).message ?? err);
+        if (
+          msg.includes("does not exist") ||
+          msg.includes("schema cache") ||
+          msg.includes("relation") ||
+          msg.includes("No rows") ||
+          msg.includes("permission denied")
+        ) {
+          if (storageKey) {
+            const next = legacyDrafts.map((d) =>
+              d.id === input.id
+                ? {
+                    ...d,
+                    status: input.status,
+                    publishError: input.publish_error ?? null,
+                    updatedAt: new Date().toISOString(),
+                  }
+                : d,
+            );
+            window.localStorage.setItem(storageKey, JSON.stringify(next));
+            setLegacyDrafts(next);
+            const updated = next.find((d) => d.id === input.id);
+            if (updated) return updated;
+          }
+          throw new Error("draft_not_found");
+        }
+        throw err;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metaCampaignKeys.byCompany(companyId) });
+      queryClient.invalidateQueries({ queryKey: ["meta-pending-approvals", companyId] });
+    },
+  });
+
   const deleteDraftMutation = useMutation({
     mutationFn: async (id: string): Promise<void> => {
       if (!companyId) throw new Error("no_company_id");
@@ -330,6 +393,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
     refetch: query.refetch,
     saveDraft: saveDraftMutation.mutateAsync,
     updateDraft: updateDraftMutation.mutateAsync,
+    updateStatus: updateStatusMutation.mutateAsync,
     deleteDraft: deleteDraftMutation.mutateAsync,
     isSaving: saveDraftMutation.isPending,
     isUpdating: updateDraftMutation.isPending,

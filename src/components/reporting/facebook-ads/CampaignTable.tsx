@@ -35,13 +35,16 @@ function getColumnsForLevel(level: string): ColumnDef[] {
   }
 
   base.push(
+    { key: "account_name", label: "Account BM", format: (r) => r.account_name || r.account_id || "—" },
     { key: "status", label: "Stato", format: (r) => r.status || "—" },
     { key: "clicks", label: "Clic", format: (r) => fmtNum(r.clicks), align: "right" },
     { key: "spend", label: "Costo", format: (r) => fmtCurrency(r.spend), align: "right" },
     { key: "revenue", label: "Entrate", format: (r) => fmtCurrency(r.revenue), align: "right" },
     { key: "roi", label: "ROI %", format: (r) => (r.revenue > 0 ? fmtPct(r.roi) : "—"), align: "right" },
     { key: "cpc", label: "CPC", format: (r) => fmtCurrency(r.cpc), align: "right" },
+    { key: "cpm", label: "CPM", format: (r) => fmtCurrency(r.cpm), align: "right" },
     { key: "ctr", label: "CTR", format: (r) => fmtPct(r.ctr), align: "right" },
+    { key: "frequency", label: "Frequenza", format: (r) => r.frequency > 0 ? r.frequency.toFixed(2) : "—", align: "right" },
     { key: "purchases", label: "Vendite", format: (r) => fmtNum(r.purchases), align: "right" },
     { key: "cps", label: "CPS", format: (r) => (r.purchases > 0 ? fmtCurrency(r.cps) : "—"), align: "right" },
     { key: "leads", label: "Lead", format: (r) => fmtNum(r.leads), align: "right" },

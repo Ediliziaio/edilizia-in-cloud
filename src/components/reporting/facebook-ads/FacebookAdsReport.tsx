@@ -7,10 +7,16 @@ import KPIGrid from "./KPIGrid";
 import TrendChart from "./TrendChart";
 import CampaignTable from "./CampaignTable";
 import CRMFunnelSection from "./CRMFunnelSection";
+import { AdsSalesReportPanel } from "@/components/reporting/ads-sales/AdsSalesReportPanel";
+import { AdsCallCenterReportPanel } from "@/components/reporting/ads-callcenter/AdsCallCenterReportPanel";
 
 const FacebookAdsReport = () => {
   const report = useMetaAdsReport();
   const navigate = useNavigate();
+  const daysBack = Math.max(
+    7,
+    Math.ceil((report.dateRange.to.getTime() - report.dateRange.from.getTime()) / 86_400_000) + 1,
+  );
 
   // Not connected
   if (!report.isConnected) {
@@ -49,6 +55,8 @@ const FacebookAdsReport = () => {
       <ReportHeader report={report} />
       <KPIGrid kpis={report.kpis} dailySeries={report.dailySeries} isLoading={report.isLoading} />
       <CRMFunnelSection dateRange={report.dateRange} isConnected={report.isConnected} />
+      <AdsSalesReportPanel provider="meta" daysBack={daysBack} compact />
+      <AdsCallCenterReportPanel provider="meta" daysBack={daysBack} compact />
       <TrendChart dailySeries={report.dailySeries} isLoading={report.isLoading} />
       <CampaignTable report={report} />
     </div>

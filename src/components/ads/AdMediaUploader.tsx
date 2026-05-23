@@ -35,6 +35,12 @@ export function AdMediaUploader({ companyId, onUploaded }: Props) {
   const [name, setName] = useState("");
   const qc = useQueryClient();
 
+  const resetUploadState = () => {
+    setPreview(null);
+    setName("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
   const handleFile = async (file: File) => {
     if (!companyId) {
       toast.error("Azienda non identificata");
@@ -89,6 +95,7 @@ export function AdMediaUploader({ companyId, onUploaded }: Props) {
 
       const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
       const publicUrl = pub.publicUrl;
+      const fallbackMediaId = `storage-${Date.now()}`;
 
       // 2. Leggi dimensioni immagine
       let widthPx = 0;
@@ -149,6 +156,8 @@ export function AdMediaUploader({ companyId, onUploaded }: Props) {
             toast.warning("Migration ad_media non applicata", {
               description: "L'immagine è stata caricata in Storage ma non indicizzata nel DB.",
             });
+            onUploaded?.({ id: fallbackMediaId, public_url: publicUrl });
+            resetUploadState();
             return;
           }
           throw insertErr;
@@ -160,9 +169,7 @@ export function AdMediaUploader({ companyId, onUploaded }: Props) {
 
         qc.invalidateQueries({ queryKey: ["ad-media-library"] });
         onUploaded?.(media as { id: string; public_url: string });
-        setPreview(null);
-        setName("");
-        if (inputRef.current) inputRef.current.value = "";
+        resetUploadState();
       } catch (e) {
         toast.error("Errore inserimento DB", {
           description: String((e as Error).message ?? e),

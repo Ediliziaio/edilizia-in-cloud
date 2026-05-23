@@ -99,8 +99,10 @@ Deno.serve(async (req) => {
                 is_new_contact: result.isNew,
               },
             })
-            .then(() => console.log(`Automation trigger fired: ${triggerEvent} for contact ${result.contactId}`))
-            .catch((err: any) => console.warn("Failed to fire automation trigger:", err));
+            .then(
+              () => console.log(`Automation trigger fired: ${triggerEvent} for contact ${result.contactId}`),
+              (err: any) => console.warn("Failed to fire automation trigger:", err),
+            );
         }
 
         processed++;
@@ -109,6 +111,7 @@ Deno.serve(async (req) => {
         }
       } catch (error) {
         console.error(`Failed to process event ${event.id}:`, error);
+        const message = String((error as Error).message ?? error);
 
         const newFailCount = (event.fail_count || 0) + 1;
         const newStatus = newFailCount >= MAX_RETRIES ? "failed" : "pending";
@@ -117,7 +120,7 @@ Deno.serve(async (req) => {
           .from("integration_webhook_events")
           .update({
             fail_count: newFailCount,
-            last_fail_reason: error.message?.slice(0, 500),
+            last_fail_reason: message.slice(0, 500),
             status: newStatus,
             locked_by: null,
             locked_at: null,
@@ -139,7 +142,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ processed, failed, total: events.length });
   } catch (error) {
     console.error("meta-process-leads error:", error);
-    return errorResponse(error.message, 500);
+    return errorResponse(String((error as Error).message ?? error), 500);
   }
 });
 
@@ -314,6 +317,10 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       if (lead.campaign_name) updateData.attr_campaign = lead.campaign_name;
       if (lead.ad_name) updateData.attr_content = lead.ad_name;
       if (lead.campaign_id) updateData.source_campaign_id = lead.campaign_id;
+      if (lead.campaign_id) updateData.meta_campaign_id = lead.campaign_id;
+      if (lead.adset_id) updateData.meta_adset_id = lead.adset_id;
+      if (lead.ad_id) updateData.meta_ad_id = lead.ad_id;
+      if (lead.id) updateData.meta_lead_id = lead.id;
     }
     updateData.updated_at = new Date().toISOString();
 
@@ -346,6 +353,10 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         attr_medium: "paid_social",
         attr_campaign: lead.campaign_name || null,
         attr_content: lead.ad_name || null,
+        meta_campaign_id: lead.campaign_id || null,
+        meta_adset_id: lead.adset_id || null,
+        meta_ad_id: lead.ad_id || null,
+        meta_lead_id: lead.id || leadgenId,
       })
       .select("id")
       .single();
@@ -376,6 +387,10 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
         status: "open",
         source: `meta_lead_${leadgenId}`,
         assigned_to: pipelineSettings.owner_user_id || null,
+        meta_campaign_id: lead.campaign_id || null,
+        meta_adset_id: lead.adset_id || null,
+        meta_ad_id: lead.ad_id || null,
+        meta_lead_id: lead.id || leadgenId,
       });
     }
   }
@@ -389,7 +404,11 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
     metadata: {
       leadgen_id: leadgenId,
       form_id: actualFormId,
+      campaign_id: lead.campaign_id || null,
       campaign_name: lead.campaign_name || null,
+      adset_id: lead.adset_id || null,
+      adset_name: lead.adset_name || null,
+      ad_id: lead.ad_id || null,
       ad_name: lead.ad_name || null,
       dedupe: existingContact ? "updated" : "created",
       speed_to_lead_seconds: speedToLeadSeconds,

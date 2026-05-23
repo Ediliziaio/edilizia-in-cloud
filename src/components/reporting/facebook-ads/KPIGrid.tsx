@@ -72,9 +72,10 @@ const KPIGrid = ({ kpis, dailySeries, isLoading }: Props) => {
       </div>
 
       {/* Small cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         <SmallCard label="Spesa totale" value={fmtCurrency(kpis.spend)} isLoading={isLoading} />
         <SmallCard label="CPC medio" value={fmtCurrency(kpis.cpc)} isLoading={isLoading} />
+        <SmallCard label="CPM medio" value={fmtCurrency(kpis.cpm)} isLoading={isLoading} />
         <SmallCard label="Costo per conversione" value={fmtCurrency(kpis.cost_per_conversion)} isLoading={isLoading} />
         <SmallCard label="CPL" value={fmtCurrency(kpis.cpl)} isLoading={isLoading} />
         <SmallCard label="ROAS" value={kpis.revenue > 0 ? `${fmtPct(kpis.roas * 100).replace('%','')}x` : "N/D"} isLoading={isLoading} />

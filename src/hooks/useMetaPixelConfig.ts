@@ -46,6 +46,7 @@ export function useMetaPixelConfig(companyId: string | undefined) {
       }
     },
     enabled: !!companyId,
+    placeholderData: null,
     staleTime: 30_000,
   });
 
@@ -128,7 +129,7 @@ export function useMetaPixelConfig(companyId: string | undefined) {
   return useMemo(
     () => ({
       config: query.data,
-      isLoading: query.isLoading,
+      isLoading: query.isLoading && query.data === undefined,
       save: upsertMutation.mutateAsync,
       isSaving: upsertMutation.isPending,
     }),

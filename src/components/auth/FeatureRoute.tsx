@@ -5,6 +5,9 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Button } from "@/components/ui/button";
 import { PreviewModeWrapper } from "@/components/feature-preview/PreviewModeWrapper";
 
+const FEATURE_ROUTE_LOADING_TIMEOUT_MS = 12_000;
+const SOFT_OPEN_ON_FEATURE_CHECK_DELAY = new Set(["render_ai", "marketing_reporting"]);
+
 interface FeatureRouteProps {
   children: React.ReactNode;
   /** Chiave della feature (colonna `key` di `platform_feature_flags`). */
@@ -34,7 +37,7 @@ export function FeatureRoute({
   // + guard sulle azioni), disabled = redirect a fallback.
   const { isEnabled, isPreview, isLoading, isError, errorMessage, refetch, isFetching } = useFeatureAccess(featureKey);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
-  const shouldSoftOpenWhileResolving = featureKey === "render_ai" && isLoading;
+  const shouldSoftOpenWhileResolving = SOFT_OPEN_ON_FEATURE_CHECK_DELAY.has(featureKey) && (isLoading || isError);
 
   useEffect(() => {
     if (!isLoading) {
@@ -42,10 +45,9 @@ export function FeatureRoute({
       return undefined;
     }
 
-    // v8.6.62 — ridotto da 12s a 6s: il timeout della RPC sottostante è 10s,
-    // ma se dopo 6s ancora non sappiamo lo stato è meglio mostrare fallback
-    // chiaro che lasciare l'utente con uno spinner muto.
-    const timer = window.setTimeout(() => setLoadingTimedOut(true), 6_000);
+    // Il timeout visuale resta oltre quello della query feature (10s), altrimenti
+    // la route mostra "non riesco a verificare" prima che il controllo possa finire.
+    const timer = window.setTimeout(() => setLoadingTimedOut(true), FEATURE_ROUTE_LOADING_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [isLoading, featureKey]);
 

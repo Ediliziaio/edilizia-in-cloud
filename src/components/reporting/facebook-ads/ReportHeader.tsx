@@ -10,7 +10,7 @@ import { useState, useMemo } from "react";
 import ColumnsDrawer from "./ColumnsDrawer";
 import ExportDialog from "./ExportDialog";
 import LevelToggle from "./LevelToggle";
-import type { useMetaAdsReport } from "@/hooks/useMetaAdsReport";
+import { ALL_META_ACCOUNTS, ALL_META_ACCOUNTS_LABEL, type useMetaAdsReport } from "@/hooks/useMetaAdsReport";
 
 interface Props {
   report: ReturnType<typeof useMetaAdsReport>;
@@ -40,7 +40,16 @@ const ReportHeader = ({ report }: Props) => {
   return (
     <>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-semibold tracking-tight">Report di Facebook Ads</h2>
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Report Meta / Facebook Ads</h2>
+          <p className="text-xs text-muted-foreground">
+            Ambito:{" "}
+            {report.selectedAccountId === ALL_META_ACCOUNTS
+              ? ALL_META_ACCOUNTS_LABEL
+              : report.adAccounts.find((account) => account.id === report.selectedAccountId)?.name ||
+                report.selectedAccountId}
+          </p>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Date Presets */}
@@ -90,6 +99,7 @@ const ReportHeader = ({ report }: Props) => {
                 <SelectValue placeholder="Seleziona account" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={ALL_META_ACCOUNTS}>{ALL_META_ACCOUNTS_LABEL}</SelectItem>
                 {report.adAccounts.map((acc) => (
                   <SelectItem key={acc.id} value={acc.id}>
                     {acc.name || acc.id}

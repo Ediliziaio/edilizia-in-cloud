@@ -17,13 +17,16 @@ interface Props {
 
 const COLUMN_LABELS: Record<string, string> = {
   campaign_name: "Campagna",
+  account_name: "Account BM",
   status: "Stato",
   clicks: "Clic",
   spend: "Costo",
   revenue: "Entrate",
   roi: "ROI %",
   cpc: "CPC",
+  cpm: "CPM",
   ctr: "CTR",
+  frequency: "Frequenza",
   purchases: "Vendite",
   cps: "CPS",
   leads: "Lead",

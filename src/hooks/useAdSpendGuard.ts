@@ -84,6 +84,7 @@ export function useAdSpendGuard(companyId: string | undefined) {
       }
     },
     enabled: !!companyId,
+    placeholderData: null,
     staleTime: 30_000,
   });
 
@@ -150,7 +151,7 @@ export function useAdSpendGuard(companyId: string | undefined) {
 
   return {
     config,
-    isLoading: query.isLoading,
+    isLoading: query.isLoading && query.data === undefined,
     update,
     isUpdating: updateMutation.isPending,
   };

@@ -17,6 +17,86 @@ function detectDeviceType(ua: string): string {
   return "desktop";
 }
 
+function cleanText(value: unknown): string | null {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function isMissingSchemaError(error: unknown): boolean {
+  const message = String((error as any)?.message ?? (error as any)?.details ?? error ?? "").toLowerCase();
+  return (
+    message.includes("schema cache") ||
+    message.includes("does not exist") ||
+    message.includes("relation") ||
+    message.includes("column")
+  );
+}
+
+function buildGoogleAdsContactAttributionUpdate(input: {
+  utm_source?: unknown;
+  utm_medium?: unknown;
+  utm_campaign?: unknown;
+  gclid?: unknown;
+  wbraid?: unknown;
+  gbraid?: unknown;
+}): Record<string, unknown> | null {
+  const source = cleanText(input.utm_source);
+  const medium = cleanText(input.utm_medium);
+  const campaign = cleanText(input.utm_campaign);
+  const gclid = cleanText(input.gclid);
+  const wbraid = cleanText(input.wbraid);
+  const gbraid = cleanText(input.gbraid);
+  const normalizedSource = source?.toLowerCase() ?? "";
+  const normalizedMedium = medium?.toLowerCase() ?? "";
+  const paidMedium = ["cpc", "ppc", "paid_search"].includes(normalizedMedium);
+  const isPaidGoogle =
+    Boolean(gclid || wbraid || gbraid) ||
+    ["google_ads", "adwords"].includes(normalizedSource) ||
+    (normalizedSource === "google" && paidMedium);
+
+  if (!isPaidGoogle) return null;
+
+  return {
+    source: "Google Ads",
+    source_campaign_id: campaign,
+    attr_source: source,
+    attr_medium: medium,
+    attr_campaign: campaign,
+    ...(gclid ? { gclid } : {}),
+    ...(wbraid ? { wbraid } : {}),
+    ...(gbraid ? { gbraid } : {}),
+    google_campaign_id: campaign,
+  };
+}
+
+async function updateGoogleAdsContactAttribution(
+  supabase: any,
+  contactId: string | null,
+  update: Record<string, unknown> | null,
+) {
+  if (!contactId || !update) return;
+
+  const { error } = await supabase
+    .from("marketing_contacts")
+    .update(update)
+    .eq("id", contactId);
+
+  if (!error) return;
+  if (!isMissingSchemaError(error)) {
+    console.warn("Google Ads contact attribution update failed:", error);
+    return;
+  }
+
+  const { gclid: _gclid, wbraid: _wbraid, gbraid: _gbraid, google_campaign_id: _googleCampaignId, ...baseUpdate } = update;
+  const fallback = await supabase
+    .from("marketing_contacts")
+    .update(baseUpdate)
+    .eq("id", contactId);
+  if (fallback.error) {
+    console.warn("Google Ads contact attribution fallback failed:", fallback.error);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -34,7 +114,7 @@ Deno.serve(async (req) => {
     const {
       form_id, data: formData, session_id, visitor_id,
       utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-      gclid, fbclid, ttclid, msclkid, li_fat_id
+      gclid, wbraid, gbraid, fbclid, ttclid, msclkid, li_fat_id
     } = body;
 
     if (!form_id || !formData) {
@@ -124,32 +204,61 @@ Deno.serve(async (req) => {
     if (!mappedLastName) mappedLastName = formData.last_name || formData.cognome || formData.surname || formData.Cognome || null;
     if (!mappedPhone) mappedPhone = formData.phone || formData.telefono || formData.Phone || formData.Telefono || null;
 
-    // Upsert contact by email if present
+    // Upsert contact by email or phone. In edilizia molti form raccolgono
+    // prima il telefono: non deve bloccare CRM/opportunita/attribution.
     let contactId: string | null = null;
-    if (mappedEmail && typeof mappedEmail === "string" && mappedEmail.includes("@")) {
-      const email = mappedEmail.toLowerCase().trim();
-      const firstName = mappedFirstName || email.split("@")[0];
+    const googleAdsAttributionUpdate = buildGoogleAdsContactAttributionUpdate({
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      gclid,
+      wbraid,
+      gbraid,
+    });
+    const email = cleanText(mappedEmail)?.toLowerCase() ?? null;
+    const validEmail = email?.includes("@") ? email : null;
+    const phone = cleanText(mappedPhone);
+    if (validEmail || phone) {
+      const firstName = cleanText(mappedFirstName) || validEmail?.split("@")[0] || phone || "Lead";
 
-      const { data: existing } = await supabase
-        .from("marketing_contacts")
-        .select("id")
-        .eq("company_id", form.company_id)
-        .eq("email", email)
-        .maybeSingle();
+      let existing: { id: string } | null = null;
+      if (validEmail) {
+        const { data } = await supabase
+          .from("marketing_contacts")
+          .select("id")
+          .eq("company_id", form.company_id)
+          .eq("email", validEmail)
+          .maybeSingle();
+        existing = data;
+      }
+
+      if (!existing && phone) {
+        const { data } = await supabase
+          .from("marketing_contacts")
+          .select("id")
+          .eq("company_id", form.company_id)
+          .eq("phone", phone)
+          .maybeSingle();
+        existing = data;
+      }
 
       if (existing) {
         contactId = existing.id;
         await supabase
           .from("marketing_contacts")
-          .update({ last_activity_at: new Date().toISOString() })
+          .update({
+            last_activity_at: new Date().toISOString(),
+            ...(validEmail ? { email: validEmail } : {}),
+            ...(phone ? { phone } : {}),
+          })
           .eq("id", contactId);
       } else {
         const insertPayload: Record<string, any> = {
           company_id: form.company_id,
-          email,
+          email: validEmail,
           first_name: firstName,
           last_name: mappedLastName,
-          phone: mappedPhone,
+          phone,
           source: "form",
           attr_source: utm_source || null,
           attr_medium: utm_medium || null,
@@ -168,6 +277,8 @@ Deno.serve(async (req) => {
         if (newContact) contactId = newContact.id;
       }
     }
+
+    await updateGoogleAdsContactAttribution(supabase, contactId, googleAdsAttributionUpdate);
 
     // Save submission with click IDs and device info
     const { data: submission, error: subError } = await supabase.from("form_submissions").insert({
@@ -220,26 +331,57 @@ Deno.serve(async (req) => {
     // Create opportunity if pipeline configured
     if (contactId && settings.pipelineId) {
       try {
-        const { data: stages } = await supabase
-          .from("pipeline_stages")
-          .select("id")
-          .eq("pipeline_id", settings.pipelineId)
-          .order("position", { ascending: true })
-          .limit(1);
+        const formOpportunitySource = `form_${form_id}`;
+        const configuredStageId = cleanText(settings.stageId) || cleanText(settings.stage_id) || cleanText(settings.pipelineStageId);
+        let stageId = configuredStageId;
 
-        if (stages && stages.length > 0) {
-          await supabase.from("opportunities").insert({
-            company_id: form.company_id,
-            contact_id: contactId,
-            pipeline_id: settings.pipelineId,
-            stage_id: stages[0].id,
-            title: `Lead da form: ${mappedFirstName || mappedEmail || "Nuovo"}`,
-            status: "open",
-            created_by: form.company_id,
-          });
+        if (!stageId) {
+          const { data: firstStage } = await supabase
+            .from("marketing_pipeline_stages")
+            .select("id")
+            .eq("company_id", form.company_id)
+            .eq("pipeline_id", settings.pipelineId)
+            .order("position", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          stageId = firstStage?.id ?? null;
         }
-      } catch (_) {
-        // Non-blocking
+
+        if (stageId) {
+          const { data: existingOpportunity } = await supabase
+            .from("marketing_opportunities")
+            .select("id")
+            .eq("company_id", form.company_id)
+            .eq("contact_id", contactId)
+            .eq("source", formOpportunitySource)
+            .eq("status", "open")
+            .maybeSingle();
+
+          const opportunityName = `Lead da form: ${mappedFirstName || mappedEmail || "Nuovo"}`;
+          if (existingOpportunity?.id) {
+            await supabase
+              .from("marketing_opportunities")
+              .update({
+                updated_at: new Date().toISOString(),
+                notes: `Nuovo invio form ${form_id} il ${new Date().toISOString().slice(0, 10)}`,
+              })
+              .eq("id", existingOpportunity.id);
+          } else {
+            await supabase.from("marketing_opportunities").insert({
+              company_id: form.company_id,
+              contact_id: contactId,
+              pipeline_id: settings.pipelineId,
+              stage_id: stageId,
+              name: opportunityName,
+              value: 0,
+              status: "open",
+              source: formOpportunitySource,
+              assigned_to: settings.assignedUserId || null,
+            });
+          }
+        }
+      } catch (error) {
+        console.warn("Marketing opportunity creation skipped:", error);
       }
     }
 

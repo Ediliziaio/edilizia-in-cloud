@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subDays } from "date-fns";
+import type { VendorIntegrationHealth } from "@/lib/reporting/vendorOperations";
 
 export type PeriodoVendor = "mese" | "mese_prec" | "trimestre" | "semestre" | "anno";
 
@@ -128,4 +129,119 @@ export function useVendorFunnel(periodo: PeriodoVendor, agentId?: string) {
     enabled: !!companyId,
     staleTime: 5 * 60_000,
   });
+}
+
+export function useVendorIntegrationHealth(periodo: PeriodoVendor, agentId?: string) {
+  const companyId = useEffectiveCompanyId();
+  const { inizio, fine } = usePeriodoDate(periodo);
+
+  return useQuery({
+    queryKey: ["vendor-integration-health", companyId, periodo, agentId],
+    queryFn: async (): Promise<VendorIntegrationHealth> => {
+      if (!companyId) return emptyVendorIntegrationHealth();
+
+      const startIso = inizio.toISOString();
+      const endIso = fine.toISOString();
+      const startDate = fmtDate(inizio);
+      const endDate = fmtDate(fine);
+      const todayDate = fmtDate(new Date());
+      const staleBefore = subDays(new Date(), 14).toISOString();
+
+      const [contactsRes, opportunitiesRes, appointmentsRes] = await Promise.all([
+        supabase
+          .from("marketing_contacts")
+          .select("id, assigned_to, created_at, deleted_at")
+          .eq("company_id", companyId)
+          .gte("created_at", startIso)
+          .lte("created_at", endIso)
+          .is("deleted_at", null),
+        supabase
+          .from("marketing_opportunities")
+          .select("id, assigned_to, status, created_at, updated_at, next_action, next_action_date, deleted_at")
+          .eq("company_id", companyId)
+          .lte("created_at", endIso)
+          .is("deleted_at", null),
+        supabase
+          .from("appointments")
+          .select("id, assigned_to, contact_id, status, is_completed, appointment_date, is_blocked_slot")
+          .eq("company_id", companyId)
+          .gte("appointment_date", startDate)
+          .lte("appointment_date", endDate),
+      ]);
+
+      if (contactsRes.error) throw contactsRes.error;
+      if (opportunitiesRes.error) throw opportunitiesRes.error;
+      if (appointmentsRes.error) throw appointmentsRes.error;
+
+      const contacts = contactsRes.data ?? [];
+      const opportunities = opportunitiesRes.data ?? [];
+      const appointments = appointmentsRes.data ?? [];
+      const activeAppointments = appointments.filter(
+        (appointment) => !appointment.is_blocked_slot && !isCancelledStatus(appointment.status),
+      );
+      const relevantAppointments = activeAppointments.filter((appointment) => matchesAgent(appointment.assigned_to, agentId));
+      const periodOpportunities = opportunities.filter(
+        (opportunity) => opportunity.created_at >= startIso && opportunity.created_at <= endIso,
+      );
+      const openOpportunities = opportunities.filter(
+        (opportunity) => isOpenStatus(opportunity.status) && matchesAgent(opportunity.assigned_to, agentId),
+      );
+
+      return {
+        unassignedContacts: agentId ? 0 : contacts.filter((contact) => !contact.assigned_to).length,
+        unassignedOpportunities: agentId ? 0 : periodOpportunities.filter((opportunity) => !opportunity.assigned_to).length,
+        unassignedAppointments: agentId ? 0 : activeAppointments.filter((appointment) => !appointment.assigned_to).length,
+        appointmentsWithoutContact: relevantAppointments.filter((appointment) => !appointment.contact_id).length,
+        pastUncompletedAppointments: relevantAppointments.filter(
+          (appointment) => !appointment.is_completed && appointment.appointment_date < todayDate,
+        ).length,
+        staleOpenOpportunities: openOpportunities.filter(
+          (opportunity) =>
+            !hasNextStep(opportunity.next_action, opportunity.next_action_date, todayDate) ||
+            (opportunity.updated_at && opportunity.updated_at < staleBefore),
+        ).length,
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 3 * 60_000,
+  });
+}
+
+function emptyVendorIntegrationHealth(): VendorIntegrationHealth {
+  return {
+    unassignedContacts: 0,
+    unassignedOpportunities: 0,
+    unassignedAppointments: 0,
+    appointmentsWithoutContact: 0,
+    pastUncompletedAppointments: 0,
+    staleOpenOpportunities: 0,
+  };
+}
+
+function matchesAgent(assignedTo: string | null | undefined, agentId?: string) {
+  return !agentId || assignedTo === agentId;
+}
+
+function isOpenStatus(status: string | null | undefined) {
+  const value = normalizeLookup(status);
+  return !["won", "closed won", "vinto", "lost", "closed lost", "perso", "cancelled", "canceled", "annullato"].includes(value);
+}
+
+function isCancelledStatus(status: string | null | undefined) {
+  const value = normalizeLookup(status);
+  return ["cancelled", "canceled", "annullato"].includes(value);
+}
+
+function hasNextStep(nextAction: string | null | undefined, nextActionDate: string | null | undefined, todayDate: string) {
+  const hasAction = typeof nextAction === "string" && nextAction.trim().length > 0;
+  const hasFutureDate = typeof nextActionDate === "string" && nextActionDate >= todayDate;
+  return hasAction || hasFutureDate;
+}
+
+function normalizeLookup(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
 }

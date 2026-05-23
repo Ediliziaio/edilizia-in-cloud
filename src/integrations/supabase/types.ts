@@ -24271,11 +24271,13 @@ export type Database = {
           campaign_name: string | null
           clicks: number
           company_id: string
+          conversion_value: number
           conversions: number
           created_at: string
           date: string
           id: string
           impressions: number
+          search_impression_share: number | null
           spend: number
           updated_at: string
         }
@@ -24284,11 +24286,13 @@ export type Database = {
           campaign_name?: string | null
           clicks?: number
           company_id: string
+          conversion_value?: number
           conversions?: number
           created_at?: string
           date: string
           id?: string
           impressions?: number
+          search_impression_share?: number | null
           spend?: number
           updated_at?: string
         }
@@ -24297,11 +24301,13 @@ export type Database = {
           campaign_name?: string | null
           clicks?: number
           company_id?: string
+          conversion_value?: number
           conversions?: number
           created_at?: string
           date?: string
           id?: string
           impressions?: number
+          search_impression_share?: number | null
           spend?: number
           updated_at?: string
         }

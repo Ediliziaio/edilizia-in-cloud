@@ -172,13 +172,18 @@ describe("htmlToPlainText", () => {
 });
 
 describe("TEMPLATE_META registry", () => {
-  it("contiene tutti i 9 template attesi (7 Fase 1 + 2 Fase 2)", () => {
+  it("contiene tutti i template attesi inclusi i lifecycle", () => {
     expect(EDITABLE_TEMPLATE_KEYS.sort()).toEqual(
       [
         "account_verify",
         "ddt_sent",
         "invoice_due_soon",
         "invoice_sent",
+        "lifecycle_d3_no_activation",
+        "lifecycle_d7_features",
+        "lifecycle_monthly_summary",
+        "lifecycle_payment_failed",
+        "lifecycle_trial_ending",
         "password_reset",
         "payment_received",
         "quote_sent",

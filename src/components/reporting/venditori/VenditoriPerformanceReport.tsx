@@ -3,11 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, BarChart3, TrendingUp, GitCompareArrows } from "lucide-react";
-import { useVendorKPI, useVendorTrend, useVendorFunnel, type PeriodoVendor, type VendorKPI } from "@/hooks/useVendorReport";
+import {
+  useVendorKPI,
+  useVendorTrend,
+  useVendorFunnel,
+  useVendorIntegrationHealth,
+  type PeriodoVendor,
+  type VendorKPI,
+} from "@/hooks/useVendorReport";
 import { KPISection } from "./KPISection";
 import { AppuntamentiScorecard } from "./AppuntamentiScorecard";
 import { TempisticheScorecard } from "./TempisticheScorecard";
 import { AgentRadarProfile } from "./AgentRadarProfile";
+import { VendorOperationalDiagnosis } from "./VendorOperationalDiagnosis";
 import { VenditoriFunnel } from "./VenditoriFunnel";
 import { VenditoriRanking } from "./VenditoriRanking";
 import { VenditoriTrend } from "./VenditoriTrend";
@@ -97,6 +105,8 @@ const VenditoriPerformanceReport = () => {
     needsTrend
   );
   const { data: funnel = [] } = useVendorFunnel(periodo, effectiveAgentId);
+  const { data: integrationHealth = null, isLoading: isIntegrationLoading } =
+    useVendorIntegrationHealth(periodo, effectiveAgentId);
 
   const kpiSelected = agentId !== "tutti"
     ? kpiList.find(k => k.agent_id === agentId) ?? null
@@ -181,6 +191,12 @@ const VenditoriPerformanceReport = () => {
 
         <TabsContent value="overview" className="space-y-6 mt-4">
           <KPISection kpi={kpiSelected} isLoading={isLoading} />
+
+          <VendorOperationalDiagnosis
+            kpi={kpiSelected}
+            integration={integrationHealth}
+            isLoading={isLoading || isIntegrationLoading}
+          />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <AppuntamentiScorecard kpi={kpiSelected} isLoading={isLoading} />

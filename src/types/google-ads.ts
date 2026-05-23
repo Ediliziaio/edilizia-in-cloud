@@ -14,6 +14,8 @@ export interface GoogleAdsStatRow {
   clicks: number;
   spend: number;
   conversions: number;
+  conversion_value?: number | null;
+  search_impression_share?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -23,7 +25,11 @@ export interface GoogleAdsKPIs {
   totalSpend: number;
   avgCTR: number;
   totalConversions: number;
+  totalConversionValue: number;
   avgCPC: number;
+  avgCPA: number;
+  roas: number;
+  avgSearchImpressionShare: number | null;
   totalImpressions: number;
   totalClicks: number;
 }
@@ -42,8 +48,12 @@ export interface GoogleAdsCampaign {
   clicks: number;
   spend: number;
   conversions: number;
+  conversion_value: number;
   ctr: number;
   cpc: number;
+  cost_per_conversion: number;
+  roas: number;
+  search_impression_share: number | null;
 }
 
 /** Stato connessione account Google Ads */

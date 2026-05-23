@@ -18,6 +18,8 @@ import { CallCenterTrendChart } from "./CallCenterTrendChart";
 import { FonteLeadTable } from "./FonteLeadTable";
 import { OperatoriRanking } from "./OperatoriRanking";
 import { ReportExportMenu } from "../shared/ReportExportMenu";
+import { AdsCallCenterReportPanel } from "@/components/reporting/ads-callcenter/AdsCallCenterReportPanel";
+import { CallCenterOperationalDiagnosis } from "./CallCenterOperationalDiagnosis";
 
 const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "mese", label: "Mese corrente" },
@@ -26,6 +28,14 @@ const PERIODI: { value: PeriodoVendor; label: string }[] = [
   { value: "semestre", label: "Ultimi 6 mesi" },
   { value: "anno", label: "Anno corrente" },
 ];
+
+const DAYS_BY_PERIODO: Record<PeriodoVendor, number> = {
+  mese: 31,
+  mese_prec: 31,
+  trimestre: 90,
+  semestre: 180,
+  anno: 365,
+};
 
 const EXPORT_COLUMNS = [
   { key: "nome_operatore", label: "Operatore" },
@@ -51,6 +61,7 @@ export default function CallCenterReport() {
   const [subTab, setSubTab] = useState("panoramica");
 
   const effectiveOpId = operatoreId === "tutti" ? undefined : operatoreId;
+  const daysBack = DAYS_BY_PERIODO[periodo] ?? 180;
 
   // Single KPI query — filter client-side for individual operator
   const { data: kpiList, isLoading: kpiLoading } = useCallCenterKPI(periodo);
@@ -177,6 +188,10 @@ export default function CallCenterReport() {
 
         <TabsContent value="panoramica" className="mt-4 space-y-6">
           <CallCenterKPISection kpi={currentKpi} isLoading={kpiLoading} />
+          <CallCenterOperationalDiagnosis kpi={currentKpi} isLoading={kpiLoading} />
+          <section aria-label="Lead ads e chiamate">
+            <AdsCallCenterReportPanel provider="all" daysBack={daysBack} />
+          </section>
           <CallCenterInsights kpi={currentKpi} />
         </TabsContent>
 

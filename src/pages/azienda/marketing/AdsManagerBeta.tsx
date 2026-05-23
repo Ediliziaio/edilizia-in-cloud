@@ -65,8 +65,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import {
+  buildMetaPublishRequest,
+  draftToCampaignRow,
+  metaCampaignToDraft,
+  type AdsCampaignStatus,
+  type AdsLocalCampaignDraft,
+} from "@/lib/ads/campaignState";
 import { cn } from "@/lib/utils";
-import { useMetaCampaigns } from "@/hooks/useMetaCampaigns";
+import { metaCampaignKeys, useMetaCampaigns } from "@/hooks/useMetaCampaigns";
+import { googleAdsCampaignKeys, useGoogleAdsCampaigns } from "@/hooks/useGoogleAdsCampaigns";
+import { useGoogleAdsStats } from "@/hooks/useGoogleAdsStats";
 import { useAdsAi, type VideoScript, type VideoScriptStyle } from "@/hooks/useAdsAi";
 import { useAdSpendGuard, type AdSpendGuardConfig } from "@/hooks/useAdSpendGuard";
 import { useMetaPixelConfig } from "@/hooks/useMetaPixelConfig";
@@ -77,6 +86,7 @@ import { PendingApprovalsBanner } from "@/components/ads/PendingApprovalsBanner"
 import { useCampaignLeads } from "@/hooks/useCampaignLeads";
 import { ABTestDialog } from "@/components/ads/ABTestDialog";
 import { AutomationRulesEditor } from "@/components/ads/AutomationRulesEditor";
+import { AdsCrmAttributionPanel } from "@/components/ads/AdsCrmAttributionPanel";
 import { useAdsNotifications } from "@/hooks/useAdsNotifications";
 import { AdsOnboardingTour } from "@/components/ads/AdsOnboardingTour";
 import { ProviderChoiceDialog } from "@/components/ads/ProviderChoiceDialog";
@@ -89,12 +99,20 @@ import { AdVideoUploader } from "@/components/ads/AdVideoUploader";
 import { OfferBuilderPanel } from "@/components/ads/OfferBuilderPanel";
 import { VideoAIStudio } from "@/components/ads/VideoAIStudio";
 import type { Integration, MetaAsset } from "@/types/integrations";
-import type { MetaCampaignRow } from "@/types/metaAds";
+import type { MetaConversionPixelRow } from "@/types/metaAds";
+import type { GoogleAdsAccountRow, GoogleAdsCampaignRow } from "@/types/googleAds";
+import {
+  buildAdsAttributionMetrics,
+  isAdsAttributedContact,
+  type AdsAttributionProvider,
+  type AdsAttributionMetrics,
+} from "@/lib/ads/crmAttribution";
 
 type AdsTab = "campagne" | "creativita" | "pubblici" | "impostazioni";
-type CampaignStatus = "active" | "paused" | "draft" | "review" | "error";
+type CampaignStatus = AdsCampaignStatus;
 type ViewMode = "list" | "wizard" | "quickstart" | "detail";
 type CreativeFormat = "image" | "video" | "carousel" | "story";
+type CreativeAngle = "problem" | "social_proof" | "before_after" | "urgency" | "incentive" | "authority" | "retargeting";
 type AudienceStrategy = "advantage_plus" | "manual" | "retargeting" | "lookalike";
 type GenderTarget = "all" | "men" | "women";
 
@@ -120,10 +138,22 @@ interface CampaignAdSet {
 interface CampaignCreative {
   id: string;
   format: CreativeFormat;
+  angle?: CreativeAngle;
   title: string;
   hook: string;
   goal: string;
   prompt: string;
+}
+
+interface OfferStrategyState {
+  averageTicketEur?: number;
+  averageMarginPct?: number;
+  maxSustainableCplEur?: number;
+  serviceArea?: string;
+  commercialCapacity?: string;
+  idealCustomer?: string;
+  urgency?: string;
+  seasonality?: string;
 }
 
 interface CampaignRow {
@@ -131,25 +161,33 @@ interface CampaignRow {
   name: string;
   objective: string;
   status: CampaignStatus;
+  platform: "meta" | "google";
   budgetCents: number;
   spentCents: number;
   leads: number;
   opportunities: number;
   jobs: number;
+  revenueCents: number;
+  roas: number;
   adSets?: number;
   ads?: number;
+  googleChannel?: BuilderState["googleChannel"];
   targetCplCents?: number;
-  source: "meta" | "local";
+  source: "meta" | "google" | "local";
   /** True per campagne demo seed (non vanno nei KPI reali). */
   isDemo?: boolean;
   /** Riferimento al draft locale completo (se source==='local'). */
   draftRef?: LocalCampaignDraft;
+  metaCampaignId?: string | null;
+  googleCampaignId?: string | null;
+  publishError?: string | null;
 }
 
 interface LocalCampaignDraft {
   id: string;
   name: string;
   objective: string;
+  status: CampaignStatus;
   budgetCents: number;
   zone: string;
   adSets: number;
@@ -161,6 +199,12 @@ interface LocalCampaignDraft {
   imagePrompt: string;
   /** Stato completo del builder per riapertura/edit (v2). */
   builderState?: BuilderState;
+  adAccountId?: string | null;
+  integrationId?: string | null;
+  metaCampaignId?: string | null;
+  googleCampaignId?: string | null;
+  googleAccountId?: string | null;
+  publishError?: string | null;
 }
 
 interface BuilderState {
@@ -204,6 +248,7 @@ interface BuilderState {
   testDurationDays: number;
   pauseRule: string;
   scaleRule: string;
+  offerStrategy?: OfferStrategyState;
   /**
    * Meta targeting avanzato — opzionali per backward-compat con bozze
    * pre-2026-05. Quando presenti, hanno la precedenza su `zone`/`interests`.
@@ -242,6 +287,72 @@ const TABS: Array<{ value: AdsTab; label: string; icon: React.ComponentType<{ cl
   { value: "impostazioni", label: "Impostazioni", icon: Settings },
 ];
 
+const CREATIVE_ANGLE_PRESETS: Array<{
+  angle: CreativeAngle;
+  label: string;
+  format: CreativeFormat;
+  title: string;
+  hook: string;
+  goal: string;
+}> = [
+  {
+    angle: "problem",
+    label: "Problema",
+    format: "image",
+    title: "Problema evidente",
+    hook: "Mostra il problema che il cliente riconosce subito",
+    goal: "Capire se il dolore iniziale genera lead piu motivati.",
+  },
+  {
+    angle: "before_after",
+    label: "Prima/dopo",
+    format: "carousel",
+    title: "Prima/dopo",
+    hook: "Trasformazione visibile e risultato finale",
+    goal: "Fermare lo scroll con prova visiva del cambiamento.",
+  },
+  {
+    angle: "social_proof",
+    label: "Prova sociale",
+    format: "video",
+    title: "Cliente soddisfatto",
+    hook: "Risultato reale, fiducia e contesto locale",
+    goal: "Misurare se fiducia e referenze aumentano gli appuntamenti.",
+  },
+  {
+    angle: "urgency",
+    label: "Urgenza",
+    format: "story",
+    title: "Urgenza qualificata",
+    hook: "Periodo, scadenza o problema da risolvere ora",
+    goal: "Separare curiosi da clienti con tempistiche concrete.",
+  },
+  {
+    angle: "incentive",
+    label: "Incentivo",
+    format: "image",
+    title: "Incentivo preventivo",
+    hook: "Sopralluogo, check o consulenza inclusa",
+    goal: "Capire se l'incentivo riduce CPL senza abbassare qualita lead.",
+  },
+  {
+    angle: "authority",
+    label: "Autorità",
+    format: "video",
+    title: "Tecnico esperto",
+    hook: "Spiegazione breve, materiali, metodo e garanzie",
+    goal: "Aumentare fiducia quando la scelta e tecnica o ad alto ticket.",
+  },
+  {
+    angle: "retargeting",
+    label: "Retargeting",
+    format: "carousel",
+    title: "Secondo contatto",
+    hook: "Risposta a obiezione per chi ti ha gia visto",
+    goal: "Recuperare visitatori e lead tiepidi con messaggio piu specifico.",
+  },
+];
+
 /**
  * Sample campagne — marcate come `isDemo: true` per:
  *  • non inquinare i KPI reali (spese/lead/commesse)
@@ -254,11 +365,14 @@ const SAMPLE_CAMPAIGNS: CampaignRow[] = [
     name: "[ESEMPIO] Serramenti - Lead Monza Brianza",
     objective: "OUTCOME_LEADS",
     status: "active",
+    platform: "meta",
     budgetCents: 3000,
     spentCents: 184000,
     leads: 23,
     opportunities: 9,
     jobs: 5,
+    revenueCents: 6800000,
+    roas: 36.96,
     adSets: 3,
     ads: 9,
     targetCplCents: 2200,
@@ -270,11 +384,14 @@ const SAMPLE_CAMPAIGNS: CampaignRow[] = [
     name: "[ESEMPIO] Bagni chiavi in mano",
     objective: "OUTCOME_LEADS",
     status: "paused",
+    platform: "meta",
     budgetCents: 2500,
     spentCents: 210000,
     leads: 14,
     opportunities: 5,
     jobs: 2,
+    revenueCents: 2550000,
+    roas: 12.14,
     adSets: 2,
     ads: 6,
     targetCplCents: 2800,
@@ -286,16 +403,61 @@ const SAMPLE_CAMPAIGNS: CampaignRow[] = [
     name: "[ESEMPIO] Brand awareness - provincia",
     objective: "OUTCOME_AWARENESS",
     status: "review",
+    platform: "meta",
     budgetCents: 1500,
     spentCents: 34000,
     leads: 4,
     opportunities: 1,
     jobs: 0,
+    revenueCents: 0,
+    roas: 0,
     adSets: 1,
     ads: 3,
     targetCplCents: 1800,
     source: "meta",
     isDemo: true,
+  },
+  {
+    id: "demo-google-1",
+    name: "[ESEMPIO] Google Search - Ristrutturazione bagno Milano",
+    objective: "OUTCOME_LEADS",
+    status: "active",
+    platform: "google",
+    budgetCents: 4000,
+    spentCents: 156000,
+    leads: 18,
+    opportunities: 11,
+    jobs: 4,
+    revenueCents: 5900000,
+    roas: 37.82,
+    adSets: 2,
+    ads: 4,
+    targetCplCents: 3000,
+    googleChannel: "SEARCH",
+    source: "google",
+    isDemo: true,
+    googleCampaignId: "g-demo-search-1",
+  },
+  {
+    id: "demo-google-2",
+    name: "[ESEMPIO] Performance Max - Serramenti provincia",
+    objective: "OUTCOME_LEADS",
+    status: "review",
+    platform: "google",
+    budgetCents: 3500,
+    spentCents: 92000,
+    leads: 10,
+    opportunities: 6,
+    jobs: 1,
+    revenueCents: 1450000,
+    roas: 15.76,
+    adSets: 1,
+    ads: 8,
+    targetCplCents: 2800,
+    googleChannel: "PERFORMANCE_MAX",
+    source: "google",
+    isDemo: true,
+    googleCampaignId: "g-demo-pmax-1",
   },
 ];
 
@@ -473,32 +635,32 @@ function buildDefaultAdSets(input: Pick<BuilderState, "zone" | "radiusKm" | "int
 
 function buildDefaultCreatives(input: Pick<BuilderState, "copyBrief" | "imagePrompt">): CampaignCreative[] {
   const brief = input.copyBrief || "campagna edilizia locale";
-  return [
-    {
-      id: "creative-image",
-      format: "image",
-      title: "Immagine prima/dopo",
-      hook: "Mostra trasformazione e risultato finale",
-      goal: "Fermare lo scroll e far capire subito il tipo di intervento.",
-      prompt: input.imagePrompt,
-    },
-    {
-      id: "creative-video",
-      format: "video",
-      title: "Video tecnico breve",
-      hook: "Problema → sopralluogo → soluzione",
-      goal: "Aumentare fiducia e qualificare utenti che vogliono un lavoro fatto bene.",
-      prompt: `Video verticale 15 secondi per ${brief}: apertura sul problema, tecnico che spiega, dettaglio cantiere pulito, risultato finale e CTA preventivo.`,
-    },
-    {
-      id: "creative-carousel",
-      format: "carousel",
-      title: "Carosello educativo",
-      hook: "3 errori da evitare prima del preventivo",
-      goal: "Educare il cliente e filtrare contatti più consapevoli.",
-      prompt: `Carosello Meta Ads per ${brief}: slide 1 hook forte, slide 2 problema, slide 3 soluzione, slide 4 prova, slide 5 CTA richiesta preventivo.`,
-    },
-  ];
+  return ["problem", "before_after", "social_proof"].map((angle) =>
+    buildCreativeFromAngle(angle as CreativeAngle, brief, input.imagePrompt),
+  );
+}
+
+function buildCreativeFromAngle(angle: CreativeAngle, brief: string, imagePrompt: string): CampaignCreative {
+  const preset = CREATIVE_ANGLE_PRESETS.find((item) => item.angle === angle) ?? CREATIVE_ANGLE_PRESETS[0];
+  const promptByAngle: Record<CreativeAngle, string> = {
+    problem: imagePrompt || `Immagine realistica per ${brief}: mostra il problema prima dell'intervento, contesto casa italiana, bisogno chiaro e CTA preventivo.`,
+    social_proof: `Video verticale per ${brief}: cliente o tecnico locale, risultato reale, prova di fiducia, dettaglio lavoro e CTA appuntamento.`,
+    before_after: `Carosello Meta Ads per ${brief}: slide prima, causa problema, intervento, risultato dopo, CTA richiesta preventivo.`,
+    urgency: `Story/Reel per ${brief}: apertura su urgenza concreta, rischio di aspettare, disponibilita limitata e CTA rapida.`,
+    incentive: `Immagine per ${brief}: evidenzia sopralluogo/check/consulenza inclusa senza sembrare sconto aggressivo.`,
+    authority: `Video tecnico breve per ${brief}: esperto spiega metodo, materiali, garanzie e prossimo passo per preventivo serio.`,
+    retargeting: `Carosello retargeting per ${brief}: obiezione frequente, risposta concreta, prova, invito a fissare appuntamento.`,
+  };
+
+  return {
+    id: `creative-${angle}`,
+    format: preset.format,
+    angle,
+    title: preset.title,
+    hook: preset.hook,
+    goal: preset.goal,
+    prompt: promptByAngle[angle],
+  };
 }
 
 /**
@@ -580,6 +742,16 @@ const DEFAULT_BUILDER: BuilderState = {
   testDurationDays: 5,
   pauseRule: "Pausa un annuncio se dopo 2.5x CPL target non genera lead qualificati o se i lead non rispondono al primo contatto.",
   scaleRule: "Aumenta budget del 15-20% ogni 48 ore solo se CPL, tasso opportunità e tempi di risposta restano stabili.",
+  offerStrategy: {
+    averageTicketEur: 3500,
+    averageMarginPct: 30,
+    maxSustainableCplEur: 35,
+    serviceArea: "Monza e Brianza, sopralluoghi entro 25 km",
+    commercialCapacity: "10-15 lead/settimana, risposta entro 5 minuti",
+    idealCustomer: "Proprietario casa, lavoro entro 90 giorni, budget definito",
+    urgency: "Da qualificare con domanda su tempistica e stato del lavoro",
+    seasonality: "Picchi primavera/autunno; test leggero nei mesi più lenti",
+  },
   // Meta targeting avanzato — default vuoti, popolati dall'utente nel wizard.
   metaGeoLocations: [],
   metaInterestTags: [],
@@ -610,6 +782,7 @@ function statusLabel(status: CampaignStatus) {
     paused: "In pausa",
     draft: "Bozza",
     review: "In revisione",
+    published: "Pubblicata",
     error: "Errore",
   };
   return labels[status];
@@ -621,9 +794,35 @@ function statusClass(status: CampaignStatus) {
     paused: "border-amber-200 bg-amber-50 text-amber-700",
     draft: "border-slate-200 bg-slate-50 text-slate-600",
     review: "border-blue-200 bg-blue-50 text-blue-700",
+    published: "border-emerald-200 bg-emerald-50 text-emerald-700",
     error: "border-red-200 bg-red-50 text-red-700",
   };
   return classes[status];
+}
+
+function platformLabel(platform: CampaignRow["platform"]) {
+  return platform === "google" ? "Google Ads" : "Meta Ads";
+}
+
+function platformBadgeClass(platform: CampaignRow["platform"]) {
+  return platform === "google"
+    ? "whitespace-nowrap border-amber-200 bg-amber-50 text-[10px] font-semibold text-amber-800"
+    : "whitespace-nowrap border-blue-200 bg-blue-50 text-[10px] font-semibold text-blue-700";
+}
+
+function structurePrimary(campaign: CampaignRow) {
+  if (campaign.platform === "google") {
+    return `${campaign.adSets ?? 1} grupp${(campaign.adSets ?? 1) === 1 ? "o" : "i"} annunci`;
+  }
+  return `${campaign.adSets ?? 1} ad set`;
+}
+
+function structureSecondary(campaign: CampaignRow) {
+  if (campaign.platform === "google") {
+    const channel = campaign.googleChannel ?? campaign.draftRef?.builderState?.googleChannel ?? "SEARCH";
+    return `${channel} · ${campaign.ads ?? 1} asset/ads`;
+  }
+  return `${campaign.ads ?? 1} ads`;
 }
 
 function objectiveLabel(objective: string) {
@@ -645,6 +844,10 @@ function splitList(value: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeLookup(value: string | number | null | undefined) {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 function audienceStrategyLabel(strategy: AudienceStrategy) {
@@ -734,8 +937,8 @@ function getReadinessItems(state: BuilderState) {
     },
     {
       title: "Gruppi pubblico strutturati",
-      ok: state.adSets.length >= 2 && state.adSets.every((adSet) => adSet.name.trim() && adSet.dailyBudget >= 5 && adSet.audience.trim()),
-      fix: "Prepara almeno due gruppi: pubblico locale freddo e retargeting/prove sociali.",
+      ok: state.adSets.length >= 2 && state.adSets.every((adSet) => adSet.name.trim() && adSet.dailyBudget >= 5 && (state.advantageAudience || adSet.audience.trim())),
+      fix: "Prepara almeno due gruppi: controlli business forti su zona/esclusioni e interessi solo se servono davvero.",
     },
     {
       title: "Modulo snello",
@@ -796,6 +999,91 @@ function getReadinessScore(state: BuilderState) {
   };
 }
 
+function getPublishQa(
+  draft: LocalCampaignDraft,
+  meta: ReturnType<typeof useMetaConnection>,
+  pixelConfig: MetaConversionPixelRow | null | undefined,
+) {
+  const state = draft.builderState;
+  const blockers: string[] = [];
+
+  if (!state) {
+    return { blockers: ["Stato builder mancante: riapri il wizard e salva la bozza."] };
+  }
+
+  const readiness = getReadinessScore(state);
+  const lf = state.metaLeadForm;
+  const privacyOk = lf?.privacyPolicyUrl?.startsWith("https://") || state.privacyUrl.startsWith("https://");
+  const landingNeedsUtm = state.conversionPlace === "landing_page" || state.conversionPlace === "dual";
+  const landingHasUtm =
+    !landingNeedsUtm ||
+    /[?&]utm_(source|medium|campaign)=/i.test(state.landingUrl) ||
+    state.landingUrl.trim() === "";
+  const pixelTested = Boolean(
+    pixelConfig?.last_event_at ||
+      (pixelConfig?.pixel_events_last_24h ?? 0) > 0 ||
+      (pixelConfig?.capi_events_last_24h ?? 0) > 0,
+  );
+
+  const checks = [
+    { ok: meta.integration?.status === "connected", message: "Meta non collegato." },
+    { ok: meta.adAccounts.length > 0, message: "Account pubblicitario assente." },
+    { ok: meta.pages.length > 0, message: "Pagina Facebook non disponibile." },
+    { ok: Boolean(pixelConfig?.pixel_id), message: "Pixel/CAPI non configurato." },
+    { ok: pixelTested, message: "Evento Pixel/CAPI non ancora testato." },
+    { ok: privacyOk, message: "Privacy URL HTTPS mancante." },
+    { ok: landingHasUtm, message: "Landing senza UTM: aggiungi utm_source, utm_medium o utm_campaign." },
+    { ok: getCampaignDailyBudget(state) >= 10 && getBudgetPerAd(state) >= 1.5, message: "Budget non coerente con la matrice annunci." },
+    { ok: state.creatives.length >= 3 && state.imagePrompt.trim().length >= 40, message: "Creativita non completa o non approvata." },
+    { ok: state.followUp.trim().length >= 20, message: "Follow-up CRM non pronto." },
+    { ok: readiness.score >= 80, message: "Checklist lancio sotto 80/100." },
+  ];
+
+  blockers.push(...checks.filter((check) => !check.ok).map((check) => check.message));
+  return { blockers };
+}
+
+function getGooglePublishQa(
+  draft: LocalCampaignDraft,
+  google: ReturnType<typeof useGoogleAdsConnection>,
+) {
+  const state = draft.builderState;
+  const blockers: string[] = [];
+
+  if (!state) {
+    return { blockers: ["Stato builder mancante: riapri il wizard e salva la bozza."] };
+  }
+
+  const landingNeedsUtm = state.conversionPlace === "landing_page" || state.conversionPlace === "dual";
+  const landingHasGoogleUtm =
+    !landingNeedsUtm ||
+    /[?&]utm_source=(google|google_ads|adwords)/i.test(state.landingUrl) ||
+    /[?&]utm_medium=(cpc|ppc|paid_search)/i.test(state.landingUrl);
+  const hasSearchIntent =
+    state.googleChannel !== "SEARCH" ||
+    splitList(state.interests).length > 0 ||
+    state.copyBrief.toLowerCase().includes("keyword") ||
+    state.copyBrief.toLowerCase().includes("parole chiave");
+  const hasEnoughAssets =
+    state.googleChannel === "PERFORMANCE_MAX"
+      ? state.copyVariants.length >= 5 && state.creatives.length >= 3
+      : state.copyVariants.length >= 3;
+
+  const checks = [
+    { ok: google.integration?.status === "connected", message: "Google Ads non collegato." },
+    { ok: google.accounts.length > 0, message: "Nessun Customer ID Google Ads selezionato." },
+    { ok: state.privacyUrl.startsWith("https://"), message: "Privacy URL HTTPS mancante." },
+    { ok: landingHasGoogleUtm, message: "Landing senza UTM Google: usa utm_source=google e utm_medium=cpc." },
+    { ok: getCampaignDailyBudget(state) >= 10, message: "Budget giornaliero troppo basso per Google Ads." },
+    { ok: hasSearchIntent, message: "Mancano keyword/intenti di ricerca per il canale Search." },
+    { ok: hasEnoughAssets, message: "Asset Google insufficienti: servono piu titoli, descrizioni e creatività." },
+    { ok: false, message: "Pubblicazione Google Ads API non ancora abilitata: serve Developer Token e OAuth Google Ads." },
+  ];
+
+  blockers.push(...checks.filter((check) => !check.ok).map((check) => check.message));
+  return { blockers };
+}
+
 function buildCopyVariants(state: BuilderState): string[] {
   const focus = state.copyBrief.trim() || "campagna edilizia locale";
   const zone = state.zone.trim() || "la tua zona";
@@ -854,32 +1142,386 @@ function useMetaConnection(companyId: string | undefined, enabled: boolean) {
   };
 }
 
-/**
- * Adapter MetaCampaignRow (DB) → LocalCampaignDraft (UI legacy).
- *
- * Permette al frontend esistente di consumare i record DB senza refactor
- * massivo. Estrae il builder_state JSONB e ricostruisce la shape che i
- * componenti CampaignDetailEditor/wizard si aspettano.
- */
-function metaCampaignToLegacyDraft(c: MetaCampaignRow): LocalCampaignDraft {
-  const bs = (c.builder_state ?? {}) as Partial<BuilderState>;
-  const adSetsLen = Array.isArray(bs.adSets) ? bs.adSets.length : 0;
-  const creativesLen = Array.isArray(bs.creatives) ? bs.creatives.length : 0;
+function useGoogleAdsConnection(companyId: string | undefined, enabled: boolean) {
+  const { data: integration, isLoading: integrationLoading } = useQuery({
+    queryKey: ["ads-manager-beta", "google-ads-integration", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data, error } = await supabase
+        .from("integrations")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("provider", "google_ads")
+        .maybeSingle();
+      if (error) throw error;
+      return data as Integration | null;
+    },
+    enabled: enabled && !!companyId,
+    staleTime: 60_000,
+  });
+
+  const { data: accounts = [], isLoading: accountsLoading } = useQuery({
+    queryKey: ["ads-manager-beta", "google-ads-accounts", companyId, integration?.id],
+    queryFn: async () => {
+      if (!companyId) return [];
+      try {
+        const { data, error } = await (supabase as any)
+          .from("google_ads_accounts")
+          .select("*")
+          .eq("company_id", companyId)
+          .order("selected", { ascending: false })
+          .order("customer_name", { ascending: true });
+        if (error) {
+          const msg = String(error.message ?? error);
+          if (msg.includes("does not exist") || msg.includes("schema cache") || msg.includes("relation")) {
+            return [];
+          }
+          throw error;
+        }
+        return (data ?? []) as GoogleAdsAccountRow[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: enabled && !!companyId,
+    staleTime: 60_000,
+  });
+
+  const selectedAccount = accounts.find((account) => account.selected) ?? accounts[0] ?? null;
+
   return {
-    id: c.id,
-    name: c.name,
-    objective: c.objective,
-    budgetCents: c.daily_budget_cents ?? 0,
-    zone: bs.zone ?? "—",
-    adSets: adSetsLen || 1,
-    ads: Math.max(1, adSetsLen * Math.max(1, creativesLen)),
-    targetCplCents: (bs.targetCpl ?? 25) * 100,
-    createdAt: c.created_at,
-    updatedAt: c.updated_at,
-    copyVariants: Array.isArray(bs.copyVariants) ? bs.copyVariants : [],
-    imagePrompt: bs.imagePrompt ?? "",
-    builderState: bs as BuilderState,
+    integration,
+    accounts,
+    selectedAccount,
+    isLoading: integrationLoading || accountsLoading,
   };
+}
+
+interface BusinessContactRow {
+  id: string;
+  source?: string | null;
+  source_campaign_id?: string | null;
+  attr_source?: string | null;
+  attr_medium?: string | null;
+  attr_campaign?: string | null;
+  attr_content?: string | null;
+  meta_campaign_id?: string | null;
+  meta_adset_id?: string | null;
+  meta_ad_id?: string | null;
+  google_campaign_id?: string | null;
+  google_ad_group_id?: string | null;
+  google_ad_id?: string | null;
+  gclid?: string | null;
+  wbraid?: string | null;
+  gbraid?: string | null;
+  created_at?: string | null;
+}
+
+interface BusinessOpportunityRow {
+  id: string;
+  contact_id?: string | null;
+  status?: string | null;
+  value?: number | string | null;
+}
+
+interface BusinessAppointmentRow {
+  id: string;
+  contact_id?: string | null;
+  status?: string | null;
+}
+
+interface BusinessCostRow {
+  spend_amount?: number | string | null;
+  source?: string | null;
+  campaign_name?: string | null;
+}
+
+function useAdsCampaignBusinessMetrics(companyId: string | undefined, campaigns: CampaignRow[]) {
+  const campaignSignature = useMemo(
+    () =>
+      campaigns
+        .map((campaign) =>
+          [
+            campaign.id,
+            campaign.platform,
+            campaign.name,
+            campaign.metaCampaignId ?? "",
+            campaign.googleCampaignId ?? "",
+          ].join(":"),
+        )
+        .join("|"),
+    [campaigns],
+  );
+
+  const query = useQuery({
+    queryKey: ["ads-campaign-business-metrics", companyId, campaignSignature],
+    queryFn: async () => {
+      if (!companyId || campaigns.length === 0) {
+        return {
+          contacts: [] as BusinessContactRow[],
+          opportunities: [] as BusinessOpportunityRow[],
+          appointments: [] as BusinessAppointmentRow[],
+          costs: [] as BusinessCostRow[],
+        };
+      }
+      const contacts = await fetchBusinessContacts(companyId);
+      const contactIds = contacts.map((contact) => contact.id).filter(Boolean);
+      const [opportunities, appointments, costs] = await Promise.all([
+        fetchBusinessOpportunities(companyId, contactIds),
+        fetchBusinessAppointments(companyId, contactIds),
+        fetchBusinessCosts(companyId),
+      ]);
+      return { contacts, opportunities, appointments, costs };
+    },
+    enabled: !!companyId && campaigns.length > 0,
+    staleTime: 30_000,
+  });
+
+  return useMemo(() => {
+    const contacts = query.data?.contacts ?? [];
+    const opportunities = query.data?.opportunities ?? [];
+    const appointments = query.data?.appointments ?? [];
+    const costs = query.data?.costs ?? [];
+    const byCampaign = new Map<string, AdsAttributionMetrics>();
+
+    for (const campaign of campaigns) {
+      const terms = buildCampaignTermsForRow(campaign);
+      const matchedContacts = contacts.filter((contact) => matchesCampaignContact(contact, campaign.platform, terms));
+      const contactIds = new Set(matchedContacts.map((contact) => contact.id));
+      const matchedOpportunities = opportunities.filter(
+        (opportunity) => opportunity.contact_id && contactIds.has(opportunity.contact_id),
+      );
+      const matchedAppointments = appointments.filter(
+        (appointment) => appointment.contact_id && contactIds.has(appointment.contact_id),
+      );
+      const costSpendCents = costs
+        .filter((cost) => matchesCampaignCost(cost, campaign.platform, terms))
+        .reduce((sum, cost) => sum + Math.round(Number(cost.spend_amount ?? 0) * 100), 0);
+      const won = matchedOpportunities.filter((opportunity) => isWonStatusValue(opportunity.status)).length;
+      const revenueCents = matchedOpportunities
+        .filter((opportunity) => isWonStatusValue(opportunity.status))
+        .reduce((sum, opportunity) => sum + Math.round(Number(opportunity.value ?? 0) * 100), 0);
+
+      byCampaign.set(
+        campaign.id,
+        buildAdsAttributionMetrics({
+          spendCents: campaign.spentCents || costSpendCents,
+          leads: matchedContacts.length,
+          opportunities: matchedOpportunities.length,
+          appointments: matchedAppointments.filter((appointment) => !isCancelledStatusValue(appointment.status)).length,
+          won,
+          revenueCents,
+        }),
+      );
+    }
+
+    const totals = Array.from(byCampaign.values()).reduce(
+      (acc, metrics) =>
+        buildAdsAttributionMetrics({
+          spendCents: acc.spendCents + metrics.spendCents,
+          leads: acc.leads + metrics.leads,
+          opportunities: acc.opportunities + metrics.opportunities,
+          appointments: acc.appointments + metrics.appointments,
+          won: acc.won + metrics.won,
+          revenueCents: acc.revenueCents + metrics.revenueCents,
+        }),
+      buildAdsAttributionMetrics({}),
+    );
+
+    return {
+      byCampaign,
+      totals,
+      isLoading: query.isLoading,
+    };
+  }, [campaigns, query.data, query.isLoading]);
+}
+
+function toLocalCampaignDraft(
+  draft: Omit<AdsLocalCampaignDraft, "status"> & { status?: CampaignStatus },
+): LocalCampaignDraft {
+  return {
+    ...draft,
+    status: draft.status ?? "draft",
+    builderState: draft.builderState as BuilderState | undefined,
+  };
+}
+
+function googleCampaignToDraft(campaign: GoogleAdsCampaignRow): LocalCampaignDraft {
+  const rawBuilderState = (campaign.builder_state ?? {}) as Record<string, unknown>;
+  const builderState = {
+    ...DEFAULT_BUILDER,
+    ...rawBuilderState,
+    platform: "google",
+    googleChannel: normalizeGoogleChannel(campaign.advertising_channel),
+  } as BuilderState;
+  const adSets = Array.isArray(builderState.adSets) ? builderState.adSets.length : 0;
+  const creatives = Array.isArray(builderState.creatives) ? builderState.creatives.length : 0;
+  const targetCplCents =
+    typeof builderState.targetCpl === "number"
+      ? builderState.targetCpl * 100
+      : campaign.target_cpa_micros
+        ? Math.round(campaign.target_cpa_micros / 10_000)
+        : 0;
+
+  return {
+    id: campaign.id,
+    name: campaign.name,
+    objective: typeof rawBuilderState.objective === "string" ? rawBuilderState.objective : "OUTCOME_LEADS",
+    status: campaign.status === "archived" ? "draft" : (campaign.status as CampaignStatus),
+    budgetCents: campaign.daily_budget_cents ?? 0,
+    zone:
+      typeof builderState.zone === "string" && builderState.zone.trim()
+        ? builderState.zone
+        : campaign.geo_targets?.[0]?.name ?? "-",
+    adSets: adSets || 1,
+    ads: Math.max(1, adSets * Math.max(1, creatives)),
+    targetCplCents,
+    createdAt: campaign.created_at,
+    updatedAt: campaign.updated_at,
+    copyVariants: Array.isArray(builderState.copyVariants) ? builderState.copyVariants : [],
+    imagePrompt: typeof builderState.imagePrompt === "string" ? builderState.imagePrompt : "",
+    builderState,
+    integrationId: campaign.integration_id,
+    googleCampaignId: campaign.google_campaign_id,
+    googleAccountId: campaign.google_account_id,
+    publishError: campaign.publish_error,
+  };
+}
+
+function normalizeGoogleChannel(channel: string): BuilderState["googleChannel"] {
+  if (channel === "DISPLAY" || channel === "VIDEO" || channel === "PERFORMANCE_MAX") return channel;
+  return "SEARCH";
+}
+
+async function fetchBusinessContacts(companyId: string): Promise<BusinessContactRow[]> {
+  const fullSelect =
+    "id, source, source_campaign_id, attr_source, attr_medium, attr_campaign, attr_content, meta_campaign_id, meta_adset_id, meta_ad_id, google_campaign_id, google_ad_group_id, google_ad_id, gclid, wbraid, gbraid, created_at";
+  const fallbackSelect =
+    "id, source, source_campaign_id, attr_source, attr_medium, attr_campaign, attr_content, created_at";
+  try {
+    const { data, error } = await (supabase as any)
+      .from("marketing_contacts")
+      .select(fullSelect)
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(2000);
+    if (!error) return (data ?? []) as BusinessContactRow[];
+    const msg = String(error.message ?? error);
+    if (!msg.includes("schema cache") && !msg.includes("does not exist") && !msg.includes("column")) throw error;
+
+    const fallback = await (supabase as any)
+      .from("marketing_contacts")
+      .select(fallbackSelect)
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(2000);
+    if (fallback.error) throw fallback.error;
+    return (fallback.data ?? []) as BusinessContactRow[];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchBusinessOpportunities(companyId: string, contactIds: string[]): Promise<BusinessOpportunityRow[]> {
+  if (contactIds.length === 0) return [];
+  try {
+    const { data, error } = await (supabase as any)
+      .from("marketing_opportunities")
+      .select("id, contact_id, status, value")
+      .eq("company_id", companyId)
+      .in("contact_id", contactIds)
+      .limit(2000);
+    if (error) throw error;
+    return (data ?? []) as BusinessOpportunityRow[];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchBusinessAppointments(companyId: string, contactIds: string[]): Promise<BusinessAppointmentRow[]> {
+  if (contactIds.length === 0) return [];
+  try {
+    const { data, error } = await (supabase as any)
+      .from("appointments")
+      .select("id, contact_id, status")
+      .eq("company_id", companyId)
+      .in("contact_id", contactIds)
+      .limit(2000);
+    if (error) throw error;
+    return (data ?? []) as BusinessAppointmentRow[];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchBusinessCosts(companyId: string): Promise<BusinessCostRow[]> {
+  try {
+    const { data, error } = await (supabase as any)
+      .from("campaign_costs")
+      .select("spend_amount, source, campaign_name")
+      .eq("company_id", companyId)
+      .limit(1000);
+    if (error) throw error;
+    return (data ?? []) as BusinessCostRow[];
+  } catch {
+    return [];
+  }
+}
+
+function buildCampaignTermsForRow(campaign: CampaignRow) {
+  return [
+    campaign.id,
+    campaign.name,
+    campaign.metaCampaignId,
+    campaign.googleCampaignId,
+    campaign.draftRef?.builderState?.name,
+  ]
+    .map(normalizeLookup)
+    .filter((term, index, terms) => term.length >= 3 && terms.indexOf(term) === index);
+}
+
+function matchesCampaignContact(
+  contact: BusinessContactRow,
+  provider: AdsAttributionProvider,
+  campaignTerms: string[],
+) {
+  if (campaignTerms.length === 0 || !isAdsAttributedContact(contact, provider)) return false;
+  const values = [
+    contact.source_campaign_id,
+    contact.attr_campaign,
+    contact.attr_content,
+    contact.source,
+    contact.meta_campaign_id,
+    contact.meta_adset_id,
+    contact.meta_ad_id,
+    contact.google_campaign_id,
+    contact.google_ad_group_id,
+    contact.google_ad_id,
+  ].map(normalizeLookup);
+  return campaignTerms.some((term) =>
+    values.some((value) => value.length >= 3 && (value.includes(term) || (value.length >= 8 && term.includes(value)))),
+  );
+}
+
+function matchesCampaignCost(cost: BusinessCostRow, provider: AdsAttributionProvider, campaignTerms: string[]) {
+  if (campaignTerms.length === 0) return false;
+  const source = normalizeLookup(cost.source);
+  if (provider === "meta" && source && !/(meta|facebook|instagram|paid_social)/.test(source)) return false;
+  if (provider === "google" && source && !/(google|adwords|paid_search|cpc|ppc)/.test(source)) return false;
+  const values = [cost.campaign_name, cost.source].map(normalizeLookup);
+  return campaignTerms.some((term) =>
+    values.some((value) => value.length >= 3 && (value.includes(term) || (value.length >= 8 && term.includes(value)))),
+  );
+}
+
+function isWonStatusValue(status: string | null | undefined) {
+  const value = normalizeLookup(status);
+  return value === "won" || value === "closed_won" || value === "vinto";
+}
+
+function isCancelledStatusValue(status: string | null | undefined) {
+  const value = normalizeLookup(status);
+  return value === "cancelled" || value === "canceled" || value === "annullato";
 }
 
 export default function AdsManagerBeta() {
@@ -887,6 +1529,7 @@ export default function AdsManagerBeta() {
   const companyId = effectiveCompany?.id;
   const companyName = effectiveCompany?.name ?? "La tua azienda";
   const isDemoCompany = companyId === DEMO_COMPANY_ID;
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const mode = searchParams.get("mode");
@@ -898,6 +1541,9 @@ export default function AdsManagerBeta() {
     (searchParams.get("googleChannel") as "SEARCH" | "DISPLAY" | "VIDEO" | "PERFORMANCE_MAX" | null) ?? undefined;
 
   const meta = useMetaConnection(companyId, isDemoCompany);
+  const google = useGoogleAdsConnection(companyId, isDemoCompany);
+  const pixel = useMetaPixelConfig(companyId);
+  const googleStats = useGoogleAdsStats();
 
   // Realtime: ascolta autopause + status changes campaign → toast
   useAdsNotifications(companyId);
@@ -907,21 +1553,48 @@ export default function AdsManagerBeta() {
     campaigns: dbCampaigns,
     saveDraft: saveDraftDb,
     updateDraft: updateDraftDb,
+    updateStatus: updateCampaignStatus,
     deleteDraft: deleteDraftDb,
-    findCampaign: findDbCampaign,
     isLoading: campaignsLoading,
   } = useMetaCampaigns(companyId);
 
+  const {
+    campaigns: googleDbCampaigns,
+    saveDraft: saveGoogleDraftDb,
+    updateDraft: updateGoogleDraftDb,
+    updateStatus: updateGoogleCampaignStatus,
+    deleteDraft: deleteGoogleDraftDb,
+    findCampaign: findGoogleDbCampaign,
+    isLoading: googleCampaignsLoading,
+  } = useGoogleAdsCampaigns(companyId);
+
   // Wrapper di compatibilità con la vecchia API (drafts/saveDraft/etc.)
   // Adatta MetaCampaignRow → LocalCampaignDraft per riusare i componenti esistenti
-  const drafts: LocalCampaignDraft[] = useMemo(
+  const metaDrafts: LocalCampaignDraft[] = useMemo(
     () =>
-      dbCampaigns.map((c) => metaCampaignToLegacyDraft(c)),
+      dbCampaigns.map((c) => toLocalCampaignDraft(metaCampaignToDraft(c))),
     [dbCampaigns],
+  );
+  const googleDrafts: LocalCampaignDraft[] = useMemo(
+    () => googleDbCampaigns.map((campaign) => toLocalCampaignDraft(googleCampaignToDraft(campaign))),
+    [googleDbCampaigns],
+  );
+  const drafts: LocalCampaignDraft[] = useMemo(
+    () => [...metaDrafts, ...googleDrafts],
+    [metaDrafts, googleDrafts],
   );
 
   const saveDraft = useCallback(
     async (state: BuilderState): Promise<LocalCampaignDraft> => {
+      if (state.platform === "google") {
+        const result = await saveGoogleDraftDb({
+          builder_state: state as unknown as Record<string, unknown>,
+          name: state.name.trim() || "Campagna Google senza nome",
+          advertising_channel: state.googleChannel ?? "SEARCH",
+          daily_budget_cents: getCampaignDailyBudget(state) * 100,
+        });
+        return toLocalCampaignDraft(googleCampaignToDraft(result));
+      }
       const result = await saveDraftDb({
         builder_state: state as unknown as Record<string, unknown>,
         name: state.name.trim() || "Campagna Meta senza nome",
@@ -930,15 +1603,25 @@ export default function AdsManagerBeta() {
       });
       // Result può essere MetaCampaignRow o LegacyDraft (dal fallback)
       if ("builder_state" in result) {
-        return metaCampaignToLegacyDraft(result as MetaCampaignRow);
+        return toLocalCampaignDraft(metaCampaignToDraft(result));
       }
-      return result as LocalCampaignDraft;
+      return toLocalCampaignDraft(result);
     },
-    [saveDraftDb],
+    [saveDraftDb, saveGoogleDraftDb],
   );
 
   const updateDraft = useCallback(
     async (id: string, state: BuilderState): Promise<void> => {
+      if (state.platform === "google") {
+        await updateGoogleDraftDb({
+          id,
+          builder_state: state as unknown as Record<string, unknown>,
+          name: state.name.trim() || "Campagna Google senza nome",
+          advertising_channel: state.googleChannel ?? "SEARCH",
+          daily_budget_cents: getCampaignDailyBudget(state) * 100,
+        });
+        return;
+      }
       await updateDraftDb({
         id,
         builder_state: state as unknown as Record<string, unknown>,
@@ -947,22 +1630,100 @@ export default function AdsManagerBeta() {
         daily_budget_cents: getCampaignDailyBudget(state) * 100,
       });
     },
-    [updateDraftDb],
+    [updateDraftDb, updateGoogleDraftDb],
   );
 
   const removeDraft = useCallback(
     async (id: string): Promise<void> => {
+      if (findGoogleDbCampaign(id)) {
+        await deleteGoogleDraftDb(id);
+        return;
+      }
       await deleteDraftDb(id);
     },
-    [deleteDraftDb],
+    [deleteDraftDb, deleteGoogleDraftDb, findGoogleDbCampaign],
   );
 
   const findDraft = useCallback(
     (id: string): LocalCampaignDraft | null => {
-      const c = findDbCampaign(id);
-      return c ? metaCampaignToLegacyDraft(c) : null;
+      return drafts.find((draft) => draft.id === id) ?? null;
     },
-    [findDbCampaign],
+    [drafts],
+  );
+
+  const canPublishToMeta = Boolean(
+    companyId && meta.integration?.status === "connected" && meta.adAccounts.length > 0,
+  );
+
+  const requestReview = useCallback(
+    async (draft: LocalCampaignDraft) => {
+      if (draft.builderState?.platform === "google") {
+        await updateGoogleCampaignStatus({
+          id: draft.id,
+          status: "review",
+          publish_error: null,
+        });
+        toast.success("Campagna Google inviata in revisione", {
+          description: "Resta separata da Meta e usa il flusso Google Ads.",
+        });
+        return;
+      }
+      await updateCampaignStatus({
+        id: draft.id,
+        status: "review",
+        publish_error: null,
+      });
+      toast.success("Campagna inviata in revisione", {
+        description: "Ora compare nel flusso approvazioni del titolare.",
+      });
+    },
+    [updateCampaignStatus, updateGoogleCampaignStatus],
+  );
+
+  const [isPublishing, setIsPublishing] = useState(false);
+  const publishDraft = useCallback(
+    async (draft: LocalCampaignDraft) => {
+      if (!companyId) throw new Error("no_company_id");
+      if (draft.builderState?.platform === "google") {
+        throw new Error("Google Ads live richiede OAuth Google Ads e Developer Token: completa il collegamento in Impostazioni.");
+      }
+      const publishQa = getPublishQa(draft, meta, pixel.config);
+      if (publishQa.blockers.length > 0) {
+        throw new Error(`QA pre-pubblicazione: ${publishQa.blockers[0]}`);
+      }
+      setIsPublishing(true);
+      try {
+        const request = buildMetaPublishRequest({
+          companyId,
+          draft,
+          adAccountAsset: meta.adAccounts[0],
+          dryRun: false,
+        });
+        const { data, error } = await supabase.functions.invoke<{
+          success?: boolean;
+          error?: string;
+          detail?: string;
+          campaign_id?: string;
+          meta_campaign_id?: string;
+          errors?: string[];
+        }>("meta-ads-create-campaign", {
+          body: request,
+        });
+        if (error) throw error;
+        if (data?.error || data?.success === false) {
+          const detail = data?.detail ?? data?.errors?.join(", ") ?? data?.error ?? "publish_failed";
+          throw new Error(detail);
+        }
+        await queryClient.invalidateQueries({ queryKey: metaCampaignKeys.byCompany(companyId) });
+        await queryClient.invalidateQueries({ queryKey: ["meta-pending-approvals", companyId] });
+        toast.success("Campagna pubblicata in PAUSED", {
+          description: "Meta ha creato campagna, ad set e annunci senza attivarli.",
+        });
+      } finally {
+        setIsPublishing(false);
+      }
+    },
+    [companyId, meta, pixel.config, queryClient],
   );
 
   const view: ViewMode =
@@ -1030,32 +1791,64 @@ export default function AdsManagerBeta() {
   const openDetail = (id: string) => setSearchParams({ detail: id });
   const backToList = (tab: AdsTab = "campagne") => setSearchParams({ tab });
 
+  const googleSpendByCampaign = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const campaign of googleStats.campaigns) {
+      const spendCents = Math.round(Number(campaign.spend ?? 0) * 100);
+      if (campaign.campaign_id) map.set(normalizeLookup(campaign.campaign_id), spendCents);
+      map.set(normalizeLookup(campaign.campaign_name), spendCents);
+    }
+    return map;
+  }, [googleStats.campaigns]);
+
   const draftRows: CampaignRow[] = useMemo(
     () =>
-      drafts.map((draft) => ({
-        id: draft.id,
-        name: draft.name,
-        objective: draft.objective,
-        status: "draft" as const,
-        budgetCents: draft.budgetCents,
-        spentCents: 0,
-        leads: 0,
-        opportunities: 0,
-        jobs: 0,
-        adSets: draft.adSets ?? 1,
-        ads: draft.ads ?? Math.max(1, draft.copyVariants.length),
-        targetCplCents: draft.targetCplCents ?? 0,
-        source: "local" as const,
-        draftRef: draft,
-      })),
-    [drafts],
+      drafts.map((draft) => {
+        const base = draftToCampaignRow(draft);
+        const platform = draft.builderState?.platform ?? "meta";
+        const googleSpend =
+          platform === "google"
+            ? googleSpendByCampaign.get(normalizeLookup(draft.googleCampaignId)) ??
+              googleSpendByCampaign.get(normalizeLookup(draft.name)) ??
+              0
+            : 0;
+        const spentCents = googleSpend || base.spentCents;
+        return {
+          ...base,
+          platform,
+          spentCents,
+          revenueCents: 0,
+          roas: 0,
+          googleChannel: platform === "google" ? draft.builderState?.googleChannel : undefined,
+          draftRef: draft,
+          googleCampaignId: draft.googleCampaignId,
+        };
+      }),
+    [drafts, googleSpendByCampaign],
   );
 
-  // Solo i draft locali contano per i KPI reali. SAMPLE_CAMPAIGNS sono demo.
-  const realCampaigns = draftRows;
+  const businessMetrics = useAdsCampaignBusinessMetrics(companyId, draftRows);
+  // Solo i draft reali contano per i KPI reali. SAMPLE_CAMPAIGNS sono demo.
+  const realCampaigns = useMemo(
+    () =>
+      draftRows.map((campaign) => {
+        const metrics = businessMetrics.byCampaign.get(campaign.id);
+        if (!metrics) return campaign;
+        return {
+          ...campaign,
+          spentCents: metrics.spendCents || campaign.spentCents,
+          leads: metrics.leads,
+          opportunities: metrics.opportunities,
+          jobs: metrics.won,
+          revenueCents: metrics.revenueCents,
+          roas: metrics.roas,
+        };
+      }),
+    [draftRows, businessMetrics.byCampaign],
+  );
   const allCampaigns = useMemo(
-    () => (showSamples ? [...draftRows, ...SAMPLE_CAMPAIGNS] : draftRows),
-    [draftRows, showSamples],
+    () => (showSamples ? [...realCampaigns, ...SAMPLE_CAMPAIGNS] : realCampaigns),
+    [realCampaigns, showSamples],
   );
 
   // Spend Guard: il cap mensile arriva dal DB (ad_spend_guard) con fallback default
@@ -1064,8 +1857,10 @@ export default function AdsManagerBeta() {
   const monthlySpend = realCampaigns.reduce((sum, c) => sum + c.spentCents, 0);
   const totalLeads = realCampaigns.reduce((sum, c) => sum + c.leads, 0);
   const totalJobs = realCampaigns.reduce((sum, c) => sum + c.jobs, 0);
+  const totalRevenue = realCampaigns.reduce((sum, c) => sum + c.revenueCents, 0);
   const costPerLead = totalLeads ? monthlySpend / totalLeads : 0;
   const costPerJob = totalJobs ? monthlySpend / totalJobs : 0;
+  const roas = monthlySpend ? totalRevenue / monthlySpend : 0;
   const monthlyCap = spendGuardConfig.monthly_cap_cents;
   const spendPct = monthlyCap > 0 ? Math.min(100, Math.round((monthlySpend / monthlyCap) * 100)) : 0;
 
@@ -1109,6 +1904,8 @@ export default function AdsManagerBeta() {
             const seeded: BuilderState = {
               ...DEFAULT_BUILDER,
               platform: (initialPlatformFromUrl ?? "meta") as "meta" | "google",
+              googleChannel:
+                initialPlatformFromUrl === "google" ? (initialGoogleChannelFromUrl ?? "SEARCH") : undefined,
               name: parsed.name,
               objective: parsed.objective,
               offer: parsed.offer,
@@ -1140,7 +1937,13 @@ export default function AdsManagerBeta() {
             try {
               sessionStorage.setItem("ads_quickstart_seed", JSON.stringify(parsed));
             } catch { /* ignore */ }
-            setSearchParams({ mode: "create", platform: initialPlatformFromUrl ?? "meta" });
+            setSearchParams({
+              mode: "create",
+              platform: initialPlatformFromUrl ?? "meta",
+              ...(initialPlatformFromUrl === "google" && initialGoogleChannelFromUrl
+                ? { googleChannel: initialGoogleChannelFromUrl }
+                : {}),
+            });
           }}
         />
       </div>
@@ -1160,7 +1963,7 @@ export default function AdsManagerBeta() {
           onCancel={() => backToList()}
         />
         <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6">
-          <ConnectionPill meta={meta} />
+          <ConnectionPill meta={meta} google={google} />
           <div className="mt-5">
             <CampaignBuilderTab
               companyName={companyName}
@@ -1181,7 +1984,7 @@ export default function AdsManagerBeta() {
                   } else {
                     const draft = await saveDraft(state);
                     toast.success("Bozza campagna salvata", {
-                      description: `${draft.name} è pronta per revisione prima della pubblicazione Meta.`,
+                      description: `${draft.name} è pronta per revisione prima della pubblicazione.`,
                     });
                     openDetail(draft.id);
                   }
@@ -1228,12 +2031,20 @@ export default function AdsManagerBeta() {
         </div>
       );
     }
+    const draftPlatform = draft.builderState?.platform ?? "meta";
+    const publishQa =
+      draftPlatform === "google" ? getGooglePublishQa(draft, google) : getPublishQa(draft, meta, pixel.config);
     return (
       <div className="min-h-screen bg-slate-50/70">
         <DetailHeader
           draft={draft}
           onBack={() => backToList()}
           onEdit={() => openWizardEdit(draft.id)}
+          onRequestReview={() => requestReview(draft)}
+          onPublish={() => publishDraft(draft)}
+          isPublishing={isPublishing}
+          canPublish={draftPlatform === "meta" && canPublishToMeta && publishQa.blockers.length === 0}
+          publishBlockers={publishQa.blockers}
           onDelete={async () => {
             try {
               await removeDraft(draft.id);
@@ -1295,7 +2106,7 @@ export default function AdsManagerBeta() {
       />
       <ListHeader onCreate={openWizardNew} />
       <main className="mx-auto max-w-[1500px] px-4 py-5 sm:px-6">
-        <ConnectionPill meta={meta} />
+        <ConnectionPill meta={meta} google={google} />
 
         <Tabs
           value={activeTab}
@@ -1330,15 +2141,20 @@ export default function AdsManagerBeta() {
               monthlyCap={monthlyCap}
               totalLeads={totalLeads}
               totalJobs={totalJobs}
+              totalRevenue={totalRevenue}
               costPerLead={costPerLead}
               costPerJob={costPerJob}
+              roas={roas}
               showSamples={showSamples}
               onToggleSamples={setShowSamples}
-              isLoading={campaignsLoading}
+              isLoading={
+                allCampaigns.length === 0 &&
+                (campaignsLoading || googleCampaignsLoading || businessMetrics.isLoading)
+              }
               onCreate={openWizardNew}
               onOpenCampaign={(c) => {
                 if (c.source === "local") openDetail(c.id);
-                else toast.info("Anteprima campagna Meta — disponibile dopo il collegamento live");
+                else toast.info(`Anteprima campagna ${platformLabel(c.platform)} — disponibile dopo il collegamento live`);
               }}
               onRemoveDraft={async (id) => {
                 try {
@@ -1361,7 +2177,7 @@ export default function AdsManagerBeta() {
           </TabsContent>
 
           <TabsContent value="impostazioni" className="mt-4">
-            <SettingsTab meta={meta} companyId={companyId} />
+            <SettingsTab meta={meta} google={google} companyId={companyId} />
           </TabsContent>
         </Tabs>
       </main>
@@ -1381,7 +2197,7 @@ function ListHeader({ onCreate }: { onCreate: () => void }) {
               Beta Demo Azienda
             </Badge>
             <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
-              Campagne Meta
+              Meta + Google Ads
             </Badge>
             <Badge className="border-slate-200 bg-white text-slate-600" variant="outline">
               Pubblicazione live disattivata
@@ -1389,14 +2205,14 @@ function ListHeader({ onCreate }: { onCreate: () => void }) {
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Pubblicità</h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            Crea richieste preventivo qualificate da Meta senza entrare nella complessità di Business Manager. La beta lavora in locale con bozze sicure, checklist e controllo prima del lancio.
+            Crea richieste preventivo qualificate da Meta e Google Ads senza confondere i due canali. Le bozze restano separate, mentre KPI CRM, vendite, fatturato e ROAS sono letti insieme.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button variant="outline" asChild>
-            <Link to="/azienda/impostazioni/lead-forms">
+            <Link to="/azienda/impostazioni/integrazioni">
               <Settings className="h-4 w-4" />
-              Collega Meta
+              Collega Ads
             </Link>
           </Button>
           <Button onClick={onCreate}>
@@ -1430,7 +2246,7 @@ function WizardHeader({
             {editing ? "Modifica campagna" : "Nuova campagna guidata"}
           </p>
           <p className="truncate text-base font-semibold text-slate-950">
-            {editing ? draftName ?? "Bozza" : "Crea una campagna Meta passo passo"}
+            {editing ? draftName ?? "Bozza" : "Crea una campagna Ads passo passo"}
           </p>
         </div>
       </div>
@@ -1442,14 +2258,36 @@ function DetailHeader({
   draft,
   onBack,
   onEdit,
+  onRequestReview,
+  onPublish,
+  isPublishing = false,
+  canPublish = false,
+  publishBlockers = [],
   onDelete,
 }: {
   draft: LocalCampaignDraft;
   onBack: () => void;
   onEdit: () => void;
+  onRequestReview?: () => Promise<void> | void;
+  onPublish?: () => Promise<void> | void;
+  isPublishing?: boolean;
+  canPublish?: boolean;
+  publishBlockers?: string[];
   onDelete: () => void;
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const status = draft.status ?? "draft";
+  const canRequestReview = status === "draft" || status === "error";
+  const handlePublish = async () => {
+    if (!onPublish) return;
+    try {
+      await onPublish();
+    } catch (err) {
+      toast.error("Pubblicazione bloccata", {
+        description: String((err as Error).message ?? err),
+      });
+    }
+  };
   return (
     <div className="border-b bg-white">
       <div className="mx-auto flex max-w-[1500px] flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
@@ -1460,8 +2298,8 @@ function DetailHeader({
           </Button>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-                Bozza locale
+              <Badge variant="outline" className={statusClass(status)}>
+                {statusLabel(status)}
               </Badge>
               <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
                 {objectiveLabel(draft.objective)}
@@ -1477,6 +2315,26 @@ function DetailHeader({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canRequestReview && onRequestReview && (
+            <Button variant="outline" onClick={() => void onRequestReview()}>
+              <ShieldCheck className="h-4 w-4" />
+              Invia in review
+            </Button>
+          )}
+          {onPublish && (
+            <Button
+              onClick={() => void handlePublish()}
+              disabled={!canPublish || isPublishing}
+              title={!canPublish ? publishBlockers[0] ?? "Completa la QA pre-pubblicazione" : undefined}
+            >
+              {isPublishing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Rocket className="h-4 w-4" />
+              )}
+              Pubblica PAUSED
+            </Button>
+          )}
           <Button variant="outline" onClick={onEdit}>
             <Pencil className="h-4 w-4" />
             Modifica completa
@@ -1486,6 +2344,12 @@ function DetailHeader({
             Elimina
           </Button>
         </div>
+        {onPublish && publishBlockers.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 lg:max-w-md">
+            <p className="font-semibold">QA pre-pubblicazione bloccante</p>
+            <p className="mt-1">{publishBlockers.slice(0, 2).join(" · ")}</p>
+          </div>
+        )}
       </div>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
@@ -1519,37 +2383,91 @@ function DetailHeader({
  * Tutta la versione "verbose" è stata spostata nel SettingsTab > setupBlocks
  * per evitare ridondanza con i badge nell'header.
  */
-function ConnectionPill({ meta }: { meta: ReturnType<typeof useMetaConnection> }) {
-  const connected = meta.integration?.status === "connected";
-  const tone = connected
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-    : "border-amber-200 bg-amber-50 text-amber-700";
+function ConnectionPill({
+  meta,
+  google,
+}: {
+  meta: ReturnType<typeof useMetaConnection>;
+  google: ReturnType<typeof useGoogleAdsConnection>;
+}) {
+  const metaConnected = meta.integration?.status === "connected";
+  const metaReady = metaConnected && meta.adAccounts.length > 0 && meta.pages.length > 0;
+  const googleConnected = google.integration?.status === "connected";
+  const googleReady = googleConnected && google.accounts.length > 0;
+  const anyMissing = !metaReady || !googleReady;
 
   return (
-    <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-2.5", tone)}>
-      <div className="flex items-center gap-2 text-sm">
-        {meta.isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : connected ? (
-          <Check className="h-4 w-4" />
-        ) : (
-          <AlertTriangle className="h-4 w-4" />
-        )}
-        <span className="font-semibold">
-          {connected ? "Meta collegato" : "Meta non collegato"}
-        </span>
-        {connected && (
-          <span className="text-xs opacity-80">
-            · {meta.adAccounts.length} ad account · {meta.pages.length} pagine
-          </span>
-        )}
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <ConnectionChip
+          loading={meta.isLoading}
+          connected={metaReady}
+          label="Meta Ads"
+          detail={
+            metaReady
+              ? `${meta.adAccounts.length} ad account · ${meta.pages.length} pagine`
+              : metaConnected
+                ? meta.adAccounts.length === 0
+                  ? "ad account da configurare"
+                  : "pagina da configurare"
+                : "non collegato"
+          }
+          tone="blue"
+        />
+        <ConnectionChip
+          loading={google.isLoading}
+          connected={googleReady}
+          label="Google Ads"
+          detail={
+            googleReady
+              ? `${google.accounts.length} customer ID${google.selectedAccount?.customer_name ? ` · ${google.selectedAccount.customer_name}` : ""}`
+              : googleConnected
+                ? "Customer ID da configurare"
+              : "non collegato"
+          }
+          tone="amber"
+        />
       </div>
-      {!connected && (
+      {anyMissing && (
         <Button variant="link" size="sm" className="h-auto p-0 text-xs underline" asChild>
-          <Link to="/azienda/impostazioni/lead-forms">Configura ora</Link>
+          <Link to="/azienda/impostazioni/integrazioni">Configura integrazioni</Link>
         </Button>
       )}
     </div>
+  );
+}
+
+function ConnectionChip({
+  loading,
+  connected,
+  label,
+  detail,
+  tone,
+}: {
+  loading: boolean;
+  connected: boolean;
+  label: string;
+  detail: string;
+  tone: "blue" | "amber";
+}) {
+  const toneClass =
+    connected
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : tone === "amber"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-blue-200 bg-blue-50 text-blue-700";
+  return (
+    <span className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1", toneClass)}>
+      {loading ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : connected ? (
+        <Check className="h-3.5 w-3.5" />
+      ) : (
+        <AlertTriangle className="h-3.5 w-3.5" />
+      )}
+      <span className="font-semibold">{label}</span>
+      <span className="text-xs opacity-80">{detail}</span>
+    </span>
   );
 }
 
@@ -1561,8 +2479,10 @@ function CampaignsHomeView({
   monthlyCap,
   totalLeads,
   totalJobs,
+  totalRevenue,
   costPerLead,
   costPerJob,
+  roas,
   showSamples,
   onToggleSamples,
   isLoading = false,
@@ -1577,8 +2497,10 @@ function CampaignsHomeView({
   monthlyCap: number;
   totalLeads: number;
   totalJobs: number;
+  totalRevenue: number;
   costPerLead: number;
   costPerJob: number;
+  roas: number;
   showSamples: boolean;
   onToggleSamples: (next: boolean) => void;
   isLoading?: boolean;
@@ -1595,8 +2517,10 @@ function CampaignsHomeView({
         spendPct={spendPct}
         totalLeads={totalLeads}
         totalJobs={totalJobs}
+        totalRevenue={totalRevenue}
         costPerLead={costPerLead}
         costPerJob={costPerJob}
+        roas={roas}
         draftsCount={draftsCount}
       />
 
@@ -1624,8 +2548,10 @@ function KpiBar({
   spendPct,
   totalLeads,
   totalJobs,
+  totalRevenue,
   costPerLead,
   costPerJob,
+  roas,
   draftsCount,
 }: {
   monthlySpend: number;
@@ -1633,8 +2559,10 @@ function KpiBar({
   spendPct: number;
   totalLeads: number;
   totalJobs: number;
+  totalRevenue: number;
   costPerLead: number;
   costPerJob: number;
+  roas: number;
   draftsCount: number;
 }) {
   const isEmpty = monthlySpend === 0 && totalLeads === 0 && draftsCount === 0;
@@ -1647,7 +2575,7 @@ function KpiBar({
         <div
           className={cn(
             "grid gap-4 sm:grid-cols-2",
-            showCostPerJob ? "lg:grid-cols-4" : "lg:grid-cols-3",
+            showCostPerJob ? "lg:grid-cols-5" : "lg:grid-cols-4",
           )}
         >
           <KpiItem
@@ -1670,6 +2598,13 @@ function KpiBar({
             label="Costo per lead"
             value={costPerLead ? formatEuro(costPerLead) : "—"}
             detail={totalLeads > 0 ? "media periodo" : "in attesa di lead"}
+          />
+          <KpiItem
+            icon={Euro}
+            tone="green"
+            label="Fatturato generato"
+            value={totalRevenue ? formatEuro(totalRevenue) : "—"}
+            detail={totalRevenue > 0 ? `ROAS ${roas.toFixed(2)}x` : "vendite vinte da CRM"}
           />
           {showCostPerJob && (
             <KpiItem
@@ -1803,6 +2738,7 @@ function CampaignsList({
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | CampaignStatus>("all");
+  const [platformFilter, setPlatformFilter] = useState<"all" | "meta" | "google">("all");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const confirmDeleteCampaign = useMemo(
     () => campaigns.find((c) => c.id === confirmDeleteId),
@@ -1815,6 +2751,7 @@ function CampaignsList({
     const counts: Record<CampaignStatus, number> = {
       draft: 0,
       review: 0,
+      published: 0,
       active: 0,
       paused: 0,
       error: 0,
@@ -1837,13 +2774,14 @@ function CampaignsList({
     const term = search.trim().toLowerCase();
     return campaigns.filter((c) => {
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      if (platformFilter !== "all" && c.platform !== platformFilter) return false;
       if (!term) return true;
       const haystack = `${c.name} ${objectiveLabel(c.objective)} ${statusLabel(c.status)} ${
-        c.source === "local" ? "bozza" : "meta"
+        c.source === "local" ? "bozza" : c.platform
       }`.toLowerCase();
       return haystack.includes(term);
     });
-  }, [campaigns, search, statusFilter]);
+  }, [campaigns, search, statusFilter, platformFilter]);
 
   const isEmpty = campaigns.length === 0;
   const isFilteredEmpty = !isEmpty && filtered.length === 0;
@@ -1884,6 +2822,16 @@ function CampaignsList({
                     {statusLabel(status)} ({statusCounts[status]})
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={platformFilter} onValueChange={(v) => setPlatformFilter(v as typeof platformFilter)}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Piattaforma" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Meta + Google</SelectItem>
+                <SelectItem value="meta">Solo Meta Ads</SelectItem>
+                <SelectItem value="google">Solo Google Ads</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1930,7 +2878,9 @@ function CampaignsList({
                     <TableHead className="text-right">Spesa</TableHead>
                     <TableHead className="text-right">Lead</TableHead>
                     <TableHead className="text-right">CPL target</TableHead>
-                    <TableHead className="text-right">Commesse</TableHead>
+                    <TableHead className="text-right">Vendite</TableHead>
+                    <TableHead className="text-right">Fatturato</TableHead>
+                    <TableHead className="text-right">ROAS</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1950,10 +2900,13 @@ function CampaignsList({
                                 Esempio
                               </Badge>
                             )}
+                            <Badge variant="outline" className={platformBadgeClass(campaign.platform)}>
+                              {platformLabel(campaign.platform)}
+                            </Badge>
                           </div>
                           <p className="text-xs text-slate-500">
                             {objectiveLabel(campaign.objective)} ·{" "}
-                            {campaign.source === "local" ? "bozza locale" : "Meta"}
+                            {campaign.source === "local" ? "bozza locale" : platformLabel(campaign.platform)}
                           </p>
                         </div>
                       </TableCell>
@@ -1964,8 +2917,8 @@ function CampaignsList({
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <p className="font-medium text-slate-900">{campaign.adSets ?? 1} ad set</p>
-                          <p className="text-xs text-slate-500">{campaign.ads ?? 1} ads</p>
+                          <p className="font-medium text-slate-900">{structurePrimary(campaign)}</p>
+                          <p className="text-xs text-slate-500">{structureSecondary(campaign)}</p>
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-medium">
@@ -1977,6 +2930,12 @@ function CampaignsList({
                         {campaign.targetCplCents ? formatEuro(campaign.targetCplCents) : "—"}
                       </TableCell>
                       <TableCell className="text-right">{campaign.jobs}</TableCell>
+                      <TableCell className="text-right font-semibold text-emerald-700">
+                        {campaign.revenueCents ? formatEuro(campaign.revenueCents) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {campaign.roas ? `${campaign.roas.toFixed(2)}x` : "—"}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div
                           className="flex justify-end gap-1"
@@ -2025,7 +2984,7 @@ function CampaignsList({
                                       variant="ghost"
                                       aria-label={campaign.status === "active" ? "Metti in pausa" : "Riattiva"}
                                       onClick={() =>
-                                        toast.info("Azione Meta non attiva in Beta locale")
+                                        toast.info(`Azione ${platformLabel(campaign.platform)} non attiva in Beta locale`)
                                       }
                                     >
                                       {campaign.status === "active" ? (
@@ -2075,6 +3034,9 @@ function CampaignsList({
                             Esempio
                           </Badge>
                         )}
+                        <Badge variant="outline" className={platformBadgeClass(campaign.platform)}>
+                          {platformLabel(campaign.platform)}
+                        </Badge>
                       </div>
                       <p className="text-xs text-slate-500">{objectiveLabel(campaign.objective)}</p>
                     </div>
@@ -2086,7 +3048,7 @@ function CampaignsList({
                     <MiniStat label="Budget" value={formatEuro(campaign.budgetCents)} />
                     <MiniStat label="Ads" value={String(campaign.ads ?? 1)} />
                     <MiniStat label="Lead" value={String(campaign.leads)} />
-                    <MiniStat label="Commesse" value={String(campaign.jobs)} />
+                    <MiniStat label="Fatturato" value={campaign.revenueCents ? formatEuro(campaign.revenueCents) : "—"} />
                   </div>
                 </button>
               ))}
@@ -2129,9 +3091,9 @@ function EmptyCampaigns({ onCreate }: { onCreate: () => void }) {
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md">
         <Rocket className="h-7 w-7" />
       </div>
-      <p className="text-lg font-bold text-slate-950">Crea la tua prima campagna Meta</p>
+      <p className="text-lg font-bold text-slate-950">Crea la tua prima campagna Ads</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
-        Il wizard ti guida in 5 passi: offerta, pubblico, modulo lead, creatività e revisione. Tutto resta in bozza finché non confermi il lancio.
+        Il wizard ti fa scegliere Meta o Google e poi adatta offerta, pubblico/intenti, creatività e revisione. Tutto resta in bozza finché non confermi il lancio.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         <Button onClick={onCreate}>
@@ -2139,9 +3101,9 @@ function EmptyCampaigns({ onCreate }: { onCreate: () => void }) {
           Nuova campagna guidata
         </Button>
         <Button variant="outline" asChild>
-          <Link to="/azienda/impostazioni/lead-forms">
+          <Link to="/azienda/impostazioni/integrazioni">
             <Settings className="h-4 w-4" />
-            Collega Meta
+            Collega Ads
           </Link>
         </Button>
       </div>
@@ -2186,6 +3148,7 @@ function CampaignBuilderTab({
         ...base,
         platform: initialPlatform,
         googleChannel: initialPlatform === "google" ? (initialGoogleChannel ?? "SEARCH") : undefined,
+        conversionPlace: initialPlatform === "google" ? "landing_page" : base.conversionPlace,
       };
     }
     return base;
@@ -2213,7 +3176,7 @@ function CampaignBuilderTab({
       state.adSets.length > 0 &&
       state.adSets.every(
         (adSet) =>
-          adSet.name.trim().length >= 2 && adSet.dailyBudget >= 5 && adSet.audience.trim().length >= 3,
+          adSet.name.trim().length >= 2 && adSet.dailyBudget >= 5 && (state.advantageAudience || adSet.audience.trim().length >= 3),
       );
 
     // STEP 3: modulo — supporta ENTRAMBI (v1 requiredFields string + privacyUrl, v2 metaLeadForm)
@@ -2319,7 +3282,7 @@ function CampaignBuilderTab({
     }));
   };
 
-  const addCreative = (format: CreativeFormat) => {
+  const addCreative = (format: CreativeFormat, angle?: CreativeAngle) => {
     const labels: Record<CreativeFormat, string> = {
       image: "Nuova immagine",
       video: "Nuovo video",
@@ -2330,16 +3293,18 @@ function CampaignBuilderTab({
       ...prev,
       creatives: [
         ...prev.creatives,
-        {
-          id: `creative-${format}-${Date.now()}`,
-          format,
-          title: labels[format],
-          hook: "Hook da testare",
-          goal: "Capire se questo formato porta lead più qualificati.",
-          prompt: format === "carousel"
-            ? `Carosello per ${prev.copyBrief}: problema, errore comune, soluzione, prova, CTA.`
-            : `${labels[format]} per ${prev.copyBrief}: mostra problema, risultato e invito a richiedere preventivo.`,
-        },
+        angle
+          ? { ...buildCreativeFromAngle(angle, prev.copyBrief || prev.offer, prev.imagePrompt), id: `creative-${angle}-${Date.now()}` }
+          : {
+              id: `creative-${format}-${Date.now()}`,
+              format,
+              title: labels[format],
+              hook: "Hook da testare",
+              goal: "Capire se questo formato porta lead piu qualificati.",
+              prompt: format === "carousel"
+                ? `Carosello per ${prev.copyBrief}: problema, errore comune, soluzione, prova, CTA.`
+                : `${labels[format]} per ${prev.copyBrief}: mostra problema, risultato e invito a richiedere preventivo.`,
+            },
       ],
     }));
   };
@@ -2556,9 +3521,11 @@ function CampaignBuilderTab({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="instant_form">Modulo Meta nativo - più fluido da mobile</SelectItem>
-                      <SelectItem value="landing_page">Landing page - più contesto e qualità</SelectItem>
-                      <SelectItem value="dual">Doppio luogo - lascia decidere a Meta</SelectItem>
+                      {getConversionPlaceOptions(state.platform).map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Field>
@@ -2681,15 +3648,13 @@ function CampaignBuilderTab({
                 <Info className="h-4 w-4 text-amber-700" />
                 <AlertTitle>Targeting Google Ads</AlertTitle>
                 <AlertDescription className="text-xs">
-                  Google funziona per keyword e intent, non per interessi.
-                  Il targeting completo Google sarà disponibile in iterazione successiva.
-                  Per ora compila i campi base qui sotto.
+                  Google lavora su intenti di ricerca, asset e segnali. Search usa keyword e negative keyword; Performance Max usa asset group, audience signal e conversioni CRM.
                 </AlertDescription>
               </Alert>
               <div className="grid gap-3 md:grid-cols-3">
-                <GuidanceCard title="Keyword chiave" body="Per Search, le keyword sono il targeting. Pensale come domande complete del cliente." />
-                <GuidanceCard title="Località servite" body="Limita a comuni/province dove fai sopralluoghi. Niente targeting raggio per Search." />
-                <GuidanceCard title="Budget realistico" body="CPC IT edilizia 1-4€. Con 20€/giorno ottieni 5-15 click. Lascia 7-14gg di learning." />
+                <GuidanceCard title="Intento prima del volume" body="Parti da ricerche con bisogno esplicito: preventivo, costo, vicino a me, sostituzione, ristrutturazione." />
+                <GuidanceCard title="Esclusioni forti" body="Blocca ricerche da fai-da-te, lavoro, gratis, tutorial, materiale usato e zone non servite." />
+                <GuidanceCard title="Offline conversion" body="Lead, appuntamento e vendita vanno rimandati a Google Ads per far imparare Smart Bidding sul valore reale." />
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Zona principale">
@@ -2707,6 +3672,24 @@ function CampaignBuilderTab({
                   placeholder='Es. "ristrutturazione bagno Milano", "preventivo infissi Brianza", "sostituzione finestre"'
                 />
               </Field>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Keyword negative / ricerche da escludere">
+                  <Textarea
+                    value={state.customAudienceSource}
+                    onChange={(e) => setState((p) => ({ ...p, customAudienceSource: e.target.value }))}
+                    className="min-h-20"
+                    placeholder="gratis, fai da te, lavoro, tutorial, materiale usato, ikea..."
+                  />
+                </Field>
+                <Field label="Segnali audience / PMax">
+                  <Textarea
+                    value={state.lookalikeSource}
+                    onChange={(e) => setState((p) => ({ ...p, lookalikeSource: e.target.value }))}
+                    className="min-h-20"
+                    placeholder="Clienti migliori, liste CRM, visitatori sito, categorie interessate, brand competitor..."
+                  />
+                </Field>
+              </div>
             </div>
           )}
 
@@ -2960,7 +3943,7 @@ function CampaignBuilderTab({
                       try {
                         sessionStorage.setItem("ads_wizard_resume", "1");
                       } catch { /* ignore */ }
-                      window.open("/azienda/marketing/ads-manager?tab=creativita", "_blank");
+                      window.open("/azienda/marketing/pubblicita?tab=creativita", "_blank");
                     }}
                   >
                     Apri Creatività ↗
@@ -3005,6 +3988,13 @@ function CampaignBuilderTab({
                 <MiniStat label="Creatività" value={`${state.creatives.length} formati`} />
               </div>
             </div>
+          )}
+
+          {step === 1 && (
+            <OfferStrategyCheck
+              state={state}
+              onChange={(offerStrategy) => update("offerStrategy", offerStrategy)}
+            />
           )}
 
           <div className="mt-6 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center">
@@ -3088,6 +4078,137 @@ function CampaignBuilderTab({
           <LeadFormPreview state={state} />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function OfferStrategyCheck({
+  state,
+  onChange,
+}: {
+  state: BuilderState;
+  onChange: (offerStrategy: OfferStrategyState) => void;
+}) {
+  const strategy = state.offerStrategy ?? {};
+  const averageTicket = Number(strategy.averageTicketEur ?? 0);
+  const averageMargin = Number(strategy.averageMarginPct ?? 0);
+  const maxCpl = Number(strategy.maxSustainableCplEur ?? 0);
+  const grossMarginEur = averageTicket > 0 && averageMargin > 0 ? (averageTicket * averageMargin) / 100 : 0;
+  const breakEvenLeadToSalePct = grossMarginEur > 0 && maxCpl > 0 ? (maxCpl / grossMarginEur) * 100 : 0;
+  const checks = [
+    averageTicket > 0,
+    averageMargin > 0,
+    maxCpl > 0,
+    (strategy.serviceArea ?? state.zone).trim().length >= 3,
+    (strategy.commercialCapacity ?? "").trim().length >= 8,
+    (strategy.idealCustomer ?? "").trim().length >= 8,
+    (strategy.urgency ?? "").trim().length >= 5,
+    (strategy.seasonality ?? "").trim().length >= 5,
+  ];
+  const readyCount = checks.filter(Boolean).length;
+  const score = Math.round((readyCount / checks.length) * 100);
+
+  const setStrategy = <K extends keyof OfferStrategyState>(key: K, value: OfferStrategyState[K]) => {
+    onChange({ ...strategy, [key]: value });
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            Strategia offerta
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            Check economico non vincolante: aiuta a capire se la campagna puo reggere CPL, appuntamenti e vendita.
+          </p>
+        </div>
+        <Badge
+          variant="outline"
+          className={score >= 75 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}
+        >
+          {readyCount}/{checks.length} segnali
+        </Badge>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Field label="Ticket medio vendita">
+          <Input
+            type="number"
+            min={0}
+            value={strategy.averageTicketEur ?? ""}
+            onChange={(event) => setStrategy("averageTicketEur", Math.max(0, Number(event.target.value || 0)))}
+            placeholder="3500"
+          />
+        </Field>
+        <Field label="Margine medio %">
+          <Input
+            type="number"
+            min={0}
+            max={100}
+            value={strategy.averageMarginPct ?? ""}
+            onChange={(event) => setStrategy("averageMarginPct", Math.max(0, Number(event.target.value || 0)))}
+            placeholder="30"
+          />
+        </Field>
+        <Field label="CPL massimo sostenibile">
+          <Input
+            type="number"
+            min={0}
+            value={strategy.maxSustainableCplEur ?? ""}
+            onChange={(event) => setStrategy("maxSustainableCplEur", Math.max(0, Number(event.target.value || 0)))}
+            placeholder={String(state.targetCpl || 25)}
+          />
+        </Field>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <Field label="Zona servibile">
+          <Input
+            value={strategy.serviceArea ?? state.zone}
+            onChange={(event) => setStrategy("serviceArea", event.target.value)}
+            placeholder="Comuni/province dove puoi lavorare davvero"
+          />
+        </Field>
+        <Field label="Capacita commerciale">
+          <Input
+            value={strategy.commercialCapacity ?? ""}
+            onChange={(event) => setStrategy("commercialCapacity", event.target.value)}
+            placeholder="Lead/settimana e tempo massimo di risposta"
+          />
+        </Field>
+        <Field label="Cliente ideale">
+          <Textarea
+            value={strategy.idealCustomer ?? ""}
+            onChange={(event) => setStrategy("idealCustomer", event.target.value)}
+            className="min-h-20"
+            placeholder="Tipo immobile, budget, urgenza, decisore, zona"
+          />
+        </Field>
+        <div className="grid gap-4">
+          <Field label="Urgenza">
+            <Input
+              value={strategy.urgency ?? ""}
+              onChange={(event) => setStrategy("urgency", event.target.value)}
+              placeholder="Subito, 30 giorni, 90 giorni, solo preventivo"
+            />
+          </Field>
+          <Field label="Stagionalita">
+            <Input
+              value={strategy.seasonality ?? ""}
+              onChange={(event) => setStrategy("seasonality", event.target.value)}
+              placeholder="Mesi forti/deboli e vincoli operativi"
+            />
+          </Field>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <MiniStat label="Margine lordo stimato" value={grossMarginEur > 0 ? formatEuro(grossMarginEur * 100) : "—"} />
+        <MiniStat label="Lead → vendita break-even" value={breakEvenLeadToSalePct > 0 ? `${breakEvenLeadToSalePct.toFixed(1)}%` : "—"} />
+        <MiniStat label="CPL target wizard" value={formatEuro(state.targetCpl * 100)} />
+      </div>
     </div>
   );
 }
@@ -3359,11 +4480,18 @@ function LeadFormPreview({ state }: { state: BuilderState }) {
     <div className="rounded-2xl border bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-slate-950">Modulo lead Meta</p>
+          <p className="text-sm font-semibold text-slate-950">
+            {state.platform === "google" ? "Destinazione lead Google" : "Modulo lead Meta"}
+          </p>
           <p className="text-xs text-slate-500">{formTypeLabel}</p>
         </div>
-        <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-          {conversionPlaceLabel(state.conversionPlace)}
+        <Badge
+          variant="outline"
+          className={state.platform === "google"
+            ? "border-amber-200 bg-amber-50 text-amber-700"
+            : "border-blue-200 bg-blue-50 text-blue-700"}
+        >
+          {conversionPlaceLabel(state.conversionPlace, state.platform)}
         </Badge>
       </div>
       {introHeadline && (
@@ -3802,6 +4930,10 @@ function creativeFormatLabel(format: CreativeFormat) {
   return labels[format];
 }
 
+function creativeAngleLabel(angle: CreativeAngle) {
+  return CREATIVE_ANGLE_PRESETS.find((preset) => preset.angle === angle)?.label ?? angle;
+}
+
 function CreativeMixPlanner({
   creatives,
   onAdd,
@@ -3809,11 +4941,12 @@ function CreativeMixPlanner({
   onUpdate,
 }: {
   creatives: CampaignCreative[];
-  onAdd: (format: CreativeFormat) => void;
+  onAdd: (format: CreativeFormat, angle?: CreativeAngle) => void;
   onRemove: (id: string) => void;
   onUpdate: <K extends keyof CampaignCreative>(id: string, key: K, value: CampaignCreative[K]) => void;
 }) {
   const formats: CreativeFormat[] = ["image", "video", "carousel", "story"];
+  const coveredAngles = new Set(creatives.map((creative) => creative.angle).filter(Boolean));
   return (
     <div className="space-y-3 rounded-2xl border bg-slate-50 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -3832,13 +4965,41 @@ function CreativeMixPlanner({
           ))}
         </div>
       </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {CREATIVE_ANGLE_PRESETS.map((preset) => {
+          const covered = coveredAngles.has(preset.angle);
+          return (
+            <button
+              key={preset.angle}
+              type="button"
+              onClick={() => onAdd(preset.format, preset.angle)}
+              className={cn(
+                "rounded-lg border px-3 py-2 text-left text-xs transition",
+                covered
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50",
+              )}
+            >
+              <span className="font-semibold">{preset.label}</span>
+              <span className="mt-0.5 block opacity-75">{covered ? "coperto" : creativeFormatLabel(preset.format)}</span>
+            </button>
+          );
+        })}
+      </div>
       <div className="grid gap-3">
         {creatives.map((creative) => (
           <div key={creative.id} className="rounded-xl border bg-white p-4">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-700">
-                {creativeFormatLabel(creative.format)}
-              </Badge>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-700">
+                  {creativeFormatLabel(creative.format)}
+                </Badge>
+                {creative.angle && (
+                  <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
+                    {creativeAngleLabel(creative.angle)}
+                  </Badge>
+                )}
+              </div>
               <Button type="button" size="sm" variant="ghost" disabled={creatives.length <= 1} onClick={() => onRemove(creative.id)}>
                 Rimuovi
               </Button>
@@ -3847,6 +5008,22 @@ function CreativeMixPlanner({
               <Field label="Nome creatività">
                 <Input value={creative.title} onChange={(event) => onUpdate(creative.id, "title", event.target.value)} />
               </Field>
+              <Field label="Angolo">
+                <Select value={creative.angle ?? ""} onValueChange={(value) => onUpdate(creative.id, "angle", value as CreativeAngle)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona angolo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CREATIVE_ANGLE_PRESETS.map((preset) => (
+                      <SelectItem key={preset.angle} value={preset.angle}>
+                        {preset.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <div className="mt-3">
               <Field label="Hook">
                 <Input value={creative.hook} onChange={(event) => onUpdate(creative.id, "hook", event.target.value)} />
               </Field>
@@ -3866,12 +5043,34 @@ function CreativeMixPlanner({
   );
 }
 
-function conversionPlaceLabel(place: BuilderState["conversionPlace"]) {
-  const labels: Record<BuilderState["conversionPlace"], string> = {
-    instant_form: "Modulo Meta nativo",
-    landing_page: "Landing page",
-    dual: "Doppio luogo di conversione",
-  };
+function getConversionPlaceOptions(platform: BuilderState["platform"]) {
+  if (platform === "google") {
+    return [
+      { value: "landing_page" as const, label: "Landing page con GCLID - migliore attribuzione" },
+      { value: "instant_form" as const, label: "Lead form Google - più volume" },
+      { value: "dual" as const, label: "Landing + form Google" },
+    ];
+  }
+
+  return [
+    { value: "instant_form" as const, label: "Modulo Meta nativo - più fluido da mobile" },
+    { value: "landing_page" as const, label: "Landing page" },
+    { value: "dual" as const, label: "Modulo Meta + landing" },
+  ];
+}
+
+function conversionPlaceLabel(place: BuilderState["conversionPlace"], platform: BuilderState["platform"] = "meta") {
+  const labels: Record<BuilderState["conversionPlace"], string> = platform === "google"
+    ? {
+        instant_form: "Lead form Google",
+        landing_page: "Landing page con GCLID",
+        dual: "Landing + form Google",
+      }
+    : {
+        instant_form: "Modulo Meta nativo",
+        landing_page: "Landing page",
+        dual: "Modulo Meta + landing",
+      };
   return labels[place];
 }
 
@@ -3968,7 +5167,7 @@ function CampaignTree({ state }: { state: BuilderState }) {
       <TreeRow icon={Megaphone} label="Campagna" value={`${state.name} - ${objectiveLabel(state.objective)}`} />
       <TreeRow icon={Target} label="Gruppi pubblico" value={`${state.adSets.length} gruppi: ${state.adSets.map((adSet) => `${adSet.name} (${audienceStrategyLabel(adSet.audienceStrategy)}, ${formatEuro(adSet.dailyBudget * 100)}/giorno)`).join(" · ")}`} indent />
       <TreeRow icon={Users} label="Controlli rigidi" value={`${state.zone} + ${state.radiusKm} km, età ${state.ageMin}-${state.ageMax}, ${genderLabel(state.gender)}, lingua ${state.languages}`} indent />
-      <TreeRow icon={MousePointerClick} label="Conversione" value={`${conversionPlaceLabel(state.conversionPlace)} - ${state.formIntent === "higher_intent" ? "maggiore intenzione" : "più volume"}`} indent />
+      <TreeRow icon={MousePointerClick} label="Conversione" value={`${conversionPlaceLabel(state.conversionPlace, state.platform)} - ${state.formIntent === "higher_intent" ? "maggiore intenzione" : "più volume"}`} indent />
       <TreeRow icon={ShieldCheck} label="Modulo lead" value={`${state.requiredFields}. Domanda: ${state.qualityQuestion}`} indent />
       <TreeRow icon={Euro} label="Budget" value={`${formatEuro(getCampaignDailyBudget(state) * 100)}/giorno con ${budgetModeLabel(state.budgetMode)}`} indent />
       <TreeRow icon={ImageIcon} label="Annunci e creatività" value={`${state.copyVariants.length} copy + ${state.creatives.map((creative) => creativeFormatLabel(creative.format)).join(", ")}`} indent />
@@ -4129,6 +5328,47 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
   const filteredMedia = mediaLib
     .filter(m => mediaKindFilter === "all" || (mediaKindFilter === "image" ? m.kind !== "video" : m.kind === "video"))
     .filter(m => mediaFormatFilter === "all" || m.aspect_ratio === mediaFormatFilter);
+
+  const imageAssetsCount = mediaLib.filter((m) => m.kind !== "video").length + (lastGeneratedImage ? 1 : 0);
+  const videoAssetsCount = mediaLib.filter((m) => m.kind === "video").length;
+  const hasVerticalAsset =
+    mediaLib.some((m) => m.kind !== "video" && (m.aspect_ratio === "4:5" || m.aspect_ratio === "9:16")) ||
+    (lastGeneratedImage ? aspectRatio === "4:5" || aspectRatio === "9:16" : false);
+  const creativeQaItems = [
+    {
+      label: "Copy e hook",
+      ok: Boolean(generatedCopy && generatedCopy.copy_variants.length >= 5 && generatedCopy.hooks.length >= 3),
+      detail: generatedCopy
+        ? `${generatedCopy.copy_variants.length} copy e ${generatedCopy.hooks.length} hook generati`
+        : "Genera copy AI prima del lancio.",
+    },
+    {
+      label: "Angoli creativi",
+      ok: Boolean(generatedCopy && generatedCopy.copy_variants.length >= 5),
+      detail: "Servono varianti su problema, prova, autorita, urgenza e incentivo.",
+    },
+    {
+      label: "Asset verticali Meta",
+      ok: hasVerticalAsset,
+      detail: hasVerticalAsset ? "Hai almeno un asset 4:5 o 9:16." : "Aggiungi almeno un formato 4:5 o 9:16 per feed, Story e Reels.",
+    },
+    {
+      label: "Video o script",
+      ok: Boolean(generatedScript || videoAssetsCount > 0),
+      detail: generatedScript || videoAssetsCount > 0 ? "Video/script pronto per test Reels." : "Prepara almeno uno script o un video breve.",
+    },
+    {
+      label: "Google PMax",
+      ok: imageAssetsCount >= 7 && videoAssetsCount > 0,
+      detail:
+        imageAssetsCount >= 7 && videoAssetsCount > 0
+          ? "Asset sufficienti per un gruppo Performance Max."
+          : `${imageAssetsCount}/7 immagini e ${videoAssetsCount}/1 video: PMax rende meglio con piu asset.`,
+    },
+  ];
+  const creativeQaScore = Math.round(
+    (creativeQaItems.filter((item) => item.ok).length / creativeQaItems.length) * 100,
+  );
 
   // ─── Scene colors for video script ───────────────────────────────────────────
   const sceneColors = [
@@ -4297,6 +5537,13 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
           <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-100" />
         </div>
       )}
+
+      <CreativeQaPanel
+        score={creativeQaScore}
+        items={creativeQaItems}
+        imageAssetsCount={imageAssetsCount}
+        videoAssetsCount={videoAssetsCount}
+      />
 
       {/* ─── ROW 1: COPY + IMAGE ─────────────────────────────────────── */}
       <div className="grid gap-5 xl:grid-cols-2">
@@ -4988,6 +6235,87 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
   );
 }
 
+function CreativeQaPanel({
+  score,
+  items,
+  imageAssetsCount,
+  videoAssetsCount,
+}: {
+  score: number;
+  items: Array<{ label: string; ok: boolean; detail: string }>;
+  imageAssetsCount: number;
+  videoAssetsCount: number;
+}) {
+  const missing = items.filter((item) => !item.ok);
+  const scoreTone =
+    score >= 80
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : score >= 50
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : "border-slate-200 bg-white text-slate-600";
+
+  return (
+    <Card className="border-slate-200 bg-white">
+      <CardHeader className="pb-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              QA creativo advertiser
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Controllo finale per evitare campagne con pochi angoli, asset incompleti o formati deboli.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className={cn("font-semibold", scoreTone)}>
+              {score}/100
+            </Badge>
+            <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+              {imageAssetsCount} immagini
+            </Badge>
+            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
+              {videoAssetsCount} video
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-2 md:grid-cols-5">
+          {items.map((item) => (
+            <div
+              key={item.label}
+              className={cn(
+                "rounded-lg border p-3",
+                item.ok ? "border-emerald-200 bg-emerald-50/60" : "border-slate-200 bg-slate-50",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                {item.ok ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                )}
+                <p className="text-xs font-semibold text-slate-900">{item.label}</p>
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{item.detail}</p>
+            </div>
+          ))}
+        </div>
+        {missing.length > 0 && (
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertTriangle className="h-4 w-4 text-amber-700" />
+            <AlertTitle className="text-sm">Ultimi gap creativi</AlertTitle>
+            <AlertDescription className="text-xs">
+              {missing.map((item) => item.label).join(", ")}. Prima del live conviene chiudere questi punti o tenere budget basso in test.
+            </AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 interface AdMediaItem {
   id: string;
   name: string;
@@ -5119,6 +6447,39 @@ function AudiencesTab({ onUseInWizard }: { onUseInWizard?: () => void }) {
             <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
               + Manuale + Lookalike: si aggiungono manualmente
             </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200 bg-white">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Meta e Google: pubblici diversi</CardTitle>
+          <CardDescription>
+            Meta lavora meglio con segnali larghi e creatività; Google deve partire da intenzione, keyword, località e conversioni CRM.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-700" />
+              <p className="text-sm font-semibold text-blue-950">Meta: audience signals</p>
+            </div>
+            <div className="grid gap-2 text-xs text-slate-700">
+              <p><strong>Base:</strong> Advantage+ Audience con zona, lingua ed esclusioni business.</p>
+              <p><strong>Segmenti:</strong> retargeting, engagement, visitatori sito, lead CRM non chiusi.</p>
+              <p><strong>Decisione:</strong> scala solo se CPL, qualita lead e risposta commerciale restano sani.</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Search className="h-4 w-4 text-amber-700" />
+              <p className="text-sm font-semibold text-amber-950">Google: intento, keyword e segnali</p>
+            </div>
+            <div className="grid gap-2 text-xs text-slate-700">
+              <p><strong>Search:</strong> gruppi keyword per servizio, match type controllati e negative keyword.</p>
+              <p><strong>PMax:</strong> audience signals da clienti migliori, lead qualificati e zone servibili.</p>
+              <p><strong>Conversioni:</strong> importa appuntamento fissato, vendita vinta e valore commessa dal CRM.</p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -5298,7 +6659,7 @@ function CampaignDetailEditor({
     }));
   };
 
-  const addCreative = (format: CreativeFormat) => {
+  const addCreative = (format: CreativeFormat, angle?: CreativeAngle) => {
     const labels: Record<CreativeFormat, string> = {
       image: "Nuova immagine",
       video: "Nuovo video",
@@ -5309,17 +6670,19 @@ function CampaignDetailEditor({
       ...prev,
       creatives: [
         ...prev.creatives,
-        {
-          id: `creative-${format}-${Date.now()}`,
-          format,
-          title: labels[format],
-          hook: "Hook da testare",
-          goal: "Capire se questo formato porta lead più qualificati.",
-          prompt:
-            format === "carousel"
-              ? `Carosello per ${prev.copyBrief}: problema, errore comune, soluzione, prova, CTA.`
-              : `${labels[format]} per ${prev.copyBrief}: mostra problema, risultato e invito a richiedere preventivo.`,
-        },
+        angle
+          ? { ...buildCreativeFromAngle(angle, prev.copyBrief || prev.offer, prev.imagePrompt), id: `creative-${angle}-${Date.now()}` }
+          : {
+              id: `creative-${format}-${Date.now()}`,
+              format,
+              title: labels[format],
+              hook: "Hook da testare",
+              goal: "Capire se questo formato porta lead piu qualificati.",
+              prompt:
+                format === "carousel"
+                  ? `Carosello per ${prev.copyBrief}: problema, errore comune, soluzione, prova, CTA.`
+                  : `${labels[format]} per ${prev.copyBrief}: mostra problema, risultato e invito a richiedere preventivo.`,
+            },
       ],
     }));
   };
@@ -5735,16 +7098,45 @@ function CampaignDetailEditor({
         <TabsContent value="leads" className="mt-4">
           <LeadsListPanel
             companyId={companyId}
-            metaCampaignId={undefined /* TODO: passare draft.meta_campaign_id quando live */}
+            platform={state.platform}
+            metaCampaignId={draft.metaCampaignId}
+            googleCampaignId={draft.googleCampaignId}
           />
         </TabsContent>
 
         <TabsContent value="performance" className="mt-4">
-          <PerformancePanel
-            companyId={companyId}
-            campaignId={draft.id}
-            targetCplCents={state.targetCpl * 100}
-          />
+          <div className="space-y-4">
+            <AdsCrmAttributionPanel
+              companyId={companyId}
+              campaign={{
+                id: draft.id,
+                name: state.name || draft.name,
+                platform: state.platform,
+                metaCampaignId: draft.metaCampaignId,
+                googleCampaignId: draft.googleCampaignId,
+                spentCents: 0,
+                targetCplCents: state.targetCpl * 100,
+                createdAt: draft.createdAt,
+                builderState: {
+                  name: state.name,
+                  landingUrl: state.landingUrl,
+                  targetCpl: state.targetCpl,
+                },
+              }}
+            />
+            {state.platform === "google" ? (
+              <GoogleCampaignPerformancePanel
+                campaignName={state.name || draft.name}
+                googleCampaignId={draft.googleCampaignId}
+              />
+            ) : (
+              <PerformancePanel
+                companyId={companyId}
+                campaignId={draft.metaCampaignId ?? draft.id}
+                targetCplCents={state.targetCpl * 100}
+              />
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>
@@ -5753,9 +7145,11 @@ function CampaignDetailEditor({
 
 function SettingsTab({
   meta,
+  google,
   companyId,
 }: {
   meta: ReturnType<typeof useMetaConnection>;
+  google: ReturnType<typeof useGoogleAdsConnection>;
   companyId?: string;
 }) {
   const setupBlocks = [
@@ -5771,14 +7165,25 @@ function SettingsTab({
       ],
     },
     {
+      title: "Google Ads",
+      icon: "G",
+      body: "Customer ID, account Google Ads e separazione completa da Meta.",
+      items: [
+        { label: "Integrazione Google Ads", ok: google.integration?.status === "connected", detail: google.integration?.status ?? "non collegata", action: { label: "Configura", href: "/azienda/impostazioni/integrazioni" } },
+        { label: "Customer ID selezionato", ok: google.accounts.length > 0, detail: google.selectedAccount?.customer_id ?? "nessun account", action: google.accounts.length === 0 ? { label: "Configura", href: "/azienda/impostazioni/integrazioni" } : null },
+        { label: "Search / PMax separati", ok: true, detail: "wizard con canale Google", action: null },
+        { label: "Developer Token / OAuth", ok: false, detail: "richiesto per publish live", action: { label: "Integrazioni", href: "/azienda/impostazioni/integrazioni" } },
+      ],
+    },
+    {
       title: "Tracking e qualità dati",
       icon: "📡",
-      body: "Pixel, Conversions API e dominio verificato per ottimizzare su lead qualificati.",
+      body: "Pixel/CAPI Meta, GCLID Google, UTM e conversioni offline dal CRM.",
       items: [
         { label: "Pixel / CAPI", ok: false, detail: "da collegare", action: { label: "Configura Pixel", href: "#pixel-config" } },
-        { label: "Dominio verificato", ok: false, detail: "da verificare", action: { label: "Verifica su Meta", href: "https://business.facebook.com/settings/owned-domains/", external: true } },
+        { label: "GCLID / Enhanced conversions", ok: false, detail: "da collegare per Google", action: { label: "Configura Google", href: "/azienda/impostazioni/integrazioni" } },
         { label: "Mapping CRM lead", ok: true, detail: "pipeline pronta", action: null },
-        { label: "Tag qualità lead", ok: true, detail: "bozza locale", action: null },
+        { label: "Vendite e fatturato CRM", ok: true, detail: "ROAS da opportunità vinte", action: null },
       ],
     },
     {
@@ -5814,6 +7219,7 @@ function SettingsTab({
   // Colori per blocco
   const blockColors = [
     { border: "border-blue-200",   bg: "bg-blue-50/50",   title: "text-blue-900"   },
+    { border: "border-amber-200",  bg: "bg-amber-50/50",  title: "text-amber-900"  },
     { border: "border-violet-200", bg: "bg-violet-50/50", title: "text-violet-900" },
     { border: "border-orange-200", bg: "bg-orange-50/50", title: "text-orange-900" },
     { border: "border-emerald-200",bg: "bg-emerald-50/50",title: "text-emerald-900"},
@@ -5851,6 +7257,11 @@ function SettingsTab({
             <Button size="sm" asChild>
               <Link to="/azienda/impostazioni/lead-forms">
                 Configura Meta <ArrowRight className="ml-1 h-3 w-3" />
+              </Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/azienda/impostazioni/integrazioni">
+                Configura Google Ads <ArrowRight className="ml-1 h-3 w-3" />
               </Link>
             </Button>
             <Button size="sm" variant="outline" onClick={() => toast.info("Checklist pre-lancio disponibile nella revisione della bozza")}>
@@ -5931,16 +7342,23 @@ function SettingsTab({
  */
 function LeadsListPanel({
   companyId,
+  platform,
   metaCampaignId,
+  googleCampaignId,
 }: {
   companyId?: string;
+  platform?: AdsAttributionProvider;
   metaCampaignId?: string | null;
+  googleCampaignId?: string | null;
 }) {
   const { leads, isLoading, count } = useCampaignLeads({
     companyId,
+    platform,
     metaCampaignId,
+    googleCampaignId,
     daysBack: 90,
   });
+  const providerName = platform === "google" ? "Google Ads" : "Meta";
 
   if (isLoading) {
     return (
@@ -5962,7 +7380,7 @@ function LeadsListPanel({
           </div>
           <p className="text-lg font-bold text-slate-950">Nessun lead arrivato</p>
           <p className="max-w-md text-sm text-slate-600">
-            Quando i lead Meta entreranno dal modulo lead form li vedrai qui. Tieni d'occhio anche il CRM principale, dove sono raggruppati per source.
+            Quando i lead {providerName} entreranno nel CRM li vedrai qui. Tieni d'occhio anche il CRM principale, dove sono raggruppati per source.
           </p>
           <Button variant="outline" asChild size="sm">
             <Link to="/azienda/clienti">
@@ -5982,7 +7400,7 @@ function LeadsListPanel({
           <div>
             <CardTitle className="text-base">{count} lead arrivati (ultimi 90 giorni)</CardTitle>
             <CardDescription>
-              Meta conserva i lead per 90 giorni. Sincronizziamo automaticamente nel CRM.
+              Lead attribuiti a {providerName} e letti dal CRM aziendale.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild>
@@ -6077,6 +7495,76 @@ function PerformancePanel({
       onSync={syncNow}
       targetCplCents={targetCplCents}
     />
+  );
+}
+
+function GoogleCampaignPerformancePanel({
+  campaignName,
+  googleCampaignId,
+}: {
+  campaignName: string;
+  googleCampaignId?: string | null;
+}) {
+  const { campaigns, isLoading, refetch } = useGoogleAdsStats();
+  const row = useMemo(() => {
+    const terms = [googleCampaignId, campaignName].map(normalizeLookup).filter((term) => term.length >= 3);
+    return campaigns.find((campaign) => {
+      const id = normalizeLookup(campaign.campaign_id);
+      const name = normalizeLookup(campaign.campaign_name);
+      return terms.some((term) => id.includes(term) || name.includes(term));
+    });
+  }, [campaigns, campaignName, googleCampaignId]);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">Performance Google Ads</CardTitle>
+            <CardDescription>
+              Dati importati da google_ads_stats. Il fatturato resta calcolato dal CRM nel pannello sopra.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={refetch}>
+            <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+            Aggiorna
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center gap-2 rounded-lg border bg-white p-3 text-sm text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Caricamento Google Ads stats...
+          </div>
+        ) : !row ? (
+          <div className="rounded-xl border border-dashed bg-slate-50 p-6 text-center">
+            <Search className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+            <p className="text-sm font-semibold text-slate-700">Nessuna statistica Google collegata</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Sincronizza Google Ads o importa la campagna con stesso nome/ID per leggere impressioni, click e spesa.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <MiniMetric label="Spesa" value={formatEuro(Math.round(row.spend * 100))} />
+            <MiniMetric label="Impressioni" value={row.impressions.toLocaleString("it-IT")} />
+            <MiniMetric label="Click" value={row.clicks.toLocaleString("it-IT")} />
+            <MiniMetric label="CTR" value={`${row.ctr.toFixed(2)}%`} />
+            <MiniMetric label="Conversioni" value={row.conversions.toLocaleString("it-IT")} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-white p-3">
+      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-950">{value}</p>
+    </div>
   );
 }
 
