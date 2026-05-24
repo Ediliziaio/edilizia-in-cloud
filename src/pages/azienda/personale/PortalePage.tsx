@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowDown,
@@ -76,7 +77,10 @@ import {
   PORTAL_MATERIAL_ACCEPT,
   createPortalMaterialSignedUrl,
   isPortalLearningUnavailable,
+  listPortalCourseEnrollments,
   listPortalCourses,
+  logPortalCourseActivity,
+  savePortalCourseEnrollment,
   savePortalCourse,
   uploadPortalMaterial,
 } from "@/lib/portalLearningApi";
@@ -87,6 +91,19 @@ type PortalArea = "sicurezza" | "procedure" | "commerciale" | "onboarding" | "te
 type PortalAudience = "tutti" | "operai" | "ufficio" | "commerciali" | "capicantiere";
 type PortalAssetType = "video" | "pdf" | "procedura" | "quiz" | "link" | "testo" | "immagine" | "documento";
 type LearnerCourseFilter = "tutti" | "in_corso" | "da_iniziare" | "completati";
+type PortalKnowledgeFilter = "tutti" | "procedure" | "manuali" | "regolamenti" | "quiz";
+type PortalLessonBlockType =
+  | "video"
+  | "testo"
+  | "pdf"
+  | "checklist"
+  | "quiz"
+  | "download"
+  | "link"
+  | "presa_visione";
+type PortalLessonBlockStatus = "pronto" | "manca_risorsa" | "consigliato";
+type PortalLearnerView = "library" | "course";
+type PortalCourseExperienceView = "overview" | "lesson";
 
 interface PortalAsset {
   id: string;
@@ -101,6 +118,25 @@ interface PortalAsset {
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
+}
+
+interface PortalLessonBlock {
+  id: string;
+  title: string;
+  description: string;
+  type: PortalLessonBlockType;
+  status: PortalLessonBlockStatus;
+  asset?: PortalAsset;
+}
+
+interface PortalAcknowledgementItem {
+  id: string;
+  title: string;
+  description: string;
+  courseTitle: string;
+  moduleTitle: string;
+  required: boolean;
+  asset?: PortalAsset;
 }
 
 interface PortalModule {
@@ -137,10 +173,53 @@ interface PortalTemplate {
   assets: PortalAsset[];
 }
 
+interface PortalKnowledgeItem {
+  id: string;
+  title: string;
+  category: Exclude<PortalKnowledgeFilter, "tutti">;
+  asset: PortalAsset;
+  course: PortalCourse;
+  moduleTitle: string;
+  hasResource: boolean;
+  requiresAcknowledgement: boolean;
+  version: string;
+  responsible: string;
+  reviewDue: string;
+  visibility: string;
+  governanceStatus: "ok" | "revisione" | "incompleto";
+}
+
 const STORAGE_KEY = "eic-personale-portale-courses-v1";
+const LEARNER_STATE_KEY = "eic-personale-portale-learner-state-v1";
 
 function getPortalStorageKey(companyId: string | null | undefined) {
   return companyId ? `${STORAGE_KEY}:${companyId}` : STORAGE_KEY;
+}
+
+interface PortalLearnerState {
+  completedModules: Record<string, boolean>;
+  acknowledgements: Record<string, string>;
+}
+
+function getPortalLearnerStateKey(companyId: string | null | undefined, userId: string | null | undefined) {
+  return [LEARNER_STATE_KEY, companyId ?? "locale", userId ?? "preview"].join(":");
+}
+
+function loadPortalLearnerState(companyId: string | null | undefined, userId: string | null | undefined): PortalLearnerState {
+  const emptyState: PortalLearnerState = { completedModules: {}, acknowledgements: {} };
+  if (typeof window === "undefined") return emptyState;
+
+  try {
+    const raw = window.localStorage.getItem(getPortalLearnerStateKey(companyId, userId));
+    if (!raw) return emptyState;
+    const parsed = JSON.parse(raw) as Partial<PortalLearnerState>;
+    return {
+      completedModules: parsed.completedModules && typeof parsed.completedModules === "object" ? parsed.completedModules : {},
+      acknowledgements: parsed.acknowledgements && typeof parsed.acknowledgements === "object" ? parsed.acknowledgements : {},
+    };
+  } catch {
+    return emptyState;
+  }
 }
 
 const areaLabels: Record<PortalArea, string> = {
@@ -157,6 +236,14 @@ const audienceLabels: Record<PortalAudience, string> = {
   ufficio: "Ufficio",
   commerciali: "Commerciali",
   capicantiere: "Capicantiere",
+};
+
+const knowledgeCategoryLabels: Record<PortalKnowledgeFilter, string> = {
+  tutti: "Tutti",
+  procedure: "Procedure",
+  manuali: "Manuali",
+  regolamenti: "Regolamenti",
+  quiz: "Quiz",
 };
 
 const statusClasses: Record<PortalCourseStatus, string> = {
@@ -363,6 +450,96 @@ const courseTemplates: PortalTemplate[] = [
       },
     ],
   },
+  {
+    id: "tpl-procedure-operative",
+    title: "Manuale procedure operative",
+    description: "SOP aziendali con versioni, responsabili, checklist e presa visione.",
+    area: "procedure",
+    audience: "tutti",
+    modules: [
+      {
+        id: "tpl-procedure-m1",
+        title: "Come leggere una procedura",
+        description: "Responsabile, campo di applicazione, step operativi e conferma lettura.",
+        lessons: 2,
+        duration: "15 min",
+        completedRate: 0,
+      },
+      {
+        id: "tpl-procedure-m2",
+        title: "Procedure di reparto",
+        description: "Acquisti, logistica, cantiere, amministrazione e commerciale.",
+        lessons: 5,
+        duration: "45 min",
+        completedRate: 0,
+      },
+    ],
+    assets: [
+      {
+        id: "tpl-procedure-a1",
+        title: "SOP ricezione DDT e carico magazzino",
+        type: "procedura",
+        duration: "12 step",
+        moduleId: "tpl-procedure-m2",
+        content:
+          "Scopo: evitare errori tra DDT, ODA e magazzino.\nResponsabile: ufficio acquisti.\nStep: verifica fornitore, abbina ODA, controlla colli, fotografa anomalie, registra quantità, segnala differenze, archivia DDT.",
+      },
+      {
+        id: "tpl-procedure-a2",
+        title: "Indice manuale operativo aziendale",
+        type: "documento",
+        duration: "6 sezioni",
+        moduleId: "tpl-procedure-m1",
+        content:
+          "Struttura consigliata: ruoli, sicurezza, vendite, produzione, logistica, amministrazione, sistemi digitali, revisioni e conferme lettura.",
+      },
+    ],
+  },
+  {
+    id: "tpl-regolamento-interno",
+    title: "Regolamento interno",
+    description: "Regole aziendali, policy operative e conferma obbligatoria per il team.",
+    area: "procedure",
+    audience: "tutti",
+    modules: [
+      {
+        id: "tpl-regolamento-m1",
+        title: "Regole generali",
+        description: "Comportamento, strumenti, comunicazioni interne e responsabilità.",
+        lessons: 3,
+        duration: "24 min",
+        completedRate: 0,
+      },
+      {
+        id: "tpl-regolamento-m2",
+        title: "Presa visione",
+        description: "Quiz e conferma lettura tracciabile per ogni collaboratore.",
+        lessons: 1,
+        duration: "8 min",
+        completedRate: 0,
+      },
+    ],
+    assets: [
+      {
+        id: "tpl-regolamento-a1",
+        title: "Regolamento uso strumenti aziendali",
+        type: "testo",
+        duration: "Policy",
+        moduleId: "tpl-regolamento-m1",
+        content:
+          "Linee guida: account personali, uso dispositivi, documenti condivisi, privacy clienti, gestione password, canali ufficiali e responsabilità di aggiornamento dati.",
+      },
+      {
+        id: "tpl-regolamento-a2",
+        title: "Quiz presa visione regolamento",
+        type: "quiz",
+        duration: "6 domande",
+        moduleId: "tpl-regolamento-m2",
+        content:
+          "Domande suggerite: quali canali usare, come segnalare problemi, dove archiviare documenti, chi approva deroghe e cosa conferma la presa visione.",
+      },
+    ],
+  },
 ];
 
 const demoAssetDefaults: Record<string, Pick<PortalAsset, "content" | "downloadable">> = Object.fromEntries(
@@ -396,6 +573,37 @@ const assetTypeLabels: Record<PortalAssetType, string> = {
 };
 
 const contentAssetTypes = new Set<PortalAssetType>(["testo", "procedura", "quiz"]);
+const learnerCourseFilters: LearnerCourseFilter[] = ["tutti", "in_corso", "da_iniziare", "completati"];
+
+function isLearnerCourseFilter(value: string | null): value is LearnerCourseFilter {
+  return Boolean(value && learnerCourseFilters.includes(value as LearnerCourseFilter));
+}
+
+function isPortalCourseExperienceView(value: string | null): value is PortalCourseExperienceView {
+  return value === "overview" || value === "lesson";
+}
+
+const lessonBlockLabels: Record<PortalLessonBlockType, string> = {
+  video: "Video",
+  testo: "Testo",
+  pdf: "PDF",
+  checklist: "Checklist",
+  quiz: "Quiz",
+  download: "Download",
+  link: "Link",
+  presa_visione: "Presa visione",
+};
+
+const lessonBlockIcon: Record<PortalLessonBlockType, typeof Video> = {
+  video: Video,
+  testo: FileText,
+  pdf: FileText,
+  checklist: ClipboardCheck,
+  quiz: CheckCircle2,
+  download: Download,
+  link: ExternalLink,
+  presa_visione: ShieldCheck,
+};
 
 function loadCourses(companyId?: string | null): PortalCourse[] {
   if (typeof window === "undefined") return defaultCourses;
@@ -470,6 +678,160 @@ function hasAssetResource(asset: PortalAsset) {
   return Boolean(asset.downloadUrl || asset.source || asset.content);
 }
 
+function isExplicitAcknowledgementAsset(asset: PortalAsset) {
+  const searchableText = `${asset.title} ${asset.content ?? ""}`.toLowerCase();
+  return /presa visione|conferma lettura|dichiara di aver letto|obbligatorio|regolamento|policy|privacy|attestato|firma presa visione|firma obbligatoria/.test(searchableText);
+}
+
+function isComplianceCourse(course?: PortalCourse) {
+  return course?.area === "sicurezza" || course?.area === "procedure";
+}
+
+function isAcknowledgementCapableAsset(asset: PortalAsset) {
+  return asset.type === "quiz" || asset.type === "procedura" || asset.type === "pdf" || asset.type === "documento" || asset.type === "testo";
+}
+
+function requiresAssetAcknowledgement(asset: PortalAsset, course?: PortalCourse) {
+  const searchableText = `${asset.title} ${asset.content ?? ""} ${course?.title ?? ""} ${course?.description ?? ""}`.toLowerCase();
+  return (
+    asset.type === "quiz" ||
+    isExplicitAcknowledgementAsset(asset) ||
+    (isComplianceCourse(course) &&
+      isAcknowledgementCapableAsset(asset) &&
+      /manuale|procedura|regolamento|policy|privacy|sicurezza|dpi|verifica|attestato|obbligatorio/.test(searchableText))
+  );
+}
+
+function getLessonBlockType(asset: PortalAsset): PortalLessonBlockType {
+  if (isExplicitAcknowledgementAsset(asset) && asset.type !== "video" && asset.type !== "pdf") return "presa_visione";
+  if (asset.type === "video") return "video";
+  if (asset.type === "quiz") return "quiz";
+  if (asset.type === "procedura") return "checklist";
+  if (asset.type === "pdf") return "pdf";
+  if (asset.type === "testo") return "testo";
+  if (asset.type === "link") return "link";
+  return asset.downloadable === false ? "testo" : "download";
+}
+
+function getLessonBlockDescription(asset: PortalAsset, course?: PortalCourse) {
+  if (!hasAssetResource(asset)) return "Risorsa da collegare prima della pubblicazione.";
+  if (requiresAssetAcknowledgement(asset, course)) return "Richiede conferma di lettura o completamento.";
+  if (asset.type === "video") return "Contenuto principale da guardare.";
+  if (asset.type === "quiz") return "Verifica finale o controllo apprendimento.";
+  if (asset.type === "procedura") return "Checklist operativa da seguire.";
+  if (asset.type === "pdf" || asset.type === "documento") return "Materiale scaricabile o consultabile.";
+  if (asset.type === "link") return "Risorsa esterna collegata.";
+  return "Contenuto testuale del modulo.";
+}
+
+function getRecommendedLessonBlocks(course: PortalCourse, module?: PortalModule, assets: PortalAsset[] = []): PortalLessonBlock[] {
+  const hasVideo = assets.some((asset) => asset.type === "video");
+  const hasReadableContent = assets.some((asset) => asset.type === "testo" || asset.type === "procedura");
+  const hasDownload = assets.some((asset) => asset.type === "pdf" || asset.type === "documento" || asset.downloadable);
+  const hasQuiz = assets.some((asset) => asset.type === "quiz");
+  const hasAcknowledgement = assets.some((asset) => requiresAssetAcknowledgement(asset, course));
+  const recommendations: PortalLessonBlock[] = [];
+  const moduleId = module?.id ?? "generale";
+
+  if (!hasVideo) {
+    recommendations.push({
+      id: `${course.id}:${moduleId}:recommended-video`,
+      type: "video",
+      title: "Intro video",
+      description: "Consigliato per dare ritmo alla lezione.",
+      status: "consigliato",
+    });
+  }
+  if (!hasReadableContent) {
+    recommendations.push({
+      id: `${course.id}:${moduleId}:recommended-text`,
+      type: "testo",
+      title: "Testo operativo",
+      description: "Sintesi chiara con passi e regole da seguire.",
+      status: "consigliato",
+    });
+  }
+  if (!hasDownload) {
+    recommendations.push({
+      id: `${course.id}:${moduleId}:recommended-download`,
+      type: "download",
+      title: "Materiale scaricabile",
+      description: "PDF, manuale, procedura o allegato utile.",
+      status: "consigliato",
+    });
+  }
+  if (!hasQuiz) {
+    recommendations.push({
+      id: `${course.id}:${moduleId}:recommended-quiz`,
+      type: "quiz",
+      title: "Verifica finale",
+      description: "Domande rapide per controllare la comprensione.",
+      status: "consigliato",
+    });
+  }
+  if (!hasAcknowledgement && (course.area === "sicurezza" || course.area === "procedure")) {
+    recommendations.push({
+      id: `${course.id}:${moduleId}:recommended-ack`,
+      type: "presa_visione",
+      title: "Presa visione",
+      description: "Firma o conferma necessaria per procedure critiche.",
+      status: "consigliato",
+    });
+  }
+
+  return recommendations;
+}
+
+function getLessonBlocksForModule(course: PortalCourse, module?: PortalModule, includeGeneral = true): PortalLessonBlock[] {
+  const moduleAssets = module ? course.assets.filter((asset) => asset.moduleId === module.id) : [];
+  const generalAssets = includeGeneral ? course.assets.filter((asset) => !asset.moduleId) : [];
+  const assets = module ? [...moduleAssets, ...generalAssets] : course.assets;
+  const assetBlocks = assets.map((asset) => ({
+    id: `${course.id}:${module?.id ?? asset.moduleId ?? "generale"}:${asset.id}`,
+    title: asset.title,
+    description: getLessonBlockDescription(asset, course),
+    type: getLessonBlockType(asset),
+    status: hasAssetResource(asset) ? "pronto" : "manca_risorsa",
+    asset,
+  }) satisfies PortalLessonBlock);
+
+  return [...assetBlocks, ...getRecommendedLessonBlocks(course, module, assets)];
+}
+
+function getAcknowledgementItems(course: PortalCourse, module?: PortalModule): PortalAcknowledgementItem[] {
+  const moduleAssets = module ? course.assets.filter((asset) => asset.moduleId === module.id) : [];
+  const generalAssets = course.assets.filter((asset) => !asset.moduleId);
+  const scopedAssets = module ? [...moduleAssets, ...generalAssets] : course.assets;
+  const assetItems = scopedAssets
+    .filter((asset) => requiresAssetAcknowledgement(asset, course))
+    .map((asset) => ({
+      id: `${course.id}:${asset.id}`,
+      title: asset.title,
+      description:
+        asset.type === "quiz"
+          ? "Verifica o quiz collegato al percorso."
+          : "Documento o contenuto che richiede conferma di lettura.",
+      courseTitle: course.title,
+      moduleTitle: getAssetModuleTitle(course, asset),
+      required: true,
+      asset,
+    }));
+
+  if (assetItems.length > 0) return assetItems;
+  if (course.area !== "sicurezza" && course.area !== "procedure") return [];
+
+  return [
+    {
+      id: `${course.id}:${module?.id ?? "course"}:acknowledgement`,
+      title: module ? `Presa visione ${module.title}` : `Presa visione ${course.title}`,
+      description: "Conferma richiesta per tracciare procedure, sicurezza o regole operative.",
+      courseTitle: course.title,
+      moduleTitle: module?.title ?? "Corso completo",
+      required: true,
+    },
+  ];
+}
+
 function inferAssetType(file: File): PortalAssetType {
   if (file.type.startsWith("video/")) return "video";
   if (file.type.startsWith("image/")) return "immagine";
@@ -485,6 +847,52 @@ function getAssetStorageHint(asset: PortalAsset) {
   if (asset.source) return asset.source;
   if (asset.content) return "Anteprima disponibile nel portale";
   return "Da collegare in gestione";
+}
+
+function getKnowledgeCategory(asset: PortalAsset, course: PortalCourse): Exclude<PortalKnowledgeFilter, "tutti"> {
+  const searchableText = `${asset.title} ${course.title} ${course.description}`.toLowerCase();
+
+  if (asset.type === "quiz" || /quiz|verifica|test/.test(searchableText)) return "quiz";
+  if (/regolamento|policy|presa visione|privacy|sicurezza aziendale/.test(searchableText)) return "regolamenti";
+  if (asset.type === "procedura" || course.area === "procedure" || /sop|procedura|processo|checklist/.test(searchableText)) {
+    return "procedure";
+  }
+  return "manuali";
+}
+
+function getKnowledgeItems(courses: PortalCourse[]): PortalKnowledgeItem[] {
+  return courses.flatMap((course) =>
+    course.assets.map((asset, assetIndex) => {
+      const category = getKnowledgeCategory(asset, course);
+      const hasResource = hasAssetResource(asset);
+      const requiresAcknowledgement =
+        category === "regolamenti" ||
+        category === "quiz" ||
+        course.area === "sicurezza" ||
+        /presa visione|obbligatorio|regolamento/i.test(asset.title);
+      const governanceStatus: PortalKnowledgeItem["governanceStatus"] = !hasResource
+        ? "incompleto"
+        : course.status === "revisione"
+          ? "revisione"
+          : "ok";
+
+      return {
+        id: `${course.id}:${asset.id}`,
+        title: asset.title,
+        category,
+        asset,
+        course,
+        moduleTitle: getAssetModuleTitle(course, asset),
+        hasResource,
+        requiresAcknowledgement,
+        version: `v1.${assetIndex + 1}`,
+        responsible: course.owner,
+        reviewDue: category === "regolamenti" || category === "procedure" ? "Revisione 90 giorni" : "Revisione annuale",
+        visibility: audienceLabels[course.audience],
+        governanceStatus,
+      };
+    }),
+  );
 }
 
 function validateMaterialFile(file: File) {
@@ -560,8 +968,9 @@ function cloneTemplateCourse(template: PortalTemplate): PortalCourse {
 }
 
 export default function PortalePage() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
+  const userId = user?.id ?? null;
   const [courses, setCourses] = useState<PortalCourse[]>(() => loadCourses(companyId));
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? "");
   const [remoteEnabled, setRemoteEnabled] = useState(false);
@@ -569,6 +978,8 @@ export default function PortalePage() {
   const [activeTab, setActiveTab] = useState("preview");
   const [search, setSearch] = useState("");
   const [areaFilter, setAreaFilter] = useState<PortalArea | "tutte">("tutte");
+  const [knowledgeSearch, setKnowledgeSearch] = useState("");
+  const [knowledgeFilter, setKnowledgeFilter] = useState<PortalKnowledgeFilter>("tutti");
   const [courseDialogOpen, setCourseDialogOpen] = useState(false);
   const [assetDialogOpen, setAssetDialogOpen] = useState(false);
   const [accessDialogOpen, setAccessDialogOpen] = useState(false);
@@ -690,7 +1101,36 @@ export default function PortalePage() {
           setSelectedCourseId((current) =>
             remoteCourses.some((course) => course.id === current) ? current : remoteCourses[0]?.id ?? "",
           );
+          return;
         }
+
+        const seedCourses = loadCourses(companyId).map(normalizePortalCourse);
+        if (seedCourses.length === 0) return;
+
+        setCourses(seedCourses);
+        setSelectedCourseId((current) =>
+          seedCourses.some((course) => course.id === current) ? current : seedCourses[0]?.id ?? "",
+        );
+        setSyncStatus("caricamento");
+
+        Promise.all(
+          seedCourses.map((seedCourse) =>
+            withPortalTimeout(savePortalCourse(companyId, seedCourse), 10_000, "Seed iniziale Portale troppo lento."),
+          ),
+        )
+          .then(() => {
+            if (!active) return;
+            setSyncStatus("sincronizzato");
+          })
+          .catch((error) => {
+            if (!active) return;
+            setSyncStatus("locale");
+            if (!isPortalLearningUnavailable(error)) {
+              toast.warning("Corsi pronti in locale", {
+                description: "Il seed iniziale remoto non e riuscito. Puoi continuare e riproveremo al prossimo salvataggio.",
+              });
+            }
+          });
       })
       .catch((error) => {
         if (!active) return;
@@ -749,6 +1189,45 @@ export default function PortalePage() {
     const inReview = courses.filter((course) => course.status === "revisione").length;
     return { published, totalEnrolled, avgCompletion, assets, inReview };
   }, [courses]);
+
+  const knowledgeItems = useMemo(() => getKnowledgeItems(courses), [courses]);
+
+  const filteredKnowledgeItems = useMemo(() => {
+    const normalized = knowledgeSearch.trim().toLowerCase();
+    return knowledgeItems.filter((item) => {
+      const matchesFilter = knowledgeFilter === "tutti" || item.category === knowledgeFilter;
+      const matchesSearch =
+        !normalized ||
+        item.title.toLowerCase().includes(normalized) ||
+        item.course.title.toLowerCase().includes(normalized) ||
+        item.moduleTitle.toLowerCase().includes(normalized) ||
+        areaLabels[item.course.area].toLowerCase().includes(normalized) ||
+        assetTypeLabels[item.asset.type].toLowerCase().includes(normalized);
+      return matchesFilter && matchesSearch;
+    });
+  }, [knowledgeFilter, knowledgeItems, knowledgeSearch]);
+
+  const knowledgeStats = useMemo(() => {
+    const procedures = knowledgeItems.filter((item) => item.category === "procedure").length;
+    const manuals = knowledgeItems.filter((item) => item.category === "manuali").length;
+    const acknowledgements = knowledgeItems.filter((item) => item.requiresAcknowledgement).length;
+    const missingResources = knowledgeItems.filter((item) => !item.hasResource).length;
+    const inReview = knowledgeItems.filter((item) => item.governanceStatus === "revisione").length;
+    const compliant = knowledgeItems.length
+      ? Math.round(
+          (knowledgeItems.filter((item) => item.governanceStatus === "ok").length / knowledgeItems.length) * 100,
+        )
+      : 0;
+    return {
+      total: knowledgeItems.length,
+      procedures,
+      manuals,
+      acknowledgements,
+      missingResources,
+      inReview,
+      compliant,
+    };
+  }, [knowledgeItems]);
 
   const quality = useMemo(() => getCourseQuality(selectedCourse), [selectedCourse]);
 
@@ -1391,6 +1870,10 @@ export default function PortalePage() {
             <LayoutTemplate className="h-4 w-4" />
             Builder
           </TabsTrigger>
+          <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+            <ClipboardCheck className="h-4 w-4" />
+            Procedure
+          </TabsTrigger>
           <TabsTrigger value="accessi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
             <LockKeyhole className="h-4 w-4" />
             Accessi
@@ -1490,6 +1973,22 @@ export default function PortalePage() {
           />
         </TabsContent>
 
+        <TabsContent value="procedure">
+          <KnowledgeBasePanel
+            items={filteredKnowledgeItems}
+            allItems={knowledgeItems}
+            stats={knowledgeStats}
+            templates={courseTemplates.filter((template) => template.area === "procedure")}
+            search={knowledgeSearch}
+            filter={knowledgeFilter}
+            onSearchChange={setKnowledgeSearch}
+            onFilterChange={setKnowledgeFilter}
+            onOpenAsset={openAssetAction}
+            onAddAsset={() => setAssetDialogOpen(true)}
+            onCreateFromTemplate={createFromTemplate}
+          />
+        </TabsContent>
+
         <TabsContent value="accessi">
           <AccessPanel
             course={selectedCourse}
@@ -1503,7 +2002,13 @@ export default function PortalePage() {
         </TabsContent>
 
         <TabsContent value="preview">
-          <PortalPreview course={selectedCourse} courses={courses} onOpenAsset={openAssetAction} />
+          <PortalPreview
+            course={selectedCourse}
+            courses={courses}
+            companyId={companyId}
+            userId={userId}
+            onOpenAsset={openAssetAction}
+          />
         </TabsContent>
       </Tabs>
 
@@ -2101,6 +2606,7 @@ function CourseBuilder({
         <div className="grid gap-3">
           {course.modules.map((module, index) => {
             const moduleAssets = course.assets.filter((asset) => asset.moduleId === module.id);
+            const moduleLessonBlocks = getLessonBlocksForModule(course, module, false);
             return (
             <div key={module.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-start gap-3">
@@ -2152,6 +2658,31 @@ function CourseBuilder({
                       <p className="text-xs text-slate-500">Nessun contenuto collegato: aggiungi video, PDF, testo o quiz.</p>
                     )}
                   </div>
+                  <div className="mt-4 rounded-xl border border-blue-100 bg-white p-3">
+                    <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Sequenza lezione</p>
+                        <p className="text-xs text-slate-500">Blocchi consigliati per una lezione chiara e tracciabile.</p>
+                      </div>
+                      <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
+                        {moduleLessonBlocks.filter((block) => block.status === "pronto").length}/{moduleLessonBlocks.length} pronti
+                      </Badge>
+                    </div>
+                    <LessonBlockStrip
+                      blocks={moduleLessonBlocks}
+                      compact
+                      onOpenBlock={(block) => {
+                        if (block.asset) {
+                          onOpenAsset(block.asset);
+                          return;
+                        }
+
+                        toast.info("Blocco consigliato", {
+                          description: "Aggiungi il contenuto dal builder per renderlo disponibile nella pagina utente.",
+                        });
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="flex shrink-0 flex-col gap-1">
                   <Button
@@ -2195,6 +2726,26 @@ function CourseBuilder({
         <div>
           <h3 className="font-bold text-slate-950">Libreria materiale</h3>
           <p className="text-sm text-slate-500">Contenuti collegati al corso selezionato.</p>
+        </div>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+          <div className="flex items-center gap-2">
+            <WandSparkles className="h-5 w-5 text-blue-700" />
+            <h4 className="font-bold text-slate-950">Blueprint lezione ideale</h4>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Ogni modulo dovrebbe alternare video, testo operativo, allegato, verifica e presa visione quando serve.
+          </p>
+          <div className="mt-3 grid gap-2">
+            {(["video", "testo", "download", "quiz", "presa_visione"] as PortalLessonBlockType[]).map((blockType) => {
+              const Icon = lessonBlockIcon[blockType];
+              return (
+                <div key={blockType} className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700">
+                  <Icon className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium">{lessonBlockLabels[blockType]}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
         <div className="space-y-3">
           {unlinkedAssetCount > 0 && (
@@ -2284,6 +2835,438 @@ function BuilderStep({ icon: Icon, label }: { icon: typeof Video; label: string 
     <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
       <Icon className="h-4 w-4 text-blue-600" />
       {label}
+    </div>
+  );
+}
+
+function LessonBlockStrip({
+  blocks,
+  compact = false,
+  activeBlockId,
+  onOpenBlock,
+}: {
+  blocks: PortalLessonBlock[];
+  compact?: boolean;
+  activeBlockId?: string;
+  onOpenBlock?: (block: PortalLessonBlock) => void;
+}) {
+  if (blocks.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+        Nessun blocco lezione disponibile.
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("grid gap-2", compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-5")}>
+      {blocks.map((block, index) => {
+        const Icon = lessonBlockIcon[block.type];
+        const isInteractive = Boolean(onOpenBlock) && (Boolean(block.asset) || block.status === "consigliato" || block.type === "presa_visione");
+        const isActive = activeBlockId === block.id || (block.asset && activeBlockId === block.asset.id);
+        return (
+          <button
+            key={block.id}
+            type="button"
+            onClick={() => {
+              if (isInteractive) onOpenBlock?.(block);
+            }}
+            disabled={!isInteractive}
+            className={cn(
+              "group flex min-w-0 items-start gap-3 rounded-2xl border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+              block.status === "pronto" && "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50",
+              block.status === "manca_risorsa" && "border-orange-200 bg-orange-50 text-orange-900",
+              block.status === "consigliato" && "border-dashed border-slate-300 bg-slate-50 text-slate-600",
+              isActive && "border-blue-300 bg-blue-50 ring-1 ring-blue-100",
+              isInteractive ? "cursor-pointer" : "cursor-not-allowed opacity-80",
+            )}
+          >
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                block.status === "pronto" && "bg-blue-50 text-blue-700",
+                block.status === "manca_risorsa" && "bg-white text-orange-700",
+                block.status === "consigliato" && "bg-white text-slate-500",
+                isActive && "bg-blue-600 text-white",
+              )}
+            >
+              {block.status === "pronto" ? <Icon className="h-4 w-4" /> : index + 1}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="truncate text-sm font-bold text-slate-950">{block.title}</span>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "h-6 text-[11px]",
+                    block.status === "pronto" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+                    block.status === "manca_risorsa" && "border-orange-200 bg-orange-100 text-orange-700",
+                    block.status === "consigliato" && "border-slate-200 bg-white text-slate-500",
+                  )}
+                >
+                  {block.status === "pronto"
+                    ? lessonBlockLabels[block.type]
+                    : block.status === "manca_risorsa"
+                      ? "Da collegare"
+                      : "Suggerito"}
+                </Badge>
+              </span>
+              <span className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{block.description}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function KnowledgeBasePanel({
+  items,
+  allItems,
+  stats,
+  templates,
+  search,
+  filter,
+  onSearchChange,
+  onFilterChange,
+  onOpenAsset,
+  onAddAsset,
+  onCreateFromTemplate,
+}: {
+  items: PortalKnowledgeItem[];
+  allItems: PortalKnowledgeItem[];
+  stats: {
+    total: number;
+    procedures: number;
+    manuals: number;
+    acknowledgements: number;
+    missingResources: number;
+    inReview: number;
+    compliant: number;
+  };
+  templates: PortalTemplate[];
+  search: string;
+  filter: PortalKnowledgeFilter;
+  onSearchChange: (value: string) => void;
+  onFilterChange: (value: PortalKnowledgeFilter) => void;
+  onOpenAsset: (asset: PortalAsset) => void;
+  onAddAsset: () => void;
+  onCreateFromTemplate: (template: PortalTemplate) => void;
+}) {
+  const categoryCounts = allItems.reduce<Record<PortalKnowledgeFilter, number>>(
+    (acc, item) => {
+      acc.tutti += 1;
+      acc[item.category] += 1;
+      return acc;
+    },
+    { tutti: 0, procedure: 0, manuali: 0, regolamenti: 0, quiz: 0 },
+  );
+  const acknowledgementItems = allItems.filter((item) => item.requiresAcknowledgement);
+  const urgentItems = allItems.filter((item) => item.governanceStatus !== "ok").slice(0, 4);
+
+  return (
+    <div className="space-y-5">
+      <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="grid gap-5 bg-gradient-to-br from-white via-blue-50 to-orange-50 p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                Manuali aziendali
+              </Badge>
+              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                {stats.acknowledgements} prese visione
+              </Badge>
+            </div>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
+              Procedure, manuali e regolamenti
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Organizza il know-how aziendale come una libreria operativa: SOP, manuali, policy, quiz e documenti con
+              responsabile, corso collegato e stato risorsa.
+            </p>
+            <div className="mt-5 grid gap-2 sm:grid-cols-4">
+              <KnowledgeMetric label="Documenti" value={stats.total} icon={FileArchive} tone="blue" />
+              <KnowledgeMetric label="Procedure" value={stats.procedures} icon={ClipboardCheck} tone="emerald" />
+              <KnowledgeMetric label="Manuali" value={stats.manuals} icon={BookOpenCheck} tone="slate" />
+              <KnowledgeMetric label="Da collegare" value={stats.missingResources} icon={AlertCircle} tone="orange" />
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-blue-600" />
+              <h3 className="font-bold text-slate-950">Governance consigliata</h3>
+            </div>
+            <div className="mt-4 space-y-3 text-sm text-slate-600">
+              <p className="rounded-2xl bg-slate-50 p-3">
+                Ogni procedura dovrebbe avere versione, responsabile, data revisione e presa visione per i ruoli
+                interessati.
+              </p>
+              <p className="rounded-2xl bg-orange-50 p-3 text-orange-900">
+                I documenti senza file, link o testo restano visibili nel builder ma non sono ancora fruibili dall'utente.
+              </p>
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-semibold text-emerald-950">Copertura qualità</span>
+                  <span className="text-lg font-bold text-emerald-700">{stats.compliant}%</span>
+                </div>
+                <Progress value={stats.compliant} className="mt-2 h-2" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={search}
+                onChange={(event) => onSearchChange(event.target.value)}
+                className="h-11 rounded-2xl border-slate-200 pl-9 text-base sm:text-sm"
+                placeholder="Cerca SOP, manuale, regolamento, quiz o corso collegato"
+              />
+            </div>
+            <Button className="h-11 gap-2 bg-blue-600 hover:bg-blue-700" onClick={onAddAsset}>
+              <UploadCloud className="h-4 w-4" />
+              Carica documento
+            </Button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(Object.keys(knowledgeCategoryLabels) as PortalKnowledgeFilter[]).map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => onFilterChange(category)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
+                  filter === category
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-600",
+                )}
+              >
+                {knowledgeCategoryLabels[category]}
+                <span className="ml-1 text-slate-400">{categoryCounts[category]}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="hidden grid-cols-[1.05fr_0.7fr_0.58fr_0.62fr_0.5fr] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 xl:grid">
+              <span>Documento</span>
+              <span>Corso / modulo</span>
+              <span>Categoria</span>
+              <span>Governance</span>
+              <span>Stato</span>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {items.map((item) => {
+                const Icon = assetIcon[item.asset.type];
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      if (item.hasResource) {
+                        onOpenAsset(item.asset);
+                        return;
+                      }
+                      onAddAsset();
+                      toast.info("Collega un file, un link o un testo per rendere apribile questo documento.");
+                    }}
+                    className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 xl:grid-cols-[1.05fr_0.7fr_0.58fr_0.62fr_0.5fr] xl:items-center xl:gap-4"
+                  >
+                    <span className="flex min-w-0 items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-slate-950">{item.title}</span>
+                        <span className="mt-1 block truncate text-xs text-slate-500">
+                          {assetTypeLabels[item.asset.type]} · {item.asset.duration}
+                        </span>
+                      </span>
+                    </span>
+
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-slate-900">{item.course.title}</span>
+                      <span className="mt-1 block truncate text-xs text-slate-500">{item.moduleTitle}</span>
+                    </span>
+
+                    <span className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="w-fit bg-white capitalize">
+                        {knowledgeCategoryLabels[item.category]}
+                      </Badge>
+                      {item.requiresAcknowledgement && (
+                        <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
+                          Presa visione
+                        </Badge>
+                      )}
+                    </span>
+
+                    <span className="min-w-0 text-sm text-slate-600">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="w-fit bg-white text-xs">
+                          {item.version}
+                        </Badge>
+                        <span className="truncate">{item.responsible}</span>
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-slate-500">{item.reviewDue}</span>
+                    </span>
+
+                    <span className="flex items-center justify-between gap-2 lg:justify-start">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "w-fit",
+                          item.hasResource
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-orange-200 bg-orange-50 text-orange-700",
+                        )}
+                      >
+                        {item.hasResource ? "Apribile" : "Da collegare"}
+                      </Badge>
+                      <ChevronRight className="h-4 w-4 text-slate-300" />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {items.length === 0 && (
+            <div className="mt-5 rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+              <ClipboardCheck className="mx-auto h-9 w-9 text-slate-400" />
+              <h3 className="mt-3 font-bold text-slate-950">Nessun documento trovato</h3>
+              <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">
+                Modifica filtri o carica una procedura, un manuale, un regolamento o un quiz nel corso selezionato.
+              </p>
+            </div>
+          )}
+        </section>
+
+        <aside className="space-y-4">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-orange-600" />
+                <h3 className="font-bold text-slate-950">Coda operativa</h3>
+              </div>
+              <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+                {stats.inReview + stats.missingResources} aperti
+              </Badge>
+            </div>
+            <div className="mt-4 space-y-3">
+              {urgentItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => (item.hasResource ? onOpenAsset(item.asset) : onAddAsset())}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                >
+                  <span className="block truncate text-sm font-semibold text-slate-950">{item.title}</span>
+                  <span className="mt-1 block text-xs text-slate-500">
+                    {item.governanceStatus === "incompleto" ? "Da collegare" : "In revisione"} · {item.course.title}
+                  </span>
+                </button>
+              ))}
+              {urgentItems.length === 0 && (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-900">
+                  Nessuna criticità documentale evidente.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <WandSparkles className="h-5 w-5 text-blue-600" />
+              <h3 className="font-bold text-slate-950">Template rapidi</h3>
+            </div>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Parti da strutture pensate per processi aziendali, manuali interni e regolamenti.
+            </p>
+            <div className="mt-4 space-y-3">
+              {templates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => onCreateFromTemplate(template)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  <span className="block font-semibold text-slate-950">{template.title}</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">{template.description}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-emerald-600" />
+              <h3 className="font-bold text-slate-950">Qualità documentale</h3>
+            </div>
+            <div className="mt-4 space-y-3">
+              <QualityLine done={stats.total > 0} label="Libreria non vuota" />
+              <QualityLine done={stats.procedures > 0} label="Procedure operative presenti" />
+              <QualityLine done={stats.acknowledgements > 0} label="Presa visione tracciabile" />
+              <QualityLine done={stats.missingResources === 0} label="Tutti i documenti apribili" />
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-blue-100 bg-blue-50 p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <UserRoundCheck className="h-5 w-5 text-blue-700" />
+              <h3 className="font-bold text-blue-950">Prese visione</h3>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-blue-900">
+              {acknowledgementItems.length} documenti richiedono conferma lettura. Nella fase successiva possono
+              generare reminder, storico e attestato interno.
+            </p>
+          </section>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeMetric({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: typeof Video;
+  tone: "blue" | "emerald" | "orange" | "slate";
+}) {
+  const toneClass = {
+    blue: "bg-blue-50 text-blue-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    orange: "bg-orange-50 text-orange-700",
+    slate: "bg-slate-50 text-slate-700",
+  }[tone];
+
+  return (
+    <div className="rounded-2xl border border-white/70 bg-white/85 p-3 shadow-sm">
+      <div className={cn("mb-2 flex h-9 w-9 items-center justify-center rounded-xl", toneClass)}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <p className="text-2xl font-bold text-slate-950">{value}</p>
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function QualityLine({ done, label }: { done: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {done ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-orange-500" />}
+      <span className={cn(done ? "text-slate-700" : "font-medium text-slate-950")}>{label}</span>
     </div>
   );
 }
@@ -2476,12 +3459,17 @@ function PeopleProgressPanel({ course, courses }: { course?: PortalCourse; cours
 function PortalPreview({
   course,
   courses,
+  companyId,
+  userId,
   onOpenAsset,
 }: {
   course?: PortalCourse;
   courses: PortalCourse[];
+  companyId?: string | null;
+  userId?: string | null;
   onOpenAsset: (asset: PortalAsset) => void;
 }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const learnerCourses = useMemo(() => {
     const visibleCourses = courses.filter((item) => item.status === "pubblicato");
     const baseCourses = visibleCourses.length > 0 ? visibleCourses : courses;
@@ -2492,31 +3480,66 @@ function PortalPreview({
 
     return [course, ...baseCourses];
   }, [course, courses]);
+  const requestedCourseId = searchParams.get("portalCourse");
+  const requestedCourse = requestedCourseId
+    ? learnerCourses.find((item) => item.id === requestedCourseId)
+    : undefined;
+  const requestedModuleId = searchParams.get("portalModule") ?? "";
+  const requestedLearnerFilter = isLearnerCourseFilter(searchParams.get("portalFilter"))
+    ? (searchParams.get("portalFilter") as LearnerCourseFilter)
+    : "tutti";
+  const requestedLearnerView: PortalLearnerView =
+    searchParams.get("portalView") === "course" && requestedCourse ? "course" : "library";
+  const requestedCourseExperienceView: PortalCourseExperienceView =
+    requestedLearnerView === "course" && isPortalCourseExperienceView(searchParams.get("portalMode"))
+      ? (searchParams.get("portalMode") as PortalCourseExperienceView)
+      : "overview";
   const [learnerSearch, setLearnerSearch] = useState("");
-  const [learnerFilter, setLearnerFilter] = useState<LearnerCourseFilter>("tutti");
-  const [learnerView, setLearnerView] = useState<"library" | "course">("library");
-  const [courseExperienceView, setCourseExperienceView] = useState<"overview" | "lesson">("overview");
-  const [learnerCourseId, setLearnerCourseId] = useState(course?.id ?? learnerCourses[0]?.id ?? "");
-  const [completedPreviewModules, setCompletedPreviewModules] = useState<Record<string, boolean>>({});
+  const [learnerFilter, setLearnerFilter] = useState<LearnerCourseFilter>(requestedLearnerFilter);
+  const [learnerView, setLearnerView] = useState<PortalLearnerView>(requestedLearnerView);
+  const [courseExperienceView, setCourseExperienceView] =
+    useState<PortalCourseExperienceView>(requestedCourseExperienceView);
+  const [learnerCourseId, setLearnerCourseId] = useState(
+    requestedCourse?.id ?? course?.id ?? learnerCourses[0]?.id ?? "",
+  );
+  const [completedPreviewModules, setCompletedPreviewModules] = useState<Record<string, boolean>>(
+    () => loadPortalLearnerState(companyId, userId).completedModules,
+  );
+  const [acknowledgedPreviewItems, setAcknowledgedPreviewItems] = useState<Record<string, string>>(
+    () => loadPortalLearnerState(companyId, userId).acknowledgements,
+  );
   const [activePreviewAssetId, setActivePreviewAssetId] = useState("");
   const lastSyncedSelectedCourseId = useRef<string | undefined>(course?.id);
   const selectedCourseFirstModuleId = course?.modules[0]?.id ?? "";
   const activeLearnerCourse =
     learnerCourses.find((item) => item.id === learnerCourseId) ?? learnerCourses[0] ?? course;
-  const [activeModuleId, setActiveModuleId] = useState(activeLearnerCourse?.modules[0]?.id ?? "");
+  const [activeModuleId, setActiveModuleId] = useState(
+    requestedModuleId || (activeLearnerCourse?.modules[0]?.id ?? ""),
+  );
   const hasLearnerModules = (activeLearnerCourse?.modules.length ?? 0) > 0;
   const activeModule = activeLearnerCourse?.modules.find((module) => module.id === activeModuleId)
     ?? activeLearnerCourse?.modules[0];
-  const getPreviewModuleCompletion = (module: PortalModule, courseId = activeLearnerCourse?.id ?? "") =>
-    completedPreviewModules[`${courseId}:${module.id}`] ? 100 : module.completedRate;
-  const previewCourseCompletion = activeLearnerCourse?.modules.length
-    ? Math.round(
-        activeLearnerCourse.modules.reduce(
-          (sum, module) => sum + getPreviewModuleCompletion(module, activeLearnerCourse.id),
-          0,
-        ) / activeLearnerCourse.modules.length,
-      )
-    : activeLearnerCourse?.completion ?? 0;
+  const getPreviewModuleCompletion = useCallback(
+    (
+      module: PortalModule,
+      courseId = activeLearnerCourse?.id ?? "",
+      completedState = completedPreviewModules,
+    ) => (completedState[`${courseId}:${module.id}`] ? 100 : module.completedRate),
+    [activeLearnerCourse?.id, completedPreviewModules],
+  );
+  const getCourseCompletion = useCallback(
+    (targetCourse?: PortalCourse, completedState = completedPreviewModules) =>
+      targetCourse?.modules.length
+        ? Math.round(
+            targetCourse.modules.reduce(
+              (sum, module) => sum + getPreviewModuleCompletion(module, targetCourse.id, completedState),
+              0,
+            ) / targetCourse.modules.length,
+          )
+        : targetCourse?.completion ?? 0,
+    [completedPreviewModules, getPreviewModuleCompletion],
+  );
+  const previewCourseCompletion = getCourseCompletion(activeLearnerCourse);
   const isActiveModuleCompleted = activeModule ? getPreviewModuleCompletion(activeModule) >= 100 : false;
   const isPreviewCourseCompleted = activeLearnerCourse?.modules.length
     ? activeLearnerCourse.modules.every((module) => getPreviewModuleCompletion(module, activeLearnerCourse.id) >= 100)
@@ -2529,13 +3552,16 @@ function PortalPreview({
     moduleAssets.find((asset) => asset.id === activePreviewAssetId) ??
     moduleAssets.find((asset) => asset.type === "video") ??
     moduleAssets[0];
+  const activeLessonBlocks = activeLearnerCourse ? getLessonBlocksForModule(activeLearnerCourse, activeModule, true) : [];
+  const activeAcknowledgementItems = activeLearnerCourse ? getAcknowledgementItems(activeLearnerCourse, activeModule) : [];
+  const signedAcknowledgementCount = activeAcknowledgementItems.filter((item) => acknowledgedPreviewItems[item.id]).length;
   const hasGeneralCourseAssets = generalCourseAssets.length > 0;
   const nextModuleIndex = activeLearnerCourse?.modules.findIndex((module) => module.id === activeModule?.id) ?? 0;
   const nextModule = activeLearnerCourse?.modules[nextModuleIndex + 1];
   const filteredLearnerCourses = useMemo(() => {
     const normalized = learnerSearch.trim().toLowerCase();
     return learnerCourses.filter((item) => {
-      const completion = item.id === activeLearnerCourse?.id ? previewCourseCompletion : item.completion;
+      const completion = getCourseCompletion(item);
       const matchesFilter = learnerFilter === "tutti" || getLearnerCourseStatus(item, completion) === learnerFilter;
       const matchesSearch =
         !normalized ||
@@ -2544,13 +3570,20 @@ function PortalPreview({
         areaLabels[item.area].toLowerCase().includes(normalized);
       return matchesFilter && matchesSearch;
     });
-  }, [activeLearnerCourse?.id, learnerCourses, learnerFilter, learnerSearch, previewCourseCompletion]);
+  }, [getCourseCompletion, learnerCourses, learnerFilter, learnerSearch]);
   const unlockedLessons = learnerCourses.reduce((sum, item) => sum + item.modules.reduce((moduleSum, module) => moduleSum + module.lessons, 0), 0);
   const unlockedAssets = learnerCourses.reduce((sum, item) => sum + item.assets.length, 0);
   const completedCourses = learnerCourses.filter((item) => {
-    const completion = item.id === activeLearnerCourse?.id ? previewCourseCompletion : item.completion;
-    return completion >= 100;
+    return getCourseCompletion(item) >= 100;
   }).length;
+  const learnerKnowledgeItems = useMemo(() => getKnowledgeItems(learnerCourses), [learnerCourses]);
+  const learnerProcessDocs = learnerKnowledgeItems
+    .filter((item) => item.category === "procedure" || item.category === "regolamenti")
+    .slice(0, 3);
+  const learnerPendingAcknowledgements = learnerKnowledgeItems.filter((item) => item.requiresAcknowledgement).length;
+  const learnerMandatoryItems = learnerKnowledgeItems
+    .filter((item) => item.requiresAcknowledgement || item.governanceStatus !== "ok")
+    .slice(0, 4);
   const currentModuleNumber = activeLearnerCourse?.modules.findIndex((module) => module.id === activeModule?.id) ?? 0;
   const readableModuleNumber = currentModuleNumber >= 0 ? currentModuleNumber + 1 : 1;
   const remainingModules = activeLearnerCourse?.modules.filter(
@@ -2572,21 +3605,96 @@ function PortalPreview({
     document.getElementById("portal-course-detail")?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const scheduleCourseScrollToTop = () => {
+    window.setTimeout(scrollCourseToTop, 0);
+  };
+
+  const updateLearnerUrl = useCallback(({
+    view,
+    courseId,
+    moduleId,
+    mode,
+    filter,
+  }: {
+    view?: PortalLearnerView;
+    courseId?: string | null;
+    moduleId?: string | null;
+    mode?: PortalCourseExperienceView | null;
+    filter?: LearnerCourseFilter | null;
+  }) => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (view) nextParams.set("portalView", view);
+    if (filter) nextParams.set("portalFilter", filter);
+
+    if (view === "library") {
+      nextParams.delete("portalCourse");
+      nextParams.delete("portalModule");
+      nextParams.delete("portalMode");
+    } else {
+      if (courseId) nextParams.set("portalCourse", courseId);
+      if (moduleId) nextParams.set("portalModule", moduleId);
+      if (mode) nextParams.set("portalMode", mode);
+    }
+
+    if (courseId === null) nextParams.delete("portalCourse");
+    if (moduleId === null) nextParams.delete("portalModule");
+    if (mode === null) nextParams.delete("portalMode");
+    if (filter === null) nextParams.delete("portalFilter");
+
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const persistLearnerProgress = (targetCourse: PortalCourse, progressPercent: number) => {
+    if (!companyId || !userId) return;
+
+    withPortalTimeout(
+      savePortalCourseEnrollment(companyId, userId, targetCourse.id, progressPercent),
+      8_000,
+      "Aggiornamento avanzamento Portale troppo lento.",
+    ).catch(() => {
+      // L'avanzamento resta comunque salvato nello storage locale e viene riproposto alla prossima apertura.
+    });
+  };
+
+  const recordLearnerActivity = (
+    targetCourse: PortalCourse,
+    eventType: string,
+    metadata: Record<string, unknown>,
+  ) => {
+    if (!companyId) return;
+
+    withPortalTimeout(
+      logPortalCourseActivity(companyId, targetCourse.id, eventType, metadata),
+      8_000,
+      "Registro attivita Portale troppo lento.",
+    ).catch(() => {
+      // Il log remoto e di supporto: non deve bloccare l'esperienza dell'utente.
+    });
+  };
+
   const openLearnerCourse = (selectedCourse: PortalCourse, moduleId = selectedCourse.modules[0]?.id ?? "") => {
     setLearnerCourseId(selectedCourse.id);
     setActiveModuleId(moduleId);
     setActivePreviewAssetId("");
     setCourseExperienceView("overview");
     setLearnerView("course");
+    updateLearnerUrl({
+      view: "course",
+      courseId: selectedCourse.id,
+      moduleId: moduleId || null,
+      mode: "overview",
+    });
     toast.success(`Corso aperto: ${selectedCourse.title}`);
-    window.requestAnimationFrame(scrollCourseToTop);
+    scheduleCourseScrollToTop();
   };
 
-  const backToLearnerLibrary = () => {
+  const backToLearnerLibrary = useCallback(() => {
     setCourseExperienceView("overview");
     setLearnerView("library");
+    updateLearnerUrl({ view: "library" });
     window.requestAnimationFrame(() => scrollToPreviewSection("portal-preview-root"));
-  };
+  }, [updateLearnerUrl]);
 
   const openLearnerLesson = (moduleId = activeModule?.id ?? activeLearnerCourse?.modules[0]?.id ?? "") => {
     const targetModuleId = moduleId || activeModule?.id || activeLearnerCourse?.modules[0]?.id || "";
@@ -2594,20 +3702,211 @@ function PortalPreview({
     if (!targetModuleId) {
       toast.info("Aggiungi almeno un modulo per aprire la pagina lezione.");
       setCourseExperienceView("overview");
-      window.requestAnimationFrame(scrollCourseToTop);
+      updateLearnerUrl({
+        view: "course",
+        courseId: activeLearnerCourse?.id ?? null,
+        moduleId: null,
+        mode: "overview",
+      });
+      scheduleCourseScrollToTop();
       return;
     }
 
     setActiveModuleId(targetModuleId);
     setActivePreviewAssetId("");
     setCourseExperienceView("lesson");
+    updateLearnerUrl({
+      view: "course",
+      courseId: activeLearnerCourse?.id ?? null,
+      moduleId: targetModuleId,
+      mode: "lesson",
+    });
     window.setTimeout(() => scrollToPreviewSection("portal-preview-player"), 0);
   };
 
   const openLearnerMaterials = () => {
     setCourseExperienceView("lesson");
+    updateLearnerUrl({
+      view: "course",
+      courseId: activeLearnerCourse?.id ?? null,
+      moduleId: activeModule?.id ?? null,
+      mode: "lesson",
+    });
     window.setTimeout(() => scrollToPreviewSection("portal-preview-materials"), 0);
   };
+
+  const openLearnerKnowledgeItem = (item: PortalKnowledgeItem) => {
+    setLearnerCourseId(item.course.id);
+    setActiveModuleId(item.asset.moduleId ?? item.course.modules[0]?.id ?? "");
+    setActivePreviewAssetId(item.asset.id);
+    setCourseExperienceView("lesson");
+    setLearnerView("course");
+    updateLearnerUrl({
+      view: "course",
+      courseId: item.course.id,
+      moduleId: item.asset.moduleId ?? item.course.modules[0]?.id ?? null,
+      mode: "lesson",
+    });
+    window.setTimeout(() => scrollToPreviewSection("portal-preview-materials"), 0);
+  };
+
+  const openLearnerBlock = (block: PortalLessonBlock) => {
+    if (block.type === "presa_visione") {
+      if (block.asset) setActivePreviewAssetId(block.asset.id);
+      setCourseExperienceView("lesson");
+      updateLearnerUrl({
+        view: "course",
+        courseId: activeLearnerCourse?.id ?? null,
+        moduleId: activeModule?.id ?? null,
+        mode: "lesson",
+      });
+      window.setTimeout(() => scrollToPreviewSection("portal-preview-acknowledgement"), 0);
+      return;
+    }
+
+    if (block.asset) {
+      setActivePreviewAssetId(block.asset.id);
+      setCourseExperienceView("lesson");
+      updateLearnerUrl({
+        view: "course",
+        courseId: activeLearnerCourse?.id ?? null,
+        moduleId: activeModule?.id ?? null,
+        mode: "lesson",
+      });
+      window.setTimeout(() => scrollToPreviewSection("portal-preview-player"), 0);
+      return;
+    }
+
+    toast.info("Blocco consigliato: aggiungilo dal builder per renderlo disponibile agli utenti.");
+  };
+
+  const signAcknowledgement = (item: PortalAcknowledgementItem) => {
+    if (!activeLearnerCourse) return;
+    const signedAt = new Date().toLocaleString("it-IT", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    setAcknowledgedPreviewItems((prev) => ({
+      ...prev,
+      [item.id]: signedAt,
+    }));
+    if (item.asset) setActivePreviewAssetId(item.asset.id);
+    recordLearnerActivity(activeLearnerCourse, "acknowledgement_signed", {
+      acknowledgementId: item.id,
+      title: item.title,
+      moduleTitle: item.moduleTitle,
+      signedAt,
+    });
+    toast.success(`Presa visione registrata: ${item.title}`);
+  };
+
+  useEffect(() => {
+    const storedState = loadPortalLearnerState(companyId, userId);
+    setCompletedPreviewModules(storedState.completedModules);
+    setAcknowledgedPreviewItems(storedState.acknowledgements);
+  }, [companyId, userId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        getPortalLearnerStateKey(companyId, userId),
+        JSON.stringify({
+          completedModules: completedPreviewModules,
+          acknowledgements: acknowledgedPreviewItems,
+        } satisfies PortalLearnerState),
+      );
+    } catch {
+      // Se lo storage locale non e disponibile, la preview resta comunque utilizzabile.
+    }
+  }, [acknowledgedPreviewItems, companyId, completedPreviewModules, userId]);
+
+  useEffect(() => {
+    if (!companyId || !userId || learnerCourses.length === 0) return;
+    let active = true;
+
+    withPortalTimeout(
+      listPortalCourseEnrollments(companyId, userId),
+      8_000,
+      "Caricamento avanzamento Portale troppo lento.",
+    )
+      .then((enrollments) => {
+        if (!active || enrollments.length === 0) return;
+
+        const byCourseId = new Map(learnerCourses.map((item) => [item.id, item]));
+        const restoredModules: Record<string, boolean> = {};
+
+        enrollments.forEach((enrollment) => {
+          const enrolledCourse = byCourseId.get(enrollment.courseId);
+          if (!enrolledCourse || enrolledCourse.modules.length === 0) return;
+
+          const completedCount =
+            enrollment.progressPercent >= 100
+              ? enrolledCourse.modules.length
+              : Math.floor((enrollment.progressPercent / 100) * enrolledCourse.modules.length);
+
+          enrolledCourse.modules.slice(0, completedCount).forEach((module) => {
+            restoredModules[`${enrolledCourse.id}:${module.id}`] = true;
+          });
+        });
+
+        if (Object.keys(restoredModules).length === 0) return;
+        setCompletedPreviewModules((prev) => ({ ...restoredModules, ...prev }));
+      })
+      .catch(() => {
+        // Fallback locale: non mostriamo errori all'utente per un dato di avanzamento accessorio.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [companyId, learnerCourses, userId]);
+
+  useEffect(() => {
+    const urlFilter = isLearnerCourseFilter(searchParams.get("portalFilter"))
+      ? (searchParams.get("portalFilter") as LearnerCourseFilter)
+      : "tutti";
+
+    if (urlFilter !== learnerFilter) {
+      setLearnerFilter(urlFilter);
+    }
+
+    const urlCourseId = searchParams.get("portalCourse");
+    const urlCourse = urlCourseId ? learnerCourses.find((item) => item.id === urlCourseId) : undefined;
+
+    if (searchParams.get("portalView") !== "course" || !urlCourse) {
+      if (searchParams.get("portalView") === "library" && learnerView !== "library") {
+        setCourseExperienceView("overview");
+        setLearnerView("library");
+      }
+      return;
+    }
+
+    const urlModuleId = searchParams.get("portalModule");
+    const nextModuleId =
+      urlModuleId && urlCourse.modules.some((module) => module.id === urlModuleId)
+        ? urlModuleId
+        : urlCourse.modules[0]?.id ?? "";
+    const nextMode = isPortalCourseExperienceView(searchParams.get("portalMode"))
+      ? (searchParams.get("portalMode") as PortalCourseExperienceView)
+      : "overview";
+
+    if (learnerView !== "course") setLearnerView("course");
+    if (learnerCourseId !== urlCourse.id) setLearnerCourseId(urlCourse.id);
+    if (activeModuleId !== nextModuleId) setActiveModuleId(nextModuleId);
+    if (courseExperienceView !== nextMode) setCourseExperienceView(nextMode);
+  }, [
+    activeModuleId,
+    courseExperienceView,
+    learnerCourseId,
+    learnerCourses,
+    learnerFilter,
+    learnerView,
+    searchParams,
+  ]);
 
   useEffect(() => {
     if (learnerView !== "course") return;
@@ -2617,8 +3916,7 @@ function PortalPreview({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setCourseExperienceView("overview");
-        setLearnerView("library");
+        backToLearnerLibrary();
       }
     };
 
@@ -2628,17 +3926,33 @@ function PortalPreview({
       document.body.style.overflow = previousBodyOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [learnerView]);
+  }, [backToLearnerLibrary, learnerView]);
 
   const completeActiveModule = () => {
     if (!activeLearnerCourse || !activeModule) return;
-    const willCompleteCourse = activeLearnerCourse.modules.every((module) =>
-      module.id === activeModule.id || getPreviewModuleCompletion(module, activeLearnerCourse.id) >= 100,
-    );
-    setCompletedPreviewModules((prev) => ({
-      ...prev,
+    const nextCompletedModules = {
+      ...completedPreviewModules,
       [`${activeLearnerCourse.id}:${activeModule.id}`]: true,
-    }));
+    };
+    const nextProgress = activeLearnerCourse.modules.length
+      ? Math.round(
+          activeLearnerCourse.modules.reduce(
+            (sum, module) => sum + getPreviewModuleCompletion(module, activeLearnerCourse.id, nextCompletedModules),
+            0,
+          ) / activeLearnerCourse.modules.length,
+        )
+      : 0;
+    const willCompleteCourse = activeLearnerCourse.modules.every((module) =>
+      getPreviewModuleCompletion(module, activeLearnerCourse.id, nextCompletedModules) >= 100,
+    );
+    setCompletedPreviewModules(nextCompletedModules);
+    persistLearnerProgress(activeLearnerCourse, nextProgress);
+    recordLearnerActivity(activeLearnerCourse, "module_completed", {
+      moduleId: activeModule.id,
+      moduleTitle: activeModule.title,
+      progressPercent: nextProgress,
+      courseCompleted: willCompleteCourse,
+    });
     toast.success(
       willCompleteCourse
         ? "Corso completato nella preview utente."
@@ -2657,6 +3971,7 @@ function PortalPreview({
 
   useEffect(() => {
     if (!course?.id || lastSyncedSelectedCourseId.current === course.id) return;
+    if (searchParams.get("portalCourse")) return;
     if (!learnerCourses.some((item) => item.id === course.id)) return;
 
     lastSyncedSelectedCourseId.current = course.id;
@@ -2665,7 +3980,7 @@ function PortalPreview({
     setActivePreviewAssetId("");
     setCourseExperienceView("overview");
     setLearnerView("library");
-  }, [course?.id, learnerCourses, selectedCourseFirstModuleId]);
+  }, [course?.id, learnerCourses, searchParams, selectedCourseFirstModuleId]);
 
   useEffect(() => {
     if (!activeLearnerCourse) return;
@@ -2690,90 +4005,35 @@ function PortalPreview({
 
   return (
     <section id="portal-preview-root" className="space-y-5">
-      <div className="sticky top-2 z-10 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white">
-              <GraduationCap className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <p className="truncate text-sm font-bold text-slate-950">Demo Azienda Academy</p>
-                <Badge variant="outline" className="hidden border-blue-200 bg-blue-50 text-[11px] text-blue-700 sm:inline-flex">
-                  Anteprima admin
-                </Badge>
+      {learnerView === "library" && (
+        <div className="sticky top-2 z-10 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white">
+                <GraduationCap className="h-5 w-5" />
               </div>
-              <p className="truncate text-xs text-slate-500">Area utente finale · corsi, materiali, quiz e attestati</p>
-            </div>
-          </div>
-          <div
-            className={cn(
-              "flex min-w-0 flex-1 flex-col gap-2 sm:flex-row lg:max-w-2xl",
-              learnerView === "course" && "sm:justify-end",
-            )}
-          >
-            {learnerView === "library" ? (
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={learnerSearch}
-                  onChange={(event) => setLearnerSearch(event.target.value)}
-                  className="h-10 rounded-2xl border-slate-200 pl-9 text-base sm:text-sm"
-                  placeholder="Cerca corsi, manuali o procedure"
-                />
+              <div className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <p className="truncate text-sm font-bold text-slate-950">Demo Azienda Academy</p>
+                  <Badge variant="outline" className="hidden border-blue-200 bg-blue-50 text-[11px] text-blue-700 sm:inline-flex">
+                    Anteprima admin
+                  </Badge>
+                </div>
+                <p className="truncate text-xs text-slate-500">Area utente finale · corsi, materiali, quiz e attestati</p>
               </div>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  className="h-10 gap-2 rounded-2xl border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                  onClick={backToLearnerLibrary}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Torna ai corsi
-                </Button>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "h-10 gap-2 rounded-2xl",
-                    courseExperienceView === "overview"
-                      ? "border-blue-200 bg-blue-50 text-blue-700"
-                      : "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
-                  )}
-                  onClick={() => {
-                    setCourseExperienceView("overview");
-                    window.requestAnimationFrame(scrollCourseToTop);
-                  }}
-                >
-                  <BookOpenCheck className="h-4 w-4" />
-                  Panoramica
-                </Button>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "h-10 gap-2 rounded-2xl",
-                    courseExperienceView === "lesson"
-                      ? "border-blue-200 bg-blue-50 text-blue-700"
-                      : "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
-                  )}
-                  onClick={() => openLearnerLesson()}
-                >
-                  <PlayCircle className="h-4 w-4" />
-                  Lezione
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-10 gap-2 rounded-2xl border-blue-200 text-blue-700"
-                  onClick={openLearnerMaterials}
-                >
-                  <Download className="h-4 w-4" />
-                  Materiali
-                </Button>
-              </>
-            )}
+            </div>
+            <div className="relative min-w-0 flex-1 lg:max-w-2xl">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={learnerSearch}
+                onChange={(event) => setLearnerSearch(event.target.value)}
+                className="h-10 rounded-2xl border-slate-200 pl-9 text-base sm:text-sm"
+                placeholder="Cerca corsi, manuali o procedure"
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {learnerView === "library" ? (
         <>
@@ -2824,6 +4084,139 @@ function PortalPreview({
         </div>
       </div>
 
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Percorso consigliato</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-950">Riparti dal prossimo contenuto utile</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                L'utente non deve capire da solo dove andare: vede subito il corso attivo, la prossima lezione e i
+                materiali collegati.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
+              {remainingModules} moduli aperti
+            </Badge>
+          </div>
+
+          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+            <button
+              type="button"
+              onClick={() =>
+                openLearnerCourse(activeLearnerCourse, activeModule?.id ?? activeLearnerCourse.modules[0]?.id ?? "")
+              }
+              className="group rounded-3xl border border-blue-100 bg-blue-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
+                  <PlayCircle className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-blue-700">Continua corso</p>
+                  <h4 className="mt-1 line-clamp-2 text-lg font-bold text-slate-950">{activeLearnerCourse.title}</h4>
+                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">
+                    Prossima lezione: {activeModule?.title ?? activeLearnerCourse.modules[0]?.title ?? "Da impostare"}
+                  </p>
+                </div>
+                <ChevronRight className="hidden h-5 w-5 text-blue-500 transition group-hover:translate-x-0.5 sm:block" />
+              </div>
+            </button>
+
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+              <LearnerCompactStat label="Completamento" value={`${previewCourseCompletion}%`} icon={Target} />
+              <LearnerCompactStat label="Risorse" value={String(courseAssets.length)} icon={FileArchive} />
+            </div>
+          </div>
+        </div>
+
+        <aside className="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Obblighi e scadenze</p>
+              <h3 className="mt-1 text-lg font-bold text-orange-950">Da leggere o completare</h3>
+            </div>
+            <ShieldCheck className="h-5 w-5 text-orange-600" />
+          </div>
+          <div className="mt-4 space-y-2">
+            {learnerMandatoryItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => openLearnerKnowledgeItem(item)}
+                className="flex w-full items-center gap-3 rounded-2xl border border-orange-100 bg-white p-3 text-left transition hover:border-orange-300 hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-orange-700">
+                  <CalendarClock className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-slate-950">{item.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-slate-500">
+                    {item.reviewDue} · {knowledgeCategoryLabels[item.category]}
+                  </p>
+                </div>
+              </button>
+            ))}
+            {learnerMandatoryItems.length === 0 && (
+              <div className="rounded-2xl border border-emerald-100 bg-white p-3 text-sm text-emerald-800">
+                Nessun obbligo aperto: il percorso pubblicato è pulito.
+              </div>
+            )}
+          </div>
+        </aside>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Processi aziendali</p>
+            <h3 className="mt-1 text-xl font-bold text-slate-950">Procedure e manuali da conoscere</h3>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+              Documenti operativi collegati ai corsi: regolamenti, SOP, checklist e prese visione.
+            </p>
+          </div>
+          <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
+            {learnerPendingAcknowledgements} prese visione
+          </Badge>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-3">
+          {learnerProcessDocs.map((item) => {
+            const Icon = assetIcon[item.asset.type];
+            return (
+            <button
+                key={item.id}
+                type="button"
+                onClick={() => openLearnerKnowledgeItem(item)}
+                className="group rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <Badge variant="outline" className="border-white bg-white text-xs capitalize">
+                    {knowledgeCategoryLabels[item.category]}
+                  </Badge>
+                </div>
+                <h4 className="mt-4 line-clamp-2 font-bold text-slate-950">{item.title}</h4>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+                  {item.course.title} · {item.moduleTitle}
+                </p>
+                <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-blue-700">
+                  Apri documento
+                  <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                </span>
+              </button>
+            );
+          })}
+          {learnerProcessDocs.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 lg:col-span-3">
+              Nessuna procedura pubblicata: carica SOP, regolamenti o manuali dal builder.
+            </div>
+          )}
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -2843,7 +4236,10 @@ function PortalPreview({
               <button
                 key={filter.value}
                 type="button"
-                onClick={() => setLearnerFilter(filter.value)}
+                onClick={() => {
+                  setLearnerFilter(filter.value);
+                  updateLearnerUrl({ filter: filter.value });
+                }}
                 className={cn(
                   "rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
                   learnerFilter === filter.value
@@ -2862,7 +4258,7 @@ function PortalPreview({
             <LearnerCourseCard
               key={item.id}
               course={item}
-              completion={item.id === activeLearnerCourse.id ? previewCourseCompletion : item.completion}
+              completion={getCourseCompletion(item)}
               active={item.id === activeLearnerCourse.id}
               onOpen={() => openLearnerCourse(item)}
             />
@@ -2920,7 +4316,13 @@ function PortalPreview({
                     )}
                     onClick={() => {
                       setCourseExperienceView("overview");
-                      window.requestAnimationFrame(scrollCourseToTop);
+                      updateLearnerUrl({
+                        view: "course",
+                        courseId: activeLearnerCourse.id,
+                        moduleId: activeModule?.id ?? null,
+                        mode: "overview",
+                      });
+                      scheduleCourseScrollToTop();
                     }}
                   >
                     <BookOpenCheck className="h-4 w-4" />
@@ -3130,6 +4532,26 @@ function PortalPreview({
                   onOpenMaterials={openLearnerMaterials}
                 />
 
+                <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
+                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Sequenza della lezione</p>
+                      <h4 className="mt-1 text-lg font-bold text-slate-950">Blocchi chiari, uno dopo l'altro</h4>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        Video, testo, allegati, quiz e presa visione sono separati per rendere il percorso leggibile.
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
+                      {activeLessonBlocks.filter((block) => block.status === "pronto").length} pronti
+                    </Badge>
+                  </div>
+                  <LessonBlockStrip
+                    blocks={activeLessonBlocks}
+                    activeBlockId={activePreviewAsset?.id}
+                    onOpenBlock={openLearnerBlock}
+                  />
+                </section>
+
                 <div id="portal-preview-materials" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
                   <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -3164,6 +4586,17 @@ function PortalPreview({
                   </div>
                 </div>
 
+                <LearnerAcknowledgementPanel
+                  items={activeAcknowledgementItems}
+                  signatures={acknowledgedPreviewItems}
+                  signedCount={signedAcknowledgementCount}
+                  onSign={signAcknowledgement}
+                  onOpenAsset={(asset) => {
+                    setActivePreviewAssetId(asset.id);
+                    scrollToPreviewSection("portal-preview-player");
+                  }}
+                />
+
                 <div className="grid gap-4 lg:grid-cols-3">
                   <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
                     <h4 className="font-bold text-slate-950">Azioni studente</h4>
@@ -3188,10 +4621,10 @@ function PortalPreview({
                       <Button
                         variant="outline"
                         className="h-10 w-full justify-start gap-2 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                        onClick={() => toast.success("Presa visione registrata nella preview.")}
+                        onClick={() => scrollToPreviewSection("portal-preview-acknowledgement")}
                       >
                         <ShieldCheck className="h-4 w-4" />
-                        Firma presa visione
+                        Registro presa visione
                       </Button>
                     </div>
                   </div>
@@ -3256,6 +4689,18 @@ function LearnerMetric({ label, value, icon: Icon }: { label: string; value: str
         {label}
       </div>
       <p className="mt-2 text-2xl font-bold text-white">{value}</p>
+    </div>
+  );
+}
+
+function LearnerCompactStat({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Video }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <Icon className="h-4 w-4 text-blue-600" />
+        {label}
+      </div>
+      <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
     </div>
   );
 }
@@ -3845,6 +5290,123 @@ function LearnerLessonGuidance({
           Vai ai materiali
         </Button>
       </aside>
+    </section>
+  );
+}
+
+function LearnerAcknowledgementPanel({
+  items,
+  signatures,
+  signedCount,
+  onSign,
+  onOpenAsset,
+}: {
+  items: PortalAcknowledgementItem[];
+  signatures: Record<string, string>;
+  signedCount: number;
+  onSign: (item: PortalAcknowledgementItem) => void;
+  onOpenAsset: (asset: PortalAsset) => void;
+}) {
+  if (items.length === 0) {
+    return (
+      <section
+        id="portal-preview-acknowledgement"
+        className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-950">Presa visione non richiesta</h4>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              Per questo modulo non ci sono documenti obbligatori o quiz da firmare.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      id="portal-preview-acknowledgement"
+      className="scroll-mt-24 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm lg:p-5"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Registro presa visione</p>
+            <h4 className="mt-1 text-lg font-bold text-slate-950">Conferme richieste per questo modulo</h4>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              L'utente vede cosa deve confermare, quale documento riguarda e lo stato della firma.
+            </p>
+          </div>
+        </div>
+        <Badge variant="outline" className="w-fit border-emerald-200 bg-white text-emerald-700">
+          {signedCount}/{items.length} firmate
+        </Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        {items.map((item) => {
+          const signedAt = signatures[item.id];
+          return (
+            <div key={item.id} className="rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h5 className="font-bold text-slate-950">{item.title}</h5>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "w-fit",
+                        signedAt
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-orange-200 bg-orange-50 text-orange-700",
+                      )}
+                    >
+                      {signedAt ? "Firmata" : "Da firmare"}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {item.courseTitle} · {item.moduleTitle}
+                    {signedAt ? ` · registrata ${signedAt}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {item.asset && (
+                    <Button
+                      variant="outline"
+                      className="h-10 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                      onClick={() => onOpenAsset(item.asset as PortalAsset)}
+                    >
+                      <Eye className="h-4 w-4" />
+                      Apri
+                    </Button>
+                  )}
+                  <Button
+                    className={cn(
+                      "h-10 gap-2",
+                      signedAt
+                        ? "bg-emerald-600 hover:bg-emerald-700"
+                        : "bg-blue-600 hover:bg-blue-700",
+                    )}
+                    onClick={() => onSign(item)}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {signedAt ? "Aggiorna firma" : "Firma presa visione"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

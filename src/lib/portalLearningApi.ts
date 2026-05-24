@@ -60,6 +60,17 @@ export interface PortalLearningCourse {
   assets: PortalLearningAsset[];
 }
 
+export type PortalEnrollmentStatus = "assegnato" | "in_corso" | "completato" | "in_ritardo";
+
+export interface PortalLearningEnrollment {
+  courseId: string;
+  userId: string;
+  status: PortalEnrollmentStatus;
+  progressPercent: number;
+  dueAt?: string | null;
+  completedAt?: string | null;
+}
+
 interface PortalCourseRow {
   id: string;
   title: string;
@@ -99,6 +110,15 @@ interface PortalAssetRow {
   file_size?: number | null;
   mime_type?: string | null;
   sort_order: number | null;
+}
+
+interface PortalEnrollmentRow {
+  course_id: string;
+  user_id: string;
+  status: PortalEnrollmentStatus;
+  progress_percent: number | null;
+  due_at?: string | null;
+  completed_at?: string | null;
 }
 
 interface QueryResult<T = unknown> {
@@ -190,6 +210,71 @@ export async function listPortalCourses(companyId: string): Promise<PortalLearni
 
   if (error) throw error;
   return ((data ?? []) as PortalCourseRow[]).map(mapCourse);
+}
+
+export async function listPortalCourseEnrollments(companyId: string, userId: string): Promise<PortalLearningEnrollment[]> {
+  const { data, error } = await getDb()
+    .from("portal_course_enrollments")
+    .select("course_id,user_id,status,progress_percent,due_at,completed_at")
+    .eq("company_id", companyId)
+    .eq("user_id", userId);
+
+  if (error) throw error;
+
+  return ((data ?? []) as PortalEnrollmentRow[]).map((row) => ({
+    courseId: row.course_id,
+    userId: row.user_id,
+    status: row.status,
+    progressPercent: row.progress_percent ?? 0,
+    dueAt: row.due_at ?? null,
+    completedAt: row.completed_at ?? null,
+  }));
+}
+
+export async function savePortalCourseEnrollment(
+  companyId: string,
+  userId: string,
+  courseId: string,
+  progressPercent: number,
+  status?: PortalEnrollmentStatus,
+) {
+  const normalizedProgress = Math.max(0, Math.min(100, Math.round(progressPercent)));
+  const nextStatus: PortalEnrollmentStatus =
+    status ?? (normalizedProgress >= 100 ? "completato" : normalizedProgress > 0 ? "in_corso" : "assegnato");
+
+  const { error } = await getDb()
+    .from("portal_course_enrollments")
+    .upsert(
+      {
+        company_id: companyId,
+        course_id: courseId,
+        user_id: userId,
+        status: nextStatus,
+        progress_percent: normalizedProgress,
+        completed_at: nextStatus === "completato" ? new Date().toISOString() : null,
+      },
+      { onConflict: "company_id,course_id,user_id" },
+    );
+
+  if (error) throw error;
+}
+
+export async function logPortalCourseActivity(
+  companyId: string,
+  courseId: string,
+  eventType: string,
+  metadata: Record<string, unknown> = {},
+) {
+  const user = (await supabase.auth.getUser()).data.user;
+  const { error } = await getDb().from("portal_course_activity").insert({
+    company_id: companyId,
+    course_id: courseId,
+    actor_id: user?.id ?? null,
+    event_type: eventType,
+    metadata,
+  });
+
+  if (error) throw error;
 }
 
 export async function savePortalCourse(companyId: string, course: PortalLearningCourse) {
@@ -286,13 +371,15 @@ export async function savePortalCourse(companyId: string, course: PortalLearning
     if (error) throw error;
   }
 
-  await db.from("portal_course_activity").insert({
+  const { error: activityError } = await db.from("portal_course_activity").insert({
     company_id: companyId,
     course_id: course.id,
     actor_id: user?.id ?? null,
     event_type: "course_saved",
     metadata: { status: course.status, modules: course.modules.length, assets: course.assets.length },
   });
+
+  if (activityError) throw activityError;
 }
 
 function sanitizeStorageSegment(value: string) {
