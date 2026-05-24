@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
@@ -44,6 +44,12 @@ import type {
   TemplateFormPayload, TemplateVisibilityKey,
 } from "./SettingsQuoteTemplates/helpers";
 import { ModuliVenditaPanel } from "./SettingsQuoteTemplates/ModuliVenditaPanel";
+import {
+  buildQuoteTemplatesTabParams,
+  normalizeQuoteTemplatesParams,
+  resolveQuoteTemplatesTopTab,
+  type QuoteTemplatesTopTab,
+} from "@/lib/settingsQuoteTemplatesRoute";
 
 // MP-IMP-001 Fase 3: LAYOUTS / FONTS / DESIGN_PRESETS / TEMPLATE_ASSET_BUCKET /
 // ALLOWED_LOGO_TYPES → ./SettingsQuoteTemplates/constants.ts
@@ -472,10 +478,17 @@ export default function SettingsQuoteTemplates() {
   // Deeplink: ?tab=moduli-vendita | documenti, ?modulo=serramenti
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
-  const topTab = tabFromUrl === "moduli-vendita" ? "moduli-vendita" : "documenti";
   // Se ?modulo non è specificato → undefined → landing con grid card.
   // Solo se l'URL contiene un modulo esplicito apre l'editor di quel modulo.
   const moduloFromUrl = searchParams.get("modulo") ?? undefined;
+  const topTab = resolveQuoteTemplatesTopTab(tabFromUrl, moduloFromUrl);
+
+  useEffect(() => {
+    const normalized = normalizeQuoteTemplatesParams(searchParams);
+    if (normalized) {
+      setSearchParams(normalized, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<QuoteTemplate>>(DEFAULT_TEMPLATE);
@@ -773,14 +786,22 @@ export default function SettingsQuoteTemplates() {
     });
   };
 
-  if (isLoading) return <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  if (isLoading && topTab !== "moduli-vendita") {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
-    <Tabs value={topTab} onValueChange={(v) => setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set("tab", v);
-      return next;
-    }, { replace: true })} className="space-y-4">
+    <Tabs
+      value={topTab}
+      onValueChange={(v) =>
+        setSearchParams((prev) => buildQuoteTemplatesTabParams(prev, v as QuoteTemplatesTopTab), { replace: true })
+      }
+      className="space-y-4"
+    >
       <TabsList className="bg-slate-100">
         <TabsTrigger value="documenti" className="gap-1.5">
           <FileText className="h-3.5 w-3.5" />
@@ -2107,4 +2128,3 @@ export default function SettingsQuoteTemplates() {
     </Tabs>
   );
 }
-

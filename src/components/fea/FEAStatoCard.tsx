@@ -1,10 +1,9 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Mail, User, Calendar, Clock, MapPin } from 'lucide-react';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
 import { FEABadge } from './FEABadge';
 import type { FEASignatureRequest } from '@/types/fea';
+import { formatFirmaDate } from '@/lib/fea/firmaElettronicaHub';
 
 interface FEAStatoCardProps {
   richiesta: FEASignatureRequest | null;
@@ -31,24 +30,24 @@ export function FEAStatoCard({ richiesta, onAnnulla, isAnnullando }: FEAStatoCar
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2 text-slate-600">
             <Mail className="h-4 w-4 text-slate-400 shrink-0" />
-            <span>{richiesta.signer_email}</span>
+            <span>{richiesta.signer_email || 'Email non salvata'}</span>
           </div>
           <div className="flex items-center gap-2 text-slate-600">
             <User className="h-4 w-4 text-slate-400 shrink-0" />
-            <span>{richiesta.signer_name}</span>
+            <span>{richiesta.signer_name || 'Firmatario'}</span>
           </div>
           <div className="flex items-center gap-2 text-slate-600">
             <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
             <span>
               Richiesta il{' '}
-              {format(new Date(richiesta.created_at), 'dd/MM/yyyy HH:mm', { locale: it })}
+              {formatFirmaDate(richiesta.created_at, 'dd/MM/yyyy HH:mm')}
             </span>
           </div>
           <div className="flex items-center gap-2 text-slate-600">
             <Clock className="h-4 w-4 text-slate-400 shrink-0" />
             <span>
               Scade il{' '}
-              {format(new Date(richiesta.expires_at), 'dd MMMM yyyy', { locale: it })}
+              {formatFirmaDate(richiesta.expires_at, 'dd MMMM yyyy')}
             </span>
           </div>
 
@@ -58,7 +57,7 @@ export function FEAStatoCard({ richiesta, onAnnulla, isAnnullando }: FEAStatoCar
                 <Calendar className="h-4 w-4 shrink-0" />
                 <span>
                   Firmato il{' '}
-                  {format(new Date(richiesta.signed_at), "dd/MM/yyyy 'alle' HH:mm", { locale: it })}
+                  {formatFirmaDate(richiesta.signed_at, "dd/MM/yyyy 'alle' HH:mm")}
                 </span>
               </div>
               {richiesta.firma_ip && (

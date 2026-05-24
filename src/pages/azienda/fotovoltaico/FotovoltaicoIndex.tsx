@@ -31,7 +31,6 @@ import {
   FileText,
   Trash2,
   ExternalLink,
-  Loader2,
   Settings,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,6 +40,7 @@ import {
   useEliminaProgetto,
   useFvModuloAttivo,
 } from "@/lib/fotovoltaico/queries";
+import { resolveFvModuloIndexGate } from "@/lib/fotovoltaico/moduloAccess";
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
 import { toast } from "sonner";
 
@@ -67,8 +67,15 @@ export default function FotovoltaicoIndex() {
   const navigate = useNavigate();
   const isAdmin = role === "company_admin" || role === "super_admin";
 
-  const { data: moduloStato, isLoading: loadingModulo } = useFvModuloAttivo();
-  const { data: progetti = [], isLoading } = useProgetti();
+  const moduloQuery = useFvModuloAttivo();
+  const moduloGate = resolveFvModuloIndexGate({
+    data: moduloQuery.data,
+    isLoading: moduloQuery.isLoading,
+    isError: moduloQuery.isError,
+    fetchStatus: moduloQuery.fetchStatus,
+  });
+  const progettiQuery = useProgetti();
+  const progetti = useMemo(() => progettiQuery.data ?? [], [progettiQuery.data]);
   const { data: stats } = useStatsAzienda();
   const eliminaProgetto = useEliminaProgetto();
 
@@ -89,7 +96,7 @@ export default function FotovoltaicoIndex() {
     });
   }, [progetti, search, filtroStato, filtroArchetipo]);
 
-  if (loadingModulo) {
+  if (moduloGate.showLoading) {
     return (
       <div className="flex items-center justify-center py-20 text-slate-500">
         Caricamento modulo Fotovoltaico…
@@ -98,7 +105,7 @@ export default function FotovoltaicoIndex() {
   }
 
   // Modulo non attivo per questa azienda
-  if (!moduloStato?.attivo) {
+  if (moduloGate.showInactive) {
     return (
       <div className="max-w-3xl mx-auto py-12 px-4">
         <FvCard>
@@ -122,7 +129,7 @@ export default function FotovoltaicoIndex() {
   // Setup non completato — mostriamo onboarding inline (no dead link a /setup
   // che non esiste). L'utente vede una checklist quickstart e può iniziare
   // direttamente il primo progetto: il wizard guiderà nella configurazione.
-  if (!moduloStato.setup_completato) {
+  if (moduloGate.showSetup) {
     return (
       <div className="max-w-3xl mx-auto py-12 px-4">
         <FvCard>
@@ -133,7 +140,7 @@ export default function FotovoltaicoIndex() {
             </h2>
             <p className="text-slate-500 max-w-lg mx-auto">
               Tutto è pronto per iniziare. Crea il tuo primo progetto: il wizard ti guiderà
-              passo-passo dall'anagrafica cliente al PDF preventivo finale (16 pagine).
+              passo-passo dall'anagrafica cliente al PDF preventivo finale configurabile.
             </p>
           </div>
           <div className="border-t border-slate-200 pt-5 mt-2">
@@ -329,16 +336,7 @@ export default function FotovoltaicoIndex() {
         </FvCard>
 
         {/* Tabella o empty state */}
-        {isLoading && (
-          <FvCard>
-            <div className="py-14 flex flex-col items-center justify-center gap-3 text-slate-500">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <p className="text-sm">Caricamento progetti fotovoltaici…</p>
-            </div>
-          </FvCard>
-        )}
-
-        {!isLoading && progetti.length === 0 && (
+        {progetti.length === 0 && (
           <FvCard>
             <div className="py-16 text-center space-y-4">
               <div className="relative w-fit mx-auto">
@@ -376,7 +374,7 @@ export default function FotovoltaicoIndex() {
           </FvCard>
         )}
 
-        {!isLoading && progetti.length > 0 && (
+        {progetti.length > 0 && (
           <FvCard compact>
             <div className="overflow-x-auto -mx-4 sm:mx-0">
               <Table>

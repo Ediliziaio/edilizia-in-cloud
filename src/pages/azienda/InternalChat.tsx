@@ -49,8 +49,15 @@ import {
   Smile, X, Pin, PinOff, ArrowLeft, MoreVertical, UserPlus, UsersRound, CheckCheck, Megaphone,
   Paperclip, Mic, Trash2, AlertCircle, RefreshCw,
 } from "lucide-react";
-import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
+import {
+  filterChatProfiles,
+  isAllowedSilvioUpload,
+  latestMessageByChannel,
+  normalizeDmUserIds,
+  parseStoredAttachmentUrl,
+  toStoredAttachmentUrl,
+} from "@/lib/internalChat";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🙏", "👏", "🔥", "✅", "😮"];
@@ -163,22 +170,49 @@ interface FunctionErrorBody {
   message?: string;
 }
 
+interface FatturaOcrExtracted {
+  numero_fattura?: string | null;
+  data_fattura?: string | null;
+  cedente?: {
+    ragione_sociale?: string | null;
+    piva?: string | null;
+  } | null;
+  imponibile_totale?: number | string | null;
+  iva_totale?: number | string | null;
+  totale_documento?: number | string | null;
+  confidence?: number | string | null;
+}
+
+interface FatturaOcrResponse {
+  extracted?: FatturaOcrExtracted | null;
+}
+
+interface TranscriptionResponse {
+  text?: string | null;
+}
+
+type InternalChatMemberPinClient = {
+  from(table: "internal_chat_members"): {
+    update(values: { is_pinned: boolean }): {
+      eq(column: string, value: string): {
+        eq(column: string, value: string): Promise<{ error: { message?: string } | null }>;
+      };
+    };
+  };
+};
+
+type InternalChatSidebarRpc = {
+  data: unknown;
+  error: { message?: string } | null;
+};
+
+type InternalChatSidebarRow = {
+  channel_id?: string | null;
+  last_message?: Message | null;
+  unread_count?: number | null;
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function escapeHtml(raw: string): string {
-  return raw
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-function renderMarkdown(text: string): string {
-  return escapeHtml(text)
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/`([^`]+)`/g, '<code class="bg-black/10 px-1 py-0.5 rounded text-xs font-mono">$1</code>')
-    .replace(/@(\w+)/g, '<span class="text-blue-600 font-medium">@$1</span>')
-    .replace(/\n/g, "<br/>");
-}
-
 function renderWithMentions(text: string): React.ReactNode {
   const parts = text.split(/(@\w[\w\s]*)/g);
   return parts.map((part, i) =>
@@ -342,7 +376,6 @@ function useInternalChat(companyIdOverride?: string) {
   const {
     data: profiles = [],
     isLoading: profilesLoading,
-    isError: profilesError,
     refetch: refetchProfiles,
   } = useQuery({
     queryKey: ["internal-chat-profiles", companyId, userId],
@@ -375,45 +408,31 @@ function useInternalChat(companyIdOverride?: string) {
         return Array.from(new Map(rpcInternalProfiles.map((profile) => [profile.id, profile])).values());
       }
 
-      const { data: allProfiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email, avatar_url, portal_disabled")
-        .eq("company_id", companyId!);
-      if (profilesError) throw profilesError;
-
-      const profilesList = (allProfiles || []) as RawProfile[];
-
-      const [permissionsRes, employeesRes, subcontractorsRes, ordersRes, ticketsRes, contactsRes] = await Promise.all([
+      const [permissionsRes, employeesRes, subcontractorsRes] = await Promise.all([
         supabase.from("staff_permissions").select("user_id").eq("company_id", companyId!),
         supabase.from("employees").select("user_id").eq("company_id", companyId!).not("user_id", "is", null),
         supabase.from("subappaltatori").select("user_id").eq("company_id", companyId!).not("user_id", "is", null),
-        supabase.from("orders").select("customer_id").eq("company_id", companyId!),
-        supabase.from("tickets").select("customer_id").eq("company_id", companyId!),
-        supabase.from("marketing_contacts").select("customer_profile_id").eq("company_id", companyId!).not("customer_profile_id", "is", null),
       ]);
 
       const internalIds = new Set<string>();
-      const customerIds = new Set<string>();
       if (userId) internalIds.add(userId);
 
       (permissionsRes.data || []).forEach((row) => row.user_id && internalIds.add(row.user_id));
       (employeesRes.data || []).forEach((row) => row.user_id && internalIds.add(row.user_id));
       (subcontractorsRes.data || []).forEach((row) => row.user_id && internalIds.add(row.user_id));
-      (ordersRes.data || []).forEach((row) => row.customer_id && customerIds.add(row.customer_id));
-      (ticketsRes.data || []).forEach((row) => row.customer_id && customerIds.add(row.customer_id));
-      (contactsRes.data || []).forEach((row) => row.customer_profile_id && customerIds.add(row.customer_profile_id));
-      profilesList.forEach((profile) => {
-        if (profile.portal_disabled === true) customerIds.add(profile.id);
-      });
 
-      const explicitInternalProfiles = profilesList.filter((profile) => internalIds.has(profile.id));
-      const resultById = new Map<string, Profile>();
-      explicitInternalProfiles.forEach(({ portal_disabled: _portalDisabled, ...profile }) => {
-        if (customerIds.has(profile.id)) return;
-        resultById.set(profile.id, profile);
-      });
+      if (internalIds.size === 0) return [];
 
-      return Array.from(resultById.values());
+      const { data: fallbackProfiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, avatar_url, portal_disabled")
+        .eq("company_id", companyId!)
+        .in("id", Array.from(internalIds));
+      if (profilesError) throw profilesError;
+
+      return ((fallbackProfiles ?? []) as RawProfile[])
+        .filter((profile) => profile.portal_disabled !== true)
+        .map(({ portal_disabled: _portalDisabled, ...profile }) => profile);
     },
   });
 
@@ -424,6 +443,7 @@ function useInternalChat(companyIdOverride?: string) {
   const myChannels = channels.filter((ch) => {
     if (!members.some((m) => m.channel_id === ch.id && m.user_id === userId)) return false;
     if (ch.is_system || ch.name.toLowerCase().includes("lucia")) return true;
+    if (profilesLoading) return true;
 
     const channelMemberIds = members
       .filter((m) => m.channel_id === ch.id)
@@ -444,26 +464,69 @@ function useInternalChat(companyIdOverride?: string) {
   //   (vedi useEffect sotto) → l'aggiornamento avviene sempre entro 15s anche
   //   se la realtime channel-specific fallisce.
   const channelIds = useMemo(() => myChannels.map((c) => c.id), [myChannels]);
-  const { data: lastMessages = {} } = useQuery({
-    queryKey: ["internal-chat-last-messages", companyId, channelIds],
+  const channelIdsKey = useMemo(() => channelIds.join("|"), [channelIds]);
+  const {
+    data: sidebarState = { lastMessages: {}, unreadCounts: {} },
+    refetch: refetchSidebarState,
+  } = useQuery({
+    queryKey: ["internal-chat-sidebar-state", companyId, userId, channelIds],
     enabled: !!companyId && channelIds.length > 0,
     queryFn: async () => {
+      const visibleChannelIds = new Set(channelIds);
+      const rpc = supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, string>
+      ) => Promise<InternalChatSidebarRpc>;
+      const { data: rpcRows, error: rpcError } = await rpc.call(
+        supabase,
+        "get_internal_chat_sidebar_state",
+        { p_company_id: companyId!, p_user_id: userId! },
+      );
+
+      if (!rpcError && Array.isArray(rpcRows)) {
+        const lastMessages: Record<string, Message> = {};
+        const unreadCounts: Record<string, number> = {};
+
+        for (const row of rpcRows as InternalChatSidebarRow[]) {
+          if (!row.channel_id || !visibleChannelIds.has(row.channel_id)) continue;
+          if (row.last_message) lastMessages[row.channel_id] = row.last_message;
+          if ((row.unread_count ?? 0) > 0) unreadCounts[row.channel_id] = row.unread_count ?? 0;
+        }
+
+        return { lastMessages, unreadCounts };
+      }
+
       const { data, error } = await supabase
         .from("internal_chat_messages")
         .select("*")
         .in("channel_id", channelIds)
         .order("created_at", { ascending: false })
-        .limit(channelIds.length * 2);
+        .limit(Math.max(channelIds.length * 8, 50));
       if (error) throw error;
-      const result: Record<string, Message> = {};
-      for (const msg of (data || []) as Message[]) {
-        if (!result[msg.channel_id]) result[msg.channel_id] = msg;
-      }
-      return result;
+
+      const unreadCounts: Record<string, number> = {};
+      await Promise.all(myMemberships.map(async (m) => {
+        if (!visibleChannelIds.has(m.channel_id)) return;
+        let q = supabase
+          .from("internal_chat_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("channel_id", m.channel_id)
+          .neq("sender_id", userId!);
+        if (m.last_read_at) q = q.gt("created_at", m.last_read_at);
+        const { count } = await q;
+        if (count && count > 0) unreadCounts[m.channel_id] = count;
+      }));
+
+      return {
+        lastMessages: latestMessageByChannel((data || []) as Message[]),
+        unreadCounts,
+      };
     },
     staleTime: 10_000,
     refetchInterval: 15_000, // safety net: 1 fetch ogni 15s se realtime fallisce
   });
+  const lastMessages = sidebarState.lastMessages;
+  const unreadCounts = sidebarState.unreadCounts;
 
   // v8.6.50 — Realtime sub globale (no filtro channel_id) per garantire che
   // la sidebar preview si aggiorni anche per i canali NON attivi (es. quando
@@ -482,43 +545,20 @@ function useInternalChat(companyIdOverride?: string) {
           filter: `company_id=eq.${companyId}`,
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
-          queryClient.invalidateQueries({ queryKey: ["internal-chat-unread"] });
+          queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
         },
       )
       .subscribe();
     return () => { supabase.removeChannel(sub); };
-  }, [companyId, channelIds.length, queryClient]);
-
-  const { data: unreadCounts = {}, refetch: refetchUnread } = useQuery({
-    queryKey: ["internal-chat-unread", companyId, userId],
-    enabled: !!companyId && !!userId,
-    queryFn: async () => {
-      if (!myMemberships.length) return {} as Record<string, number>;
-      const counts: Record<string, number> = {};
-      await Promise.all(myMemberships.map(async (m) => {
-        let q = supabase
-          .from("internal_chat_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("channel_id", m.channel_id)
-          .neq("sender_id", userId!);
-        if (m.last_read_at) q = q.gt("created_at", m.last_read_at);
-        const { count } = await q;
-        if (count && count > 0) counts[m.channel_id] = count;
-      }));
-      return counts;
-    },
-    staleTime: 15_000,
-    refetchInterval: 60_000,
-  });
+  }, [companyId, channelIds.length, channelIdsKey, queryClient]);
 
   const markChannelRead = useCallback(async (channelId: string) => {
     if (!userId) return;
     await supabase.from("internal_chat_members")
       .update({ last_read_at: new Date().toISOString() })
       .eq("channel_id", channelId).eq("user_id", userId);
-    refetchUnread();
-  }, [userId, refetchUnread]);
+    refetchSidebarState();
+  }, [userId, refetchSidebarState]);
 
   return {
     channels: myChannels,
@@ -530,12 +570,12 @@ function useInternalChat(companyIdOverride?: string) {
     queryClient,
     unreadCounts,
     markChannelRead,
-    refetchUnread,
+    refetchUnread: refetchSidebarState,
     lastMessages,
     myMemberships,
     internalProfileIds,
-    isLoading: membershipsLoading || channelsLoading || membersLoading || profilesLoading,
-    isError: membershipsError || channelsError || membersError || profilesError,
+    isLoading: membershipsLoading || channelsLoading || membersLoading,
+    isError: membershipsError || channelsError || membersError,
     refetchChatData: () => {
       refetchMemberships();
       refetchChannels();
@@ -545,30 +585,66 @@ function useInternalChat(companyIdOverride?: string) {
   };
 }
 
-// v8.6.54 — Rollback a useQuery dopo crash regressione del refactor
-// useInfiniteQuery. La paginazione lazy resta in roadmap ma servirà un
-// approccio più conservativo (es. cursor manuale via useState).
-// Per ora carico gli ULTIMI 500 messaggi (.order desc + reverse) — sufficiente
-// per il 99% dei use case e bug-free.
-const MESSAGES_PAGE_SIZE = 500;
+const MESSAGES_PAGE_SIZE = 80;
+
+type ChannelMessagesData = {
+  items: Message[];
+  hasOlder: boolean;
+};
 
 function useChannelMessages(channelId: string | null, onNewMessage?: () => void) {
   const queryClient = useQueryClient();
-  const { data: messages = [], isError, refetch } = useQuery({
-    queryKey: ["internal-chat-messages", channelId],
+  const queryKey = useMemo(() => ["internal-chat-messages", channelId], [channelId]);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const { data, isError, refetch } = useQuery({
+    queryKey,
     enabled: !!channelId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("internal_chat_messages").select("*")
         .eq("channel_id", channelId!)
         .order("created_at", { ascending: false })
-        .limit(MESSAGES_PAGE_SIZE);
+        .limit(MESSAGES_PAGE_SIZE + 1);
       if (error) throw error;
-      // Reverse client-side: ordine ASC (dal più vecchio al più nuovo) per render UI
-      return ((data ?? []) as Message[]).slice().reverse();
+      const rows = ((data ?? []) as Message[]);
+      return {
+        items: rows.slice(0, MESSAGES_PAGE_SIZE).reverse(),
+        hasOlder: rows.length > MESSAGES_PAGE_SIZE,
+      } satisfies ChannelMessagesData;
     },
     retry: 2,
   });
+
+  const messages = useMemo(() => data?.items ?? [], [data?.items]);
+
+  const loadOlder = useCallback(async () => {
+    if (!channelId || isLoadingOlder || messages.length === 0 || data?.hasOlder === false) return;
+    const oldest = messages[0];
+    setIsLoadingOlder(true);
+    try {
+      const { data: olderRows, error } = await supabase
+        .from("internal_chat_messages")
+        .select("*")
+        .eq("channel_id", channelId)
+        .lt("created_at", oldest.created_at)
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE_SIZE + 1);
+      if (error) throw error;
+
+      const rows = ((olderRows ?? []) as Message[]);
+      const olderItems = rows.slice(0, MESSAGES_PAGE_SIZE).reverse();
+      queryClient.setQueryData<ChannelMessagesData>(queryKey, (current) => ({
+        items: [...olderItems, ...(current?.items ?? [])],
+        hasOlder: rows.length > MESSAGES_PAGE_SIZE,
+      }));
+    } catch (error) {
+      toast.error("Non riesco a caricare i messaggi precedenti", {
+        description: error instanceof Error ? error.message : "Errore sconosciuto",
+      });
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  }, [channelId, data?.hasOlder, isLoadingOlder, messages, queryClient, queryKey]);
 
   useEffect(() => {
     if (!channelId) return;
@@ -580,14 +656,14 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
         filter: `channel_id=eq.${channelId}`,
       }, () => {
         queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", channelId] });
-        queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
+        queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
         onNewMessage?.();
       })
       .subscribe();
     return () => { supabase.removeChannel(sub); };
   }, [channelId, queryClient, onNewMessage]);
 
-  return { messages, isError, refetch };
+  return { messages, isError, refetch, hasOlder: data?.hasOlder ?? false, loadOlder, isLoadingOlder };
 }
 
 // ─── Chat List Item ──────────────────────────────────────────────────────────
@@ -640,6 +716,8 @@ function ChatListItem({
     <div
       role="button"
       tabIndex={0}
+      aria-label={`Apri chat ${displayName}`}
+      aria-pressed={isActive}
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -732,6 +810,70 @@ function ChatListItem({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
+  const storedAttachment = parseStoredAttachmentUrl(msg.attachment_url);
+  const { data: signedUrl, isLoading } = useQuery({
+    queryKey: ["internal-chat-attachment-url", msg.id, msg.attachment_url],
+    enabled: !!storedAttachment,
+    staleTime: 55 * 60 * 1000,
+    queryFn: async () => {
+      if (!storedAttachment) return null;
+      const { data, error } = await supabase.storage
+        .from(storedAttachment.bucket)
+        .createSignedUrl(storedAttachment.path, 60 * 60);
+      if (error) throw error;
+      return data?.signedUrl ?? null;
+    },
+  });
+
+  if (!msg.attachment_url) return null;
+
+  const href = storedAttachment ? signedUrl : msg.attachment_url;
+  const attachmentName = msg.attachment_name || "Allegato";
+  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(attachmentName);
+
+  if (isImage && href) {
+    return (
+      <div className="mb-1.5">
+        <a href={href} target="_blank" rel="noopener noreferrer" className="block" aria-label={`Apri allegato ${attachmentName}`}>
+          <img
+            src={href}
+            alt={attachmentName}
+            className="rounded-lg max-w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-1.5">
+      <a
+        href={href ?? "#"}
+        target={href ? "_blank" : undefined}
+        rel="noopener noreferrer"
+        aria-disabled={!href}
+        aria-label={href ? `Apri allegato ${attachmentName}` : `Allegato ${attachmentName} in preparazione`}
+        className={cn(
+          "flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors",
+          !href && "pointer-events-none opacity-70",
+          isMe
+            ? "bg-[#c8edca] dark:bg-[#004a3d] hover:bg-[#b8ddb9]"
+            : "bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15",
+        )}
+      >
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#54656f]" />
+        ) : (
+          <Paperclip className="h-4 w-4 shrink-0 text-[#54656f]" />
+        )}
+        <span className="truncate font-medium">{attachmentName}</span>
+      </a>
     </div>
   );
 }
@@ -836,33 +978,7 @@ function MessageBubble({
 
           {/* Attachment */}
           {msg.attachment_url && (
-            <div className="mb-1.5">
-              {msg.attachment_name && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.attachment_name) ? (
-                <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block">
-                  <img
-                    src={msg.attachment_url}
-                    alt={msg.attachment_name}
-                    className="rounded-lg max-w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </a>
-              ) : (
-                <a
-                  href={msg.attachment_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors",
-                    isMe
-                      ? "bg-[#c8edca] dark:bg-[#004a3d] hover:bg-[#b8ddb9]"
-                      : "bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15",
-                  )}
-                >
-                  <Paperclip className="h-4 w-4 shrink-0 text-[#54656f]" />
-                  <span className="truncate font-medium">{msg.attachment_name || "Allegato"}</span>
-                </a>
-              )}
-            </div>
+            <AttachmentPreview msg={msg} isMe={isMe} />
           )}
 
           {/* AI metadata top: review banner + low confidence + multi-area badge */}
@@ -936,11 +1052,13 @@ function MessageBubble({
         {msg.reactions && Object.keys(msg.reactions).length > 0 && (
           <div className={cn("flex flex-wrap gap-1 mt-1", isMe ? "justify-end" : "justify-start")}>
             {Object.entries(msg.reactions).map(([emoji, users]) =>
-              users.length > 0 ? (
-                <button
-                  key={emoji}
-                  onClick={() => onReaction(emoji)}
-                  className={cn(
+                users.length > 0 ? (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => onReaction(emoji)}
+                    aria-label={`Reazione ${emoji}, ${users.length} utenti`}
+                    className={cn(
                     "flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border shadow-sm",
                     users.includes(userId ?? "")
                       ? "bg-blue-50 border-blue-200 dark:bg-blue-900/30"
@@ -963,14 +1081,14 @@ function MessageBubble({
           <div className="flex items-center gap-0.5 bg-white dark:bg-gray-800 rounded-lg shadow-md border px-1 py-0.5">
             <Popover>
               <PopoverTrigger asChild>
-                <button className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Reagisci">
+                <button type="button" className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Reagisci" aria-label="Reagisci al messaggio">
                   <Smile className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
               </PopoverTrigger>
               <PopoverContent side="top" align={isMe ? "start" : "end"} className="w-auto p-1.5">
                 <div className="flex gap-1">
                   {QUICK_REACTIONS.map((emoji) => (
-                    <button key={emoji} onClick={() => onReaction(emoji)}
+                    <button key={emoji} type="button" onClick={() => onReaction(emoji)} aria-label={`Reagisci con ${emoji}`}
                       className="text-lg hover:scale-125 transition-transform p-0.5 rounded">
                       {emoji}
                     </button>
@@ -978,17 +1096,17 @@ function MessageBubble({
                 </div>
               </PopoverContent>
             </Popover>
-            <button onClick={onReply} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Rispondi">
+            <button type="button" onClick={onReply} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Rispondi" aria-label="Rispondi al messaggio">
               <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
-            <button onClick={onPin} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-              title={msg.is_pinned ? "Rimuovi pin" : "Pinna"}>
+            <button type="button" onClick={onPin} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+              title={msg.is_pinned ? "Rimuovi pin" : "Pinna"} aria-label={msg.is_pinned ? "Rimuovi pin dal messaggio" : "Pinna messaggio"}>
               {msg.is_pinned
                 ? <PinOff className="h-3.5 w-3.5 text-amber-500" />
                 : <Pin className="h-3.5 w-3.5 text-muted-foreground" />}
             </button>
             {isMe && onDelete && (
-              <button onClick={onDelete} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40" title="Elimina messaggio">
+              <button type="button" onClick={onDelete} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40" title="Elimina messaggio" aria-label="Elimina messaggio">
                 <Trash2 className="h-3.5 w-3.5 text-red-500" />
               </button>
             )}
@@ -1027,7 +1145,6 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     queryClient, unreadCounts, markChannelRead, refetchUnread, lastMessages, myMemberships, internalProfileIds,
     isLoading: chatLoading, isError: chatDataError, refetchChatData,
   } = useInternalChat(companyIdOverride);
-  const permissions = usePermissions();
 
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1047,6 +1164,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const [chatFilter, setChatFilter] = useState<"all" | "groups" | "dm">("all");
   const [showMobile, setShowMobile] = useState(false); // mobile: show chat panel
   const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
+  const [silvioError, setSilvioError] = useState<string | null>(null);
+  const [lastSilvioPrompt, setLastSilvioPrompt] = useState<string | null>(null);
   const [slowChatLoad, setSlowChatLoad] = useState(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const presenceRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -1059,7 +1178,14 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   // Silvio Superadmin (admin team chat): edge function diversa, sender ID diverso
   const isSilvioAdminChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "silvio-admin";
   const isAIChannel = isLuciaChannel || isSilvioChannel || isSilvioAdminChannel;
-  const { messages, isError: messagesError, refetch: retryMessages } = useChannelMessages(selectedChannelId, refetchUnread);
+  const {
+    messages,
+    isError: messagesError,
+    refetch: retryMessages,
+    hasOlder,
+    loadOlder,
+    isLoadingOlder,
+  } = useChannelMessages(selectedChannelId, refetchUnread);
 
   const profileMap = useMemo(() => {
     const m = new Map(profiles.map((p) => [p.id, p]));
@@ -1090,6 +1216,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     setReplyTo(null);
     setMsgSearch("");
     setShowSearch(false);
+    setSilvioError(null);
     setShowMobile(true);
     markChannelRead(channelId);
   }, [markChannelRead]);
@@ -1129,13 +1256,6 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   // Threshold: considerato "at bottom" se a meno di 80px dal fondo
   const AT_BOTTOM_THRESHOLD = 80;
 
-  // Traccia se l'utente è già al bottom (prima del prossimo render)
-  const checkIsAtBottom = useCallback(() => {
-    const el = messagesContainerRef.current;
-    if (!el) return true;
-    return el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD;
-  }, []);
-
   useEffect(() => {
     const channelChanged = lastChannelIdRef.current !== selectedChannelId;
     lastChannelIdRef.current = selectedChannelId;
@@ -1153,10 +1273,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     }
   }, [messages.length, selectedChannelId]);
 
-  // v8.6.54 — Solo tracking "wasAtBottom" per lo smart-scroll.
-  // La lazy-load di messaggi più vecchi è stata temporaneamente rimossa
-  // (causava crash con useInfiniteQuery). Verrà reintrodotta con
-  // approccio cursor manuale via useState in un commit dedicato.
+  // Tracking "wasAtBottom" per lo smart-scroll; la paginazione manuale dei
+  // messaggi più vecchi è gestita da useChannelMessages.
   const onMessagesScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     wasAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD;
@@ -1226,7 +1344,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       setNewMsg(""); setReplyTo(null);
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
-      queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
       refetchUnread();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1241,6 +1359,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       toast.error("Non hai accesso a questa conversazione.");
       return;
     }
+    setSilvioError(null);
+    setLastSilvioPrompt(messageText.trim());
     // 1) Inserisci subito il messaggio dell'utente nel canale (UX feedback istantaneo)
     const { error: insertErr } = await supabase.from("internal_chat_messages").insert({
       channel_id: selectedChannelId, sender_id: userId, company_id: companyId,
@@ -1251,6 +1371,8 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
+    queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
+    await supabase.from("internal_chat_channels").update({ updated_at: new Date().toISOString() }).eq("id", selectedChannelId);
     await supabase.from("internal_chat_members").update({ last_read_at: new Date().toISOString() }).eq("channel_id", selectedChannelId).eq("user_id", userId);
     setLuciaTyping(true); // riusiamo lo stesso typing indicator
     try {
@@ -1299,19 +1421,23 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
         }
       }
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
-      queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
       refetchUnread();
     } catch (err: unknown) {
-      toast.error(`Silvio: ${err instanceof Error ? err.message : "Errore comunicazione"}`);
+      const message = err instanceof Error ? err.message : "Errore comunicazione";
+      setSilvioError(message);
+      toast.error(`Silvio: ${message}`);
     } finally {
       setLuciaTyping(false);
     }
-  }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread, aiSelector.showSelector, aiSelector.selectedModel]);
+  }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread, isSilvioAdminChannel, aiSelector.showSelector, aiSelector.selectedModel]);
 
   // Create group channel
   const [channelName, setChannelName] = useState("");
   const [channelDesc, setChannelDesc] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [memberDialogSearch, setMemberDialogSearch] = useState("");
+  const [dmDialogSearch, setDmDialogSearch] = useState("");
 
   const createChannelMutation = useMutation({
     mutationFn: async () => {
@@ -1340,7 +1466,9 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     onSuccess: (newId) => {
       queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-members"] });
-      setCreateOpen(false); setChannelName(""); setChannelDesc(""); setSelectedMembers([]);
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-my-memberships"] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
+      setCreateOpen(false); setChannelName(""); setChannelDesc(""); setSelectedMembers([]); setMemberDialogSearch("");
       if (newId) handleSelectChannel(newId);
       toast.success("Gruppo creato!");
     },
@@ -1354,14 +1482,33 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       toast.error("Puoi avviare chat solo con persone interne all'azienda.");
       return;
     }
+    const dmUserIds = normalizeDmUserIds(userId, targetUserId);
     // Check if DM already exists
     const existing = channels.find((ch) =>
       ch.is_dm && ch.dm_user_ids &&
-      ch.dm_user_ids.includes(userId) && ch.dm_user_ids.includes(targetUserId)
+      normalizeDmUserIds(ch.dm_user_ids[0] ?? "", ch.dm_user_ids[1] ?? "").join("|") === dmUserIds.join("|")
     );
     if (existing) {
       handleSelectChannel(existing.id);
       setCreateDmOpen(false);
+      setDmDialogSearch("");
+      return;
+    }
+    const { data: existingRows } = await supabase
+      .from("internal_chat_channels")
+      .select("*")
+      .eq("company_id", companyId)
+      .eq("is_dm", true)
+      .contains("dm_user_ids", dmUserIds)
+      .limit(1);
+    const existingFromDb = ((existingRows ?? []) as Channel[])[0];
+    if (existingFromDb) {
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-members"] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-my-memberships"] });
+      handleSelectChannel(existingFromDb.id);
+      setCreateDmOpen(false);
+      setDmDialogSearch("");
       return;
     }
     const target = profileMap.get(targetUserId);
@@ -1369,7 +1516,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     const dmName = `${me?.first_name ?? ""} & ${target?.first_name ?? ""}`;
     const { data: ch, error } = await supabase.from("internal_chat_channels").insert({
       company_id: companyId, name: dmName, type: "dm", created_by: userId,
-      is_dm: true, dm_user_ids: [userId, targetUserId],
+      is_dm: true, dm_user_ids: dmUserIds,
     }).select().single();
     if (error) { toast.error(error.message); return; }
     const { error: membersError } = await supabase.from("internal_chat_members").insert([
@@ -1384,8 +1531,10 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
     queryClient.invalidateQueries({ queryKey: ["internal-chat-members"] });
     queryClient.invalidateQueries({ queryKey: ["internal-chat-my-memberships"] });
+    queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
     handleSelectChannel(ch.id);
     setCreateDmOpen(false);
+    setDmDialogSearch("");
     toast.success("Chat creata!");
   }, [companyId, userId, channels, profileMap, queryClient, handleSelectChannel, internalProfileIds]);
 
@@ -1428,6 +1577,10 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       toast.error("File troppo grande (max 20 MB)");
       return;
     }
+    if (!isAllowedSilvioUpload(file)) {
+      toast.error("Silvio accetta solo immagini JPG/PNG/GIF/WebP o PDF.");
+      return;
+    }
     setSilvioUploading(true);
     try {
       // 1) Upload to silvio-uploads bucket
@@ -1450,8 +1603,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
           body: { storage_path: path, bucket: "silvio-uploads", auto_create: false },
         });
         if (error) throw new Error(error.message);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ext = (data as any)?.extracted ?? {};
+        const ext = (data as FatturaOcrResponse | null)?.extracted ?? {};
         const summary = `📄 **Fattura OCR completato**
 
 - **Numero**: ${ext.numero_fattura ?? "—"}
@@ -1484,7 +1636,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
           content: `📎 Allegato: ${file.name}\n${signedUrl ? `[Anteprima](${signedUrl})` : ""}`,
           message_type: "text",
         });
-        sendToSilvio(userPrompt);
+        await sendToSilvio(userPrompt);
       }
     } catch (e) {
       toast.error(`Upload fallito: ${e instanceof Error ? e.message : String(e)}`);
@@ -1523,14 +1675,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             body: fd,
           });
           if (error) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const ctx = (error as any).context;
+            const ctx = (error as FunctionErrorWithContext).context;
             let body: { error?: string; text?: string } = {};
             try { if (ctx instanceof Response) body = await ctx.json(); } catch { /* ignore */ }
             throw new Error(body.error ?? error.message);
           }
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const text = ((data as any)?.text ?? "").trim();
+          const text = ((data as TranscriptionResponse | null)?.text ?? "").trim();
           if (!text) {
             toast.error("Nessun testo trascritto");
             return;
@@ -1616,9 +1766,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       }
       if (uploadResult.error) throw uploadResult.error;
 
-      // Get signed URL (24h)
-      const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24);
-      const attachUrl = signedData?.signedUrl ?? path;
+      const attachUrl = toStoredAttachmentUrl(bucket, path);
 
       // Insert message with attachment
       const content = newMsg.trim() || `📎 ${file.name}`;
@@ -1635,7 +1783,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       setNewMsg(""); setReplyTo(null);
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", selectedChannelId] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
-      queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
       refetchUnread();
       toast.success(`Allegato inviato: ${file.name}`);
     } catch (err: unknown) {
@@ -1690,7 +1838,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       const deletedChannelId = messageToDelete?.channel_id ?? selectedChannelId;
       setMessageToDelete(null);
       queryClient.invalidateQueries({ queryKey: ["internal-chat-messages", deletedChannelId] });
-      queryClient.invalidateQueries({ queryKey: ["internal-chat-last-messages"] });
+      queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
       queryClient.invalidateQueries({ queryKey: ["internal-chat-channels"] });
       refetchUnread();
       toast.success("Messaggio eliminato");
@@ -1707,8 +1855,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
     const current = myMemberships.find((m) => m.channel_id === channelId);
     if (!current) return;
     const next = !current.is_pinned;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
+    const pinClient = supabase as unknown as InternalChatMemberPinClient;
+    const { error } = await pinClient
       .from("internal_chat_members")
       .update({ is_pinned: next })
       .eq("channel_id", channelId)
@@ -1789,6 +1937,16 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         ? profileName(getDmProfile(selectedChannel))
         : selectedChannel?.name ?? "";
 
+  const groupProfileOptions = useMemo(
+    () => filterChatProfiles(profiles, userId, memberDialogSearch),
+    [profiles, userId, memberDialogSearch],
+  );
+
+  const dmProfileOptions = useMemo(
+    () => filterChatProfiles(profiles, userId, dmDialogSearch),
+    [profiles, userId, dmDialogSearch],
+  );
+
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="h-[calc(100vh-200px)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-xl border shadow-sm bg-[#efeae2] dark:bg-gray-950">
@@ -1812,12 +1970,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400"
-              onClick={() => setCreateDmOpen(true)} title="Nuovo messaggio interno">
+              onClick={() => setCreateDmOpen(true)} title="Nuovo messaggio interno" aria-label="Nuovo messaggio interno">
               <UserPlus className="h-5 w-5" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400">
+                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400" aria-label="Apri menu chat">
                   <Plus className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -1875,6 +2033,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
         <div className="px-3 py-1.5 flex gap-2 bg-white dark:bg-[#111b21]">
           {(["all", "groups", "dm"] as const).map((f) => (
             <button
+              type="button"
               key={f}
               onClick={() => setChatFilter(f)}
               className={cn(
@@ -1902,6 +2061,16 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   <p className="mt-1 text-blue-800/80 dark:text-blue-100/75">
                     Sto recuperando canali, membri e il canale Silvio. Se Supabase è appena ripartito può richiedere qualche secondo.
                   </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 h-8 border-blue-200 bg-white text-blue-800 hover:bg-blue-100"
+                    onClick={refetchChatData}
+                  >
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                    Riprova caricamento
+                  </Button>
                 </div>
               )}
               {Array.from({ length: 6 }).map((_, index) => (
@@ -1999,7 +2168,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               <div className="flex items-center gap-3 min-w-0">
                 {/* Back button (mobile) */}
                 <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden shrink-0"
-                  onClick={() => setShowMobile(false)}>
+                  onClick={() => setShowMobile(false)} aria-label="Torna alla lista chat">
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
                 {/* Avatar — Silvio cliente o Admin (brain orange), Lucia (bot violet), DM, group */}
@@ -2046,12 +2215,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               </div>
               <div className="flex items-center gap-0.5">
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400"
-                  onClick={() => { setShowSearch((s) => !s); setMsgSearch(""); }}>
+                  onClick={() => { setShowSearch((s) => !s); setMsgSearch(""); }} aria-label="Cerca nei messaggi">
                   <Search className="h-5 w-5" />
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400" aria-label="Opzioni conversazione">
                       <MoreVertical className="h-5 w-5" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -2080,8 +2249,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     className="pl-9 h-8 text-sm bg-[#f0f2f5] dark:bg-[#202c33] border-0"
                     autoFocus
                   />
-                  <button onClick={() => { setShowSearch(false); setMsgSearch(""); }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <button type="button" onClick={() => { setShowSearch(false); setMsgSearch(""); }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2" aria-label="Chiudi ricerca messaggi">
                     <X className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </div>
@@ -2139,6 +2308,25 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 </div>
               ) : (
                 <div>
+                  {hasOlder && !msgSearch.trim() && (
+                    <div className="mb-3 flex justify-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full bg-white/90 shadow-sm"
+                        onClick={loadOlder}
+                        disabled={isLoadingOlder}
+                      >
+                        {isLoadingOlder ? (
+                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                        )}
+                        Carica messaggi precedenti
+                      </Button>
+                    </div>
+                  )}
                   {filteredMessages.map((msg, idx) => {
                     const isMe = msg.sender_id === userId;
                     const isLucia = msg.sender_id === LUCIA_SENDER_ID || msg.sender_id === SILVIO_SENDER_ID;
@@ -2207,7 +2395,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     <p className="text-[13px] text-[#667781] truncate">{replyTo.content.slice(0, 80)}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setReplyTo(null)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setReplyTo(null)} aria-label="Annulla risposta">
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -2224,6 +2412,42 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   </span>
                   {typingUsers.join(", ")} {typingUsers.length === 1 ? "sta" : "stanno"} scrivendo…
                 </p>
+              </div>
+            )}
+
+            {silvioError && isAIChannel && (
+              <div className="border-t border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-100">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-2">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p className="min-w-0">
+                      Silvio non ha completato la risposta: <span className="font-medium">{silvioError}</span>
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    {lastSilvioPrompt && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-orange-200 bg-white text-orange-700 hover:bg-orange-100"
+                        onClick={() => sendToSilvio(lastSilvioPrompt)}
+                        disabled={luciaTyping}
+                      >
+                        Riprova
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 text-orange-700 hover:bg-orange-100"
+                      onClick={() => setSilvioError(null)}
+                    >
+                      Chiudi
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2260,6 +2484,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                       size="icon"
                       className="h-9 w-9 rounded-full text-orange-600 hover:text-orange-700 hover:bg-orange-100 shrink-0"
                       title="Skill di Silvio (azioni rapide)"
+                      aria-label="Apri skill rapide di Silvio"
                     >
                       <Plus className="h-6 w-6" strokeWidth={2.4} />
                     </Button>
@@ -2333,6 +2558,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 onClick={() => isSilvioChannel ? silvioImageInputRef.current?.click() : attachInputRef.current?.click()}
                 disabled={isAttaching || silvioUploading}
                 title={isSilvioChannel ? "Carica foto cantiere o fattura" : "Invia allegato"}
+                aria-label={isSilvioChannel ? "Carica foto cantiere o fattura" : "Invia allegato"}
               >
                 {(isAttaching || silvioUploading) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-6 w-6" />}
               </Button>
@@ -2382,6 +2608,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   onClick={handleSend}
                   disabled={sendMutation.isPending || luciaTyping}
                   size="icon"
+                  aria-label={isAIChannel ? "Invia messaggio a Silvio" : "Invia messaggio"}
                   className={cn(
                     "h-10 w-10 rounded-full shrink-0",
                     isSilvioChannel
@@ -2411,6 +2638,10 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     isRecording ? "Stop registrazione" :
                     isTranscribing ? "Trascrivendo…" : "Registra messaggio vocale"
                   }
+                  aria-label={
+                    isRecording ? "Ferma registrazione" :
+                    isTranscribing ? "Trascrizione in corso" : "Registra messaggio vocale"
+                  }
                 >
                   {isTranscribing ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -2430,7 +2661,10 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       </div>
 
       {/* ═══ Create Group Dialog ═══ */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={createOpen} onOpenChange={(open) => {
+        setCreateOpen(open);
+        if (!open) setMemberDialogSearch("");
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2450,10 +2684,24 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
             </div>
             <div>
               <Label>Partecipanti</Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={memberDialogSearch}
+                  onChange={(e) => setMemberDialogSearch(e.target.value)}
+                  placeholder="Cerca nome o email"
+                  className="pl-9"
+                />
+              </div>
               <ScrollArea className="h-[200px] border rounded-lg p-2 mt-1">
-                {profiles.filter((p) => p.id !== userId).map((p) => (
+                {groupProfileOptions.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                    Nessun partecipante trovato.
+                  </div>
+                ) : groupProfileOptions.map((p) => (
                   <label key={p.id} className="flex items-center gap-3 py-2 px-2 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg cursor-pointer">
                     <Checkbox
+                      aria-label={`Seleziona ${profileName(p)}`}
                       checked={selectedMembers.includes(p.id)}
                       onCheckedChange={(checked) => {
                         setSelectedMembers((prev) =>
@@ -2479,6 +2727,11 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   {selectedMembers.length} selezionati
                 </p>
               )}
+              {selectedMembers.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Puoi creare il gruppo ora e aggiungere persone in seguito.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -2494,7 +2747,10 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       </Dialog>
 
       {/* ═══ New DM Dialog ═══ */}
-      <Dialog open={createDmOpen} onOpenChange={setCreateDmOpen}>
+      <Dialog open={createDmOpen} onOpenChange={(open) => {
+        setCreateDmOpen(open);
+        if (!open) setDmDialogSearch("");
+      }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -2503,15 +2759,27 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
           </DialogHeader>
           <div>
             <Label>Seleziona persona aziendale</Label>
+            <div className="relative mt-2">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={dmDialogSearch}
+                onChange={(e) => setDmDialogSearch(e.target.value)}
+                placeholder="Cerca nome o email"
+                className="pl-9"
+              />
+            </div>
             <ScrollArea className="h-[300px] border rounded-lg p-1 mt-2">
-              {profiles.filter((p) => p.id !== userId).length === 0 ? (
+              {dmProfileOptions.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  Nessuna persona interna disponibile. I clienti non vengono mostrati nella chat aziendale.
+                  {dmDialogSearch
+                    ? "Nessuna persona trovata."
+                    : "Nessuna persona interna disponibile. I clienti non vengono mostrati nella chat aziendale."}
                 </div>
-              ) : profiles.filter((p) => p.id !== userId).map((p) => (
+              ) : dmProfileOptions.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => createDm(p.id)}
+                  aria-label={`Apri chat con ${profileName(p)}`}
                   className="w-full flex items-center gap-3 py-3 px-3 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg text-left transition-colors"
                 >
                   <Avatar className="h-11 w-11">

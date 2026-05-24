@@ -9,9 +9,9 @@
 import type { FvArchetipo } from "@/types/fotovoltaico";
 import {
   ITALIA_LAT_MAX, ITALIA_LAT_MIN, ITALIA_LNG_MAX, ITALIA_LNG_MIN,
-  LS_KEY_PREFIX, LS_KEY_NEW, DRAFT_TTL_MS,
+  LS_KEY_PREFIX, LS_KEY_NEW, DRAFT_TTL_MS, INITIAL, TOTAL_STEPS,
 } from "./constants";
-import type { PersistedDraft } from "./types";
+import type { PersistedDraft, WizardData } from "./types";
 
 export function isCoordinataItalia(lat: number | null, lng: number | null): boolean {
   if (lat == null || lng == null) return false;
@@ -56,19 +56,175 @@ export function calcolaCapienzaWarning(
 
 // ─── Persistenza locale draft ──────────────────────────────────────────────
 
+const NULLABLE_NUMBER_FIELDS: Array<keyof WizardData> = [
+  "popolazione_comune",
+  "latitudine",
+  "longitudine",
+  "superficie_immobile_mq",
+  "consumo_annuo_kwh",
+  "isee",
+  "reddito_annuo_dichiarato",
+  "ore_sole_annue",
+  "superficie_tetto_disponibile_mq",
+  "numero_pannelli_max",
+  "potenza_max_kwp",
+  "durata_mesi_scelta",
+];
+
+const NULLABLE_STRING_FIELDS: Array<keyof WizardData> = [
+  "cliente_id",
+  "qualita_dati_tetto",
+  "imagery_date",
+  "pannello_id",
+  "inverter_id",
+  "accumulo_id",
+  "tariffa_installazione_id",
+  "tabella_finanziamento_id",
+];
+
+const ALLOWED_VALUES: Partial<Record<keyof WizardData, readonly string[]>> = {
+  archetipo: [
+    "privato_prima",
+    "privato_seconda",
+    "privato_isee",
+    "pmi",
+    "condominio",
+    "cer",
+    "industriale_grande",
+  ],
+  tariffa_tipo: ["monoraria", "bioraria", "trioraria"],
+  profilo_consumo: ["sera", "misto", "giorno", "sempre", "pmi_diurno", "pmi_h24"],
+  fonte_dati_tetto: ["solar_api", "pvgis", "manuale"],
+  finanziamento_modalita: ["cash", "rate", "zero", "noleggio"],
+};
+
+function draftKey(progettoId: string | null): string {
+  return progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
+}
+
+function removeDraftKey(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* localStorage disabilitata o non accessibile: niente crash nel wizard */
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function clampStep(value: unknown): number {
+  if (!isFiniteNumber(value)) return 1;
+  return Math.min(TOTAL_STEPS, Math.max(1, Math.round(value)));
+}
+
+function normalizeCompletedSteps(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<number>();
+  const steps: number[] = [];
+
+  value.forEach((candidate) => {
+    if (!isFiniteNumber(candidate)) return;
+    const step = Math.round(candidate);
+    if (step < 1 || step > TOTAL_STEPS || seen.has(step)) return;
+    seen.add(step);
+    steps.push(step);
+  });
+
+  return steps;
+}
+
+function normalizeWizardData(value: unknown): WizardData | null {
+  if (!isRecord(value)) return null;
+
+  const normalized = { ...INITIAL };
+  const raw = value as Partial<Record<keyof WizardData, unknown>>;
+
+  (Object.keys(INITIAL) as Array<keyof WizardData>).forEach((key) => {
+    const candidate = raw[key];
+    if (candidate === undefined) return;
+
+    const allowed = ALLOWED_VALUES[key];
+    if (allowed) {
+      if (typeof candidate === "string" && allowed.includes(candidate)) {
+        (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
+      }
+      return;
+    }
+
+    const initialValue = INITIAL[key];
+    if (typeof initialValue === "string") {
+      if (typeof candidate === "string") {
+        (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
+      }
+      return;
+    }
+
+    if (typeof initialValue === "number") {
+      if (isFiniteNumber(candidate)) {
+        (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
+      }
+      return;
+    }
+
+    if (typeof initialValue === "boolean") {
+      if (typeof candidate === "boolean") {
+        (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
+      }
+      return;
+    }
+
+    if (initialValue === null) {
+      if (candidate === null) {
+        (normalized as Record<keyof WizardData, unknown>)[key] = null;
+      } else if (NULLABLE_NUMBER_FIELDS.includes(key) && isFiniteNumber(candidate)) {
+        (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
+      } else if (NULLABLE_STRING_FIELDS.includes(key) && typeof candidate === "string") {
+        (normalized as Record<keyof WizardData, unknown>)[key] = candidate;
+      }
+    }
+  });
+
+  return normalized;
+}
+
+export function validatePersistedDraft(value: unknown): PersistedDraft | null {
+  if (!isRecord(value) || !isFiniteNumber(value.savedAt)) return null;
+
+  const data = normalizeWizardData(value.data);
+  if (!data) return null;
+
+  return {
+    step: clampStep(value.step),
+    data,
+    completedSteps: normalizeCompletedSteps(value.completedSteps),
+    savedAt: value.savedAt,
+  };
+}
+
 export function loadPersistedDraft(progettoId: string | null): PersistedDraft | null {
   if (typeof window === "undefined") return null;
+  const key = draftKey(progettoId);
   try {
-    const key = progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
     const raw = window.localStorage.getItem(key);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedDraft;
+    const parsed = validatePersistedDraft(JSON.parse(raw));
+    if (!parsed) {
+      removeDraftKey(key);
+      return null;
+    }
     if (Date.now() - parsed.savedAt > DRAFT_TTL_MS) {
-      window.localStorage.removeItem(key);
+      removeDraftKey(key);
       return null;
     }
     return parsed;
   } catch {
+    removeDraftKey(key);
     return null;
   }
 }
@@ -79,7 +235,7 @@ export function savePersistedDraft(
 ): void {
   if (typeof window === "undefined") return;
   try {
-    const key = progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
+    const key = draftKey(progettoId);
     window.localStorage.setItem(
       key,
       JSON.stringify({ ...draft, savedAt: Date.now() }),
@@ -92,7 +248,7 @@ export function savePersistedDraft(
 export function clearPersistedDraft(progettoId: string | null): void {
   if (typeof window === "undefined") return;
   try {
-    const key = progettoId ? `${LS_KEY_PREFIX}${progettoId}` : LS_KEY_NEW;
+    const key = draftKey(progettoId);
     window.localStorage.removeItem(key);
   } catch {
     /* noop */

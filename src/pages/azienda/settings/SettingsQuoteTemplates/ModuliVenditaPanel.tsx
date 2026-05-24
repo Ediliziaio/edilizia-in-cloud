@@ -6,13 +6,14 @@
  * Mostra una landing card-grid per scegliere il modulo (serramenti, fotovoltaico,
  * tetti...) e poi mostra l'editor del modulo selezionato (lazy).
  */
-import React, { lazy, Suspense, useState } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, FileText, Loader2, RectangleVertical, ShoppingBag, Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { buildQuoteTemplatesModuleParams } from "@/lib/settingsQuoteTemplatesRoute";
 
 // PERF: lazy-load editor pesanti (Serramenti ~150KB, Fotovoltaico ~120KB)
 // per evitare di caricare il bundle nella route Settings prima del click sulla tab.
@@ -77,15 +78,14 @@ export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }
   const [activeSlug, setActiveSlug] = useState<string | null>(initialFromUrl);
   const active = activeSlug ? MODULI_VENDITA.find((m) => m.slug === activeSlug) : null;
 
+  useEffect(() => {
+    setActiveSlug(initialFromUrl);
+  }, [initialFromUrl]);
+
   // Sincronizzo l'URL quando l'utente cambia modulo (così back/forward + share funzionano)
   const handleSelectModulo = (slug: string | null) => {
     setActiveSlug(slug);
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (slug) next.set("modulo", slug);
-      else next.delete("modulo");
-      return next;
-    }, { replace: true });
+    setSearchParams((prev) => buildQuoteTemplatesModuleParams(prev, slug), { replace: true });
   };
 
   // Header comune

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
@@ -29,6 +29,13 @@ import { ContactFieldsSheet } from "@/components/marketing/ContactFieldsSheet";
 import { ContactFiltersSheet, type ContactFilters, type FilterRule, type FilterGroup, EMPTY_CONTACT_FILTERS, countActiveContactFilters, type PipelineWithStages } from "@/components/marketing/ContactFiltersSheet";
 import { usePermissions } from "@/hooks/usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
+import {
+  buildContactDateRange,
+  normalizeContactsUrlState,
+  sanitizeContactSearchTerm,
+  toggleContactsPageSelection,
+  type ContactsTab,
+} from "@/lib/marketingContacts";
 
 // Map filter field keys to actual DB columns
 const FIELD_TO_COLUMN: Record<string, string> = {
@@ -45,32 +52,36 @@ const FIELD_TO_COLUMN: Record<string, string> = {
   attr_campaign: "attr_campaign",
 };
 
-function sanitizeSearchTerm(value: string) {
-  return value.replace(/[%,]/g, " ").trim();
-}
-
 function applyRuleToQuery(query: any, rule: FilterRule) {
   const column = FIELD_TO_COLUMN[rule.field];
   if (!column) return query;
 
   const isName = rule.field === "name";
   const isDate = rule.field === "created_at" || rule.field === "last_activity_at";
+  const value = sanitizeContactSearchTerm(rule.value);
+  const dateRange = isDate ? buildContactDateRange(value) : null;
 
   switch (rule.operator) {
     case "is":
+      if (isDate) {
+        if (!dateRange) return query;
+        return query.gte(column, dateRange.start).lt(column, dateRange.endExclusive);
+      }
       if (isName) {
-        const n = `%${rule.value}%`;
+        const n = `%${value}%`;
         return query.or(`first_name.ilike.${n},last_name.ilike.${n}`);
       }
-      if (isDate) return query.eq(column, rule.value);
-      return query.ilike(column, `%${rule.value}%`);
+      return query.ilike(column, `%${value}%`);
     case "is_not":
+      if (isDate) {
+        if (!dateRange) return query;
+        return query.or(`${column}.lt.${dateRange.start},${column}.gte.${dateRange.endExclusive},${column}.is.null`);
+      }
       if (isName) {
-        const n = `%${rule.value}%`;
+        const n = `%${value}%`;
         return query.not("first_name", "ilike", n).not("last_name", "ilike", n);
       }
-      if (isDate) return query.neq(column, rule.value);
-      return query.not(column, "ilike", `%${rule.value}%`);
+      return query.not(column, "ilike", `%${value}%`);
     case "is_empty":
       if (isDate) return query.is(column, null);
       return query.or(`${column}.is.null,${column}.eq.`);
@@ -117,7 +128,7 @@ export default function MarketingContacts() {
     return [...CSV_FIELDS, ...customImportFields];
   }, [contactCustomFields]);
 
-  const { params: urlFilters, setParam: setURLParam } = useURLFilters({
+  const { params: urlFilters, setParam: setURLParam, setParams: setURLParams } = useURLFilters({
     activeTab: { key: "tab", defaultValue: "all" },
     searchInput: { key: "q", defaultValue: "" },
     page: { key: "pagina", defaultValue: 1, serialize: String, deserialize: Number },
@@ -128,21 +139,34 @@ export default function MarketingContacts() {
     filter: { key: "filter", defaultValue: "" },
   });
 
-  const activeTab = urlFilters.activeTab as "all" | "lists" | "meta";
-  const setActiveTab = useCallback((v: "all" | "lists" | "meta") => setURLParam("activeTab", v), [setURLParam]);
+  const normalizedUrl = useMemo(
+    () => normalizeContactsUrlState({
+      activeTab: urlFilters.activeTab,
+      page: urlFilters.page,
+      pageSize: urlFilters.pageSize,
+      sortField: urlFilters.sortField,
+      sortDirection: urlFilters.sortDirection,
+    }),
+    [urlFilters.activeTab, urlFilters.page, urlFilters.pageSize, urlFilters.sortField, urlFilters.sortDirection],
+  );
+
+  const activeTab = normalizedUrl.activeTab;
+  const setActiveTab = useCallback((v: ContactsTab) => {
+    setURLParams({ activeTab: v, page: 1 });
+  }, [setURLParams]);
   const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
   const search = useDebounce(searchInput, 350);
-  const page = urlFilters.page;
-  const setPage = useCallback((v: number) => setURLParam("page", v), [setURLParam]);
-  const pageSize = urlFilters.pageSize;
+  const page = normalizedUrl.page;
+  const setPage = useCallback((v: number) => setURLParam("page", Math.max(1, Math.floor(v))), [setURLParam]);
+  const pageSize = normalizedUrl.pageSize;
   const setPageSize = useCallback((v: number) => setURLParam("pageSize", v), [setURLParam]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<MarketingContact | null>(null);
-  const sortField = urlFilters.sortField as SortField;
+  const sortField = normalizedUrl.sortField as SortField;
   const setSortField = useCallback((v: SortField) => setURLParam("sortField", v), [setURLParam]);
-  const sortDirection = urlFilters.sortDirection as SortDirection;
+  const sortDirection = normalizedUrl.sortDirection as SortDirection;
   const setSortDirection = useCallback((v: SortDirection) => setURLParam("sortDirection", v), [setURLParam]);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => loadVisibleColumns(columnsStorageKey));
   const [fieldsSheetOpen, setFieldsSheetOpen] = useState(false);
@@ -157,6 +181,16 @@ export default function MarketingContacts() {
   const stalePreset = urlFilters.filter as "stale" | "stale_2h" | "" | undefined;
   const stalePresetActive = stalePreset === "stale" || stalePreset === "stale_2h";
   const clearStalePreset = useCallback(() => setURLParam("filter", ""), [setURLParam]);
+
+  useEffect(() => {
+    setSearchInput(urlFilters.searchInput);
+  }, [urlFilters.searchInput]);
+
+  useEffect(() => {
+    if (search !== urlFilters.searchInput) {
+      setURLParam("searchInput", search);
+    }
+  }, [search, setURLParam, urlFilters.searchInput]);
 
   const doExport = useCallback(async (format: "csv" | "xlsx") => {
     if (!companyId || exporting) return;
@@ -208,7 +242,7 @@ export default function MarketingContacts() {
         }
 
         // Apply search filter if active
-        const safeSearch = sanitizeSearchTerm(search);
+        const safeSearch = sanitizeContactSearchTerm(search);
         if (safeSearch) {
           const s = `%${safeSearch}%`;
           query = query.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
@@ -367,11 +401,11 @@ export default function MarketingContacts() {
       let oppQuery = supabase.from("marketing_opportunities").select("contact_id").eq("company_id", companyId);
       for (const rule of oppRules) {
         if (rule.field === "opp_status") {
-          if (rule.operator === "is") oppQuery = oppQuery.eq("status", rule.value);
-          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("status", rule.value);
+          if (rule.operator === "is") oppQuery = oppQuery.eq("status", sanitizeContactSearchTerm(rule.value));
+          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("status", sanitizeContactSearchTerm(rule.value));
         } else if (rule.field === "opp_stage") {
-          if (rule.operator === "is") oppQuery = oppQuery.eq("stage_id", rule.value);
-          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("stage_id", rule.value);
+          if (rule.operator === "is") oppQuery = oppQuery.eq("stage_id", sanitizeContactSearchTerm(rule.value));
+          else if (rule.operator === "is_not") oppQuery = oppQuery.neq("stage_id", sanitizeContactSearchTerm(rule.value));
         } else if (rule.field.startsWith("opp_pipeline_")) {
           const pipelineId = rule.field.replace("opp_pipeline_", "");
           if (rule.operator === "is") oppQuery = oppQuery.eq("pipeline_id", pipelineId);
@@ -391,8 +425,8 @@ export default function MarketingContacts() {
         const fieldId = rule.field.replace("cf_", "");
         let cfQuery = supabase.from("marketing_contact_field_values").select("contact_id").eq("field_id", fieldId);
         switch (rule.operator) {
-          case "is": cfQuery = cfQuery.ilike("value", `%${rule.value}%`); break;
-          case "is_not": cfQuery = cfQuery.not("value", "ilike", `%${rule.value}%`); break;
+          case "is": cfQuery = cfQuery.ilike("value", `%${sanitizeContactSearchTerm(rule.value)}%`); break;
+          case "is_not": cfQuery = cfQuery.not("value", "ilike", `%${sanitizeContactSearchTerm(rule.value)}%`); break;
           case "is_empty": cfQuery = cfQuery.or("value.is.null,value.eq."); break;
           case "is_not_empty": cfQuery = cfQuery.not("value", "is", null).neq("value", ""); break;
         }
@@ -426,8 +460,9 @@ export default function MarketingContacts() {
     if (filterIds) query = query.in("id", filterIds);
     for (const rule of standardRules) query = applyRuleToQuery(query, rule);
     for (const rule of tagRules) {
-      if (rule.operator === "is") query = query.overlaps("tags", [rule.value]);
-      else if (rule.operator === "is_not") query = query.not("tags", "cs", `{${rule.value}}`);
+      const tagValue = sanitizeContactSearchTerm(rule.value);
+      if (rule.operator === "is") query = query.overlaps("tags", [tagValue]);
+      else if (rule.operator === "is_not") query = query.not("tags", "cs", `{${tagValue}}`);
       else if (rule.operator === "is_empty") query = query.or("tags.is.null,tags.eq.{}");
       else if (rule.operator === "is_not_empty") query = query.not("tags", "is", null).not("tags", "eq", "{}");
     }
@@ -503,7 +538,7 @@ export default function MarketingContacts() {
         }
       }
 
-      const safeSearch = sanitizeSearchTerm(search);
+      const safeSearch = sanitizeContactSearchTerm(search);
       if (safeSearch) {
         const s = `%${safeSearch}%`;
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s},company_name.ilike.${s}`);
@@ -573,9 +608,9 @@ export default function MarketingContacts() {
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
-  const contacts = data?.contacts || [];
+  const contacts = useMemo(() => data?.contacts ?? [], [data?.contacts]);
   const totalCount = data?.count || 0;
-  const contactIds = contacts.map(c => c.id);
+  const contactIds = useMemo(() => contacts.map((c) => c.id), [contacts]);
 
   // Fetch custom field values for visible contacts
   const { data: customFieldValues = {} } = useQuery({
@@ -704,9 +739,7 @@ export default function MarketingContacts() {
   }, []);
 
   const handleToggleAll = useCallback(() => {
-    setSelectedIds((prev) =>
-      prev.size === contacts.length ? new Set() : new Set(contacts.map((c) => c.id))
-    );
+    setSelectedIds((prev) => toggleContactsPageSelection(prev, contacts.map((c) => c.id)));
   }, [contacts]);
 
   const handleEdit = (contact: MarketingContact) => {
@@ -1072,7 +1105,7 @@ export default function MarketingContacts() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "lists" | "meta")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)}>
         <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">Tutti</TabsTrigger>
           <TabsTrigger value="meta" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">

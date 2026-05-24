@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import type { FEARichiediDTO, FEATipoFirmatario } from '@/types/fea';
+import { validateFirmaSignerFields } from '@/lib/fea/richiediFirmaValidation';
 
 interface FEAModalRichiestaProps {
   open: boolean;
@@ -35,11 +37,21 @@ export function FEAModalRichiesta({ open, onClose, onSubmit, isLoading }: FEAMod
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const validation = validateFirmaSignerFields({
+      email: signerEmail,
+      nome: signerName,
+      scadenzaGiorni: expiresGiorni,
+    });
+    if (!validation.ok) {
+      toast.error(validation.error);
+      return;
+    }
+
     onSubmit({
-      signer_email: signerEmail,
-      signer_name: signerName,
+      signer_email: validation.payload.signer_email,
+      signer_name: validation.payload.signer_name,
       tipo_firmatario: tipoFirmatario,
-      expires_giorni: parseInt(expiresGiorni, 10),
+      expires_giorni: validation.payload.scadenza_giorni,
     });
   };
 
@@ -122,7 +134,7 @@ export function FEAModalRichiesta({ open, onClose, onSubmit, isLoading }: FEAMod
             <Button
               type="submit"
               className="bg-orange-500 hover:bg-orange-600 text-white"
-              disabled={isLoading || !signerEmail || !signerName}
+              disabled={isLoading || !signerEmail.trim() || !signerName.trim()}
             >
               {isLoading ? (
                 <><Loader2 className="h-4 w-4 animate-spin mr-2" />Invio...</>

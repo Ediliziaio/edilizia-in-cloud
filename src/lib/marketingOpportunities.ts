@@ -1,0 +1,208 @@
+export type OpportunityViewMode = "kanban" | "list";
+export type OpportunitySortField = "name" | "value" | "created_at" | "updated_at";
+export type OpportunitySortDir = "asc" | "desc";
+
+const VALID_VIEW_MODES = new Set<OpportunityViewMode>(["kanban", "list"]);
+const VALID_SORT_FIELDS = new Set<OpportunitySortField>(["name", "value", "created_at", "updated_at"]);
+const VALID_SORT_DIRS = new Set<OpportunitySortDir>(["asc", "desc"]);
+
+export interface OpportunityUrlStateInput {
+  viewMode: unknown;
+  sortField: unknown;
+  sortDir: unknown;
+  searchInput: unknown;
+}
+
+export interface OpportunityUrlState {
+  viewMode: OpportunityViewMode;
+  sortField: OpportunitySortField;
+  sortDir: OpportunitySortDir;
+  searchInput: string;
+}
+
+export interface OpportunityPipelineLike {
+  id: string;
+}
+
+export interface OpportunityFiltersLike {
+  statuses?: string[];
+  assignedTo?: string;
+  followerId?: string;
+  callCenterId?: string;
+  source?: string;
+  valueMin?: string;
+  valueMax?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  tags?: string[];
+}
+
+export interface FilterAndSortOpportunitiesInput<TOpportunity> {
+  opportunities: TOpportunity[];
+  searchQuery?: unknown;
+  filters?: OpportunityFiltersLike;
+  onlyMine?: boolean;
+  currentUserId?: string | null;
+  sortField?: unknown;
+  sortDir?: unknown;
+}
+
+export function sanitizeOpportunitySearchTerm(value: unknown): string {
+  if (value == null) return "";
+  return String(value)
+    .replace(/[%(),]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function normalizeOpportunityUrlState(input: OpportunityUrlStateInput): OpportunityUrlState {
+  const viewMode = typeof input.viewMode === "string" && VALID_VIEW_MODES.has(input.viewMode as OpportunityViewMode)
+    ? input.viewMode as OpportunityViewMode
+    : "kanban";
+  const sortField = typeof input.sortField === "string" && VALID_SORT_FIELDS.has(input.sortField as OpportunitySortField)
+    ? input.sortField as OpportunitySortField
+    : "created_at";
+  const sortDir = typeof input.sortDir === "string" && VALID_SORT_DIRS.has(input.sortDir as OpportunitySortDir)
+    ? input.sortDir as OpportunitySortDir
+    : "desc";
+
+  return {
+    viewMode,
+    sortField,
+    sortDir,
+    searchInput: sanitizeOpportunitySearchTerm(input.searchInput),
+  };
+}
+
+export function resolveOpportunityPipelineId(
+  requestedPipelineId: unknown,
+  pipelines: OpportunityPipelineLike[],
+): string | null {
+  if (pipelines.length === 0) return null;
+  const requested = typeof requestedPipelineId === "string" ? requestedPipelineId.trim() : "";
+  if (requested && pipelines.some((pipeline) => pipeline.id === requested)) return requested;
+  return pipelines[0]?.id ?? null;
+}
+
+function normalizeNumericFilter(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+function isDateOnly(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function getString(value: unknown): string {
+  return value == null ? "" : String(value);
+}
+
+function getNestedContact(opportunity: Record<string, unknown>): Record<string, unknown> {
+  const contact = opportunity.marketing_contacts;
+  return contact && typeof contact === "object" ? contact as Record<string, unknown> : {};
+}
+
+function normalizeSortField(value: unknown): OpportunitySortField {
+  return typeof value === "string" && VALID_SORT_FIELDS.has(value as OpportunitySortField)
+    ? value as OpportunitySortField
+    : "created_at";
+}
+
+function normalizeSortDir(value: unknown): OpportunitySortDir {
+  return typeof value === "string" && VALID_SORT_DIRS.has(value as OpportunitySortDir)
+    ? value as OpportunitySortDir
+    : "desc";
+}
+
+export function filterAndSortOpportunities<TOpportunity extends Record<string, unknown>>({
+  opportunities,
+  searchQuery = "",
+  filters = {},
+  onlyMine = false,
+  currentUserId = null,
+  sortField = "created_at",
+  sortDir = "desc",
+}: FilterAndSortOpportunitiesInput<TOpportunity>): TOpportunity[] {
+  const searchTokens = sanitizeOpportunitySearchTerm(searchQuery).toLowerCase().split(" ").filter(Boolean);
+  const statuses = Array.isArray(filters.statuses) ? filters.statuses.filter(Boolean) : [];
+  const tags = Array.isArray(filters.tags) ? filters.tags.filter(Boolean) : [];
+  const source = sanitizeOpportunitySearchTerm(filters.source).toLowerCase();
+  const valueMin = normalizeNumericFilter(filters.valueMin);
+  const valueMax = normalizeNumericFilter(filters.valueMax);
+  const dateFrom = isDateOnly(filters.dateFrom) ? filters.dateFrom : "";
+  const dateTo = isDateOnly(filters.dateTo) ? `${filters.dateTo}T23:59:59.999` : "";
+  const safeSortField = normalizeSortField(sortField);
+  const safeSortDir = normalizeSortDir(sortDir);
+
+  let result = opportunities;
+
+  if (searchTokens.length > 0) {
+    result = result.filter((opportunity) => {
+      const contact = getNestedContact(opportunity);
+      const haystack = [
+        opportunity.name,
+        opportunity.source,
+        opportunity.company_name,
+        contact.first_name,
+        contact.last_name,
+        contact.email,
+        contact.phone,
+        contact.company_name,
+      ].map(getString).join(" ").toLowerCase();
+      return searchTokens.every((token) => haystack.includes(token));
+    });
+  }
+
+  if (statuses.length > 0) {
+    result = result.filter((opportunity) => statuses.includes(getString(opportunity.status)));
+  }
+  if (filters.assignedTo) {
+    result = result.filter((opportunity) => opportunity.assigned_to === filters.assignedTo);
+  }
+  if (filters.followerId) {
+    result = result.filter((opportunity) => opportunity.follower_id === filters.followerId);
+  }
+  if (filters.callCenterId) {
+    result = result.filter((opportunity) => opportunity.call_center_id === filters.callCenterId);
+  }
+  if (source) {
+    result = result.filter((opportunity) => getString(opportunity.source).toLowerCase().includes(source));
+  }
+  if (valueMin !== null) {
+    result = result.filter((opportunity) => Number(opportunity.value || 0) >= valueMin);
+  }
+  if (valueMax !== null) {
+    result = result.filter((opportunity) => Number(opportunity.value || 0) <= valueMax);
+  }
+  if (dateFrom) {
+    result = result.filter((opportunity) => getString(opportunity.created_at) >= dateFrom);
+  }
+  if (dateTo) {
+    result = result.filter((opportunity) => getString(opportunity.created_at) <= dateTo);
+  }
+  if (tags.length > 0) {
+    result = result.filter((opportunity) => {
+      const opportunityTags = Array.isArray(opportunity.tags) ? opportunity.tags : [];
+      return tags.some((tag) => opportunityTags.includes(tag));
+    });
+  }
+  if (onlyMine && currentUserId) {
+    result = result.filter((opportunity) => opportunity.assigned_to === currentUserId);
+  }
+
+  return [...result].sort((a, b) => {
+    let cmp = 0;
+    if (safeSortField === "name") {
+      cmp = getString(a.name).localeCompare(getString(b.name), "it", { sensitivity: "base" });
+    } else if (safeSortField === "value") {
+      cmp = (Number(a.value) || 0) - (Number(b.value) || 0);
+    } else if (safeSortField === "created_at") {
+      cmp = getString(a.created_at).localeCompare(getString(b.created_at));
+    } else if (safeSortField === "updated_at") {
+      cmp = getString(a.updated_at).localeCompare(getString(b.updated_at));
+    }
+    return safeSortDir === "asc" ? cmp : -cmp;
+  });
+}

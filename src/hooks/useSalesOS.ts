@@ -468,13 +468,11 @@ export function useSellerPerformance(
         .lt('updated_at', dateTo);
       let targetsQuery: any = supabase
         .from('sales_targets')
-        .select('assigned_to, target_amount')
-        .eq('company_id', companyId!)
-        .eq('year', year)
-        .eq('month', month);
+        .select('assigned_to, user_id, target_amount, target_revenue, period_type, year, month')
+        .eq('company_id', companyId!);
       if (restrictToAssigned && user?.id) {
         oppsQuery = oppsQuery.eq('assigned_to', user.id);
-        targetsQuery = targetsQuery.eq('assigned_to', user.id);
+        targetsQuery = targetsQuery.or(`assigned_to.eq.${user.id},user_id.eq.${user.id}`);
       }
 
       const [oppsResult, targetsResult] = await Promise.all([oppsQuery, targetsQuery]);
@@ -532,11 +530,23 @@ export function useSellerPerformance(
         }
       });
 
-      (targets ?? []).forEach((t) => {
-        const key = t.assigned_to ?? 'unassigned';
+      (targets ?? []).forEach((t: any) => {
+        const key = t.assigned_to ?? t.user_id ?? 'unassigned';
         const seller = sellerMap.get(key);
         if (seller) {
-          seller.target_amount = Number(t.target_amount);
+          const isCurrentMonthly = Number(t.year) === year && Number(t.month) === month;
+          const isWeeklyFallback = t.period_type === 'weekly' && (t.year == null || t.month == null);
+          if (!isCurrentMonthly && !isWeeklyFallback) return;
+          const targetAmount = Number(t.target_amount ?? 0);
+          const targetRevenue = Number(t.target_revenue ?? 0);
+          const monthlyEquivalent = targetAmount > 0
+            ? targetAmount
+            : isWeeklyFallback
+              ? targetRevenue * 4
+              : targetRevenue;
+          if (isCurrentMonthly || seller.target_amount <= 0) {
+            seller.target_amount = monthlyEquivalent;
+          }
         }
       });
 
@@ -569,17 +579,19 @@ export function useConversionBySource(companyId: string | null, dateFrom: string
     queryFn: async (): Promise<ConversionBySource[]> => {
       let q: any = supabase
         .from('marketing_opportunities')
-        .select('source, status, value')
-        .eq('company_id', companyId!)
-        .not('source', 'is', null);
+        .select('contact_id, source, status, value, marketing_contacts(source)')
+        .eq('company_id', companyId!);
       if (dateFrom) q = q.gte('created_at', dateFrom);
       if (restrictToAssigned && user?.id) q = q.eq('assigned_to', user.id);
       const { data, error } = await q;
       if (error) throw error;
 
-      const sourceMap = new Map<string, ConversionBySource>();
+      const sourceMap = new Map<string, ConversionBySource & { contact_ids: Set<string> }>();
       (data ?? []).forEach((opp) => {
-        const src = opp.source ?? 'Sconosciuto';
+        const contactSource = Array.isArray(opp.marketing_contacts)
+          ? opp.marketing_contacts[0]?.source
+          : opp.marketing_contacts?.source;
+        const src = String(opp.source || contactSource || 'Sconosciuto').trim() || 'Sconosciuto';
         if (!sourceMap.has(src)) {
           sourceMap.set(src, {
             source: src,
@@ -589,9 +601,12 @@ export function useConversionBySource(companyId: string | null, dateFrom: string
             win_rate: 0,
             total_won_value: 0,
             avg_deal_size: 0,
+            contact_ids: new Set<string>(),
           });
         }
         const s = sourceMap.get(src)!;
+        if (opp.contact_id) s.contact_ids.add(opp.contact_id);
+        s.total_contacts = s.contact_ids.size;
         s.total_opportunities++;
         if (opp.status === 'won') {
           s.won_opportunities++;
@@ -600,7 +615,7 @@ export function useConversionBySource(companyId: string | null, dateFrom: string
       });
 
       return Array.from(sourceMap.values())
-        .map((s) => ({
+        .map(({ contact_ids: _contactIds, ...s }) => ({
           ...s,
           win_rate:
             s.total_opportunities > 0

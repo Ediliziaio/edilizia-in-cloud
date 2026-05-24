@@ -1,12 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
 import {
   Plus, FileText, FileSignature, Loader2, Send, AlertTriangle,
   Search, Mail, CheckCircle2, Clock, XCircle, Copy,
-  FileStack, Target, ExternalLink, ClipboardCheck, ShieldCheck,
+  FileStack, Target, ExternalLink, ClipboardCheck, ShieldCheck, RefreshCw,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -25,17 +23,27 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useEffectiveCompanyId } from '@/hooks/useEffectiveCompanyId';
 import { useDocumentoSessioni } from '@/hooks/useDocumentoSessioni';
+import { createTimeoutSignal, withClientTimeout } from '@/lib/query-timeout';
 import { DocumentiList } from '@/components/documenti/DocumentiList';
 import { FEABadge } from '@/components/fea/FEABadge';
 import { RichiediFirmaDialog } from '@/components/fea/RichiediFirmaDialog';
 import type { DocumentoTemplate } from '@/types/fea';
 import { toast } from 'sonner';
+import {
+  filterSignatureRequests,
+  formatFirmaDate,
+  getLegacyQuoteStatusFilter,
+  getFirmaRequestErrorMessage,
+  isFirmaExpired,
+  shouldShowFirmaRequestsLoader,
+  sortSignatureRequestsByCreatedAt,
+} from '@/lib/fea/firmaElettronicaHub';
 
 interface SignatureRequestRow {
   id: string;
-  token: string;
-  signer_name: string;
-  signer_email: string;
+  token: string | null;
+  signer_name: string | null;
+  signer_email: string | null;
   status: string;
   tipo_documento: string;
   tipo_firmatario: string;
@@ -46,13 +54,18 @@ interface SignatureRequestRow {
   expires_at: string | null;
   signed_at: string | null;
   otp_tentativi: number | null;
-  documento_label: string;
+  documento_label: string | null;
   documento_subtitle: string | null;
   documento_url: string | null;
   firma_url: string | null;
   metodo_firma: "FEA OTP" | "Link preventivo";
   source_kind: "fea" | "quote";
 }
+
+type SignatureRequestBaseRow = Omit<
+  SignatureRequestRow,
+  "documento_label" | "documento_subtitle" | "documento_url" | "firma_url" | "metodo_firma" | "source_kind"
+>;
 
 interface QuoteSignatureRow {
   id: string;
@@ -128,6 +141,25 @@ const FLOW_STEPS = [
   },
 ];
 
+const SIGNATURE_REQUESTS_TIMEOUT_MS = 12_000;
+const SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS = 4_000;
+const SIGNATURE_ARCHIVE_PAGE_SIZE = 100;
+
+async function readOptionalRows<T>(
+  task: PromiseLike<{ data: T[] | null; error?: unknown }> | null,
+  label: string,
+  timeoutMs = SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS,
+): Promise<T[]> {
+  if (!task) return [];
+  try {
+    const { data, error } = await withClientTimeout(task, label, timeoutMs);
+    if (error) return [];
+    return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export default function FirmaElettronicaHub() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -139,6 +171,7 @@ export default function FirmaElettronicaHub() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("tutti");
   const [tipoDocFilter, setTipoDocFilter] = useState<string>("tutti");
+  const [requestsLoadingTimedOut, setRequestsLoadingTimedOut] = useState(false);
   const [richiediFirmaOpen, setRichiediFirmaOpen] = useState<{
     open: boolean;
     documento_id: string;
@@ -147,58 +180,112 @@ export default function FirmaElettronicaHub() {
   }>({ open: false, documento_id: "", titolo: "", pdfMissing: false });
 
   // ── Richieste di firma (signature_requests) ──────────────────────────────
-  const { data: requests = [], isLoading: reqLoading } = useQuery({
+  const {
+    data: requests = [],
+    isLoading: reqLoading,
+    fetchStatus: reqFetchStatus,
+    isError: reqIsError,
+    error: reqError,
+    refetch: refetchRequests,
+    isFetching: reqFetching,
+  } = useQuery<SignatureRequestRow[], Error>({
     queryKey: ["signature-requests", companyId, statusFilter, tipoDocFilter],
     enabled: !!companyId,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       let q = supabase
         .from("signature_requests" as never)
         .select("id, token, signer_name, signer_email, status, tipo_documento, tipo_firmatario, order_id, quote_id, sessione_id, created_at, expires_at, signed_at, otp_tentativi")
         .eq("company_id", companyId!)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(SIGNATURE_ARCHIVE_PAGE_SIZE);
       if (statusFilter !== "tutti") q = q.eq("status", statusFilter) as typeof q;
       if (tipoDocFilter !== "tutti") q = q.eq("tipo_documento", tipoDocFilter) as typeof q;
-      const { data, error } = await (q as unknown as Promise<{ data: Omit<SignatureRequestRow, "documento_label" | "documento_subtitle" | "documento_url" | "firma_url" | "metodo_firma" | "source_kind">[] | null; error: unknown }>);
-      if (error) throw error;
-      const feaRows = data ?? [];
+
+      const requestTimeout = createTimeoutSignal(SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS, signal);
+      let feaRows: SignatureRequestBaseRow[] = [];
+      try {
+        feaRows = await readOptionalRows<SignatureRequestBaseRow>(
+          q.abortSignal(requestTimeout.signal) as unknown as PromiseLike<{ data: SignatureRequestBaseRow[] | null; error?: unknown }>,
+          "Archivio FEA",
+        );
+      } finally {
+        requestTimeout.dispose();
+      }
 
       const unique = (values: Array<string | null | undefined>) => Array.from(new Set(values.filter(Boolean))) as string[];
       const orderIds = unique(feaRows.map((r) => r.order_id));
       const quoteIds = unique(feaRows.map((r) => r.quote_id));
       const sessioneIds = unique(feaRows.map((r) => r.sessione_id));
+      const legacyQuoteStatuses = getLegacyQuoteStatusFilter(statusFilter);
+      const shouldFetchLegacyQuotes = (tipoDocFilter === "tutti" || tipoDocFilter === "quote") && legacyQuoteStatuses.length > 0;
 
-      const [{ data: orderRows }, { data: quoteRows }, { data: sessioneRows }, { data: legacyQuotes }] = await Promise.all([
-        orderIds.length
-          ? supabase.from("orders").select("id, order_code, description").in("id", orderIds)
-          : Promise.resolve({ data: [] as OrderLite[] }),
-        quoteIds.length
-          ? supabase.from("quotes").select("id, quote_number, client_name, title").in("id", quoteIds)
-          : Promise.resolve({ data: [] as QuoteLite[] }),
-        sessioneIds.length
-          ? (supabase
-              .from("documento_sessioni" as never)
-              .select("id, nome, template:documento_templates(nome, tipo_doc)")
-              .in("id", sessioneIds) as unknown as Promise<{ data: SessioneLite[] | null }>)
-          : Promise.resolve({ data: [] as SessioneLite[] }),
-        tipoDocFilter === "tutti" || tipoDocFilter === "quote"
-          ? supabase
-              .from("quotes")
-              .select("id, quote_number, client_name, client_email, title, status, signature_token, sent_at, created_at, signed_at, expires_at, refused_at, total")
-              .eq("company_id", companyId!)
-              .in("status", ["inviata", "accettata", "rifiutata"])
-              .order("created_at", { ascending: false })
-          : Promise.resolve({ data: [] as QuoteSignatureRow[] }),
-      ]);
+      const optionalTimeout = createTimeoutSignal(SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS, signal);
+      let orderRows: OrderLite[] = [];
+      let quoteRows: QuoteLite[] = [];
+      let sessioneRows: SessioneLite[] = [];
+      let legacyQuotes: QuoteSignatureRow[] = [];
 
-      const ordersById = new Map(((orderRows as OrderLite[] | null) ?? []).map((o) => [o.id, o]));
-      const quotesById = new Map(((quoteRows as QuoteLite[] | null) ?? []).map((quote) => [quote.id, quote]));
-      const sessioniById = new Map((sessioneRows ?? []).map((s) => [s.id, s]));
+      try {
+        [orderRows, quoteRows, sessioneRows, legacyQuotes] = await Promise.all([
+          readOptionalRows<OrderLite>(
+            orderIds.length
+              ? supabase
+                  .from("orders")
+                  .select("id, order_code, description")
+                  .in("id", orderIds)
+                  .abortSignal(optionalTimeout.signal) as unknown as PromiseLike<{ data: OrderLite[] | null; error?: unknown }>
+              : null,
+            "Dettagli ordini firma",
+          ),
+          readOptionalRows<QuoteLite>(
+            quoteIds.length
+              ? supabase
+                  .from("quotes")
+                  .select("id, quote_number, client_name, title")
+                  .in("id", quoteIds)
+                  .abortSignal(optionalTimeout.signal) as unknown as PromiseLike<{ data: QuoteLite[] | null; error?: unknown }>
+              : null,
+            "Dettagli preventivi firma",
+          ),
+          readOptionalRows<SessioneLite>(
+            sessioneIds.length
+              ? supabase
+                  .from("documento_sessioni" as never)
+                  .select("id, nome, template:documento_templates(nome, tipo_doc)")
+                  .in("id", sessioneIds)
+                  .abortSignal(optionalTimeout.signal) as unknown as PromiseLike<{ data: SessioneLite[] | null; error?: unknown }>
+              : null,
+            "Dettagli documenti firma",
+          ),
+          readOptionalRows<QuoteSignatureRow>(
+            shouldFetchLegacyQuotes
+              ? supabase
+                  .from("quotes")
+                  .select("id, quote_number, client_name, client_email, title, status, signature_token, sent_at, created_at, signed_at, expires_at, refused_at, total")
+                  .eq("company_id", companyId!)
+                  .in("status", legacyQuoteStatuses)
+                  .not("signature_token", "is", null)
+                  .order("created_at", { ascending: false })
+                  .limit(SIGNATURE_ARCHIVE_PAGE_SIZE)
+                  .abortSignal(optionalTimeout.signal) as unknown as PromiseLike<{ data: QuoteSignatureRow[] | null; error?: unknown }>
+              : null,
+            "Preventivi legacy firma",
+          ),
+        ]);
+      } finally {
+        optionalTimeout.dispose();
+      }
+
+      const ordersById = new Map(orderRows.map((o) => [o.id, o]));
+      const quotesById = new Map(quoteRows.map((quote) => [quote.id, quote]));
+      const sessioniById = new Map(sessioneRows.map((s) => [s.id, s]));
       const quoteIdsAlreadyInFea = new Set(quoteIds);
 
       const mappedFeaRows: SignatureRequestRow[] = feaRows.map((r) => {
         const quote = r.quote_id ? quotesById.get(r.quote_id) : null;
         const order = r.order_id ? ordersById.get(r.order_id) : null;
         const sessione = r.sessione_id ? sessioniById.get(r.sessione_id) : null;
+        const token = typeof r.token === "string" ? r.token : "";
         const documentoLabel =
           quote ? `${quote.quote_number ?? "Preventivo"}${quote.title ? ` · ${quote.title}` : ""}` :
           order ? `${order.order_code ?? "Ordine"}${order.description ? ` · ${order.description}` : ""}` :
@@ -215,22 +302,23 @@ export default function FirmaElettronicaHub() {
 
         return {
           ...r,
+          token,
           documento_label: documentoLabel,
           documento_subtitle: documentoSubtitle,
           documento_url: documentoUrl,
-          firma_url: `/firma-fea/${r.token}`,
+          firma_url: token ? `/firma-fea/${token}` : null,
           metodo_firma: "FEA OTP",
           source_kind: "fea",
         };
       });
 
-      const mappedQuoteRows: SignatureRequestRow[] = ((legacyQuotes as QuoteSignatureRow[] | null) ?? [])
+      const mappedQuoteRows: SignatureRequestRow[] = legacyQuotes
         .filter((quote) => !quoteIdsAlreadyInFea.has(quote.id))
         .map((quote) => {
           const status =
             quote.status === "accettata" || quote.signed_at ? "signed" :
             quote.status === "rifiutata" || quote.refused_at ? "refused" :
-            quote.expires_at && new Date(quote.expires_at) < new Date() ? "expired" :
+            isFirmaExpired(quote.expires_at, "pending") ? "expired" :
             "pending";
 
           return {
@@ -258,22 +346,34 @@ export default function FirmaElettronicaHub() {
         })
         .filter((quote) => statusFilter === "tutti" || quote.status === statusFilter);
 
-      return [...mappedFeaRows, ...mappedQuoteRows]
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return sortSignatureRequestsByCreatedAt([...mappedFeaRows, ...mappedQuoteRows]);
     },
+    retry: 0,
   });
 
-  const filteredRequests = useMemo(() => {
-    const s = search.trim().toLowerCase();
-    if (!s) return requests;
-    return requests.filter((r) =>
-      r.signer_name.toLowerCase().includes(s) ||
-      r.signer_email.toLowerCase().includes(s) ||
-      r.token.toLowerCase().includes(s) ||
-      r.documento_label.toLowerCase().includes(s) ||
-      (r.documento_subtitle ?? "").toLowerCase().includes(s)
-    );
-  }, [requests, search]);
+  const filteredRequests = useMemo(
+    () => filterSignatureRequests(requests, search),
+    [requests, search],
+  );
+  const showRequestsLoader = shouldShowFirmaRequestsLoader({
+    hasCompanyId: Boolean(companyId),
+    isLoading: reqLoading,
+    fetchStatus: reqFetchStatus,
+  });
+  const showRequestsError = reqIsError || requestsLoadingTimedOut;
+  const requestErrorMessage = requestsLoadingTimedOut
+    ? getFirmaRequestErrorMessage(new Error("Richieste firma: timeout dopo 12 secondi"))
+    : getFirmaRequestErrorMessage(reqError);
+
+  useEffect(() => {
+    if (!showRequestsLoader) {
+      setRequestsLoadingTimedOut(false);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setRequestsLoadingTimedOut(true), SIGNATURE_REQUESTS_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [showRequestsLoader, companyId, statusFilter, tipoDocFilter]);
 
   // ── Stato provider email transazionale piattaforma (Resend via platform_settings)
   // La configurazione è centralizzata a livello superadmin: ogni company eredita
@@ -314,10 +414,20 @@ export default function FirmaElettronicaHub() {
     navigate(`/azienda/firma-elettronica/nuovo-template?templateId=${template.id}`);
   };
 
-  const copyLink = (firmaUrl: string) => {
+  const copyLink = async (firmaUrl: string) => {
     const link = firmaUrl.startsWith("http") ? firmaUrl : `${window.location.origin}${firmaUrl}`;
-    navigator.clipboard.writeText(link);
-    toast.success("Link firma copiato negli appunti");
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard non disponibile");
+      await navigator.clipboard.writeText(link);
+      toast.success("Link firma copiato negli appunti");
+    } catch {
+      toast.error("Non riesco a copiare il link. Aprilo e copialo dalla barra del browser.");
+    }
+  };
+
+  const handleRefetchRequests = () => {
+    setRequestsLoadingTimedOut(false);
+    void refetchRequests();
   };
 
   return (
@@ -479,7 +589,35 @@ export default function FirmaElettronicaHub() {
             </Select>
           </div>
 
-          {reqLoading ? (
+          {!companyId && (
+            <Alert className="border-blue-200 bg-blue-50/60">
+              <AlertTriangle className="h-4 w-4 text-blue-600" />
+              <AlertTitle>Connessione azienda in aggiornamento</AlertTitle>
+              <AlertDescription className="text-sm">
+                Sto recuperando il contesto aziendale. La pagina resta consultabile e si aggiorna appena i dati sono disponibili.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {showRequestsError ? (
+            <Alert className="border-red-200 bg-red-50/70">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertTitle>Richieste firma non caricate</AlertTitle>
+              <AlertDescription className="text-sm">
+                {requestErrorMessage}
+              </AlertDescription>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-2 bg-white"
+                onClick={handleRefetchRequests}
+                disabled={reqFetching && !requestsLoadingTimedOut}
+              >
+                {reqFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Riprova caricamento
+              </Button>
+            </Alert>
+          ) : showRequestsLoader ? (
             <div className="flex items-center gap-2 text-slate-500 py-8">
               <Loader2 className="h-5 w-5 animate-spin" />
               Caricamento richieste...
@@ -516,14 +654,14 @@ export default function FirmaElettronicaHub() {
                   {filteredRequests.map((r) => {
                     const cfg = STATUS_CFG[r.status] ?? STATUS_CFG.pending;
                     const StatusIcon = cfg.icon;
-                    const isExpired = r.expires_at && new Date(r.expires_at) < new Date() && r.status !== "signed";
+                    const isExpired = isFirmaExpired(r.expires_at, r.status);
                     return (
                       <TableRow key={r.id}>
                         <TableCell className="min-w-[260px]">
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
                               <span className="max-w-[320px] truncate text-sm font-semibold text-slate-900">
-                                {r.documento_label}
+                                {r.documento_label || "Documento"}
                               </span>
                               {r.documento_url && (
                                 <Button variant="ghost" size="icon" className="h-6 w-6" asChild title="Apri documento operativo">
@@ -549,7 +687,7 @@ export default function FirmaElettronicaHub() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium text-sm">{r.signer_name}</div>
+                          <div className="font-medium text-sm">{r.signer_name || "Cliente"}</div>
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
                             <Mail className="h-3 w-3" />
                             {r.signer_email || "Email non salvata"}
@@ -567,12 +705,12 @@ export default function FirmaElettronicaHub() {
                           )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {format(new Date(r.created_at), "dd MMM yyyy", { locale: it })}
+                          {formatFirmaDate(r.created_at)}
                         </TableCell>
                         <TableCell className="text-xs">
                           {r.signed_at ? (
                             <span className="text-green-700 font-medium">
-                              {format(new Date(r.signed_at), "dd MMM yyyy", { locale: it })}
+                              {formatFirmaDate(r.signed_at)}
                             </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -581,7 +719,7 @@ export default function FirmaElettronicaHub() {
                         <TableCell className="text-xs">
                           {r.expires_at ? (
                             <span className={isExpired ? "text-red-600" : "text-muted-foreground"}>
-                              {format(new Date(r.expires_at), "dd MMM yyyy", { locale: it })}
+                              {formatFirmaDate(r.expires_at)}
                               {isExpired && " (scaduto)"}
                             </span>
                           ) : (
@@ -595,7 +733,7 @@ export default function FirmaElettronicaHub() {
                                 variant="ghost"
                                 size="icon"
                                 title="Copia link firma"
-                                onClick={() => copyLink(r.firma_url!)}
+                                onClick={() => void copyLink(r.firma_url!)}
                               >
                                 <Copy className="h-3.5 w-3.5" />
                               </Button>
@@ -668,7 +806,7 @@ export default function FirmaElettronicaHub() {
                     <div className="flex items-center gap-3 shrink-0">
                       <FEABadge stato={s.stato === 'firmato' ? 'signed' : s.stato === 'in_firma' ? 'pending' : null} />
                       <span className="text-xs text-slate-400 hidden sm:inline">
-                        {format(new Date(s.created_at), 'dd MMM yyyy', { locale: it })}
+                        {formatFirmaDate(s.created_at)}
                       </span>
                       {canRequestSign && (
                         <Button

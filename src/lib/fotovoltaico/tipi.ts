@@ -40,7 +40,7 @@ export type FvTipologiaImmobile =
 
 // ─── Fonte dati tetto ───────────────────────────────────────────────────────
 export type FvFonteDatiTetto = "solar_api" | "pvgis" | "manuale";
-export type FvQualitaDatiTetto = "high" | "medium" | "low" | "manual";
+export type FvQualitaDatiTetto = "high" | "medium" | "low" | "manual" | "mock";
 
 // ─── Tariffa tipo ───────────────────────────────────────────────────────────
 export type FvTariffaTipo = "monoraria" | "bioraria" | "trioraria";
@@ -60,7 +60,10 @@ export type FvCategoriaComponente =
 export type FvScenarioFinanziamento =
   | "cash"
   | "prestito"
+  | "rate"
+  | "zero"
   | "leasing"
+  | "noleggio"
   | "cessione";
 
 // ─── Tipo incentivo (§16) ───────────────────────────────────────────────────

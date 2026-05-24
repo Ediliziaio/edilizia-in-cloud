@@ -50,6 +50,8 @@ import {
   useManodoperaProgetto,
   useTabelleFinanziamentoFv,
   useTopFinanziamentiFv,
+  useTemplatePdf,
+  useServiziCatalogo,
   type FvTariffaAziendale,
   type FvTabellaFinanziamento,
   type FvRigaFinanziamento,
@@ -71,6 +73,13 @@ import {
   FvFooter,
   FvTabPane,
 } from "@/lib/fotovoltaico/wizardUI";
+import {
+  buildFvServiceRows,
+  calcolaFvNoleggioOperativo,
+  calcolaFvEconomicsGuard,
+  calcolaFvCommercialReadiness,
+  shouldSuggestFvAccumulo,
+} from "@/lib/fotovoltaico/preventivatore";
 import { toast } from "sonner";
 // Refactor 2026-05-10: CassaCumulataChart estratto in
 // src/components/fotovoltaico/CassaCumulataChart.tsx (-142 righe)
@@ -175,6 +184,8 @@ export default function FotovoltaicoWizard() {
   const { data: inverter = [] } = useArticoliFv("inverter");
   const { data: accumuli = [] } = useArticoliFv("accumulo");
   const { data: tariffeFv = [] } = useTariffeFv();
+  const { data: fvTemplate } = useTemplatePdf();
+  const { data: serviziCatalogo = [] } = useServiziCatalogo();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
   const { data: manodoperaEsistente } = useManodoperaProgetto(progettoId ?? undefined);
 
@@ -241,6 +252,9 @@ export default function FotovoltaicoWizard() {
         numero_figli: progettoEsistente.numero_figli ?? 0,
         reddito_annuo_dichiarato: progettoEsistente.reddito_annuo_dichiarato,
         fonte_dati_tetto: (progettoEsistente.fonte_dati_tetto as never) ?? "solar_api",
+        qualita_dati_tetto: progettoEsistente.qualita_dati_tetto,
+        imagery_date: progettoEsistente.imagery_date,
+        tetto_mock: progettoEsistente.qualita_dati_tetto === "mock",
         ore_sole_annue: progettoEsistente.ore_sole_annue,
         superficie_tetto_disponibile_mq: progettoEsistente.superficie_tetto_disponibile_mq,
         numero_pannelli_max: progettoEsistente.numero_pannelli_max,
@@ -524,6 +538,8 @@ export default function FotovoltaicoWizard() {
         null;
       const numMax = (result.numero_pannelli_max as number) ?? null;
       const kwpMax = (result.potenza_max_kwp as number) ?? null;
+      const isMock = result._mock === true;
+      const qualitaTetto = isMock ? "mock" : ((result.qualita as string) ?? null);
 
       update("ore_sole_annue", ore);
       update("numero_pannelli_max", numMax);
@@ -532,7 +548,7 @@ export default function FotovoltaicoWizard() {
         "superficie_tetto_disponibile_mq",
         (result.superficie_tetto_disponibile_mq as number) ?? null,
       );
-      update("qualita_dati_tetto", (result.qualita as string) ?? null);
+      update("qualita_dati_tetto", qualitaTetto);
       update("imagery_date", (result.imagery_date as string) ?? null);
 
       await aggiornaProgetto.mutateAsync({
@@ -544,14 +560,13 @@ export default function FotovoltaicoWizard() {
             (result.superficie_tetto_disponibile_mq as number) ?? null,
           numero_pannelli_max: numMax,
           potenza_max_kwp: kwpMax,
-          qualita_dati_tetto: (result.qualita as string) ?? null,
+          qualita_dati_tetto: qualitaTetto,
           imagery_date: (result.imagery_date as string) ?? null,
         } as never,
       });
 
       if (!mountedRef.current) return;
       markSaved();
-      const isMock = result._mock === true;
       // Fix #16 Sprint 3: traccia se i dati sono mock per warning persistente
       update("tetto_mock", isMock);
       toast.success(
@@ -723,38 +738,25 @@ export default function FotovoltaicoWizard() {
           },
         ],
       });
+      const costoPraticheDefault = Number(fvTemplate?.costo_pratiche_default ?? 600);
+      const serviziRows = buildFvServiceRows({
+        catalogo: serviziCatalogo.map((servizio) => ({
+          codice: String(servizio.codice ?? "altro"),
+          descrizione: String(servizio.descrizione ?? "Servizio fotovoltaico"),
+          prezzo_netto_default: Number(servizio.prezzo_netto_default ?? 0),
+          margine_pct_default:
+            servizio.margine_pct_default == null ? null : Number(servizio.margine_pct_default),
+          note_operative: servizio.note_operative ? String(servizio.note_operative) : null,
+          ordinamento:
+            servizio.ordinamento == null ? null : Number(servizio.ordinamento),
+        })),
+        costoPraticheDefault: Number.isFinite(costoPraticheDefault) ? costoPraticheDefault : 600,
+      });
+
       await upsertServizi.mutateAsync({
         progetto_id: progettoId,
         replace: true,
-        righe: [
-          {
-            tipo: "pratica_gse",
-            descrizione: "Pratica GSE RID",
-            quantita: 1,
-            prezzo_netto: 200,
-            prezzo_vendita: 350,
-            ordinamento: 1,
-            note_operative: "Entro 90 gg da fine lavori",
-          },
-          {
-            tipo: "allaccio_e_distribuzione",
-            descrizione: "Pratica E-Distribuzione (TICA)",
-            quantita: 1,
-            prezzo_netto: 150,
-            prezzo_vendita: 280,
-            ordinamento: 2,
-            note_operative: null,
-          },
-          {
-            tipo: "asseverazione",
-            descrizione: "Asseverazione tecnica",
-            quantita: 1,
-            prezzo_netto: 250,
-            prezzo_vendita: 450,
-            ordinamento: 3,
-            note_operative: null,
-          },
-        ],
+        righe: serviziRows,
       });
 
       if (!mountedRef.current) return;
@@ -852,6 +854,36 @@ export default function FotovoltaicoWizard() {
         taegPct = 0;
         tanPct = 0;
         totaleDovuto = inv;
+      } else if (data.finanziamento_modalita === "noleggio") {
+        const scenarioC = scenarioFin as Record<string, unknown> | null;
+        const scenarioCosti = scenarioC?.costi as
+          | { prezzo_vendita_netto?: number; prezzo_vendita_iva_inclusa?: number }
+          | undefined;
+        const invNetto =
+          Number(scenarioCosti?.prezzo_vendita_netto) ||
+          Math.round((Number(progettoEsistente?.prezzo_vendita_iva_inclusa) || 0) / 1.1);
+        const risparmioAnno1 =
+          Number(scenarioC?.risparmio_bolletta_eur ?? 0) +
+          Number(scenarioC?.ricavi_rid_eur ?? 0);
+        const rental = calcolaFvNoleggioOperativo({
+          archetipo: data.archetipo,
+          investimentoNetto: invNetto,
+          risparmioAnno1,
+          durataMesi: data.durata_mesi_scelta ?? Number(fvTemplate?.noleggio_durata_default_mesi ?? 84),
+          manutenzioneAnnua: Number(fvTemplate?.manutenzione_annua_eur ?? 0),
+          aliquotaRisparmioFiscale: Number(fvTemplate?.noleggio_aliquota_fiscale_pct ?? 0.24),
+          fattoreCanone:
+            fvTemplate?.noleggio_fattore_default == null
+              ? null
+              : Number(fvTemplate.noleggio_fattore_default),
+        });
+        if (!rental.eligible) {
+          throw new Error("Il noleggio operativo FV e' disponibile solo per aziende, condomini o CER.");
+        }
+        rataEur = rental.canone_mensile;
+        taegPct = 0;
+        tanPct = 0;
+        totaleDovuto = Math.round(rental.canone_mensile * rental.durata_mesi);
       }
       // Validazione antiusura ARERA: TAEG > 25% blocca (soglia conservativa)
       if (taegPct != null && taegPct > 25) {
@@ -888,8 +920,8 @@ export default function FotovoltaicoWizard() {
   // Fix #13 (Sprint 3 cleanup): in v2 il template HTML è UNICO per tutti e 3
   // i tipi (vendita/tecnico/mobile) — generare 3 versioni in parallelo
   // significava 3 invocazioni edge function che si overwrite stesso path
-  // nello storage. Ora generiamo SOLO la versione "vendita" (16 pagine
-  // complete). Tecnico/Mobile saranno template differenziati in W2.
+  // nello storage. Ora generiamo SOLO la versione "vendita" configurabile.
+  // Tecnico/Mobile saranno template differenziati in W2.
   const handleGeneraEdEmetti = async () => {
     if (!progettoId) return;
     setSalvando(true);
@@ -1206,6 +1238,7 @@ export default function FotovoltaicoWizard() {
               inverter={inverter as never}
               accumuli={accumuli as never}
               tariffeFv={tariffeFv}
+              serviziCatalogoCount={serviziCatalogo.length}
             />
           )}
           {step === 6 && (
@@ -1217,6 +1250,7 @@ export default function FotovoltaicoWizard() {
               error={scenarioErr}
               tabelleFinanziamento={tabelleFinanziamento}
               topFinanziamenti={topFinanziamenti}
+              fvTemplate={fvTemplate}
               onRicalcola={() => {
                 autoCalcRequested.current = null; // permette retry
                 void handleCalcolaFinanziario();
@@ -1920,6 +1954,7 @@ function Step5Configurazione({
   inverter,
   accumuli,
   tariffeFv,
+  serviziCatalogoCount,
 }: {
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
@@ -1927,6 +1962,7 @@ function Step5Configurazione({
   inverter: Array<Record<string, unknown>>;
   accumuli: Array<Record<string, unknown>>;
   tariffeFv: FvTariffaAziendale[];
+  serviziCatalogoCount: number;
 }) {
   // Auto-calcolo potenza_kwp da numero pannelli
   useEffect(() => {
@@ -1940,13 +1976,42 @@ function Step5Configurazione({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.numero_pannelli_scelti, data.pannello_id]);
 
-  // Auto-suggerimento accumulo (5 kWh per autoconsumo profilo "misto")
-  const suggerisciAccumulo = data.profilo_consumo === "serale" || data.profilo_consumo === "misto";
+  // Auto-suggerimento accumulo (5 kWh per profili serali/misti).
+  const suggerisciAccumulo = shouldSuggestFvAccumulo(data.profilo_consumo);
 
   const stimaProducibilita =
     data.potenza_kwp && data.ore_sole_annue
       ? data.potenza_kwp * data.ore_sole_annue * 0.85
       : 0;
+  const listinoCompleto = Boolean(
+    data.pannello_id && data.inverter_id && (!data.con_accumulo || data.accumulo_id),
+  );
+  const readiness = calcolaFvCommercialReadiness({
+    consumo_annuo_kwh: data.consumo_annuo_kwh,
+    costo_kwh_attuale: data.costo_kwh_attuale,
+    potenza_kwp: data.potenza_kwp,
+    potenza_max_kwp: data.potenza_max_kwp,
+    numero_pannelli_scelti: data.numero_pannelli_scelti,
+    numero_pannelli_max: data.numero_pannelli_max,
+    produzione_annua_stimata_kwh: stimaProducibilita || null,
+    con_accumulo: data.con_accumulo,
+    capacita_accumulo_kwh: data.capacita_accumulo_kwh,
+    listinoCompleto,
+    tariffaInstallazioneConfigurata: Boolean(data.tariffa_installazione_id),
+    tettoMock: data.tetto_mock,
+  });
+  const readinessVariant =
+    readiness.status === "blocked"
+      ? "error"
+      : readiness.status === "review"
+        ? "warn"
+        : "success";
+  const readinessLabel =
+    readiness.status === "blocked"
+      ? "Blocchi da correggere"
+      : readiness.status === "review"
+        ? "Da rivedere"
+        : "Pronto offerta";
 
   return (
     <>
@@ -1979,6 +2044,29 @@ function Step5Configurazione({
           unit="kWh/a"
           variant="green"
         />
+      </div>
+
+      <div className="mb-4">
+        <FvCallout
+          variant={readinessVariant}
+          title="Controllo operativo prima dell'offerta"
+          action={<FvChip variant={readiness.status === "ready" ? "green" : readiness.status === "review" ? "yellow" : "red"}>{readiness.score}/100</FvChip>}
+        >
+          <div className="space-y-2">
+            <p>
+              <strong>{readinessLabel}</strong>: {readiness.nextAction}
+            </p>
+            {readiness.issues.length > 0 && (
+              <ul className="grid gap-1 text-xs md:grid-cols-2">
+                {readiness.issues.slice(0, 6).map((issue) => (
+                  <li key={issue.code} className="rounded-md bg-white/60 px-2 py-1">
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </FvCallout>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
@@ -2184,6 +2272,13 @@ function Step5Configurazione({
                 })()}
             </div>
 
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <strong>Pratiche e servizi:</strong>{" "}
+              {serviziCatalogoCount > 0
+                ? `${serviziCatalogoCount} voci dal catalogo FV aziendale saranno usate nel margine.`
+                : "nessun catalogo FV configurato, uso fallback dal template Fotovoltaico."}
+            </div>
+
             <div className="border-t border-slate-200 pt-3 flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input
@@ -2247,15 +2342,17 @@ function FvPaymentToggle({
   modalita,
   durata,
   topConsigliata,
+  noleggioEnabled = true,
   onChange,
 }: {
-  modalita: "cash" | "rate" | "zero";
+  modalita: "cash" | "rate" | "zero" | "noleggio";
   durata: number;
   topConsigliata: (FvTabellaFinanziamento & { rata: FvRigaFinanziamento }) | null;
-  onChange: (m: "cash" | "rate" | "zero") => void;
+  noleggioEnabled?: boolean;
+  onChange: (m: "cash" | "rate" | "zero" | "noleggio") => void;
 }) {
-  const opts: Array<{
-    key: "cash" | "rate" | "zero";
+  const baseOpts: Array<{
+    key: "cash" | "rate" | "zero" | "noleggio";
     icon: string;
     label: string;
     sub: string;
@@ -2270,9 +2367,13 @@ function FvPaymentToggle({
         : `${durata} mesi · finanziaria consigliata`,
     },
     { key: "zero", icon: "0", label: "Tasso zero", sub: `${durata} rate · 0% interessi` },
+    { key: "noleggio", icon: "B2B", label: "Noleggio azienda", sub: "Zero anticipo · canone operativo" },
   ];
+  const opts = noleggioEnabled
+    ? baseOpts
+    : baseOpts.filter((option) => option.key !== "noleggio");
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 mb-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 mb-4">
       {opts.map((o) => {
         const active = o.key === modalita;
         return (
@@ -2306,6 +2407,7 @@ function Step6Finanziario({
   error,
   tabelleFinanziamento,
   topFinanziamenti,
+  fvTemplate,
   onRicalcola,
 }: {
   data: WizardData;
@@ -2315,6 +2417,7 @@ function Step6Finanziario({
   error: string | null;
   tabelleFinanziamento: FvTabellaFinanziamento[];
   topFinanziamenti: Array<FvTabellaFinanziamento & { rata: FvRigaFinanziamento }>;
+  fvTemplate: Record<string, unknown> | null | undefined;
   onRicalcola: () => void;
 }) {
   if (calcolando) {
@@ -2367,7 +2470,13 @@ function Step6Finanziario({
       nome: string;
       importo_eur: number | null;
     }>) ?? [];
-  const costi = scenario.costi as { prezzo_vendita_iva_inclusa: number };
+  const costi = scenario.costi as {
+    costo_totale_netto?: number;
+    prezzo_vendita_netto?: number;
+    prezzo_vendita_iva_inclusa: number;
+    margine_eur?: number;
+    margine_pct?: number;
+  };
 
   const investimento = costi?.prezzo_vendita_iva_inclusa ?? 0;
   const risparmioAnno1 =
@@ -2378,6 +2487,20 @@ function Step6Finanziario({
   const detrazione10anni = ((scenario.detrazione_anno_eur as number) ?? 0) * 10;
   const costoNettoReale = investimento - detrazione10anni;
   const risparmioMensile = Math.round(risparmioAnno1 / 12);
+  const noleggioScenario = calcolaFvNoleggioOperativo({
+    archetipo: data.archetipo,
+    investimentoNetto:
+      costi?.prezzo_vendita_netto ??
+      (costi?.prezzo_vendita_iva_inclusa ? Math.round(costi.prezzo_vendita_iva_inclusa / 1.1) : 0),
+    risparmioAnno1,
+    durataMesi: data.durata_mesi_scelta ?? Number(fvTemplate?.noleggio_durata_default_mesi ?? 84),
+    manutenzioneAnnua: Number(fvTemplate?.manutenzione_annua_eur ?? 0),
+    aliquotaRisparmioFiscale: Number(fvTemplate?.noleggio_aliquota_fiscale_pct ?? 0.24),
+    fattoreCanone:
+      fvTemplate?.noleggio_fattore_default == null
+        ? null
+        : Number(fvTemplate.noleggio_fattore_default),
+  });
 
   // Sprint 4: calcolo rata REALE basato sul finanziamento scelto dall'utente.
   // - cash: nessuna rata (pagamento immediato)
@@ -2401,6 +2524,13 @@ function Step6Finanziario({
     durataInfoMesi = dur;
     _taegInfoPct = 0;
     rataInfoLabel = `Tasso 0% · ${dur} mesi`;
+  } else if (data.finanziamento_modalita === "noleggio") {
+    rataMensilePrestito = noleggioScenario.canone_mensile;
+    durataInfoMesi = noleggioScenario.durata_mesi;
+    _taegInfoPct = 0;
+    rataInfoLabel = noleggioScenario.eligible
+      ? `Noleggio operativo · ${noleggioScenario.durata_mesi} mesi · manutenzione inclusa`
+      : "Disponibile per aziende, condomini e CER";
   } else {
     // rate
     const dur = data.durata_mesi_scelta ?? 84;
@@ -2425,7 +2555,38 @@ function Step6Finanziario({
       rataInfoLabel = `${dur} mesi · stima generica`;
     }
   }
-  const costoNettoMensile = Math.max(0, rataMensilePrestito - risparmioMensile);
+  const costoNettoMensile =
+    data.finanziamento_modalita === "noleggio"
+      ? noleggioScenario.costo_effettivo_mensile
+      : Math.max(0, rataMensilePrestito - risparmioMensile);
+  const templateMarginTarget = Number(fvTemplate?.margine_target_pct ?? 0.35);
+  const templateCplMax = Number(fvTemplate?.cpl_max_sostenibile ?? 120);
+  const economicsGuard = calcolaFvEconomicsGuard({
+    prezzo_vendita_netto: costi?.prezzo_vendita_netto ?? null,
+    costo_totale_netto: costi?.costo_totale_netto ?? null,
+    margine_eur: costi?.margine_eur ?? null,
+    margine_pct: costi?.margine_pct ?? null,
+    margine_target_pct: Number.isFinite(templateMarginTarget) ? templateMarginTarget : 0.35,
+    cpl_max_sostenibile: Number.isFinite(templateCplMax) ? templateCplMax : 120,
+    payback_anni: (scenario.payback_anni as number | null) ?? null,
+    rata_mensile_eur: rataMensilePrestito,
+    risparmio_mensile_eur:
+      data.finanziamento_modalita === "noleggio"
+        ? risparmioMensile + noleggioScenario.beneficio_fiscale_mensile
+        : risparmioMensile,
+  });
+  const economicsVariant =
+    economicsGuard.status === "blocked"
+      ? "error"
+      : economicsGuard.status === "review"
+        ? "warn"
+        : "success";
+  const economicsTitle =
+    economicsGuard.status === "blocked"
+      ? "Offerta non scalabile ancora"
+      : economicsGuard.status === "review"
+        ? "Economia da rivedere"
+        : "Economia pronta per vendita e campagne";
 
   return (
     <>
@@ -2445,8 +2606,82 @@ function Step6Finanziario({
         modalita={data.finanziamento_modalita}
         durata={data.durata_mesi_scelta ?? 84}
         topConsigliata={topAuto}
+        noleggioEnabled={fvTemplate?.noleggio_operativo_attivo !== false}
         onChange={(modalita) => update("finanziamento_modalita", modalita)}
       />
+
+      <div className="mb-4">
+        <FvCallout
+          variant={economicsVariant}
+          title={economicsTitle}
+          action={
+            <FvChip
+              variant={
+                economicsGuard.status === "ready"
+                  ? "green"
+                  : economicsGuard.status === "review"
+                    ? "yellow"
+                    : "red"
+              }
+            >
+              {economicsGuard.score}/100
+            </FvChip>
+          }
+        >
+          <div className="space-y-3">
+            <p>{economicsGuard.nextAction}</p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+              <div className="rounded-md bg-white/70 p-2">
+                <div className="text-slate-500">Margine reale</div>
+                <div className="font-bold text-slate-900">
+                  {economicsGuard.metrics.margine_pct != null
+                    ? `${(economicsGuard.metrics.margine_pct * 100).toFixed(1)}%`
+                    : "—"}
+                  {economicsGuard.metrics.margine_target_pct != null && (
+                    <span className="font-medium text-slate-500">
+                      {" "}
+                      / target {(economicsGuard.metrics.margine_target_pct * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-md bg-white/70 p-2">
+                <div className="text-slate-500">Margine lordo</div>
+                <div className="font-bold text-slate-900">
+                  {economicsGuard.metrics.margine_eur != null
+                    ? formatEur(economicsGuard.metrics.margine_eur)
+                    : "—"}
+                </div>
+              </div>
+              <div className="rounded-md bg-white/70 p-2">
+                <div className="text-slate-500">CPL massimo</div>
+                <div className="font-bold text-slate-900">
+                  {economicsGuard.metrics.cpl_max_sostenibile != null
+                    ? formatEur(economicsGuard.metrics.cpl_max_sostenibile)
+                    : "—"}
+                </div>
+              </div>
+              <div className="rounded-md bg-white/70 p-2">
+                <div className="text-slate-500">Rata meno risparmio</div>
+                <div className="font-bold text-slate-900">
+                  {economicsGuard.metrics.costo_netto_mensile != null
+                    ? `${formatEur(economicsGuard.metrics.costo_netto_mensile)}/mese`
+                    : "—"}
+                </div>
+              </div>
+            </div>
+            {economicsGuard.issues.length > 0 && (
+              <ul className="grid gap-1 text-xs md:grid-cols-2">
+                {economicsGuard.issues.slice(0, 6).map((issue) => (
+                  <li key={issue.code} className="rounded-md bg-white/60 px-2 py-1">
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </FvCallout>
+      </div>
 
       {/* HERO */}
       <div
@@ -2522,7 +2757,9 @@ function Step6Finanziario({
               ? "Pagamento cash"
               : data.finanziamento_modalita === "zero"
                 ? "Rata mensile (tasso 0%)"
-                : "Rata mensile finanziata"}
+                : data.finanziamento_modalita === "noleggio"
+                  ? "Canone operativo"
+                  : "Rata mensile finanziata"}
           </div>
           <div className="text-3xl font-extrabold text-blue-900 tabular-nums">
             {formatEur(rataMensilePrestito)}
@@ -2551,7 +2788,7 @@ function Step6Finanziario({
             {formatEur(costoNettoMensile)}
           </div>
           <div className="text-xs text-orange-800 mt-1">
-            /mese · meno di un caffè al giorno
+            /mese · dopo risparmio{data.finanziamento_modalita === "noleggio" ? " e beneficio fiscale" : ""}
           </div>
         </div>
       </div>
@@ -2641,6 +2878,88 @@ function Step6Finanziario({
               </div>
             ))}
           </div>
+        </FvCard>
+      )}
+
+      {data.finanziamento_modalita === "noleggio" && (
+        <FvCard
+          title="Noleggio operativo fotovoltaico per aziende"
+          action={
+            <FvChip
+              variant={
+                noleggioScenario.status === "recommended"
+                  ? "green"
+                  : noleggioScenario.status === "review"
+                    ? "yellow"
+                    : "red"
+              }
+            >
+              {noleggioScenario.eligible ? "B2B" : "Non adatto"}
+            </FvChip>
+          }
+          className="mt-4"
+        >
+          {!noleggioScenario.eligible ? (
+            <FvCallout variant="warn" title="Scenario pensato per aziende">
+              {noleggioScenario.nextAction}
+            </FvCallout>
+          ) : (
+            <div className="space-y-4">
+              <FvCallout
+                variant={
+                  noleggioScenario.status === "recommended"
+                    ? "success"
+                    : noleggioScenario.status === "review"
+                      ? "warn"
+                      : "error"
+                }
+                title={
+                  noleggioScenario.status === "recommended"
+                    ? "Canone sostenibile per proposta B2B"
+                    : "Verifica sostenibilità del canone"
+                }
+              >
+                {noleggioScenario.nextAction}
+              </FvCallout>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 text-sm">
+                <div className="rounded-lg bg-slate-50 border p-3">
+                  <div className="text-xs text-slate-500">Anticipo</div>
+                  <div className="font-extrabold text-slate-900">{formatEur(noleggioScenario.anticipo_eur)}</div>
+                </div>
+                <div className="rounded-lg bg-slate-50 border p-3">
+                  <div className="text-xs text-slate-500">Canone</div>
+                  <div className="font-extrabold text-slate-900">{formatEur(noleggioScenario.canone_mensile)}/mese</div>
+                </div>
+                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                  <div className="text-xs text-emerald-700">Risparmio energia</div>
+                  <div className="font-extrabold text-emerald-800">{formatEur(noleggioScenario.risparmio_mensile)}/mese</div>
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                  <div className="text-xs text-blue-700">Beneficio fiscale stimato</div>
+                  <div className="font-extrabold text-blue-800">{formatEur(noleggioScenario.beneficio_fiscale_mensile)}/mese</div>
+                </div>
+                <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
+                  <div className="text-xs text-orange-700">Costo effettivo</div>
+                  <div className="font-extrabold text-orange-800">{formatEur(noleggioScenario.costo_effettivo_mensile)}/mese</div>
+                </div>
+              </div>
+              <div className="grid md:grid-cols-3 gap-2 text-xs text-slate-600">
+                <div className="rounded-md bg-white border p-2">
+                  Durata: <strong>{noleggioScenario.durata_mesi} mesi</strong>
+                </div>
+                <div className="rounded-md bg-white border p-2">
+                  Manutenzione inclusa stimata:{" "}
+                  <strong>{formatEur(noleggioScenario.manutenzione_inclusa_mensile)}/mese</strong>
+                </div>
+                <div className="rounded-md bg-white border p-2">
+                  Copertura canone: <strong>{(noleggioScenario.copertura_canone_pct * 100).toFixed(0)}%</strong>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Stima commerciale: deducibilita e trattamento fiscale vanno confermati con consulente e contratto del provider.
+              </p>
+            </div>
+          )}
         </FvCard>
       )}
 
@@ -3062,7 +3381,7 @@ function Step8Genera({
         title="Genera preventivo professionale"
         subtitle={
           <>
-            Riepilogo finale e generazione del <strong>preventivo HTML 16 pagine</strong> (cover,
+            Riepilogo finale e generazione del <strong>preventivo HTML configurabile</strong> (cover,
             viste tetto, componenti, produzione, flussi energetici, risparmio, costi futuri,
             piano economico, cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).
             Apribile nel browser e stampabile come PDF con un click.

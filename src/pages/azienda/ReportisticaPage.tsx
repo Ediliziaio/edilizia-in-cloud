@@ -1,13 +1,12 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { BarChart3, Megaphone } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import FacebookAdsReport from "@/components/reporting/facebook-ads/FacebookAdsReport";
 import VenditoriPerformanceReport from "@/components/reporting/venditori/VenditoriPerformanceReport";
 import CallCenterReport from "@/components/reporting/callcenter/CallCenterReport";
 import GoogleAdsReport from "@/components/reporting/google-ads/GoogleAdsReport";
-import { AdsSalesReportPanel } from "@/components/reporting/ads-sales/AdsSalesReportPanel";
-import { CommercialPerformanceReportPanel } from "@/components/reporting/commercial/CommercialPerformanceReportPanel";
+import { CrmSalesReportPanel } from "@/components/reporting/crm-sales/CrmSalesReportPanel";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
@@ -67,20 +66,8 @@ const ReportisticaPage = () => {
           <GoogleAdsReport />
         </TabsContent>
 
-        <TabsContent value="crm-vendite" className="mt-6 space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <Megaphone className="h-5 w-5 text-orange-600" />
-              <div>
-                <h2 className="text-lg font-semibold text-slate-950">ROI reale da CRM</h2>
-                <p className="text-sm text-slate-600">
-                  Qui non leggi solo lead: vedi quali campagne hanno portato appuntamenti, contratti vinti e valore venduto.
-                </p>
-              </div>
-            </div>
-          </div>
-          <CommercialPerformanceReportPanel daysBack={180} />
-          <AdsSalesReportPanel provider="all" daysBack={180} />
+        <TabsContent value="crm-vendite" className="mt-6">
+          <CrmSalesReportPanel daysBack={180} />
         </TabsContent>
 
         <TabsContent value="venditori" className="mt-6">

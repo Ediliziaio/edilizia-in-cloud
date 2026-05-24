@@ -65,8 +65,16 @@ describe("reportistica marketing contract", () => {
     resolve(process.cwd(), "src/components/reporting/commercial/CommercialPerformanceReportPanel.tsx"),
     "utf8",
   );
+  const crmSalesReport = readFileSync(
+    resolve(process.cwd(), "src/components/reporting/crm-sales/CrmSalesReportPanel.tsx"),
+    "utf8",
+  );
   const featureRoute = readFileSync(
     resolve(process.cwd(), "src/components/auth/FeatureRoute.tsx"),
+    "utf8",
+  );
+  const featureRouteSoftOpen = readFileSync(
+    resolve(process.cwd(), "src/lib/featureRouteSoftOpen.ts"),
     "utf8",
   );
 
@@ -86,7 +94,7 @@ describe("reportistica marketing contract", () => {
   });
 
   it("surfaces commercial reports for quotes, forecast, lead quality, margins and loss reasons", () => {
-    expect(reportisticaPage).toContain("CommercialPerformanceReportPanel");
+    expect(reportisticaPage).toContain("CrmSalesReportPanel");
     expect(commercialReport).toContain("Preventivi e offerte");
     expect(commercialReport).toContain("Forecast pipeline");
     expect(commercialReport).toContain("Qualità lead");
@@ -95,6 +103,16 @@ describe("reportistica marketing contract", () => {
     expect(commercialReport).toContain("Sincronizzazione CRM");
     expect(commercialReport).toContain("Preventivi senza opportunità");
     expect(commercialReport).toContain("Vendite accettate senza ordine");
+  });
+
+  it("keeps CRM sales reporting decision-first instead of a wall of metrics", () => {
+    expect(crmSalesReport).toContain("Cosa guardare prima");
+    expect(crmSalesReport).toContain("Da fare adesso");
+    expect(crmSalesReport).toContain("Funnel commerciale");
+    expect(crmSalesReport).toContain("Canali paid che generano vendite");
+    expect(crmSalesReport).toContain("Dettaglio operativo");
+    expect(crmSalesReport).toContain("buildPriorityActions");
+    expect(crmSalesReport).toContain("compact");
   });
 
   it("loads Meta sponsored campaigns across the whole Business Manager by default", () => {
@@ -219,9 +237,10 @@ describe("reportistica marketing contract", () => {
 
   it("does not show the feature access timeout before the feature query can finish", () => {
     expect(featureRoute).toContain("FEATURE_ROUTE_LOADING_TIMEOUT_MS = 12_000");
-    expect(featureRoute).toContain("SOFT_OPEN_ON_FEATURE_CHECK_DELAY");
-    expect(featureRoute).toContain('"marketing_reporting"');
-    expect(featureRoute).toContain("isLoading || isError");
+    expect(featureRoute).toContain("shouldSoftOpenFeatureCheck");
+    expect(featureRouteSoftOpen).toContain("SOFT_OPEN_ON_FEATURE_CHECK_DELAY");
+    expect(featureRouteSoftOpen).toContain('"marketing_reporting"');
+    expect(featureRouteSoftOpen).toContain("isLoading || isError");
     expect(featureRoute).not.toContain("setLoadingTimedOut(true), 6_000");
   });
 });

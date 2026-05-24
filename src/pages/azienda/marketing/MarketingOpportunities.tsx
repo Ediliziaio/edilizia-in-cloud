@@ -20,6 +20,13 @@ import { useOpportunityCustomFields } from "@/hooks/useOpportunityDetailData";
 import { ImportWizard } from "@/components/shared/ImportWizard";
 import type { ImportField } from "@/components/shared/CSVImportDialog";
 import { exportToCSV } from "@/lib/csvExport";
+import {
+  filterAndSortOpportunities,
+  normalizeOpportunityUrlState,
+  resolveOpportunityPipelineId,
+  sanitizeOpportunitySearchTerm,
+} from "@/lib/marketingOpportunities";
+import type { OpportunitySortDir, OpportunitySortField } from "@/lib/marketingOpportunities";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -77,16 +84,25 @@ function MarketingOpportunitiesContent() {
     sortDir: { key: "dir", defaultValue: "desc" },
   });
 
-  const [selectedPipelineId, _setSelectedPipelineId] = useState<string | null>(urlFilters.selectedPipelineId || null);
+  const normalizedUrlState = useMemo(() => normalizeOpportunityUrlState({
+    viewMode: urlFilters.viewMode,
+    sortField: urlFilters.sortField,
+    sortDir: urlFilters.sortDir,
+    searchInput: urlFilters.searchInput,
+  }), [urlFilters.searchInput, urlFilters.sortDir, urlFilters.sortField, urlFilters.viewMode]);
+  const selectedPipelineId = useMemo(
+    () => resolveOpportunityPipelineId(urlFilters.selectedPipelineId, pipelines),
+    [pipelines, urlFilters.selectedPipelineId]
+  );
   const setSelectedPipelineId = useCallback((v: string | null) => {
-    _setSelectedPipelineId(v);
     setURLParam("selectedPipelineId", v || "");
   }, [setURLParam]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
+  const [searchInput, setSearchInput] = useState(normalizedUrlState.searchInput);
   const searchQuery = useDebounce(searchInput, 350);
-  const viewMode = urlFilters.viewMode as "kanban" | "list";
+  const safeSearchQuery = useMemo(() => sanitizeOpportunitySearchTerm(searchQuery), [searchQuery]);
+  const viewMode = normalizedUrlState.viewMode;
   const setViewMode = useCallback((v: "kanban" | "list") => setURLParam("viewMode", v), [setURLParam]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -122,10 +138,10 @@ function MarketingOpportunitiesContent() {
   const queryClient = useQueryClient();
 
   // Sorting state
-  const sortField = urlFilters.sortField as "name" | "value" | "created_at" | "updated_at";
-  const setSortField = useCallback((v: "name" | "value" | "created_at" | "updated_at") => setURLParam("sortField", v), [setURLParam]);
-  const sortDir = urlFilters.sortDir as "asc" | "desc";
-  const setSortDir = useCallback((v: "asc" | "desc") => setURLParam("sortDir", v), [setURLParam]);
+  const sortField = normalizedUrlState.sortField;
+  const setSortField = useCallback((v: OpportunitySortField) => setURLParam("sortField", v), [setURLParam]);
+  const sortDir = normalizedUrlState.sortDir;
+  const setSortDir = useCallback((v: OpportunitySortDir) => setURLParam("sortDir", v), [setURLParam]);
 
   // List state
   const [createListOpen, setCreateListOpen] = useState(false);
@@ -214,15 +230,40 @@ function MarketingOpportunitiesContent() {
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   useEffect(() => {
-    if (pipelines.length > 0 && !selectedPipelineId) {
-      setSelectedPipelineId(pipelines[0].id);
+    setActiveListId(null);
+    clearSelection();
+  }, [clearSelection, selectedPipelineId]);
+
+  useEffect(() => {
+    if (urlFilters.viewMode !== normalizedUrlState.viewMode) setURLParam("viewMode", normalizedUrlState.viewMode);
+    if (urlFilters.sortField !== normalizedUrlState.sortField) setURLParam("sortField", normalizedUrlState.sortField);
+    if (urlFilters.sortDir !== normalizedUrlState.sortDir) setURLParam("sortDir", normalizedUrlState.sortDir);
+    if (urlFilters.searchInput !== normalizedUrlState.searchInput) setURLParam("searchInput", normalizedUrlState.searchInput);
+  }, [normalizedUrlState, setURLParam, urlFilters.searchInput, urlFilters.sortDir, urlFilters.sortField, urlFilters.viewMode]);
+
+  useEffect(() => {
+    if (!loadingPipelines && selectedPipelineId && selectedPipelineId !== urlFilters.selectedPipelineId) {
+      setURLParam("selectedPipelineId", selectedPipelineId);
     }
-  }, [pipelines, selectedPipelineId]);
+  }, [loadingPipelines, selectedPipelineId, setURLParam, urlFilters.selectedPipelineId]);
 
-  const selectedPipeline = pipelines.find((p: any) => p.id === selectedPipelineId);
-  const stages = selectedPipeline?.marketing_pipeline_stages || [];
+  useEffect(() => {
+    setSearchInput(normalizedUrlState.searchInput);
+  }, [normalizedUrlState.searchInput]);
 
-  const { data: opportunities = [], isLoading: loadingOpps, isFetchingNextPage, hasNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
+  useEffect(() => {
+    if (safeSearchQuery !== normalizedUrlState.searchInput) {
+      setURLParam("searchInput", safeSearchQuery);
+    }
+  }, [normalizedUrlState.searchInput, safeSearchQuery, setURLParam]);
+
+  const selectedPipeline = useMemo(
+    () => pipelines.find((p: any) => p.id === selectedPipelineId),
+    [pipelines, selectedPipelineId]
+  );
+  const stages = useMemo(() => selectedPipeline?.marketing_pipeline_stages || [], [selectedPipeline]);
+
+  const { data: opportunities = [], isLoading: loadingOpps, isFetchingNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -231,78 +272,16 @@ function MarketingOpportunitiesContent() {
   }, [opportunities]);
 
   const applyOpportunityFiltersAndSort = useCallback((source: any[]) => {
-    let result = source;
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((o: any) => {
-        const contact = o.marketing_contacts;
-        return (
-          o.name?.toLowerCase().includes(q) ||
-          contact?.first_name?.toLowerCase().includes(q) ||
-          contact?.last_name?.toLowerCase().includes(q) ||
-          contact?.email?.toLowerCase().includes(q) ||
-          contact?.phone?.toLowerCase().includes(q)
-        );
-      });
-    }
-
-    if (filters.statuses.length > 0) {
-      result = result.filter((o: any) => filters.statuses.includes(o.status));
-    }
-    if (filters.assignedTo) {
-      result = result.filter((o: any) => o.assigned_to === filters.assignedTo);
-    }
-    if (filters.followerId) {
-      result = result.filter((o: any) => o.follower_id === filters.followerId);
-    }
-    if (filters.callCenterId) {
-      result = result.filter((o: any) => o.call_center_id === filters.callCenterId);
-    }
-    if (filters.source) {
-      const src = filters.source.toLowerCase();
-      result = result.filter((o: any) => o.source?.toLowerCase().includes(src));
-    }
-    if (filters.valueMin) {
-      const min = parseFloat(filters.valueMin);
-      result = result.filter((o: any) => Number(o.value || 0) >= min);
-    }
-    if (filters.valueMax) {
-      const max = parseFloat(filters.valueMax);
-      result = result.filter((o: any) => Number(o.value || 0) <= max);
-    }
-    if (filters.dateFrom) {
-      result = result.filter((o: any) => o.created_at >= filters.dateFrom);
-    }
-    if (filters.dateTo) {
-      result = result.filter((o: any) => o.created_at <= filters.dateTo + "T23:59:59");
-    }
-    if (filters.tags.length > 0) {
-      result = result.filter((o: any) => filters.tags.some((t) => (o.tags || []).includes(t)));
-    }
-
-    // "Solo i miei" filter
-    if (onlyMine && currentUserId) {
-      result = result.filter((o: any) => o.assigned_to === currentUserId);
-    }
-
-    // Sort
-    result = [...result].sort((a: any, b: any) => {
-      let cmp = 0;
-      if (sortField === "name") {
-        cmp = (a.name || "").localeCompare(b.name || "", "it", { sensitivity: "base" });
-      } else if (sortField === "value") {
-        cmp = (Number(a.value) || 0) - (Number(b.value) || 0);
-      } else if (sortField === "created_at") {
-        cmp = (a.created_at || "").localeCompare(b.created_at || "");
-      } else if (sortField === "updated_at") {
-        cmp = (a.updated_at || "").localeCompare(b.updated_at || "");
-      }
-      return sortDir === "asc" ? cmp : -cmp;
+    return filterAndSortOpportunities({
+      opportunities: source,
+      searchQuery: safeSearchQuery,
+      filters,
+      onlyMine,
+      currentUserId,
+      sortField,
+      sortDir,
     });
-
-    return result;
-  }, [searchQuery, filters, sortField, sortDir, onlyMine, currentUserId]);
+  }, [safeSearchQuery, filters, sortField, sortDir, onlyMine, currentUserId]);
 
   const filteredOpportunities = useMemo(
     () => applyOpportunityFiltersAndSort(opportunities),

@@ -4,9 +4,9 @@ import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Button } from "@/components/ui/button";
 import { PreviewModeWrapper } from "@/components/feature-preview/PreviewModeWrapper";
+import { shouldSoftOpenFeatureCheck } from "@/lib/featureRouteSoftOpen";
 
 const FEATURE_ROUTE_LOADING_TIMEOUT_MS = 12_000;
-const SOFT_OPEN_ON_FEATURE_CHECK_DELAY = new Set(["render_ai", "marketing_reporting"]);
 
 interface FeatureRouteProps {
   children: React.ReactNode;
@@ -37,7 +37,11 @@ export function FeatureRoute({
   // + guard sulle azioni), disabled = redirect a fallback.
   const { isEnabled, isPreview, isLoading, isError, errorMessage, refetch, isFetching } = useFeatureAccess(featureKey);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
-  const shouldSoftOpenWhileResolving = SOFT_OPEN_ON_FEATURE_CHECK_DELAY.has(featureKey) && (isLoading || isError);
+  const shouldSoftOpenWhileResolving = shouldSoftOpenFeatureCheck({
+    featureKey,
+    isLoading,
+    isError,
+  });
 
   useEffect(() => {
     if (!isLoading) {

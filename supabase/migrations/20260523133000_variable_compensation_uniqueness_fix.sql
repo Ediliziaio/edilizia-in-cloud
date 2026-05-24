@@ -15,7 +15,7 @@ BEGIN
     AND t.relname = 'order_variable_compensations'
     AND c.contype = 'u'
     AND (
-      SELECT array_agg(a.attname ORDER BY u.ordinality)
+      SELECT array_agg(a.attname::text ORDER BY u.ordinality)
       FROM unnest(c.conkey) WITH ORDINALITY AS u(attnum, ordinality)
       JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
     ) = ARRAY['order_id', 'beneficiary_id', 'compensation_type', 'basis'];

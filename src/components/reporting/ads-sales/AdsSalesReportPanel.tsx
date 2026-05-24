@@ -68,14 +68,14 @@ export function AdsSalesReportPanel({
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricTile icon={Euro} label="Fatturato generato" value={formatMoney(totals.revenueCents)} loading={isLoading} />
           <MetricTile icon={Trophy} label="Vendite vinte" value={String(totals.won)} loading={isLoading} />
-          <MetricTile icon={CalendarCheck} label="Costo appuntamento" value={formatMoney(totals.costPerAppointmentCents)} loading={isLoading} />
-          <MetricTile icon={Target} label="Costo per vendita" value={formatMoney(totals.costPerSaleCents)} loading={isLoading} />
+          <MetricTile icon={CalendarCheck} label="Costo appuntamento" value={formatCostMetric(totals.costPerAppointmentCents, totals.spendCents, totals.appointments)} loading={isLoading} />
+          <MetricTile icon={Target} label="Costo per vendita" value={formatCostMetric(totals.costPerSaleCents, totals.spendCents, totals.won)} loading={isLoading} />
           {!compact && (
             <>
               <MetricTile icon={Users} label="Lead CRM" value={String(totals.leads)} loading={isLoading} />
               <MetricTile icon={Target} label="Opportunità" value={String(totals.opportunities)} loading={isLoading} />
               <MetricTile icon={CalendarCheck} label="Appuntamenti" value={String(totals.appointments)} loading={isLoading} />
-              <MetricTile icon={Euro} label="ROAS vendite" value={`${totals.roas.toFixed(2)}x`} loading={isLoading} />
+              <MetricTile icon={Euro} label="ROAS vendite" value={formatRoas(totals)} loading={isLoading} />
             </>
           )}
         </div>
@@ -125,11 +125,11 @@ export function AdsSalesReportPanel({
                     <TableCell className="text-right tabular-nums font-semibold text-emerald-700">
                       {formatMoney(row.metrics.revenueCents)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMoney(row.metrics.costPerLeadCents)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCostMetric(row.metrics.costPerLeadCents, row.metrics.spendCents, row.metrics.leads)}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {formatMoney(row.metrics.costPerSaleCents)}
+                      {formatCostMetric(row.metrics.costPerSaleCents, row.metrics.spendCents, row.metrics.won)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{row.metrics.roas.toFixed(2)}x</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatRoas(row.metrics)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -171,10 +171,20 @@ function PlatformBadge({ platform }: { platform: AdsSalesPlatform }) {
 }
 
 function formatMoney(cents: number) {
-  if (!cents) return "0 EUR";
+  if (!cents) return "0 €";
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
   }).format(cents / 100);
+}
+
+function formatCostMetric(cents: number, spendCents: number, denominator: number) {
+  if (denominator > 0 && spendCents === 0) return "N/D";
+  return formatMoney(cents);
+}
+
+function formatRoas(metrics: { spendCents: number; roas: number }) {
+  if (metrics.spendCents === 0) return "N/D";
+  return `${metrics.roas.toFixed(2)}x`;
 }

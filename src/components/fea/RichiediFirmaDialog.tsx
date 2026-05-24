@@ -13,6 +13,10 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRichiediFirma, type RichiediFirmaInput } from "@/hooks/useRichiediFirma";
+import {
+  clampSignatureExpiryDays,
+  validateRichiediFirmaForm,
+} from "@/lib/fea/richiediFirmaValidation";
 
 interface Props {
   open: boolean;
@@ -50,21 +54,30 @@ export function RichiediFirmaDialog({
   }, [open, default_email, default_nome]);
 
   const submit = () => {
-    if (!email || !nome) {
-      toast.error("Email e nome firmatario sono obbligatori");
+    const validation = validateRichiediFirmaForm({
+      email,
+      nome,
+      documentoId: documento_id,
+      scadenzaGiorni,
+      pdfMissing: pdf_missing,
+    });
+
+    if (!validation.ok) {
+      toast.error(validation.error);
       return;
     }
-    if (!email.includes("@")) {
-      toast.error("Email non valida");
-      return;
-    }
+
+    setEmail(validation.payload.signer_email);
+    setNome(validation.payload.signer_name);
+    setScadenzaGiorni(validation.payload.scadenza_giorni);
+
     const payload: RichiediFirmaInput = {
       tipo_documento,
-      documento_id,
+      documento_id: validation.payload.documento_id,
       tipo_firmatario: tipoFirmatario,
-      signer_email: email.trim(),
-      signer_name: nome.trim(),
-      scadenza_giorni: scadenzaGiorni,
+      signer_email: validation.payload.signer_email,
+      signer_name: validation.payload.signer_name,
+      scadenza_giorni: validation.payload.scadenza_giorni,
     };
     richiedi(payload, {
       onSuccess: (res) => {
@@ -78,12 +91,16 @@ export function RichiediFirmaDialog({
     });
   };
 
-  const copyLink = () => {
+  const copyLink = async () => {
     if (!result) return;
-    navigator.clipboard.writeText(result.link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast.success("Link copiato negli appunti");
+    try {
+      await navigator.clipboard.writeText(result.link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Link copiato negli appunti");
+    } catch {
+      toast.error("Non riesco a copiare il link. Selezionalo e copialo manualmente.");
+    }
   };
 
   return (
@@ -144,7 +161,7 @@ export function RichiediFirmaDialog({
                   min="1"
                   max="60"
                   value={scadenzaGiorni}
-                  onChange={(e) => setScadenzaGiorni(parseInt(e.target.value) || 14)}
+                  onChange={(e) => setScadenzaGiorni(clampSignatureExpiryDays(e.target.value))}
                 />
               </div>
             </div>
@@ -194,9 +211,11 @@ export function RichiediFirmaDialog({
           {!result ? (
             <>
               <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-              <Button onClick={submit} disabled={isPending}>
+              <Button onClick={submit} disabled={isPending || pdf_missing}>
                 {isPending ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Invio...</>
+                ) : pdf_missing ? (
+                  "Genera PDF prima"
                 ) : (
                   <><Send className="h-4 w-4 mr-2" />Invia richiesta firma</>
                 )}

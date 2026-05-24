@@ -1,5 +1,3 @@
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
 import {
   CheckCircle2,
   Send,
@@ -17,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useFEAAuditLog } from '@/hooks/useFEASessioni';
 import type { FEAAuditLog as FEAAuditLogType } from '@/types/fea';
+import { formatFirmaDate } from '@/lib/fea/firmaElettronicaHub';
 
 type EventoKey = FEAAuditLogType['evento'];
 
@@ -86,7 +85,7 @@ export function FEAAuditLog({ requestId }: FEAAuditLogProps) {
               <div className="flex-1 pb-2">
                 <p className="text-sm font-medium text-slate-800">{cfg.label}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {format(new Date(entry.created_at), "dd MMM yyyy 'alle' HH:mm:ss", { locale: it })}
+                  {formatFirmaDate(entry.created_at, "dd MMM yyyy 'alle' HH:mm:ss")}
                 </p>
                 {entry.ip && (
                   <p className="text-xs text-slate-400 mt-0.5">IP: {entry.ip}</p>

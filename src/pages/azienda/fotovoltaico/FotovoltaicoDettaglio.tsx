@@ -544,7 +544,7 @@ export default function FotovoltaicoDettaglio() {
 
           {/* TAB Allegati / Preventivo */}
           <TabsContent value="allegati" className="mt-4">
-            <FvCard title="Preventivo cliente — 16 pagine professionali">
+            <FvCard title="Preventivo cliente professionale">
               {!progetto.pdf_vendita_url && (
                 <FvCallout
                   variant="info"
@@ -552,7 +552,7 @@ export default function FotovoltaicoDettaglio() {
                   icon={<FileText className="h-4 w-4" />}
                 >
                   Completa il wizard fino allo Step 8 e premi "Genera ed emetti preventivo".
-                  Verrà creato un documento HTML 16 pagine (cover, viste tetto, componenti,
+                  Verrà creato un documento HTML configurabile (cover, viste tetto, componenti,
                   produzione, flussi energetici, risparmio, costi futuri, piano economico,
                   cassa 25 anni, CO₂, garanzie, iter pratiche, FAQ, firma).
                 </FvCallout>

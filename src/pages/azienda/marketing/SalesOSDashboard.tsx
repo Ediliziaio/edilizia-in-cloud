@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useWeightedPipeline,
@@ -50,7 +50,7 @@ import {
   Clock3,
   Gauge,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { DealHealthOverview } from "@/components/opportunities/DealHealthOverview";
 import { exportToCSV } from "@/lib/csvExport";
@@ -76,6 +76,150 @@ function severityLabel(daysStalled: number, threshold: number) {
   if (daysStalled >= threshold * 2) return { label: "Critica", variant: "destructive" as const };
   if (daysStalled >= threshold) return { label: "Da riprendere", variant: "secondary" as const };
   return { label: "Monitorare", variant: "outline" as const };
+}
+
+type SalesOSCommandTarget = "stalled" | "config" | "lead" | "quotes" | "pipeline";
+const SALES_OS_TABS = ["pipeline", "stalled", "team", "analisi", "config"] as const;
+type SalesOSTab = (typeof SALES_OS_TABS)[number];
+
+type SalesOSCommandAction = {
+  key: string;
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  value: string;
+  detail: string;
+  action: string;
+  target: SalesOSCommandTarget;
+  tone: string;
+  badge?: string;
+};
+
+function leadHasUsefulScore(lead?: { lead_score?: number | null } | null) {
+  const score = Number(lead?.lead_score ?? 0);
+  return Number.isFinite(score) && score > 0;
+}
+
+function isSalesOSTab(value: string | null): value is SalesOSTab {
+  return SALES_OS_TABS.includes(value as SalesOSTab);
+}
+
+function buildSalesOSCommandActions({
+  staleCount,
+  criticalStalledCount,
+  topLeadName,
+  topLeadScore,
+  hasUsefulLeadScore,
+  weightedForecast,
+  salesVelocity,
+  openOpportunities,
+  actualRevenue,
+  signedQuotesCount,
+  activeQuotesValue,
+  activeQuotesCount,
+}: {
+  staleCount: number;
+  criticalStalledCount: number;
+  topLeadName?: string | null;
+  topLeadScore: number;
+  hasUsefulLeadScore: boolean;
+  weightedForecast: number;
+  salesVelocity: number;
+  openOpportunities: number;
+  actualRevenue: number;
+  signedQuotesCount: number;
+  activeQuotesValue: number;
+  activeQuotesCount: number;
+}): SalesOSCommandAction[] {
+  const actions: SalesOSCommandAction[] = [
+    {
+      key: "stalled",
+      icon: criticalStalledCount > 0 ? AlertTriangle : Clock3,
+      title: staleCount > 0 ? "Recupera opportunità ferme" : "Follow-up sotto controllo",
+      value: String(staleCount),
+      detail:
+        criticalStalledCount > 0
+          ? `${criticalStalledCount} critiche: parti dal valore più alto e imposta il prossimo step.`
+          : staleCount > 0
+            ? "Da richiamare prima di aumentare budget o nuovi lead."
+            : "Nessun blocco oltre soglia nelle opportunità aperte.",
+      action: staleCount > 0 ? "Apri ferme" : "Vai alla pipeline",
+      target: staleCount > 0 ? "stalled" : "pipeline",
+      tone: criticalStalledCount > 0 ? "text-red-600" : "text-emerald-600",
+      badge: criticalStalledCount > 0 ? "Priorità" : "OK",
+    },
+  ];
+
+  actions.push(
+    hasUsefulLeadScore
+      ? {
+          key: "lead",
+          icon: Flame,
+          title: "Lead ad alta priorità",
+          value: String(topLeadScore),
+          detail: `${topLeadName ?? "Lead selezionato"}: lavoralo prima dei contatti freddi.`,
+          action: "Apri lead",
+          target: "lead",
+          tone: "text-orange-600",
+          badge: "Score",
+        }
+      : {
+          key: "lead-scoring",
+          icon: Settings2,
+          title: "Score da configurare",
+          value: "N/D",
+          detail: "I migliori contatti hanno score 0: ricalcola lo scoring prima di decidere chi è caldo.",
+          action: "Config scoring",
+          target: "config",
+          tone: "text-slate-600",
+          badge: "Setup",
+        },
+  );
+
+  actions.push(
+    actualRevenue <= 0 && (salesVelocity > 0 || activeQuotesValue > 0 || openOpportunities > 0)
+      ? {
+          key: "revenue-gap",
+          icon: Receipt,
+          title: "Trasforma pipeline in firme",
+          value: fmt(actualRevenue),
+          detail:
+            activeQuotesCount > 0
+              ? `${activeQuotesCount} preventivi attivi: accelera firma o motivo perdita.`
+              : "Velocity stimata presente, ma ricavo firmato assente nel periodo.",
+          action: "Apri preventivi",
+          target: "quotes",
+          tone: "text-amber-700",
+          badge: "Ricavo firmato",
+        }
+      : {
+          key: "signed-revenue",
+          icon: Receipt,
+          title: "Ricavo firmato",
+          value: fmt(actualRevenue),
+          detail: `${signedQuotesCount} preventivi firmati nel periodo selezionato.`,
+          action: "Preventivi",
+          target: "quotes",
+          tone: "text-emerald-700",
+          badge: "Reale",
+        },
+  );
+
+  actions.push({
+    key: "forecast",
+    icon: TrendingUp,
+    title: weightedForecast > 0 ? "Proteggi forecast" : "Forecast da alimentare",
+    value: fmt(weightedForecast),
+    detail:
+      weightedForecast > 0
+        ? "Controlla data chiusura, probabilità e prossima azione sulle trattative principali."
+        : "Aggiungi valore, probabilità e data chiusura alle opportunità aperte.",
+    action: "Lavora pipeline",
+    target: "pipeline",
+    tone: "text-primary",
+    badge: "90 giorni",
+  });
+
+  return actions;
 }
 
 // ─── WidgetState: loading / error / empty helper (Sprint 1.3) ──────────────
@@ -115,21 +259,39 @@ function WidgetState({
   return null;
 }
 
+function useSlowQueryFallback(isLoading: boolean, timeoutMs = 3500) {
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setTimedOut(true), timeoutMs);
+    return () => window.clearTimeout(timer);
+  }, [isLoading, timeoutMs]);
+
+  return isLoading && timedOut;
+}
+
 // ─── SalesVelocityCard ────────────────────────────────────────────────────────
 
 function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: string; daysBack: number; periodLabel: string }) {
   const { data: velocity, isLoading, isError, error } = useSalesVelocity(companyId, daysBack);
+  const showSlowFallback = useSlowQueryFallback(isLoading);
+  const showLoading = isLoading && !showSlowFallback;
 
-  if (isLoading || isError || !velocity) {
+  if (showLoading || isError || !velocity) {
     return (
       <Card>
         <CardContent>
           <WidgetState
-            loading={isLoading}
+            loading={showLoading}
             error={isError ? error : null}
-            empty={!isLoading && !isError && !velocity}
+            empty={showSlowFallback || (!isLoading && !isError && !velocity)}
             loadingText="Calcolo velocità..."
-            emptyText="Nessun dato disponibile"
+            emptyText={showSlowFallback ? "Dati non arrivati: Sales OS resta utilizzabile." : "Nessun dato disponibile"}
             height={100}
           />
         </CardContent>
@@ -142,7 +304,7 @@ function SalesVelocityCard({ companyId, daysBack, periodLabel }: { companyId: st
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
-          Sales Velocity
+          Velocity stimata da pipeline
           <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
         </CardTitle>
       </CardHeader>
@@ -211,24 +373,26 @@ function QuoteRevenueCard({
 }) {
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useQuoteRevenue(companyId, dateFrom, dateTo);
+  const showSlowFallback = useSlowQueryFallback(isLoading);
+  const showLoading = isLoading && !showSlowFallback;
 
-  if (isLoading || isError || !data) {
+  if (showLoading || isError || !data) {
     return (
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Receipt className="h-4 w-4 text-primary" />
-            Ricavo effettivo (preventivi firmati)
+            Ricavo firmato reale
             <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <WidgetState
-            loading={isLoading}
+            loading={showLoading}
             error={isError ? error : null}
-            empty={!isLoading && !isError && !data}
+            empty={showSlowFallback || (!isLoading && !isError && !data)}
             loadingText="Calcolo ricavo..."
-            emptyText="Nessun dato preventivi"
+            emptyText={showSlowFallback ? "Dati non arrivati: Sales OS resta utilizzabile." : "Nessun dato preventivi"}
             height={100}
           />
         </CardContent>
@@ -241,7 +405,7 @@ function QuoteRevenueCard({
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Receipt className="h-4 w-4 text-primary" />
-          Ricavo effettivo (preventivi firmati)
+          Ricavo firmato reale
           <span className="text-xs text-muted-foreground font-normal">({periodLabel.toLowerCase()})</span>
         </CardTitle>
       </CardHeader>
@@ -291,96 +455,192 @@ function QuoteRevenueCard({
 
 function SalesFocusPanel({
   companyId,
+  daysBack,
+  dateFrom,
+  dateTo,
   periodLabel,
   onOpenStalled,
+  onOpenConfig,
 }: {
   companyId: string;
+  daysBack: number;
+  dateFrom: string;
+  dateTo: string;
   periodLabel: string;
   onOpenStalled: () => void;
+  onOpenConfig: () => void;
 }) {
   const navigate = useNavigate();
-  const { data: velocity } = useSalesVelocity(companyId, 30);
+  const { data: velocity } = useSalesVelocity(companyId, daysBack);
   const { data: stalled, isLoading: stalledLoading } = useStalledOpportunities(companyId);
   const { data: leads, isLoading: leadsLoading } = useTopLeads(companyId, 1);
   const { data: forecast } = useSalesForecast(companyId, 3);
+  const { data: quoteRevenue } = useQuoteRevenue(companyId, dateFrom, dateTo);
 
   const criticalStalled = (stalled ?? []).filter((opp) => opp.days_stalled >= opp.stalled_threshold * 2);
   const nextLead = leads?.[0];
+  const hasUsefulLeadScore = leadHasUsefulScore(nextLead);
   const weightedForecast = (forecast ?? []).reduce((sum, item) => sum + item.weighted_revenue, 0);
   const staleCount = stalled?.length ?? 0;
+  const actualRevenue = quoteRevenue?.actual_revenue ?? 0;
+  const activeQuotesValue = quoteRevenue?.active_quotes_value ?? 0;
+  const activeQuotesCount = quoteRevenue?.active_quotes_count ?? 0;
 
-  const items = [
+  const commandActions = buildSalesOSCommandActions({
+    staleCount,
+    criticalStalledCount: criticalStalled.length,
+    topLeadName: nextLead?.full_name,
+    topLeadScore: Number(nextLead?.lead_score ?? 0),
+    hasUsefulLeadScore,
+    weightedForecast,
+    salesVelocity: velocity?.sales_velocity ?? 0,
+    openOpportunities: velocity?.open_opportunities ?? 0,
+    actualRevenue,
+    signedQuotesCount: quoteRevenue?.signed_quotes_count ?? 0,
+    activeQuotesValue,
+    activeQuotesCount,
+  });
+
+  const metrics = [
     {
-      key: "stalled",
-      icon: AlertTriangle,
-      label: "Priorità follow-up",
-      value: stalledLoading ? "..." : String(staleCount),
-      detail: criticalStalled.length > 0 ? `${criticalStalled.length} critiche` : "nessuna critica",
-      tone: criticalStalled.length > 0 ? "text-red-600" : "text-emerald-600",
-      action: "Apri ferme",
-      onClick: onOpenStalled,
+      label: "Velocity stimata",
+      value: velocity ? `${fmt(velocity.sales_velocity)}/giorno` : "...",
+      detail: `${velocity?.open_opportunities ?? 0} opportunità aperte`,
     },
     {
-      key: "lead",
-      icon: Flame,
-      label: "Lead più caldo",
-      value: leadsLoading ? "..." : nextLead ? String(nextLead.lead_score ?? 0) : "0",
-      detail: nextLead?.full_name || "nessun lead",
-      tone: nextLead ? "text-orange-600" : "text-muted-foreground",
-      action: nextLead ? "Apri lead" : "Contatti",
-      onClick: () => navigate(nextLead ? `/azienda/marketing/contatti/${nextLead.id}` : "/azienda/marketing/contatti"),
+      label: "Ricavo firmato",
+      value: quoteRevenue ? fmt(actualRevenue) : "...",
+      detail: `${quoteRevenue?.signed_quotes_count ?? 0} preventivi firmati`,
     },
     {
-      key: "forecast",
-      icon: TrendingUp,
       label: "Forecast pesato",
       value: fmt(weightedForecast),
       detail: "prossimi 3 mesi",
-      tone: "text-primary",
-      action: "Pipeline",
-      onClick: () => navigate("/azienda/marketing/opportunita?status=open"),
     },
     {
-      key: "velocity",
-      icon: Gauge,
-      label: "Ritmo vendite",
-      value: velocity ? fmt(velocity.sales_velocity) : "0 €",
-      detail: `${periodLabel.toLowerCase()} · ${velocity?.open_opportunities ?? 0} aperte`,
-      tone: "text-sky-700",
-      action: "Lavora pipeline",
-      onClick: () => navigate("/azienda/marketing/opportunita?status=open"),
+      label: "Preventivi aperti",
+      value: quoteRevenue ? fmt(activeQuotesValue) : "...",
+      detail: `${activeQuotesCount} inviati da chiudere`,
     },
   ];
 
+  const handleCommandClick = (target: SalesOSCommandTarget) => {
+    if (target === "stalled") {
+      onOpenStalled();
+      return;
+    }
+    if (target === "config") {
+      onOpenConfig();
+      return;
+    }
+    if (target === "lead") {
+      navigate(nextLead ? `/azienda/marketing/contatti/${nextLead.id}` : "/azienda/marketing/contatti");
+      return;
+    }
+    if (target === "quotes") {
+      navigate("/azienda/marketing/preventivi?status=inviata");
+      return;
+    }
+    navigate("/azienda/marketing/opportunita?status=open");
+  };
+
+  const revenueGap =
+    quoteRevenue &&
+    actualRevenue <= 0 &&
+    ((velocity?.sales_velocity ?? 0) > 0 || activeQuotesValue > 0 || (velocity?.open_opportunities ?? 0) > 0);
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <button
-            key={item.key}
-            type="button"
-            onClick={item.onClick}
-            className="group rounded-lg border bg-card p-4 text-left shadow-sm transition hover:border-primary/40 hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-muted p-2">
-                  <Icon className={`h-4 w-4 ${item.tone}`} />
-                </span>
-                <span className="text-xs font-medium text-muted-foreground">{item.label}</span>
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Gauge className="h-4 w-4 text-orange-600" />
+              Comando commerciale di oggi
+            </CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Lettura operativa del periodo: cosa è stimato, cosa è già firmato e quale azione sblocca vendite.
+            </p>
+          </div>
+          <Badge variant="secondary">{periodLabel}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-4 xl:grid-cols-[0.95fr_1.3fr]">
+          <div className="rounded-lg border bg-muted/20 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Numeri senza ambiguità
+              </p>
+              {revenueGap && (
+                <Badge variant="outline" className="border-amber-300 text-amber-700">
+                  Gap firme
+                </Badge>
+              )}
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {metrics.map((metric) => (
+                <div key={metric.label} className="rounded-md bg-background p-3">
+                  <p className="text-[11px] font-medium text-muted-foreground">{metric.label}</p>
+                  <p className="mt-1 text-lg font-semibold leading-tight">{metric.value}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{metric.detail}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              {revenueGap
+                ? "La pipeline si muove, ma nel periodo non risultano firme: priorità a preventivi, follow-up e motivi di perdita."
+                : "Velocity e ricavo firmato sono separati: usa la prima per ritmo atteso, il secondo per risultato reale."}
+            </p>
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Cosa fare adesso</p>
+                <p className="text-xs text-muted-foreground">Ordine suggerito per venditore o responsabile commerciale.</p>
               </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
+              <Badge variant="outline">{commandActions.length} azioni</Badge>
             </div>
-            <div className="mt-3">
-              <p className="text-xl font-semibold leading-tight">{item.value}</p>
-              <p className="mt-1 truncate text-xs text-muted-foreground">{item.detail}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {commandActions.map((item) => {
+                const Icon = item.icon;
+                const displayValue =
+                  (item.key === "stalled" && stalledLoading) || (item.key === "lead-scoring" && leadsLoading)
+                    ? "..."
+                    : item.value;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => handleCommandClick(item.target)}
+                    className="group min-h-[132px] rounded-lg border bg-background p-4 text-left transition hover:border-primary/40 hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-muted p-2">
+                          <Icon className={`h-4 w-4 ${item.tone}`} />
+                        </span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {item.badge}
+                        </Badge>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
+                    </div>
+                    <div className="mt-3">
+                      <p className="text-sm font-semibold leading-tight">{item.title}</p>
+                      <p className="mt-1 text-xl font-bold leading-tight">{displayValue}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.detail}</p>
+                    </div>
+                    <p className="mt-3 text-xs font-medium text-primary">{item.action}</p>
+                  </button>
+                );
+              })}
             </div>
-            <p className="mt-3 text-xs font-medium text-primary">{item.action}</p>
-          </button>
-        );
-      })}
-    </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -580,42 +840,55 @@ function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
           <TableHead>Stage</TableHead>
           <TableHead>Ferma da</TableHead>
           <TableHead>Threshold</TableHead>
+          <TableHead>Prossima azione</TableHead>
           <TableHead className="text-right">Valore</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
-        {stalled.map((s) => (
-          <TableRow
-            key={s.opportunity_id}
-            className="cursor-pointer hover:bg-muted/50"
-            onClick={() => navigate(`/azienda/marketing/opportunita?opportunity_id=${s.opportunity_id}`)}
-          >
-            <TableCell>
-              <p className="font-medium text-sm">{s.opportunity_name}</p>
-              {s.contact_name && (
-                <p className="text-xs text-muted-foreground">{s.contact_name}</p>
-              )}
-            </TableCell>
-            <TableCell>{s.stage_name}</TableCell>
-            <TableCell>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={severityLabel(s.days_stalled, s.stalled_threshold).variant} className="text-xs">
-                  {s.days_stalled}gg
-                </Badge>
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock3 className="h-3 w-3" />
-                  {severityLabel(s.days_stalled, s.stalled_threshold).label}
-                </span>
-              </div>
-            </TableCell>
-            <TableCell>
-              {s.stalled_threshold}gg
-            </TableCell>
-            <TableCell className="text-right">
-              {fmt(s.value)}
-            </TableCell>
-          </TableRow>
-        ))}
+        {stalled.map((s) => {
+          const severity = severityLabel(s.days_stalled, s.stalled_threshold);
+          const nextAction = severity.label === "Critica" ? "Chiama oggi" : "Riprogramma follow-up";
+          return (
+            <TableRow
+              key={s.opportunity_id}
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => navigate(`/azienda/marketing/opportunita?opportunity_id=${s.opportunity_id}`)}
+            >
+              <TableCell>
+                <p className="font-medium text-sm">{s.opportunity_name}</p>
+                {s.contact_name && (
+                  <p className="text-xs text-muted-foreground">{s.contact_name}</p>
+                )}
+              </TableCell>
+              <TableCell>{s.stage_name}</TableCell>
+              <TableCell>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={severity.variant} className="text-xs">
+                    {s.days_stalled}gg
+                  </Badge>
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock3 className="h-3 w-3" />
+                    {severity.label}
+                  </span>
+                </div>
+              </TableCell>
+              <TableCell>
+                {s.stalled_threshold}gg
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <Badge variant={severity.variant} className="text-xs">
+                    {nextAction}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground">Apri e aggiorna prossimo step</p>
+                </div>
+              </TableCell>
+              <TableCell className="text-right">
+                {fmt(s.value)}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
     </>
@@ -687,10 +960,33 @@ function SellerComparisonTable({
       </div>
     );
 
+  const missingTargets = sellers.filter((s) => s.assigned_to && s.target_amount <= 0).length;
+
   return (
     <>
-    <div className="flex justify-end mb-2">
-      <ExportCsvButton onClick={handleExport} />
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+      <div>
+        <p className="text-sm font-semibold">
+          {missingTargets > 0 ? "Target mancanti" : "Target commerciali aggiornati"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {missingTargets > 0
+            ? `${missingTargets} venditori non hanno un target mese: il confronto performance resta parziale.`
+            : "Ogni venditore con opportunità nel periodo ha un obiettivo confrontabile."}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant={missingTargets > 0 ? "default" : "outline"}
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => navigate("/azienda/marketing")}
+        >
+          <Target className="h-3.5 w-3.5" />
+          Imposta target
+        </Button>
+        <ExportCsvButton onClick={handleExport} />
+      </div>
     </div>
     <Table>
       <TableHeader>
@@ -917,49 +1213,57 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
         </TableRow>
       </TableHeader>
       <TableBody>
-        {leads.map((lead) => (
-          <TableRow
-            key={lead.id}
-            className="cursor-pointer hover:bg-muted/50"
-            onClick={() => navigate(`/azienda/marketing/contatti/${lead.id}`)}
-          >
-            <TableCell>
-              <p className="font-medium text-sm">{lead.full_name}</p>
-              {lead.company_name && (
-                <p className="text-xs text-muted-foreground">{lead.company_name}</p>
-              )}
-            </TableCell>
-            <TableCell>
-              {lead.icp_tier ? (
-                <Badge className={tierColor[lead.icp_tier] ?? ""}>
-                  {lead.icp_tier}
-                </Badge>
-              ) : (
-                "—"
-              )}
-            </TableCell>
-            <TableCell>
-              <div className="flex items-center gap-2">
-                <div className="w-16">
-                  <Progress value={lead.lead_score} className="h-2" />
+        {leads.map((lead) => {
+          const hasScore = leadHasUsefulScore(lead);
+          return (
+            <TableRow
+              key={lead.id}
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => navigate(`/azienda/marketing/contatti/${lead.id}`)}
+            >
+              <TableCell>
+                <p className="font-medium text-sm">{lead.full_name}</p>
+                {lead.company_name && (
+                  <p className="text-xs text-muted-foreground">{lead.company_name}</p>
+                )}
+              </TableCell>
+              <TableCell>
+                {lead.icp_tier ? (
+                  <Badge className={tierColor[lead.icp_tier] ?? ""}>
+                    {lead.icp_tier}
+                  </Badge>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
+              <TableCell>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-16">
+                      <Progress value={hasScore ? lead.lead_score : 0} className="h-2" />
+                    </div>
+                    <span className="text-sm font-semibold">
+                      {hasScore ? lead.lead_score : "N/D"}
+                    </span>
+                  </div>
+                  {!hasScore && (
+                    <p className="text-xs text-muted-foreground">Score da configurare</p>
+                  )}
                 </div>
-                <span className="text-sm font-semibold">
-                  {lead.lead_score}
-                </span>
-              </div>
-            </TableCell>
-            <TableCell>
-              {lead.source ?? "—"}
-            </TableCell>
-            <TableCell className="text-right">
-              {lead.open_opportunities_count > 0 ? (
-                <Badge>{lead.open_opportunities_count}</Badge>
-              ) : (
-                "0"
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
+              </TableCell>
+              <TableCell>
+                {lead.source ?? "—"}
+              </TableCell>
+              <TableCell className="text-right">
+                {lead.open_opportunities_count > 0 ? (
+                  <Badge>{lead.open_opportunities_count}</Badge>
+                ) : (
+                  "0"
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
     </>
@@ -971,11 +1275,32 @@ function TopLeadsTable({ companyId, limit = 10 }: { companyId: string; limit?: n
 export default function SalesOSDashboard() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
-  const [activeTab, setActiveTab] = useState("pipeline");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<SalesOSTab>(
+    () => (isSalesOSTab(queryTab) ? queryTab : "pipeline"),
+  );
   const [period, setPeriod] = useState<SalesOSPeriod>("30d");
   const [topLeadsLimit, setTopLeadsLimit] = useState(10);
 
   const range = useMemo(() => getPeriodRange(period), [period]);
+
+  useEffect(() => {
+    setActiveTab(isSalesOSTab(queryTab) ? queryTab : "pipeline");
+  }, [queryTab]);
+
+  const handleTabChange = (value: string) => {
+    const nextTab = isSalesOSTab(value) ? value : "pipeline";
+    setActiveTab(nextTab);
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextTab === "pipeline") {
+      nextParams.delete("tab");
+    } else {
+      nextParams.set("tab", nextTab);
+    }
+    setSearchParams(nextParams);
+  };
 
   if (!companyId)
     return (
@@ -1032,12 +1357,16 @@ export default function SalesOSDashboard() {
 
       <SalesFocusPanel
         companyId={companyId}
+        daysBack={range.daysBack}
+        dateFrom={range.dateFrom}
+        dateTo={range.dateTo}
         periodLabel={range.label}
-        onOpenStalled={() => setActiveTab("stalled")}
+        onOpenStalled={() => handleTabChange("stalled")}
+        onOpenConfig={() => handleTabChange("config")}
       />
 
       {/* Tabs principali */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid sm:max-w-2xl sm:grid-cols-5">
           <TabsTrigger value="pipeline" className="flex shrink-0 items-center gap-1.5 whitespace-nowrap data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <TrendingUp className="h-3.5 w-3.5" />

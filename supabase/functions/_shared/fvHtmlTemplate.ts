@@ -1,5 +1,5 @@
 /**
- * Template HTML del preventivo Fotovoltaico v2 — 16 pagine Reonic-killer.
+ * Template HTML del preventivo Fotovoltaico v2 — pagine A4 configurabili.
  * Replica fedele del riferimento /Users/florinandriciuc/Downloads/preventivo-fv-mario-rossi-v2.html
  *
  * L'output è un singolo HTML self-contained (CSS inline, SVG inline)
@@ -70,6 +70,10 @@ export interface FvPdfTemplateData {
     superficie_tetto_disponibile_mq?: number | null;
     azimut?: string | null; // es. "SE 28°"
     inclinazione_tetto?: number | null;
+    fonte_dati_tetto?: string | null;
+    qualita_dati_tetto?: string | null;
+    imagery_date?: string | null;
+    tetto_mock?: boolean | null;
   };
   costi: {
     prezzo_vendita_iva_inclusa: number;
@@ -96,6 +100,7 @@ export interface FvPdfTemplateData {
   };
   flows: FvFlows;
   componenti: Array<{
+    articolo_id?: string | null;
     categoria: string;
     descrizione: string;
     marca?: string | null;
@@ -105,7 +110,76 @@ export interface FvPdfTemplateData {
     capacita_kwh?: number | null;
     garanzia_anni?: number | null;
     image_url?: string | null;
+    articolo_descrizione_estesa?: string | null;
+    scheda_tecnica_url?: string | null;
   }>;
+  servizi?: Array<{
+    tipo?: string | null;
+    descrizione: string;
+    quantita?: number | null;
+    prezzo_vendita?: number | null;
+    note_operative?: string | null;
+  }>;
+  template?: {
+    logo_url?: string | null;
+    pdf_cover_hero?: string | null;
+    pdf_cover_subhero?: string | null;
+    pdf_cover_subhero_template?: string | null;
+    pdf_cover_eyebrow?: string | null;
+    pdf_cover_image_url?: string | null;
+    pdf_cover_overlay_opacity?: number | null;
+    pdf_cover_bg_color?: string | null;
+    pdf_cover_text_color?: string | null;
+    pdf_cover_text_align?: string | null;
+    pdf_cover_logo_position?: string | null;
+    pdf_cover_show_client_card?: boolean | null;
+    presentazione_impresa_html?: string | null;
+    foto_team_url?: string | null;
+    chi_siamo_titolo?: string | null;
+    recensioni?: Array<{
+      quote?: string | null;
+      autore?: string | null;
+      citta?: string | null;
+      intervento?: string | null;
+    }> | null;
+    certificazioni?: Array<{
+      nome?: string | null;
+      ente?: string | null;
+    }> | null;
+    render_disclaimer?: string | null;
+    percorso_cliente_intro?: string | null;
+    consulente_descrizione_default?: string | null;
+    pdf_cta_finale_titolo?: string | null;
+    pdf_cta_finale_testo?: string | null;
+    pdf_pages_order?: Array<{
+      id?: string | null;
+      visible?: boolean | null;
+    }> | null;
+    valore_proposta_html?: string | null;
+    garanzie_conversione?: Array<{
+      titolo?: string | null;
+      descrizione?: string | null;
+      icona?: string | null;
+    }> | null;
+    faq_items?: Array<{
+      domanda?: string | null;
+      risposta?: string | null;
+    }> | null;
+    condizioni_legali_attivo?: boolean | null;
+    condizioni_legali_testo?: string | null;
+    urgenza_attiva?: boolean | null;
+    urgenza_titolo?: string | null;
+    urgenza_descrizione?: string | null;
+    noleggio_note_legali?: string | null;
+    listino_macrocategorie_fv?: Array<{
+      nome?: string | null;
+      descrizione?: string | null;
+      descrizione_estesa?: string | null;
+      immagine_url?: string | null;
+      categoria_tipo?: string | null;
+      mostra_pagina_dedicata_pdf?: boolean | null;
+    }> | null;
+  };
 }
 
 // ─── Helpers stile ─────────────────────────────────────────────────────────
@@ -122,6 +196,40 @@ html, body {
   print-color-adjust: exact;
 }
 h1, h2, h3, h4 { font-family: 'Outfit', -apple-system, sans-serif; letter-spacing: -0.02em; }
+
+@media screen {
+  body { background: #E2E8F0; padding: 74px 0 36px; }
+  .page { margin: 0 auto 10mm; box-shadow: 0 18px 44px rgba(15, 23, 42, 0.18); }
+}
+
+@media print {
+  body { background: white; padding: 0; }
+  .pdf-action-bar { display: none !important; }
+  .page { margin: 0; box-shadow: none; }
+}
+
+.pdf-action-bar {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 9999; width: min(1120px, calc(100vw - 24px));
+  min-height: 50px; padding: 9px 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: rgba(255, 255, 255, 0.96); border: 1px solid #CBD5E1; border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18); backdrop-filter: blur(12px);
+}
+.pdf-action-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 8.5pt; color: #64748B; }
+.pdf-action-meta strong { color: #0F172A; font-size: 9.5pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pdf-action-links { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.pdf-action-links a, .pdf-action-links button {
+  border: 1px solid #CBD5E1; border-radius: 6px; padding: 8px 10px;
+  background: white; color: #1E3A5F; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer;
+}
+.pdf-action-links button { background: #F97316; border-color: #F97316; color: white; }
+@media screen and (max-width: 720px) {
+  body { padding-top: 112px; }
+  .pdf-action-bar { align-items: flex-start; flex-direction: column; }
+  .pdf-action-links { width: 100%; flex-wrap: wrap; }
+  .pdf-action-links a, .pdf-action-links button { flex: 1 1 130px; text-align: center; }
+}
 
 .page {
   width: 210mm; height: 297mm;
@@ -161,11 +269,15 @@ p { margin-bottom: 2mm; }
 .cover { background: linear-gradient(135deg, #0F2542 0%, #1E3A5F 60%, #2C5184 100%); color: white; height: 100%; position: relative; overflow: hidden; }
 .cover::before { content: ""; position: absolute; top: -20%; right: -20%; width: 80%; height: 80%; background: radial-gradient(circle, rgba(249,115,22,0.4) 0%, transparent 60%); }
 .cover::after { content: "☀"; position: absolute; top: 25mm; right: 25mm; font-size: 100pt; opacity: 0.15; color: #FBBF24; }
+.cover-bg-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover-overlay { position: absolute; inset: 0; }
 .cover-content { position: relative; padding: 24mm 22mm; height: 100%; display: flex; flex-direction: column; }
 .cover-brand { display: flex; align-items: center; gap: 14px; margin-bottom: auto; }
 .cover-brand .icon { width: 54px; height: 54px; border-radius: 13px; background: linear-gradient(135deg, #F97316 0%, #FBBF24 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 26px; }
+.cover-brand .logo-img { width: 54px; height: 54px; border-radius: 13px; object-fit: contain; background: rgba(255,255,255,0.9); padding: 5px; }
 .cover-brand .name { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 20pt; }
 .cover-brand .tagline { font-size: 9.5pt; opacity: 0.7; margin-top: 2px; }
+.cover-main { margin-top: auto; }
 .cover-eyebrow { font-size: 10pt; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #FBBF24; margin-bottom: 8mm; }
 .cover h1 { font-size: 46pt; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: white; margin-bottom: 5mm; }
 .cover .subtitle { font-size: 16pt; opacity: 0.85; line-height: 1.3; margin-bottom: 14mm; max-width: 75%; }
@@ -211,6 +323,19 @@ p { margin-bottom: 2mm; }
 .callout-tip { background: #FFEDD5; border-left: 3px solid #F97316; color: #C2410C; }
 .callout-info { background: #DBEAFE; border-left: 3px solid #3B82F6; color: #1E3A8A; }
 .callout strong { display: block; margin-bottom: 0.5mm; font-size: 9.5pt; }
+.rich-text p { margin-bottom: 1.5mm; }
+.rich-text ul, .rich-text ol { padding-left: 5mm; margin: 1.5mm 0; }
+.rich-text li { margin-bottom: 0.8mm; }
+
+.source-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; margin: 2.5mm 0; }
+.source-cell { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 7px; padding: 2.4mm 3mm; }
+.source-cell .source-label { font-size: 6.8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748B; margin-bottom: 0.8mm; }
+.source-cell .source-value { font-size: 9pt; font-weight: 700; color: #1E3A5F; line-height: 1.25; }
+
+.service-list { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; margin: 2.5mm 0 3mm; }
+.service-item { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 2.6mm 3mm; min-height: 18mm; }
+.service-title { font-size: 8.8pt; font-weight: 700; color: #1E3A5F; margin-bottom: 0.8mm; }
+.service-meta { font-size: 7.2pt; color: #64748B; line-height: 1.35; }
 
 table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 2.5mm 0; }
 table th { background: #1E3A5F; color: white; padding: 2mm 3mm; text-align: left; font-weight: 600; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -262,6 +387,7 @@ table .saving-zero { color: #64748B; }
 .sig-box .sig-label { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.1em; color: #64748B; font-weight: 700; margin-bottom: 1mm; }
 .sig-box .sig-line { height: 14mm; border-bottom: 1px solid #94A3B8; margin-bottom: 2mm; }
 .sig-box .sig-name { font-size: 9.5pt; color: #1E3A5F; font-weight: 700; }
+.legal-box { margin-top: 3mm; padding: 3mm 4mm; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 7.8pt; color: #475569; }
 
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
 
@@ -286,6 +412,15 @@ table .saving-zero { color: #64748B; }
 .product-info .product-specs { display: flex; gap: 1.2mm; flex-wrap: wrap; margin-top: 1.2mm; }
 .product-info .spec-chip { background: #F1F5F9; color: #475569; font-size: 7pt; font-weight: 600; padding: 0.4mm 1.8mm; border-radius: 3px; }
 .product-info .spec-chip.green { background: #DCFCE7; color: #166534; }
+.macro-hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 7mm; align-items: center; margin: 5mm 0; }
+.macro-hero-img { height: 92mm; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); border: 1px solid #E2E8F0; display: flex; align-items: center; justify-content: center; }
+.macro-hero-img img { width: 100%; height: 100%; object-fit: cover; }
+.macro-hero-img svg { width: 54%; height: 54%; }
+.macro-copy { border-left: 4px solid #F97316; padding-left: 5mm; }
+.macro-copy h2 { font-size: 19pt; line-height: 1.08; color: #1E3A5F; margin-bottom: 3mm; }
+.macro-copy p { font-size: 10pt; color: #475569; line-height: 1.55; }
+.macro-pill-row { display: flex; gap: 2mm; flex-wrap: wrap; margin-top: 4mm; }
+.macro-pill { border-radius: 999px; background: #FFEDD5; color: #C2410C; font-size: 7.5pt; font-weight: 700; padding: 1.2mm 2.6mm; }
 
 .eq-row { display: grid; grid-template-columns: 26mm 1fr; gap: 4mm; align-items: center; padding: 3mm 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 2.2mm; }
 .eq-row .eq-num { font-family: 'Outfit', sans-serif; font-size: 20pt; font-weight: 800; color: #16A34A; line-height: 1; text-align: center; }
@@ -296,7 +431,6 @@ table .saving-zero { color: #64748B; }
 .guarantee-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; margin: 3mm 0; }
 .guarantee-card { background: white; border: 2px solid #16A34A; border-radius: 10px; padding: 4mm 5mm; }
 .guarantee-card .g-num { font-family: 'Outfit', sans-serif; font-size: 18pt; font-weight: 800; color: #16A34A; line-height: 1; margin-bottom: 1.5mm; }
-.guarantee-card .g-num::before { content: "✓ "; }
 .guarantee-card .g-title { font-size: 10pt; font-weight: 700; color: #1E3A5F; margin-bottom: 1.5mm; }
 .guarantee-card .g-desc { font-size: 8pt; color: #475569; line-height: 1.4; }
 `;
@@ -314,6 +448,361 @@ function footer(brand: string, contatti: string, pageN: number, total: number): 
   return `<div class="page-footer"><span>${escHtml(brand)} · ${escHtml(contatti)}</span><span class="pnum">${pageN} / ${total}</span></div>`;
 }
 
+function safeRichText(value: string | null | undefined): string {
+  return String(value ?? "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*'[^']*'/gi, "")
+    .replace(/javascript:/gi, "")
+    .replace(/<(?!\/?(p|br|strong|em|ul|ol|li|b|i)\b)[^>]*>/gi, "")
+    .trim();
+}
+
+function plainText(value: string | null | undefined): string {
+  return safeRichText(value)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function guaranteeIconLabel(icon: string | null | undefined): string {
+  switch (icon) {
+    case "award":
+      return "★";
+    case "clock":
+      return "48h";
+    case "tools":
+      return "FER";
+    case "battery":
+      return "kWh";
+    case "sun":
+      return "PV";
+    default:
+      return "✓";
+  }
+}
+
+function websiteHref(value: string | null | undefined): string | null {
+  const raw = plainText(value);
+  if (!raw) return null;
+  const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(href);
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function phoneHref(value: string | null | undefined): string | null {
+  const raw = plainText(value).replace(/[^\d+]/g, "");
+  return raw.length >= 6 ? `tel:${raw}` : null;
+}
+
+function emailHref(value: string | null | undefined): string | null {
+  const raw = plainText(value).replace(/\s+/g, "");
+  if (!/^[^@]+@[^@]+\.[^@]+$/.test(raw)) return null;
+  return `mailto:${raw}`;
+}
+
+function imageHref(value: string | null | undefined): string | null {
+  const raw = plainText(value);
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function renderPdfActionBar(d: FvPdfTemplateData): string {
+  const contatti = [
+    d.azienda.phone && phoneHref(d.azienda.phone)
+      ? `<a href="${escHtml(phoneHref(d.azienda.phone)!)}">${escHtml(d.azienda.phone)}</a>`
+      : "",
+    d.azienda.email && emailHref(d.azienda.email)
+      ? `<a href="${escHtml(emailHref(d.azienda.email)!)}">Email</a>`
+      : "",
+    d.azienda.website && websiteHref(d.azienda.website)
+      ? `<a href="${escHtml(websiteHref(d.azienda.website)!)}" target="_blank" rel="noopener">Sito</a>`
+      : "",
+  ].filter(Boolean).join("");
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  return `<div class="pdf-action-bar" role="region" aria-label="Azioni preventivo fotovoltaico">
+    <div class="pdf-action-meta">
+      <strong>${escHtml(d.progetto.numero)} · ${escHtml(cliente || d.progetto.titolo)}</strong>
+      <span>${escHtml(d.azienda.name)} · valido ${d.progetto.valido_giorni} giorni · apri la stampa per salvare il PDF definitivo</span>
+    </div>
+    <div class="pdf-action-links">
+      ${contatti}
+      <button type="button" onclick="window.print()">Stampa / Salva PDF</button>
+    </div>
+  </div>`;
+}
+
+function roofSourceLabel(source: string | null | undefined): string {
+  switch (source) {
+    case "solar_api":
+      return "Google Solar API";
+    case "pvgis":
+      return "PVGIS";
+    case "manuale":
+      return "dato manuale";
+    default:
+      return "stima tecnica";
+  }
+}
+
+function roofQualityLabel(quality: string | null | undefined): string {
+  switch (quality) {
+    case "high":
+      return "alta";
+    case "medium":
+      return "media";
+    case "low":
+      return "bassa";
+    case "manual":
+      return "manuale";
+    case "mock":
+      return "stimata";
+    default:
+      return "non indicata";
+  }
+}
+
+function hasEstimatedRoofData(d: FvPdfTemplateData): boolean {
+  const quality = String(d.progetto.qualita_dati_tetto ?? "").toLowerCase();
+  return Boolean(d.progetto.tetto_mock) || ["mock", "estimated", "stimata", "stimato"].includes(quality);
+}
+
+function renderRoofSourcePanel(d: FvPdfTemplateData): string {
+  const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
+  const quality = roofQualityLabel(d.progetto.qualita_dati_tetto);
+  const imageryDate = d.progetto.imagery_date ? fmtData(d.progetto.imagery_date) : "non indicata";
+  const warning = hasEstimatedRoofData(d)
+    ? `<div class="callout callout-tip">
+        <span class="callout-icon">!</span>
+        <div><strong>Dati tetto stimati.</strong> La produzione è una stima commerciale: confermare con sopralluogo tecnico, verifica ombre e misure reali prima dell'ordine.</div>
+      </div>`
+    : "";
+  return `<div class="source-grid">
+    <div class="source-cell"><div class="source-label">Fonte dati tetto</div><div class="source-value">${escHtml(source)}</div></div>
+    <div class="source-cell"><div class="source-label">Qualità dati</div><div class="source-value">${escHtml(quality)}</div></div>
+    <div class="source-cell"><div class="source-label">Immagine satellitare</div><div class="source-value">${escHtml(imageryDate)}</div></div>
+  </div>${warning}`;
+}
+
+function renderServiziInclusi(d: FvPdfTemplateData): string {
+  const servizi = (d.servizi ?? [])
+    .filter((s) => plainText(s.descrizione).length > 0)
+    .slice(0, 4);
+  if (servizi.length === 0) return "";
+  return `<h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">Servizi inclusi nella proposta</h3>
+    <div class="service-list">
+      ${servizi.map((s) => {
+        const descrizione = plainText(s.descrizione);
+        const note = plainText(s.note_operative);
+        const qty = Number(s.quantita ?? 1);
+        const price = Number(s.prezzo_vendita ?? 0);
+        const meta = [
+          Number.isFinite(qty) && qty > 1 ? `Quantità ${fmtNum(qty, 1)}` : null,
+          note || null,
+          Number.isFinite(price) && price > 0 ? fmtEur(price) : null,
+        ].filter(Boolean).join(" · ");
+        return `<div class="service-item">
+          <div class="service-title">${escHtml(descrizione)}</div>
+          ${meta ? `<div class="service-meta">${escHtml(meta)}</div>` : ""}
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+const FV_PRODUCT_CATEGORY_LABELS: Record<string, string> = {
+  pannello: "Pannelli fotovoltaici",
+  inverter: "Inverter",
+  accumulo: "Batteria di accumulo",
+  wallbox: "Wallbox",
+  ottimizzatore: "Ottimizzatori",
+  struttura: "Strutture e fissaggi",
+};
+
+function productIconType(categoria: string): "pannello" | "inverter" | "accumulo" {
+  if (categoria === "inverter") return "inverter";
+  if (categoria === "accumulo" || categoria === "wallbox") return "accumulo";
+  return "pannello";
+}
+
+type FvListinoMacroPdf = NonNullable<NonNullable<FvPdfTemplateData["template"]>["listino_macrocategorie_fv"]>[number];
+
+function inferFvCategoryFromText(value: string | null | undefined): string {
+  const text = plainText(value).toLowerCase();
+  if (/pannell|modul|fotovolta/.test(text)) return "pannello";
+  if (/inverter/.test(text)) return "inverter";
+  if (/accumul|batter/.test(text)) return "accumulo";
+  if (/wallbox|ricaric/.test(text)) return "wallbox";
+  if (/ottimizz/.test(text)) return "ottimizzatore";
+  if (/struttur|fissagg/.test(text)) return "struttura";
+  return "";
+}
+
+function productCategoryMedia(
+  d: FvPdfTemplateData,
+  categoria: string,
+): { label: string; description: string; imageUrl: string | null } {
+  const macro = (d.template?.listino_macrocategorie_fv ?? []).find(
+    (item) => inferFvCategoryFromText(item.nome) === categoria,
+  );
+  return {
+    label: plainText(macro?.nome) || FV_PRODUCT_CATEGORY_LABELS[categoria] || categoria,
+    description: plainText(macro?.descrizione_estesa) || plainText(macro?.descrizione),
+    imageUrl: imageHref(macro?.immagine_url),
+  };
+}
+
+function dedicatedMacroPages(d: FvPdfTemplateData): Array<FvListinoMacroPdf & { categoria: string }> {
+  const categoriesInProject = new Set(d.componenti.map((c) => c.categoria));
+  return (d.template?.listino_macrocategorie_fv ?? [])
+    .map((macro) => ({
+      ...macro,
+      categoria: inferFvCategoryFromText(macro.nome),
+    }))
+    .filter((macro) =>
+      Boolean(macro.mostra_pagina_dedicata_pdf) &&
+      categoriesInProject.has(macro.categoria) &&
+      (
+        plainText(macro.nome).length > 0 ||
+        plainText(macro.descrizione_estesa).length > 0 ||
+        plainText(macro.descrizione).length > 0 ||
+        Boolean(imageHref(macro.immagine_url))
+      ),
+    );
+}
+
+export type FvPdfPageId =
+  | "investimento"
+  | "anteprima"
+  | "componenti"
+  | "macro_categorie"
+  | "produzione"
+  | "flussi"
+  | "risparmio"
+  | "costi_futuri"
+  | "piano_pagamento"
+  | "bollette_240"
+  | "cassa_25"
+  | "co2"
+  | "garanzie"
+  | "iter"
+  | "faq"
+  | "decisione";
+
+export interface FvPdfPageOrderItem {
+  id: FvPdfPageId;
+  visible: boolean;
+}
+
+export interface FvPdfPageMeta {
+  id: FvPdfPageId;
+  label: string;
+  descrizione: string;
+  obbligatoria: boolean;
+}
+
+export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
+  { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
+  { id: "anteprima", label: "Anteprima impianto", descrizione: "Vista tetto, layout pannelli e fonte dati.", obbligatoria: false },
+  { id: "componenti", label: "Componenti scelti", descrizione: "Prodotti reali scelti nel preventivo e arricchiti dal listino.", obbligatoria: true },
+  { id: "macro_categorie", label: "Pagine linee prodotto", descrizione: "Pagine dedicate lette dalle macro-categorie del listino.", obbligatoria: false },
+  { id: "produzione", label: "Produzione", descrizione: "Producibilita mensile, fonte dati e qualita tetto.", obbligatoria: false },
+  { id: "flussi", label: "Flussi energia", descrizione: "Autoconsumo, autosufficienza e energia ceduta.", obbligatoria: false },
+  { id: "risparmio", label: "Risparmio", descrizione: "Bolletta prima/dopo e risparmio mensile.", obbligatoria: false },
+  { id: "costi_futuri", label: "Costi futuri", descrizione: "Scenario costo energia nei prossimi anni.", obbligatoria: false },
+  { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile.", obbligatoria: false },
+  { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
+  { id: "cassa_25", label: "Cassa 25 anni", descrizione: "Cashflow, breakeven e valore cumulato.", obbligatoria: false },
+  { id: "co2", label: "Impatto CO2", descrizione: "Beneficio ambientale in equivalenze semplici.", obbligatoria: false },
+  { id: "garanzie", label: "Chi siamo e garanzie", descrizione: "Azienda, prova sociale, certificazioni e garanzie.", obbligatoria: false },
+  { id: "iter", label: "Percorso cliente", descrizione: "Iter pratiche, installazione, allaccio e servizi inclusi.", obbligatoria: false },
+  { id: "faq", label: "FAQ", descrizione: "Domande e obiezioni frequenti.", obbligatoria: false },
+  { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta, contatti, firma e condizioni.", obbligatoria: true },
+];
+
+export const FV_PDF_PAGES_DEFAULT: FvPdfPageOrderItem[] = FV_PDF_PAGES_META.map((page) => ({
+  id: page.id,
+  visible: true,
+}));
+
+export function normalizeFvPdfPagesOrder(
+  saved: NonNullable<NonNullable<FvPdfTemplateData["template"]>["pdf_pages_order"]> | null | undefined,
+): FvPdfPageOrderItem[] {
+  const validIds = new Set<FvPdfPageId>(FV_PDF_PAGES_META.map((page) => page.id));
+  const mandatoryIds = new Set<FvPdfPageId>(
+    FV_PDF_PAGES_META.filter((page) => page.obbligatoria).map((page) => page.id),
+  );
+  const out: FvPdfPageOrderItem[] = [];
+  const seen = new Set<FvPdfPageId>();
+
+  for (const item of saved ?? []) {
+    const id = item?.id as FvPdfPageId | undefined;
+    if (!id || !validIds.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      visible: mandatoryIds.has(id) ? true : Boolean(item.visible),
+    });
+  }
+
+  for (const page of FV_PDF_PAGES_META) {
+    if (!seen.has(page.id)) {
+      out.push({ id: page.id, visible: true });
+    }
+  }
+
+  return out;
+}
+
+function cssColor(value: string | null | undefined, fallback: string): string {
+  const raw = plainText(value);
+  if (/^#[0-9a-f]{3,8}$/i.test(raw)) return raw;
+  if (/^(white|black|transparent)$/i.test(raw)) return raw.toLowerCase();
+  return fallback;
+}
+
+function clampPct(value: number | null | undefined, fallback: number): number {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(100, Math.max(0, parsed));
+}
+
+function coverText(value: string | null | undefined, fallback: string): string {
+  const text = plainText(value);
+  return text || fallback;
+}
+
+function renderCoverLines(value: string): string {
+  return escHtml(value).replace(/\n/g, "<br/>");
+}
+
+function renderCoverSubtitle(d: FvPdfTemplateData, fallback: string): string {
+  const template = plainText(d.template?.pdf_cover_subhero_template);
+  const staticText = plainText(d.template?.pdf_cover_subhero);
+  const value = template || staticText || fallback;
+  const replacements: Record<string, string> = {
+    cliente_nome: `${d.cliente.nome} ${d.cliente.cognome}`.trim(),
+    potenza_kwp: `${fmtNum(d.progetto.potenza_kwp, 1)} kWp`,
+    accumulo_kwh: d.progetto.has_accumulo ? `${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : "senza accumulo",
+    indirizzo: d.cliente.indirizzo ?? "",
+    comune: d.cliente.comune ?? "",
+    numero_pannelli: String(d.progetto.numero_pannelli),
+  };
+  return value.replace(/\{([a-z_]+)\}/gi, (_match, key: string) => replacements[key] ?? "");
+}
+
 // ─── Pagine ────────────────────────────────────────────────────────────────
 
 function pageCover(d: FvPdfTemplateData): string {
@@ -326,25 +815,42 @@ function pageCover(d: FvPdfTemplateData): string {
     .filter(Boolean)
     .join(", ");
   const tipologia = d.cliente.tipologia_immobile ?? "Abitazione";
+  const defaultSubtitle = `Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}${d.cliente.indirizzo ? `\nper ${d.cliente.indirizzo}.` : ""}`;
+  const eyebrow = coverText(d.template?.pdf_cover_eyebrow, "La tua proposta personalizzata");
+  const hero = coverText(d.template?.pdf_cover_hero, "Il sole\ndiventa tuo.");
+  const subtitle = renderCoverSubtitle(d, defaultSubtitle);
+  const bgColor = cssColor(d.template?.pdf_cover_bg_color, "#0F2542");
+  const textColor = cssColor(d.template?.pdf_cover_text_color, "#FFFFFF");
+  const imageUrl = imageHref(d.template?.pdf_cover_image_url);
+  const logoUrl = imageHref(d.template?.logo_url);
+  const overlayOpacity = clampPct(d.template?.pdf_cover_overlay_opacity, imageUrl ? 62 : 0) / 100;
+  const align = d.template?.pdf_cover_text_align === "center" ? "center" : "left";
+  const logoPosition = plainText(d.template?.pdf_cover_logo_position) || "top_left";
+  const brandJustify = logoPosition === "top_right" ? "flex-end" : logoPosition === "top_center" ? "center" : "flex-start";
+  const showBrand = logoPosition !== "hidden";
+  const showClientCard = d.template?.pdf_cover_show_client_card !== false;
 
-  return `<div class="page"><div class="cover"><div class="cover-content">
-    <div class="cover-brand">
-      <div class="icon">☀</div>
+  return `<div class="page"><div class="cover" style="background:${escHtml(bgColor)};color:${escHtml(textColor)};">
+    ${imageUrl ? `<img class="cover-bg-img" src="${escHtml(imageUrl)}" alt="Copertina fotovoltaico"/>` : ""}
+    ${imageUrl ? `<div class="cover-overlay" style="background:rgba(15,37,66,${overlayOpacity.toFixed(2)});"></div>` : ""}
+    <div class="cover-content" style="color:${escHtml(textColor)};text-align:${align};align-items:${align === "center" ? "center" : "stretch"};">
+    ${showBrand ? `<div class="cover-brand" style="justify-content:${brandJustify};width:100%;">
+      ${logoUrl ? `<img class="logo-img" src="${escHtml(logoUrl)}" alt="${escHtml(d.azienda.name)}"/>` : `<div class="icon">☀</div>`}
       <div>
         <div class="name">${escHtml(d.azienda.name)}</div>
         ${d.azienda.tagline ? `<div class="tagline">${escHtml(d.azienda.tagline)}</div>` : ""}
       </div>
+    </div>` : `<div style="margin-bottom:auto;"></div>`}
+    <div class="cover-main" style="max-width:${align === "center" ? "150mm" : "165mm"};">
+      <div class="cover-eyebrow">${escHtml(eyebrow)}</div>
+      <h1 style="color:${escHtml(textColor)};">${renderCoverLines(hero)}</h1>
+      <div class="subtitle" style="max-width:${align === "center" ? "100%" : "75%"};">${renderCoverLines(subtitle)}</div>
     </div>
-    <div>
-      <div class="cover-eyebrow">★ La tua proposta personalizzata</div>
-      <h1>Il sole<br/>diventa tuo.</h1>
-      <div class="subtitle">Impianto fotovoltaico ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` con accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>${d.cliente.indirizzo ? `per ${escHtml(d.cliente.indirizzo)}.` : ""}</div>
-    </div>
-    <div class="cover-client">
+    ${showClientCard ? `<div class="cover-client">
       <div class="client-label">Preparato per</div>
       <div class="client-name">${escHtml(cliente)}</div>
       <div class="client-meta">${escHtml(indirizzoCompleto)} · ${escHtml(tipologia)}</div>
-    </div>
+    </div>` : ""}
     <div class="cover-footer">
       <div class="doc-meta">Preventivo <strong>${escHtml(d.progetto.numero)}</strong><br/>${escHtml(fmtData(d.progetto.creato_il))} · valido ${d.progetto.valido_giorni} giorni</div>
       <div style="text-align:right;">${d.progetto.venditore ? `A cura di<br/><strong>${escHtml(d.progetto.venditore)}</strong>` : ""}</div>
@@ -354,6 +860,7 @@ function pageCover(d: FvPdfTemplateData): string {
 
 function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const valoreProposta = safeRichText(d.template?.valore_proposta_html);
   const inclusi: string[] = [];
   const pannello = d.componenti.find((c) => c.categoria === "pannello");
   const inverter = d.componenti.find((c) => c.categoria === "inverter");
@@ -373,6 +880,10 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
       <div class="eyebrow">Pagina ${pageN} · L'investimento</div>
       <h1 class="page-title">L'investimento di<br/>una vita.</h1>
       <p class="page-subtitle">Trasparente, completo, chiavi in mano. Senza sorprese.</p>
+      ${valoreProposta ? `<div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>Perché questa proposta è costruita su misura</strong><div class="rich-text">${valoreProposta}</div></div>
+      </div>` : ""}
       <div class="invest-hero">
         <div class="label">Prezzo chiavi in mano</div>
         <div class="price">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
@@ -395,6 +906,8 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
 function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const np = d.progetto.numero_pannelli;
+  const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
+  const renderDisclaimer = plainText(d.template?.render_disclaimer);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -410,8 +923,12 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
       <div class="callout callout-tip">
         <span class="callout-icon">★</span>
         <div><strong>Layout ottimizzato per la tua casa specifica.</strong>
-        Ogni pannello è posizionato considerando l'esposizione${d.progetto.azimut ? ` ${escHtml(d.progetto.azimut)}` : ""}, l'ombreggiamento dei vicini e la struttura del tetto. Calcoli effettuati con software professionale PVGIS + DSM 3D.</div>
+        Ogni pannello è posizionato considerando l'esposizione${d.progetto.azimut ? ` ${escHtml(d.progetto.azimut)}` : ""}, l'ombreggiamento dei vicini e la struttura del tetto. Dati tecnici e produzione basati su ${escHtml(source)}.</div>
       </div>
+      ${renderDisclaimer ? `<div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>Nota anteprima impianto</strong>${escHtml(renderDisclaimer)}</div>
+      </div>` : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -420,23 +937,27 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
 function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const cards = d.componenti
-    .filter((c) => ["pannello", "inverter", "accumulo"].includes(c.categoria))
-    .slice(0, 3)
+    .filter((c) => ["pannello", "inverter", "accumulo", "wallbox", "ottimizzatore", "struttura"].includes(c.categoria))
+    .slice(0, 4)
     .map((c) => {
-      const tipo = c.categoria as "pannello" | "inverter" | "accumulo";
-      const icon = c.image_url
-        ? `<img src="${escHtml(c.image_url)}" alt="${escHtml(c.descrizione)}"/>`
-        : svgProdottoIcona(tipo);
+      const media = productCategoryMedia(d, c.categoria);
+      const imageUrl = imageHref(c.image_url) ?? media.imageUrl;
+      const icon = imageUrl
+        ? `<img src="${escHtml(imageUrl)}" alt="${escHtml(media.label)}"/>`
+        : svgProdottoIcona(productIconType(c.categoria));
       const chips: string[] = [];
       if (c.potenza_w) chips.push(`<span class="spec-chip">${c.potenza_w} Wp</span>`);
       if (c.capacita_kwh) chips.push(`<span class="spec-chip">${fmtNum(c.capacita_kwh, 1)} kWh</span>`);
       if (c.garanzia_anni) chips.push(`<span class="spec-chip green">${c.garanzia_anni} anni</span>`);
       const titolo = c.modello ?? c.descrizione;
+      const articleDescription = plainText(c.articolo_descrizione_estesa);
+      const description = articleDescription || media.description;
       return `<div class="product-card">
         <div class="product-img">${icon}</div>
         <div class="product-info">
-          <div class="product-brand">${escHtml(c.marca ?? "")}</div>
+          <div class="product-brand">${escHtml([media.label, c.marca].filter(Boolean).join(" · "))}</div>
           <h3>${escHtml(titolo)}${c.descrizione !== titolo ? ` — ${escHtml(c.descrizione)}` : ""}</h3>
+          ${description ? `<p>${escHtml(description)}</p>` : ""}
           ${c.quantita > 1 ? `<p>Quantità: <strong>${c.quantita} pezzi</strong></p>` : ""}
           ${chips.length > 0 ? `<div class="product-specs">${chips.join("")}</div>` : ""}
         </div>
@@ -456,15 +977,64 @@ function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): str
   </div>`;
 }
 
+function pageMacroCategoriaDedicata(
+  d: FvPdfTemplateData,
+  macro: FvListinoMacroPdf & { categoria: string },
+  pageN: number,
+  total: number,
+): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const title = plainText(macro.nome) || FV_PRODUCT_CATEGORY_LABELS[macro.categoria] || "Linea prodotto";
+  const description = plainText(macro.descrizione_estesa) || plainText(macro.descrizione);
+  const imageUrl = imageHref(macro.immagine_url);
+  const componentiCategoria = d.componenti.filter((c) => c.categoria === macro.categoria);
+  const details = componentiCategoria
+    .flatMap((c) => [
+      c.marca ? `Marca ${c.marca}` : null,
+      c.modello ? `Modello ${c.modello}` : null,
+      c.garanzia_anni ? `Garanzia ${c.garanzia_anni} anni` : null,
+      c.potenza_w ? `${c.potenza_w} Wp` : null,
+      c.capacita_kwh ? `${fmtNum(c.capacita_kwh, 1)} kWh` : null,
+    ])
+    .filter((v): v is string => Boolean(v))
+    .slice(0, 5);
+
+  return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">Pagina ${pageN} · Pagina dedicata · Linea prodotto</div>
+      <h1 class="page-title">Pagina dedicata<br/>${escHtml(title)}.</h1>
+      <p class="page-subtitle">Approfondimento dal listino prodotti aziendale, sincronizzato con le macro-categorie configurate nelle impostazioni.</p>
+      <div class="macro-hero">
+        <div class="macro-hero-img">
+          ${imageUrl ? `<img src="${escHtml(imageUrl)}" alt="${escHtml(title)}"/>` : svgProdottoIcona(productIconType(macro.categoria))}
+        </div>
+        <div class="macro-copy">
+          <h2>${escHtml(title)}</h2>
+          ${description ? `<p>${escHtml(description)}</p>` : "<p>Completa la descrizione estesa nel listino prodotti per rendere questa pagina piu' convincente.</p>"}
+          ${details.length > 0 ? `<div class="macro-pill-row">${details.map((detail) => `<span class="macro-pill">${escHtml(detail)}</span>`).join("")}</div>` : ""}
+        </div>
+      </div>
+      <div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>Contenuto collegato al listino.</strong> Foto, nome e descrizione non sono duplicati nel template PDF: vengono letti dalla macrocategoria prodotto.</div>
+      </div>
+    </div>
+    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+  </div>`;
+}
+
 function pageProduzione(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const mensili = calcolaProducibilitaMensile(d.flows.produzione_kwh);
+  const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Pagina ${pageN} · La produzione</div>
       <h1 class="page-title">Quanta energia<br/>produrrai.</h1>
-      <p class="page-subtitle">${fmtNum(d.flows.produzione_kwh)} kWh/anno · calcolato con PVGIS sulla tua esposizione reale${d.progetto.azimut ? ` (${escHtml(d.progetto.azimut)})` : ""}.</p>
+      <p class="page-subtitle">${fmtNum(d.flows.produzione_kwh)} kWh/anno · calcolato da ${escHtml(source)}${d.progetto.azimut ? ` sulla tua esposizione ${escHtml(d.progetto.azimut)}` : ""}.</p>
+      ${renderRoofSourcePanel(d)}
       <div class="chart-card">
         <div class="chart-title">Producibilità mensile attesa (kWh)</div>
         <div class="chart-sub">Picchi maggio-luglio · ${escHtml(d.cliente.comune ?? "Italia")}${d.progetto.azimut ? ` · azimut ${escHtml(d.progetto.azimut)}` : ""}${d.progetto.inclinazione_tetto ? ` · inclinazione ${d.progetto.inclinazione_tetto}°` : ""}</div>
@@ -709,26 +1279,74 @@ function pageCO2(d: FvPdfTemplateData, pageN: number, total: number): string {
 
 function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const chiSiamoTitolo = plainText(d.template?.chi_siamo_titolo) || "L'azienda dietro al tuo impianto";
+  const presentazione = safeRichText(d.template?.presentazione_impresa_html);
+  const teamImage = imageHref(d.template?.foto_team_url);
+  const recensioni = (d.template?.recensioni ?? [])
+    .filter((rec) => plainText(rec.quote).length > 0 && plainText(rec.autore).length > 0)
+    .slice(0, 2);
+  const certificazioni = (d.template?.certificazioni ?? [])
+    .filter((cert) => plainText(cert.nome).length > 0)
+    .slice(0, 4);
+  const defaultGaranzie = [
+    {
+      icona: "sun",
+      titolo: "Garanzia prestazione pannelli",
+      descrizione: "Il produttore garantisce a 25 anni almeno l'80% della potenza iniziale. Garanzia diretta produttore con copertura globale.",
+    },
+    {
+      icona: "battery",
+      titolo: "Garanzia inverter + accumulo",
+      descrizione: "Copertura su tutti i componenti elettronici. Sostituzione gratuita. Estendibile a 15 anni.",
+    },
+    {
+      icona: "tools",
+      titolo: "Garanzia manodopera",
+      descrizione: `${d.azienda.name} garantisce installazione, struttura e tenuta tetto. Intervento entro 48h dalla chiamata.`,
+    },
+    {
+      icona: "shield",
+      titolo: "Polizza RC + danni terzi",
+      descrizione: "Copertura danni a cose e persone durante posa e vita impianto.",
+    },
+  ];
+  const customGaranzie = (d.template?.garanzie_conversione ?? [])
+    .filter((g) => plainText(g.titolo).length > 0 && plainText(g.descrizione).length > 0)
+    .map((g) => ({
+      icona: g.icona ?? "shield",
+      titolo: plainText(g.titolo),
+      descrizione: plainText(g.descrizione),
+    }));
+  const garanzie = (customGaranzie.length > 0 ? customGaranzie : defaultGaranzie).slice(0, 4);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Pagina ${pageN} · Garanzie e assistenza</div>
       <h1 class="page-title">25 anni di<br/>tranquillità.</h1>
       <p class="page-subtitle">Le garanzie reali sui componenti, sulla manodopera e sulla nostra azienda.</p>
+      ${presentazione || teamImage ? `<div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>${escHtml(chiSiamoTitolo)}</strong>
+          ${teamImage ? `<div style="float:right;width:34mm;height:24mm;margin:0 0 2mm 4mm;border-radius:7px;overflow:hidden;border:1px solid #CBD5E1;"><img src="${escHtml(teamImage)}" alt="${escHtml(chiSiamoTitolo)}" style="width:100%;height:100%;object-fit:cover;"/></div>` : ""}
+          ${presentazione ? `<div class="rich-text">${presentazione}</div>` : ""}
+        </div>
+      </div>` : ""}
       <div class="guarantee-grid">
-        <div class="guarantee-card"><div class="g-num">25 anni</div><div class="g-title">Garanzia prestazione pannelli</div><div class="g-desc">Il produttore garantisce a 25 anni almeno l'80% della potenza iniziale. Garanzia diretta produttore con copertura globale.</div></div>
-        <div class="guarantee-card"><div class="g-num">10 anni</div><div class="g-title">Garanzia inverter + accumulo</div><div class="g-desc">Copertura su tutti i componenti elettronici. Sostituzione gratuita. Estendibile a 15 anni.</div></div>
-        <div class="guarantee-card"><div class="g-num">10 anni</div><div class="g-title">Garanzia manodopera</div><div class="g-desc">${escHtml(d.azienda.name)} garantisce installazione, struttura e tenuta tetto. Intervento entro 48h dalla chiamata.</div></div>
-        <div class="guarantee-card"><div class="g-num">5M €</div><div class="g-title">Polizza RC + danni terzi</div><div class="g-desc">Assicurazione 5 milioni €. Danni a cose e persone, durante posa e tutta vita impianto.</div></div>
+        ${garanzie.map((g) => `<div class="guarantee-card"><div class="g-num">${escHtml(guaranteeIconLabel(g.icona))}</div><div class="g-title">${escHtml(g.titolo)}</div><div class="g-desc">${escHtml(g.descrizione)}</div></div>`).join("")}
       </div>
-      <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">L'azienda dietro al tuo impianto</h3>
+      <h3 style="font-size:11pt;color:#1E3A5F;margin:4mm 0 2mm;">Affidabilità operativa</h3>
       <ul class="bullets">
         <li>${escHtml(d.azienda.name)} · partner certificato installatori FV residenziali</li>
         <li>Squadra interna tecnici certificati FER</li>
         <li>Albo installatori GSE · partner Premium produttori top tier</li>
         <li>Reperibilità 7gg/7 · linea diretta titolare</li>
         ${d.azienda.vat_number ? `<li>P.IVA ${escHtml(d.azienda.vat_number)}</li>` : ""}
+        ${certificazioni.map((cert) => `<li>${escHtml(plainText(cert.nome))}${plainText(cert.ente) ? ` · ${escHtml(plainText(cert.ente))}` : ""}</li>`).join("")}
       </ul>
+      ${recensioni.length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">Cosa dicono i clienti</h3>
+        <div class="kpi-row cols-2">
+          ${recensioni.map((rec) => `<div class="kpi-block"><div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:8pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`).join("")}
+        </div>` : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -736,12 +1354,14 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
 
 function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const intro = safeRichText(d.template?.percorso_cliente_intro);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Pagina ${pageN} · Iter pratiche</div>
       <h1 class="page-title">Pensiamo a<br/>tutto noi.</h1>
       <p class="page-subtitle">Tu firmi una sola volta. Noi gestiamo l'intero iter burocratico.</p>
+      ${intro ? `<div class="callout callout-info"><span class="callout-icon">i</span><div><strong>Il percorso cliente</strong><div class="rich-text">${intro}</div></div></div>` : ""}
       <div class="tl">
         <div class="tl-item"><div class="tl-day">Settimana 1</div><div class="tl-title">Firma contratto + apertura pratica finanziamento</div><div class="tl-desc">Firma digitale via email. KYC online 5 minuti. Rata parte solo dopo allaccio.</div></div>
         <div class="tl-item"><div class="tl-day">Settimana 1-2</div><div class="tl-title">CILA Comune ${escHtml(d.cliente.comune ?? "")} + TICA e-Distribuzione</div><div class="tl-desc">Comunicazione Inizio Lavori Asseverata + richiesta connessione. Le predisponiamo, le firmiamo per delega, le inoltriamo.</div></div>
@@ -750,6 +1370,7 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
         <div class="tl-item"><div class="tl-day">Settimana 6</div><div class="tl-title">Allaccio rete + collaudo + RID GSE</div><div class="tl-desc">e-Distribuzione fa l'allaccio. Apriamo Scambio Sul Posto al GSE. Da qui ATTIVO.</div></div>
         <div class="tl-item"><div class="tl-day">Settimana 7</div><div class="tl-title">Documentazione + dossier IRPEF + saldo</div><div class="tl-desc">Libretto + manuale + dossier già pronto per commercialista. Saldo finale via finanziaria.</div></div>
       </div>
+      ${renderServiziInclusi(d)}
       <div class="callout callout-success">
         <span class="callout-icon">✓</span>
         <div><strong>Tempo totale: ~7 settimane dalla firma all'attivazione.</strong>
@@ -762,7 +1383,7 @@ function pageIter(d: FvPdfTemplateData, pageN: number, total: number): string {
 
 function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
-  const faqs = [
+  const defaultFaqs = [
     { q: "E se l'impianto non produce abbastanza?", a: "Garanzia prestazione produttore: a 25 anni i pannelli producono almeno l'80% della potenza iniziale. Sotto soglia, il produttore sostituisce gratuitamente. L'inverter monitora 24/7: appena qualcosa scende, partiamo noi." },
     { q: "Cosa succede se vendo casa?", a: "L'impianto resta attaccato all'immobile e ne aumenta valore di vendita 8-12%. Il finanziamento può essere trasferito o estinto senza penali. La detrazione IRPEF si trasferisce al nuovo proprietario." },
     { q: "L'accumulo dura davvero 10 anni?", a: "Le batterie LFP moderne hanno ~4.500 cicli garantiti — ~12-13 anni di uso normale. Garanzia 10 anni o 70% capacità residua. Sostituzione gratuita in caso di degrado anticipato." },
@@ -770,6 +1391,10 @@ function pageFAQ(d: FvPdfTemplateData, pageN: number, total: number): string {
     { q: "Cosa succede se la rete elettrica salta?", a: "Inverter ibrido + accumulo abilitano modalità backup: in blackout l'impianto continua a fornire energia per le ore di autonomia disponibile." },
     { q: "Devo pagare qualcosa al catasto?", a: "No. FV residenziale fino a 20 kWp non genera obblighi catastali e non rileva ai fini IMU. La detrazione IRPEF va indicata in dichiarazione: ti consegnamo dossier già pronto." },
   ];
+  const customFaqs = (d.template?.faq_items ?? [])
+    .filter((f) => plainText(f.domanda).length > 0 && plainText(f.risposta).length > 0)
+    .map((f) => ({ q: plainText(f.domanda), a: plainText(f.risposta) }));
+  const faqs = (customFaqs.length > 0 ? customFaqs : defaultFaqs).slice(0, 8);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
@@ -794,17 +1419,37 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
     d.cliente.provincia ? `(${d.cliente.provincia})` : null,
   ].filter(Boolean).join(", ");
   const docMeta = `${d.azienda.name}${d.azienda.vat_number ? ` · P.IVA ${d.azienda.vat_number}` : ""} · Doc ${d.progetto.numero} · ${fmtData(d.progetto.creato_il)}`;
+  const urgenzaTitolo = plainText(d.template?.urgenza_titolo) || "Validità offerta";
+  const urgenzaDescrizione = plainText(d.template?.urgenza_descrizione);
+  const condizioni = safeRichText(d.template?.condizioni_legali_testo);
+  const noleggioNote = safeRichText(d.template?.noleggio_note_legali);
+  const isNoleggioOperativo = Boolean(fin?.finanziaria?.toLowerCase().includes("noleggio"));
+  const ctaTitolo = plainText(d.template?.pdf_cta_finale_titolo) || "Pronto a\niniziare?";
+  const ctaTesto = safeRichText(d.template?.pdf_cta_finale_testo);
+  const consulenteDescrizione = plainText(d.template?.consulente_descrizione_default);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
     <div class="content">
       <div class="eyebrow">Pagina ${pageN} · La tua decisione</div>
-      <h1 class="page-title">Pronto a<br/>iniziare?</h1>
+      <h1 class="page-title">${renderCoverLines(ctaTitolo)}</h1>
+      ${ctaTesto ? `<div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>Prossimo passo</strong><div class="rich-text">${ctaTesto}</div></div>
+      </div>` : ""}
       <div class="offer-box">
         <div class="offer-eyebrow">★ Riepilogo offerta — valida ${d.progetto.valido_giorni} giorni</div>
         <h3>Impianto FV ${fmtNum(d.progetto.potenza_kwp, 1)} kWp${d.progetto.has_accumulo ? ` + accumulo ${fmtNum(d.progetto.capacita_accumulo_kwh, 1)} kWh` : ""}<br/>chiavi in mano</h3>
         <div class="offer-num">${fmtEur(d.costi.prezzo_vendita_iva_inclusa)}</div>
         <div style="font-size:9pt;opacity:0.85;margin-top:2mm;position:relative;">IVA ${d.costi.iva_perc}% inclusa${fin ? ` · ${fmtEur(rata)}/mese × ${fin.durata_mesi} mesi (${escHtml(fin.finanziaria)} TAEG ${fmtNum(fin.taeg_perc, 2)}%)` : ""}<br/>Costo netto reale: <strong style="color:#FBBF24;">${fmtEur(netto)}/mese</strong> (rata − risparmio)</div>
       </div>
+      ${d.template?.urgenza_attiva && urgenzaDescrizione ? `<div class="callout callout-tip">
+        <span class="callout-icon">★</span>
+        <div><strong>${escHtml(urgenzaTitolo)}</strong>${escHtml(urgenzaDescrizione)}</div>
+      </div>` : ""}
+      ${isNoleggioOperativo && noleggioNote ? `<div class="callout callout-info">
+        <span class="callout-icon">i</span>
+        <div><strong>Nota noleggio operativo</strong><div class="rich-text">${noleggioNote}</div></div>
+      </div>` : ""}
       <div class="two-col">
         <div>
           <h3 style="font-size:11pt;color:#1E3A5F;margin-bottom:2mm;">Per accettare la proposta</h3>
@@ -821,6 +1466,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
             ${d.azienda.phone ? `📞 <strong>${escHtml(d.azienda.phone)}</strong><br/>` : ""}
             ${d.azienda.email ? `✉ <strong>${escHtml(d.azienda.email)}</strong><br/>` : ""}
             ${d.azienda.website ? `🌐 <strong>${escHtml(d.azienda.website)}</strong>` : ""}
+            ${consulenteDescrizione ? `<div style="line-height:1.45;margin-top:2mm;">${escHtml(consulenteDescrizione)}</div>` : ""}
           </div>
         </div>
       </div>
@@ -830,6 +1476,7 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
         <div class="sig-name">${escHtml(cliente)}</div>
         <div style="font-size:8pt;color:#64748B;margin-top:1mm;">${escHtml(indirizzoCompleto)}${d.cliente.cf ? ` · CF: ${escHtml(d.cliente.cf)}` : ""}</div>
       </div>
+      ${d.template?.condizioni_legali_attivo && condizioni ? `<div class="legal-box"><strong>Condizioni commerciali:</strong><div class="rich-text">${condizioni}</div></div>` : ""}
     </div>
     <div class="page-footer"><span>${escHtml(docMeta)}</span><span class="pnum">${pageN} / ${total}</span></div>
   </div>`;
@@ -837,26 +1484,72 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
 
 // ─── ENTRY POINT ───────────────────────────────────────────────────────────
 
+export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
+  const macroPages = dedicatedMacroPages(d);
+  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => page.visible);
+  return 1 + orderedPages.reduce((count, page) => (
+    count + (page.id === "macro_categorie" ? macroPages.length : 1)
+  ), 0);
+}
+
 export function renderFvPdfHtml(d: FvPdfTemplateData): string {
-  const TOTAL = 16;
-  const pages = [
-    pageCover(d),
-    pageInvestimento(d, 2, TOTAL),
-    pageAnteprima(d, 3, TOTAL),
-    pageComponenti(d, 4, TOTAL),
-    pageProduzione(d, 5, TOTAL),
-    pageFlussi(d, 6, TOTAL),
-    pageRisparmio(d, 7, TOTAL),
-    pageCostiFuturi(d, 8, TOTAL),
-    pagePiano(d, 9, TOTAL),
-    pageBollette240(d, 10, TOTAL),
-    pageCassa25(d, 11, TOTAL),
-    pageCO2(d, 12, TOTAL),
-    pageGaranzie(d, 13, TOTAL),
-    pageIter(d, 14, TOTAL),
-    pageFAQ(d, 15, TOTAL),
-    pageDecisione(d, 16, TOTAL),
-  ].join("\n");
+  const macroPages = dedicatedMacroPages(d);
+  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => page.visible);
+  const TOTAL = getFvPdfRenderedPagesCount(d);
+  let pageN = 1;
+  const pages = [pageCover(d)];
+  for (const page of orderedPages) {
+    switch (page.id) {
+      case "investimento":
+        pages.push(pageInvestimento(d, ++pageN, TOTAL));
+        break;
+      case "anteprima":
+        pages.push(pageAnteprima(d, ++pageN, TOTAL));
+        break;
+      case "componenti":
+        pages.push(pageComponenti(d, ++pageN, TOTAL));
+        break;
+      case "macro_categorie":
+        pages.push(...macroPages.map((macro) => pageMacroCategoriaDedicata(d, macro, ++pageN, TOTAL)));
+        break;
+      case "produzione":
+        pages.push(pageProduzione(d, ++pageN, TOTAL));
+        break;
+      case "flussi":
+        pages.push(pageFlussi(d, ++pageN, TOTAL));
+        break;
+      case "risparmio":
+        pages.push(pageRisparmio(d, ++pageN, TOTAL));
+        break;
+      case "costi_futuri":
+        pages.push(pageCostiFuturi(d, ++pageN, TOTAL));
+        break;
+      case "piano_pagamento":
+        pages.push(pagePiano(d, ++pageN, TOTAL));
+        break;
+      case "bollette_240":
+        pages.push(pageBollette240(d, ++pageN, TOTAL));
+        break;
+      case "cassa_25":
+        pages.push(pageCassa25(d, ++pageN, TOTAL));
+        break;
+      case "co2":
+        pages.push(pageCO2(d, ++pageN, TOTAL));
+        break;
+      case "garanzie":
+        pages.push(pageGaranzie(d, ++pageN, TOTAL));
+        break;
+      case "iter":
+        pages.push(pageIter(d, ++pageN, TOTAL));
+        break;
+      case "faq":
+        pages.push(pageFAQ(d, ++pageN, TOTAL));
+        break;
+      case "decisione":
+        pages.push(pageDecisione(d, ++pageN, TOTAL));
+        break;
+    }
+  }
 
   return `<!DOCTYPE html>
 <html lang="it">
@@ -867,7 +1560,8 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
 <style>${STYLE}</style>
 </head>
 <body>
-${pages}
+${renderPdfActionBar(d)}
+${pages.join("\n")}
 <script>
   // Auto-print se ?print=1 (per "Stampa PDF" automatica)
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('print') === '1') {

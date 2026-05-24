@@ -61,7 +61,7 @@ export interface WizardData {
   /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
   tariffa_installazione_id: string | null;
   // Step 6: Finanziamento
-  finanziamento_modalita: "cash" | "rate" | "zero";
+  finanziamento_modalita: "cash" | "rate" | "zero" | "noleggio";
   tabella_finanziamento_id: string | null;
   durata_mesi_scelta: number | null;
 }
