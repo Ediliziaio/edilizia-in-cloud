@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,8 @@ import AddressAutocomplete, { type AddressData, emptyAddress } from "@/component
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
 import CalendarSuggestions, { type CalendarSuggestion } from "@/components/marketing/CalendarSuggestions";
+import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
+import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
 
 interface Props {
   contactId: string;
@@ -31,6 +33,8 @@ interface Props {
 export function OpportunityAppointmentTab({ contactId, companyId, opportunityId, contactName }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const googleSync = useGoogleCalendarSync();
+  const appleSync = useAppleCalendarSync();
 
   const [calendarId, setCalendarId] = useState("");
   const [date, setDate] = useState<Date | undefined>();
@@ -255,12 +259,26 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     return slots;
   }, [availability, existingAppointments, date, durationMinutes]);
 
+  const syncCreatedAppointment = useCallback(async (appointmentId: string) => {
+    const tasks: Promise<unknown>[] = [];
+    if (googleSync.isGoogleConnected) tasks.push(googleSync.pushEvent(appointmentId));
+    if (appleSync.isAppleConnected) tasks.push(appleSync.pushEvent(appointmentId));
+    if (tasks.length > 0) await Promise.allSettled(tasks);
+  }, [appleSync, googleSync]);
+
+  const syncCancelledAppointment = useCallback(async (appointmentId: string) => {
+    const tasks: Promise<unknown>[] = [];
+    if (googleSync.hasGoogleConnection) tasks.push(googleSync.deleteEvent(appointmentId));
+    if (appleSync.hasAppleConnection) tasks.push(appleSync.deleteEvent(appointmentId));
+    if (tasks.length > 0) await Promise.allSettled(tasks);
+  }, [appleSync, googleSync]);
+
   // Book mutation with contact sync
   const bookMutation = useMutation({
     mutationFn: async () => {
       if (!calendarId || !date || !selectedSlot) throw new Error("Dati incompleti");
       const slotEnd = format(addMinutes(parse(selectedSlot, "HH:mm", date), durationMinutes), "HH:mm:ss");
-      const { error } = await supabase.from("appointments").insert({
+      const { data: created, error } = await supabase.from("appointments").insert({
         company_id: companyId,
         calendar_id: calendarId,
         contact_id: contactId,
@@ -282,8 +300,9 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         lat: addressData.lat ?? null,
         lng: addressData.lng ?? null,
         place_id: addressData.place_id || null,
-      });
+      }).select("id").single();
       if (error) throw error;
+      if (created?.id) void syncCreatedAppointment(created.id);
 
       // Sync address to contact (non-blocking: log error but don't throw)
       if (contactId && addressData.address_line) {
@@ -312,6 +331,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      await syncCancelledAppointment(id);
       const { error } = await supabase.from("appointments").update({ status: "annullato" }).eq("id", id);
       if (error) throw error;
     },

@@ -53,6 +53,7 @@ import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
 import { ContactAttributionTab } from "@/components/contacts/ContactAttributionTab";
 import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
+import { normalizeTagList, normalizeTagName } from "@/lib/marketingTags";
 import { RefreshCw, CalendarDays, Sparkles } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -538,7 +539,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       {tag}
                       {canEditContacts && (
                       <X className="h-2.5 w-2.5 cursor-pointer" onClick={async () => {
-                        updateField.mutate({ field: "tags", value: contact.tags.filter((t: string) => t !== tag) });
+                        updateField.mutate({
+                          field: "tags",
+                          value: normalizeTagList(contact.tags).filter((currentTag) => currentTag !== normalizeTagName(tag)),
+                        });
                         // Remove tag from linked opportunities too
                         if (id) {
                           await removeTagFromOpportunities(id, tag, companyId);

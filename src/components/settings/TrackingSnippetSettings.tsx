@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, ExternalLink, Code, Zap, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
+import { copyTextToClipboard } from "@/lib/formBuilder";
 
 const UTM_PARAMS = [
   { param: "utm_source", desc: "Sorgente traffico", example: "google, facebook, newsletter" },
@@ -15,8 +16,15 @@ const UTM_PARAMS = [
   { param: "utm_content", desc: "Variante", example: "banner_a, link_top" },
   { param: "utm_term", desc: "Keyword", example: "ristrutturazione casa" },
   { param: "gclid", desc: "Google Click ID", example: "Automatico da Google Ads" },
+  { param: "wbraid", desc: "Google Ads iOS Web", example: "Automatico da Google Ads" },
+  { param: "gbraid", desc: "Google Ads iOS App", example: "Automatico da Google Ads" },
   { param: "fbclid", desc: "Facebook Click ID", example: "Automatico da Meta Ads" },
+  { param: "ttclid", desc: "TikTok Click ID", example: "Automatico da TikTok Ads" },
+  { param: "msclkid", desc: "Microsoft Click ID", example: "Automatico da Microsoft Ads" },
+  { param: "li_fat_id", desc: "LinkedIn Click ID", example: "Automatico da LinkedIn Ads" },
 ];
+
+const SUPPORTED_ATTRIBUTION_PARAMS = UTM_PARAMS.map((param) => param.param);
 
 export function TrackingSnippetSettings() {
   const { effectiveCompany } = useAuth();
@@ -27,19 +35,21 @@ export function TrackingSnippetSettings() {
 
   const snippet = getTrackingSnippet(companyId, supabaseUrl);
 
-  const copySnippet = () => {
-    navigator.clipboard.writeText(snippet);
-    setCopied(true);
-    toast.success("Snippet copiato!");
-    setTimeout(() => setCopied(false), 2000);
+  const copySnippet = async () => {
+    try {
+      await copyTextToClipboard(snippet);
+      setCopied(true);
+      toast.success("Snippet copiato!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Copia non riuscita", { description: "Seleziona il codice e copialo manualmente." });
+    }
   };
 
   const parsedParams = (() => {
     try {
       const url = new URL(testUrl);
-      return Array.from(url.searchParams.entries()).filter(([k]) =>
-        ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "gclid", "fbclid"].includes(k)
-      );
+      return Array.from(url.searchParams.entries()).filter(([k]) => SUPPORTED_ATTRIBUTION_PARAMS.includes(k));
     } catch {
       return [];
     }
@@ -138,7 +148,7 @@ export function TrackingSnippetSettings() {
           <CardTitle className="text-base flex items-center gap-2">
             <ExternalLink className="h-4 w-4" /> Test URL
           </CardTitle>
-          <CardDescription>Incolla un URL con parametri UTM per verificare che vengano riconosciuti</CardDescription>
+            <CardDescription>Incolla un URL con parametri UTM o click ID per verificare che vengano riconosciuti</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Input
@@ -158,7 +168,7 @@ export function TrackingSnippetSettings() {
             </div>
           )}
           {testUrl && parsedParams.length === 0 && (
-            <p className="text-sm text-muted-foreground">Nessun parametro UTM trovato nell'URL</p>
+            <p className="text-sm text-muted-foreground">Nessun parametro UTM o click ID supportato trovato nell'URL</p>
           )}
         </CardContent>
       </Card>

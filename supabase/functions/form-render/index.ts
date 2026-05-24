@@ -47,7 +47,7 @@ function renderField(f: any): string {
     case "divider":
       return `<hr class="divider">`;
     case "hidden":
-      return `<input type="hidden" name="${fieldKey}" value="${esc(f.defaultValue || '')}">`;
+      return `<input type="hidden" name="${fieldKey}" value="${esc(f.defaultValue || '')}" data-default-value="${esc(f.defaultValue || '')}">`;
     case "textarea":
       return `<div class="field"><label>${label}${f.required ? ' *' : ''}</label><textarea name="${fieldKey}" ${req} rows="4" placeholder="${ph}"></textarea></div>`;
     case "select": {
@@ -190,13 +190,44 @@ Deno.serve(async (req) => {
     window._attrSessionId=sid;
     window._attrVisitorId=vid;
 
+    function reportHeight(){
+      if(!window.parent||window.parent===window)return;
+      try{
+        var h=Math.max(
+          document.documentElement.scrollHeight||0,
+          document.body.scrollHeight||0,
+          document.documentElement.offsetHeight||0,
+          document.body.offsetHeight||0
+        );
+        window.parent.postMessage({type:'eic-lead-form-height',slug:'${jsStr(form.slug)}',height:h},'*');
+      }catch(e){}
+    }
+    if('ResizeObserver'in window){
+      try{new ResizeObserver(reportHeight).observe(document.body);}catch(e){}
+    }
+    window.addEventListener('load',reportHeight);
+    setTimeout(reportHeight,50);
+    setTimeout(reportHeight,350);
+
     var p=new URLSearchParams(window.location.search);
 
     // Persist UTMs in localStorage
     ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(function(k){
       var v=p.get(k);if(v)localStorage.setItem('_attr_'+k,v);
     });
+    ['gclid','wbraid','gbraid','fbclid','ttclid','msclkid','li_fat_id'].forEach(function(k){
+      var v=p.get(k);if(v)localStorage.setItem('_attr_'+k,v);
+    });
     function getUtm(k){return p.get(k)||localStorage.getItem('_attr_'+k)||null;}
+    function getParamOrStored(k){return p.get(k)||localStorage.getItem('_attr_'+k)||null;}
+
+    document.querySelectorAll('input[type="hidden"][data-default-value]').forEach(function(el){
+      var key=el.getAttribute('data-default-value')||'';
+      if(/^utm_/.test(key)){el.value=getUtm(key)||'';return;}
+      if(['gclid','wbraid','gbraid','fbclid','ttclid','msclkid','li_fat_id'].indexOf(key)>=0){el.value=getParamOrStored(key)||'';return;}
+      var fromUrl=p.get(key);
+      if(fromUrl)el.value=fromUrl;
+    });
 
     // Send attribution capture
     var payload={
@@ -208,11 +239,12 @@ Deno.serve(async (req) => {
       utm_source:getUtm('utm_source'),utm_medium:getUtm('utm_medium'),
       utm_campaign:getUtm('utm_campaign'),utm_content:getUtm('utm_content'),
       utm_term:getUtm('utm_term'),
-      gclid:p.get('gclid'),fbclid:p.get('fbclid'),
-      ttclid:p.get('ttclid'),msclkid:p.get('msclkid'),
-      li_fat_id:p.get('li_fat_id')
+      gclid:getParamOrStored('gclid'),fbclid:getParamOrStored('fbclid'),
+      wbraid:getParamOrStored('wbraid'),gbraid:getParamOrStored('gbraid'),
+      ttclid:getParamOrStored('ttclid'),msclkid:getParamOrStored('msclkid'),
+      li_fat_id:getParamOrStored('li_fat_id')
     };
-    var hasAttr=payload.utm_source||payload.gclid||payload.fbclid||payload.ttclid||payload.msclkid||payload.li_fat_id;
+    var hasAttr=payload.utm_source||payload.gclid||payload.wbraid||payload.gbraid||payload.fbclid||payload.ttclid||payload.msclkid||payload.li_fat_id;
     if(hasAttr||isNew){
       fetch(BASE+'/functions/v1/attribution-capture',{
         method:'POST',headers:{'Content-Type':'application/json'},
@@ -241,11 +273,13 @@ Deno.serve(async (req) => {
           utm_campaign:getUtm('utm_campaign'),
           utm_content:getUtm('utm_content'),
           utm_term:getUtm('utm_term'),
-          gclid:p.get('gclid')||null,
-          fbclid:p.get('fbclid')||null,
-          ttclid:p.get('ttclid')||null,
-          msclkid:p.get('msclkid')||null,
-          li_fat_id:p.get('li_fat_id')||null
+          gclid:getParamOrStored('gclid'),
+          wbraid:getParamOrStored('wbraid'),
+          gbraid:getParamOrStored('gbraid'),
+          fbclid:getParamOrStored('fbclid'),
+          ttclid:getParamOrStored('ttclid'),
+          msclkid:getParamOrStored('msclkid'),
+          li_fat_id:getParamOrStored('li_fat_id')
         })
       }).then(function(r){return r.json()}).then(function(r){
         if(r.ok){
@@ -254,6 +288,7 @@ Deno.serve(async (req) => {
           if(r.success_message)document.getElementById('successMsg').textContent=r.success_message;
           document.getElementById('formSection').classList.add('hidden');
           document.getElementById('successSection').classList.remove('hidden');
+          reportHeight();
         }else{
           throw new Error(r.error||'Errore');
         }
@@ -261,6 +296,7 @@ Deno.serve(async (req) => {
         document.getElementById('errorMsg').textContent=err.message;
         document.getElementById('errorMsg').classList.remove('hidden');
         btn.disabled=false;btn.textContent='${jsStr(submitLabel)}';
+        reportHeight();
       });
     });
   })();

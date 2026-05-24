@@ -9,6 +9,7 @@ export interface CompanyBranding {
   company_id: string;
   logo_url: string | null;
   favicon_url: string | null;
+  platform_name: string | null;
   primary_color: string | null;
   secondary_color: string | null;
   accent_color: string | null;
@@ -20,9 +21,16 @@ export interface CompanyBranding {
   login_subtitle: string | null;
   subdomain: string | null;
   custom_domain: string | null;
+  custom_domain_verified: boolean;
+  custom_domain_cname: string | null;
+  custom_domain_verified_at: string | null;
   email_header_logo_url: string | null;
   email_footer_text: string | null;
-  hide_platform_branding: boolean;
+  hide_platform_branding: boolean | null;
+  is_active: boolean;
+  whitelabel_tier: string;
+  custom_css: string | null;
+  powered_by_text: string | null;
   created_at: string;
   updated_at: string;
 }

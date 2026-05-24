@@ -10,14 +10,22 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Trash2, Plus, Tag, AlertCircle, Pencil, Search, Users, BriefcaseBusiness } from "lucide-react";
+import { Trash2, Plus, Tag, AlertCircle, Pencil, Search, Users, BriefcaseBusiness, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  areTagListsExactlyEqual,
+  DEFAULT_TAG_COLOR,
+  normalizeTagList,
+  normalizeTagName,
+  TAG_COLORS,
+} from "@/lib/marketingTags";
 
 type MarketingTag = {
   id: string;
@@ -30,6 +38,17 @@ type MarketingTag = {
 type TagUsageCounts = {
   contacts: number;
   opportunities: number;
+};
+
+type TaggedEntity = {
+  id: string;
+  tags: string[] | null;
+};
+
+type RepairResult = {
+  normalizedContacts: number;
+  normalizedOpportunities: number;
+  createdTags: number;
 };
 
 class TagInUseError extends Error {
@@ -49,47 +68,123 @@ function getTagErrorMessage(error: unknown) {
   return "";
 }
 
-const TAG_COLORS = [
-  "#2563eb",
-  "#16a34a",
-  "#f97316",
-  "#dc2626",
-  "#9333ea",
-  "#0891b2",
-  "#ca8a04",
-  "#475569",
-] as const;
-
-const DEFAULT_TAG_COLOR = TAG_COLORS[0];
-
-function normalizeTagName(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
 function getUsageTotal(usage?: TagUsageCounts) {
   return (usage?.contacts ?? 0) + (usage?.opportunities ?? 0);
 }
 
-async function getTagUsageCounts(companyId: string, tagName: string): Promise<TagUsageCounts> {
+function createEmptyUsageMap(tagNames: string[]) {
+  return Object.fromEntries(
+    normalizeTagList(tagNames).map((name) => [name, { contacts: 0, opportunities: 0 }]),
+  ) as Record<string, TagUsageCounts>;
+}
+
+function addUsageForRows(
+  usageMap: Record<string, TagUsageCounts>,
+  rows: TaggedEntity[] | null,
+  field: keyof TagUsageCounts,
+) {
+  for (const row of rows ?? []) {
+    const rowTags = new Set(normalizeTagList(row.tags));
+    rowTags.forEach((tagName) => {
+      if (!usageMap[tagName]) return;
+      usageMap[tagName][field] += 1;
+    });
+  }
+}
+
+async function getTagUsageMap(companyId: string, tagNames: string[]): Promise<Record<string, TagUsageCounts>> {
+  const usageMap = createEmptyUsageMap(tagNames);
+  if (Object.keys(usageMap).length === 0) return usageMap;
+
   const [contactsRes, opportunitiesRes] = await Promise.all([
     supabase
       .from("marketing_contacts")
-      .select("id", { count: "exact", head: true })
+      .select("id, tags")
       .eq("company_id", companyId)
-      .contains("tags", [tagName]),
+      .not("tags", "is", null),
     supabase
       .from("marketing_opportunities")
-      .select("id", { count: "exact", head: true })
+      .select("id, tags")
       .eq("company_id", companyId)
-      .contains("tags", [tagName]),
+      .not("tags", "is", null),
   ]);
 
   if (contactsRes.error) throw contactsRes.error;
   if (opportunitiesRes.error) throw opportunitiesRes.error;
 
+  addUsageForRows(usageMap, contactsRes.data as TaggedEntity[] | null, "contacts");
+  addUsageForRows(usageMap, opportunitiesRes.data as TaggedEntity[] | null, "opportunities");
+
+  return usageMap;
+}
+
+async function getTagUsageCounts(companyId: string, tagName: string): Promise<TagUsageCounts> {
+  const normalizedName = normalizeTagName(tagName);
+  const usageMap = await getTagUsageMap(companyId, [normalizedName]);
+  return usageMap[normalizedName] ?? { contacts: 0, opportunities: 0 };
+}
+
+async function repairMarketingTagLinks(companyId: string, existingTags: MarketingTag[]): Promise<RepairResult> {
+  const [contactsRes, opportunitiesRes] = await Promise.all([
+    supabase.from("marketing_contacts").select("id, tags").eq("company_id", companyId),
+    supabase.from("marketing_opportunities").select("id, tags").eq("company_id", companyId),
+  ]);
+
+  if (contactsRes.error) throw contactsRes.error;
+  if (opportunitiesRes.error) throw opportunitiesRes.error;
+
+  const contacts = (contactsRes.data ?? []) as TaggedEntity[];
+  const opportunities = (opportunitiesRes.data ?? []) as TaggedEntity[];
+  const usedTagNames = new Set<string>();
+  const now = new Date().toISOString();
+
+  const contactUpdates = contacts
+    .map((row) => {
+      const normalizedTags = normalizeTagList(row.tags);
+      normalizedTags.forEach((tag) => usedTagNames.add(tag));
+      if (areTagListsExactlyEqual(row.tags, normalizedTags)) return null;
+      return supabase
+        .from("marketing_contacts")
+        .update({ tags: normalizedTags, updated_at: now })
+        .eq("id", row.id)
+        .eq("company_id", companyId);
+    })
+    .filter(Boolean);
+
+  const opportunityUpdates = opportunities
+    .map((row) => {
+      const normalizedTags = normalizeTagList(row.tags);
+      normalizedTags.forEach((tag) => usedTagNames.add(tag));
+      if (areTagListsExactlyEqual(row.tags, normalizedTags)) return null;
+      return supabase
+        .from("marketing_opportunities")
+        .update({ tags: normalizedTags, updated_at: now })
+        .eq("id", row.id)
+        .eq("company_id", companyId);
+    })
+    .filter(Boolean);
+
+  const updateResults = await Promise.all([...contactUpdates, ...opportunityUpdates]);
+  const updateError = updateResults.find((result) => result?.error)?.error;
+  if (updateError) throw updateError;
+
+  const existingNames = new Set(existingTags.map((tag) => normalizeTagName(tag.name)));
+  const missingTagNames = Array.from(usedTagNames).filter((tag) => !existingNames.has(tag));
+
+  if (missingTagNames.length > 0) {
+    const { error } = await supabase
+      .from("marketing_tags")
+      .upsert(
+        missingTagNames.map((name) => ({ company_id: companyId, name, color: DEFAULT_TAG_COLOR })),
+        { onConflict: "company_id,name", ignoreDuplicates: true },
+      );
+    if (error) throw error;
+  }
+
   return {
-    contacts: contactsRes.count ?? 0,
-    opportunities: opportunitiesRes.count ?? 0,
+    normalizedContacts: contactUpdates.length,
+    normalizedOpportunities: opportunityUpdates.length,
+    createdTags: missingTagNames.length,
   };
 }
 
@@ -120,14 +215,19 @@ export function TagsConfig() {
     enabled: !!companyId,
   });
 
-  const { data: usageByName = {}, isLoading: isUsageLoading } = useQuery({
-    queryKey: [...queryKeys.marketingTags.list(companyId), "usage"],
+  const tagNames = useMemo(() => normalizeTagList(tags.map((tag) => tag.name)), [tags]);
+
+  const {
+    data: usageByName = {},
+    isLoading: isUsageLoading,
+    isError: isUsageError,
+    error: usageError,
+    refetch: refetchUsage,
+  } = useQuery({
+    queryKey: [...queryKeys.marketingTags.list(companyId), "usage", tagNames],
     queryFn: async () => {
       if (!companyId || tags.length === 0) return {};
-      const entries = await Promise.all(
-        tags.map(async (tag) => [tag.name, await getTagUsageCounts(companyId, tag.name)] as const),
-      );
-      return Object.fromEntries(entries) as Record<string, TagUsageCounts>;
+      return getTagUsageMap(companyId, tags.map((tag) => tag.name));
     },
     enabled: !!companyId && tags.length > 0,
   });
@@ -136,14 +236,32 @@ export function TagsConfig() {
   const filteredTags = useMemo(() => {
     const term = normalizeTagName(search);
     if (!term) return tags;
-    return tags.filter((tag) => tag.name.includes(term));
+    return tags.filter((tag) => normalizeTagName(tag.name).includes(term));
   }, [search, tags]);
   const deleteTag = tags.find((item) => item.id === deleteId) ?? null;
-  const deleteUsage = deleteTag ? usageByName[deleteTag.name] : undefined;
+  const deleteUsage = deleteTag ? usageByName[normalizeTagName(deleteTag.name)] : undefined;
+
+  const usageSummary = useMemo(() => {
+    return tags.reduce(
+      (summary, tag) => {
+        const usage = usageByName[normalizeTagName(tag.name)];
+        const contacts = usage?.contacts ?? 0;
+        const opportunities = usage?.opportunities ?? 0;
+        summary.contacts += contacts;
+        summary.opportunities += opportunities;
+        if (contacts + opportunities === 0) summary.unused += 1;
+        return summary;
+      },
+      { total: tags.length, contacts: 0, opportunities: 0, unused: 0 },
+    );
+  }, [tags, usageByName]);
 
   const invalidateTagQueries = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.marketingContacts.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.opportunities.all });
+    queryClient.invalidateQueries({ queryKey: ["marketing-filter-data"] });
   };
 
   const addMutation = useMutation({
@@ -187,8 +305,9 @@ export function TagsConfig() {
         throw new Error("DUPLICATE_TAG");
       }
 
-      const usage = usageByName[currentName] ?? await getTagUsageCounts(companyId, currentName);
-      if (normalizedName !== currentName && getUsageTotal(usage) > 0) {
+      const currentNormalizedName = normalizeTagName(currentName);
+      const usage = usageByName[currentNormalizedName] ?? await getTagUsageCounts(companyId, currentNormalizedName);
+      if (normalizedName !== currentNormalizedName && getUsageTotal(usage) > 0) {
         throw new TagInUseError(usage);
       }
 
@@ -202,6 +321,7 @@ export function TagsConfig() {
     onSuccess: () => {
       invalidateTagQueries();
       setEditTag(null);
+      setEditName("");
       toast.success("Tag aggiornato");
     },
     onError: (e: unknown) => {
@@ -233,6 +353,7 @@ export function TagsConfig() {
     },
     onSuccess: () => {
       invalidateTagQueries();
+      setDeleteId(null);
       toast.success("Tag eliminato");
     },
     onError: (e: unknown) => {
@@ -243,6 +364,24 @@ export function TagsConfig() {
       }
 
       toast.error("Errore nell'eliminazione");
+    },
+  });
+
+  const repairMutation = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      return repairMarketingTagLinks(companyId, tags);
+    },
+    onSuccess: (result) => {
+      invalidateTagQueries();
+      toast.success("Tag CRM sincronizzati", {
+        description: `${result.createdTags} tag creati, ${result.normalizedContacts} contatti e ${result.normalizedOpportunities} opportunità ripuliti.`,
+      });
+    },
+    onError: (e: unknown) => {
+      toast.error("Sincronizzazione tag non riuscita", {
+        description: getTagErrorMessage(e) || "Controlla i permessi e riprova.",
+      });
     },
   });
 
@@ -266,14 +405,55 @@ export function TagsConfig() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Tag className="h-6 w-6" />
-          Tag
-        </h2>
-        <p className="text-muted-foreground mt-1">
-          Gestisci i tag utilizzati nei Contatti e nelle Opportunità. I tag creati qui saranno disponibili in tutti i selettori.
-        </p>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Tag className="h-6 w-6" />
+            Tag
+          </h2>
+          <p className="text-muted-foreground mt-1 max-w-3xl">
+            Gestisci le etichette usate da contatti, opportunità, segmenti e automazioni. Qui puoi tenerle coerenti e disponibili in tutti i selettori CRM.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => repairMutation.mutate()}
+          disabled={!companyId || repairMutation.isPending || isLoading}
+          className="gap-2 lg:mt-1"
+        >
+          <RefreshCw className={cn("h-4 w-4", repairMutation.isPending && "animate-spin")} />
+          {repairMutation.isPending ? "Sincronizzo..." : "Ripara collegamenti"}
+        </Button>
+      </div>
+
+      {!companyId && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Azienda non selezionata</AlertTitle>
+          <AlertDescription>Seleziona un'azienda per gestire e sincronizzare i tag CRM.</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "Tag catalogo", value: usageSummary.total, helper: "disponibili nei selettori" },
+          { label: "Usi su contatti", value: usageSummary.contacts, helper: "collegamenti CRM letti" },
+          { label: "Usi su opportunità", value: usageSummary.opportunities, helper: "pipeline e trattative" },
+          { label: "Tag non usati", value: usageSummary.unused, helper: "pronti da pulire" },
+        ].map((item) => (
+          <Card key={item.label}>
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase text-muted-foreground">{item.label}</p>
+              {isLoading || isUsageLoading ? (
+                <Skeleton className="mt-2 h-7 w-16" />
+              ) : (
+                <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">{item.helper}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card>
@@ -310,22 +490,40 @@ export function TagsConfig() {
               ))}
               <Button onClick={handleAdd} disabled={!companyId || !normalizedNewTag || addMutation.isPending}>
                 <Plus className="h-4 w-4 mr-1" />
-                Aggiungi
+                {addMutation.isPending ? "Aggiungo..." : "Aggiungi"}
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cerca tag..."
-          className="pl-9"
-        />
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="relative max-w-md md:flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cerca tag..."
+            className="pl-9"
+          />
+        </div>
+        {isUsageError && (
+          <Button type="button" variant="outline" size="sm" onClick={() => refetchUsage()} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Ricalcola utilizzi
+          </Button>
+        )}
       </div>
+
+      {isUsageError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Utilizzi non aggiornati</AlertTitle>
+          <AlertDescription>
+            {getTagErrorMessage(usageError) || "Non è stato possibile leggere i collegamenti con contatti e opportunità."}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {isError ? (
         <Alert variant="destructive">
@@ -339,12 +537,16 @@ export function TagsConfig() {
           </AlertDescription>
         </Alert>
       ) : isLoading ? (
-        <p className="text-muted-foreground text-sm">Caricamento...</p>
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <Skeleton key={index} className="h-12 w-full" />
+          ))}
+        </div>
       ) : tags.length === 0 ? (
         <p className="text-muted-foreground text-sm">Nessun tag creato. Aggiungi il primo tag qui sopra.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
+        <div className="overflow-x-auto rounded-lg border">
+          <Table className="min-w-[620px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Tag</TableHead>
@@ -361,7 +563,7 @@ export function TagsConfig() {
                 </TableRow>
               ) : (
                 filteredTags.map((tag) => {
-                  const usage = usageByName[tag.name];
+                  const usage = usageByName[normalizeTagName(tag.name)];
                   const totalUsage = getUsageTotal(usage);
                   return (
                     <TableRow key={tag.id}>
@@ -417,9 +619,9 @@ export function TagsConfig() {
                 maxLength={50}
                 disabled={updateMutation.isPending}
               />
-              {editTag && getUsageTotal(usageByName[editTag.name]) > 0 && (
+              {editTag && getUsageTotal(usageByName[normalizeTagName(editTag.name)]) > 0 && (
                 <p className="text-xs text-amber-700">
-                  Tag usato in {getUsageTotal(usageByName[editTag.name])} elemento/i: il cambio nome verra bloccato.
+                  Tag usato in {getUsageTotal(usageByName[normalizeTagName(editTag.name)])} elemento/i: il cambio nome verra bloccato.
                 </p>
               )}
             </div>
@@ -464,7 +666,9 @@ export function TagsConfig() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => {
+        if (!open && !deleteMutation.isPending) setDeleteId(null);
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Elimina tag</AlertDialogTitle>
@@ -478,16 +682,16 @@ export function TagsConfig() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Annulla</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={(event) => {
+                event.preventDefault();
                 const tag = tags.find((item) => item.id === deleteId);
                 if (tag) deleteMutation.mutate({ id: tag.id, name: tag.name });
-                setDeleteId(null);
               }}
               disabled={deleteMutation.isPending}
             >
-              Elimina
+              {deleteMutation.isPending ? "Elimino..." : "Elimina"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

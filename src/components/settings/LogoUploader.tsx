@@ -10,20 +10,21 @@ import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 interface LogoUploaderProps {
   company: Company | null;
-  onLogoUpdated: () => Promise<void>;
+  onLogoUpdated: (logoUrl?: string | null) => Promise<void> | void;
+  disabled?: boolean;
 }
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
-export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
+export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoUploaderProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !company) return;
+    if (!file || !company || disabled) return;
 
     // Validate file type
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -79,7 +80,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
       toast.success("Logo caricato", { description: "Il logo aziendale è stato aggiornato" });
 
-      await onLogoUpdated();
+      await onLogoUpdated(logoUrl);
     } catch (error) {
       logger.error("Error uploading logo:", error);
       toast.error("Errore", { description: "Impossibile caricare il logo. Riprova." });
@@ -92,7 +93,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
   };
 
   const handleRemoveLogo = async () => {
-    if (!company) return;
+    if (!company || disabled) return;
 
     setIsRemoving(true);
 
@@ -117,7 +118,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
 
       toast.success("Logo rimosso", { description: "Il logo aziendale è stato rimosso" });
 
-      await onLogoUpdated();
+      await onLogoUpdated(null);
     } catch (error) {
       logger.error("Error removing logo:", error);
       toast.error("Errore", { description: "Impossibile rimuovere il logo. Riprova." });
@@ -158,7 +159,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
               type="button"
               variant="outline"
               size="sm"
-              disabled={isUploading || isRemoving}
+              disabled={isUploading || isRemoving || disabled}
               onClick={() => fileInputRef.current?.click()}
             >
               {isUploading ? (
@@ -179,7 +180,7 @@ export function LogoUploader({ company, onLogoUpdated }: LogoUploaderProps) {
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={isUploading || isRemoving}
+                disabled={isUploading || isRemoving || disabled}
                 onClick={handleRemoveLogo}
                 className="text-destructive hover:text-destructive"
               >

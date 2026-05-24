@@ -60,10 +60,11 @@ export function useBrandSettings(companyId?: string) {
 
   const saveBrand = useMutation({
     mutationFn: async (updates: Partial<BrandSettings>) => {
+      if (!id) throw new Error("Nessuna azienda associata");
       const { error } = await supabase
         .from("companies")
         .update(updates as never)
-        .eq("id", id!);
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -82,7 +83,7 @@ export function useBrandSettings(companyId?: string) {
     const { data: urlData } = supabase.storage
       .from("white-label-assets")
       .getPublicUrl(filePath);
-    return urlData.publicUrl;
+    return `${urlData.publicUrl}?t=${Date.now()}`;
   };
 
   const effectiveBrand: EffectiveBrand = {

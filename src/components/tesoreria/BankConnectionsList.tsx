@@ -29,6 +29,15 @@ const statusColors: Record<string, string> = {
   disconnected: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500",
 };
 
+const statusLabels: Record<string, string> = {
+  active: "Attiva",
+  authenticating: "Da completare",
+  error: "Errore",
+  expired: "Scaduta",
+  pending: "In attesa",
+  disconnected: "Disconnessa",
+};
+
 function getExpiryInfo(expiresAt: string | null) {
   if (!expiresAt) return null;
   const expDate = new Date(expiresAt);
@@ -41,25 +50,35 @@ function getExpiryInfo(expiresAt: string | null) {
 interface Props {
   companyId: string;
   hasPendingCallback?: boolean;
+  onConnectionChanged?: () => void | Promise<void>;
 }
 
-export default function BankConnectionsList({ companyId, hasPendingCallback }: Props) {
+export default function BankConnectionsList({ companyId, hasPendingCallback, onConnectionChanged }: Props) {
   const [connections, setConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showSelectBank, setShowSelectBank] = useState(false);
   const [institutions, setInstitutions] = useState<any[]>([]);
   const [loadingInstitutions, setLoadingInstitutions] = useState(false);
+  const [institutionError, setInstitutionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedInstitution, setSelectedInstitution] = useState<any>(null);
   const [showConfirmConnect, setShowConfirmConnect] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [pendingRequisitionId, setPendingRequisitionId] = useState<string | null>(null);
+  const [pendingAuthUrl, setPendingAuthUrl] = useState<string | null>(null);
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [disconnectId, setDisconnectId] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [syncingConnectionId, setSyncingConnectionId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (companyId) loadConnections();
+    if (companyId) void loadConnections();
+    else {
+      setConnections([]);
+      setLoading(false);
+    }
   }, [companyId]);
 
   useEffect(() => {
@@ -79,18 +98,27 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
 
   async function loadConnections() {
     setLoading(true);
-    const { data } = await supabase
-      .from("bank_connections")
-      .select("*")
-      .eq("company_id", companyId)
-      .neq("status", "disconnected")
-      .order("created_at", { ascending: false });
-    setConnections(data || []);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from("bank_connections")
+        .select("*")
+        .eq("company_id", companyId)
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setConnections(data || []);
+    } catch (e: any) {
+      setLoadError(e.message || "Impossibile caricare le connessioni");
+      toast.error("Errore caricamento connessioni bancarie");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function loadInstitutions() {
     setLoadingInstitutions(true);
+    setInstitutionError(null);
     try {
       const { data, error } = await supabase.functions.invoke("bank-list-institutions", {
         body: { country: "IT" },
@@ -98,9 +126,12 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
       if (error) throw error;
       setInstitutions(data?.institutions || []);
     } catch (e: any) {
-      toast.error("Errore caricamento banche: " + e.message);
+      const message = e.message || "Impossibile caricare le banche disponibili";
+      setInstitutionError(message);
+      toast.error("Errore caricamento banche: " + message);
+    } finally {
+      setLoadingInstitutions(false);
     }
-    setLoadingInstitutions(false);
   }
 
   function handleOpenSelectBank() {
@@ -116,6 +147,10 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
   }
 
   async function handleConnect() {
+    if (!selectedInstitution?.id) {
+      toast.error("Seleziona una banca prima di continuare");
+      return;
+    }
     setConnecting(true);
     try {
       const { data, error } = await supabase.functions.invoke("bank-connect-start", {
@@ -129,17 +164,23 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
       if (error) throw error;
       if (data?.success) {
         setPendingRequisitionId(data.requisition_id);
+        setPendingAuthUrl(data.auth_url || null);
         setShowConfirmConnect(false);
-        window.open(data.auth_url, "_blank");
+        const bankWindow = data.auth_url ? window.open(data.auth_url, "_blank", "noopener,noreferrer") : null;
+        if (!bankWindow && data.auth_url) {
+          toast.info("La finestra della banca non si è aperta. Usa il pulsante nel popup per aprirla.");
+        }
         setShowCompleteDialog(true);
-        loadConnections();
+        await loadConnections();
+        await onConnectionChanged?.();
       } else {
         toast.error("Errore: " + (data?.error || "Sconosciuto"));
       }
     } catch (e: any) {
       toast.error("Errore: " + e.message);
+    } finally {
+      setConnecting(false);
     }
-    setConnecting(false);
   }
 
   async function handleComplete() {
@@ -154,40 +195,59 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
         toast.success(`${data.accounts_count} conti sincronizzati`);
         setShowCompleteDialog(false);
         setPendingRequisitionId(null);
-        loadConnections();
+        setPendingAuthUrl(null);
+        await loadConnections();
+        await onConnectionChanged?.();
       } else {
-        toast.error("Completamento fallito");
+        toast.error(data?.error || "Completamento fallito");
       }
     } catch (e: any) {
       toast.error("Errore: " + e.message);
+    } finally {
+      setCompleting(false);
     }
-    setCompleting(false);
   }
 
   async function handleDisconnect() {
     if (!disconnectId) return;
+    setDisconnecting(true);
     try {
       const { data, error } = await supabase.functions.invoke("bank-disconnect", {
         body: { connection_id: disconnectId },
       });
       if (error) throw error;
+      if (data && data.success === false) throw new Error(data.error || "Disconnessione non riuscita");
       toast.success("Connessione disconnessa");
-      loadConnections();
+      await loadConnections();
+      await onConnectionChanged?.();
     } catch (e: any) {
       toast.error("Errore: " + e.message);
+    } finally {
+      setDisconnecting(false);
+      setDisconnectId(null);
     }
-    setDisconnectId(null);
   }
 
   async function handleSyncOne(connectionId: string) {
+    if (syncingConnectionId) return;
     toast.info("Sincronizzazione in corso...");
-    const { data, error } = await supabase.functions.invoke("bank-sync", {
-      body: { company_id: companyId, connection_id: connectionId },
-    });
-    if (error) toast.error(error.message);
-    else if (data?.success) {
-      toast.success(`${data.accounts_synced} conti, ${data.transactions_fetched} transazioni`);
-      loadConnections();
+    setSyncingConnectionId(connectionId);
+    try {
+      const { data, error } = await supabase.functions.invoke("bank-sync", {
+        body: { company_id: companyId, connection_id: connectionId },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success(`${data.accounts_synced} conti, ${data.transactions_fetched} transazioni`);
+        await loadConnections();
+        await onConnectionChanged?.();
+      } else {
+        toast.error(data?.error || "Sincronizzazione fallita");
+      }
+    } catch (e: any) {
+      toast.error("Errore: " + e.message);
+    } finally {
+      setSyncingConnectionId(null);
     }
   }
 
@@ -211,6 +271,15 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
           <Plus className="h-4 w-4 mr-2" /> Collega Nuova Banca
         </Button>
       </div>
+
+      {loadError && (
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => loadConnections()}>Riprova</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {connections.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 gap-4 text-center">
@@ -264,7 +333,7 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
                       <p className="font-medium">{conn.institution_name}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge className={statusColors[conn.status] || ""} variant="secondary">
-                          {conn.status}
+                          {statusLabels[conn.status] || conn.status}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                           {conn.accounts_count || 0} conti
@@ -282,8 +351,13 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
                       <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleSyncOne(conn.id)}>
-                        <RefreshCw className="h-4 w-4 mr-2" /> Sincronizza ora
+                      <DropdownMenuItem onClick={() => handleSyncOne(conn.id)} disabled={syncingConnectionId === conn.id}>
+                        {syncingConnectionId === conn.id ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        Sincronizza ora
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem className="text-destructive" onClick={() => setDisconnectId(conn.id)}>
@@ -318,6 +392,11 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
             {loadingInstitutions ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-14" />)}
+              </div>
+            ) : institutionError ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <p className="text-sm text-destructive">{institutionError}</p>
+                <Button variant="outline" size="sm" onClick={loadInstitutions}>Riprova</Button>
               </div>
             ) : filteredInstitutions.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">Nessuna banca trovata</p>
@@ -378,6 +457,11 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
+            {pendingAuthUrl && (
+              <Button variant="outline" onClick={() => window.open(pendingAuthUrl, "_blank", "noopener,noreferrer")}>
+                Apri banca
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setShowCompleteDialog(false)}>Annulla</Button>
             <Button onClick={handleComplete} disabled={completing}>
               {completing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -388,7 +472,7 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
       </Dialog>
 
       {/* Disconnect Alert */}
-      <AlertDialog open={!!disconnectId} onOpenChange={() => setDisconnectId(null)}>
+      <AlertDialog open={!!disconnectId} onOpenChange={(open) => { if (!open && !disconnecting) setDisconnectId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnetti banca</AlertDialogTitle>
@@ -398,7 +482,9 @@ export default function BankConnectionsList({ companyId, hasPendingCallback }: P
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDisconnect}>Disconnetti</AlertDialogAction>
+            <AlertDialogAction onClick={handleDisconnect} disabled={disconnecting}>
+              {disconnecting ? "Disconnessione..." : "Disconnetti"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

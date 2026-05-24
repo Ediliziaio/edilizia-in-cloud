@@ -42,7 +42,8 @@ export function useAppleCalendarSync() {
     staleTime: 60_000,
   });
 
-  const isAppleConnected = !!connection;
+  const hasAppleConnection = connection?.status === "connected";
+  const isAppleConnected = hasAppleConnection && !!settings?.primary_calendar_url;
 
   async function invokeSync(action: string, appointmentId?: string) {
     if (!companyId) return;
@@ -70,22 +71,36 @@ export function useAppleCalendarSync() {
   }
 
   async function updateEvent(appointmentId: string) {
-    if (!isAppleConnected) return;
+    if (!hasAppleConnection) return;
     return invokeSync("update-event", appointmentId);
   }
 
   async function deleteEvent(appointmentId: string) {
-    if (!isAppleConnected) return;
+    if (!hasAppleConnection) return;
     return invokeSync("delete-event", appointmentId);
+  }
+
+  async function checkMapping(appointmentId: string) {
+    if (!companyId || !userId) return null;
+    const { data } = await supabase
+      .from("apple_calendar_event_map")
+      .select("id, caldav_uid")
+      .eq("company_id", companyId)
+      .eq("appointment_id", appointmentId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    return data;
   }
 
   return {
     isAppleConnected,
+    hasAppleConnection,
     connection,
     settings,
     pullBusySlots,
     pushEvent,
     updateEvent,
     deleteEvent,
+    checkMapping,
   };
 }

@@ -43,6 +43,7 @@ import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuot
 import { STATUS_OPTIONS } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
+import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 
 interface Props {
   opportunity: any;
@@ -184,14 +185,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     if (!opportunity || !open || !companyId || !canEditOpportunity) return;
     const contact = opportunity.marketing_contacts;
     if (!contact?.tags?.length) return;
-    const oppTagsCurrent: string[] = opportunity.tags || [];
-    const missing = contact.tags.filter((t: string) => !oppTagsCurrent.includes(t));
+    const oppTagsCurrent = normalizeTagList(opportunity.tags || []);
+    const contactTags = normalizeTagList(contact.tags);
+    const missing = getAddedTags(contactTags, oppTagsCurrent);
     if (missing.length === 0) return;
     // Prevent duplicate syncs for the same opportunity
     const syncKey = `${opportunity.id}-${missing.sort().join(",")}`;
     if (lastSyncedTagsRef.current === syncKey) return;
     lastSyncedTagsRef.current = syncKey;
-    const merged = [...new Set([...oppTagsCurrent, ...contact.tags])];
+    const merged = normalizeTagList([...oppTagsCurrent, ...contactTags]);
     setOppTags(merged);
     supabase
       .from("marketing_opportunities")
@@ -313,14 +315,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       call_center_id: callCenterId || null,
       company_name: companyName || null,
       notes: oppNotes || null,
-      tags: oppTags,
+      tags: normalizeTagList(oppTags),
       contact_id: finalContactId,
     }, {
       onSuccess: async () => {
         // Bidirectional tag sync: added tags → contact, removed tags → contact
-        const originalTags: string[] = opportunity.tags || [];
-        const addedTags = oppTags.filter((t: string) => !originalTags.includes(t));
-        const removedTags = originalTags.filter((t: string) => !oppTags.includes(t));
+        const originalTags = normalizeTagList(opportunity.tags || []);
+        const savedTags = normalizeTagList(oppTags);
+        const addedTags = getAddedTags(savedTags, originalTags);
+        const removedTags = getRemovedTags(originalTags, savedTags);
 
         if (addedTags.length > 0) {
           await syncTagsToContact(finalContactId, addedTags, companyId);

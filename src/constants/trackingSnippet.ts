@@ -1,10 +1,10 @@
 /**
  * Generates the UTM tracking snippet for embedding on external websites.
- * V4: Uses localStorage/sessionStorage, captures all click IDs,
+ * V5: Uses localStorage/sessionStorage, captures all click IDs,
  * persists UTM across pages, exposes window._attrSessionId.
  */
 export function getTrackingSnippet(companyId: string, supabaseUrl: string): string {
-  return `<!-- UTM Attribution Tracking V4 -->
+  return `<!-- UTM Attribution Tracking V5 -->
 <script>
 (function(){
   var COMPANY_ID = "${companyId}";
@@ -31,15 +31,21 @@ export function getTrackingSnippet(companyId: string, supabaseUrl: string): stri
 
   var params=new URLSearchParams(window.location.search);
 
-  // Persist UTM params in localStorage for multi-page navigation
+  // Persist attribution params in localStorage for multi-page navigation
   var utmKeys=['utm_source','utm_medium','utm_campaign','utm_content','utm_term'];
   utmKeys.forEach(function(k){
     var v=params.get(k);
     if(v){localStorage.setItem('_attr_'+k,v);}
   });
+  var clickKeys=['gclid','wbraid','gbraid','fbclid','ttclid','msclkid','li_fat_id'];
+  clickKeys.forEach(function(k){
+    var v=params.get(k);
+    if(v){localStorage.setItem('_attr_'+k,v);}
+  });
 
-  // Read UTM — prefer URL params, fallback to stored
+  // Read attribution — prefer URL params, fallback to stored
   function getUtm(k){return params.get(k)||localStorage.getItem('_attr_'+k)||null;}
+  function getClickId(k){return params.get(k)||localStorage.getItem('_attr_'+k)||null;}
 
   var payload={
     company_id:COMPANY_ID,
@@ -54,15 +60,17 @@ export function getTrackingSnippet(companyId: string, supabaseUrl: string): stri
     utm_campaign:getUtm('utm_campaign'),
     utm_content:getUtm('utm_content'),
     utm_term:getUtm('utm_term'),
-    gclid:params.get('gclid'),
-    fbclid:params.get('fbclid'),
-    ttclid:params.get('ttclid'),
-    msclkid:params.get('msclkid'),
-    li_fat_id:params.get('li_fat_id')
+    gclid:getClickId('gclid'),
+    wbraid:getClickId('wbraid'),
+    gbraid:getClickId('gbraid'),
+    fbclid:getClickId('fbclid'),
+    ttclid:getClickId('ttclid'),
+    msclkid:getClickId('msclkid'),
+    li_fat_id:getClickId('li_fat_id')
   };
 
   // Send if there's attribution data or it's a new session
-  var hasAttribution=payload.utm_source||payload.gclid||payload.fbclid||payload.ttclid||payload.msclkid||payload.li_fat_id;
+  var hasAttribution=payload.utm_source||payload.gclid||payload.wbraid||payload.gbraid||payload.fbclid||payload.ttclid||payload.msclkid||payload.li_fat_id;
   if(hasAttribution||isNewSession){
     fetch(ENDPOINT,{
       method:'POST',

@@ -35,7 +35,8 @@ async function handleStart(req: Request, userId: string, companyId: string): Pro
   }
 
   const redirectUri = await getRedirectUri();
-  const state = btoa(JSON.stringify({ userId, companyId, ts: Date.now() }));
+  const appOrigin = req.headers.get("origin") || undefined;
+  const state = btoa(JSON.stringify({ userId, companyId, appOrigin, ts: Date.now() }));
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -63,7 +64,7 @@ async function handleCallback(req: Request): Promise<Response> {
     return buildCallbackHtml("error", error || "Missing code");
   }
 
-  let state: { userId: string; companyId: string };
+  let state: { userId: string; companyId: string; appOrigin?: string };
   try {
     state = JSON.parse(atob(stateParam));
   } catch {
@@ -91,7 +92,7 @@ async function handleCallback(req: Request): Promise<Response> {
   if (!tokenRes.ok) {
     const err = await tokenRes.text();
     console.error("Token exchange failed:", err);
-    return buildCallbackHtml("error", "Token exchange failed");
+    return buildCallbackHtml("error", "Token exchange failed", state.appOrigin);
   }
 
   const tokens = await tokenRes.json();
@@ -129,7 +130,7 @@ async function handleCallback(req: Request): Promise<Response> {
 
   if (upsertErr) {
     console.error("Upsert connection error:", upsertErr);
-    return buildCallbackHtml("error", "Database error");
+    return buildCallbackHtml("error", "Database error", state.appOrigin);
   }
 
   // Ensure settings row exists
@@ -174,7 +175,7 @@ async function handleCallback(req: Request): Promise<Response> {
     console.warn("Auto watch registration failed (non-critical):", e);
   }
 
-  return buildCallbackHtml("success");
+  return buildCallbackHtml("success", undefined, state.appOrigin);
 }
 
 async function handleDisconnect(req: Request, userId: string, companyId: string): Promise<Response> {
@@ -335,7 +336,7 @@ async function handleListCalendars(req: Request, userId: string, companyId: stri
   });
 }
 
-function buildCallbackHtml(status: string, error?: string, req?: Request): Response {
+function buildCallbackHtml(status: string, error?: string, appOrigin?: string): Response {
   // Use Supabase URL origin as a safe fallback for postMessage target
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   // Extract the project ref to build the preview/published origins
@@ -343,6 +344,7 @@ function buildCallbackHtml(status: string, error?: string, req?: Request): Respo
   const allowedOrigins = [
     `https://${projectRef}.supabase.co`,
     Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com",
+    appOrigin,
   ].filter(Boolean);
   const html = `<!DOCTYPE html><html><body><script>
     var allowedOrigins = ${JSON.stringify(allowedOrigins)};
@@ -356,8 +358,7 @@ function buildCallbackHtml(status: string, error?: string, req?: Request): Respo
     }
     window.close();
   </script><p>${status === "success" ? "Connesso! Puoi chiudere questa finestra." : "Errore: " + (error || "sconosciuto")}</p></body></html>`;
-  const headers = req ? { ...getCorsHeaders(req), "Content-Type": "text/html" } : { "Content-Type": "text/html" };
-  return new Response(html, { headers });
+  return new Response(html, { headers: { "Content-Type": "text/html" } });
 }
 
 // ---- MAIN HANDLER ----

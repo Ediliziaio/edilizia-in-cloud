@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Bell, Plus, Trash2, AlertTriangle, Wallet, CreditCard, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { parsePositiveAmount } from "@/lib/treasury";
 
 const ruleTypeLabels: Record<string, { label: string; icon: any; unit: string }> = {
   balance_below: { label: "Saldo sotto soglia", icon: Wallet, unit: "€" },
@@ -28,8 +29,11 @@ interface Props {
 export default function BankAlertRules({ companyId }: Props) {
   const [rules, setRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [newRule, setNewRule] = useState({
     rule_type: "balance_below",
     threshold: "",
@@ -39,22 +43,48 @@ export default function BankAlertRules({ companyId }: Props) {
   });
 
   useEffect(() => {
-    if (companyId) loadRules();
+    if (companyId) void loadRules();
+    else {
+      setRules([]);
+      setLoading(false);
+    }
   }, [companyId]);
 
   async function loadRules() {
     setLoading(true);
-    const { data } = await supabase
-      .from("bank_alert_rules")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false });
-    setRules(data || []);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from("bank_alert_rules")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setRules(data || []);
+    } catch (e: any) {
+      setLoadError(e.message || "Impossibile caricare gli alert");
+      toast.error("Errore caricamento alert finanziari");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleAdd() {
+    if (!companyId) {
+      toast.error("Azienda non disponibile");
+      return;
+    }
+
     const isDateBased = ["unreconciled_days", "connection_expiring"].includes(newRule.rule_type);
+    const thresholdValue = isDateBased
+      ? Number.parseInt(newRule.days_threshold, 10)
+      : parsePositiveAmount(newRule.threshold);
+
+    if (!thresholdValue || thresholdValue <= 0) {
+      toast.error(isDateBased ? "Inserisci un numero di giorni valido" : "Inserisci una soglia maggiore di zero");
+      return;
+    }
+
     const payload: any = {
       company_id: companyId,
       rule_type: newRule.rule_type,
@@ -64,32 +94,61 @@ export default function BankAlertRules({ companyId }: Props) {
     };
 
     if (isDateBased) {
-      payload.days_threshold = parseInt(newRule.days_threshold) || 7;
+      payload.days_threshold = thresholdValue;
     } else {
-      payload.threshold = parseFloat(newRule.threshold) || 0;
+      payload.threshold = thresholdValue;
     }
 
-    const { error } = await supabase.from("bank_alert_rules").insert(payload);
-    if (error) {
-      toast.error("Errore: " + error.message);
-    } else {
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("bank_alert_rules").insert(payload);
+      if (error) throw error;
       toast.success("Alert creato");
       setShowAdd(false);
       setNewRule({ rule_type: "balance_below", threshold: "", days_threshold: "", notify_email: false, notify_inapp: true });
-      loadRules();
+      await loadRules();
+    } catch (e: any) {
+      toast.error("Errore: " + e.message);
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleToggle(id: string, isActive: boolean) {
-    await supabase.from("bank_alert_rules").update({ is_active: !isActive }).eq("id", id);
-    loadRules();
+    setPendingActionId(id);
+    try {
+      const { error } = await supabase
+        .from("bank_alert_rules")
+        .update({ is_active: !isActive })
+        .eq("id", id)
+        .eq("company_id", companyId);
+      if (error) throw error;
+      await loadRules();
+    } catch (e: any) {
+      toast.error("Errore: " + e.message);
+    } finally {
+      setPendingActionId(null);
+    }
   }
 
   async function handleDelete() {
     if (!deleteId) return;
-    await supabase.from("bank_alert_rules").delete().eq("id", deleteId);
-    setDeleteId(null);
-    loadRules();
+    setPendingActionId(deleteId);
+    try {
+      const { error } = await supabase
+        .from("bank_alert_rules")
+        .delete()
+        .eq("id", deleteId)
+        .eq("company_id", companyId);
+      if (error) throw error;
+      toast.success("Alert eliminato");
+      setDeleteId(null);
+      await loadRules();
+    } catch (e: any) {
+      toast.error("Errore: " + e.message);
+    } finally {
+      setPendingActionId(null);
+    }
   }
 
   if (loading) {
@@ -106,6 +165,15 @@ export default function BankAlertRules({ companyId }: Props) {
           <Plus className="h-4 w-4 mr-1" /> Nuovo Alert
         </Button>
       </div>
+
+      {loadError && (
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => loadRules()}>Riprova</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {rules.length === 0 ? (
         <Card>
@@ -134,8 +202,8 @@ export default function BankAlertRules({ companyId }: Props) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Switch checked={rule.is_active} onCheckedChange={() => handleToggle(rule.id, rule.is_active)} />
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(rule.id)}>
+                    <Switch checked={rule.is_active} disabled={pendingActionId === rule.id} onCheckedChange={() => handleToggle(rule.id, rule.is_active)} />
+                    <Button variant="ghost" size="icon" disabled={pendingActionId === rule.id} onClick={() => setDeleteId(rule.id)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -171,6 +239,7 @@ export default function BankAlertRules({ companyId }: Props) {
               {["unreconciled_days", "connection_expiring"].includes(newRule.rule_type) ? (
                 <Input
                   type="number"
+                  min="1"
                   placeholder="Es: 7"
                   value={newRule.days_threshold}
                   onChange={(e) => setNewRule({ ...newRule, days_threshold: e.target.value })}
@@ -178,6 +247,8 @@ export default function BankAlertRules({ companyId }: Props) {
               ) : (
                 <Input
                   type="number"
+                  min="0.01"
+                  step="0.01"
                   placeholder="Es: 5000"
                   value={newRule.threshold}
                   onChange={(e) => setNewRule({ ...newRule, threshold: e.target.value })}
@@ -205,8 +276,8 @@ export default function BankAlertRules({ companyId }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)}>Annulla</Button>
-            <Button onClick={handleAdd}>Crea Alert</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)} disabled={saving}>Annulla</Button>
+            <Button onClick={handleAdd} disabled={saving}>{saving ? "Creazione..." : "Crea Alert"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -220,7 +291,9 @@ export default function BankAlertRules({ companyId }: Props) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Elimina</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} disabled={!!pendingActionId}>
+              {pendingActionId ? "Eliminazione..." : "Elimina"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

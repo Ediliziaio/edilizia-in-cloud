@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Link2 } from "lucide-react";
+import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Link2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { buildBankTransactionSearchFilter, formatTreasuryCurrency, isChronologicalDateRange, toFiniteAmount } from "@/lib/treasury";
 
-const formatEur = (val: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(val);
+const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
 const CATEGORIES = [
   { value: "Stipendi", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" },
@@ -34,13 +34,16 @@ const PAGE_SIZE = 50;
 
 interface Props {
   companyId: string;
+  refreshKey?: number;
 }
 
-export default function TransactionsFeed({ companyId }: Props) {
+export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [invoiceMap, setInvoiceMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const requestSeqRef = useRef(0);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -56,13 +59,31 @@ export default function TransactionsFeed({ companyId }: Props) {
   const [selectedTx, setSelectedTx] = useState<any>(null);
   const [editCategory, setEditCategory] = useState("");
   const [editNote, setEditNote] = useState("");
+  const [savingDetail, setSavingDetail] = useState(false);
 
   useEffect(() => {
-    if (companyId) {
-      loadAccounts();
-      loadTransactions();
+    if (!companyId) {
+      setAccounts([]);
+      return;
     }
-  }, [companyId, page, search, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo]);
+    void loadAccounts();
+  }, [companyId, refreshKey]);
+
+  useEffect(() => {
+    if (!companyId) {
+      setTransactions([]);
+      setInvoiceMap({});
+      setTotalCount(0);
+      setLoading(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void loadTransactions();
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [companyId, refreshKey, page, search, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo]);
 
   async function loadAccounts() {
     try {
@@ -84,7 +105,19 @@ export default function TransactionsFeed({ companyId }: Props) {
   }
 
   async function loadTransactions() {
+    if (!isChronologicalDateRange(dateFrom, dateTo)) {
+      setLoadError("Intervallo date non valido: la data iniziale deve precedere la data finale.");
+      setTransactions([]);
+      setInvoiceMap({});
+      setTotalCount(0);
+      setLoading(false);
+      return;
+    }
+
+    const requestId = requestSeqRef.current + 1;
+    requestSeqRef.current = requestId;
     setLoading(true);
+    setLoadError(null);
     try {
       let query = supabase
         .from("bank_transactions")
@@ -93,8 +126,9 @@ export default function TransactionsFeed({ companyId }: Props) {
         .order("booking_date", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-      if (search) {
-        query = query.or(`description.ilike.%${search}%,creditor_name.ilike.%${search}%,debtor_name.ilike.%${search}%`);
+      const searchFilter = buildBankTransactionSearchFilter(search);
+      if (searchFilter) {
+        query = query.or(searchFilter);
       }
       if (accountFilter !== "all") query = query.eq("account_id", accountFilter);
       if (typeFilter !== "all") query = query.eq("transaction_type", typeFilter);
@@ -103,9 +137,13 @@ export default function TransactionsFeed({ companyId }: Props) {
       if (dateTo) query = query.lte("booking_date", dateTo);
 
       const { data, error, count } = await query;
+      if (requestId !== requestSeqRef.current) return;
       if (error) {
         console.error('[TransactionsFeed] Errore caricamento transazioni:', error.message);
-        toast.error('Errore nel caricamento delle transazioni. Riprova.');
+        setLoadError("Errore nel caricamento delle transazioni. Riprova.");
+        setTransactions([]);
+        setInvoiceMap({});
+        setTotalCount(0);
         return;
       }
       setTransactions(data || []);
@@ -114,10 +152,14 @@ export default function TransactionsFeed({ companyId }: Props) {
       // Load linked invoices
       const linkedIds = (data || []).map((t: any) => t.linked_invoice_id).filter(Boolean);
       if (linkedIds.length > 0) {
-        const { data: invData } = await supabase
+        const { data: invData, error: invError } = await supabase
           .from("invoices")
           .select("id, invoice_number, client_company_name")
           .in("id", linkedIds);
+        if (requestId !== requestSeqRef.current) return;
+        if (invError) {
+          console.error("[TransactionsFeed] Errore caricamento fatture collegate:", invError.message);
+        }
         const map: Record<string, any> = {};
         (invData || []).forEach((inv: any) => { map[inv.id] = inv; });
         setInvoiceMap(map);
@@ -126,9 +168,11 @@ export default function TransactionsFeed({ companyId }: Props) {
       }
     } catch (err) {
       console.error('[TransactionsFeed] Errore imprevisto:', err);
-      toast.error('Errore imprevisto. Riprova tra qualche secondo.');
+      if (requestId === requestSeqRef.current) {
+        setLoadError("Errore imprevisto. Riprova tra qualche secondo.");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestSeqRef.current) setLoading(false);
     }
   }
 
@@ -140,17 +184,23 @@ export default function TransactionsFeed({ companyId }: Props) {
 
   async function saveDetail() {
     if (!selectedTx) return;
-    const { error } = await supabase
-      .from("bank_transactions")
-      .update({ category: editCategory, note: editNote })
-      .eq("id", selectedTx.id);
-    if (error) toast.error(error.message);
-    else {
+    setSavingDetail(true);
+    try {
+      const { error } = await supabase
+        .from("bank_transactions")
+        .update({ category: editCategory, note: editNote.trim() || null })
+        .eq("id", selectedTx.id)
+        .eq("company_id", companyId);
+      if (error) throw error;
       toast.success("Aggiornato");
       setTransactions((prev) =>
-        prev.map((t) => (t.id === selectedTx.id ? { ...t, category: editCategory, note: editNote } : t))
+        prev.map((t) => (t.id === selectedTx.id ? { ...t, category: editCategory, note: editNote.trim() || null } : t))
       );
       setSelectedTx(null);
+    } catch (e: any) {
+      toast.error(e.message || "Aggiornamento non riuscito");
+    } finally {
+      setSavingDetail(false);
     }
   }
 
@@ -175,7 +225,10 @@ export default function TransactionsFeed({ companyId }: Props) {
 
   function exportCSV() {
     const rows = getExportRows();
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      toast.info("Nessuna transazione da esportare");
+      return;
+    }
     const headers = Object.keys(rows[0]);
     const csvRows = rows.map((r) =>
       headers.map((h) => `"${String((r as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
@@ -186,7 +239,9 @@ export default function TransactionsFeed({ companyId }: Props) {
     const a = document.createElement("a");
     a.href = url;
     a.download = `transazioni_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
   }
 
@@ -194,7 +249,10 @@ export default function TransactionsFeed({ companyId }: Props) {
     try {
       const ExcelJS = (await import("exceljs")).default;
       const rows = getExportRows();
-      if (rows.length === 0) return;
+      if (rows.length === 0) {
+        toast.info("Nessuna transazione da esportare");
+        return;
+      }
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Transazioni");
       ws.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
@@ -205,7 +263,9 @@ export default function TransactionsFeed({ companyId }: Props) {
       const a = document.createElement("a");
       a.href = url;
       a.download = `transazioni_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
       a.click();
+      a.remove();
       URL.revokeObjectURL(url);
     } catch {
       toast.error("Libreria XLSX non disponibile, usa l'export CSV");
@@ -214,8 +274,8 @@ export default function TransactionsFeed({ companyId }: Props) {
 
   // Summary
   const summary = useMemo(() => {
-    const income = transactions.filter((t) => t.transaction_type === "credit").reduce((s, t) => s + t.amount, 0);
-    const expenses = transactions.filter((t) => t.transaction_type === "debit").reduce((s, t) => s + Math.abs(t.amount), 0);
+    const income = transactions.filter((t) => t.transaction_type === "credit").reduce((s, t) => s + toFiniteAmount(t.amount), 0);
+    const expenses = transactions.filter((t) => t.transaction_type === "debit").reduce((s, t) => s + Math.abs(toFiniteAmount(t.amount)), 0);
     return { count: totalCount, income, expenses, net: income - expenses };
   }, [transactions, totalCount]);
 
@@ -275,7 +335,14 @@ export default function TransactionsFeed({ companyId }: Props) {
       </Card>
 
       {/* Table */}
-      {loading ? (
+      {loadError ? (
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col gap-3 py-6 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => loadTransactions()}>Riprova</Button>
+          </CardContent>
+        </Card>
+      ) : loading ? (
         <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-14" />)}</div>
       ) : transactions.length === 0 ? (
         <p className="text-muted-foreground text-center py-12">Nessuna transazione trovata</p>
@@ -424,7 +491,10 @@ export default function TransactionsFeed({ companyId }: Props) {
                 <Textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={3} />
               </div>
 
-              <Button onClick={saveDetail} className="w-full">Salva Modifiche</Button>
+              <Button onClick={saveDetail} disabled={savingDetail} className="w-full">
+                {savingDetail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Salva Modifiche
+              </Button>
             </div>
           )}
         </SheetContent>

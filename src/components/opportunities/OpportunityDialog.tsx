@@ -19,6 +19,7 @@ import { syncTagsToContact } from "@/hooks/useTagSync";
 import { STATUS_OPTIONS } from "@/types/opportunities";
 import { cleanPhone } from "@/lib/contactUtils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { normalizeTagList } from "@/lib/marketingTags";
 
 interface Props {
   open: boolean;
@@ -320,9 +321,10 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
           const oppId = data?.id;
           if (oppId) {
             // Save tags and sync to contact
-            if (tags.length > 0) {
-              await supabase.from("marketing_opportunities").update({ tags }).eq("id", oppId).eq("company_id", companyId!);
-              await syncTagsToContact(contactId, tags, companyId);
+            const normalizedTags = normalizeTagList(tags);
+            if (normalizedTags.length > 0) {
+              await supabase.from("marketing_opportunities").update({ tags: normalizedTags }).eq("id", oppId).eq("company_id", companyId!);
+              await syncTagsToContact(contactId, normalizedTags, companyId);
             }
             // Save custom field values
             if (Object.keys(customFieldValues).length > 0) {

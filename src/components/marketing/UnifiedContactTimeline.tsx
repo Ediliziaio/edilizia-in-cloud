@@ -13,6 +13,7 @@ import {
   Target, UserPlus, Settings, ArrowRight, RefreshCw, UserCheck,
   FileText, Smartphone, AlertCircle,
 } from "lucide-react";
+import { getMarketingAppointmentStatusMeta } from "@/lib/marketingAppointmentStatus";
 
 // ── Types ──
 interface TimelineEvent {
@@ -38,6 +39,14 @@ const FILTER_OPTIONS: { key: FilterCategory; label: string; icon: React.ReactNod
   { key: "note", label: "Note", icon: <StickyNote className="h-3 w-3" /> },
   { key: "activity", label: "Attività", icon: <Activity className="h-3 w-3" /> },
 ];
+
+const getAppointmentStatusColor = (status: string | null | undefined) => {
+  const variant = getMarketingAppointmentStatusMeta(status).variant;
+  if (variant === "destructive") return "bg-red-100 text-red-600";
+  if (variant === "default") return "bg-emerald-100 text-emerald-600";
+  if (variant === "outline") return "bg-slate-100 text-slate-600";
+  return "bg-blue-100 text-blue-600";
+};
 
 // ── Icon/color helpers ──
 function getActivityIcon(type: string) {
@@ -275,19 +284,20 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
     }
 
     for (const apt of appointments) {
+      const statusMeta = getMarketingAppointmentStatusMeta(apt.status);
       events.push({
         id: `apt-${apt.id}`,
         type: "appointment",
         category: "appointment",
         icon: <CalendarDays className="h-3.5 w-3.5" />,
-        color: apt.status === "completato" ? "bg-emerald-100 text-emerald-600" : apt.status === "annullato" ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600",
+        color: getAppointmentStatusColor(apt.status),
         title: apt.title,
         description: apt.formatted_address || undefined,
         timestamp: apt.created_at,
         metadata: {
           data: format(new Date(apt.appointment_date), "d MMM yyyy", { locale: it }),
           ora: apt.appointment_time?.substring(0, 5),
-          stato: apt.status,
+          stato: statusMeta.label,
           calendario: (apt.marketing_calendars as any)?.name,
         },
       });

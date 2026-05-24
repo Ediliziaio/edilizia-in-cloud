@@ -1,14 +1,15 @@
 import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { Wallet, TrendingUp, TrendingDown, ArrowUpDown, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart } from "recharts";
 import { formatCurrencyCompact } from "@/lib/formatters";
 import { toast } from "sonner";
+import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
 
-const formatEur = (val: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(val);
+const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
 const monthLabels: Record<string, string> = {
   "01": "Gen", "02": "Feb", "03": "Mar", "04": "Apr", "05": "Mag", "06": "Giu",
@@ -17,10 +18,11 @@ const monthLabels: Record<string, string> = {
 
 interface Props {
   companyId: string;
+  refreshKey?: number;
   onNavigateToTransactions?: () => void;
 }
 
-export default function TreasuryOverview({ companyId, onNavigateToTransactions }: Props) {
+export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigateToTransactions }: Props) {
   const [summary, setSummary] = useState<any>(null);
   const [cashFlow, setCashFlow] = useState<any[]>([]);
   const [recentTxs, setRecentTxs] = useState<any[]>([]);
@@ -34,8 +36,14 @@ export default function TreasuryOverview({ companyId, onNavigateToTransactions }
   }, []);
 
   useEffect(() => {
-    if (companyId) loadData();
-  }, [companyId]);
+    if (companyId) void loadData();
+    else {
+      setSummary(null);
+      setCashFlow([]);
+      setRecentTxs([]);
+      setLoading(false);
+    }
+  }, [companyId, refreshKey]);
 
   async function loadData() {
     setLoading(true);
@@ -54,15 +62,18 @@ export default function TreasuryOverview({ companyId, onNavigateToTransactions }
 
       if (!isMountedRef.current) return;
 
+      let hasBlockingError = false;
       if (summaryRes.error) {
-        toast.error("Errore nel caricamento del saldo. Riprova tra qualche secondo.");
+        hasBlockingError = true;
         setError(summaryRes.error.message);
       } else if (summaryRes.data && summaryRes.data.length > 0) {
         setSummary(summaryRes.data[0]);
+      } else {
+        setSummary(null);
       }
 
       if (cashFlowRes.error) {
-        toast.error("Problema temporaneo. Riprova tra qualche secondo.");
+        console.error("[TreasuryOverview] Errore cash flow:", cashFlowRes.error.message);
       } else {
         setCashFlow(
           (cashFlowRes.data || []).map((row: any) => ({
@@ -72,7 +83,15 @@ export default function TreasuryOverview({ companyId, onNavigateToTransactions }
         );
       }
 
-      setRecentTxs(txRes.data || []);
+      if (txRes.error) {
+        console.error("[TreasuryOverview] Errore ultime transazioni:", txRes.error.message);
+      } else {
+        setRecentTxs(txRes.data || []);
+      }
+
+      if (hasBlockingError) {
+        toast.error("Errore nel caricamento della tesoreria. Riprova tra qualche secondo.");
+      }
     } catch (e: any) {
       if (!isMountedRef.current) return;
       toast.error("Problema temporaneo. Riprova tra qualche secondo.");
@@ -94,20 +113,29 @@ export default function TreasuryOverview({ companyId, onNavigateToTransactions }
   }
 
   const kpis = [
-    { title: "Liquidità Totale", value: summary?.total_balance || 0, icon: Wallet, color: "text-primary", sub: "Saldo di tutti i conti" },
-    { title: "Entrate Mese", value: summary?.monthly_income || 0, icon: TrendingUp, color: "text-green-600", sub: "Questo mese" },
-    { title: "Uscite Mese", value: summary?.monthly_expenses || 0, icon: TrendingDown, color: "text-red-600", sub: "Questo mese" },
+    { title: "Liquidità Totale", value: toFiniteAmount(summary?.total_balance), icon: Wallet, color: "text-primary", sub: "Saldo di tutti i conti" },
+    { title: "Entrate Mese", value: toFiniteAmount(summary?.monthly_income), icon: TrendingUp, color: "text-green-600", sub: "Questo mese" },
+    { title: "Uscite Mese", value: toFiniteAmount(summary?.monthly_expenses), icon: TrendingDown, color: "text-red-600", sub: "Questo mese" },
     {
       title: "Cash Flow Netto",
-      value: summary?.monthly_net || 0,
+      value: toFiniteAmount(summary?.monthly_net),
       icon: ArrowUpDown,
-      color: (summary?.monthly_net || 0) >= 0 ? "text-green-600" : "text-red-600",
+      color: toFiniteAmount(summary?.monthly_net) >= 0 ? "text-green-600" : "text-red-600",
       sub: "Entrate - Uscite mese corrente",
     },
   ];
 
   return (
     <div className="space-y-6">
+      {error && (
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-destructive">Alcuni dati non sono disponibili: {error}</p>
+            <Button variant="outline" size="sm" onClick={() => loadData()}>Riprova</Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* KPIs */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
@@ -125,16 +153,16 @@ export default function TreasuryOverview({ companyId, onNavigateToTransactions }
       </div>
 
       {/* Alerts */}
-      {summary && summary.total_balance < 0 && (
+      {summary && toFiniteAmount(summary.total_balance) < 0 && (
         <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-red-600" />
-          <span className="text-red-800 dark:text-red-200 font-medium">🔴 Saldo negativo rilevato</span>
+          <span className="text-red-800 dark:text-red-200 font-medium">Saldo negativo rilevato</span>
         </div>
       )}
-      {summary && summary.total_balance >= 0 && summary.total_balance < 1000 && (
+      {summary && toFiniteAmount(summary.total_balance) >= 0 && toFiniteAmount(summary.total_balance) < 1000 && (
         <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg p-4 flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-orange-600" />
-          <span className="text-orange-800 dark:text-orange-200 font-medium">⚠ Attenzione: liquidità bassa</span>
+          <span className="text-orange-800 dark:text-orange-200 font-medium">Attenzione: liquidità bassa</span>
         </div>
       )}
 

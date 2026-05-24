@@ -36,6 +36,9 @@ import {
   Grid3x3,
   SlidersHorizontal,
   AlertCircle,
+  Link2,
+  Clock,
+  Users,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -64,8 +67,10 @@ export default function MarketingCalendar() {
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const permissions = usePermissions();
-  const { isGoogleConnected } = useGoogleCalendarSync();
-  const { isAppleConnected } = useAppleCalendarSync();
+  const googleSync = useGoogleCalendarSync();
+  const appleSync = useAppleCalendarSync();
+  const { isGoogleConnected } = googleSync;
+  const { isAppleConnected } = appleSync;
   const calendarSettingsPath = "/azienda/impostazioni/calendari";
 
   // Fetch Google busy slots for marketing calendar overlay
@@ -117,7 +122,8 @@ export default function MarketingCalendar() {
   // Filter state
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const filtersInitialized = useRef(false);
+  const calendarFiltersInitialized = useRef(false);
+  const userFiltersInitialized = useRef(false);
 
   const weekStart = useMemo(
     () => startOfWeek(currentDate, { weekStartsOn: 1 }),
@@ -157,17 +163,15 @@ export default function MarketingCalendar() {
     [rawStaffUsers]
   );
 
-  // Initialize filters once when data loads
+  // Initialize each filter group once when its own data arrives.
   useEffect(() => {
-    if (filtersInitialized.current) return;
-    if (calendars.length > 0) {
+    if (!calendarFiltersInitialized.current && calendars.length > 0) {
       setSelectedCalendarIds(calendars.map((c) => c.id));
+      calendarFiltersInitialized.current = true;
     }
-    if (users.length > 0) {
+    if (!userFiltersInitialized.current && users.length > 0) {
       setSelectedUserIds(users.map((u) => u.id));
-    }
-    if (calendars.length > 0 && users.length > 0) {
-      filtersInitialized.current = true;
+      userFiltersInitialized.current = true;
     }
   }, [calendars, users]);
 
@@ -281,15 +285,17 @@ export default function MarketingCalendar() {
   const filteredAppointments = useMemo(() => {
     return appointments.filter((a: any) => {
       if (!a.calendar_id) return false;
+      if (calendars.length > 0 && selectedCalendarIds.length === 0) return false;
       if (selectedCalendarIds.length > 0 && !selectedCalendarIds.includes(a.calendar_id))
         return false;
+      if (users.length > 0 && selectedUserIds.length === 0) return false;
       if (selectedUserIds.length > 0) {
         if (!a.assigned_to) return false;
         if (!selectedUserIds.includes(a.assigned_to)) return false;
       }
       return true;
     });
-  }, [appointments, selectedCalendarIds, selectedUserIds]);
+  }, [appointments, calendars.length, selectedCalendarIds, selectedUserIds, users.length]);
 
   // Compute slot duration from selected calendars
   const slotDurationMinutes = useMemo(() => {
@@ -521,6 +527,32 @@ export default function MarketingCalendar() {
     setDialogOpen(true);
   };
 
+  const syncExternalCalendarsForAppointment = useCallback(async (appointmentId: string) => {
+    const tasks: Promise<unknown>[] = [];
+
+    if (googleSync.hasGoogleConnection) {
+      tasks.push((async () => {
+        const mapping = await googleSync.checkMapping(appointmentId);
+        if (mapping) return googleSync.updateEvent(appointmentId);
+        if (googleSync.isGoogleConnected) return googleSync.pushEvent(appointmentId);
+        return undefined;
+      })());
+    }
+
+    if (appleSync.hasAppleConnection) {
+      tasks.push((async () => {
+        const mapping = await appleSync.checkMapping(appointmentId);
+        if (mapping) return appleSync.updateEvent(appointmentId);
+        if (appleSync.isAppleConnected) return appleSync.pushEvent(appointmentId);
+        return undefined;
+      })());
+    }
+
+    if (tasks.length > 0) {
+      await Promise.allSettled(tasks);
+    }
+  }, [appleSync, googleSync]);
+
   // ── Drag & Drop handler ──
   const handleDropAppointment = useCallback(async (appointmentId: string, newDate: string, newTime?: string) => {
     const current = appointments.find((a: any) => a.id === appointmentId);
@@ -583,11 +615,12 @@ export default function MarketingCalendar() {
         },
       },
     });
+    void syncExternalCalendarsForAppointment(appointmentId);
     refetchAppointments();
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
-  }, [appointments, refetchAppointments, queryClient, companyId]);
+  }, [appointments, refetchAppointments, queryClient, companyId, syncExternalCalendarsForAppointment]);
 
   // ── Resize handler ──
   const handleResizeAppointment = useCallback(async (appointmentId: string, newEndTime: string) => {
@@ -604,11 +637,12 @@ export default function MarketingCalendar() {
       return;
     }
     toast.success(`Durata aggiornata fino alle ${newEndTime}`);
+    void syncExternalCalendarsForAppointment(appointmentId);
     refetchAppointments();
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
-  }, [refetchAppointments, queryClient, companyId]);
+  }, [refetchAppointments, queryClient, companyId, syncExternalCalendarsForAppointment]);
 
   const tabs = [
     { key: "calendar" as const, label: "Calendario", icon: CalendarIcon },
@@ -807,23 +841,49 @@ export default function MarketingCalendar() {
             </div>
 
             {!hasCalendars ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border border-dashed bg-background p-6">
-                <div className="mx-auto max-w-md text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                    <CalendarPlus className="h-6 w-6 text-primary" />
+              <div className="flex min-h-0 flex-1 items-center justify-center rounded-lg border bg-background p-4 sm:p-6">
+                <div className="mx-auto w-full max-w-3xl">
+                  <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
+                    <div>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                        <CalendarPlus className="h-6 w-6 text-primary" />
+                      </div>
+                      <h2 className="mt-4 text-xl font-semibold tracking-tight">Configura il calendario marketing</h2>
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                        Crea calendari per singolo commerciale, team o evento. Ogni calendario genera un link pubblico da inviare al cliente o embeddare nel sito.
+                      </p>
+                      <div className="mt-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>Prima crea almeno un calendario attivo, poi imposta disponibilita' e collegamenti Google/Apple.</span>
+                      </div>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <Button className="gap-1.5" onClick={() => navigate(calendarSettingsPath)}>
+                          <CalendarPlus className="h-4 w-4" />
+                          Crea calendario
+                        </Button>
+                        <Button variant="outline" className="gap-1.5" onClick={() => navigate(`${calendarSettingsPath}?tab=connections`)}>
+                          <Settings className="h-4 w-4" />
+                          Collegamenti
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2 text-sm">
+                      {[
+                        { icon: Users, title: "Assegna al team", text: "Ogni link puo' puntare a un commerciale o reparto." },
+                        { icon: Clock, title: "Definisci disponibilita'", text: "Imposta giorni e orari prima di pubblicare il link." },
+                        { icon: Link2, title: "Condividi o embedda", text: "Usa link diretto, iframe o bottone sul sito." },
+                      ].map((item) => (
+                        <div key={item.title} className="rounded-lg border bg-muted/20 p-3">
+                          <div className="flex items-center gap-2 font-medium">
+                            <item.icon className="h-4 w-4 text-primary" />
+                            {item.title}
+                          </div>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.text}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <h2 className="mt-4 text-lg font-semibold">Configura il primo calendario CRM</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Gli appuntamenti marketing e vendita hanno bisogno di almeno un calendario attivo per assegnare disponibilità, durata e link di prenotazione.
-                  </p>
-                  <div className="mt-4 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-left text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>Senza calendario il flusso di creazione appuntamento resta bloccato sulla scelta calendario.</span>
-                  </div>
-                  <Button className="mt-5 gap-1.5" onClick={() => navigate(calendarSettingsPath)}>
-                    <CalendarPlus className="h-4 w-4" />
-                    Configura calendario CRM
-                  </Button>
                 </div>
               </div>
             ) : calendarView === "week" ? (

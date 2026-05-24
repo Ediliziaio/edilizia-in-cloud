@@ -34,13 +34,16 @@ function SortableField({
   field,
   isSelected,
   onClick,
+  disabled,
 }: {
   field: FormField;
   isSelected: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: field.id,
+    disabled,
   });
 
   const style = {
@@ -55,7 +58,8 @@ function SortableField({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "border rounded-lg p-3 cursor-pointer transition-colors",
+        "border rounded-lg p-3 transition-colors",
+        disabled ? "cursor-default" : "cursor-pointer",
         isSelected ? "border-primary bg-primary/5" : "hover:border-primary/50",
         isDragging && "opacity-50",
         isStructural && "border-dashed"
@@ -63,7 +67,14 @@ function SortableField({
       onClick={onClick}
     >
       <div className="flex items-center gap-2">
-        <button {...attributes} {...listeners} aria-label="Trascina per riordinare" className="cursor-grab touch-none">
+        <button
+          {...(!disabled ? attributes : {})}
+          {...(!disabled ? listeners : {})}
+          aria-label={disabled ? "Riordino non disponibile" : "Trascina per riordinare"}
+          className={cn("touch-none", disabled ? "cursor-not-allowed opacity-40" : "cursor-grab")}
+          disabled={disabled}
+          type="button"
+        >
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </button>
         {ICON_MAP[field.type] || ICON_MAP.text}
@@ -81,9 +92,10 @@ interface Props {
   fields: FormField[];
   selectedFieldId: string | null;
   onSelectField: (id: string) => void;
+  disabled?: boolean;
 }
 
-export function FormEditorCanvas({ fields, selectedFieldId, onSelectField }: Props) {
+export function FormEditorCanvas({ fields, selectedFieldId, onSelectField, disabled = false }: Props) {
   return (
     <div className="space-y-2">
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
@@ -100,6 +112,7 @@ export function FormEditorCanvas({ fields, selectedFieldId, onSelectField }: Pro
             field={f}
             isSelected={selectedFieldId === f.id}
             onClick={() => onSelectField(f.id)}
+            disabled={disabled}
           />
         ))
       )}

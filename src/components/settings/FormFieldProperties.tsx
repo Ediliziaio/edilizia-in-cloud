@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
+import { normalizeLeadFormOptions, sanitizeLeadFormFieldName } from "@/lib/formBuilder";
 
 const CONTACT_MAPPINGS = [
   { value: "", label: "Nessuno" },
@@ -27,9 +28,10 @@ interface Props {
   field: FormField | null;
   onUpdate: (updates: Partial<FormField>) => void;
   onDelete: () => void;
+  disabled?: boolean;
 }
 
-export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
+export function FormFieldProperties({ field, onUpdate, onDelete, disabled = false }: Props) {
   if (!field) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
@@ -50,6 +52,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
           value={field.label}
           onChange={(e) => onUpdate({ label: e.target.value })}
           className="h-8 text-sm"
+          disabled={disabled}
         />
       </div>
 
@@ -58,8 +61,9 @@ export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
           <Label className="text-xs">Nome campo</Label>
           <Input
             value={field.name}
-            onChange={(e) => onUpdate({ name: e.target.value })}
+            onChange={(e) => onUpdate({ name: sanitizeLeadFormFieldName(e.target.value) })}
             className="h-8 text-sm"
+            disabled={disabled}
           />
         </div>
       )}
@@ -71,6 +75,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
             value={field.placeholder || ""}
             onChange={(e) => onUpdate({ placeholder: e.target.value })}
             className="h-8 text-sm"
+            disabled={disabled}
           />
         </div>
       )}
@@ -83,6 +88,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
             onChange={(e) => onUpdate({ defaultValue: e.target.value })}
             className="h-8 text-sm"
             placeholder="Valore fisso o parametro UTM"
+            disabled={disabled}
           />
         </div>
       )}
@@ -93,6 +99,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
           <Switch
             checked={field.required}
             onCheckedChange={(v) => onUpdate({ required: v })}
+            disabled={disabled}
           />
         </div>
       )}
@@ -102,9 +109,10 @@ export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
           <Label className="text-xs">Opzioni (una per riga)</Label>
           <Textarea
             value={(field.options || []).join("\n")}
-            onChange={(e) => onUpdate({ options: e.target.value.split("\n").filter(Boolean) })}
+            onChange={(e) => onUpdate({ options: normalizeLeadFormOptions(e.target.value.split("\n")) })}
             rows={4}
             className="text-sm"
+            disabled={disabled}
           />
         </div>
       )}
@@ -112,7 +120,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
       {!isStructural && field.type !== "hidden" && (
         <div className="space-y-2">
           <Label className="text-xs">Mappatura contatto</Label>
-          <Select value={field.mapping || ""} onValueChange={(v) => onUpdate({ mapping: v === "none" ? undefined : v || undefined })}>
+          <Select value={field.mapping || ""} onValueChange={(v) => onUpdate({ mapping: v === "none" ? undefined : v || undefined })} disabled={disabled}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue placeholder="Nessuna mappatura" />
             </SelectTrigger>
@@ -125,7 +133,7 @@ export function FormFieldProperties({ field, onUpdate, onDelete }: Props) {
         </div>
       )}
 
-      <Button variant="destructive" size="sm" className="w-full mt-4" onClick={onDelete}>
+      <Button variant="destructive" size="sm" className="w-full mt-4" onClick={onDelete} disabled={disabled}>
         <Trash2 className="h-3.5 w-3.5 mr-1" /> Elimina campo
       </Button>
     </div>

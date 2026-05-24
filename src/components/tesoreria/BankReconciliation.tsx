@@ -25,6 +25,7 @@ const fmtEur = (n: number) =>
 
 interface Props {
   companyId: string;
+  refreshKey?: number;
 }
 
 interface MatchSuggestion {
@@ -89,7 +90,7 @@ function computeMatchScore(tx: any, inv: any): MatchSuggestion | null {
   return { invoice: inv, score, reasons };
 }
 
-export default function BankReconciliation({ companyId }: Props) {
+export default function BankReconciliation({ companyId, refreshKey = 0 }: Props) {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -113,6 +114,14 @@ export default function BankReconciliation({ companyId }: Props) {
   const [unlinking, setUnlinking] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (!companyId) {
+      setTransactions([]);
+      setInvoices([]);
+      setReconciliations([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const [txRes, invRes, recRes] = await Promise.all([
@@ -154,7 +163,7 @@ export default function BankReconciliation({ companyId }: Props) {
     }
   }, [companyId]);
 
-  useEffect(() => { if (companyId) loadData(); }, [companyId, loadData]);
+  useEffect(() => { void loadData(); }, [loadData, refreshKey]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -184,6 +193,7 @@ export default function BankReconciliation({ companyId }: Props) {
 
   // Fix 5: Sequential reconciliation — execute operations in order, stop on failure
   async function confirmMatch(tx: any, inv: any, matchType: "manual" | "auto") {
+    if (matching) return;
     setMatching(true);
     try {
       const matchedAmount = Math.abs(tx.amount);
@@ -191,7 +201,7 @@ export default function BankReconciliation({ companyId }: Props) {
       const newStatus = newPaidAmount >= Number(inv.total || 0) ? "paid" : inv.status;
 
       // Step 1: link transaction
-      const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id);
+      const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id).eq("company_id", companyId);
       if (linkRes.error) throw linkRes.error;
 
       // Step 2: create reconciliation record
@@ -206,27 +216,28 @@ export default function BankReconciliation({ companyId }: Props) {
       } as any);
       if (recRes.error) {
         // Rollback step 1
-        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id);
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
         throw recRes.error;
       }
 
       // Step 3: update invoice
-      const invRes = await supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id);
+      const invRes = await supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id).eq("company_id", companyId);
       if (invRes.error) {
         // Rollback steps 1 & 2
-        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id);
-        await supabase.from("bank_reconciliations").delete().eq("transaction_id", tx.id).eq("invoice_id", inv.id).is("unmatched_at", null);
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
+        await supabase.from("bank_reconciliations").delete().eq("transaction_id", tx.id).eq("invoice_id", inv.id).eq("company_id", companyId).is("unmatched_at", null);
         throw invRes.error;
       }
 
       toast.success(`Riconciliata transazione con fattura ${inv.invoice_number}`);
       setSelectedTx(null);
-      loadData();
+      await loadData();
     } catch (e: any) {
       console.error('[BankReconciliation] Errore durante la riconciliazione:', e.message);
       toast.error('Errore durante la riconciliazione. Riprova o contatta il supporto.');
+    } finally {
+      setMatching(false);
     }
-    setMatching(false);
   }
 
   // Internal version for auto-match batch — no loadData() during loop
@@ -236,7 +247,7 @@ export default function BankReconciliation({ companyId }: Props) {
       const newPaidAmount = Number(inv.paid_amount || 0) + matchedAmount;
       const newStatus = newPaidAmount >= Number(inv.total || 0) ? "paid" : inv.status;
 
-      const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id);
+      const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id).eq("company_id", companyId);
       if (linkRes.error) throw linkRes.error;
 
       const recRes = await supabase.from("bank_reconciliations").insert({
@@ -248,14 +259,14 @@ export default function BankReconciliation({ companyId }: Props) {
         matched_by: user?.id,
       } as any);
       if (recRes.error) {
-        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id);
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
         throw recRes.error;
       }
 
-      const invRes = await supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id);
+      const invRes = await supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id).eq("company_id", companyId);
       if (invRes.error) {
-        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id);
-        await supabase.from("bank_reconciliations").delete().eq("transaction_id", tx.id).eq("invoice_id", inv.id).is("unmatched_at", null);
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
+        await supabase.from("bank_reconciliations").delete().eq("transaction_id", tx.id).eq("invoice_id", inv.id).eq("company_id", companyId).is("unmatched_at", null);
         throw invRes.error;
       }
 
@@ -271,33 +282,37 @@ export default function BankReconciliation({ companyId }: Props) {
 
   // Fix 7: Auto-match works on snapshot, no reload during loop
   async function runAutoMatch() {
+    if (autoMatching) return;
     setAutoMatching(true);
-    let matched = 0;
-    // Snapshot: work on current arrays, don't reload
-    const txSnapshot = [...transactions];
-    const invSnapshot = [...invoices];
-    const matchedTxIds = new Set<string>();
-    const matchedInvIds = new Set<string>();
+    try {
+      let matched = 0;
+      // Snapshot: work on current arrays, don't reload
+      const txSnapshot = [...transactions];
+      const invSnapshot = [...invoices];
+      const matchedTxIds = new Set<string>();
+      const matchedInvIds = new Set<string>();
 
-    for (const tx of txSnapshot) {
-      if (matchedTxIds.has(tx.id)) continue;
-      const best = invSnapshot
-        .filter((inv) => !matchedInvIds.has(inv.id))
-        .map((inv) => computeMatchScore(tx, inv))
-        .filter((m): m is MatchSuggestion => m !== null && m.score >= 80)
-        .sort((a, b) => b.score - a.score)[0];
-      if (best) {
-        const ok = await confirmMatchBatch(tx, best.invoice);
-        if (ok) {
-          matched++;
-          matchedTxIds.add(tx.id);
-          matchedInvIds.add(best.invoice.id);
+      for (const tx of txSnapshot) {
+        if (matchedTxIds.has(tx.id)) continue;
+        const best = invSnapshot
+          .filter((inv) => !matchedInvIds.has(inv.id))
+          .map((inv) => computeMatchScore(tx, inv))
+          .filter((m): m is MatchSuggestion => m !== null && m.score >= 80)
+          .sort((a, b) => b.score - a.score)[0];
+        if (best) {
+          const ok = await confirmMatchBatch(tx, best.invoice);
+          if (ok) {
+            matched++;
+            matchedTxIds.add(tx.id);
+            matchedInvIds.add(best.invoice.id);
+          }
         }
       }
+      toast.success(`Auto-match completato: ${matched} riconciliazioni`);
+      await loadData(); // Single reload at end
+    } finally {
+      setAutoMatching(false);
     }
-    toast.success(`Auto-match completato: ${matched} riconciliazioni`);
-    setAutoMatching(false);
-    loadData(); // Single reload at end
   }
 
   // Fix 10: Sequential unlink with rollback
@@ -397,6 +412,11 @@ export default function BankReconciliation({ companyId }: Props) {
         "Stato": rec.unmatched_at ? `Scollegata (${format(new Date(rec.unmatched_at), "dd/MM/yyyy")})` : "Attiva",
       }));
 
+      if (rows.length === 0) {
+        toast.info("Nessuna riconciliazione da esportare");
+        return;
+      }
+
       const colWidths = [22, 10, 35, 14, 18, 16, 25, 14, 25, 16];
 
       if (fmt === "xlsx") {
@@ -440,8 +460,9 @@ export default function BankReconciliation({ companyId }: Props) {
       toast.success(`Report esportato in ${fmt.toUpperCase()}`);
     } catch (e: any) {
       toast.error("Errore esportazione: " + e.message);
+    } finally {
+      setExporting(false);
     }
-    setExporting(false);
   }
 
   if (loading) {
@@ -679,7 +700,7 @@ export default function BankReconciliation({ companyId }: Props) {
                   {suggestions.map((s) => (
                     <div
                       key={s.invoice.id}
-                      className="border rounded-lg p-3 hover:bg-accent/50 cursor-pointer transition-colors"
+                      className={`border rounded-lg p-3 transition-colors ${matching ? "cursor-not-allowed opacity-60" : "hover:bg-accent/50 cursor-pointer"}`}
                       onClick={() => confirmMatch(selectedTx, s.invoice, "manual")}
                     >
                       <div className="flex justify-between items-start">
@@ -710,7 +731,7 @@ export default function BankReconciliation({ companyId }: Props) {
                   {invoices.map((inv) => (
                     <div
                       key={inv.id}
-                      className="border rounded p-2 hover:bg-accent/50 cursor-pointer text-xs"
+                      className={`border rounded p-2 text-xs ${matching ? "cursor-not-allowed opacity-60" : "hover:bg-accent/50 cursor-pointer"}`}
                       onClick={() => confirmMatch(selectedTx, inv, "manual")}
                     >
                       <span className="font-medium">{inv.invoice_number}</span> — {inv.client_company_name} — {fmtEur(Number(inv.total) - Number(inv.paid_amount || 0))}

@@ -45,6 +45,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { normalizeTagList } from "@/lib/marketingTags";
 
 export default function MarketingOpportunities() {
   return (
@@ -267,7 +268,7 @@ function MarketingOpportunitiesContent() {
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
-    opportunities.forEach((o: any) => (o.tags || []).forEach((t: string) => tagSet.add(t)));
+    opportunities.forEach((o: any) => normalizeTagList(o.tags || []).forEach((tag) => tagSet.add(tag)));
     return Array.from(tagSet).sort();
   }, [opportunities]);
 
@@ -454,7 +455,7 @@ function MarketingOpportunitiesContent() {
                 if (cErr) throw cErr;
                 contactId = newContact!.id;
               }
-              const tags = r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [];
+              const tags = r.tags ? normalizeTagList(r.tags.split(",")) : [];
               const { data: oppData, error: oErr } = await supabase.from("marketing_opportunities").insert({
                 company_id: companyId, pipeline_id: selectedPipelineId, stage_id: defaultStageId,
                 contact_id: contactId!, name: r.name?.trim() || `Opportunità ${i + 1}`,

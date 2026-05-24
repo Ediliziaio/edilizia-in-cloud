@@ -121,6 +121,13 @@ verify_jwt = false
 [functions.public-lead-submit]
 verify_jwt = false
 
+# Form builder pubblico: embed su siti esterni, senza sessione utente EiC.
+[functions.form-render]
+verify_jwt = false
+
+[functions.form-submit]
+verify_jwt = false
+
 [functions.check-api-health]
 verify_jwt = false
 

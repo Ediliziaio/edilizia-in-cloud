@@ -22,6 +22,41 @@ function cleanText(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function cleanStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const item of value) {
+    const text = cleanText(item);
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(text);
+  }
+
+  return normalized;
+}
+
+function mergeStringLists(current: unknown, next: string[]): string[] {
+  return cleanStringList([...(Array.isArray(current) ? current : []), ...next]);
+}
+
+function isEmptySubmissionValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value.trim().length === 0;
+  if (Array.isArray(value)) return value.length === 0;
+  return false;
+}
+
+function safeRedirectUrl(value: unknown): string | null {
+  const url = cleanText(value);
+  if (!url) return null;
+  if (!/^https?:\/\//i.test(url)) return null;
+  return url;
+}
+
 function isMissingSchemaError(error: unknown): boolean {
   const message = String((error as any)?.message ?? (error as any)?.details ?? error ?? "").toLowerCase();
   return (
@@ -161,7 +196,7 @@ Deno.serve(async (req) => {
     const fields = (form.fields as any[]) || [];
     for (const field of fields) {
       const fieldKey = field.id || field.name;
-      if (field.required && !formData[fieldKey]) {
+      if (field.required && isEmptySubmissionValue(formData[fieldKey])) {
         return new Response(
           JSON.stringify({ error: `Campo obbligatorio: ${field.label || field.name}` }),
           { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
@@ -179,6 +214,8 @@ Deno.serve(async (req) => {
 
     const settings = (form.settings as any) || {};
     const theme = (form.theme as any) || {};
+    const assignedUserId = cleanText(settings.assignedUserId);
+    const defaultTags = cleanStringList(settings.defaultTags);
 
     // Build contact data from field mappings
     let mappedEmail: string | null = null;
@@ -221,11 +258,11 @@ Deno.serve(async (req) => {
     if (validEmail || phone) {
       const firstName = cleanText(mappedFirstName) || validEmail?.split("@")[0] || phone || "Lead";
 
-      let existing: { id: string } | null = null;
+      let existing: { id: string; tags?: string[] | null } | null = null;
       if (validEmail) {
         const { data } = await supabase
           .from("marketing_contacts")
-          .select("id")
+          .select("id, tags")
           .eq("company_id", form.company_id)
           .eq("email", validEmail)
           .maybeSingle();
@@ -235,7 +272,7 @@ Deno.serve(async (req) => {
       if (!existing && phone) {
         const { data } = await supabase
           .from("marketing_contacts")
-          .select("id")
+          .select("id, tags")
           .eq("company_id", form.company_id)
           .eq("phone", phone)
           .maybeSingle();
@@ -244,13 +281,17 @@ Deno.serve(async (req) => {
 
       if (existing) {
         contactId = existing.id;
+        const contactUpdate: Record<string, unknown> = {
+          last_activity_at: new Date().toISOString(),
+          ...(validEmail ? { email: validEmail } : {}),
+          ...(phone ? { phone } : {}),
+        };
+        if (assignedUserId) contactUpdate.assigned_to = assignedUserId;
+        if (defaultTags.length > 0) contactUpdate.tags = mergeStringLists(existing.tags, defaultTags);
+
         await supabase
           .from("marketing_contacts")
-          .update({
-            last_activity_at: new Date().toISOString(),
-            ...(validEmail ? { email: validEmail } : {}),
-            ...(phone ? { phone } : {}),
-          })
+          .update(contactUpdate)
           .eq("id", contactId);
       } else {
         const insertPayload: Record<string, any> = {
@@ -266,8 +307,8 @@ Deno.serve(async (req) => {
           attr_content: utm_content || null,
         };
 
-        if (settings.assignedUserId) insertPayload.assigned_to = settings.assignedUserId;
-        if (settings.defaultTags && Array.isArray(settings.defaultTags)) insertPayload.tags = settings.defaultTags;
+        if (assignedUserId) insertPayload.assigned_to = assignedUserId;
+        if (defaultTags.length > 0) insertPayload.tags = defaultTags;
 
         const { data: newContact } = await supabase
           .from("marketing_contacts")
@@ -329,18 +370,30 @@ Deno.serve(async (req) => {
     }
 
     // Create opportunity if pipeline configured
-    if (contactId && settings.pipelineId) {
+    const pipelineId = cleanText(settings.pipelineId);
+    if (contactId && pipelineId) {
       try {
         const formOpportunitySource = `form_${form_id}`;
         const configuredStageId = cleanText(settings.stageId) || cleanText(settings.stage_id) || cleanText(settings.pipelineStageId);
-        let stageId = configuredStageId;
+        let stageId: string | null = null;
+
+        if (configuredStageId) {
+          const { data: configuredStage } = await supabase
+            .from("marketing_pipeline_stages")
+            .select("id")
+            .eq("company_id", form.company_id)
+            .eq("pipeline_id", pipelineId)
+            .eq("id", configuredStageId)
+            .maybeSingle();
+          stageId = configuredStage?.id ?? null;
+        }
 
         if (!stageId) {
           const { data: firstStage } = await supabase
             .from("marketing_pipeline_stages")
             .select("id")
             .eq("company_id", form.company_id)
-            .eq("pipeline_id", settings.pipelineId)
+            .eq("pipeline_id", pipelineId)
             .order("position", { ascending: true })
             .limit(1)
             .maybeSingle();
@@ -370,13 +423,14 @@ Deno.serve(async (req) => {
             await supabase.from("marketing_opportunities").insert({
               company_id: form.company_id,
               contact_id: contactId,
-              pipeline_id: settings.pipelineId,
+              pipeline_id: pipelineId,
               stage_id: stageId,
               name: opportunityName,
               value: 0,
               status: "open",
               source: formOpportunitySource,
-              assigned_to: settings.assignedUserId || null,
+              assigned_to: assignedUserId || null,
+              ...(defaultTags.length > 0 ? { tags: defaultTags } : {}),
             });
           }
         }
@@ -396,7 +450,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const redirectUrl = settings.redirectUrl || null;
+    const redirectUrl = safeRedirectUrl(settings.redirectUrl);
     const successTitle = theme.success_title || settings.success_title || null;
     const successMessage = theme.success_message || settings.success_message || "Grazie! La tua richiesta è stata inviata.";
 

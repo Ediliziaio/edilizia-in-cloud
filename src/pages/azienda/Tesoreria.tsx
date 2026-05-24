@@ -19,6 +19,22 @@ import ExpenseReports from "@/components/tesoreria/ExpenseReports";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
+const TREASURY_TABS = new Set([
+  "overview",
+  "conti",
+  "transazioni",
+  "connessioni",
+  "riconciliazione",
+  "previsioni",
+  "note-spese",
+  "impostazioni",
+]);
+
+function getSafeTab(searchParams: URLSearchParams) {
+  const requested = searchParams.get("tab");
+  return requested && TREASURY_TABS.has(requested) ? requested : "overview";
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -27,13 +43,25 @@ function getErrorMessage(error: unknown) {
 
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [syncing, setSyncing] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => getSafeTab(searchParams));
+  const [refreshKey, setRefreshKey] = useState(0);
   const { isScopriPlan } = useSubscriptionLimits();
   const [hasConnections, setHasConnections] = useState<boolean | null>(null);
 
   const bankCallback = searchParams.get("bank_callback");
+
+  const handleTabChange = useCallback((value: string) => {
+    if (!TREASURY_TABS.has(value)) return;
+    setActiveTab(value);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value === "overview") next.delete("tab");
+      else next.set("tab", value);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const checkConnections = useCallback(async () => {
     if (!effectiveCompany?.id) {
@@ -44,7 +72,8 @@ export default function Tesoreria() {
     const { count, error } = await supabase
       .from("bank_connections")
       .select("id", { count: "exact", head: true })
-      .eq("company_id", effectiveCompany.id);
+      .eq("company_id", effectiveCompany.id)
+      .neq("status", "disconnected");
 
     if (error) {
       toast.error("Impossibile verificare le connessioni bancarie", { description: error.message });
@@ -54,6 +83,11 @@ export default function Tesoreria() {
 
     setHasConnections((count ?? 0) > 0);
   }, [effectiveCompany?.id]);
+
+  const handleConnectionChanged = useCallback(async () => {
+    await checkConnections();
+    setRefreshKey((value) => value + 1);
+  }, [checkConnections]);
 
   useEffect(() => {
     if (effectiveCompany?.id) {
@@ -66,11 +100,15 @@ export default function Tesoreria() {
   }, [effectiveCompany?.id, checkConnections]);
 
   useEffect(() => {
-    if (bankCallback === "1") {
-      setActiveTab("connessioni");
-      setHasConnections(true);
-    }
-  }, [bankCallback]);
+    const safeTab = getSafeTab(searchParams);
+    setActiveTab((current) => (current === safeTab ? current : safeTab));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (bankCallback !== "1") return;
+    handleTabChange("connessioni");
+    void handleConnectionChanged();
+  }, [bankCallback, handleConnectionChanged, handleTabChange]);
 
   async function handleSync() {
     if (!effectiveCompany?.id) {
@@ -95,6 +133,7 @@ export default function Tesoreria() {
       }
       if (data?.success) {
         toast.success(`Sincronizzati ${data.accounts_synced} conti, ${data.transactions_fetched} transazioni`);
+        await handleConnectionChanged();
       } else {
         toast.error("Sincronizzazione fallita");
       }
@@ -129,33 +168,40 @@ export default function Tesoreria() {
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-20 gap-5 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Landmark className="h-8 w-8 text-primary" />
+        {activeTab !== "connessioni" && (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-20 gap-5 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              <Landmark className="h-8 w-8 text-primary" />
+            </div>
+            <div className="space-y-2 max-w-md">
+              <h2 className="text-xl font-semibold">Collega il tuo conto bancario</h2>
+              <p className="text-muted-foreground text-sm">
+                Connetti il tuo conto tramite Open Banking (PSD2) per visualizzare saldi, transazioni e riconciliare automaticamente i movimenti.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground">
+              <Badge variant="outline">Open Banking · PSD2</Badge>
+              <Badge variant="outline">Sicuro e crittografato</Badge>
+              <Badge variant="outline">Aggiornamento automatico</Badge>
+            </div>
+            <Button onClick={() => handleTabChange("connessioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+              <Link className="h-4 w-4 mr-2" />
+              Collega primo conto
+            </Button>
           </div>
-          <div className="space-y-2 max-w-md">
-            <h2 className="text-xl font-semibold">Collega il tuo conto bancario</h2>
-            <p className="text-muted-foreground text-sm">
-              Connetti il tuo conto tramite Open Banking (PSD2) per visualizzare saldi, transazioni e riconciliare automaticamente i movimenti.
-            </p>
+        )}
+        {activeTab === "connessioni" && (
+          <div className="space-y-4">
+            <Button variant="ghost" size="sm" onClick={() => handleTabChange("overview")}>
+              Torna alla panoramica
+            </Button>
+            <BankConnectionsList
+              companyId={effectiveCompany?.id || ""}
+              hasPendingCallback={bankCallback === "1"}
+              onConnectionChanged={handleConnectionChanged}
+            />
           </div>
-          <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground">
-            <Badge variant="outline">Open Banking · PSD2</Badge>
-            <Badge variant="outline">Sicuro e crittografato</Badge>
-            <Badge variant="outline">Aggiornamento automatico</Badge>
-          </div>
-          <Button onClick={() => setActiveTab("connessioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-            <Link className="h-4 w-4 mr-2" />
-            Collega primo conto
-          </Button>
-        </div>
-        {/* Render connections tab hidden so the user can complete the flow */}
-        <div className={activeTab === "connessioni" ? "" : "hidden"}>
-          <BankConnectionsList
-            companyId={effectiveCompany?.id || ""}
-            hasPendingCallback={bankCallback === "1"}
-          />
-        </div>
+        )}
       </div>
     );
   }
@@ -175,17 +221,17 @@ export default function Tesoreria() {
               </p>
             </div>
           </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline" className="text-xs">Open Banking · PSD2</Badge>
-          <Button onClick={handleSync} disabled={syncing} size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-            {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Sincronizza
-          </Button>
-        </div>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="text-xs">Open Banking · PSD2</Badge>
+            <Button onClick={handleSync} disabled={syncing} size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+              {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Sincronizza
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <TabsTrigger value="overview" className="gap-2">
             <LayoutDashboard className="h-4 w-4" /> Overview
@@ -214,28 +260,29 @@ export default function Tesoreria() {
         </TabsList>
 
         <TabsContent value="overview">
-          <TreasuryOverview companyId={effectiveCompany?.id || ""} onNavigateToTransactions={() => setActiveTab("transazioni")} />
+          <TreasuryOverview companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} onNavigateToTransactions={() => handleTabChange("transazioni")} />
         </TabsContent>
         <TabsContent value="conti">
-          <BankAccountsList companyId={effectiveCompany?.id || ""} />
+          <BankAccountsList companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="transazioni">
-          <TransactionsFeed companyId={effectiveCompany?.id || ""} />
+          <TransactionsFeed companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="connessioni">
           <BankConnectionsList
             companyId={effectiveCompany?.id || ""}
             hasPendingCallback={bankCallback === "1"}
+            onConnectionChanged={handleConnectionChanged}
           />
         </TabsContent>
         <TabsContent value="riconciliazione">
-          <BankReconciliation companyId={effectiveCompany?.id || ""} />
+          <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="previsioni">
-          <CashFlowForecast companyId={effectiveCompany?.id || ""} />
+          <CashFlowForecast companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="note-spese">
-          <ExpenseReports companyId={effectiveCompany?.id || ""} />
+          <ExpenseReports companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="impostazioni">
           <div className="space-y-8">

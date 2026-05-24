@@ -14,8 +14,15 @@ import { useState, useRef, useEffect } from "react";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
 import { useBranding } from "@/hooks/useBranding";
 import { useWhitelabelGate } from "@/hooks/useWhitelabelGate";
-import { useSaveSubdomain, useRequestDomainVerification, useVerifyCustomDomain } from "@/hooks/useBrandingByDomain";
+import {
+  isValidCustomDomain,
+  normalizeCustomDomainInput,
+  useSaveSubdomain,
+  useRequestDomainVerification,
+  useVerifyCustomDomain,
+} from "@/hooks/useBrandingByDomain";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -48,6 +55,18 @@ const isValidSubdomain = (v: string): boolean => {
   if (v.length < 3 || v.length > 63) return false;
   return SUBDOMAIN_REGEX.test(v);
 };
+
+const buildLoginBackgroundValue = (url: string): string =>
+  `url("${url.replace(/"/g, "%22")}") center / cover no-repeat`;
+
+async function copyText(value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    toast.success("Copiato");
+  } catch {
+    toast.error("Non riesco a copiare automaticamente");
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    COMPONENTS
@@ -88,11 +107,13 @@ function FileUploadButton({
 ═══════════════════════════════════════════════════════════════════════════ */
 export default function SettingsBranding() {
   const { effectiveCompany, user, refreshAuth } = useAuth();
+  const permissions = usePermissions();
   const { brand, saveBrand, uploadBrandFile, isLoading } = useBrandSettings();
   const { branding: companyBranding } = useBranding();
   const wlGate = useWhitelabelGate();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const canEdit = permissions.isAdmin;
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [subdomain, setSubdomain] = useState("");
@@ -142,6 +163,10 @@ export default function SettingsBranding() {
   };
 
   const handleSave = async () => {
+    if (!canEdit) {
+      toast.error("Non hai i permessi per modificare il branding");
+      return;
+    }
     // Validazione hex non più necessaria: la palette colori è disabilitata
     // (i campi brand_*_color sono salvati ma non editabili dalla UI).
     setSaving(true);
@@ -160,6 +185,12 @@ export default function SettingsBranding() {
               accent_color: form.brand_accent_color,
               platform_name: form.brand_platform_name || null,
               hide_platform_branding: form.brand_hide_powered_by,
+              logo_url: effectiveCompany?.logo_url || null,
+              favicon_url: brand?.brand_favicon_url || null,
+              login_bg_color: brand?.brand_login_bg_url
+                ? buildLoginBackgroundValue(brand.brand_login_bg_url)
+                : companyBranding?.login_bg_color || null,
+              is_active: true,
               updated_at: new Date().toISOString(),
             } as never,
             { onConflict: "company_id" } as never,
@@ -185,6 +216,8 @@ export default function SettingsBranding() {
             if (r.error) console.warn("Audit log skipped:", r.error.message);
           });
       }
+      queryClient.invalidateQueries({ queryKey: ["company-branding"] });
+      queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
       toast.success("Brand aggiornato con successo");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
@@ -195,6 +228,10 @@ export default function SettingsBranding() {
   };
 
   const handleFileUpload = async (file: File, field: string, path: string) => {
+    if (!canEdit) {
+      toast.error("Non hai i permessi per modificare il branding");
+      return;
+    }
     const MAX_BYTES = 2 * 1024 * 1024;
     if (file.size > MAX_BYTES) {
       toast.error("File troppo grande (max 2 MB)");
@@ -204,8 +241,28 @@ export default function SettingsBranding() {
     try {
       const url = await uploadBrandFile(file, path);
       await saveBrand.mutateAsync({ [field]: url } as Partial<typeof brand>);
+      if (companyId) {
+        const companyBrandingPatch: Record<string, unknown> = {
+          company_id: companyId,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        };
+        if (field === "brand_favicon_url") {
+          companyBrandingPatch.favicon_url = url;
+        }
+        if (field === "brand_login_bg_url") {
+          companyBrandingPatch.login_bg_color = buildLoginBackgroundValue(url);
+        }
+        await supabase
+          .from("company_branding" as never)
+          .upsert(companyBrandingPatch as never, { onConflict: "company_id" } as never)
+          .then((r) => {
+            if (r.error) console.warn("Sync company_branding skipped:", r.error.message);
+          });
+      }
       queryClient.invalidateQueries({ queryKey: ["effective-company"] });
       queryClient.invalidateQueries({ queryKey: ["company-branding"] });
+      queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
       toast.success("File caricato con successo");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
@@ -216,6 +273,10 @@ export default function SettingsBranding() {
   };
 
   const handleSaveSubdomain = async () => {
+    if (!canEdit) {
+      toast.error("Non hai i permessi per modificare il branding");
+      return;
+    }
     // Se l'utente sta SVUOTANDO un subdomain esistente → chiede conferma
     if (!subdomain && companyBranding?.subdomain) {
       setConfirmRemoveSub(true);
@@ -231,6 +292,10 @@ export default function SettingsBranding() {
   };
 
   const confirmRemoveSubdomain = async () => {
+    if (!canEdit) {
+      toast.error("Non hai i permessi per modificare il branding");
+      return;
+    }
     setConfirmRemoveSub(false);
     try {
       await saveSubdomainMut.mutateAsync("");
@@ -256,12 +321,22 @@ export default function SettingsBranding() {
   const canLoginPage = !wlGate.isWhiteLabel || wlGate.canChangeLoginPage !== false;
   const canCustomDomain = !wlGate.isWhiteLabel || wlGate.canCustomDomain !== false;
   const canHidePoweredBy = !wlGate.isWhiteLabel || wlGate.canHidePoweredBy !== false;
+  const normalizedCustomDomain = normalizeCustomDomainInput(customDomain);
+  const customDomainInvalid = customDomain.length > 0 && !isValidCustomDomain(customDomain);
 
   return (
     <div className="space-y-6 max-w-7xl">
       <p className="text-muted-foreground">
         Personalizza colori, logo, dominio e l'aspetto della piattaforma per la tua azienda.
       </p>
+      {!canEdit && (
+        <Alert>
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            Puoi visualizzare il white-label, ma non modificarlo. Serve un account amministratore aziendale.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Logo — gestito dal componente condiviso (stesso usato in Profilo aziendale).
           Il logo è UNIVOCO: companies.logo_url → mostrato in sidebar, navbar,
@@ -279,10 +354,28 @@ export default function SettingsBranding() {
         <CardContent>
           <LogoUploader
             company={effectiveCompany}
-            onLogoUpdated={async () => {
+            disabled={!canEdit}
+            onLogoUpdated={async (logoUrl) => {
+              if (companyId) {
+                await supabase
+                  .from("company_branding" as never)
+                  .upsert(
+                    {
+                      company_id: companyId,
+                      logo_url: logoUrl ?? null,
+                      is_active: true,
+                      updated_at: new Date().toISOString(),
+                    } as never,
+                    { onConflict: "company_id" } as never,
+                  )
+                  .then((r) => {
+                    if (r.error) console.warn("Sync company_branding logo skipped:", r.error.message);
+                  });
+              }
               // Invalida tutte le query che leggono il logo per propagazione istantanea
               queryClient.invalidateQueries({ queryKey: ["effective-company"] });
               queryClient.invalidateQueries({ queryKey: ["company-branding"] });
+              queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
               queryClient.invalidateQueries({ queryKey: ["branding-settings"] });
               // Refresh AuthContext per aggiornare effectiveCompany live
               await refreshAuth();
@@ -342,6 +435,7 @@ export default function SettingsBranding() {
                     onChange={(e) => setForm((f) => ({ ...f, brand_platform_name: e.target.value }))}
                     placeholder="EdiliziaInCloud"
                     maxLength={50}
+                    disabled={!canEdit}
                   />
                 </CardContent>
               </Card>
@@ -397,6 +491,7 @@ export default function SettingsBranding() {
                       isUploading={uploading === "brand_favicon_url"}
                       onUpload={(f) => handleFileUpload(f, "brand_favicon_url", "favicon")}
                       accept="image/png,image/x-icon,image/svg+xml"
+                      disabled={!canEdit}
                     />
                   </CardContent>
                 </Card>
@@ -418,7 +513,7 @@ export default function SettingsBranding() {
                       label="Carica sfondo"
                       isUploading={uploading === "brand_login_bg_url"}
                       onUpload={(f) => handleFileUpload(f, "brand_login_bg_url", "login-bg")}
-                      disabled={!canLoginPage}
+                      disabled={!canEdit || !canLoginPage}
                     />
                     {!canLoginPage && (
                       <p className="text-[10px] text-amber-600">Non incluso nel tuo tier</p>
@@ -445,7 +540,7 @@ export default function SettingsBranding() {
                       id="bnd-hide-pby"
                       checked={form.brand_hide_powered_by}
                       onCheckedChange={(v) => setForm((f) => ({ ...f, brand_hide_powered_by: v }))}
-                      disabled={!canHidePoweredBy}
+                      disabled={!canEdit || !canHidePoweredBy}
                     />
                   </div>
                 </CardContent>
@@ -473,6 +568,7 @@ export default function SettingsBranding() {
                         maxLength={63}
                         aria-invalid={subdomain.length > 0 && !isValidSubdomain(subdomain)}
                         className={`max-w-48 ${subdomain.length > 0 && !isValidSubdomain(subdomain) ? "border-destructive" : ""}`}
+                        disabled={!canEdit}
                       />
                       <span className="text-sm text-muted-foreground">.ediliziaincloud.com</span>
                     </div>
@@ -486,6 +582,7 @@ export default function SettingsBranding() {
                   <Button
                     size="sm"
                     disabled={
+                      !canEdit ||
                       saveSubdomainMut.isPending ||
                       (subdomain.length > 0 && !isValidSubdomain(subdomain)) ||
                       subdomain === (companyBranding?.subdomain || "")
@@ -534,15 +631,17 @@ export default function SettingsBranding() {
                             value={customDomain}
                             onChange={(e) => setCustomDomain(e.target.value.toLowerCase().trim())}
                             placeholder="crm.tuaazienda.it"
-                            className="max-w-64"
-                            disabled={!canCustomDomain}
+                            aria-invalid={customDomainInvalid}
+                            className={`max-w-64 ${customDomainInvalid ? "border-destructive" : ""}`}
+                            disabled={!canEdit || !canCustomDomain}
                           />
                           <Button
                             size="sm"
-                            disabled={requestVerifMut.isPending || !customDomain || !canCustomDomain}
+                            disabled={requestVerifMut.isPending || !customDomain || customDomainInvalid || !canEdit || !canCustomDomain}
                             onClick={async () => {
                               try {
-                                await requestVerifMut.mutateAsync(customDomain);
+                                await requestVerifMut.mutateAsync(normalizedCustomDomain);
+                                setCustomDomain(normalizedCustomDomain);
                                 toast.success("Configurazione avviata — segui le istruzioni DNS");
                               } catch (err) {
                                 const msg = err instanceof Error ? err.message : "Errore";
@@ -553,6 +652,15 @@ export default function SettingsBranding() {
                             {requestVerifMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Configura"}
                           </Button>
                         </div>
+                        {customDomainInvalid ? (
+                          <p className="text-xs text-destructive">
+                            Inserisci un dominio valido, esterno alla piattaforma, per esempio crm.tuaazienda.it.
+                          </p>
+                        ) : customDomain && normalizedCustomDomain !== customDomain ? (
+                          <p className="text-xs text-muted-foreground">
+                            Verrà salvato come <strong>{normalizedCustomDomain}</strong>.
+                          </p>
+                        ) : null}
                       </div>
 
                       {(companyBranding as { custom_domain_cname?: string; custom_domain_verified?: boolean } | null)?.custom_domain_cname &&
@@ -570,7 +678,7 @@ export default function SettingsBranding() {
                                 <code className="bg-muted px-2 py-0.5 rounded text-xs break-all">{customDomain}</code>
                                 <Button
                                   variant="ghost" size="icon" aria-label="Copia nome CNAME" className="h-6 w-6"
-                                  onClick={() => { navigator.clipboard.writeText(customDomain); toast.success("Copiato"); }}
+                                  onClick={() => copyText(customDomain)}
                                 >
                                   <Copy className="h-3 w-3" />
                                 </Button>
@@ -584,8 +692,7 @@ export default function SettingsBranding() {
                                   variant="ghost" size="icon" aria-label="Copia valore CNAME" className="h-6 w-6"
                                   onClick={() => {
                                     const v = (companyBranding as { custom_domain_cname?: string }).custom_domain_cname || "";
-                                    navigator.clipboard.writeText(v);
-                                    toast.success("Copiato");
+                                    copyText(v);
                                   }}
                                 >
                                   <Copy className="h-3 w-3" />
@@ -597,7 +704,7 @@ export default function SettingsBranding() {
                             </p>
                             <Button
                               size="sm" variant="outline"
-                              disabled={verifyMut.isPending}
+                              disabled={!canEdit || verifyMut.isPending}
                               onClick={async () => {
                                 try {
                                   const result = await verifyMut.mutateAsync();
@@ -632,10 +739,10 @@ export default function SettingsBranding() {
             {isDirty && (
               <span className="text-xs text-amber-600 mr-auto">• Modifiche non salvate</span>
             )}
-            <Button variant="outline" onClick={resetForm} disabled={!isDirty || saving}>
+            <Button variant="outline" onClick={resetForm} disabled={!canEdit || !isDirty || saving}>
               Annulla modifiche
             </Button>
-            <Button onClick={handleSave} disabled={!isDirty || saving} size="lg">
+            <Button onClick={handleSave} disabled={!canEdit || !isDirty || saving} size="lg">
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Palette className="h-4 w-4 mr-2" />}
               Salva brand
             </Button>

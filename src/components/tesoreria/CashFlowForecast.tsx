@@ -2,35 +2,50 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Wallet, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
 
-const formatEur = (val: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(val);
+const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
 interface Props {
   companyId: string;
+  refreshKey?: number;
 }
 
-export default function CashFlowForecast({ companyId }: Props) {
+export default function CashFlowForecast({ companyId, refreshKey = 0 }: Props) {
   const [forecast, setForecast] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (companyId) loadForecast();
-  }, [companyId]);
+    if (companyId) void loadForecast();
+    else {
+      setForecast(null);
+      setLoading(false);
+    }
+  }, [companyId, refreshKey]);
 
   async function loadForecast() {
     setLoading(true);
-    const { data, error } = await supabase.rpc("get_cash_flow_forecast", {
-      p_company_id: companyId,
-      p_days: 90,
-    });
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase.rpc("get_cash_flow_forecast", {
+        p_company_id: companyId,
+        p_days: 90,
+      });
 
-    if (!error && data && data.length > 0) {
-      setForecast(data[0]);
+      if (error) throw error;
+      setForecast(data && data.length > 0 ? data[0] : null);
+    } catch (e: any) {
+      setForecast(null);
+      setLoadError(e.message || "Impossibile caricare le previsioni");
+      toast.error("Errore caricamento previsioni di tesoreria");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   if (loading) {
@@ -48,14 +63,15 @@ export default function CashFlowForecast({ companyId }: Props) {
   if (!forecast) {
     return (
       <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          Collega una banca per vedere le previsioni di cash flow
+        <CardContent className="py-12 text-center text-muted-foreground space-y-3">
+          <p>{loadError || "Collega una banca per vedere le previsioni di cash flow"}</p>
+          {loadError && <Button variant="outline" size="sm" onClick={() => loadForecast()}>Riprova</Button>}
         </CardContent>
       </Card>
     );
   }
 
-  const isPositive = forecast.forecasted_balance >= 0;
+  const isPositive = toFiniteAmount(forecast.forecasted_balance) >= 0;
 
   return (
     <div className="space-y-4">

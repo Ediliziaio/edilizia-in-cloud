@@ -1,11 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
+import { areTagListsExactlyEqual, normalizeTagList, normalizeTagName } from "@/lib/marketingTags";
 
 /**
  * Merge opportunity tags into the linked contact's tags.
  * New tags are added; existing tags are preserved.
  */
 export async function syncTagsToContact(contactId: string, newTags: string[], companyId?: string) {
-  if (!contactId || newTags.length === 0) return;
+  const incomingTags = normalizeTagList(newTags);
+  if (!contactId || incomingTags.length === 0) return;
 
   let query = supabase
     .from("marketing_contacts")
@@ -17,9 +19,9 @@ export async function syncTagsToContact(contactId: string, newTags: string[], co
   if (fetchError) throw fetchError;
   if (!contact) return;
 
-  const merged = [...new Set([...(contact.tags || []), ...newTags])];
+  const merged = normalizeTagList([...(contact.tags || []), ...incomingTags]);
 
-  if (merged.length !== (contact.tags || []).length) {
+  if (!areTagListsExactlyEqual(contact.tags || [], merged)) {
     let updateQuery = supabase
       .from("marketing_contacts")
       .update({ tags: merged, updated_at: new Date().toISOString() })
@@ -35,7 +37,8 @@ export async function syncTagsToContact(contactId: string, newTags: string[], co
  * Merges the contact's tags into each opportunity.
  */
 export async function syncTagsToOpportunities(contactId: string, newTags: string[], companyId?: string) {
-  if (!contactId) return;
+  const incomingTags = normalizeTagList(newTags);
+  if (!contactId || incomingTags.length === 0) return;
 
   let query = supabase
     .from("marketing_opportunities")
@@ -49,8 +52,8 @@ export async function syncTagsToOpportunities(contactId: string, newTags: string
 
   const updates = opps
     .map((opp) => {
-      const merged = [...new Set([...(opp.tags || []), ...newTags])];
-      if (merged.length !== (opp.tags || []).length) {
+      const merged = normalizeTagList([...(opp.tags || []), ...incomingTags]);
+      if (!areTagListsExactlyEqual(opp.tags || [], merged)) {
         let updateQuery = supabase
           .from("marketing_opportunities")
           .update({ tags: merged, updated_at: new Date().toISOString() })
@@ -69,7 +72,8 @@ export async function syncTagsToOpportunities(contactId: string, newTags: string
  * When a tag is removed from an opportunity, remove it from the linked contact too.
  */
 export async function removeTagFromContact(contactId: string, removedTag: string, companyId?: string) {
-  if (!contactId || !removedTag) return;
+  const normalizedRemovedTag = normalizeTagName(removedTag);
+  if (!contactId || !normalizedRemovedTag) return;
 
   let query = supabase
     .from("marketing_contacts")
@@ -81,8 +85,8 @@ export async function removeTagFromContact(contactId: string, removedTag: string
   if (fetchError) throw fetchError;
   if (!contact) return;
 
-  if ((contact.tags || []).includes(removedTag)) {
-    const filtered = (contact.tags || []).filter((t: string) => t !== removedTag);
+  if (normalizeTagList(contact.tags || []).includes(normalizedRemovedTag)) {
+    const filtered = normalizeTagList(contact.tags || []).filter((tag) => tag !== normalizedRemovedTag);
     let updateQuery = supabase
       .from("marketing_contacts")
       .update({ tags: filtered, updated_at: new Date().toISOString() })
@@ -97,7 +101,8 @@ export async function removeTagFromContact(contactId: string, removedTag: string
  * When a tag is removed from a contact, remove it from all linked opportunities too.
  */
 export async function removeTagFromOpportunities(contactId: string, removedTag: string, companyId?: string) {
-  if (!contactId || !removedTag) return;
+  const normalizedRemovedTag = normalizeTagName(removedTag);
+  if (!contactId || !normalizedRemovedTag) return;
 
   let query = supabase
     .from("marketing_opportunities")
@@ -111,8 +116,9 @@ export async function removeTagFromOpportunities(contactId: string, removedTag: 
 
   const updates = opps
     .map((opp) => {
-      if ((opp.tags || []).includes(removedTag)) {
-        const filtered = (opp.tags || []).filter((t: string) => t !== removedTag);
+      const currentTags = normalizeTagList(opp.tags || []);
+      if (currentTags.includes(normalizedRemovedTag)) {
+        const filtered = currentTags.filter((tag) => tag !== normalizedRemovedTag);
         let updateQuery = supabase
           .from("marketing_opportunities")
           .update({ tags: filtered, updated_at: new Date().toISOString() })

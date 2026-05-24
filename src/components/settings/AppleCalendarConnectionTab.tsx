@@ -49,6 +49,24 @@ type AppleCalendar = {
   ctag: string;
 };
 
+const CONNECTION_TIMEOUT_MS = 8_000;
+
+function withConnectionTimeout<T>(promise: PromiseLike<T>, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(`${label}: controllo collegamento troppo lento.`)), CONNECTION_TIMEOUT_MS);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 export default function AppleCalendarConnectionTab() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -68,19 +86,24 @@ export default function AppleCalendarConnectionTab() {
   };
 
   // Connection status
-  const { data: connection, isLoading: loadingConn } = useQuery({
+  const { data: connection, isLoading: loadingConn, isError: connectionError, error: connectionLoadError, refetch: refetchConnection, isFetching: connectionFetching } = useQuery({
     queryKey: ["apple-calendar-connection", companyId, userId],
     queryFn: async () => {
       if (!companyId || !userId) return null;
-      const { data } = await supabase
-        .from("apple_calendar_connections")
-        .select("*")
-        .eq("company_id", companyId)
-        .eq("user_id", userId)
-        .maybeSingle();
+      const { data, error } = await withConnectionTimeout(
+        supabase
+          .from("apple_calendar_connections")
+          .select("*")
+          .eq("company_id", companyId)
+          .eq("user_id", userId)
+          .maybeSingle(),
+        "Apple Calendar",
+      );
+      if (error) throw error;
       return data;
     },
     enabled: !!companyId && !!userId,
+    retry: false,
   });
 
   // Settings
@@ -215,10 +238,37 @@ export default function AppleCalendarConnectionTab() {
 
   if (loadingConn) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-32" />
-        <Skeleton className="h-48" />
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Apple Calendar (iCloud)</CardTitle>
+          <CardDescription>Controllo lo stato del collegamento Apple Calendar...</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (connectionError) {
+    return (
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle>Apple Calendar (iCloud)</CardTitle>
+          <CardDescription>Non riesco a controllare Apple Calendar in questo momento.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2 rounded-lg bg-destructive/5 p-3 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{connectionLoadError instanceof Error ? connectionLoadError.message : "Controllo collegamento non riuscito."}</span>
+          </div>
+          <Button variant="outline" onClick={() => refetchConnection()} disabled={connectionFetching}>
+            {connectionFetching ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Riprova
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 

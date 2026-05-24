@@ -99,6 +99,23 @@ function getString(value: unknown): string {
   return value == null ? "" : String(value);
 }
 
+function normalizeTag(value: unknown): string {
+  return getString(value).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function normalizeTags(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const value of values) {
+    const tag = normalizeTag(value);
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    normalized.push(tag);
+  }
+  return normalized;
+}
+
 function getNestedContact(opportunity: Record<string, unknown>): Record<string, unknown> {
   const contact = opportunity.marketing_contacts;
   return contact && typeof contact === "object" ? contact as Record<string, unknown> : {};
@@ -127,7 +144,7 @@ export function filterAndSortOpportunities<TOpportunity extends Record<string, u
 }: FilterAndSortOpportunitiesInput<TOpportunity>): TOpportunity[] {
   const searchTokens = sanitizeOpportunitySearchTerm(searchQuery).toLowerCase().split(" ").filter(Boolean);
   const statuses = Array.isArray(filters.statuses) ? filters.statuses.filter(Boolean) : [];
-  const tags = Array.isArray(filters.tags) ? filters.tags.filter(Boolean) : [];
+  const tags = normalizeTags(filters.tags);
   const source = sanitizeOpportunitySearchTerm(filters.source).toLowerCase();
   const valueMin = normalizeNumericFilter(filters.valueMin);
   const valueMax = normalizeNumericFilter(filters.valueMax);
@@ -184,7 +201,7 @@ export function filterAndSortOpportunities<TOpportunity extends Record<string, u
   }
   if (tags.length > 0) {
     result = result.filter((opportunity) => {
-      const opportunityTags = Array.isArray(opportunity.tags) ? opportunity.tags : [];
+      const opportunityTags = normalizeTags(opportunity.tags);
       return tags.some((tag) => opportunityTags.includes(tag));
     });
   }

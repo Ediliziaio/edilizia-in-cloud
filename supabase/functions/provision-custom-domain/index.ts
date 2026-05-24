@@ -117,15 +117,22 @@ Deno.serve(async (req) => {
     const cnameTarget = `${cfProjectName}.pages.dev`;
 
     // Aggiorna company_branding
-    await supabase
+    const { error: updateErr } = await supabase
       .from("company_branding")
       .update({
         custom_domain: domain,
         custom_domain_cname: cnameTarget,
         custom_domain_verified: false,
+        custom_domain_verified_at: null,
+        is_active: true,
         updated_at: new Date().toISOString(),
       })
       .eq("company_id", company_id);
+
+    if (updateErr) {
+      console.error("company_branding domain update failed:", updateErr);
+      return errorResponse("Non sono riuscito a salvare il dominio. Riprova.", 500);
+    }
 
     // Audit log
     await supabase.from("whitelabel_audit_log").insert({

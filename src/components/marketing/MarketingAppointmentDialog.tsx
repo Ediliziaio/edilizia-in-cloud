@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription as AlertDialogDesc, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle as AlertDialogTitleComp } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,17 +12,25 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2, ChevronsUpDown, Check, AlertCircle } from "lucide-react";
-import { format } from "date-fns";
+import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2, ChevronsUpDown, Check, AlertCircle, Sparkles, ListChecks } from "lucide-react";
+import { addDays, format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AddressAutocomplete, { type AddressData, emptyAddress } from "@/components/shared/AddressAutocomplete";
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
 import CalendarSuggestions, { type CalendarSuggestion } from "./CalendarSuggestions";
+import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
+import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
+import { queryKeys } from "@/lib/queryKeys";
+import {
+  MARKETING_APPOINTMENT_STATUS_OPTIONS,
+  getMarketingAppointmentStatusMeta,
+  getMarketingFollowUpSuggestion,
+} from "@/lib/marketingAppointmentStatus";
 
 interface CalendarOption {
   id: string;
@@ -79,6 +89,9 @@ interface Props {
 
 import { addMinutesToTimeStr as addMinutesToTime, timeToMin } from "@/lib/marketingCalendarConstants";
 
+const formatEuro = (value: number | null | undefined) =>
+  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value || 0);
+
 export default function MarketingAppointmentDialog({
   open,
   onOpenChange,
@@ -93,6 +106,9 @@ export default function MarketingAppointmentDialog({
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const isEditing = !!appointment?.id;
+  const googleSync = useGoogleCalendarSync();
+  const appleSync = useAppleCalendarSync();
+  const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<"appointment" | "blocked">("appointment");
   const [title, setTitle] = useState("");
@@ -111,6 +127,10 @@ export default function MarketingAppointmentDialog({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
+  const [createFollowUp, setCreateFollowUp] = useState(false);
+  const [followUpTitle, setFollowUpTitle] = useState("");
+  const [followUpDueDate, setFollowUpDueDate] = useState("");
+  const [followUpPriority, setFollowUpPriority] = useState<"bassa" | "normale" | "alta">("normale");
 
   // Auto-select single calendar
   const defaultCalendarId = useMemo(() => {
@@ -144,6 +164,10 @@ export default function MarketingAppointmentDialog({
       setStatus(appointment.status || "confermato");
       setInternalNotes(appointment.internal_notes || "");
       setShowInternalNotes(!!appointment.internal_notes);
+      setCreateFollowUp(false);
+      setFollowUpTitle("");
+      setFollowUpDueDate("");
+      setFollowUpPriority("normale");
       setAddressData({
         address_line: appointment.address_line || "",
         address_city: appointment.address_city || "",
@@ -170,6 +194,10 @@ export default function MarketingAppointmentDialog({
       setStatus("confermato");
       setInternalNotes("");
       setShowInternalNotes(false);
+      setCreateFollowUp(false);
+      setFollowUpTitle("");
+      setFollowUpDueDate("");
+      setFollowUpPriority("normale");
       setAddressData(emptyAddress);
     }
   }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId]);
@@ -191,7 +219,7 @@ export default function MarketingAppointmentDialog({
       if (!companyId) return [];
       const { data } = await supabase
         .from("marketing_contacts")
-        .select("id, first_name, last_name, email")
+        .select("id, first_name, last_name, email, phone, source, attr_source, attr_medium, attr_campaign, ai_score, ai_score_tier, ai_predicted_value_eur, ai_next_action, lead_score, score, preferred_channel, stato, tags")
         .eq("company_id", companyId)
         .order("last_name")
         .limit(10000);
@@ -203,6 +231,28 @@ export default function MarketingAppointmentDialog({
   const selectedContact = useMemo(() => {
     return contacts.find((c) => c.id === contactId) || null;
   }, [contacts, contactId]);
+
+  const { data: contactOpportunities = [] } = useQuery({
+    queryKey: ["mkt-apt-contact-opportunities", companyId, contactId],
+    queryFn: async () => {
+      if (!companyId || !contactId || contactId === "none") return [];
+      const { data, error } = await supabase
+        .from("marketing_opportunities")
+        .select("id, name, status, value, probability, next_action, next_action_date, expected_close_date, source, updated_at")
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .is("deleted_at", null)
+        .order("updated_at", { ascending: false })
+        .limit(3);
+      if (error) return [];
+      return data || [];
+    },
+    enabled: open && !!companyId && !!contactId && contactId !== "none",
+    staleTime: 60 * 1000,
+  });
+
+  const selectedOpportunity = useMemo(() => contactOpportunities[0] || null, [contactOpportunities]);
+  const selectedStatusMeta = useMemo(() => getMarketingAppointmentStatusMeta(status), [status]);
 
   // Distance from calendar base
   const { data: baseDistance } = useQuery({
@@ -329,6 +379,110 @@ export default function MarketingAppointmentDialog({
     }
   }, [calendars]);
 
+  const handleStatusSelect = useCallback((nextStatus: string) => {
+    setStatus(nextStatus);
+    const suggestion = getMarketingFollowUpSuggestion(nextStatus);
+    if (!suggestion) return;
+
+    const subject = title.trim() ? `: ${title.trim()}` : "";
+    setCreateFollowUp(true);
+    setFollowUpTitle(`${suggestion.title}${subject}`);
+    setFollowUpDueDate(format(addDays(new Date(), suggestion.dueInDays), "yyyy-MM-dd"));
+    setFollowUpPriority(suggestion.priority);
+  }, [title]);
+
+  const createFollowUpTask = useCallback(async (appointmentId: string) => {
+    if (!companyId || !user || !appointmentDate || activeTab === "blocked") return;
+
+    const contactName = selectedContact
+      ? `${selectedContact.first_name} ${selectedContact.last_name || ""}`.trim()
+      : "";
+    const appointmentDay = format(appointmentDate, "dd/MM/yyyy", { locale: it });
+    const statusMeta = getMarketingAppointmentStatusMeta(status);
+    const notes = [
+      "Task generata dal calendario marketing.",
+      `Appuntamento: ${title.trim()}`,
+      `Data: ${appointmentDay} ${startTime}-${endTime}`,
+      `Esito: ${statusMeta.label}`,
+      contactName ? `Contatto: ${contactName}` : null,
+      selectedOpportunity ? `Opportunita: ${selectedOpportunity.name}` : null,
+      `ID appuntamento: ${appointmentId}`,
+    ].filter(Boolean).join("\n");
+
+    const { error } = await supabase.from("tasks").insert({
+      company_id: companyId,
+      title: followUpTitle.trim() || `Follow-up: ${title.trim()}`,
+      notes,
+      status: "da_fare",
+      priority: followUpPriority,
+      due_date: followUpDueDate || null,
+      assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : user.id,
+      contact_id: contactId && contactId !== "none" ? contactId : null,
+      opportunity_id: selectedOpportunity?.id || null,
+      created_by: user.id,
+      category: "commerciale",
+    });
+    if (error) throw error;
+
+    await Promise.allSettled([
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.list(companyId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.marketing(companyId) }),
+    ]);
+  }, [
+    activeTab,
+    appointmentDate,
+    assignedTo,
+    companyId,
+    contactId,
+    endTime,
+    followUpDueDate,
+    followUpPriority,
+    followUpTitle,
+    queryClient,
+    selectedContact,
+    selectedOpportunity,
+    startTime,
+    status,
+    title,
+    user,
+  ]);
+
+  const syncSavedAppointment = useCallback(async (appointmentId: string, mode: "create" | "update") => {
+    const tasks: Promise<unknown>[] = [];
+
+    if (googleSync.hasGoogleConnection) {
+      tasks.push((async () => {
+        const mapping = mode === "update" ? await googleSync.checkMapping(appointmentId) : null;
+        if (mapping) return googleSync.updateEvent(appointmentId);
+        if (googleSync.isGoogleConnected) return googleSync.pushEvent(appointmentId);
+        return undefined;
+      })());
+    }
+
+    if (appleSync.hasAppleConnection) {
+      tasks.push((async () => {
+        const mapping = mode === "update" ? await appleSync.checkMapping(appointmentId) : null;
+        if (mapping) return appleSync.updateEvent(appointmentId);
+        if (appleSync.isAppleConnected) return appleSync.pushEvent(appointmentId);
+        return undefined;
+      })());
+    }
+
+    if (tasks.length > 0) {
+      await Promise.allSettled(tasks);
+    }
+  }, [appleSync, googleSync]);
+
+  const syncDeletedAppointment = useCallback(async (appointmentId: string) => {
+    const tasks: Promise<unknown>[] = [];
+    if (googleSync.hasGoogleConnection) tasks.push(googleSync.deleteEvent(appointmentId));
+    if (appleSync.hasAppleConnection) tasks.push(appleSync.deleteEvent(appointmentId));
+    if (tasks.length > 0) {
+      await Promise.allSettled(tasks);
+    }
+  }, [appleSync, googleSync]);
+
   const handleSave = async () => {
     const isBlocked = activeTab === "blocked";
 
@@ -360,6 +514,13 @@ export default function MarketingAppointmentDialog({
 
     setSaving(true);
     try {
+      let savedAppointmentId: string | null = appointment?.id || null;
+      let followUpCreated = false;
+      let followUpWarning: string | null = null;
+      const successTitle = isEditing
+        ? isBlocked ? "Tempo bloccato aggiornato" : "Appuntamento aggiornato"
+        : isBlocked ? "Tempo bloccato creato" : "Appuntamento prenotato";
+
       const payload: Record<string, unknown> = {
         company_id: companyId,
         title: title.trim(),
@@ -391,12 +552,33 @@ export default function MarketingAppointmentDialog({
       if (isEditing && appointment?.id) {
         const { error } = await supabase.from("appointments").update(payload).eq("id", appointment.id).eq("company_id", companyId!);
         if (error) throw error;
-        toast({ title: isBlocked ? "Tempo bloccato aggiornato" : "Appuntamento aggiornato" });
+        savedAppointmentId = appointment.id;
+        if (!isBlocked && status === "annullato") {
+          void syncDeletedAppointment(appointment.id);
+        } else {
+          void syncSavedAppointment(appointment.id, "update");
+        }
       } else {
         payload.created_by = user.id;
-        const { error } = await supabase.from("appointments").insert(payload as any);
+        const { data: created, error } = await supabase
+          .from("appointments")
+          .insert(payload as any)
+          .select("id")
+          .single();
         if (error) throw error;
-        toast({ title: isBlocked ? "Tempo bloccato creato" : "Appuntamento prenotato" });
+        savedAppointmentId = created?.id || null;
+        if (created?.id && (isBlocked || status !== "annullato")) {
+          void syncSavedAppointment(created.id, "create");
+        }
+      }
+
+      if (!isBlocked && createFollowUp && savedAppointmentId) {
+        try {
+          await createFollowUpTask(savedAppointmentId);
+          followUpCreated = true;
+        } catch (error) {
+          followUpWarning = error instanceof Error ? error.message : "Task follow-up non creata.";
+        }
       }
 
       // Sync address to contact
@@ -415,6 +597,15 @@ export default function MarketingAppointmentDialog({
           .eq("company_id", companyId);
       }
 
+      toast({
+        title: successTitle,
+        description: followUpWarning
+          ? `Salvato, ma il follow-up non e stato creato: ${followUpWarning}`
+          : followUpCreated
+            ? "Task follow-up creata e collegata al contatto."
+            : undefined,
+        variant: followUpWarning ? "destructive" : undefined,
+      });
       onSaved();
       onOpenChange(false);
     } catch (e: any) {
@@ -428,6 +619,7 @@ export default function MarketingAppointmentDialog({
     if (!appointment?.id || !companyId) return;
     setSaving(true);
     try {
+      await syncDeletedAppointment(appointment.id);
       const { error } = await supabase.from("appointments").delete().eq("id", appointment.id).eq("company_id", companyId);
       if (error) throw error;
       toast({ title: "Appuntamento eliminato" });
@@ -703,6 +895,125 @@ export default function MarketingAppointmentDialog({
                   </p>
                 </div>
 
+                {selectedContact && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          Contesto CRM
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedContact.phone || selectedContact.email || "Nessun recapito salvato"}
+                        </p>
+                      </div>
+                      {(selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score) != null && (
+                        <Badge variant="secondary" className="shrink-0">
+                          Score {selectedContact.ai_score ?? selectedContact.lead_score ?? selectedContact.score}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-md bg-background px-2 py-1.5">
+                        <span className="block text-muted-foreground">Origine</span>
+                        <span className="font-medium">{selectedContact.attr_source || selectedContact.source || "Non indicata"}</span>
+                      </div>
+                      <div className="rounded-md bg-background px-2 py-1.5">
+                        <span className="block text-muted-foreground">Canale</span>
+                        <span className="font-medium">{selectedContact.preferred_channel || selectedContact.attr_medium || "Non indicato"}</span>
+                      </div>
+                    </div>
+
+                    {selectedContact.attr_campaign && (
+                      <p className="text-xs text-muted-foreground">
+                        Campagna: <span className="font-medium text-foreground">{selectedContact.attr_campaign}</span>
+                      </p>
+                    )}
+
+                    {selectedContact.ai_predicted_value_eur != null && (
+                      <p className="text-xs text-muted-foreground">
+                        Valore previsto: <span className="font-medium text-foreground">{formatEuro(selectedContact.ai_predicted_value_eur)}</span>
+                      </p>
+                    )}
+
+                    {selectedContact.ai_next_action && (
+                      <div className="rounded-md border border-primary/20 bg-primary/5 px-2 py-1.5 text-xs">
+                        <span className="font-medium text-primary">Prossima azione AI: </span>
+                        {selectedContact.ai_next_action}
+                      </div>
+                    )}
+
+                    {selectedOpportunity && (
+                      <div className="rounded-md border bg-background px-2 py-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{selectedOpportunity.name}</span>
+                          <Badge variant="outline" className="shrink-0">{selectedOpportunity.status}</Badge>
+                        </div>
+                        <p className="mt-1 text-muted-foreground">
+                          {formatEuro(selectedOpportunity.value)}
+                          {selectedOpportunity.probability != null ? ` - ${selectedOpportunity.probability}% probabilita` : ""}
+                        </p>
+                        {selectedOpportunity.next_action && (
+                          <p className="mt-1 text-muted-foreground">Next: {selectedOpportunity.next_action}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="mkt-create-follow-up"
+                      checked={createFollowUp}
+                      onCheckedChange={(checked) => setCreateFollowUp(Boolean(checked))}
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <Label htmlFor="mkt-create-follow-up" className="flex items-center gap-1.5 text-sm font-semibold">
+                        <ListChecks className="h-3.5 w-3.5 text-primary" />
+                        Crea task follow-up
+                      </Label>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Stato: {selectedStatusMeta.label}. {selectedStatusMeta.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {createFollowUp && (
+                    <div className="space-y-2">
+                      <Input
+                        value={followUpTitle}
+                        onChange={(event) => setFollowUpTitle(event.target.value)}
+                        placeholder="Titolo task follow-up"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          type="date"
+                          value={followUpDueDate}
+                          onChange={(event) => setFollowUpDueDate(event.target.value)}
+                        />
+                        <Select value={followUpPriority} onValueChange={(value) => setFollowUpPriority(value as "bassa" | "normale" | "alta")}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bassa">Bassa</SelectItem>
+                            <SelectItem value="normale">Normale</SelectItem>
+                            <SelectItem value="alta">Alta</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {selectedOpportunity && (
+                        <p className="text-[10px] text-muted-foreground">
+                          La task sara collegata anche all'opportunita "{selectedOpportunity.name}".
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   {!showInternalNotes ? (
                     <Button
@@ -815,15 +1126,18 @@ export default function MarketingAppointmentDialog({
             {!isBlocked && (
               <>
                 <Label className="text-xs text-muted-foreground whitespace-nowrap">Stato:</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="h-8 w-[140px] text-xs">
+                <Select value={status} onValueChange={handleStatusSelect}>
+                  <SelectTrigger className="h-8 w-[170px] text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="confermato">Confermato</SelectItem>
-                    <SelectItem value="annullato">Annullato</SelectItem>
-                    <SelectItem value="riprogrammato">Riprogrammato</SelectItem>
-                    <SelectItem value="completato">Completato</SelectItem>
+                    {MARKETING_APPOINTMENT_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <Badge variant={option.variant} className="text-[10px]">
+                          {option.label}
+                        </Badge>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </>

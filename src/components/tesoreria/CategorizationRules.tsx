@@ -35,9 +35,12 @@ interface Props {
 export default function CategorizationRules({ companyId }: Props) {
   const [rules, setRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editRule, setEditRule] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [form, setForm] = useState({
     pattern: "",
     category: "Fornitori",
@@ -47,18 +50,30 @@ export default function CategorizationRules({ companyId }: Props) {
   });
 
   useEffect(() => {
-    if (companyId) loadRules();
+    if (companyId) void loadRules();
+    else {
+      setRules([]);
+      setLoading(false);
+    }
   }, [companyId]);
 
   async function loadRules() {
     setLoading(true);
-    const { data } = await supabase
-      .from("bank_categorization_rules")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("priority", { ascending: true });
-    setRules(data || []);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from("bank_categorization_rules")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("priority", { ascending: true });
+      if (error) throw error;
+      setRules(data || []);
+    } catch (e: any) {
+      setLoadError(e.message || "Impossibile caricare le regole");
+      toast.error("Errore caricamento regole di categorizzazione");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function openAdd() {
@@ -84,10 +99,28 @@ export default function CategorizationRules({ companyId }: Props) {
       toast.error("Il pattern è obbligatorio");
       return;
     }
+    if (!companyId) {
+      toast.error("Azienda non disponibile");
+      return;
+    }
+    if (!Number.isFinite(form.priority) || form.priority < 1) {
+      toast.error("La priorità deve essere almeno 1");
+      return;
+    }
+
+    const pattern = form.pattern.trim();
+    const duplicated = rules.some((rule) =>
+      rule.id !== editRule?.id
+      && String(rule.pattern || "").toLocaleLowerCase() === pattern.toLocaleLowerCase()
+    );
+    if (duplicated) {
+      toast.error("Esiste già una regola con questo pattern");
+      return;
+    }
 
     const payload = {
       company_id: companyId,
-      pattern: form.pattern.trim(),
+      pattern,
       category: form.category,
       category_icon: form.category_icon,
       is_case_sensitive: form.is_case_sensitive,
@@ -95,32 +128,57 @@ export default function CategorizationRules({ companyId }: Props) {
       is_active: true,
     };
 
-    let error;
-    if (editRule) {
-      ({ error } = await supabase.from("bank_categorization_rules").update(payload).eq("id", editRule.id));
-    } else {
-      ({ error } = await supabase.from("bank_categorization_rules").insert(payload));
-    }
-
-    if (error) {
-      toast.error("Errore: " + error.message);
-    } else {
+    setSaving(true);
+    try {
+      const { error } = editRule
+        ? await supabase.from("bank_categorization_rules").update(payload).eq("id", editRule.id).eq("company_id", companyId)
+        : await supabase.from("bank_categorization_rules").insert(payload);
+      if (error) throw error;
       toast.success(editRule ? "Regola aggiornata" : "Regola creata");
       setShowAdd(false);
-      loadRules();
+      await loadRules();
+    } catch (e: any) {
+      toast.error("Errore: " + e.message);
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleToggle(id: string, isActive: boolean) {
-    await supabase.from("bank_categorization_rules").update({ is_active: !isActive }).eq("id", id);
-    loadRules();
+    setPendingActionId(id);
+    try {
+      const { error } = await supabase
+        .from("bank_categorization_rules")
+        .update({ is_active: !isActive })
+        .eq("id", id)
+        .eq("company_id", companyId);
+      if (error) throw error;
+      await loadRules();
+    } catch (e: any) {
+      toast.error("Errore: " + e.message);
+    } finally {
+      setPendingActionId(null);
+    }
   }
 
   async function handleDelete() {
     if (!deleteId) return;
-    await supabase.from("bank_categorization_rules").delete().eq("id", deleteId);
-    setDeleteId(null);
-    loadRules();
+    setPendingActionId(deleteId);
+    try {
+      const { error } = await supabase
+        .from("bank_categorization_rules")
+        .delete()
+        .eq("id", deleteId)
+        .eq("company_id", companyId);
+      if (error) throw error;
+      toast.success("Regola eliminata");
+      setDeleteId(null);
+      await loadRules();
+    } catch (e: any) {
+      toast.error("Errore: " + e.message);
+    } finally {
+      setPendingActionId(null);
+    }
   }
 
   if (loading) {
@@ -141,6 +199,15 @@ export default function CategorizationRules({ companyId }: Props) {
       <p className="text-sm text-muted-foreground">
         Crea regole personalizzate per categorizzare automaticamente le transazioni in base al testo della descrizione o del creditore.
       </p>
+
+      {loadError && (
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => loadRules()}>Riprova</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {rules.length === 0 ? (
         <Card>
@@ -163,11 +230,11 @@ export default function CategorizationRules({ companyId }: Props) {
                   <span className="text-xs text-muted-foreground">Priorità: {rule.priority}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Switch checked={rule.is_active} onCheckedChange={() => handleToggle(rule.id, rule.is_active)} />
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(rule)}>
+                  <Switch checked={rule.is_active} disabled={pendingActionId === rule.id} onCheckedChange={() => handleToggle(rule.id, rule.is_active)} />
+                  <Button variant="ghost" size="icon" disabled={pendingActionId === rule.id} onClick={() => openEdit(rule)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setDeleteId(rule.id)}>
+                  <Button variant="ghost" size="icon" disabled={pendingActionId === rule.id} onClick={() => setDeleteId(rule.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
@@ -213,6 +280,7 @@ export default function CategorizationRules({ companyId }: Props) {
               <Label>Priorità (numero basso = più prioritario)</Label>
               <Input
                 type="number"
+                min="1"
                 value={form.priority}
                 onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value) || 10 })}
               />
@@ -226,8 +294,8 @@ export default function CategorizationRules({ companyId }: Props) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)}>Annulla</Button>
-            <Button onClick={handleSave}>{editRule ? "Salva" : "Crea"}</Button>
+            <Button variant="outline" onClick={() => setShowAdd(false)} disabled={saving}>Annulla</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? "Salvataggio..." : editRule ? "Salva" : "Crea"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -241,7 +309,9 @@ export default function CategorizationRules({ companyId }: Props) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Elimina</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} disabled={!!pendingActionId}>
+              {pendingActionId ? "Eliminazione..." : "Elimina"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

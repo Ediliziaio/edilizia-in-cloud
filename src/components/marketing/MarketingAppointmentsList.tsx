@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { format, parseISO, isAfter } from "date-fns";
+import { useState, useMemo, useCallback } from "react";
+import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
+import { useGoogleCalendarSync } from "@/hooks/useGoogleCalendarSync";
+import { useAppleCalendarSync } from "@/hooks/useAppleCalendarSync";
+import {
+  MARKETING_APPOINTMENT_FOLLOW_UP_STATUSES,
+  MARKETING_APPOINTMENT_STATUS_OPTIONS,
+} from "@/lib/marketingAppointmentStatus";
 
 interface Props {
   appointments: MarketingAppointment[];
@@ -19,32 +25,30 @@ interface Props {
   onClickAppointment: (apt: MarketingAppointment) => void;
 }
 
-const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  confermato: { label: "Confermato", variant: "default" },
-  annullato: { label: "Annullato", variant: "destructive" },
-  riprogrammato: { label: "Riprogrammato", variant: "secondary" },
-  completato: { label: "Completato", variant: "outline" },
-};
-
 const ROWS_OPTIONS = [10, 25, 50];
+const FOLLOW_UP_STATUS_SET = new Set<string>(MARKETING_APPOINTMENT_FOLLOW_UP_STATUSES);
 
 export default function MarketingAppointmentsList({ appointments, onRefresh, onClickAppointment }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
-  const [subTab, setSubTab] = useState<"prossimo" | "annullato" | "tutti">("prossimo");
+  const googleSync = useGoogleCalendarSync();
+  const appleSync = useAppleCalendarSync();
+  const [subTab, setSubTab] = useState<"prossimo" | "followup" | "annullato" | "tutti">("prossimo");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const filtered = useMemo(() => {
-    let list = appointments;
+    let list = [...appointments];
 
     if (subTab === "prossimo") {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       list = list.filter(
-        (a) => a.status !== "annullato" && isAfter(parseISO(a.appointment_date), todayStart)
+        (a) => a.status !== "annullato" && parseISO(a.appointment_date).getTime() >= todayStart.getTime()
       );
+    } else if (subTab === "followup") {
+      list = list.filter((a) => FOLLOW_UP_STATUS_SET.has(a.status));
     } else if (subTab === "annullato") {
       list = list.filter((a) => a.status === "annullato");
     }
@@ -66,6 +70,33 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
   const totalPages = Math.ceil(filtered.length / rowsPerPage);
   const paged = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
+  const syncExternalCalendarsForStatus = useCallback(async (appointmentId: string, status: string) => {
+    const tasks: Promise<unknown>[] = [];
+    const shouldDelete = status === "annullato";
+
+    if (googleSync.hasGoogleConnection) {
+      tasks.push((async () => {
+        if (shouldDelete) return googleSync.deleteEvent(appointmentId);
+        const mapping = await googleSync.checkMapping(appointmentId);
+        if (mapping) return googleSync.updateEvent(appointmentId);
+        if (googleSync.isGoogleConnected) return googleSync.pushEvent(appointmentId);
+        return undefined;
+      })());
+    }
+
+    if (appleSync.hasAppleConnection) {
+      tasks.push((async () => {
+        if (shouldDelete) return appleSync.deleteEvent(appointmentId);
+        const mapping = await appleSync.checkMapping(appointmentId);
+        if (mapping) return appleSync.updateEvent(appointmentId);
+        if (appleSync.isAppleConnected) return appleSync.pushEvent(appointmentId);
+        return undefined;
+      })());
+    }
+
+    if (tasks.length > 0) await Promise.allSettled(tasks);
+  }, [appleSync, googleSync]);
+
   const handleStatusChange = async (id: string, newStatus: string) => {
     const current = appointments.find((a) => a.id === id);
     if (current?.status === newStatus) return; // early return se lo status non cambia
@@ -74,6 +105,7 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
     if (error) {
       toast({ title: "Errore", description: error.message, variant: "destructive" });
     } else {
+      void syncExternalCalendarsForStatus(id, newStatus);
       toast({ title: "Stato aggiornato" });
       onRefresh();
     }
@@ -84,14 +116,16 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const prossimo = appointments.filter(
-      (a) => a.status !== "annullato" && isAfter(parseISO(a.appointment_date), todayStart)
+      (a) => a.status !== "annullato" && parseISO(a.appointment_date).getTime() >= todayStart.getTime()
     ).length;
+    const followup = appointments.filter((a) => FOLLOW_UP_STATUS_SET.has(a.status)).length;
     const annullato = appointments.filter((a) => a.status === "annullato").length;
-    return { prossimo, annullato, tutti: appointments.length };
+    return { prossimo, followup, annullato, tutti: appointments.length };
   }, [appointments]);
 
   const subTabs = [
     { key: "prossimo" as const, label: "Prossimi", count: counts.prossimo },
+    { key: "followup" as const, label: "Da seguire", count: counts.followup },
     { key: "annullato" as const, label: "Annullati", count: counts.annullato },
     { key: "tutti" as const, label: "Tutti", count: counts.tutti },
   ];
@@ -182,6 +216,8 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                     <p className="font-medium text-foreground">
                       {search.trim()
                         ? "Nessun risultato"
+                        : subTab === "followup"
+                        ? "Nessun appuntamento da seguire"
                         : subTab === "annullato"
                         ? "Nessun appuntamento annullato"
                         : subTab === "prossimo"
@@ -231,10 +267,10 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.entries(STATUS_MAP).map(([val, meta]) => (
-                          <SelectItem key={val} value={val}>
-                            <Badge variant={meta.variant} className="text-[10px]">
-                              {meta.label}
+                        {MARKETING_APPOINTMENT_STATUS_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <Badge variant={option.variant} className="text-[10px]">
+                              {option.label}
                             </Badge>
                           </SelectItem>
                         ))}

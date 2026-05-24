@@ -43,7 +43,8 @@ export function useGoogleCalendarSync() {
     staleTime: 60_000,
   });
 
-  const isGoogleConnected = !!connection && !!settings?.primary_calendar_id;
+  const hasGoogleConnection = connection?.status === "connected";
+  const isGoogleConnected = hasGoogleConnection && !!settings?.primary_calendar_id;
   const syncMode = settings?.sync_mode || "one_way";
 
   async function syncToGoogle(action: string, appointmentId?: string) {
@@ -68,12 +69,12 @@ export function useGoogleCalendarSync() {
   }
 
   async function updateEvent(appointmentId: string) {
-    if (!isGoogleConnected) return;
+    if (!hasGoogleConnection) return;
     return syncToGoogle("update-event", appointmentId);
   }
 
   async function deleteEvent(appointmentId: string) {
-    if (!isGoogleConnected) return;
+    if (!hasGoogleConnection) return;
     return syncToGoogle("delete-event", appointmentId);
   }
 
@@ -91,6 +92,7 @@ export function useGoogleCalendarSync() {
     const { data } = await supabase
       .from("google_calendar_event_map")
       .select("id, google_event_id")
+      .eq("company_id", companyId)
       .eq("appointment_id", appointmentId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -99,6 +101,7 @@ export function useGoogleCalendarSync() {
 
   return {
     isGoogleConnected,
+    hasGoogleConnection,
     connection,
     settings,
     syncMode,

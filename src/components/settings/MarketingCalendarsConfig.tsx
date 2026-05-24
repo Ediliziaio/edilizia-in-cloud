@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,14 +16,16 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Settings2, Copy, AlertTriangle } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Settings2, Copy, AlertTriangle, ExternalLink, Code2, Share2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import CalendarDialog from "./CalendarDialog";
+import CalendarDialog, { type CalendarFormData } from "./CalendarDialog";
 import GoogleCalendarConnectionTab from "./GoogleCalendarConnectionTab";
 import AppleCalendarConnectionTab from "./AppleCalendarConnectionTab";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { buildBookingButtonCode, buildBookingEmbedCode, buildBookingUrl, normalizeBookingSlug } from "@/lib/bookingLinks";
 
 type MarketingCalendar = {
   id: string;
@@ -31,6 +35,7 @@ type MarketingCalendar = {
   duration_minutes: number;
   max_daily_km: number | null;
   calendar_type: string;
+  booking_slug: string | null;
   is_active: boolean;
   owner_id: string | null;
   description: string | null;
@@ -74,7 +79,6 @@ type CalendarAvailability = {
 };
 
 type CalendarAppointmentRef = {
-  id: string;
   calendar_id: string | null;
   status: string | null;
 };
@@ -89,27 +93,54 @@ const DAYS = [
   { value: 0, label: "Domenica" },
 ];
 
+const CALENDAR_SETTINGS_TABS = ["calendars", "preferences", "availability", "connections"] as const;
+
+function normalizeSettingsTab(value: string | null) {
+  return CALENDAR_SETTINGS_TABS.includes(value as typeof CALENDAR_SETTINGS_TABS[number])
+    ? value as typeof CALENDAR_SETTINGS_TABS[number]
+    : "calendars";
+}
+
 export default function MarketingCalendarsConfig() {
   const { effectiveCompany, user, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
   const canManageCalendars = role === "company_admin" || role === "super_admin";
   const queryClient = useQueryClient();
+  const [urlSearchParams, setUrlSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCalendar, setEditingCalendar] = useState<MarketingCalendar | null>(null);
+  const [sharingCalendar, setSharingCalendar] = useState<MarketingCalendar | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("calendars");
+  const [activeTab, setActiveTab] = useState(normalizeSettingsTab(urlSearchParams.get("tab")));
   const { data: staffUsers = [] } = useCompanyStaffUsers(effectiveCompanyId);
 
-  const validateCalendarPayload = (data: any) => {
+  useEffect(() => {
+    const nextTab = normalizeSettingsTab(urlSearchParams.get("tab"));
+    setActiveTab((current) => (current === nextTab ? current : nextTab));
+  }, [urlSearchParams]);
+
+  const handleTabChange = (value: string) => {
+    const nextTab = normalizeSettingsTab(value);
+    setActiveTab(nextTab);
+    const nextParams = new URLSearchParams(urlSearchParams);
+    if (nextTab === "calendars") nextParams.delete("tab");
+    else nextParams.set("tab", nextTab);
+    setUrlSearchParams(nextParams);
+  };
+
+  const validateCalendarPayload = (data: CalendarFormData) => {
     const name = String(data.name || "").trim();
     const duration = Number(data.duration_minutes);
     const maxDailyKm = data.max_daily_km == null ? null : Number(data.max_daily_km);
+    const bookingSlug = normalizeBookingSlug(data.booking_slug || name);
+    const calendarType = ["personal", "team", "event"].includes(data.calendar_type) ? data.calendar_type : "personal";
 
     if (!name) throw new Error("Inserisci un nome calendario.");
+    if (!bookingSlug) throw new Error("Genera o inserisci uno slug per il link pubblico.");
     if (!Number.isFinite(duration) || duration <= 0 || duration > 24 * 60) {
       throw new Error("La durata appuntamento deve essere tra 1 minuto e 24 ore.");
     }
@@ -117,7 +148,7 @@ export default function MarketingCalendarsConfig() {
       throw new Error("I km massimi giornalieri devono essere maggiori di zero.");
     }
 
-    return { name, duration, maxDailyKm };
+    return { name, duration, maxDailyKm, bookingSlug, calendarType };
   };
 
   const assertNoDuplicateCalendarName = async (name: string, excludeId?: string) => {
@@ -132,6 +163,39 @@ export default function MarketingCalendarsConfig() {
     const { data, error } = await query;
     if (error) throw error;
     if ((data || []).length > 0) throw new Error("Esiste già un calendario con questo nome.");
+  };
+
+  const isBookingSlugTaken = async (slug: string, excludeId?: string) => {
+    if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
+    let query = supabase
+      .from("marketing_calendars")
+      .select("id")
+      .eq("booking_slug", slug)
+      .limit(1);
+    if (excludeId) query = query.neq("id", excludeId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).length > 0;
+  };
+
+  const getAvailableBookingSlug = async (raw: string, excludeId?: string) => {
+    const base = normalizeBookingSlug(raw) || "calendario";
+    let candidate = base;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (!(await isBookingSlugTaken(candidate, excludeId))) return candidate;
+      candidate = `${base}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+    throw new Error("Non riesco a generare un link pubblico univoco. Riprova con uno slug diverso.");
+  };
+
+  const copyText = async (value: string, label: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copiato`);
+    } catch {
+      toast.error("Copia non riuscita: seleziona il testo manualmente.");
+    }
   };
 
   const validateAvailabilityRows = (rows: { day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]) => {
@@ -196,7 +260,7 @@ export default function MarketingCalendarsConfig() {
     gcTime: 10 * 60 * 1000,
   });
 
-  const { data: preferences, isLoading: loadingPrefs } = useQuery({
+  const { data: preferences } = useQuery({
     queryKey: ["marketing-calendar-preferences", effectiveCompanyId],
     queryFn: async () => {
       if (!effectiveCompanyId) return null;
@@ -229,20 +293,22 @@ export default function MarketingCalendarsConfig() {
 
   // ---- MUTATIONS ----
   const createCalendar = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: CalendarFormData) => {
       if (!effectiveCompanyId || !user?.id) throw new Error("Dati mancanti");
       if (!canManageCalendars) throw new Error("Non hai i permessi per creare calendari.");
-      const { name, duration, maxDailyKm } = validateCalendarPayload(data);
+      const { name, duration, maxDailyKm, bookingSlug, calendarType } = validateCalendarPayload(data);
       await assertNoDuplicateCalendarName(name);
+      const safeBookingSlug = await getAvailableBookingSlug(bookingSlug);
       const { error } = await supabase.from("marketing_calendars").insert({
         company_id: effectiveCompanyId,
         created_by: user.id,
         name,
         description: data.description || null,
         owner_id: data.owner_id || null,
+        booking_slug: safeBookingSlug,
         duration_minutes: duration,
         max_daily_km: maxDailyKm,
-        calendar_type: "personal",
+        calendar_type: calendarType,
         group_name: null,
         base_address_line: data.base_address_line || null,
         base_address_city: data.base_address_city || null,
@@ -265,15 +331,20 @@ export default function MarketingCalendarsConfig() {
   });
 
   const updateCalendar = useMutation({
-    mutationFn: async ({ id, ...data }: any) => {
+    mutationFn: async ({ id, ...data }: CalendarFormData & { id: string }) => {
       if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
       if (!canManageCalendars) throw new Error("Non hai i permessi per modificare calendari.");
-      const { name, duration, maxDailyKm } = validateCalendarPayload(data);
+      const { name, duration, maxDailyKm, bookingSlug, calendarType } = validateCalendarPayload(data);
       await assertNoDuplicateCalendarName(name, id);
+      if (await isBookingSlugTaken(bookingSlug, id)) {
+        throw new Error("Questo link pubblico e gia usato da un altro calendario.");
+      }
       const { error } = await supabase.from("marketing_calendars").update({
         name,
         description: data.description || null,
         owner_id: data.owner_id || null,
+        booking_slug: bookingSlug,
+        calendar_type: calendarType,
         duration_minutes: duration,
         max_daily_km: maxDailyKm,
         base_address_line: data.base_address_line || null,
@@ -308,6 +379,27 @@ export default function MarketingCalendarsConfig() {
       queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
     },
     onError: (e: Error) => toast.error(e.message || "Impossibile aggiornare lo stato del calendario"),
+  });
+
+  const ensureBookingSlug = useMutation({
+    mutationFn: async (calendar: MarketingCalendar) => {
+      if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
+      if (!canManageCalendars) throw new Error("Non hai i permessi per modificare calendari.");
+      const bookingSlug = await getAvailableBookingSlug(calendar.booking_slug || calendar.name, calendar.id);
+      const { error } = await supabase
+        .from("marketing_calendars")
+        .update({ booking_slug: bookingSlug })
+        .eq("id", calendar.id)
+        .eq("company_id", effectiveCompanyId);
+      if (error) throw error;
+      return { ...calendar, booking_slug: bookingSlug };
+    },
+    onSuccess: (calendar) => {
+      toast.success("Link pubblico generato");
+      setSharingCalendar(calendar);
+      queryClient.invalidateQueries({ queryKey: ["marketing-calendars"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Impossibile generare il link"),
   });
 
   const deleteCalendar = useMutation({
@@ -407,6 +499,12 @@ export default function MarketingCalendarsConfig() {
     return owner ? [owner.first_name, owner.last_name].filter(Boolean).join(" ") || "Senza nome" : "Utente non trovato";
   };
 
+  const calendarTypeMeta = (type: string) => {
+    if (type === "team") return { label: "Team", variant: "default" as const };
+    if (type === "event") return { label: "Evento", variant: "outline" as const };
+    return { label: "Commerciale", variant: "secondary" as const };
+  };
+
   const calendarStats = {
     total: calendars.length,
     active: calendars.filter(c => c.is_active).length,
@@ -418,10 +516,15 @@ export default function MarketingCalendarsConfig() {
   const getConfigWarnings = (cal: MarketingCalendar) => {
     const warnings: string[] = [];
     if (!cal.owner_id) warnings.push("utente");
+    if (!cal.booking_slug) warnings.push("link");
     if (!cal.duration_minutes || cal.duration_minutes <= 0) warnings.push("durata");
     if (!cal.base_formatted_address && !cal.base_address_city) warnings.push("sede");
     return warnings;
   };
+
+  const shareUrl = sharingCalendar?.booking_slug ? buildBookingUrl(sharingCalendar.booking_slug) : "";
+  const shareEmbedCode = buildBookingEmbedCode(shareUrl);
+  const shareButtonCode = buildBookingButtonCode(shareUrl);
 
   // ---- AVAILABILITY LOCAL STATE ----
   const [localAvail, setLocalAvail] = useState<{ day_of_week: number; start_time: string; end_time: string; is_enabled: boolean }[]>([]);
@@ -531,7 +634,7 @@ export default function MarketingCalendarsConfig() {
         </Card>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         {/* v8.6.74 — overflow-x-auto: 4 tab con icona+label si sovrapponevano su 375px */}
         <TabsList className="w-full sm:w-auto max-w-full h-auto flex-wrap justify-start gap-1 sm:flex-nowrap overflow-x-auto">
           <TabsTrigger value="calendars" className="gap-2 shrink-0"><CalendarDays className="h-4 w-4" />Calendari</TabsTrigger>
@@ -541,7 +644,7 @@ export default function MarketingCalendarsConfig() {
         </TabsList>
 
         {/* TAB: CALENDARI */}
-        <TabsContent value="calendars" className="space-y-4">
+        <TabsContent value="calendars" forceMount className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex gap-2 flex-wrap items-center">
               <div className="relative">
@@ -560,8 +663,9 @@ export default function MarketingCalendarsConfig() {
                 <SelectTrigger className="w-32"><SelectValue placeholder="Tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti</SelectItem>
-                  <SelectItem value="personal">Personale</SelectItem>
+                  <SelectItem value="personal">Commerciale</SelectItem>
                   <SelectItem value="team">Team</SelectItem>
+                  <SelectItem value="event">Evento</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -605,6 +709,7 @@ export default function MarketingCalendarsConfig() {
                     <TableHead className="hidden lg:table-cell">Sede base</TableHead>
                     <TableHead>Durata</TableHead>
                     <TableHead>Tipo</TableHead>
+                    <TableHead className="hidden lg:table-cell">Link booking</TableHead>
                     <TableHead className="hidden md:table-cell">App.</TableHead>
                     <TableHead>Stato</TableHead>
                     <TableHead className="hidden md:table-cell">Aggiornato</TableHead>
@@ -630,9 +735,24 @@ export default function MarketingCalendarsConfig() {
                       </TableCell>
                       <TableCell>{cal.duration_minutes} min</TableCell>
                       <TableCell>
-                        <Badge variant={cal.calendar_type === "team" ? "default" : "secondary"}>
-                          {cal.calendar_type === "team" ? "Team" : "Personale"}
-                        </Badge>
+                        {(() => {
+                          const meta = calendarTypeMeta(cal.calendar_type);
+                          return <Badge variant={meta.variant}>{meta.label}</Badge>;
+                        })()}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {cal.booking_slug ? (
+                          <button
+                            type="button"
+                            className="inline-flex max-w-[220px] items-center gap-1 truncate text-sm text-primary hover:underline"
+                            onClick={() => setSharingCalendar(cal)}
+                          >
+                            <Link2 className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">/prenota/{cal.booking_slug}</span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-amber-600">Da generare</span>
+                        )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{appointmentCountsByCalendar[cal.id] || 0}</TableCell>
                       <TableCell>
@@ -643,6 +763,9 @@ export default function MarketingCalendarsConfig() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => setSharingCalendar(cal)} title="Condividi link prenotazione">
+                            <Share2 className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" disabled={!canManageCalendars} onClick={() => { setEditingCalendar(cal); setDialogOpen(true); }}>
                             <Pencil className="h-4 w-4" />
                           </Button>
@@ -660,7 +783,7 @@ export default function MarketingCalendarsConfig() {
         </TabsContent>
 
         {/* TAB: PREFERENZE */}
-        <TabsContent value="preferences" className="space-y-6">
+        <TabsContent value="preferences" forceMount className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Preferenze dell'app</CardTitle>
@@ -797,7 +920,7 @@ export default function MarketingCalendarsConfig() {
         </TabsContent>
 
         {/* TAB: DISPONIBILITÀ */}
-        <TabsContent value="availability" className="space-y-4">
+        <TabsContent value="availability" forceMount className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Disponibilità settimanale</CardTitle>
@@ -905,7 +1028,7 @@ export default function MarketingCalendarsConfig() {
         </TabsContent>
 
         {/* TAB: COLLEGAMENTI */}
-        <TabsContent value="connections" className="space-y-6">
+        <TabsContent value="connections" forceMount className="space-y-6">
           <GoogleCalendarConnectionTab />
           <AppleCalendarConnectionTab />
         </TabsContent>
@@ -928,11 +1051,110 @@ export default function MarketingCalendarsConfig() {
         }}
         onAdvancedSettings={() => {
           setDialogOpen(false);
-          setActiveTab("availability");
+          handleTabChange("availability");
         }}
         initialData={editingCalendar}
         isLoading={createCalendar.isPending || updateCalendar.isPending}
       />
+
+      <Dialog open={!!sharingCalendar} onOpenChange={(open) => !open && setSharingCalendar(null)}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Condividi calendario</DialogTitle>
+            <DialogDescription>
+              Copia il link per inviarlo al cliente oppure usa il codice embed per inserirlo nel sito.
+            </DialogDescription>
+          </DialogHeader>
+
+          {sharingCalendar && (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">{sharingCalendar.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {ownerName(sharingCalendar.owner_id)} · {sharingCalendar.duration_minutes} min · {calendarTypeMeta(sharingCalendar.calendar_type).label}
+                    </p>
+                  </div>
+                  <Badge variant={sharingCalendar.is_active ? "default" : "secondary"}>
+                    {sharingCalendar.is_active ? "Attivo" : "Disattivato"}
+                  </Badge>
+                </div>
+
+                {!sharingCalendar.booking_slug ? (
+                  <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <p className="font-medium">Questo calendario non ha ancora un link pubblico.</p>
+                    <p className="mt-1 text-xs text-amber-800/80">Generalo per ottenere una pagina di prenotazione tipo Calendly.</p>
+                    <Button
+                      className="mt-3 gap-2"
+                      size="sm"
+                      disabled={!canManageCalendars || ensureBookingSlug.isPending}
+                      onClick={() => ensureBookingSlug.mutate(sharingCalendar)}
+                    >
+                      <Link2 className="h-4 w-4" />
+                      {ensureBookingSlug.isPending ? "Generazione..." : "Genera link pubblico"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label>Link diretto</Label>
+                      <div className="flex gap-2">
+                        <Input value={shareUrl} readOnly className="font-mono text-xs" />
+                        <Button type="button" variant="outline" className="gap-2" onClick={() => copyText(shareUrl, "Link")}>
+                          <Copy className="h-4 w-4" />
+                          Copia
+                        </Button>
+                        <Button type="button" variant="outline" size="icon" asChild>
+                          <a href={shareUrl} target="_blank" rel="noopener noreferrer" aria-label="Apri anteprima booking">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="inline-flex items-center gap-1.5">
+                            <Code2 className="h-3.5 w-3.5" />
+                            Embed inline
+                          </Label>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(shareEmbedCode, "Codice embed")}>
+                            <Copy className="h-3.5 w-3.5" />
+                            Copia
+                          </Button>
+                        </div>
+                        <Textarea value={shareEmbedCode} readOnly rows={5} className="font-mono text-xs" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="inline-flex items-center gap-1.5">
+                            <Link2 className="h-3.5 w-3.5" />
+                            Bottone sito
+                          </Label>
+                          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1" onClick={() => copyText(shareButtonCode, "Codice bottone")}>
+                            <Copy className="h-3.5 w-3.5" />
+                            Copia
+                          </Button>
+                        </div>
+                        <Textarea value={shareButtonCode} readOnly rows={5} className="font-mono text-xs" />
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground">
+                      <p className="font-medium text-foreground">Flusso consigliato</p>
+                      <p className="mt-1">
+                        Invialo via WhatsApp/email per un commerciale singolo, oppure incorporalo in landing page e campagne per eventi specifici.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>

@@ -1,4 +1,4 @@
-import { useState, forwardRef } from "react";
+import { useMemo, useState, forwardRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -7,26 +7,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Check, ChevronsUpDown, Plus, X } from "lucide-react";
+import { AlertCircle, Check, ChevronsUpDown, Loader2, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { DEFAULT_TAG_COLOR, normalizeTagList, normalizeTagName } from "@/lib/marketingTags";
 
 interface TagSelectorProps {
   selectedTags: string[];
   onTagsChange: (tags: string[]) => void;
 }
 
+type MarketingTag = {
+  id: string;
+  name: string;
+  color: string | null;
+};
+
 function getTagErrorMessage(error: unknown) {
   if (error && typeof error === "object" && "message" in error) {
     return String(error.message);
   }
   return "";
-}
-
-const DEFAULT_TAG_COLOR = "#2563eb";
-
-function normalizeTagName(value: string) {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selectedTags, onTagsChange }, ref) => {
@@ -36,7 +37,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { data: tags = [] } = useQuery({
+  const { data: tags = [], isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.marketingTags.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
@@ -46,7 +47,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
         .eq("company_id", companyId)
         .order("name");
       if (error) throw error;
-      return data;
+      return data as MarketingTag[];
     },
     enabled: !!companyId,
   });
@@ -70,8 +71,8 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
       queryClient.invalidateQueries({ queryKey: queryKeys.marketingTags.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.tags.all });
       const normalized = normalizeTagName(name);
-      if (!selectedTags.includes(normalized)) {
-        onTagsChange([...selectedTags, normalized]);
+      if (!normalizeTagList(selectedTags).includes(normalized)) {
+        onTagsChange(normalizeTagList([...selectedTags, normalized]));
       }
       setSearch("");
       toast.success("Tag creato");
@@ -88,26 +89,39 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
   });
 
   const toggleTag = (tagName: string) => {
-    if (selectedTags.includes(tagName)) {
-      onTagsChange(selectedTags.filter((t) => t !== tagName));
+    const normalizedName = normalizeTagName(tagName);
+    const currentTags = normalizeTagList(selectedTags);
+    if (!normalizedName) return;
+
+    if (currentTags.includes(normalizedName)) {
+      onTagsChange(currentTags.filter((tag) => tag !== normalizedName));
     } else {
-      onTagsChange([...selectedTags, tagName]);
+      onTagsChange([...currentTags, normalizedName]);
     }
   };
 
   const removeTag = (tagName: string) => {
-    onTagsChange(selectedTags.filter((t) => t !== tagName));
+    const normalizedName = normalizeTagName(tagName);
+    onTagsChange(normalizeTagList(selectedTags).filter((tag) => tag !== normalizedName));
   };
 
+  const normalizedSelectedTags = useMemo(() => normalizeTagList(selectedTags), [selectedTags]);
   const searchNormalized = normalizeTagName(search);
+  const visibleTags = useMemo(
+    () => tags.filter((tag) => !searchNormalized || normalizeTagName(tag.name).includes(searchNormalized)),
+    [searchNormalized, tags],
+  );
   const canCreate = searchNormalized.length > 0 && !!companyId && !tags.some((t) => normalizeTagName(t.name) === searchNormalized);
-  const colorByName = new Map(tags.map((tag) => [tag.name, tag.color || DEFAULT_TAG_COLOR]));
+  const colorByName = useMemo(
+    () => new Map(tags.map((tag) => [normalizeTagName(tag.name), tag.color || DEFAULT_TAG_COLOR])),
+    [tags],
+  );
 
   return (
     <div ref={ref} className="space-y-1.5">
-      {selectedTags.length > 0 && (
+      {normalizedSelectedTags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {selectedTags.map((tag) => (
+          {normalizedSelectedTags.map((tag) => (
             <Badge key={tag} variant="secondary" className="gap-1">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorByName.get(tag) || DEFAULT_TAG_COLOR }} />
               {tag}
@@ -132,13 +146,28 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
               onValueChange={(v) => { if (v.length <= 50) setSearch(v); }}
             />
             <CommandList>
-              <CommandEmpty className="py-2 px-3 text-sm text-muted-foreground">
-                Nessun tag trovato.
-              </CommandEmpty>
-              <CommandGroup>
-                {tags
-                  .filter((t) => !searchNormalized || t.name.includes(searchNormalized))
-                  .map((tag) => (
+              {isLoading ? (
+                <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Caricamento tag...
+                </div>
+              ) : isError ? (
+                <div className="space-y-2 px-3 py-3 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                    Tag non disponibili.
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+                    Riprova
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <CommandEmpty className="py-2 px-3 text-sm text-muted-foreground">
+                    Nessun tag trovato.
+                  </CommandEmpty>
+                  <CommandGroup>
+                    {visibleTags.map((tag) => (
                     <CommandItem
                       key={tag.id}
                       value={tag.name}
@@ -148,23 +177,31 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          selectedTags.includes(tag.name) ? "opacity-100" : "opacity-0"
+                          normalizedSelectedTags.includes(normalizeTagName(tag.name)) ? "opacity-100" : "opacity-0"
                         )}
                       />
                       {tag.name}
                     </CommandItem>
-                  ))}
-              </CommandGroup>
-              {canCreate && (
-                <CommandGroup>
-                  <CommandItem
-                    onSelect={() => createMutation.mutate(searchNormalized)}
-                    className="text-primary"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Crea "{searchNormalized}"
-                  </CommandItem>
-                </CommandGroup>
+                    ))}
+                  </CommandGroup>
+                  {canCreate && (
+                    <CommandGroup>
+                      <CommandItem
+                        onSelect={() => {
+                          if (!createMutation.isPending) createMutation.mutate(searchNormalized);
+                        }}
+                        className="text-primary"
+                      >
+                        {createMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="mr-2 h-4 w-4" />
+                        )}
+                        {createMutation.isPending ? "Creazione..." : `Crea "${searchNormalized}"`}
+                      </CommandItem>
+                    </CommandGroup>
+                  )}
+                </>
               )}
             </CommandList>
           </Command>

@@ -1,7 +1,7 @@
 import { FormFieldType } from "@/hooks/useFormBuilder";
 import { Button } from "@/components/ui/button";
 import {
-  GripVertical, Type, Mail, Phone, Hash, AlignLeft, List,
+  Plus, Type, Mail, Phone, Hash, AlignLeft, List,
   CheckSquare, CircleDot, Calendar, Heading, FileText, Minus, EyeOff,
 } from "lucide-react";
 
@@ -26,9 +26,10 @@ const STRUCTURE_FIELDS: { type: FormFieldType; label: string; icon: React.ReactN
 
 interface Props {
   onAddField: (type: FormFieldType) => void;
+  disabled?: boolean;
 }
 
-export function FormFieldLibrary({ onAddField }: Props) {
+export function FormFieldLibrary({ onAddField, disabled = false }: Props) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -40,8 +41,9 @@ export function FormFieldLibrary({ onAddField }: Props) {
             size="sm"
             className="w-full justify-start gap-2 text-xs"
             onClick={() => onAddField(ft.type)}
+            disabled={disabled}
           >
-            <GripVertical className="h-3 w-3 text-muted-foreground" />
+            <Plus className="h-3 w-3 text-muted-foreground" />
             {ft.icon}
             {ft.label}
           </Button>
@@ -56,8 +58,9 @@ export function FormFieldLibrary({ onAddField }: Props) {
             size="sm"
             className="w-full justify-start gap-2 text-xs"
             onClick={() => onAddField(ft.type)}
+            disabled={disabled}
           >
-            <GripVertical className="h-3 w-3 text-muted-foreground" />
+            <Plus className="h-3 w-3 text-muted-foreground" />
             {ft.icon}
             {ft.label}
           </Button>

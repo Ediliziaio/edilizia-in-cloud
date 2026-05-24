@@ -54,12 +54,14 @@ Deno.serve(async (req) => {
     const dnsUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(branding.custom_domain)}&type=CNAME`;
     const dnsResp = await fetch(dnsUrl, {
       headers: { Accept: "application/dns-json" },
+      signal: AbortSignal.timeout(10_000),
     });
     const dnsData = await dnsResp.json();
 
     const cnameAnswer = dnsData.Answer?.find((a: { type: number }) => a.type === 5);
-    const resolvedCname = cnameAnswer?.data?.replace(/\.$/, "");
-    const verified = resolvedCname === branding.custom_domain_cname;
+    const resolvedCname = cnameAnswer?.data?.replace(/\.$/, "").toLowerCase();
+    const expectedCname = branding.custom_domain_cname.toLowerCase().replace(/\.$/, "");
+    const verified = resolvedCname === expectedCname;
 
     if (verified) {
       await supabase
@@ -75,7 +77,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       verified: false,
-      error: `CNAME trovato: ${resolvedCname || "nessuno"} — atteso: ${branding.custom_domain_cname}`,
+      error: `CNAME trovato: ${resolvedCname || "nessuno"} — atteso: ${expectedCname}`,
     });
   } catch (err) {
     return errorResponse("Errore interno: " + String(err), 500);

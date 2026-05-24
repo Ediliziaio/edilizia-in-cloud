@@ -36,6 +36,7 @@ import {
   toggleContactsPageSelection,
   type ContactsTab,
 } from "@/lib/marketingContacts";
+import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 
 // Map filter field keys to actual DB columns
 const FIELD_TO_COLUMN: Record<string, string> = {
@@ -365,7 +366,7 @@ export default function MarketingContacts() {
       if (tagsRes.error) throw tagsRes.error;
       return {
         pipelines: (pipelinesRes.data || []) as PipelineWithStages[],
-        availableTags: (tagsRes.data || []).map((t) => t.name),
+        availableTags: normalizeTagList((tagsRes.data || []).map((t) => t.name)),
         listCount: countRes.count || 0,
       };
     },
@@ -678,26 +679,28 @@ export default function MarketingContacts() {
     mutationFn: async (formData: ContactFormData) => {
       if (!companyId) throw new Error("No company");
       if (!canEditContacts) throw new Error("Non hai i permessi per modificare i contatti");
+      const cleanFormData = { ...formData, tags: normalizeTagList(formData.tags) };
       if (editingContact) {
         const { error } = await supabase
           .from("marketing_contacts")
-          .update({ ...formData, updated_at: new Date().toISOString() })
+          .update({ ...cleanFormData, updated_at: new Date().toISOString() })
           .eq("id", editingContact.id)
           .eq("company_id", companyId);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("marketing_contacts")
-          .insert({ ...formData, company_id: companyId });
+          .insert({ ...cleanFormData, company_id: companyId });
         if (error) throw error;
       }
     },
     onSuccess: async (_, formData) => {
       toast.success(editingContact ? "Contatto aggiornato" : "Contatto aggiunto");
       if (editingContact) {
-        const originalTags = editingContact.tags || [];
-        const addedTags = formData.tags.filter(t => !originalTags.includes(t));
-        const removedTags = originalTags.filter(t => !formData.tags.includes(t));
+        const savedTags = normalizeTagList(formData.tags);
+        const originalTags = normalizeTagList(editingContact.tags || []);
+        const addedTags = getAddedTags(savedTags, originalTags);
+        const removedTags = getRemovedTags(originalTags, savedTags);
         if (addedTags.length > 0) {
           await syncTagsToOpportunities(editingContact.id, addedTags, companyId);
         }
@@ -800,7 +803,7 @@ export default function MarketingContacts() {
           company_name: r.company_name?.trim() || null,
           city: r.city?.trim() || null,
           province: r.province?.trim() || null,
-          tags: r.tags ? r.tags.split(",").map((t: string) => t.trim().toLowerCase()).filter(Boolean) : [],
+          tags: r.tags ? normalizeTagList(r.tags.split(",")) : [],
           notes: r.notes?.trim() || null,
           source: r.source?.trim() || "importazione",
         },

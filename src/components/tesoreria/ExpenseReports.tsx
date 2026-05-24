@@ -12,9 +12,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Receipt, Plus, Trash2, CheckCircle2, XCircle, Clock, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { formatTreasuryCurrency, isChronologicalDateRange, parsePositiveAmount, toFiniteAmount } from "@/lib/treasury";
 
-const formatEur = (val: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(val);
+const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   draft: { label: "Bozza", color: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200", icon: Clock },
@@ -26,11 +26,13 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 
 interface Props {
   companyId: string;
+  refreshKey?: number;
 }
 
-export default function ExpenseReports({ companyId }: Props) {
+export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [newReport, setNewReport] = useState({ title: "", description: "", period_from: "", period_to: "" });
@@ -45,22 +47,38 @@ export default function ExpenseReports({ companyId }: Props) {
   const [isAddingItem, setIsAddingItem] = useState(false);
 
   useEffect(() => {
-    if (companyId) loadReports();
-  }, [companyId]);
+    if (companyId) void loadReports();
+    else {
+      setReports([]);
+      setLoading(false);
+    }
+  }, [companyId, refreshKey]);
 
   async function loadReports() {
     setLoading(true);
-    const { data } = await supabase
-      .from("expense_reports")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false });
-    setReports(data || []);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const { data, error } = await supabase
+        .from("expense_reports")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      setReports(data || []);
+    } catch (e: any) {
+      setLoadError(e.message || "Impossibile caricare le note spese");
+      toast.error("Errore caricamento note spese");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleCreate() {
     if (!newReport.title.trim()) { toast.error("Inserisci il titolo della nota spese"); return; }
+    if (!isChronologicalDateRange(newReport.period_from, newReport.period_to)) {
+      toast.error("L'intervallo del periodo non è valido");
+      return;
+    }
     setIsCreating(true);
     try {
       const { data, error } = await supabase.from("expense_reports").insert({
@@ -74,8 +92,8 @@ export default function ExpenseReports({ companyId }: Props) {
       toast.success("Nota spese creata");
       setShowCreate(false);
       setNewReport({ title: "", description: "", period_from: "", period_to: "" });
-      loadReports();
-      openDetail(data);
+      await loadReports();
+      await openDetail(data);
     } finally {
       setIsCreating(false);
     }
@@ -83,24 +101,44 @@ export default function ExpenseReports({ companyId }: Props) {
 
   async function openDetail(report: any) {
     setSelectedReport(report);
-    const { data } = await supabase
-      .from("expense_report_items")
-      .select("*")
-      .eq("report_id", report.id)
-      .order("expense_date", { ascending: false });
-    setReportItems(data || []);
+    try {
+      const [{ data: itemsData, error: itemsError }, { data: freshReport, error: reportError }] = await Promise.all([
+        supabase
+          .from("expense_report_items")
+          .select("*")
+          .eq("company_id", companyId)
+          .eq("report_id", report.id)
+          .order("expense_date", { ascending: false }),
+        supabase
+          .from("expense_reports")
+          .select("*")
+          .eq("company_id", companyId)
+          .eq("id", report.id)
+          .maybeSingle(),
+      ]);
+      if (itemsError) throw itemsError;
+      if (reportError) throw reportError;
+      if (freshReport) setSelectedReport(freshReport);
+      setReportItems(itemsData || []);
+    } catch (e: any) {
+      toast.error("Errore caricamento dettaglio nota spese: " + e.message);
+      setReportItems([]);
+    }
   }
 
   async function handleAddItem() {
+    if (!selectedReport?.id) { toast.error("Nota spese non disponibile"); return; }
     if (!newItem.description.trim()) { toast.error("Inserisci la descrizione della spesa"); return; }
-    if (!newItem.amount) { toast.error("Inserisci l'importo"); return; }
+    const amount = parsePositiveAmount(newItem.amount);
+    if (!amount) { toast.error("Inserisci un importo maggiore di zero"); return; }
+    if (!newItem.expense_date) { toast.error("Inserisci la data della spesa"); return; }
     setIsAddingItem(true);
     try {
       const { error } = await supabase.from("expense_report_items").insert({
         report_id: selectedReport.id,
         company_id: companyId,
         description: newItem.description,
-        amount: parseFloat(newItem.amount),
+        amount,
         category: newItem.category,
         expense_date: newItem.expense_date,
       });
@@ -108,20 +146,30 @@ export default function ExpenseReports({ companyId }: Props) {
       toast.success("Voce aggiunta");
       setShowAddItem(false);
       setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toISOString().split("T")[0] });
-      openDetail(selectedReport);
-      loadReports();
+      await openDetail(selectedReport);
+      await loadReports();
     } finally {
       setIsAddingItem(false);
     }
   }
 
   async function handleSubmit(reportId: string) {
+    const targetReport = reports.find((report) => report.id === reportId) || selectedReport;
+    if (toFiniteAmount(targetReport?.total_amount) <= 0) {
+      toast.error("Aggiungi almeno una voce prima di inviare la nota spese");
+      return;
+    }
+
     setSubmittingId(reportId);
     try {
-      const { error } = await supabase.from("expense_reports").update({ status: "submitted" }).eq("id", reportId);
+      const { error } = await supabase
+        .from("expense_reports")
+        .update({ status: "submitted" })
+        .eq("id", reportId)
+        .eq("company_id", companyId);
       if (error) { toast.error("Errore nell'invio: " + error.message); return; }
       toast.success("Nota spese inviata per approvazione");
-      loadReports();
+      await loadReports();
       if (selectedReport?.id === reportId) setSelectedReport({ ...selectedReport, status: "submitted" });
     } finally {
       setSubmittingId(null);
@@ -130,16 +178,33 @@ export default function ExpenseReports({ companyId }: Props) {
 
   async function handleDelete() {
     if (!deleteId) return;
-    await supabase.from("expense_reports").delete().eq("id", deleteId);
+    const { error } = await supabase
+      .from("expense_reports")
+      .delete()
+      .eq("id", deleteId)
+      .eq("company_id", companyId);
+    if (error) {
+      toast.error("Errore eliminazione: " + error.message);
+      return;
+    }
+    toast.success("Nota spese eliminata");
     setDeleteId(null);
     if (selectedReport?.id === deleteId) setSelectedReport(null);
-    loadReports();
+    await loadReports();
   }
 
   async function handleDeleteItem(itemId: string) {
-    await supabase.from("expense_report_items").delete().eq("id", itemId);
-    openDetail(selectedReport);
-    loadReports();
+    const { error } = await supabase
+      .from("expense_report_items")
+      .delete()
+      .eq("id", itemId)
+      .eq("company_id", companyId);
+    if (error) {
+      toast.error("Errore eliminazione voce: " + error.message);
+      return;
+    }
+    await openDetail(selectedReport);
+    await loadReports();
   }
 
   if (loading) {
@@ -156,6 +221,15 @@ export default function ExpenseReports({ companyId }: Props) {
           <Plus className="h-4 w-4 mr-1" /> Nuova Nota Spese
         </Button>
       </div>
+
+      {loadError && (
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => loadReports()}>Riprova</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {reports.length === 0 ? (
         <Card>
@@ -300,7 +374,7 @@ export default function ExpenseReports({ companyId }: Props) {
           <div className="space-y-4 py-2">
             <div><Label>Descrizione</Label><Input placeholder="Es: Pranzo con cliente" value={newItem.description} onChange={(e) => setNewItem({ ...newItem, description: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Importo (EUR)</Label><Input type="number" step="0.01" placeholder="0.00" value={newItem.amount} onChange={(e) => setNewItem({ ...newItem, amount: e.target.value })} /></div>
+              <div><Label>Importo (EUR)</Label><Input type="number" min="0.01" step="0.01" placeholder="0.00" value={newItem.amount} onChange={(e) => setNewItem({ ...newItem, amount: e.target.value })} /></div>
               <div><Label>Data</Label><Input type="date" value={newItem.expense_date} onChange={(e) => setNewItem({ ...newItem, expense_date: e.target.value })} /></div>
             </div>
             <div>
