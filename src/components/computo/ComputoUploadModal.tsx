@@ -5,7 +5,7 @@
  * Step 3: Processing AI (progress bar)
  * Step 4: Preview & Review (ComputoPreviewEditor)
  */
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   FileUp,
   FileText,
@@ -48,6 +49,12 @@ import { useComputoExtract } from "@/hooks/useComputoExtract";
 import { ComputoPreviewEditor } from "./ComputoPreviewEditor";
 import { AIProcessingStage } from "./AIProcessingStage";
 import { MatchProductPickerDialog } from "@/components/quotes/MatchProductPickerDialog";
+import {
+  MatchTariffaPickerDialog,
+  type ComputoTariffaCatalogItem,
+} from "@/components/quotes/MatchTariffaPickerDialog";
+import { buildComputoReviewSummary, canGenerateComputoQuote } from "@/lib/computo/reviewQuality";
+import { buildComputoQuoteItemPayload } from "@/lib/computo/quoteItemMapping";
 import type { ComputoVoceLocal } from "@/types/computo";
 import type { CatalogItem } from "@/types/catalogItem";
 
@@ -55,6 +62,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete?: (quoteId: string) => void;
+  /** ID già estratto da un flusso smart document: apre direttamente la review. */
+  initialComputoId?: string | null;
   /**
    * Modalità del modale:
    * - "computo" (default): caricamento computi metrici (PDF/Excel/XPWE)
@@ -91,7 +100,7 @@ function getFileIcon(name: string) {
   return <FileUp className="h-8 w-8 text-slate-400" />;
 }
 
-export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "computo" }: Props) {
+export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComputoId = null, intent = "computo" }: Props) {
   const isFotoMode = intent === "foto";
   const navigate = useNavigate();
   const {
@@ -105,6 +114,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
     isUploading,
     generatePreventivo,
     isGenerating,
+    loadExistingComputo,
     reset,
   } = useComputoExtract();
 
@@ -113,14 +123,22 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
   const [dragOver, setDragOver] = useState(false);
   const [ricarico, setRicarico] = useState(15);
   const [applyRicarico, setApplyRicarico] = useState(true);
+  const [oggettoPreventivo, setOggettoPreventivo] = useState("");
+  const [notePreventivo, setNotePreventivo] = useState("");
+  const [margineTarget, setMargineTarget] = useState(22);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Voci locali per il preview editor
   const [vociLocali, setVociLocali] = useState<ComputoVoceLocal[]>([]);
+  const reviewSummary = useMemo(() => buildComputoReviewSummary(vociLocali), [vociLocali]);
+  const canGenerateFromReview = useMemo(() => canGenerateComputoQuote(vociLocali), [vociLocali]);
 
   // Stato del picker articoli del listino (per abbinamento manuale)
   const [pickerVoceId, setPickerVoceId] = useState<string | null>(null);
   const [pickerInitialQuery, setPickerInitialQuery] = useState("");
+  const [tariffaPickerVoceId, setTariffaPickerVoceId] = useState<string | null>(null);
+  const [tariffaPickerInitialQuery, setTariffaPickerInitialQuery] = useState("");
+  const initialComputoLoadedRef = useRef<string | null>(null);
 
   const handleClose = () => {
     reset();
@@ -128,7 +146,12 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
     setFile(null);
     setVociLocali([]);
     setPickerVoceId(null);
+    setTariffaPickerVoceId(null);
+    setOggettoPreventivo("");
+    setNotePreventivo("");
+    setMargineTarget(22);
     hasInitializedRef.current = false;
+    initialComputoLoadedRef.current = null;
     onOpenChange(false);
   };
 
@@ -136,6 +159,11 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
   const handleMatchClick = useCallback((voceId: string, query: string) => {
     setPickerVoceId(voceId);
     setPickerInitialQuery(query);
+  }, []);
+
+  const handleTariffaMatchClick = useCallback((voceId: string, query: string) => {
+    setTariffaPickerVoceId(voceId);
+    setTariffaPickerInitialQuery(query);
   }, []);
 
   // Quando l'utente seleziona un articolo dal picker
@@ -157,7 +185,11 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
             ...v,
             _matched_template_id: isFamily ? undefined : item.id,
             _matched_family_id: isFamily ? item.id : undefined,
+            _matched_tariffa_id: undefined,
             _matched_name: item.nome,
+            _matched_tariffa_tipo: undefined,
+            _matched_tariffa_cost: undefined,
+            _matched_tariffa_unita: undefined,
             _match_type: "manual",
             _matched_unit_price: item.prezzo_base_vendita ?? undefined,
             // Fix: aggiorna anche prezzo/importo impresa con il valore dal listino
@@ -172,6 +204,38 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
     [pickerVoceId, ricarico, applyRicarico],
   );
 
+  const handleManualTariffaMatch = useCallback(
+    (item: ComputoTariffaCatalogItem) => {
+      if (!tariffaPickerVoceId) return;
+      setVociLocali((prev) =>
+        prev.map((v) => {
+          if (v.id !== tariffaPickerVoceId) return v;
+          const newPrezzo = item.prezzo_vendita ?? v._prezzoImpresa;
+          const costo = item.costo_interno ?? item.prezzo_costo ?? undefined;
+          const ricaricoDaCosto = costo && costo > 0 ? ((newPrezzo - costo) / costo) * 100 : v._ricarico;
+          return {
+            ...v,
+            _matched_template_id: undefined,
+            _matched_family_id: undefined,
+            _matched_tariffa_id: item.id,
+            _matched_name: item.nome,
+            _matched_tariffa_tipo: item.tipo,
+            _matched_tariffa_cost: costo,
+            _matched_tariffa_unita: item.unita_fatturazione || item.unita || undefined,
+            _match_type: "manual",
+            _matched_unit_price: item.prezzo_vendita ?? undefined,
+            _prezzoImpresa: newPrezzo,
+            _ricarico: ricaricoDaCosto,
+            _importoImpresa: v.quantita * newPrezzo,
+          };
+        }),
+      );
+      toast.success(`Tariffa abbinata: ${item.nome}`);
+      setTariffaPickerVoceId(null);
+    },
+    [tariffaPickerVoceId],
+  );
+
   // ── Step 1: File selection ─────────────────────────────────────────────────
   const handleFileSelect = useCallback((f: File) => {
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
@@ -184,6 +248,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
       return;
     }
     setFile(f);
+    setOggettoPreventivo((current) => current.trim() ? current : f.name.replace(/\.[^.]+$/, ""));
   }, []);
 
   const handleDrop = useCallback(
@@ -206,7 +271,17 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
   // When extraction reaches "review", jump to step 4
   const hasInitializedRef = useRef(false);
   useEffect(() => {
+    if (!open || !initialComputoId || initialComputoLoadedRef.current === initialComputoId) return;
+    initialComputoLoadedRef.current = initialComputoId;
+    hasInitializedRef.current = false;
+    setStep(3);
+    setFile(null);
+    loadExistingComputo(initialComputoId);
+  }, [initialComputoId, loadExistingComputo, open]);
+
+  useEffect(() => {
     if (status === "review" && step === 3 && !hasInitializedRef.current) {
+      if (vociLoading) return;
       hasInitializedRef.current = true;
       if (voci.length === 0) {
         // Fix 12: 0 voci — mostra errore con 3 azioni chiare invece di toast generico
@@ -231,42 +306,35 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
           // Pre-popola da auto-match server-side (alias/vector)
           _matched_template_id: v.matched_template_id ?? undefined,
           _matched_family_id: v.matched_family_id ?? undefined,
+          _matched_tariffa_id: v.matched_tariffa_id ?? undefined,
           _matched_name: v.matched_name ?? undefined,
           _match_type: (v.match_type as ComputoVoceLocal["_match_type"]) ?? undefined,
         }))
       );
+      setOggettoPreventivo((current) =>
+        current.trim()
+          ? current
+          : computoUpload?.oggetto_lavori || file?.name.replace(/\.[^.]+$/, "") || "",
+      );
       setStep(4);
     }
-  }, [status, step, voci, applyRicarico, ricarico, reset]);
+  }, [status, step, voci, vociLoading, applyRicarico, ricarico, reset, computoUpload?.oggetto_lavori, file?.name]);
 
   // ── Step 4 → Generate ──────────────────────────────────────────────────────
   const handleGenerate = () => {
     const incluse = vociLocali
       .filter((v) => v._isIncluded)
-      .map((v) => ({
-        id: v.id,
-        is_included: true,
-        descrizione_breve: v.descrizione_breve,
-        descrizione_estesa: v.descrizione_estesa,
-        capitolo_nome: v.capitolo_nome,
-        codice_voce: v.codice_voce,
-        codice_prezzario: v.codice_prezzario,
-        unita_misura: v.unita_misura,
-        quantita: v.quantita,
-        prezzo_unitario: v._prezzoImpresa,
-        importo: v._importoImpresa,
-        sconto_percentuale: v.sconto_percentuale || 0,
-        // Match listino — propaga a quote_items.article_template_id/family_id
-        matched_template_id: v._matched_template_id,
-        matched_family_id: v._matched_family_id,
-        matched_name: v._matched_name,
-      }));
+      .map((v, index) => buildComputoQuoteItemPayload(v, index));
 
     generatePreventivo(
       {
         vociIncluse: incluse,
         config: {
-          oggetto: computoUpload?.oggetto_lavori || undefined,
+          oggetto: oggettoPreventivo.trim() || computoUpload?.oggetto_lavori || undefined,
+          note: [
+            notePreventivo.trim(),
+            `Margine target commerciale: ${margineTarget}%`,
+          ].filter(Boolean).join("\n\n"),
         },
       },
       {
@@ -288,7 +356,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
         className={step === 4 ? "max-w-6xl max-h-[90vh] overflow-hidden flex flex-col" : "sm:max-w-lg"}
         onInteractOutside={(e) => {
           // Evita chiusura quando l'utente apre il Sheet del picker abbinamento
-          if (pickerVoceId !== null) e.preventDefault();
+          if (pickerVoceId !== null || tariffaPickerVoceId !== null) e.preventDefault();
         }}
       >
         <DialogHeader>
@@ -403,6 +471,50 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
             </div>
 
             <div className="space-y-3">
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Dati preventivo
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="computo-oggetto" className="text-sm">
+                    Oggetto offerta
+                  </Label>
+                  <Input
+                    id="computo-oggetto"
+                    value={oggettoPreventivo}
+                    onChange={(e) => setOggettoPreventivo(e.target.value)}
+                    placeholder="Es. Ristrutturazione appartamento via Roma"
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="computo-margine-target" className="text-sm">
+                      Margine target %
+                    </Label>
+                    <Input
+                      id="computo-margine-target"
+                      type="number"
+                      value={margineTarget}
+                      onChange={(e) => setMargineTarget(Math.max(0, Math.min(80, Number(e.target.value))))}
+                      min={0}
+                      max={80}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="computo-note" className="text-sm">
+                      Note interne
+                    </Label>
+                    <Textarea
+                      id="computo-note"
+                      value={notePreventivo}
+                      onChange={(e) => setNotePreventivo(e.target.value)}
+                      placeholder="Vincoli, esclusioni, condizioni commerciali..."
+                      className="min-h-[72px]"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center gap-3">
                 <input
                   type="checkbox"
@@ -528,29 +640,34 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
                 </strong>{" "}
                 capitoli
               </span>
+              <span>
+                <strong>{reviewSummary.matchRatePct}%</strong> match listino
+              </span>
+              <span>
+                <strong>{reviewSummary.blockingCount}</strong> blocchi ·{" "}
+                <strong>{reviewSummary.warningCount}</strong> avvisi
+              </span>
             </div>
 
             {/* Editor table */}
             <div className="flex-1 overflow-auto">
-              <ComputoPreviewEditor
-                voci={vociLocali}
-                onChange={setVociLocali}
-                onMatchClick={handleMatchClick}
-              />
+                <ComputoPreviewEditor
+                  voci={vociLocali}
+                  onChange={setVociLocali}
+                  onMatchClick={handleMatchClick}
+                  onTariffaMatchClick={handleTariffaMatchClick}
+                />
             </div>
 
             {/* Footer */}
             <div className="space-y-2 pt-3 border-t mt-3">
-              {/* Warning: voci incluse con quantità = 0 */}
-              {vociLocali.some((v) => v._isIncluded && (v.quantita ?? 0) <= 0) && (
+              {!canGenerateFromReview && (
                 <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/20 rounded-md p-2 text-xs flex items-start gap-2">
                   <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
                   <span className="text-amber-800 dark:text-amber-300">
-                    {vociLocali.filter((v) => v._isIncluded && (v.quantita ?? 0) <= 0).length}{" "}
-                    {vociLocali.filter((v) => v._isIncluded && (v.quantita ?? 0) <= 0).length === 1
-                      ? "voce inclusa ha quantità 0"
-                      : "voci incluse hanno quantità 0"}
-                    . Correggi o escludile prima di generare il preventivo.
+                    {reviewSummary.includedRows === 0
+                      ? "Seleziona almeno una voce prima di generare il preventivo."
+                      : `${reviewSummary.blockingCount} problema bloccante: correggi o escludi le righe evidenziate prima di generare il preventivo.`}
                   </span>
                 </div>
               )}
@@ -576,8 +693,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
                     onClick={handleGenerate}
                     disabled={
                       isGenerating ||
-                      vociLocali.filter((v) => v._isIncluded).length === 0 ||
-                      vociLocali.some((v) => v._isIncluded && (v.quantita ?? 0) <= 0)
+                      !canGenerateFromReview
                     }
                   >
                     {isGenerating ? (
@@ -604,6 +720,14 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, intent = "c
         }}
         initialQuery={pickerInitialQuery}
         onSelect={handleManualMatch}
+      />
+      <MatchTariffaPickerDialog
+        open={tariffaPickerVoceId !== null}
+        onOpenChange={(o) => {
+          if (!o) setTariffaPickerVoceId(null);
+        }}
+        initialQuery={tariffaPickerInitialQuery}
+        onSelect={handleManualTariffaMatch}
       />
     </Dialog>
   );

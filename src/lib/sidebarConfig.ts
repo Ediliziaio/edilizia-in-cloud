@@ -19,6 +19,7 @@ import {
   BarChart3,
   Headphones,
   Landmark,
+  FileStack,
   FileSignature,
   FileText,
   BookOpen,
@@ -204,6 +205,18 @@ export const macroAreas: MacroArea[] = [
       // ─── Altri tool AI ───
       { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents", groupLabel: "Altri tool AI" },
       { title: "Render AI", url: "/azienda/render", icon: Image, permissionKey: "canViewRenderAi", featureKey: "render_ai" },
+    ],
+  },
+
+  // 7. Centro documentale — accesso unico a file, foto, computi e inbox AI.
+  // La visibilita' fine e' calcolata in CompanyLayout/MobileAppGrid con
+  // canAccessMediaLibrary, perche' dipende da piu permessi OR.
+  {
+    id: "area_contenuti",
+    title: "Contenuti",
+    icon: FileStack,
+    items: [
+      { title: "Contenuti Multimediali", url: "/azienda/contenuti-multimediali", icon: FileStack },
     ],
   },
 ];

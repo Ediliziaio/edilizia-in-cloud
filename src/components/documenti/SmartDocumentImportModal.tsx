@@ -5,10 +5,10 @@
  * Pipeline:
  *   1. Upload (drag/drop, qualsiasi formato compatibile)
  *   2. Storage upload bucket "documenti-smart" o fallback "computi"
- *   3. Invoke document-ai-router → classifica via Gemini/Claude PDF native
- *   4. Mostra risultato + CTA (autoflow / redirect / manuale)
+ *   3. Invoke ai-document-analyzer → classifica, salva audit e lancia parser verticale
+ *   4. Mostra risultato + CTA (review computo / dati estratti / redirect / manuale)
  */
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -19,6 +19,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Upload,
   FileText,
@@ -38,6 +45,19 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { AIProcessingStage } from "@/components/computo/AIProcessingStage";
+import {
+  SMART_ACCEPTED_EXT,
+  SMART_DOC_TYPE_EMOJI,
+  SMART_DOC_TYPE_LABEL,
+  SMART_DOC_TYPE_OPTIONS,
+  SMART_IMPORT_MAX_SIZE,
+  buildSmartImportRedirectPath,
+  buildSmartImportActionPlan,
+  getSmartImportFileKind,
+  getSmartImportRiskLevel,
+  requiresDocTypeConfirmation,
+  type SmartValidationWarning,
+} from "@/lib/documenti/smartDocumentImport";
 
 // Sostituiamo i tip di AIProcessingStage iniettando un wrapper minimale.
 // (Per non duplicare tutto il file riusiamo lo stesso componente — i tip
@@ -46,54 +66,15 @@ import { AIProcessingStage } from "@/components/computo/AIProcessingStage";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onComputoReady?: (computoUploadId: string) => void;
   /** Bucket dove caricare. Default "documenti-smart"; fallback "computi". */
   storageBucket?: string;
 }
 
-const ACCEPTED_EXT = [".pdf", ".jpg", ".jpeg", ".png", ".heic", ".webp", ".xlsx", ".xls"];
-const MAX_SIZE = 18 * 1024 * 1024; // limite del classifier
-
-const DOC_TYPE_LABEL: Record<string, string> = {
-  computo_metrico: "Computo metrico",
-  ddt: "Documento di Trasporto (DDT)",
-  fattura: "Fattura",
-  ricevuta: "Ricevuta",
-  contratto: "Contratto",
-  preventivo: "Preventivo / offerta",
-  listino_prezzi: "Listino prezzi",
-  biglietto_visita: "Biglietto da visita",
-  foto_cantiere: "Foto cantiere",
-  foto_generale: "Foto generica",
-  tabella_finanziamento: "Tabella finanziamento",
-  documento_identita: "Documento d'identità",
-  verbale_collaudo: "Verbale di collaudo",
-  polizza_assicurativa: "Polizza assicurativa",
-  documento_pa: "Documento PA",
-  scheda_tecnica: "Scheda tecnica",
-  documento_generico: "Documento generico",
-  altro: "Altro / non riconosciuto",
-};
-
-const DOC_TYPE_EMOJI: Record<string, string> = {
-  computo_metrico: "📐",
-  ddt: "🚚",
-  fattura: "💰",
-  ricevuta: "🧾",
-  contratto: "📜",
-  preventivo: "📝",
-  listino_prezzi: "📊",
-  biglietto_visita: "👤",
-  foto_cantiere: "🏗️",
-  foto_generale: "🖼️",
-  tabella_finanziamento: "💳",
-  documento_identita: "🪪",
-  verbale_collaudo: "✅",
-  polizza_assicurativa: "🛡️",
-  documento_pa: "🏛️",
-  scheda_tecnica: "📄",
-  documento_generico: "📁",
-  altro: "❓",
-};
+const ACCEPTED_EXT = [...SMART_ACCEPTED_EXT];
+const MAX_SIZE = SMART_IMPORT_MAX_SIZE;
+const DOC_TYPE_LABEL = SMART_DOC_TYPE_LABEL;
+const DOC_TYPE_EMOJI = SMART_DOC_TYPE_EMOJI;
 
 function safeStorageName(name: string): string {
   const ext = name.includes(".") ? `.${name.split(".").pop()}` : "";
@@ -109,9 +90,10 @@ function safeStorageName(name: string): string {
 
 interface ClassifyResponse {
   success: boolean;
+  analysis_id?: string;
   doc_type: string;
   confidence: number;
-  reasoning: string;
+  reasoning: string | null;
   key_fields: Record<string, unknown>;
   next_action: {
     kind: "autoflow" | "redirect" | "manual";
@@ -128,9 +110,41 @@ interface ClassifyResponse {
     storage_bucket: string;
     storage_path: string;
     name: string;
-    size: number;
+    size: number | null;
     mime_type: string | null;
   };
+  cached?: boolean;
+  parser_used?: string | null;
+  structured_fields?: Record<string, unknown> | null;
+  validation?: {
+    warnings: SmartValidationWarning[];
+    valid: boolean;
+    score?: number;
+  };
+  status?: "success" | "review_required" | "failed" | string;
+  processing_time_ms?: number;
+  cost_eur?: number | null;
+}
+
+interface AnalyzerResponse {
+  analysis_id?: string;
+  cached?: boolean;
+  doc_type?: string;
+  classification_confidence?: number | null;
+  reasoning?: string | null;
+  key_fields?: Record<string, unknown> | null;
+  next_action?: ClassifyResponse["next_action"] | null;
+  parser_used?: string | null;
+  structured_fields?: Record<string, unknown> | null;
+  validation?: {
+    warnings?: SmartValidationWarning[];
+    valid?: boolean;
+    score?: number;
+  };
+  status?: string;
+  processing_time_ms?: number;
+  cost_eur?: number | null;
+  file?: ClassifyResponse["file"];
 }
 
 interface DeepExtractResponse {
@@ -186,9 +200,54 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function SmartFilePreview({
+  file,
+  resultFile,
+  previewUrl,
+}: {
+  file: File | null;
+  resultFile?: ClassifyResponse["file"];
+  previewUrl: string | null;
+}) {
+  const name = file?.name ?? resultFile?.name ?? "Documento";
+  const mime = file?.type || resultFile?.mime_type || "";
+  const size = file?.size ?? resultFile?.size ?? null;
+  const kind = getSmartImportFileKind(name, mime);
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-slate-50">
+      <div className="flex items-center gap-3 border-b bg-white p-3">
+        {getFileIcon(name)}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-slate-900" title={name}>{name}</p>
+          <p className="text-xs text-muted-foreground">
+            {kind === "computo_data" ? "File computo" : kind}
+            {size ? ` · ${formatBytes(size)}` : ""}
+          </p>
+        </div>
+      </div>
+
+      {kind === "image" && previewUrl ? (
+        <div className="flex h-[360px] items-center justify-center bg-slate-100">
+          <img src={previewUrl} alt={name} className="max-h-full max-w-full object-contain" />
+        </div>
+      ) : kind === "pdf" && previewUrl ? (
+        <iframe title={name} src={previewUrl} className="h-[360px] w-full bg-white" />
+      ) : (
+        <div className="flex h-[220px] flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted-foreground">
+          {getFileIcon(name)}
+          <p>Anteprima visuale non disponibile per questo formato.</p>
+          <p className="text-xs">Il file resta comunque collegato al job AI e al modulo di destinazione.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SmartDocumentImportModal({
   open,
   onOpenChange,
+  onComputoReady,
   storageBucket = "documenti-smart",
 }: Props) {
   const navigate = useNavigate();
@@ -197,12 +256,14 @@ export function SmartDocumentImportModal({
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [classifyStatus, setClassifyStatus] =
     useState<"uploading" | "extracting_text" | "analyzing_ai" | "validating" | "review" | "failed" | null>(null);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ClassifyResponse | null>(null);
+  const [selectedDocType, setSelectedDocType] = useState<string>("altro");
   const [deepResult, setDeepResult] = useState<DeepExtractResponse | null>(null);
   const [linkerResult, setLinkerResult] = useState<LinkerResponse | null>(null);
   const [linking, setLinking] = useState(false);
@@ -215,6 +276,7 @@ export function SmartDocumentImportModal({
     setProgress("");
     setError(null);
     setResult(null);
+    setSelectedDocType("altro");
     setDeepResult(null);
     setLinkerResult(null);
     setLinking(false);
@@ -225,10 +287,25 @@ export function SmartDocumentImportModal({
     onOpenChange(false);
   };
 
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+    const kind = getSmartImportFileKind(file.name, file.type);
+    if (kind !== "image" && kind !== "pdf") {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
   const handleFileSelect = useCallback((f: File) => {
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
     if (!ACCEPTED_EXT.includes(ext)) {
-      toast.error("Formato non supportato. Usa PDF, immagine o Excel.");
+      toast.error("Formato non supportato. Usa PDF, immagine, Excel, XPWE o DCF.");
       return;
     }
     if (f.size > MAX_SIZE) {
@@ -274,11 +351,11 @@ export function SmartDocumentImportModal({
       setClassifyStatus("extracting_text");
       setProgress("Preparo il documento per l'AI…");
 
-      // 2. Invoke router
+      // 2. Invoke analyzer: classifica, salva audit e prova il parser verticale.
       setClassifyStatus("analyzing_ai");
-      setProgress("L'AI sta capendo che tipo di documento è…");
-      const { data, error: fnErr } = await supabase.functions.invoke<ClassifyResponse>(
-        "document-ai-router",
+      setProgress("L'AI classifica il documento ed estrae i dati utili…");
+      const { data, error: fnErr } = await supabase.functions.invoke<AnalyzerResponse>(
+        "ai-document-analyzer",
         {
           body: {
             storage_bucket: usedBucket,
@@ -291,16 +368,47 @@ export function SmartDocumentImportModal({
         }
       );
 
-      if (fnErr || !data?.success) {
-        throw new Error(fnErr?.message || "Classificazione fallita");
+      if (fnErr || !data?.doc_type) {
+        throw new Error(fnErr?.message || "Analisi documento fallita");
       }
 
+      const normalized: ClassifyResponse = {
+        success: true,
+        analysis_id: data.analysis_id,
+        cached: data.cached,
+        doc_type: data.doc_type,
+        confidence: data.classification_confidence ?? 0,
+        reasoning: data.reasoning ?? "",
+        key_fields: data.key_fields ?? {},
+        next_action: data.next_action ?? {
+          kind: "manual",
+          hint: "Documento analizzato. Verifica manualmente il tipo prima di proseguire.",
+        },
+        ai_meta: {
+          model_used: data.parser_used ?? "ai-document-analyzer",
+          cost_billed_eur: data.cost_eur ?? 0,
+          elapsed_ms: data.processing_time_ms ?? 0,
+        },
+        file: data.file,
+        parser_used: data.parser_used,
+        structured_fields: data.structured_fields ?? null,
+        validation: {
+          warnings: data.validation?.warnings ?? [],
+          valid: data.validation?.valid ?? true,
+          score: data.validation?.score,
+        },
+        status: data.status,
+        processing_time_ms: data.processing_time_ms,
+        cost_eur: data.cost_eur,
+      };
+
       setClassifyStatus("validating");
-      setProgress(`Riconosciuto: ${DOC_TYPE_LABEL[data.doc_type] ?? data.doc_type}`);
+      setProgress(`Riconosciuto: ${DOC_TYPE_LABEL[normalized.doc_type] ?? normalized.doc_type}`);
       // Lascia un attimo per mostrare il "validating" pulse
       await new Promise((r) => setTimeout(r, 400));
       setClassifyStatus("review");
-      setResult(data);
+      setResult(normalized);
+      setSelectedDocType(normalized.doc_type);
       setStep(3);
     } catch (e) {
       setClassifyStatus("failed");
@@ -308,69 +416,62 @@ export function SmartDocumentImportModal({
     }
   };
 
-  // Edge functions che possono essere invocate INLINE dentro questo modal.
-  // Per le altre (computo, fattura, listino...) facciamo redirect alla pagina dedicata.
-  const INLINE_AUTOFLOW = new Set(["ddt-ai-extract", "generic-doc-ai-extract"]);
-
   const handleAction = async () => {
     if (!result) return;
-    const action = result.next_action;
 
-    if (action.kind === "autoflow" && action.autoflow_function) {
-      // Inline autoflow → mostra deep extract dentro questo stesso modal
-      if (INLINE_AUTOFLOW.has(action.autoflow_function) && result.file && companyId) {
-        setStep(2);
-        setError(null);
-        setClassifyStatus("analyzing_ai");
-        setProgress(action.hint ?? "Estrazione in corso…");
-        try {
-          const { data, error: fnErr } = await supabase.functions.invoke<DeepExtractResponse>(
-            action.autoflow_function,
-            {
-              body: {
-                storage_bucket: result.file.storage_bucket,
-                storage_path: result.file.storage_path,
-                file_name: result.file.name,
-                mime_type: result.file.mime_type,
-                company_id: companyId,
-                doc_type: result.doc_type,
-              },
-            }
-          );
-          if (fnErr || !data?.success) {
-            throw new Error(fnErr?.message || "Estrazione fallita");
-          }
-          setClassifyStatus("review");
-          setDeepResult(data);
-          setStep(4);
+    const isAiType = selectedDocType === result.doc_type;
+    const plan = buildSmartImportActionPlan({
+      docType: selectedDocType,
+      nextAction: isAiType ? result.next_action : null,
+      parserUsed: isAiType ? result.parser_used : null,
+      structuredFields: isAiType ? result.structured_fields : null,
+    });
 
-          // Decisione utente B = Opzione A (subito dopo extract): lancia il Linker.
-          // Solo per i tipi che hanno un Linker abilitato (oggi: ddt).
-          if (result.doc_type === "ddt") {
-            await runLinker(result.doc_type, data.ddt ?? data.extracted ?? {}, result.file);
-          }
-        } catch (e) {
-          setClassifyStatus("failed");
-          setError(e instanceof Error ? e.message : String(e));
-        }
-        return;
+    if (plan.kind === "computo_review") {
+      toast.success("Computo estratto: apro la revisione delle voci.");
+      handleClose();
+      if (onComputoReady) {
+        onComputoReady(plan.computoUploadId);
+      } else {
+        navigate(`/azienda/marketing/preventivi?action=import-computo&computo_id=${encodeURIComponent(plan.computoUploadId)}`);
       }
-
-      // Outflow legacy → redirect alla pagina che contiene il modale dedicato
-      toast.success(
-        `Documento riconosciuto come ${DOC_TYPE_LABEL[result.doc_type] ?? result.doc_type}. ${action.hint ?? ""}`
-      );
-      const moduleUrl = AUTOFLOW_REDIRECTS[result.doc_type] ?? null;
-      handleClose();
-      if (moduleUrl) navigate(moduleUrl);
-    } else if (action.kind === "redirect") {
-      handleClose();
-      if (action.redirect_url) navigate(action.redirect_url);
-      if (action.hint) toast.info(action.hint);
-    } else {
-      toast.info(action.hint ?? "Verifica manualmente il documento.");
-      handleClose();
+      return;
     }
+
+    if (plan.kind === "review_extracted") {
+      const extracted = result.structured_fields ?? result.key_fields ?? {};
+      setDeepResult({
+        success: true,
+        extracted,
+        summary: `Documento analizzato e salvato${result.analysis_id ? ` (#${result.analysis_id.slice(0, 8)})` : ""}.`,
+        confidence: result.validation?.score ?? result.confidence,
+        warnings: result.validation?.warnings?.map((warning) => warning.message ?? "Verifica consigliata"),
+        ai_meta: {
+          model_used: result.parser_used ?? result.ai_meta.model_used,
+          cost_billed_eur: result.cost_eur ?? result.ai_meta.cost_billed_eur,
+          elapsed_ms: result.processing_time_ms ?? result.ai_meta.elapsed_ms,
+        },
+      });
+      setStep(4);
+      if (selectedDocType === "ddt" && result.file) {
+        await runLinker(selectedDocType, extracted, result.file);
+      }
+      return;
+    }
+
+    if (plan.kind === "redirect") {
+      const redirectPath = buildSmartImportRedirectPath(plan.url, {
+        analysisId: result.analysis_id,
+        docType: selectedDocType,
+      });
+      handleClose();
+      navigate(redirectPath);
+      toast.info("Documento salvato: continuo nel modulo corretto.");
+      return;
+    }
+
+    toast.info(plan.hint ?? "Verifica manualmente il documento.");
+    handleClose();
   };
 
   // ── Linker: cerca match nel DB e propone / auto-esegue ─────────────────
@@ -561,9 +662,25 @@ export function SmartDocumentImportModal({
     return <span>{String(val)}</span>;
   };
 
+  const selectedMatchesAi = result ? selectedDocType === result.doc_type : true;
+  const actionPlan = result
+    ? buildSmartImportActionPlan({
+        docType: selectedDocType,
+        nextAction: selectedMatchesAi ? result.next_action : null,
+        parserUsed: selectedMatchesAi ? result.parser_used : null,
+        structuredFields: selectedMatchesAi ? result.structured_fields : null,
+      })
+    : null;
+  const riskLevel = result ? getSmartImportRiskLevel(result.confidence, result.validation?.warnings) : "ok";
+  const selectedDocLabel = DOC_TYPE_LABEL[selectedDocType] ?? selectedDocType;
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className={step === 4 ? "sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" : "sm:max-w-xl"}>
+      <DialogContent
+        className={step === 3 || step === 4
+          ? "sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+          : "sm:max-w-xl"}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-orange-500" />
@@ -585,9 +702,9 @@ export function SmartDocumentImportModal({
           </DialogTitle>
           {step === 1 && (
             <p className="text-sm text-muted-foreground">
-              Carica un PDF, una foto o un Excel. L'AI capirà se è un computo,
-              DDT, fattura, contratto, listino o altro — e lo smisterà al
-              modulo giusto.
+              Carica un PDF, una foto, un Excel o un file computo. L'AI lo classifica,
+              prova a estrarre i dati e lo porta al modulo corretto senza farti
+              ricaricare il documento.
             </p>
           )}
         </DialogHeader>
@@ -633,7 +750,7 @@ export function SmartDocumentImportModal({
                   <Upload className="h-10 w-10 mx-auto text-slate-300 mb-3" />
                   <p className="text-sm font-medium">Trascina qui un documento</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    PDF, immagine o Excel — Max {formatBytes(MAX_SIZE)}
+                    PDF, immagine, Excel, XPWE o DCF — Max {formatBytes(MAX_SIZE)}
                   </p>
                 </>
               )}
@@ -641,7 +758,7 @@ export function SmartDocumentImportModal({
 
             <div className="flex justify-end">
               <Button onClick={handleStartClassify} disabled={!file}>
-                <Sparkles className="h-4 w-4 mr-1" /> Classifica con AI
+                <Sparkles className="h-4 w-4 mr-1" /> Analizza e prepara importazione
               </Button>
             </div>
           </div>
@@ -658,28 +775,81 @@ export function SmartDocumentImportModal({
         )}
 
         {step === 3 && result && (
-          <div className="space-y-4">
+          <div className="grid gap-4 overflow-y-auto pr-1 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+            <SmartFilePreview file={file} resultFile={result.file} previewUrl={previewUrl} />
+            <div className="space-y-4">
             {/* Hero risultato */}
-            <div className="text-center py-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl border border-orange-100">
+            <div
+              className={`text-center py-4 rounded-xl border ${
+                riskLevel === "error"
+                  ? "bg-red-50 border-red-200"
+                  : riskLevel === "warn"
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-gradient-to-br from-orange-50 to-amber-50 border-orange-100"
+              }`}
+            >
               <div className="text-5xl mb-2">{DOC_TYPE_EMOJI[result.doc_type] ?? "📄"}</div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                Tipo documento
+                Tipo documento rilevato
               </p>
               <p className="text-xl font-semibold text-slate-800 mt-0.5">
                 {DOC_TYPE_LABEL[result.doc_type] ?? result.doc_type}
               </p>
-              <Badge
-                variant="outline"
-                className={`mt-2 ${
-                  result.confidence >= 0.85
-                    ? "border-green-400 text-green-700"
-                    : result.confidence >= 0.6
-                    ? "border-amber-400 text-amber-700"
-                    : "border-red-400 text-red-700"
-                }`}
-              >
-                Confidence: {(result.confidence * 100).toFixed(0)}%
-              </Badge>
+              <div className="mt-2 flex items-center justify-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    result.confidence >= 0.85
+                      ? "border-green-400 text-green-700"
+                      : result.confidence >= 0.6
+                        ? "border-amber-400 text-amber-700"
+                        : "border-red-400 text-red-700"
+                  }
+                >
+                  Confidence: {(result.confidence * 100).toFixed(0)}%
+                </Badge>
+                {result.parser_used && (
+                  <Badge variant="secondary">
+                    {result.parser_used === "router_only" ? "solo classificazione" : "parser attivo"}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Override tipo documento */}
+            <div className="rounded-lg border bg-white p-3 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Conferma destinazione
+                  </p>
+                  <p className="text-sm text-slate-700">
+                    Se l'AI ha sbagliato, scegli il modulo corretto prima di proseguire.
+                  </p>
+                </div>
+                {requiresDocTypeConfirmation(result.confidence) && (
+                  <Badge variant="outline" className="border-amber-400 text-amber-700 shrink-0">
+                    verifica richiesta
+                  </Badge>
+                )}
+              </div>
+              <Select value={selectedDocType} onValueChange={setSelectedDocType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tipo documento" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SMART_DOC_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {DOC_TYPE_EMOJI[option.value] ?? "📄"} {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedMatchesAi && (
+                <p className="text-xs text-amber-700">
+                  Procedo come {selectedDocLabel}: uso il modulo dedicato e conservo il job AI come audit.
+                </p>
+              )}
             </div>
 
             {/* Reasoning */}
@@ -689,6 +859,22 @@ export function SmartDocumentImportModal({
               </p>
               <p className="text-slate-700 italic">{result.reasoning}</p>
             </div>
+
+            {result.validation?.warnings && result.validation.warnings.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-1">
+                  Controlli qualità
+                </p>
+                <ul className="space-y-1 text-amber-900">
+                  {result.validation.warnings.slice(0, 3).map((warning, index) => (
+                    <li key={`${warning.message ?? "warning"}-${index}`}>
+                      {warning.severity === "error" ? "Errore: " : "Avviso: "}
+                      {warning.message ?? "Verifica consigliata"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Key fields */}
             {Object.keys(result.key_fields).length > 0 && (
@@ -711,6 +897,7 @@ export function SmartDocumentImportModal({
 
             {/* AI meta */}
             <p className="text-[10px] text-muted-foreground text-right">
+              {result.analysis_id ? `job ${result.analysis_id.slice(0, 8)} · ` : ""}
               {result.ai_meta.model_used} · {(result.ai_meta.elapsed_ms / 1000).toFixed(1)}s · €{result.ai_meta.cost_billed_eur.toFixed(4)}
             </p>
 
@@ -720,16 +907,13 @@ export function SmartDocumentImportModal({
                 Chiudi
               </Button>
               <Button onClick={handleAction} className="gap-1">
-                {result.next_action.kind === "autoflow" && (
-                  <>Estrai dati <ArrowRight className="h-4 w-4" /></>
-                )}
-                {result.next_action.kind === "redirect" && (
-                  <>Vai al modulo <ExternalLink className="h-4 w-4" /></>
-                )}
-                {result.next_action.kind === "manual" && (
-                  <>Ho capito <CheckCircle2 className="h-4 w-4" /></>
-                )}
+                {actionPlan?.label ?? "Continua"}
+                {actionPlan?.kind === "redirect" && <ExternalLink className="h-4 w-4" />}
+                {actionPlan?.kind === "computo_review" && <ArrowRight className="h-4 w-4" />}
+                {actionPlan?.kind === "review_extracted" && <ArrowRight className="h-4 w-4" />}
+                {actionPlan?.kind === "manual" && <CheckCircle2 className="h-4 w-4" />}
               </Button>
+            </div>
             </div>
           </div>
         )}
@@ -1010,13 +1194,3 @@ export function SmartDocumentImportModal({
     </Dialog>
   );
 }
-
-// Mappa tipo doc → URL del modulo dove l'utente continua il flusso
-const AUTOFLOW_REDIRECTS: Record<string, string> = {
-  computo_metrico: "/azienda/marketing/preventivi?action=import-computo",
-  fattura: "/azienda/amministrazione/fatture?action=import",
-  ricevuta: "/azienda/amministrazione/ricevute?action=import",
-  listino_prezzi: "/azienda/operativo/listino?action=import",
-  tabella_finanziamento: "/azienda/operativo/finanziamenti?action=import",
-  biglietto_visita: "/azienda/marketing/contatti?action=import-card",
-};

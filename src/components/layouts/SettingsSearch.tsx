@@ -44,7 +44,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   // ── Catalogo & Listini ──
   { group: "Catalogo", title: "Listino prodotti", url: "/azienda/impostazioni/listino", keywords: ["catalogo", "articoli", "sku", "prezzi", "famiglie"] },
   { group: "Catalogo", title: "Import listini", url: "/azienda/impostazioni/listino/import", keywords: ["import", "excel", "csv", "pdf", "carica listino"] },
-  { group: "Catalogo", title: "Tariffe aziendali", url: "/azienda/impostazioni/tariffe", keywords: ["tariffe", "manodopera", "orario", "ricarico"] },
+  { group: "Catalogo", title: "Manodopera e Servizi", url: "/azienda/impostazioni/tariffe", keywords: ["tariffe", "manodopera", "servizi", "posa", "orario", "ricarico"] },
   { group: "Catalogo", title: "Listino Manutenzione", url: "/azienda/impostazioni/listino-manutenzione", keywords: ["manutenzione", "abbonamenti", "contratti"] },
   { group: "Catalogo", title: "Materiali preventivi", url: "/azienda/impostazioni/materiali-preventivi", keywords: ["materiali", "preventivi"] },
   { group: "Catalogo", title: "Bundle & Pacchetti", url: "/azienda/impostazioni/bundle", keywords: ["bundle", "pacchetti", "chiavi in mano"] },

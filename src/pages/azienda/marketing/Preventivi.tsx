@@ -41,6 +41,7 @@ import {
   ChevronDown,
   Sparkles,
   FileUp,
+  Inbox,
 } from "lucide-react";
 
 import {
@@ -50,6 +51,7 @@ import {
 } from "@/components/marketing/preventivi/ui/builderUI";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 import { QuoteFromCaptureDialog } from "@/components/quotes/QuoteFromCaptureDialog";
+import { SmartDocumentInboxDialog } from "@/components/documenti/SmartDocumentInboxDialog";
 import { SmartDocumentImportModal } from "@/components/documenti/SmartDocumentImportModal";
 import { ModuliVendutaTab } from "@/components/marketing/preventivi/moduli/ModuliVendutaTab";
 import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
@@ -115,7 +117,14 @@ export default function Preventivi() {
   // ─── Modal AI import (deep-link via ?action=...) ─────────────────────────
   const [showComputoModal, setShowComputoModal] = useState(false);
   const [showFotoModal, setShowFotoModal] = useState(false);
+  const [showSmartInbox, setShowSmartInbox] = useState(false);
   const [showSmartImportModal, setShowSmartImportModal] = useState(false);
+  const [smartComputoId, setSmartComputoId] = useState<string | null>(null);
+
+  const handleComputoModalOpenChange = (open: boolean) => {
+    setShowComputoModal(open);
+    if (!open) setSmartComputoId(null);
+  };
 
   // Handler ?action=... per deep-link da SilvioFAB / SmartDocumentImportModal.
   // Senza questo, cliccando "Computo metrico → Preventivo" il modal non si apriva.
@@ -123,12 +132,17 @@ export default function Preventivi() {
   useEffect(() => {
     const action = searchParams.get("action");
     if (!action) return;
-    if (action === "import-computo") setShowComputoModal(true);
+    const computoId = searchParams.get("computo_id");
+    if (action === "import-computo") {
+      if (computoId) setSmartComputoId(computoId);
+      setShowComputoModal(true);
+    }
     else if (action === "import-foto") setShowFotoModal(true);
     else if (action === "import-smart") setShowSmartImportModal(true);
     if (["import-computo", "import-foto", "import-smart"].includes(action)) {
       const next = new URLSearchParams(searchParams);
       next.delete("action");
+      next.delete("computo_id");
       setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -189,6 +203,10 @@ export default function Preventivi() {
                       Documento intelligente
                       <span className="ml-auto text-[10px] text-orange-600">AI sceglie</span>
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowSmartInbox(true)}>
+                      <Inbox className="h-4 w-4 mr-2" />
+                      Inbox documenti AI
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setShowComputoModal(true)}>
                       <FileUp className="h-4 w-4 mr-2" />
@@ -220,7 +238,8 @@ export default function Preventivi() {
       {/* Modal AI: Computo metrico → Preventivo */}
       <ComputoUploadModal
         open={showComputoModal}
-        onOpenChange={setShowComputoModal}
+        onOpenChange={handleComputoModalOpenChange}
+        initialComputoId={smartComputoId}
         onComplete={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
       />
 
@@ -231,10 +250,25 @@ export default function Preventivi() {
         onQuoteCreated={(quoteId) => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
       />
 
+      {/* Storico operativo degli import AI: riprende computi/listini/fatture senza perderli. */}
+      <SmartDocumentInboxDialog
+        open={showSmartInbox}
+        onOpenChange={setShowSmartInbox}
+        onImportNew={() => setShowSmartImportModal(true)}
+        onComputoReady={(computoId) => {
+          setSmartComputoId(computoId);
+          setShowComputoModal(true);
+        }}
+      />
+
       {/* Smart Document Router — AI classifica e smista al modulo giusto */}
       <SmartDocumentImportModal
         open={showSmartImportModal}
         onOpenChange={setShowSmartImportModal}
+        onComputoReady={(computoId) => {
+          setSmartComputoId(computoId);
+          setShowComputoModal(true);
+        }}
       />
     </div>
   );

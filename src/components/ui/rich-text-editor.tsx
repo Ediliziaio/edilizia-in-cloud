@@ -98,6 +98,10 @@ export function RichTextEditor({
         // Disabilitato code/codeBlock: non serve nei preventivi, riduce noise toolbar
         code: false,
         codeBlock: false,
+        // TipTap 3 include gia' link/underline in StarterKit: usiamo sotto
+        // le estensioni custom per evitare warning da nomi duplicati.
+        link: false,
+        underline: false,
         heading: { levels: [1, 2, 3] },
       }),
       Underline,

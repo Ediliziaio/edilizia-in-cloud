@@ -28,8 +28,23 @@ import {
   Link2Off,
   Sparkles,
   MoveRight,
+  AlertTriangle,
+  ShieldCheck,
+  Filter,
+  Wrench,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import {
+  buildComputoReviewSummary,
+  filterComputoReviewRows,
+  getComputoReviewIssues,
+  type ComputoReviewFilter,
+} from "@/lib/computo/reviewQuality";
+import {
+  inferComputoItemCategory,
+  isComputoProductMatch,
+  isComputoTariffaMatch,
+} from "@/lib/computo/quoteItemMapping";
 import type { ComputoVoceLocal } from "@/types/computo";
 
 interface Props {
@@ -37,6 +52,8 @@ interface Props {
   onChange: (voci: ComputoVoceLocal[]) => void;
   /** Apre il picker prodotto del listino. Riceve l'id voce + descrizione iniziale. */
   onMatchClick?: (voceId: string, initialQuery: string) => void;
+  /** Apre il picker tariffe/manodopera del listino. */
+  onTariffaMatchClick?: (voceId: string, initialQuery: string) => void;
 }
 
 function ConfidenceBadge({ value }: { value: number }) {
@@ -78,21 +95,37 @@ function rowBg(v: ComputoVoceLocal): string {
   return "";
 }
 
-export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
+export function ComputoPreviewEditor({ voci, onChange, onMatchClick, onTariffaMatchClick }: Props) {
   const [collapsedCaps, setCollapsedCaps] = useState<Set<string>>(new Set());
   const [expandedDesc, setExpandedDesc] = useState<Set<string>>(new Set());
   const [bulkRicarico, setBulkRicarico] = useState(15);
+  const [reviewFilter, setReviewFilter] = useState<ComputoReviewFilter>("all");
+
+  const reviewIssues = useMemo(() => getComputoReviewIssues(voci), [voci]);
+  const reviewSummary = useMemo(() => buildComputoReviewSummary(voci), [voci]);
+  const filteredVoci = useMemo(
+    () => filterComputoReviewRows(voci, reviewFilter, reviewIssues),
+    [reviewFilter, reviewIssues, voci],
+  );
+  const issuesByVoceId = useMemo(() => {
+    const map = new Map<string, typeof reviewIssues>();
+    for (const issue of reviewIssues) {
+      const prev = map.get(issue.voceId) ?? [];
+      map.set(issue.voceId, [...prev, issue]);
+    }
+    return map;
+  }, [reviewIssues]);
 
   // Group by capitolo
   const capitoli = useMemo(() => {
     const map = new Map<string, ComputoVoceLocal[]>();
-    for (const v of voci) {
+    for (const v of filteredVoci) {
       const key = v.capitolo_nome || "Generale";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(v);
     }
     return [...map.entries()];
-  }, [voci]);
+  }, [filteredVoci]);
 
   const updateVoce = useCallback(
     (id: string, updates: Partial<ComputoVoceLocal>) => {
@@ -174,7 +207,11 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
                 ...v,
                 _matched_template_id: undefined,
                 _matched_family_id: undefined,
+                _matched_tariffa_id: undefined,
                 _matched_name: undefined,
+                _matched_tariffa_tipo: undefined,
+                _matched_tariffa_cost: undefined,
+                _matched_tariffa_unita: undefined,
                 _match_type: "none",
                 _matched_unit_price: undefined,
               }
@@ -187,18 +224,99 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
 
   // Stats abbinamento per il header
   const matchStats = useMemo(() => {
-    const manual = voci.filter((v) => v._isIncluded && v._match_type === "manual" && (v._matched_template_id || v._matched_family_id)).length;
-    const auto = voci.filter((v) => v._isIncluded && (v._match_type === "vector" || v._match_type === "alias") && (v._matched_template_id || v._matched_family_id)).length;
-    const unmatched = voci.filter((v) => v._isIncluded && (!v._match_type || v._match_type === "none" || (!v._matched_template_id && !v._matched_family_id))).length;
-    return { manual, auto, unmatched };
+    const hasAnyMatch = (v: ComputoVoceLocal) => isComputoProductMatch(v) || isComputoTariffaMatch(v);
+    const manual = voci.filter((v) => v._isIncluded && v._match_type === "manual" && hasAnyMatch(v)).length;
+    const auto = voci.filter((v) => v._isIncluded && (v._match_type === "vector" || v._match_type === "alias") && hasAnyMatch(v)).length;
+    const tariffs = voci.filter((v) => v._isIncluded && isComputoTariffaMatch(v)).length;
+    const unmatched = voci.filter((v) => v._isIncluded && (!v._match_type || v._match_type === "none" || !hasAnyMatch(v))).length;
+    return { manual, auto, tariffs, unmatched };
   }, [voci]);
 
-  const gridCols = onMatchClick
-    ? "grid-cols-[32px_60px_1fr_140px_50px_70px_80px_80px_70px_80px_40px]"
+  const hasCatalogPicker = onMatchClick || onTariffaMatchClick;
+  const gridCols = hasCatalogPicker
+    ? "grid-cols-[32px_60px_1fr_170px_50px_70px_80px_80px_70px_80px_40px]"
     : "grid-cols-[32px_60px_1fr_50px_70px_80px_80px_70px_80px_40px]";
 
   return (
     <div className="space-y-1">
+      {/* Controllo qualità */}
+      <div className="rounded-lg border bg-slate-50/70 p-3 space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-2">
+            <div className={`mt-0.5 rounded-md p-1.5 ${reviewSummary.hasBlockingIssues ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+              {reviewSummary.hasBlockingIssues ? <AlertTriangle className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+            </div>
+            <div>
+              <div className="text-sm font-semibold">
+                Controllo qualità computo
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {reviewSummary.hasBlockingIssues
+                  ? `${reviewSummary.blockingCount} correzioni bloccanti prima della generazione.`
+                  : "Nessun blocco: puoi generare il preventivo dopo la revisione commerciale."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+            <div className="rounded-md border bg-background px-2 py-1.5">
+              <div className="text-[10px] uppercase text-muted-foreground">Totale impresa</div>
+              <div className="text-sm font-semibold text-orange-600">{formatCurrency(reviewSummary.totalImpresa)}</div>
+            </div>
+            <div className="rounded-md border bg-background px-2 py-1.5">
+              <div className="text-[10px] uppercase text-muted-foreground">Delta computo</div>
+              <div className={reviewSummary.deltaImpresaVsComputo >= 0 ? "text-sm font-semibold text-emerald-700" : "text-sm font-semibold text-rose-700"}>
+                {reviewSummary.deltaImpresaVsComputo >= 0 ? "+" : ""}{formatCurrency(reviewSummary.deltaImpresaVsComputo)}
+              </div>
+            </div>
+            <div className="rounded-md border bg-background px-2 py-1.5">
+              <div className="text-[10px] uppercase text-muted-foreground">Match listino</div>
+              <div className="text-sm font-semibold">{reviewSummary.matchRatePct}%</div>
+            </div>
+            <div className="rounded-md border bg-background px-2 py-1.5">
+              <div className="text-[10px] uppercase text-muted-foreground">Confidenza AI</div>
+              <div className="text-sm font-semibold">{Math.round(reviewSummary.averageConfidence * 100)}%</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 flex items-center gap-1 text-[10px] font-medium uppercase text-muted-foreground">
+            <Filter className="h-3 w-3" />
+            Filtri
+          </span>
+          {[
+            { value: "all", label: `Tutte ${reviewSummary.totalRows}` },
+            { value: "blocking", label: `Blocchi ${reviewSummary.blockingCount}` },
+            { value: "warnings", label: `Avvisi ${reviewSummary.warningCount}` },
+            { value: "low_confidence", label: `Bassa AI ${reviewSummary.lowConfidenceCount}` },
+            { value: "unmatched", label: `Da listino ${reviewSummary.unmatchedCount}` },
+            { value: "duplicates", label: `Duplicate ${reviewSummary.duplicateCount}` },
+          ].map((item) => (
+            <Button
+              key={item.value}
+              type="button"
+              size="sm"
+              variant={reviewFilter === item.value ? "default" : "outline"}
+              className="h-7 px-2 text-[11px]"
+              onClick={() => setReviewFilter(item.value as ComputoReviewFilter)}
+            >
+              {item.label}
+            </Button>
+          ))}
+          {reviewSummary.zeroPriceCount > 0 && (
+            <Badge variant="outline" className="ml-auto border-amber-300 bg-amber-50 text-amber-700">
+              {reviewSummary.zeroPriceCount} prezzi a zero
+            </Badge>
+          )}
+          {reviewSummary.zeroQuantityCount > 0 && (
+            <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700">
+              {reviewSummary.zeroQuantityCount} quantità da correggere
+            </Badge>
+          )}
+        </div>
+      </div>
+
       {/* Bulk actions */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => toggleAll(true)}>
@@ -208,7 +326,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
           Deseleziona
         </Button>
         {/* Stats abbinamento listino */}
-        {(matchStats.manual > 0 || matchStats.auto > 0 || matchStats.unmatched > 0) && onMatchClick ? (
+        {(matchStats.manual > 0 || matchStats.auto > 0 || matchStats.unmatched > 0) && hasCatalogPicker ? (
           <div className="flex items-center gap-2 text-[10px]">
             {matchStats.manual > 0 ? (
               <Badge variant="outline" className="border-emerald-300 text-emerald-700 bg-emerald-50">
@@ -220,6 +338,12 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
               <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50">
                 <Sparkles className="h-2.5 w-2.5 mr-0.5" />
                 {matchStats.auto} suggerite AI
+              </Badge>
+            ) : null}
+            {matchStats.tariffs > 0 ? (
+              <Badge variant="outline" className="border-orange-300 text-orange-700 bg-orange-50">
+                <Wrench className="h-2.5 w-2.5 mr-0.5" />
+                {matchStats.tariffs} tariffe
               </Badge>
             ) : null}
             {matchStats.unmatched > 0 ? (
@@ -246,7 +370,7 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
       </div>
 
       {/* Fix 17: Legenda match — visibile solo se picker attivo */}
-      {onMatchClick && (matchStats.manual > 0 || matchStats.auto > 0) && (
+      {hasCatalogPicker && (matchStats.manual > 0 || matchStats.auto > 0) && (
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground pb-1">
           <span className="font-medium">Legenda:</span>
           <span className="flex items-center gap-0.5">
@@ -270,8 +394,8 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
           >
             <span></span>
             <span>Codice</span>
-            <span>Descrizione</span>
-            {onMatchClick ? <span>Listino</span> : null}
+          <span>Descrizione</span>
+            {hasCatalogPicker ? <span>Listino</span> : null}
             <span>U.M.</span>
             <span className="text-right">Q.tà</span>
             <span className="text-right text-slate-400">Pr. Computo</span>
@@ -291,7 +415,11 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
           </div>
 
           {/* Capitoli + voci */}
-          {capitoli.map(([capNome, capVoci]) => {
+          {capitoli.length === 0 ? (
+            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Nessuna voce corrisponde al filtro selezionato.
+            </div>
+          ) : capitoli.map(([capNome, capVoci]) => {
             const collapsed = collapsedCaps.has(capNome);
             const totaleCapitolo = capVoci
               .filter((v) => v._isIncluded)
@@ -331,9 +459,12 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
                 {/* Voci */}
                 {!collapsed &&
                   capVoci.map((v) => {
+                    const rowIssues = issuesByVoceId.get(v.id) ?? [];
                     const isMatched = !!v._match_type && v._match_type !== "none" &&
-                      (v._matched_template_id || v._matched_family_id);
+                      (isComputoProductMatch(v) || isComputoTariffaMatch(v));
+                    const isTariffa = isComputoTariffaMatch(v);
                     const isAutoMatch = isMatched && (v._match_type === "vector" || v._match_type === "alias");
+                    const inferredCategory = inferComputoItemCategory(v);
                     return (
                     <div
                       key={v.id}
@@ -355,43 +486,72 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
                       </span>
 
                       {/* Descrizione */}
-                      <div
-                        className="truncate cursor-pointer hover:text-clip"
-                        title={v.descrizione_estesa || v.descrizione_breve}
-                        onClick={() =>
-                          setExpandedDesc((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(v.id)) next.delete(v.id);
-                            else next.add(v.id);
-                            return next;
-                          })
-                        }
-                      >
-                        {expandedDesc.has(v.id)
-                          ? v.descrizione_estesa || v.descrizione_breve
-                          : v.descrizione_breve}
+                      <div className="min-w-0">
+                        <div
+                          className="truncate cursor-pointer hover:text-clip"
+                          title={v.descrizione_estesa || v.descrizione_breve}
+                          onClick={() =>
+                            setExpandedDesc((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(v.id)) next.delete(v.id);
+                              else next.add(v.id);
+                              return next;
+                            })
+                          }
+                        >
+                          {expandedDesc.has(v.id)
+                            ? v.descrizione_estesa || v.descrizione_breve
+                            : v.descrizione_breve}
+                        </div>
+                        {rowIssues.length > 0 && (
+                          <div className="mt-0.5 flex flex-wrap gap-1">
+                            {rowIssues.slice(0, 2).map((issue) => (
+                              <span
+                                key={`${issue.code}-${issue.message}`}
+                                className={`rounded px-1 py-0.5 text-[9px] ${
+                                  issue.type === "blocking"
+                                    ? "bg-rose-50 text-rose-700"
+                                    : "bg-amber-50 text-amber-700"
+                                }`}
+                                title={issue.message}
+                              >
+                                {issue.message}
+                              </span>
+                            ))}
+                            {rowIssues.length > 2 && (
+                              <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] text-slate-600">
+                                +{rowIssues.length - 2}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Colonna Listino */}
-                      {onMatchClick ? (
+                      {hasCatalogPicker ? (
                         <div className="flex items-center gap-0.5">
                           {isMatched ? (
                             <>
                               <button
                                 type="button"
                                 className={`flex-1 min-w-0 text-left text-[10px] truncate hover:underline ${
-                                  isAutoMatch ? "text-blue-600" : "text-emerald-700"
+                                  isTariffa ? "text-orange-700" : isAutoMatch ? "text-blue-600" : "text-emerald-700"
                                 }`}
                                 title={`${v._matched_name ?? ""}${isAutoMatch ? " (suggerito AI)" : " (abbinato)"}`}
-                                onClick={() => onMatchClick(v.id, v.descrizione_breve)}
+                                onClick={() => {
+                                  if (isTariffa && onTariffaMatchClick) onTariffaMatchClick(v.id, v.descrizione_breve);
+                                  else onMatchClick?.(v.id, v.descrizione_breve);
+                                }}
                                 aria-label={`Cambia abbinamento: ${v._matched_name}`}
                               >
-                                {isAutoMatch ? (
+                                {isTariffa ? (
+                                  <Wrench className="inline h-2.5 w-2.5 mr-0.5 text-orange-500" />
+                                ) : isAutoMatch ? (
                                   <Sparkles className="inline h-2.5 w-2.5 mr-0.5 text-blue-400" />
                                 ) : (
                                   <Link2 className="inline h-2.5 w-2.5 mr-0.5" />
                                 )}
-                                {v._matched_name ?? "abbinato"}
+                                {v._matched_name ?? (isTariffa ? "tariffa" : "abbinato")}
                               </button>
                               <button
                                 type="button"
@@ -404,15 +564,32 @@ export function ComputoPreviewEditor({ voci, onChange, onMatchClick }: Props) {
                               </button>
                             </>
                           ) : (
-                            <button
-                              type="button"
-                              className="flex-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 truncate"
-                              onClick={() => onMatchClick(v.id, v.descrizione_breve)}
-                              aria-label={`Abbina al listino: ${v.descrizione_breve}`}
-                            >
-                              <Search className="inline h-2.5 w-2.5 mr-0.5" />
-                              Abbina
-                            </button>
+                            <div className="grid w-full grid-cols-2 gap-1">
+                              <button
+                                type="button"
+                                className="min-w-0 truncate rounded border border-amber-300 bg-amber-50 px-1 py-0.5 text-[10px] text-amber-700 hover:bg-amber-100"
+                                onClick={() => onMatchClick?.(v.id, v.descrizione_breve)}
+                                aria-label={`Abbina prodotto dal listino: ${v.descrizione_breve}`}
+                                disabled={!onMatchClick}
+                              >
+                                <Search className="inline h-2.5 w-2.5 mr-0.5" />
+                                Prod.
+                              </button>
+                              <button
+                                type="button"
+                                className={`min-w-0 truncate rounded border px-1 py-0.5 text-[10px] hover:bg-orange-100 ${
+                                  inferredCategory !== "prodotto"
+                                    ? "border-orange-300 bg-orange-50 text-orange-700"
+                                    : "border-slate-200 bg-background text-muted-foreground"
+                                }`}
+                                onClick={() => onTariffaMatchClick?.(v.id, v.descrizione_breve)}
+                                aria-label={`Abbina tariffa o manodopera: ${v.descrizione_breve}`}
+                                disabled={!onTariffaMatchClick}
+                              >
+                                <Wrench className="inline h-2.5 w-2.5 mr-0.5" />
+                                Tar.
+                              </button>
+                            </div>
                           )}
                         </div>
                       ) : null}

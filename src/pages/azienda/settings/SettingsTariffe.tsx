@@ -250,7 +250,7 @@ function KpiHeader({
           <div className="flex items-start justify-between">
             <div>
               <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Tariffe totali
+                Voci totali
               </div>
               <div className="mt-1 text-2xl font-bold">{kpi.totali}</div>
               <div className="mt-1 text-xs text-muted-foreground">
@@ -293,7 +293,7 @@ function KpiHeader({
                   {kpi.countMarg > 0 ? `${kpi.margineMedio.toFixed(1)}%` : "—"}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  su {kpi.countMarg} tariffe con costi
+                  su {kpi.countMarg} voci con costi
                 </div>
               </div>
               <div className="rounded-lg bg-amber-100 p-2 text-amber-700">
@@ -314,7 +314,7 @@ function KpiHeader({
                 {kpi.topTipo ? tipoLabel(kpi.topTipo[0]) : "—"}
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                {kpi.topTipo ? `${kpi.topTipo[1]} tariffe` : "Nessuna tariffa ancora"}
+                {kpi.topTipo ? `${kpi.topTipo[1]} voci` : "Nessuna voce ancora"}
               </div>
             </div>
             <div className="rounded-lg bg-blue-100 p-2 text-blue-700">
@@ -443,7 +443,7 @@ function TariffaDialog({
         const { error } = await tbl.insert(payload as never);
         if (error) throw error;
       }
-      toast.success(editing ? "Tariffa aggiornata" : "Tariffa creata");
+      toast.success(editing ? "Voce aggiornata" : "Voce creata");
       onSaved(); onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Errore salvataggio");
@@ -458,11 +458,11 @@ function TariffaDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? "Modifica tariffa" : "Nuova tariffa"}</DialogTitle>
+          <DialogTitle>{editing ? "Modifica voce" : "Nuova voce"}</DialogTitle>
           <DialogDescription>
             {editing
-              ? "Modifica i dati della tariffa. L'unità di misura è fissa per le tariffe già usate in preventivo."
-              : "Compila i campi per creare una nuova tariffa di servizio o lavorazione."}
+              ? "Modifica i dati della voce. L'unità di misura è fissa per le voci già usate in preventivo."
+              : "Compila i campi per creare una nuova voce di manodopera, posa o servizio."}
           </DialogDescription>
         </DialogHeader>
 
@@ -849,7 +849,7 @@ function StandardTariffeDialog({
       });
       const { error } = await supabase.from("tariffe_aziendali").insert(payload as never);
       if (error) throw error;
-      toast.success(`${toCreate.length} tariffe create`);
+      toast.success(`${toCreate.length} voci create`);
       onCreated();
       onClose();
     } catch (err) {
@@ -881,10 +881,10 @@ function StandardTariffeDialog({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Catalogo tariffe standard</DialogTitle>
+          <DialogTitle>Catalogo manodopera e servizi standard</DialogTitle>
           <DialogDescription>
             Scegli un preset adatto al tuo mestiere per importare in blocco, oppure pick le singole voci.
-            Le tariffe già presenti (stesso nome) sono disabilitate.
+            Le voci già presenti (stesso nome) sono disabilitate.
             {giaPresentiCount > 0 && (
               <span className="ml-1 text-muted-foreground">
                 ({giaPresentiCount} di {STANDARD_TARIFFE.length} già presenti)
@@ -934,7 +934,7 @@ function StandardTariffeDialog({
                       </p>
                       <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <Badge variant="secondary" className="h-4 px-1.5 text-[10px] font-normal">
-                          {stats.importabili}/{stats.total} tariffe
+                          {stats.importabili}/{stats.total} voci
                         </Badge>
                         {stats.selected > 0 && (
                           <span className="text-primary font-medium">
@@ -954,7 +954,7 @@ function StandardTariffeDialog({
         <div className="flex items-center justify-between py-2 border-t border-b">
           <div className="text-sm">
             <span className="font-semibold">{toCreate.length}</span>
-            <span className="text-muted-foreground"> tariffe da importare</span>
+            <span className="text-muted-foreground"> voci da importare</span>
             <span className="text-muted-foreground text-xs ml-2">
               (su {importabiliCount} disponibili)
             </span>
@@ -972,7 +972,7 @@ function StandardTariffeDialog({
         {/* ─── LISTA FINE PER TIPO ───────────────────────────────────────── */}
         <div className="space-y-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Tutte le tariffe
+            Tutte le voci
           </div>
           {groups.map(([tipo, items]) => (
             <div key={tipo}>
@@ -980,7 +980,7 @@ function StandardTariffeDialog({
                 <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${tipoBadgeClass(tipo)}`}>
                   {tipoLabel(tipo)}
                 </span>
-                <span className="text-xs text-muted-foreground">{items.length} tariffe</span>
+                <span className="text-xs text-muted-foreground">{items.length} voci</span>
               </div>
               <div className="space-y-1">
                 {items.map((d) => {
@@ -1036,7 +1036,7 @@ function StandardTariffeDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annulla</Button>
           <Button onClick={handleCreate} disabled={creating || toCreate.length === 0}>
-            {creating ? "Creazione..." : `Crea ${toCreate.length} tariffe`}
+            {creating ? "Creazione..." : `Crea ${toCreate.length} voci`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1366,9 +1366,9 @@ export default function SettingsTariffe() {
             <Wrench className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Tariffe Aziendali</h1>
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Manodopera e Servizi</h1>
             <p className="text-sm text-muted-foreground">
-              Tariffe di posa, manodopera, trasporto e servizi. Ogni tariffa ha un prezzo di vendita
+              Listino operativo per posa, manodopera, trasporto, pratiche e servizi. Ogni voce ha un prezzo di vendita
               {isAdmin ? " e un costo interno (solo admin)" : ""}. Usate automaticamente nel preventivatore.
             </p>
           </div>
@@ -1387,7 +1387,7 @@ export default function SettingsTariffe() {
             onClick={openNew}
             className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-sm"
           >
-            <Plus className="h-4 w-4 mr-1.5" />Nuova tariffa
+            <Plus className="h-4 w-4 mr-1.5" />Nuova voce
           </Button>
         </div>
       </div>
@@ -1396,7 +1396,7 @@ export default function SettingsTariffe() {
       {isError && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Tariffe non caricate</AlertTitle>
+          <AlertTitle>Manodopera e servizi non caricati</AlertTitle>
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>{error instanceof Error ? error.message : "Errore durante il caricamento delle tariffe."}</span>
             <Button size="sm" variant="outline" onClick={() => void refetch()}>
@@ -1478,9 +1478,9 @@ export default function SettingsTariffe() {
                   <Layers3 className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Nessuna tariffa ancora</h3>
+                  <h3 className="font-semibold">Nessuna voce ancora</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Inizia creando le tariffe standard del tuo settore o aggiungine una nuova.
+                    Inizia creando le voci standard del tuo settore o aggiungine una nuova.
                   </p>
                 </div>
                 <div className="flex justify-center gap-2">
@@ -1488,7 +1488,7 @@ export default function SettingsTariffe() {
                     <Zap className="h-4 w-4 mr-2" />Usa il catalogo standard
                   </Button>
                   <Button onClick={openNew}>
-                    <Plus className="h-4 w-4 mr-2" />Nuova tariffa
+                    <Plus className="h-4 w-4 mr-2" />Nuova voce
                   </Button>
                 </div>
               </CardContent>

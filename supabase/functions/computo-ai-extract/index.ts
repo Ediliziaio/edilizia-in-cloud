@@ -273,6 +273,64 @@ async function callPdfVisionAI(
   ]);
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function guessImageMimeType(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase();
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  return "image/jpeg";
+}
+
+async function extractFromImageVision(
+  buffer: ArrayBuffer,
+  filename: string,
+  computoId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin?: any,
+  companyId?: string | null,
+  userId?: string | null,
+): Promise<ExtractionResult> {
+  await updateStatus(computoId, "analyzing_ai", {
+    raw_extracted_json: { progress: "Foto, preventivo informale o schizzo — lettura AI vision…" },
+  });
+
+  const mimeType = guessImageMimeType(filename);
+  const base64Image = arrayBufferToBase64(buffer);
+  const result = (await callOpenAI([
+    { role: "system", content: FOTO_PREVENTIVO_PROMPT },
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "Foto, preventivo informale o schizzo: estrai righe, misure, quantita e prezzi visibili. Non inventare dati mancanti.",
+        },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:image/${mimeType.split("/")[1]};base64,${base64Image}`,
+          },
+        },
+      ],
+    },
+  ], 8000, supabaseAdmin, companyId, userId, true, [
+    computoId,
+    "image_vision",
+    filename,
+  ])) as ExtractionResult;
+
+  return result;
+}
+
 // ── Strategy 1: PDF Text ─────────────────────────────────────────────────────
 
 async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
@@ -807,13 +865,50 @@ async function saveExtractedVoci(
 // va comunque in "review" e l'utente abbina manualmente.
 // Limit: prime 50 voci per budget embedding (computi > 50 voci sono rari).
 
+function normalizeMatchText(value: string | null | undefined): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyTariffaVoce(text: string): boolean {
+  const value = normalizeMatchText(text);
+  return [
+    "posa",
+    "posatura",
+    "installazione",
+    "montaggio",
+    "manodopera",
+    "operaio",
+    "operai",
+    "ore ",
+    " ora ",
+    "giornata",
+    "trasporto",
+    "tiro al piano",
+    "smaltimento",
+    "discarica",
+    "sopralluogo",
+    "progettazione",
+    "pratica",
+    "nolo",
+    "noleggio",
+    "ponteggio",
+    "sigillatura",
+  ].some((needle) => value.includes(needle.trim()));
+}
+
 async function matchAndUpdateVoci(
   computoId: string,
   companyId: string,
 ): Promise<{ matched: number; total: number }> {
   const { data: savedVoci, error } = await sb
     .from("computo_voci_estratte")
-    .select("id, descrizione_breve, codice_prezzario, ordine")
+    .select("id, descrizione_breve, descrizione_estesa, codice_prezzario, unita_misura, ordine")
     .eq("computo_upload_id", computoId)
     .order("ordine")
     .limit(50);
@@ -828,7 +923,7 @@ async function matchAndUpdateVoci(
   for (const voce of savedVoci) {
     try {
       // Build query text: descrizione + codice prezzario se presente
-      const queryText = [voce.descrizione_breve, voce.codice_prezzario]
+      const queryText = [voce.descrizione_breve, voce.descrizione_estesa, voce.codice_prezzario, voce.unita_misura]
         .filter(Boolean)
         .join(" ")
         .trim();
@@ -865,7 +960,35 @@ async function matchAndUpdateVoci(
       const embedding = await generateEmbedding(queryText);
       const embeddingLiteral = `[${embedding.join(",")}]`;
 
-      // 2a. Famiglie (configuratore — più probabile per serramenti/edilizia)
+      // 2a. Tariffe / manodopera / posa: se la voce sembra servizio, evita
+      // falsi match su prodotti e propaga matched_tariffa_id fino al preventivo.
+      if (isLikelyTariffaVoce(queryText)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: tariffaMatches } = await (sb as any).rpc("match_tariffe_semantic", {
+          p_query_embedding: embeddingLiteral,
+          p_match_threshold: 0.42,
+          p_match_count: 1,
+          p_company_id: companyId,
+        });
+        const topTariffa = (tariffaMatches as Array<{
+          id: string; nome?: string; tipo?: string; similarity: number;
+        }> | null)?.[0];
+
+        if (topTariffa && topTariffa.similarity > 0.48) {
+          await sb.from("computo_voci_estratte").update({
+            matched_template_id: null,
+            matched_family_id: null,
+            matched_tariffa_id: topTariffa.id,
+            matched_name: topTariffa.nome ?? null,
+            match_type: "vector",
+            match_confidence: topTariffa.similarity,
+          }).eq("id", voce.id);
+          matched++;
+          continue;
+        }
+      }
+
+      // 2b. Famiglie (configuratore — più probabile per serramenti/edilizia)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: familyMatches } = await (sb as any).rpc("match_families_semantic", {
         p_query_embedding: embeddingLiteral,
@@ -888,7 +1011,7 @@ async function matchAndUpdateVoci(
         continue;
       }
 
-      // 2b. Articoli singoli
+      // 2c. Articoli singoli
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: articleMatches } = await (sb as any).rpc("match_articles", {
         p_query_embedding: embeddingLiteral,
@@ -979,7 +1102,18 @@ serve(async (req) => {
     try {
       const fileType = upload.file_type as string;
 
-      if (fileType === "xlsx" || fileType === "xls") {
+      if (fileType === "image") {
+        result = await extractFromImageVision(
+          buffer,
+          upload.file_name,
+          computoUploadId,
+          sb,
+          upload.company_id,
+          userId,
+        );
+        // La colonna DB accetta pdf_vision: la usiamo come metodo vision generico.
+        method = "pdf_vision";
+      } else if (fileType === "xlsx" || fileType === "xls") {
         result = await extractFromExcel(buffer, sb, upload.company_id, userId, computoUploadId);
         method = "xlsx_parse";
       } else if (fileType === "xpwe" || fileType === "dcf") {

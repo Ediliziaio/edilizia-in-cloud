@@ -12,6 +12,7 @@ import type {
   ComputoVoceEstratta,
   ComputoExtractionStatus,
 } from "@/types/computo";
+import type { ComputoQuoteItemPayload } from "@/lib/computo/quoteItemMapping";
 
 const FILE_TYPE_MAP: Record<string, ComputoUpload["file_type"]> = {
   "application/pdf": "pdf",
@@ -184,24 +185,7 @@ export function useComputoExtract() {
       vociIncluse,
       config,
     }: {
-      vociIncluse: Array<{
-        id: string;
-        is_included: boolean;
-        descrizione_breve: string;
-        descrizione_estesa: string | null;
-        capitolo_nome: string | null;
-        codice_voce: string | null;
-        codice_prezzario: string | null;
-        unita_misura: string | null;
-        quantita: number;
-        prezzo_unitario: number;
-        importo: number;
-        sconto_percentuale: number;
-        // Match listino (opzionale, popolato da auto-match o picker utente)
-        matched_template_id?: string;
-        matched_family_id?: string;
-        matched_name?: string;
-      }>;
+      vociIncluse: ComputoQuoteItemPayload[];
       config: {
         contactId?: string;
         oggetto?: string;
@@ -214,22 +198,10 @@ export function useComputoExtract() {
 
       // Usa RPC transazionale: crea quote + items in un unico transaction block.
       // Elimina il rischio di quote orfani se items INSERT fallisce (Fix P0-#2).
-      const items = vociIncluse
-        .filter((v) => v.is_included)
-        .map((voce, index) => ({
-          id: voce.id,                           // computo_voce_id
-          name: voce.matched_name ?? voce.descrizione_breve,
-          description: voce.descrizione_estesa || null,
-          unit_of_measure: voce.unita_misura || "cad",
-          quantity: voce.quantita,
-          unit_price: voce.prezzo_unitario,
-          line_total: voce.importo * (1 - (voce.sconto_percentuale || 0) / 100),
-          discount_percent: voce.sconto_percentuale || 0,
-          codice_prezzario: voce.codice_prezzario || null,
-          article_template_id: voce.matched_template_id ?? null,
-          family_id: voce.matched_family_id ?? null,
-          sort_order: index + 1,
-        }));
+      const items = vociIncluse.map((voce, index) => ({
+        ...voce,
+        sort_order: voce.sort_order || index + 1,
+      }));
 
       const { data: rpcResult, error: rpcErr } = await supabase.rpc(
         "silvio_tool_apply_computo_review",
@@ -271,6 +243,15 @@ export function useComputoExtract() {
     setError(null);
   }, []);
 
+  const loadExistingComputo = useCallback((id: string) => {
+    setComputoId(id);
+    setStatus("review");
+    setProgress("Pronti per la revisione!");
+    setError(null);
+    qc.invalidateQueries({ queryKey: ["computo-voci", id] });
+    qc.invalidateQueries({ queryKey: ["computo-upload", id] });
+  }, [qc]);
+
   return {
     // State
     computoId,
@@ -286,6 +267,7 @@ export function useComputoExtract() {
     generatePreventivo: generateMutation.mutate,
     isGenerating: generateMutation.isPending,
     refetchVoci,
+    loadExistingComputo,
     reset,
   };
 }

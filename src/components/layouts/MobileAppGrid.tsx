@@ -15,6 +15,7 @@ import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
@@ -39,6 +40,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     return (items: NavItem[]) => {
       if (permissions.isLoading) {
         return items.filter((item) => {
+          if (item.url === "/azienda/contenuti-multimediali") return true;
           if (item.demoCompanyOnly && !isDemoBaseline) return false;
           if (item.featureKey === "billing_external" && billingMode !== "external") return false;
           if (item.featureKey === "billing_native" && billingMode !== "native") return false;
@@ -47,6 +49,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
         });
       }
       return items.filter((item) => {
+        if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) return false;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (item.url === "/azienda/cruscotto") {
           if (!permissions.canViewCruscotto && !permissions.canViewDashboard && !permissions.canViewMarketingDashboard) return false;

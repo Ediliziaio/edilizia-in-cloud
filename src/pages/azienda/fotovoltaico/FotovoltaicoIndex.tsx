@@ -147,7 +147,7 @@ export default function FotovoltaicoIndex() {
             <h3 className="text-sm font-bold text-slate-900 mb-3 text-center">Per ottenere il massimo dal modulo</h3>
             <ul className="text-sm text-slate-600 space-y-2 max-w-lg mx-auto">
               <li className="flex gap-2"><span className="text-emerald-500 font-bold">1.</span> Configura il listino prodotti (pannelli, inverter, accumuli) in <Link to="/azienda/impostazioni/listino" className="text-orange-600 underline">Listino prodotti</Link> con categoria FV.</li>
-              <li className="flex gap-2"><span className="text-emerald-500 font-bold">2.</span> Aggiungi le tue tariffe di manodopera in <Link to="/azienda/impostazioni/tariffe" className="text-orange-600 underline">Tariffe aziendali</Link> (vertical "fotovoltaico" o "generico").</li>
+              <li className="flex gap-2"><span className="text-emerald-500 font-bold">2.</span> Aggiungi le tue voci di manodopera in <Link to="/azienda/impostazioni/tariffe" className="text-orange-600 underline">Manodopera e Servizi</Link> (vertical "fotovoltaico" o "generico").</li>
               <li className="flex gap-2"><span className="text-emerald-500 font-bold">3.</span> Crea il primo progetto qui sotto. Tutto il resto si configura strada facendo.</li>
             </ul>
           </div>

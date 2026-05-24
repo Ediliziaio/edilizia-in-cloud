@@ -85,10 +85,12 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
   // Fire-and-forget, errori silenziati, no UI feedback.
   useEffect(() => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    if (!supabaseUrl) return;
+    const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    if (!supabaseUrl || !supabasePublishableKey) return;
     const controller = new AbortController();
     fetch(`${supabaseUrl}/auth/v1/health`, {
       method: "GET",
+      headers: { apikey: supabasePublishableKey },
       signal: controller.signal,
       cache: "no-store",
     }).catch(() => { /* silent — è solo un warmup */ });

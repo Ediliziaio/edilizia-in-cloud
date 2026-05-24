@@ -216,7 +216,7 @@ export function BrainSemanticSearch({
   };
 
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div ref={containerRef} className={cn("relative w-full max-w-full", className)}>
       <div className="relative">
         <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-300 pointer-events-none" />
         <input
@@ -231,8 +231,8 @@ export function BrainSemanticSearch({
             if (e.key === "Enter" && results[0]) { handlePick(results[0]); }
           }}
           className={cn(
-            "h-7 pl-7 pr-7 text-[10px] bg-slate-900/95 border border-slate-600 text-slate-200 placeholder:text-slate-300 backdrop-blur-sm shadow-sm rounded-md outline-none transition-all",
-            focused ? "w-60" : "w-44",
+            "h-7 w-full pl-7 pr-7 text-[10px] bg-slate-900/95 border border-slate-600 text-slate-200 placeholder:text-slate-300 backdrop-blur-sm shadow-sm rounded-md outline-none transition-all sm:w-44",
+            focused ? "sm:w-60" : "sm:w-44",
             results.length > 0 && open && "rounded-b-none",
           )}
         />

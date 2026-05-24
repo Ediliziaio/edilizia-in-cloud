@@ -81,8 +81,16 @@ export interface ComputoVoceLocal extends ComputoVoceEstratta {
   _matched_template_id?: string;
   /** Family ID se la voce è abbinata a una famiglia (configuratore) del listino. */
   _matched_family_id?: string;
+  /** Tariffa ID se la voce è abbinata a posa, manodopera o altro servizio del listino tariffe. */
+  _matched_tariffa_id?: string;
   /** Nome del prodotto del listino abbinato (display). */
   _matched_name?: string;
+  /** Tipo tariffa: posa, manodopera, trasporto, smaltimento, ecc. */
+  _matched_tariffa_tipo?: string;
+  /** Costo interno della tariffa selezionata, utile per margini e quote_items.prezzo_acquisto. */
+  _matched_tariffa_cost?: number;
+  /** Unita tariffa selezionata, quando diversa dalla U.M. del computo. */
+  _matched_tariffa_unita?: string;
   /** Tipo di match: 'manual' (utente), 'vector'/'alias' (AI auto), 'none'. */
   _match_type?: "manual" | "vector" | "alias" | "none";
   /** Prezzo unitario suggerito dal listino (override del prezzo computo se l'utente vuole). */

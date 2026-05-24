@@ -26,6 +26,13 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tansta
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
+import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
+import {
+  DEMO_AI_PERSONAS,
+  DEMO_MEMORIES,
+  isOrchestratorPersonaKey,
+  resolveDemoPersonaKey,
+} from "@/components/ai/brainGraphDemoMemories";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,12 +57,16 @@ import { getPersonaIcon, getPersonaColorRing } from "@/lib/personaVisuals";
 import {
   Search, Archive, ArchiveRestore, Download, MessageSquare, Brain,
   History, Coins, ChevronRight, Loader2, ExternalLink, UserIcon,
-  CheckSquare, X, Sparkles,
+  CheckCircle2, CheckSquare, Clock3, Database, FilterX, Gauge,
+  Link2, Network, ShieldAlert, X, Sparkles,
 } from "lucide-react";
 
 // ─── Constants & helpers ─────────────────────────────────────────────────────
 
 const PAGE_SIZE = 50;
+const COSTLY_SESSION_THRESHOLD_EUR = 0.035;
+const KNOWLEDGE_SESSION_MIN_MESSAGES = 4;
+const STALE_SESSION_DAYS = 21;
 
 const PERIOD_OPTIONS = [
   { key: "7d",  label: "Ultimi 7 giorni",  days: 7 },
@@ -93,6 +104,60 @@ function fmtRelative(iso: string): string {
 function fmtEur(n: number | null | undefined, decimals = 4): string {
   if (n == null) return "—";
   return `€ ${Number(n).toLocaleString("it-IT", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
+}
+
+function isDemoSession(session: SessionRow | null | undefined) {
+  return !!session?.isDemoPreview || session?.id.startsWith("demo-session-");
+}
+
+function isCostlySession(session: SessionRow) {
+  return (session.total_cost_billed_eur ?? 0) >= COSTLY_SESSION_THRESHOLD_EUR;
+}
+
+function isShortSession(session: SessionRow) {
+  return (session.message_count ?? 0) <= 2;
+}
+
+function isKnowledgeCandidate(session: SessionRow) {
+  return !isShortSession(session)
+    && ((session.message_count ?? 0) >= KNOWLEDGE_SESSION_MIN_MESSAGES || (session.total_tokens_out ?? 0) >= 900);
+}
+
+function isInactiveSession(session: SessionRow) {
+  const staleBefore = Date.now() - STALE_SESSION_DAYS * 24 * 60 * 60 * 1000;
+  return new Date(session.last_message_at).getTime() < staleBefore;
+}
+
+function sessionHealthScore(session: SessionRow) {
+  let score = 50;
+  if (isKnowledgeCandidate(session)) score += 25;
+  if (!isShortSession(session)) score += 10;
+  if (!isCostlySession(session)) score += 10;
+  if (!session.archived) score += 5;
+  if (isInactiveSession(session)) score -= 10;
+  return Math.max(0, Math.min(100, score));
+}
+
+function applySessionQualityFilter(sessions: SessionRow[], filter: SessionQualityFilter) {
+  if (filter === "knowledge") return sessions.filter(isKnowledgeCandidate);
+  if (filter === "costly") return sessions.filter(isCostlySession);
+  if (filter === "short") return sessions.filter(isShortSession);
+  if (filter === "inactive") return sessions.filter(isInactiveSession);
+  if (filter === "demo") return sessions.filter(isDemoSession);
+  return sessions;
+}
+
+function buildDemoSessionTitle(persona: PersonaLite, memoryCount: number) {
+  const topic = persona.category === "finance"
+    ? "cassa, margini e scadenze"
+    : persona.category === "operations"
+      ? "cantieri, squadre e rischi"
+      : persona.category === "sales"
+        ? "pipeline, lead e preventivi"
+        : persona.category === "compliance"
+          ? "controlli, contratti e sicurezza"
+          : "decisioni operative";
+  return `${persona.display_name} · ${topic} (${memoryCount} spunti)`;
 }
 
 function downloadMarkdown(session: SessionRow, messages: MessageRow[], persona: PersonaLite | null): void {
@@ -139,6 +204,7 @@ interface SessionRow {
   last_message_at: string;
   archived: boolean;
   created_at: string;
+  isDemoPreview?: boolean;
 }
 
 interface MessageRow {
@@ -150,6 +216,7 @@ interface MessageRow {
   tokens_out: number | null;
   model_used: string | null;
   created_at: string;
+  isDemoPreview?: boolean;
 }
 
 interface PersonaLite {
@@ -169,6 +236,7 @@ interface StatsRow {
 }
 
 type MemoryType = "fact" | "preference" | "decision" | "pattern" | "avoid";
+type SessionQualityFilter = "all" | "knowledge" | "costly" | "short" | "inactive" | "demo";
 
 const TYPE_LABEL: Record<MemoryType, string> = {
   fact: "Fatto",
@@ -189,6 +257,7 @@ export default function AIPersonasSessionsTab() {
   const [filterPeriod, setFilterPeriod] = useState<PeriodKey>("30d");
   const [showArchived, setShowArchived] = useState(false);
   const [searchInput, setSearchInput] = useState("");
+  const [sessionQualityFilter, setSessionQualityFilter] = useState<SessionQualityFilter>("all");
   const debouncedSearch = useDebounce(searchInput.trim(), 300);
 
   // ── Selection state (bulk archive) ────────────────────────────────────────
@@ -224,16 +293,29 @@ export default function AIPersonasSessionsTab() {
         .from("ai_personas_public" as never)
         .select("persona_key, display_name, category, color, icon");
       if (error) throw error;
-      return (data ?? []) as unknown as PersonaLite[];
+      return ((data ?? []) as unknown as PersonaLite[])
+        .filter((persona) => !isOrchestratorPersonaKey(persona.persona_key));
     },
     staleTime: 5 * 60 * 1000,
   });
 
+  const personasForSessions = useMemo<PersonaLite[]>(
+    () => personas.length > 0
+      ? personas
+      : DEMO_AI_PERSONAS.filter((persona) => !isOrchestratorPersonaKey(persona.persona_key)),
+    [personas],
+  );
+
+  const knownPersonaKeys = useMemo(
+    () => new Set(personasForSessions.map((persona) => persona.persona_key)),
+    [personasForSessions],
+  );
+
   const personaByKey = useMemo(() => {
     const m = new Map<string, PersonaLite>();
-    for (const p of personas) m.set(p.persona_key, p);
+    for (const p of personasForSessions) m.set(p.persona_key, p);
     return m;
-  }, [personas]);
+  }, [personasForSessions]);
 
   // ── Stats globali (RPC) con fallback graceful se non deployata ────────────
   // Se la RPC non esiste (migration non eseguita), facciamo fallback su query
@@ -338,9 +420,86 @@ export default function AIPersonasSessionsTab() {
     },
   });
 
-  const allSessions = useMemo(
+  const allSessionsRaw = useMemo(
     () => sessionsQ.data?.pages.flat() ?? [],
     [sessionsQ.data],
+  );
+
+  const allSessions = useMemo<SessionRow[]>(
+    () => allSessionsRaw.flatMap((session) => {
+      if (knownPersonaKeys.has(session.persona_key)) return [session];
+      const targetKey = resolveDemoPersonaKey(session.persona_key, knownPersonaKeys);
+      if (!targetKey) return [];
+      return [{ ...session, persona_key: targetKey }];
+    }),
+    [allSessionsRaw, knownPersonaKeys],
+  );
+
+  const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
+
+  const demoPreviewSessions = useMemo<SessionRow[]>(() => {
+    if (!isDemoCompany || allSessions.length > 0 || personasForSessions.length === 0) return [];
+
+    const memoriesByPersona = new Map<string, typeof DEMO_MEMORIES>();
+    for (const memory of DEMO_MEMORIES) {
+      const targetKey = resolveDemoPersonaKey(memory.persona_key, knownPersonaKeys);
+      if (!targetKey) continue;
+      const list = memoriesByPersona.get(targetKey);
+      if (list) list.push(memory);
+      else memoriesByPersona.set(targetKey, [memory]);
+    }
+
+    const cutoff = periodToCutoffIso(filterPeriod);
+    const searchNeedle = debouncedSearch.toLowerCase();
+
+    return personasForSessions
+      .map((persona, index) => {
+        const personaMemories = memoriesByPersona.get(persona.persona_key) ?? [];
+        const createdAt = new Date(Date.now() - (index + 1) * 23 * 60 * 60 * 1000).toISOString();
+        const session: SessionRow = {
+          id: `demo-session-${persona.persona_key}`,
+          persona_key: persona.persona_key,
+          title: buildDemoSessionTitle(persona, personaMemories.length),
+          message_count: 4 + Math.min(6, Math.max(1, Math.ceil(personaMemories.length / 4))),
+          total_cost_billed_eur: 0.006 + index * 0.0017,
+          total_tokens_in: 680 + personaMemories.length * 14,
+          total_tokens_out: 920 + personaMemories.length * 22,
+          last_message_at: createdAt,
+          archived: false,
+          created_at: createdAt,
+          isDemoPreview: true,
+        };
+        return session;
+      })
+      .filter((session) => {
+        if (filterPersona !== "all" && session.persona_key !== filterPersona) return false;
+        if (cutoff && new Date(session.last_message_at).getTime() < new Date(cutoff).getTime()) return false;
+        if (showArchived && session.archived) return true;
+        if (!showArchived && session.archived) return false;
+        if (!searchNeedle) return true;
+        const personaName = personaByKey.get(session.persona_key)?.display_name.toLowerCase() ?? "";
+        return session.title.toLowerCase().includes(searchNeedle)
+          || personaName.includes(searchNeedle)
+          || session.persona_key.toLowerCase().includes(searchNeedle);
+      });
+  }, [
+    allSessions.length,
+    debouncedSearch,
+    filterPeriod,
+    filterPersona,
+    isDemoCompany,
+    knownPersonaKeys,
+    personaByKey,
+    personasForSessions,
+    showArchived,
+  ]);
+
+  const sessionsForView = useMemo(
+    () => applySessionQualityFilter(
+      allSessions.length > 0 ? allSessions : demoPreviewSessions,
+      sessionQualityFilter,
+    ),
+    [allSessions, demoPreviewSessions, sessionQualityFilter],
   );
 
   // ── Infinite scroll trigger via IntersectionObserver ──────────────────────
@@ -368,7 +527,7 @@ export default function AIPersonasSessionsTab() {
   // ── Reset selezione quando filtri cambiano ────────────────────────────────
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [filterPersona, filterPeriod, showArchived, debouncedSearch]);
+  }, [filterPersona, filterPeriod, showArchived, debouncedSearch, sessionQualityFilter]);
 
   // ── Open session messages (lazy on drawer open) ───────────────────────────
   // PERF: i messaggi sono IMMUTABILI dopo creazione -> staleTime Infinity.
@@ -376,7 +535,7 @@ export default function AIPersonasSessionsTab() {
   // default (5min) ripulisce le sessioni non aperte da tempo.
   const { data: openMessages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["ai-persona-session-messages", openSessionId],
-    enabled: !!openSessionId,
+    enabled: !!openSessionId && !openSessionId.startsWith("demo-session-"),
     staleTime: Infinity,
     queryFn: async (): Promise<MessageRow[]> => {
       const { data, error } = await supabase
@@ -390,9 +549,69 @@ export default function AIPersonasSessionsTab() {
   });
 
   const openSession = useMemo(
-    () => allSessions.find((s) => s.id === openSessionId) ?? null,
-    [allSessions, openSessionId],
+    () => sessionsForView.find((s) => s.id === openSessionId) ?? null,
+    [sessionsForView, openSessionId],
   );
+
+  const demoOpenMessages = useMemo<MessageRow[]>(() => {
+    if (!openSession || !isDemoSession(openSession)) return [];
+    const persona = personaByKey.get(openSession.persona_key);
+    const personaMemories = DEMO_MEMORIES
+      .filter((memory) => resolveDemoPersonaKey(memory.persona_key, knownPersonaKeys) === openSession.persona_key)
+      .slice(0, 4);
+    const started = new Date(openSession.created_at).getTime();
+    const mainInsight = personaMemories[0]?.content ?? "Questa persona ha memoria operativa collegata al cervello AI.";
+    const secondInsight = personaMemories[1]?.content ?? "La conversazione puo' diventare una memoria persistente con un click.";
+    return [
+      {
+        id: `${openSession.id}-user-1`,
+        role: "user",
+        content: `Fammi un briefing rapido per ${persona?.display_name ?? openSession.persona_key}: cosa devo sapere oggi?`,
+        cost_billed_eur: null,
+        tokens_in: 120,
+        tokens_out: null,
+        model_used: null,
+        created_at: new Date(started + 60_000).toISOString(),
+        isDemoPreview: true,
+      },
+      {
+        id: `${openSession.id}-assistant-1`,
+        role: "assistant",
+        content: `${mainInsight}\n\nAzione consigliata: trasformare questo punto in memoria se e' ancora valido, cosi' Silvio e le altre personas lo useranno nei prossimi prompt.`,
+        cost_billed_eur: 0.0021,
+        tokens_in: 320,
+        tokens_out: 540,
+        model_used: "demo-ai-persona",
+        created_at: new Date(started + 140_000).toISOString(),
+        isDemoPreview: true,
+      },
+      {
+        id: `${openSession.id}-user-2`,
+        role: "user",
+        content: "Collegalo anche al contesto aziendale e dimmi che rischio devo controllare.",
+        cost_billed_eur: null,
+        tokens_in: 92,
+        tokens_out: null,
+        model_used: null,
+        created_at: new Date(started + 220_000).toISOString(),
+        isDemoPreview: true,
+      },
+      {
+        id: `${openSession.id}-assistant-2`,
+        role: "assistant",
+        content: `${secondInsight}\n\nControllo QA: questa sessione ha abbastanza contesto per generare memoria, insight nel Cervello e follow-up nella Chat.`,
+        cost_billed_eur: 0.0026,
+        tokens_in: 380,
+        tokens_out: 610,
+        model_used: "demo-ai-persona",
+        created_at: new Date(started + 330_000).toISOString(),
+        isDemoPreview: true,
+      },
+    ];
+  }, [knownPersonaKeys, openSession, personaByKey]);
+
+  const messagesForOpenSession = isDemoSession(openSession) ? demoOpenMessages : openMessages;
+  const messagesAreLoading = isDemoSession(openSession) ? false : messagesLoading;
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
@@ -490,8 +709,8 @@ export default function AIPersonasSessionsTab() {
   }, []);
 
   const selectAllVisible = useCallback(() => {
-    setSelectedIds(new Set(allSessions.map((s) => s.id)));
-  }, [allSessions]);
+    setSelectedIds(new Set(sessionsForView.filter((s) => !isDemoSession(s)).map((s) => s.id)));
+  }, [sessionsForView]);
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
@@ -500,20 +719,26 @@ export default function AIPersonasSessionsTab() {
     const sp = new URLSearchParams(window.location.search);
     sp.set("tab", "chat");
     sp.set("persona", s.persona_key);
-    sp.set("sessionId", s.id);
+    if (isDemoSession(s)) {
+      sp.delete("sessionId");
+      toast.info("Sessione demo", { description: "Apro la persona in chat reale: la demo non viene salvata." });
+    } else {
+      sp.set("sessionId", s.id);
+    }
     window.history.pushState(null, "", `${window.location.pathname}?${sp.toString()}`);
     window.dispatchEvent(new PopStateEvent("popstate"));
     setOpenSessionId(null);
   }, []);
 
   const handleExport = useCallback((s: SessionRow) => {
-    if (openMessages.length === 0) {
+    const messages = isDemoSession(s) ? demoOpenMessages : openMessages;
+    if (messages.length === 0) {
       toast.info("Apri prima la sessione per caricare i messaggi");
       return;
     }
     const persona = personaByKey.get(s.persona_key) ?? null;
-    downloadMarkdown(s, openMessages, persona);
-  }, [openMessages, personaByKey]);
+    downloadMarkdown(s, messages, persona);
+  }, [demoOpenMessages, openMessages, personaByKey]);
 
   const handlePromoteFull = useCallback((msg: MessageRow, session: SessionRow) => {
     setPromoteState({
@@ -593,13 +818,126 @@ export default function AIPersonasSessionsTab() {
     };
   }, [openSessionId]);
 
+  const sessionCoverage = useMemo(() => {
+    const sessionsByPersona = new Map<string, number>();
+    const knowledgeByPersona = new Map<string, number>();
+    for (const session of (allSessions.length > 0 ? allSessions : demoPreviewSessions)) {
+      if (!session.archived) {
+        sessionsByPersona.set(session.persona_key, (sessionsByPersona.get(session.persona_key) ?? 0) + 1);
+      }
+      if (isKnowledgeCandidate(session)) {
+        knowledgeByPersona.set(session.persona_key, (knowledgeByPersona.get(session.persona_key) ?? 0) + 1);
+      }
+    }
+    const personasWithoutSessions = personasForSessions.filter((persona) => !sessionsByPersona.has(persona.persona_key));
+    const coveragePct = personasForSessions.length > 0
+      ? Math.round((sessionsByPersona.size / personasForSessions.length) * 100)
+      : 0;
+    return {
+      sessionsByPersona,
+      knowledgeByPersona,
+      personasWithoutSessions,
+      coveragePct,
+    };
+  }, [allSessions, demoPreviewSessions, personasForSessions]);
+
+  const sessionOps = useMemo(() => {
+    const sourceSessions = allSessions.length > 0 ? allSessions : demoPreviewSessions;
+    const demoCount = sourceSessions.filter(isDemoSession).length;
+    const knowledgeCount = sourceSessions.filter(isKnowledgeCandidate).length;
+    const costlyCount = sourceSessions.filter(isCostlySession).length;
+    const shortCount = sourceSessions.filter(isShortSession).length;
+    const inactiveCount = sourceSessions.filter(isInactiveSession).length;
+    const totalCost = sourceSessions.reduce((sum, session) => sum + Number(session.total_cost_billed_eur ?? 0), 0);
+    const healthAvg = sourceSessions.length > 0
+      ? Math.round(sourceSessions.reduce((sum, session) => sum + sessionHealthScore(session), 0) / sourceSessions.length)
+      : 0;
+    return {
+      realCount: allSessions.length,
+      demoCount,
+      knowledgeCount,
+      costlyCount,
+      shortCount,
+      inactiveCount,
+      totalCost,
+      healthAvg,
+    };
+  }, [allSessions, demoPreviewSessions]);
+
+  const displayStats = useMemo<StatsRow>(() => {
+    const sourceSessions = allSessions.length > 0 ? allSessions : demoPreviewSessions;
+    if (sourceSessions.length > 0) {
+      const top = [...sessionCoverage.sessionsByPersona.entries()].sort((a, b) => b[1] - a[1])[0];
+      return {
+        sessions_count: sourceSessions.length,
+        messages_count: sourceSessions.reduce((sum, session) => sum + session.message_count, 0),
+        total_cost_eur: sourceSessions.reduce((sum, session) => sum + Number(session.total_cost_billed_eur ?? 0), 0),
+        top_persona_key: top?.[0] ?? null,
+        top_persona_count: top?.[1] ?? 0,
+      };
+    }
+    return {
+      sessions_count: stats?.sessions_count ?? 0,
+      messages_count: stats?.messages_count ?? 0,
+      total_cost_eur: stats?.total_cost_eur ?? 0,
+      top_persona_key: stats?.top_persona_key && !isOrchestratorPersonaKey(stats.top_persona_key) ? stats.top_persona_key : null,
+      top_persona_count: stats?.top_persona_key && !isOrchestratorPersonaKey(stats.top_persona_key) ? stats.top_persona_count : 0,
+    };
+  }, [allSessions, demoPreviewSessions, sessionCoverage.sessionsByPersona, stats]);
+
   // ─── RENDER ──────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-4">
+      <Card className="overflow-hidden border-violet-200 bg-gradient-to-br from-violet-50 via-white to-slate-50 dark:from-violet-950/20 dark:via-background dark:to-background">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="bg-violet-100 text-violet-700 border-violet-200">
+                  <Database className="h-3 w-3" />
+                  {sessionOps.realCount} reali
+                </Badge>
+                {sessionOps.demoCount > 0 && (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                    <Sparkles className="h-3 w-3" />
+                    Sessioni demo {sessionOps.demoCount}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {sessionCoverage.coveragePct}% copertura
+                </Badge>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">Centro controllo sessioni</h2>
+                <p className="text-xs text-muted-foreground">
+                  Trasforma le conversazioni AI in memoria persistente, controlla costi, copertura personas e sessioni da rivedere.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[420px]">
+              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
+                <p className="text-xl font-bold tabular-nums">{sessionOps.knowledgeCount}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">da trasformare</p>
+              </div>
+              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
+                <p className="text-xl font-bold tabular-nums">{sessionOps.healthAvg}%</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">salute</p>
+              </div>
+              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
+                <p className="text-xl font-bold tabular-nums">{fmtEur(sessionOps.totalCost, 3)}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">costo</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats banner — sempre globale, non sul paginato. Skeleton durante load. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {statsLoading ? (
+        {statsLoading && sessionOps.demoCount === 0 ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-lg border bg-card p-3 space-y-1.5">
               <Skeleton className="h-3 w-20" />
@@ -611,34 +949,34 @@ export default function AIPersonasSessionsTab() {
           <>
             <StatCard
               label="Sessioni"
-              value={String(stats?.sessions_count ?? 0)}
+              value={String(displayStats.sessions_count)}
               icon={<History className="h-3.5 w-3.5" />}
-              subtitle={showArchived ? "incl. archiviate" : "solo attive"}
+              subtitle={sessionOps.demoCount > 0 ? "anteprima Demo Azienda" : showArchived ? "incl. archiviate" : "solo attive"}
               accent="emerald"
             />
             <StatCard
               label="Messaggi"
-              value={String(stats?.messages_count ?? 0)}
+              value={String(displayStats.messages_count)}
               icon={<MessageSquare className="h-3.5 w-3.5" />}
               subtitle={
-                stats && stats.sessions_count > 0
-                  ? `media ${Math.round(stats.messages_count / stats.sessions_count)}/sess`
+                displayStats.sessions_count > 0
+                  ? `media ${Math.round(displayStats.messages_count / displayStats.sessions_count)}/sess`
                   : "nessuna chat ancora"
               }
               accent="blue"
             />
             <StatCard
               label="Costo periodo"
-              value={fmtEur(stats?.total_cost_eur ?? 0, 3)}
+              value={fmtEur(displayStats.total_cost_eur, 3)}
               icon={<Coins className="h-3.5 w-3.5" />}
               subtitle="scalato dal saldo AI"
               accent="amber"
             />
             <StatCard
               label="Persona top"
-              value={stats?.top_persona_key ? personaByKey.get(stats.top_persona_key)?.display_name ?? stats.top_persona_key : "—"}
+              value={displayStats.top_persona_key ? personaByKey.get(displayStats.top_persona_key)?.display_name ?? displayStats.top_persona_key : "—"}
               icon={<Sparkles className="h-3.5 w-3.5" />}
-              subtitle={stats && stats.top_persona_count > 0 ? `${stats.top_persona_count} sessioni` : "—"}
+              subtitle={displayStats.top_persona_count > 0 ? `${displayStats.top_persona_count} sessioni` : "—"}
               accent="violet"
             />
           </>
@@ -651,15 +989,106 @@ export default function AIPersonasSessionsTab() {
         </p>
       )}
 
+      <div className="grid gap-3 lg:grid-cols-[1.25fr_0.75fr]">
+        <div className="rounded-xl border bg-card p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold">Copertura conversazioni per persona</p>
+              <p className="text-xs text-muted-foreground">
+                Vedi quali AI hanno gia' conversazioni utili e quali non hanno ancora contesto reale.
+              </p>
+            </div>
+            {sessionCoverage.personasWithoutSessions.length > 0 ? (
+              <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
+                <ShieldAlert className="h-3 w-3" />
+                {sessionCoverage.personasWithoutSessions.length} senza sessioni
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                <CheckCircle2 className="h-3 w-3" />
+                Tutte coperte
+              </Badge>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+            {personasForSessions.map((persona) => {
+              const count = sessionCoverage.sessionsByPersona.get(persona.persona_key) ?? 0;
+              const knowledgeCount = sessionCoverage.knowledgeByPersona.get(persona.persona_key) ?? 0;
+              const pct = count > 0 ? Math.min(100, 34 + count * 22 + knowledgeCount * 12) : 8;
+              return (
+                <button
+                  key={persona.persona_key}
+                  type="button"
+                  onClick={() => setFilterPersona(persona.persona_key)}
+                  className={cn(
+                    "rounded-lg border p-2 text-left transition-colors hover:bg-muted/50",
+                    filterPersona === persona.persona_key && "border-violet-300 bg-violet-50 text-violet-950",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-xs font-semibold">{persona.display_name}</p>
+                    <span className="text-xs font-bold tabular-nums">{count}</span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={cn("h-full rounded-full", count === 0 ? "bg-rose-400" : knowledgeCount > 0 ? "bg-emerald-500" : "bg-amber-500")}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {count === 0 ? "da avviare" : knowledgeCount > 0 ? `${knowledgeCount} utili` : "solo chat breve"}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-3">
+          <div className="flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-violet-600" />
+            <p className="text-sm font-semibold">Da conversazione a memoria</p>
+          </div>
+          <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+            <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-2">
+              <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-violet-100 text-center text-[11px] font-bold leading-5 text-violet-700">1</span>
+              Apri una sessione con almeno 4 messaggi.
+            </div>
+            <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-2">
+              <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-violet-100 text-center text-[11px] font-bold leading-5 text-violet-700">2</span>
+              Seleziona la frase importante o usa Promuovi tutto.
+            </div>
+            <div className="flex items-start gap-2 rounded-lg bg-muted/30 p-2">
+              <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-violet-100 text-center text-[11px] font-bold leading-5 text-violet-700">3</span>
+              Salvala in Memoria e poi controlla il collegamento nel Cervello.
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" asChild className="h-8 gap-1.5">
+              <a href="/azienda/impostazioni/ai-memoria?tab=memoria">
+                <Brain className="h-3.5 w-3.5" />
+                Apri in Memoria
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild className="h-8 gap-1.5">
+              <a href="/azienda/impostazioni/ai-memoria?tab=cervello">
+                <Network className="h-3.5 w-3.5" />
+                Vedi nel Cervello
+              </a>
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
         <Select value={filterPersona} onValueChange={setFilterPersona}>
           <SelectTrigger className="h-9 w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le personas</SelectItem>
-            {personas.map((p) => (
+            {personasForSessions.map((p) => (
               <SelectItem key={p.persona_key} value={p.persona_key}>{p.display_name}</SelectItem>
             ))}
           </SelectContent>
@@ -698,6 +1127,36 @@ export default function AIPersonasSessionsTab() {
           {showArchived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
           {showArchived ? "Nascondi archiviate" : "Mostra archiviate"}
         </Button>
+
+        <Badge variant="outline" className="ml-auto text-xs">
+          {sessionsForView.length} sessioni
+        </Badge>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {[
+          { value: "all", label: "Tutte", icon: FilterX },
+          { value: "knowledge", label: "Da trasformare", icon: Brain },
+          { value: "costly", label: "Costo alto", icon: Coins },
+          { value: "short", label: "Brevi", icon: MessageSquare },
+          { value: "inactive", label: "Ferme", icon: Clock3 },
+          { value: "demo", label: "Sessioni demo", icon: Sparkles },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <Button
+              key={item.value}
+              type="button"
+              size="sm"
+              variant={sessionQualityFilter === item.value ? "default" : "outline"}
+              className="h-8 gap-1.5"
+              onClick={() => setSessionQualityFilter(item.value as SessionQualityFilter)}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {item.label}
+            </Button>
+          );
+        })}
       </div>
 
       {/* Bulk action bar (mostrata solo con selezione attiva) */}
@@ -714,7 +1173,7 @@ export default function AIPersonasSessionsTab() {
             className="h-8 gap-1.5"
           >
             <CheckSquare className="h-3.5 w-3.5" />
-            Tutte visibili ({allSessions.length})
+            Tutte visibili ({sessionsForView.filter((s) => !isDemoSession(s)).length})
           </Button>
           <Button
             size="sm"
@@ -749,7 +1208,7 @@ export default function AIPersonasSessionsTab() {
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
         </div>
-      ) : allSessions.length === 0 ? (
+      ) : sessionsForView.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             <History className="h-10 w-10 mx-auto mb-3 opacity-30" />
@@ -758,12 +1217,35 @@ export default function AIPersonasSessionsTab() {
               Apri la tab <strong>Chat</strong> e parla con una delle 18 personas.
               Le conversazioni appariranno qui, e potrai promuoverne i passaggi più utili a memoria persistente.
             </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button size="sm" asChild className="gap-2">
+                <a href="/azienda/impostazioni/ai-memoria?tab=chat">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Apri Chat
+                </a>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  setSessionQualityFilter("all");
+                  setFilterPersona("all");
+                  setFilterPeriod("30d");
+                  setShowArchived(false);
+                  setSearchInput("");
+                }}
+              >
+                <FilterX className="h-3.5 w-3.5" />
+                Pulisci filtri
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
         <>
           <div className="space-y-2">
-            {allSessions.map((s) => (
+            {sessionsForView.map((s) => (
               <SessionCard
                 key={s.id}
                 session={s}
@@ -836,7 +1318,7 @@ export default function AIPersonasSessionsTab() {
               variant="outline"
               onClick={() => openSession && handleExport(openSession)}
               className="gap-2"
-              disabled={!openSession || openMessages.length === 0}
+              disabled={!openSession || messagesForOpenSession.length === 0}
             >
               <Download className="h-3.5 w-3.5" />
               Esporta MD
@@ -846,7 +1328,7 @@ export default function AIPersonasSessionsTab() {
               variant="outline"
               onClick={() => openSession && archiveMut.mutate({ id: openSession.id, archived: !openSession.archived })}
               className="gap-2 ml-auto"
-              disabled={!openSession || archiveMut.isPending}
+              disabled={!openSession || archiveMut.isPending || isDemoSession(openSession)}
             >
               {openSession?.archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
               {openSession?.archived ? "Riattiva" : "Archivia"}
@@ -854,21 +1336,21 @@ export default function AIPersonasSessionsTab() {
           </div>
 
           <p className="text-[10px] text-muted-foreground bg-violet-50/50 dark:bg-violet-950/20 px-4 py-1.5 border-b">
-            💡 <strong>Tip:</strong> seleziona del testo nella risposta AI per promuovere solo quella frase a memoria.
+            <strong>Tip:</strong> seleziona del testo nella risposta AI per promuovere solo quella frase a memoria.
           </p>
 
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-4">
-              {messagesLoading ? (
+              {messagesAreLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
                 </div>
-              ) : openMessages.length === 0 ? (
+              ) : messagesForOpenSession.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-12">
                   Nessun messaggio (sessione vuota)
                 </p>
               ) : (
-                openMessages
+                messagesForOpenSession
                   .filter((m) => m.role !== "system" && m.role !== "tool")
                   .map((m) => (
                     <SessionMessageBubble
@@ -1030,11 +1512,17 @@ function SessionCard({
   archivePending: boolean;
   hasAnySelection: boolean;
 }) {
+  const demoPreview = isDemoSession(session);
+  const health = sessionHealthScore(session);
+  const knowledgeCandidate = isKnowledgeCandidate(session);
+  const costly = isCostlySession(session);
+  const short = isShortSession(session);
   return (
     <div
       className={cn(
         "rounded-lg border bg-card transition-all",
         session.archived && "opacity-60",
+        demoPreview && "border-amber-200 bg-amber-50/30",
         selected ? "border-violet-400 ring-1 ring-violet-200 bg-violet-50/30 dark:bg-violet-950/10" : "hover:bg-muted/30",
       )}
     >
@@ -1044,11 +1532,12 @@ function SessionCard({
             checked={selected}
             onCheckedChange={onToggleSelect}
             aria-label="Seleziona sessione"
+            disabled={demoPreview}
           />
         </div>
         <button
           type="button"
-          onClick={hasAnySelection ? onToggleSelect : onOpen}
+          onClick={hasAnySelection && !demoPreview ? onToggleSelect : onOpen}
           className="flex-1 text-left flex items-start gap-3 min-w-0"
         >
           {(() => {
@@ -1063,6 +1552,18 @@ function SessionCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium truncate">{session.title}</span>
+              {demoPreview && (
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-amber-100 text-amber-700 border-amber-200">demo</Badge>
+              )}
+              {knowledgeCandidate && (
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-emerald-50 text-emerald-700 border-emerald-200">da trasformare</Badge>
+              )}
+              {costly && (
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-orange-50 text-orange-700 border-orange-200">costo alto</Badge>
+              )}
+              {short && (
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5 bg-slate-100 text-slate-600 border-slate-200">breve</Badge>
+              )}
               {session.archived && (
                 <Badge variant="outline" className="text-[10px] h-4 px-1.5">archiviata</Badge>
               )}
@@ -1075,21 +1576,41 @@ function SessionCard({
               <span>{fmtEur(session.total_cost_billed_eur, 4)}</span>
               <span>·</span>
               <span>{fmtRelative(session.last_message_at)}</span>
+              <span>·</span>
+              <span>QA {health}%</span>
+            </div>
+            <div className="mt-2 h-1.5 max-w-md overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={cn("h-full rounded-full", health >= 80 ? "bg-emerald-500" : health >= 60 ? "bg-amber-500" : "bg-rose-500")}
+                style={{ width: `${Math.max(health, 8)}%` }}
+              />
             </div>
           </div>
           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
         </button>
       </div>
-      <div className="border-t px-3 py-2 flex items-center gap-2 bg-muted/20">
+      <div className="border-t px-3 py-2 flex flex-wrap items-center gap-2 bg-muted/20">
         <Button size="sm" variant="ghost" onClick={onResume} className="h-7 gap-1.5 text-xs">
           <ExternalLink className="h-3 w-3" />
           Continua chat
+        </Button>
+        <Button size="sm" variant="ghost" asChild className="h-7 gap-1.5 text-xs">
+          <a href={`/azienda/impostazioni/ai-memoria?tab=memoria&persona=${encodeURIComponent(session.persona_key)}`}>
+            <Brain className="h-3 w-3" />
+            Apri in Memoria
+          </a>
+        </Button>
+        <Button size="sm" variant="ghost" asChild className="h-7 gap-1.5 text-xs">
+          <a href={`/azienda/impostazioni/ai-memoria?tab=cervello&persona=${encodeURIComponent(session.persona_key)}`}>
+            <Link2 className="h-3 w-3" />
+            Vedi nel Cervello
+          </a>
         </Button>
         <Button
           size="sm"
           variant="ghost"
           onClick={onArchive}
-          disabled={archivePending}
+          disabled={archivePending || demoPreview}
           className="h-7 gap-1.5 text-xs ml-auto"
         >
           {session.archived ? (

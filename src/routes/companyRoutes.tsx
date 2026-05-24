@@ -181,6 +181,7 @@ const RenderTechnicalModuleNew = lazy(() => import("@/pages/azienda/RenderTechni
 const RenderTechnicalModuleGallery = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGallery"));
 const RenderTechnicalModuleGalleryDetail = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGalleryDetail"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
+const ContenutiMultimediali = lazy(() => import("@/pages/azienda/ContenutiMultimediali"));
 // MP-AIE-03: pagina dedicata azioni proposte AI
 const AzioniProposteAi = lazy(() => import("@/pages/azienda/AzioniProposteAi"));
 const ActionProposalsAuditLog = lazy(() => import("@/pages/azienda/admin/ActionProposalsAuditLog"));
@@ -421,6 +422,7 @@ export default function CompanyRoutesContainer() {
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
         <Route path="chat" element={withCompanyPermission("canViewPersone", <InternalChat />)} />
+        <Route path="contenuti-multimediali" element={<ContenutiMultimediali />} />
         {/* MP-AIE-03: Azioni proposte AI (yellow/red da Silvio + 18 personas) */}
         <Route path="azioni-proposte" element={<AzioniProposteAi />} />
         <Route path="azioni-proposte/audit-log" element={<ActionProposalsAuditLog />} />

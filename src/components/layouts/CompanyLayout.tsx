@@ -101,6 +101,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
+import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { NotificationsBellPopover } from "@/components/notifications/NotificationsBellPopover";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
@@ -621,7 +622,7 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
       label: "Preventivi & Listino",
       items: [
         { to: "/azienda/impostazioni/listino",              label: "Listino prodotti",    icon: <Package className="h-4 w-4" />,    visible: isAdmin || permissions.canViewSettingsOrders },
-        { to: "/azienda/impostazioni/tariffe",              label: "Tariffe aziendali",   icon: <Wrench className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
+        { to: "/azienda/impostazioni/tariffe",              label: "Manodopera e Servizi", icon: <Wrench className="h-4 w-4" />,     visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/listino-manutenzione", label: "Listino Manutenzione", icon: <ClipboardList className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/finanziamenti",        label: "Finanziamenti",        icon: <Banknote className="h-4 w-4" />,   visible: isAdmin || permissions.canViewSettingsOrders },
         { to: "/azienda/impostazioni/margini",              label: "Preventivi & Margini",icon: <TrendingUp className="h-4 w-4" />, visible: isAdmin || permissions.canViewSettingsOrders },
@@ -973,11 +974,15 @@ const CompanySidebar = memo(function CompanySidebar() {
 
     if (permissions.isLoading) {
       return items.filter((item) => {
+        if (item.url === "/azienda/contenuti-multimediali") return true;
         if (!item.featureKey) return true;
         return passesFeatureGate(item.featureKey) !== "hidden";
       });
     }
     return items.filter((item) => {
+      if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) {
+        return false;
+      }
       if (item.demoCompanyOnly && !isDemoBaseline) return false;
       if (item.url === "/azienda/cruscotto") {
         if (

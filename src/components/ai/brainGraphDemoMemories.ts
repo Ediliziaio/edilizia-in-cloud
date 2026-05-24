@@ -1,5 +1,5 @@
 /**
- * brainGraphDemoMemories — 150 memorie pre-popolate per Demo Azienda S.r.l.
+ * brainGraphDemoMemories — dataset pre-popolato per Demo Azienda S.r.l.
  *
  * Dataset realistico per un'impresa edile italiana, con keyword condivise
  * massive per generare 80-100+ cross-persona edges visibili nel grafo.
@@ -23,7 +23,41 @@ export interface DemoMemory {
   hits_count: number;
 }
 
-export const DEMO_MEMORIES: DemoMemory[] = [
+export interface DemoPersona {
+  persona_key: string;
+  display_name: string;
+  category: string;
+  color: string | null;
+  icon: string | null;
+}
+
+export const DEMO_AI_PERSONAS: DemoPersona[] = [
+  { persona_key: "cfo", display_name: "CFO", category: "finance", color: "emerald", icon: "Wallet" },
+  { persona_key: "controller", display_name: "Controller di Gestione", category: "finance", color: "amber", icon: "Calculator" },
+  { persona_key: "amministrazione", display_name: "Amministrazione", category: "finance", color: "blue", icon: "FileText" },
+  { persona_key: "commercialista", display_name: "Commercialista", category: "finance", color: "indigo", icon: "Receipt" },
+  { persona_key: "pm_cantiere", display_name: "PM Cantiere", category: "operations", color: "orange", icon: "HardHat" },
+  { persona_key: "capocantiere", display_name: "Capocantiere", category: "operations", color: "yellow", icon: "Hammer" },
+  { persona_key: "tecnico", display_name: "Ufficio Tecnico", category: "operations", color: "cyan", icon: "Ruler" },
+  { persona_key: "acquisti", display_name: "Ufficio Acquisti", category: "operations", color: "lime", icon: "ShoppingCart" },
+  { persona_key: "direttore_vendite", display_name: "Direttore Vendite", category: "sales", color: "green", icon: "TrendingUp" },
+  { persona_key: "sales", display_name: "Sales / Commerciale", category: "sales", color: "emerald", icon: "Handshake" },
+  { persona_key: "cliente_tutor", display_name: "Cliente Tutor", category: "sales", color: "teal", icon: "HeartHandshake" },
+  { persona_key: "assistente_cliente", display_name: "Assistente Cliente", category: "client", color: "sky", icon: "Headphones" },
+  { persona_key: "direttore_marketing", display_name: "Direttore Marketing", category: "marketing", color: "pink", icon: "Megaphone" },
+  { persona_key: "hr", display_name: "HR / Risorse Umane", category: "hr", color: "violet", icon: "Users" },
+  { persona_key: "compliance", display_name: "Compliance & Sicurezza", category: "compliance", color: "red", icon: "ShieldCheck" },
+  { persona_key: "legale", display_name: "Ufficio Legale", category: "compliance", color: "stone", icon: "Scale" },
+  { persona_key: "assistente_imprenditore", display_name: "Assistente Imprenditore", category: "meta", color: "orange", icon: "Sparkles" },
+];
+
+const ORCHESTRATOR_PERSONA_KEYS = new Set(["silvio", "brain", "aedix_brain"]);
+
+export function isOrchestratorPersonaKey(personaKey: string | null | undefined): boolean {
+  return !!personaKey && ORCHESTRATOR_PERSONA_KEYS.has(personaKey);
+}
+
+const BASE_DEMO_MEMORIES: DemoMemory[] = [
   // ═══ CFO / FINANCE (20 memorie) ═══════════════════════════════════════
   { persona_key: "cfo", memory_type: "preference", content: "Florin preferisce vedere il P&L mensile invece che settimanale", confidence: 0.95, hits_count: 18 },
   { persona_key: "cfo", memory_type: "fact",       content: "Cliente Bianchi Srl ha sempre pagato in ritardo medio di 45 giorni nel 2025", confidence: 0.92, hits_count: 28 },
@@ -199,22 +233,113 @@ export const DEMO_MEMORIES: DemoMemory[] = [
   { persona_key: "rspp", memory_type: "preference", content: "Florin vuole report sicurezza trimestrale con near-miss e azioni correttive", confidence: 0.93, hits_count: 7 },
 ];
 
+const ADVANCED_DEMO_MEMORIES: DemoMemory[] = [
+  // ═══ CONTROLLER DI GESTIONE ═══════════════════════════════════════════
+  { persona_key: "controller", memory_type: "fact",       content: "Centro Direzionale Garibaldi: budget lavori 850k€, consuntivo aggiornato 663k€, SAL 78%, margine previsto 22%", confidence: 0.96, hits_count: 21 },
+  { persona_key: "controller", memory_type: "pattern",    content: "Cantieri con varianti non formalizzate perdono in media 7 punti margine rispetto a preventivo", confidence: 0.91, hits_count: 16 },
+  { persona_key: "controller", memory_type: "decision",   content: "Ogni commessa sopra 100k€ deve avere controllo scostamenti costo manodopera ogni venerdì", confidence: 0.98, hits_count: 14 },
+  { persona_key: "controller", memory_type: "fact",       content: "Bianchi Via Roma 12: extra costo ponteggi 6.800€ da imputare a variante approvata", confidence: 0.92, hits_count: 10 },
+  { persona_key: "controller", memory_type: "avoid",      content: "Mai chiudere SAL senza quadratura tra DDT materiali, ore squadra e fatture fornitore", confidence: 0.99, hits_count: 13 },
+  { persona_key: "controller", memory_type: "preference", content: "Florin vuole vista margine per commessa con semaforo rosso se scostamento supera 5%", confidence: 0.94, hits_count: 18 },
+
+  // ═══ COMMERCIALISTA ═══════════════════════════════════════════════════
+  { persona_key: "commercialista", memory_type: "decision",   content: "Reverse charge da verificare sempre su subappalti edili prima di registrare fattura passiva", confidence: 0.97, hits_count: 17 },
+  { persona_key: "commercialista", memory_type: "fact",       content: "Liquidazione IVA media trimestre 2025: 24.600€, picco novembre per fatture Centro Direzionale Garibaldi", confidence: 0.9, hits_count: 9 },
+  { persona_key: "commercialista", memory_type: "pattern",    content: "Bonus fiscali residui generano molte richieste clienti ma conversione bassa se documentazione iniziale è incompleta", confidence: 0.86, hits_count: 8 },
+  { persona_key: "commercialista", memory_type: "avoid",      content: "Non confermare aliquota IVA agevolata senza verifica titolo edilizio, destinazione immobile e dichiarazione cliente", confidence: 0.99, hits_count: 19 },
+  { persona_key: "commercialista", memory_type: "preference", content: "Florin chiede parere fiscale sintetico prima dei preventivi con agevolazioni sopra 30k€", confidence: 0.91, hits_count: 11 },
+
+  // ═══ CAPOCANTIERE ═════════════════════════════════════════════════════
+  { persona_key: "capocantiere", memory_type: "fact",       content: "Squadra A lavora meglio su facciate e cappotti; produttività media 42 mq/giorno su Centro Direzionale Garibaldi", confidence: 0.93, hits_count: 15 },
+  { persona_key: "capocantiere", memory_type: "decision",   content: "Ogni mattina il capocantiere deve inviare foto area lavoro, DPI e avanzamento prima delle 8:30", confidence: 0.96, hits_count: 20 },
+  { persona_key: "capocantiere", memory_type: "pattern",    content: "Quando Cementi Lombardi arriva dopo le 10, conviene anticipare demolizioni leggere e pulizia area", confidence: 0.88, hits_count: 13 },
+  { persona_key: "capocantiere", memory_type: "avoid",      content: "Mai far entrare nuovi operai in cantiere senza briefing rischi specifici e firma registro presenze", confidence: 1.0, hits_count: 18 },
+  { persona_key: "capocantiere", memory_type: "fact",       content: "Via Milano 45: ascensore condominiale vietato per materiali, usare montacarichi lato cortile", confidence: 0.94, hits_count: 10 },
+  { persona_key: "capocantiere", memory_type: "preference", content: "Florin preferisce note vocali brevi dal campo con foto allegate invece di messaggi lunghi", confidence: 0.87, hits_count: 8 },
+
+  // ═══ UFFICIO TECNICO ══════════════════════════════════════════════════
+  { persona_key: "tecnico", memory_type: "fact",       content: "Computo metrico Centro Direzionale Garibaldi usa prezzario Regione Lombardia 2025 come base di confronto", confidence: 0.94, hits_count: 12 },
+  { persona_key: "tecnico", memory_type: "decision",   content: "Ogni variante strutturale richiede tavola aggiornata, relazione tecnica e conferma scritta del DL prima dell'esecuzione", confidence: 0.99, hits_count: 17 },
+  { persona_key: "tecnico", memory_type: "pattern",    content: "Le pratiche CILA per ristrutturazioni interne a Milano richiedono mediamente 5 giorni per raccolta allegati cliente", confidence: 0.86, hits_count: 7 },
+  { persona_key: "tecnico", memory_type: "avoid",      content: "Mai usare misure prese da foto WhatsApp per computi finali: serve rilievo o tavola quotata", confidence: 0.98, hits_count: 16 },
+  { persona_key: "tecnico", memory_type: "preference", content: "Florin vuole computi con voce rischio evidenziata quando ci sono demolizioni o impianti nascosti", confidence: 0.9, hits_count: 9 },
+  { persona_key: "tecnico", memory_type: "fact",       content: "Milano Habitat richiede sempre rendering prima/dopo per approvare finiture premium", confidence: 0.88, hits_count: 6 },
+
+  // ═══ DIRETTORE VENDITE / SALES LEADERSHIP ════════════════════════════
+  { persona_key: "direttore_vendite", memory_type: "fact",       content: "Pipeline commerciale maggio 2026: 18 opportunità aperte, valore stimato 1.24M€, probabilità pesata 410k€", confidence: 0.93, hits_count: 18 },
+  { persona_key: "direttore_vendite", memory_type: "decision",   content: "Lead sopra 80k€ devono avere prossimo step calendarizzato entro 24h dalla qualifica", confidence: 0.98, hits_count: 21 },
+  { persona_key: "direttore_vendite", memory_type: "pattern",    content: "Preventivi con sopralluogo entro 48h convertono al 31%, oltre 7 giorni scendono al 14%", confidence: 0.89, hits_count: 15 },
+  { persona_key: "direttore_vendite", memory_type: "avoid",      content: "Non scalare budget campagne se il call center non risponde ai lead entro 15 minuti", confidence: 0.96, hits_count: 12 },
+  { persona_key: "direttore_vendite", memory_type: "preference", content: "Florin vuole forecast 30/60/90 giorni ogni lunedì con opportunità senza prossimo step evidenziate", confidence: 0.95, hits_count: 19 },
+  { persona_key: "direttore_vendite", memory_type: "fact",       content: "Geometri Monza-Brianza portano ticket medio 72k€ e ciclo vendita medio 19 giorni", confidence: 0.87, hits_count: 8 },
+
+  // ═══ CLIENTE TUTOR ════════════════════════════════════════════════════
+  { persona_key: "cliente_tutor", memory_type: "fact",       content: "Bianchi Srl si tranquillizza se riceve aggiornamento avanzamento ogni martedì e venerdì con foto cantiere", confidence: 0.91, hits_count: 14 },
+  { persona_key: "cliente_tutor", memory_type: "pattern",    content: "Clienti premium accettano varianti più facilmente quando vedono impatto su valore immobile e tempi", confidence: 0.88, hits_count: 9 },
+  { persona_key: "cliente_tutor", memory_type: "decision",   content: "Dopo firma preventivo, inviare sempre percorso cliente: sopralluogo, progetto, SAL, consegna, garanzia", confidence: 0.97, hits_count: 13 },
+  { persona_key: "cliente_tutor", memory_type: "avoid",      content: "Mai lasciare clienti senza update durante ritardi materiali: comunicare causa, nuova data e alternativa", confidence: 0.98, hits_count: 11 },
+  { persona_key: "cliente_tutor", memory_type: "preference", content: "Florin vuole tono rassicurante ma concreto: problema, soluzione, data, responsabile", confidence: 0.9, hits_count: 10 },
+
+  // ═══ ASSISTENTE CLIENTE / SUPPORT ═════════════════════════════════════
+  { persona_key: "assistente_cliente", memory_type: "fact",       content: "Ticket garanzia Bianchi su infiltrazione balcone: priorità alta, cliente storico, rispondere entro 1h", confidence: 0.92, hits_count: 16 },
+  { persona_key: "assistente_cliente", memory_type: "decision",   content: "Ogni richiesta cliente post-consegna va collegata a commessa, foto, responsabile e SLA prima di chiudere", confidence: 0.96, hits_count: 12 },
+  { persona_key: "assistente_cliente", memory_type: "pattern",    content: "Le chiamate dopo consegna sono spesso richieste manutenzione, non contestazioni: proporre sopralluogo leggero", confidence: 0.84, hits_count: 8 },
+  { persona_key: "assistente_cliente", memory_type: "avoid",      content: "Mai promettere intervento in giornata senza verificare agenda squadra e materiali disponibili", confidence: 0.98, hits_count: 15 },
+  { persona_key: "assistente_cliente", memory_type: "preference", content: "Florin vuole che ogni risposta cliente termini con prossimo passo chiaro e data stimata", confidence: 0.91, hits_count: 10 },
+
+  // ═══ DIRETTORE MARKETING ══════════════════════════════════════════════
+  { persona_key: "direttore_marketing", memory_type: "fact",       content: "Campagna Meta serramenti Monza: CPL 22€, 23 lead, 5 commesse, fatturato attribuito 74k€", confidence: 0.9, hits_count: 18 },
+  { persona_key: "direttore_marketing", memory_type: "decision",   content: "Budget advertising va scalato solo se CPL, qualità lead, appuntamenti e margine stimato sono tutti verdi", confidence: 0.97, hits_count: 22 },
+  { persona_key: "direttore_marketing", memory_type: "pattern",    content: "Creative con prima/dopo cantiere genera 2.1x lead qualificati rispetto a grafiche generiche", confidence: 0.88, hits_count: 14 },
+  { persona_key: "direttore_marketing", memory_type: "avoid",      content: "Non lanciare campagne senza UTM, evento conversione testato e follow-up CRM pronto", confidence: 0.99, hits_count: 20 },
+  { persona_key: "direttore_marketing", memory_type: "preference", content: "Florin vuole report campagne con costo appuntamento, costo vendita, fatturato e margine reale", confidence: 0.95, hits_count: 19 },
+
+  // ═══ COMPLIANCE / LEGALE / IMPRENDITORE ═══════════════════════════════
+  { persona_key: "compliance", memory_type: "decision",   content: "DURC, POS, DVR e formazione sicurezza devono essere verdi prima di aprire cantieri sopra 50k€", confidence: 0.99, hits_count: 18 },
+  { persona_key: "compliance", memory_type: "pattern",    content: "Audit sicurezza efficaci quando includono foto, responsabile, scadenza e verifica chiusura azione", confidence: 0.9, hits_count: 11 },
+  { persona_key: "legale", memory_type: "decision",       content: "Contratti con penale oltre 5% richiedono revisione legale e approvazione Florin prima della firma", confidence: 0.98, hits_count: 14 },
+  { persona_key: "legale", memory_type: "pattern",        content: "Le contestazioni nascono quasi sempre da varianti iniziate senza conferma email del cliente", confidence: 0.92, hits_count: 12 },
+  { persona_key: "assistente_imprenditore", memory_type: "fact",       content: "Priorità imprenditore Q2 2026: aumentare margine medio dal 18% al 22% senza allungare ciclo vendita", confidence: 0.95, hits_count: 17 },
+  { persona_key: "assistente_imprenditore", memory_type: "decision",   content: "Ogni decisione strategica va letta su tre assi: cassa, capacità operativa, reputazione cliente", confidence: 0.97, hits_count: 21 },
+  { persona_key: "assistente_imprenditore", memory_type: "pattern",    content: "Quando Silvio collega vendite, cantieri e finanza, Florin decide più velocemente su assunzioni e budget", confidence: 0.89, hits_count: 13 },
+];
+
+export const DEMO_MEMORIES: DemoMemory[] = [...BASE_DEMO_MEMORIES, ...ADVANCED_DEMO_MEMORIES];
+
 /**
  * Persona key fallback chain — se un persona_key non esiste nel sistema,
  * proviamo questi alternativi. Questo rende il seed robusto a piccole
  * variazioni nei nomi delle 18 personas.
  */
 export const PERSONA_FALLBACKS: Record<string, string[]> = {
-  cfo:         ["cfo", "amministrazione", "finance"],
-  contabile:   ["contabile", "amministrazione", "accounting"],
-  pm_cantiere: ["pm_cantiere", "operations", "cantiere", "project_manager"],
-  commerciale: ["commerciale", "sales", "vendita"],
-  hr:          ["hr", "personale", "human_resources"],
-  acquisti:    ["acquisti", "procurement", "purchasing"],
-  marketing:   ["marketing", "comunicazione"],
-  legal:       ["legal", "legale", "compliance"],
-  strategy:    ["strategy", "ceo", "strategia"],
-  support:     ["support", "assistenza", "customer_care"],
-  tech:        ["tech", "it", "tecnologia"],
-  rspp:        ["rspp", "sicurezza", "safety"],
+  cfo:                     ["cfo", "amministrazione", "finance"],
+  controller:              ["controller", "controllo_gestione", "cfo"],
+  amministrazione:         ["amministrazione", "contabile", "accounting"],
+  contabile:               ["amministrazione", "contabile", "accounting"],
+  commercialista:          ["commercialista", "amministrazione", "cfo"],
+  pm_cantiere:             ["pm_cantiere", "operations", "cantiere", "project_manager"],
+  capocantiere:            ["capocantiere", "pm_cantiere", "operations"],
+  tecnico:                 ["tecnico", "tech", "ufficio_tecnico", "operations"],
+  acquisti:                ["acquisti", "procurement", "purchasing"],
+  direttore_vendite:       ["direttore_vendite", "sales", "commerciale", "vendita"],
+  sales:                   ["sales", "commerciale", "vendita", "direttore_vendite"],
+  commerciale:             ["sales", "commerciale", "direttore_vendite", "vendita"],
+  cliente_tutor:           ["cliente_tutor", "sales", "customer_success"],
+  assistente_cliente:      ["assistente_cliente", "support", "assistenza", "customer_care"],
+  marketing:               ["direttore_marketing", "marketing", "comunicazione"],
+  direttore_marketing:     ["direttore_marketing", "marketing", "comunicazione"],
+  hr:                      ["hr", "personale", "human_resources"],
+  compliance:              ["compliance", "rspp", "sicurezza", "safety"],
+  rspp:                    ["compliance", "rspp", "sicurezza", "safety"],
+  legale:                  ["legale", "legal", "compliance"],
+  legal:                   ["legale", "legal", "compliance"],
+  assistente_imprenditore: ["assistente_imprenditore", "strategy", "ceo", "strategia"],
+  strategy:                ["assistente_imprenditore", "strategy", "ceo", "strategia"],
+  support:                 ["assistente_cliente", "support", "assistenza", "customer_care"],
+  tech:                    ["tecnico", "tech", "it", "tecnologia"],
 };
+
+export function resolveDemoPersonaKey(personaKey: string, availableKeys: Set<string>): string | null {
+  const fallbackChain = PERSONA_FALLBACKS[personaKey] ?? [personaKey];
+  return fallbackChain.find((key) => availableKeys.has(key)) ?? null;
+}

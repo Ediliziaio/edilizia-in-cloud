@@ -33,6 +33,7 @@ import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 interface AnalyzeRequest {
   storage_bucket: string;
   storage_path: string;
+  company_id?: string;
   file_name?: string;
   mime_type?: string;
   file_size?: number;
@@ -56,6 +57,7 @@ interface ParserInvocation {
 
 const TOL_INVOICE = 0.05;
 const TOL_COMPUTO = 1.0;
+const ROUTER_CLASSIFIER_MAX_SIZE = 18 * 1024 * 1024;
 
 // ──────────────────────────────────────────────────────────────────────────
 // Validation: P.IVA italiana 11 cifre con check digit Luhn-IT
@@ -276,6 +278,33 @@ async function downloadStorageAsBase64(
   return { base64: btoa(raw), blob, bytes };
 }
 
+async function copyStorageForParser(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  params: {
+    fromBucket: string;
+    fromPath: string;
+    toBucket: string;
+    toPath: string;
+    mimeType?: string;
+  },
+): Promise<string> {
+  if (params.fromBucket === params.toBucket && params.fromPath === params.toPath) {
+    return params.toPath;
+  }
+  const { blob } = await downloadStorageAsBase64(supabase, params.fromBucket, params.fromPath);
+  const { error } = await supabase.storage
+    .from(params.toBucket)
+    .upload(params.toPath, blob, {
+      contentType: params.mimeType ?? "application/pdf",
+      upsert: false,
+    });
+  if (error && !String(error.message ?? "").toLowerCase().includes("already exists")) {
+    throw new Error(`copy ${params.toBucket}: ${error.message}`);
+  }
+  return params.toPath;
+}
+
 async function ensureComputoUpload(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabaseAdmin: any,
@@ -401,22 +430,40 @@ async function buildParserInvocation(
     }
 
     case "ai-tabella-finanziamento-extract":
-      if (params.storageBucket !== "finanziamenti-tabelle") {
-        return null;
+      {
+        const financeStoragePath = params.storageBucket === "finanziamenti-tabelle"
+          ? params.storagePath
+          : await copyStorageForParser(supabaseAdmin, {
+              fromBucket: params.storageBucket,
+              fromPath: params.storagePath,
+              toBucket: "finanziamenti-tabelle",
+              toPath: `${params.companyId}/document-ai/${params.analysisId}-${safeStorageName(resolvedFileName)}`,
+              mimeType: params.mimeType,
+            });
+        if (!financeStoragePath.startsWith(`${params.companyId}/`)) return null;
+        return {
+          functionName: params.parserName,
+          body: { storage_path: financeStoragePath, hint: params.hint ? { note: params.hint } : undefined },
+        };
       }
-      return {
-        functionName: params.parserName,
-        body: { storage_path: params.storagePath, hint: params.hint ? { note: params.hint } : undefined },
-      };
 
     case "ai-listino-extract":
-      if (params.storageBucket !== "listini-tmp" || !params.storagePath.startsWith(`${params.userId}/`)) {
-        return null;
+      {
+        const listinoStoragePath = params.storageBucket === "listini-tmp" && params.storagePath.startsWith(`${params.userId}/`)
+          ? params.storagePath
+          : await copyStorageForParser(supabaseAdmin, {
+              fromBucket: params.storageBucket,
+              fromPath: params.storagePath,
+              toBucket: "listini-tmp",
+              toPath: `${params.userId}/document-ai/${params.analysisId}-${safeStorageName(resolvedFileName)}`,
+              mimeType: params.mimeType,
+            });
+        if (!listinoStoragePath.startsWith(`${params.userId}/`)) return null;
+        return {
+          functionName: params.parserName,
+          body: { storage_path: listinoStoragePath, object_type: "product" },
+        };
       }
-      return {
-        functionName: params.parserName,
-        body: { storage_path: params.storagePath, object_type: "product" },
-      };
 
     case "ai-biz-card-ocr": {
       if (!(params.mimeType ?? "").startsWith("image/")) return null;
@@ -480,20 +527,21 @@ serve(async (req) => {
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
     const body = (await req.json()) as AnalyzeRequest;
-    const { storage_bucket, storage_path, file_name, mime_type, file_size, hint } = body;
+    const { storage_bucket, storage_path, company_id, file_name, mime_type, file_size, hint } = body;
     if (!storage_bucket || !storage_path) {
       return errorResponse("storage_bucket and storage_path required", 400, cors);
     }
     const resolvedFileName = file_name ?? storage_path.split("/").pop() ?? "documento";
     const resolvedMimeType = mime_type ?? "application/pdf";
 
-    // Resolve company_id dell'utente (auth bridge)
+    // Resolve company_id dell'utente, ma rispetta l'azienda effettiva passata dal client
+    // (necessario per super admin / company switcher).
     const { data: profile } = await supabaseAdmin
       .from("profiles")
       .select("company_id")
       .eq("id", userId)
       .single();
-    const companyId = profile?.company_id;
+    const companyId = company_id ?? profile?.company_id;
     if (!companyId) return errorResponse("company_id non risolto per utente", 403, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
 
@@ -557,7 +605,28 @@ serve(async (req) => {
       next_action?: { kind?: string; autoflow_function?: string };
       ai_meta?: { model_used?: string; cost_eur?: number };
     } = {};
-    try {
+    const fileExt = resolvedFileName.split(".").pop()?.toLowerCase() ?? "";
+    const canTreatLargeFileAsComputo = !!file_size
+      && file_size > ROUTER_CLASSIFIER_MAX_SIZE
+      && ["pdf", "xlsx", "xls", "xpwe", "dcf"].includes(fileExt);
+
+    if (canTreatLargeFileAsComputo) {
+      routerOut = {
+        success: true,
+        doc_type: "computo_metrico",
+        confidence: 0.55,
+        reasoning: "File sopra soglia del classificatore universale: instradato al parser computo/preventivo dedicato da 50MB.",
+        key_fields: {
+          file_name: resolvedFileName,
+          file_size_mb: Math.round((file_size / (1024 * 1024)) * 10) / 10,
+        },
+        next_action: {
+          kind: "autoflow",
+          autoflow_function: "computo-ai-extract",
+        },
+        ai_meta: { model_used: "large-file-bypass", cost_eur: 0 },
+      };
+    } else try {
       const { data: routerRes, error: routerErr } = await supabaseAdmin.functions.invoke(
         "document-ai-router",
         {

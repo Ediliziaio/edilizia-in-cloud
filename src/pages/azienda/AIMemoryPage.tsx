@@ -18,8 +18,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDebounce } from "@/hooks/useDebounce";
+import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import {
-  Card, CardContent, CardHeader, CardTitle,
+  DEMO_AI_PERSONAS,
+  DEMO_MEMORIES,
+  isOrchestratorPersonaKey,
+  resolveDemoPersonaKey,
+} from "@/components/ai/brainGraphDemoMemories";
+import {
+  Card, CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +43,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  Brain, Plus, Search, Trash2, Edit2, EyeOff, Eye, Sparkles, AlertCircle,
+  Activity, AlertCircle, Brain, CheckCircle2, Clock3, Database, Edit2, EyeOff, Eye,
+  FilterX, Link2, Plus, Search, ShieldAlert, Sparkles, Trash2,
 } from "lucide-react";
 
 interface MemoryRow {
@@ -52,6 +60,7 @@ interface MemoryRow {
   hits_count: number;
   last_used_at: string | null;
   created_at: string;
+  isDemoPreview?: boolean;
 }
 
 interface PersonaLite {
@@ -85,6 +94,45 @@ const EMPTY_FORM: FormData = {
   confidence: 1.0,
 };
 
+const MEMORY_QUERY_LIMIT = 1000;
+const DEMO_MIN_MEMORIES_PER_PERSONA = 5;
+const LOW_CONFIDENCE_THRESHOLD = 0.75;
+const STALE_DAYS = 90;
+
+type QualityFilter = "all" | "needs_attention" | "never_used" | "low_confidence" | "demo" | "recent";
+
+function isManualMemory(memory: MemoryRow) {
+  return !memory.source || memory.source === "user_explicit" || memory.source === "manual";
+}
+
+function isDemoMemory(memory: MemoryRow) {
+  return memory.isDemoPreview || memory.source === "demo_preview" || memory.source === "demo_coverage";
+}
+
+function isLowConfidence(memory: MemoryRow) {
+  return (memory.confidence ?? 1) < LOW_CONFIDENCE_THRESHOLD;
+}
+
+function isNeverUsed(memory: MemoryRow) {
+  return (memory.hits_count ?? 0) === 0;
+}
+
+function isRecent(memory: MemoryRow) {
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  return new Date(memory.created_at).getTime() >= sevenDaysAgo;
+}
+
+function isStale(memory: MemoryRow) {
+  const staleBefore = Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000;
+  return new Date(memory.created_at).getTime() < staleBefore;
+}
+
+function sourceLabel(memory: MemoryRow) {
+  if (isDemoMemory(memory)) return "Demo";
+  if (isManualMemory(memory)) return "Manuale";
+  return "AI";
+}
+
 interface AIMemoryPageProps {
   /** Quando true, nasconde l'header h1 + descrizione (utile se la pagina viene
    *  embeddata in un hub a tab dove l'header viene fornito dal parent). */
@@ -96,6 +144,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
   const { effectiveCompany } = useAuth();
   const [filterPersona, setFilterPersona] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
+  const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
   const [search, setSearch] = useState("");
   // PERF: debounce search per evitare filter() ad ogni keystroke su liste grandi
   const debouncedSearch = useDebounce(search.trim().toLowerCase(), 200);
@@ -113,14 +162,26 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         .select("persona_key, display_name, category")
         .eq("enabled", true)
         .order("category");
-      return (data ?? []) as PersonaLite[];
+      return ((data ?? []) as PersonaLite[]).filter((persona) => !isOrchestratorPersonaKey(persona.persona_key));
     },
     staleTime: 5 * 60 * 1000,
   });
 
+  const personasForMemory = useMemo<PersonaLite[]>(
+    () => personas.length > 0
+      ? personas
+      : DEMO_AI_PERSONAS.filter((persona) => !isOrchestratorPersonaKey(persona.persona_key)),
+    [personas],
+  );
+
+  const knownPersonaKeys = useMemo(
+    () => new Set(personasForMemory.map((persona) => persona.persona_key)),
+    [personasForMemory],
+  );
+
   // Memory rows
-  const { data: memories = [], isLoading } = useQuery({
-    queryKey: ["ai-persona-memory", effectiveCompany?.id, filterPersona, filterType, showDisabled],
+  const { data: realMemories = [], isLoading } = useQuery({
+    queryKey: ["ai-persona-memory", effectiveCompany?.id, showDisabled],
     enabled: !!effectiveCompany?.id,
     queryFn: async (): Promise<MemoryRow[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,9 +191,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         .eq("company_id", effectiveCompany!.id)
         .order("hits_count", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(200);
-      if (filterPersona !== "all") q = q.eq("persona_key", filterPersona);
-      if (filterType !== "all") q = q.eq("memory_type", filterType);
+        .limit(MEMORY_QUERY_LIMIT);
       if (!showDisabled) q = q.eq("enabled", true);
       const { data, error } = await q;
       if (error) throw error;
@@ -143,14 +202,111 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     staleTime: 30_000,
   });
 
+  const normalizedRealMemories = useMemo<MemoryRow[]>(
+    () => realMemories.flatMap((memory) => {
+      if (knownPersonaKeys.has(memory.persona_key)) return [memory];
+      const targetKey = resolveDemoPersonaKey(memory.persona_key, knownPersonaKeys);
+      if (!targetKey) return [];
+      return [{ ...memory, persona_key: targetKey }];
+    }),
+    [knownPersonaKeys, realMemories],
+  );
+
+  const isDemoCompany = effectiveCompany?.id === DEMO_COMPANY_ID;
+
+  const demoPreviewMemories = useMemo<MemoryRow[]>(() => {
+    if (!isDemoCompany || personasForMemory.length === 0) return [];
+
+    const existingByPersona = new Map<string, Set<string>>();
+    const counts = new Map<string, number>();
+    for (const memory of normalizedRealMemories) {
+      if (!memory.enabled || !knownPersonaKeys.has(memory.persona_key)) continue;
+      counts.set(memory.persona_key, (counts.get(memory.persona_key) ?? 0) + 1);
+      if (!existingByPersona.has(memory.persona_key)) existingByPersona.set(memory.persona_key, new Set());
+      existingByPersona.get(memory.persona_key)!.add(memory.content.trim().toLowerCase());
+    }
+
+    const shouldShowFullDemo = normalizedRealMemories.length === 0;
+    const demoByPersona = new Map<string, typeof DEMO_MEMORIES>();
+    for (const memory of DEMO_MEMORIES) {
+      const targetKey = resolveDemoPersonaKey(memory.persona_key, knownPersonaKeys);
+      if (!targetKey) continue;
+      const list = demoByPersona.get(targetKey);
+      if (list) list.push(memory);
+      else demoByPersona.set(targetKey, [memory]);
+    }
+
+    const additions: MemoryRow[] = [];
+    for (const persona of personasForMemory) {
+      const candidates = demoByPersona.get(persona.persona_key) ?? [];
+      const currentCount = counts.get(persona.persona_key) ?? 0;
+      const maxToAdd = shouldShowFullDemo
+        ? candidates.length
+        : Math.max(0, DEMO_MIN_MEMORIES_PER_PERSONA - currentCount);
+      if (maxToAdd <= 0) continue;
+
+      const usedContent = existingByPersona.get(persona.persona_key) ?? new Set<string>();
+      let addedForPersona = 0;
+      for (const candidate of candidates) {
+        const normalizedContent = candidate.content.trim().toLowerCase();
+        if (usedContent.has(normalizedContent)) continue;
+        usedContent.add(normalizedContent);
+        const index = additions.length;
+        additions.push({
+          id: `demo-preview-${persona.persona_key}-${index}`,
+          company_id: effectiveCompany?.id ?? DEMO_COMPANY_ID,
+          user_id: null,
+          persona_key: persona.persona_key,
+          memory_type: candidate.memory_type,
+          content: candidate.content,
+          source: shouldShowFullDemo ? "demo_preview" : "demo_coverage",
+          confidence: candidate.confidence,
+          enabled: true,
+          hits_count: candidate.hits_count,
+          last_used_at: null,
+          created_at: new Date(Date.now() - index * 1_800_000).toISOString(),
+          isDemoPreview: true,
+        });
+        addedForPersona++;
+        if (addedForPersona >= maxToAdd) break;
+      }
+    }
+    return additions;
+  }, [effectiveCompany?.id, isDemoCompany, knownPersonaKeys, normalizedRealMemories, personasForMemory]);
+
+  const memories = useMemo(
+    () => [...normalizedRealMemories, ...demoPreviewMemories],
+    [demoPreviewMemories, normalizedRealMemories],
+  );
+
   // PERF: memoizzato per non ricalcolare ad ogni render (e mantenere identita
   // referenziale stabile -> children non si re-renderizzano inutilmente).
-  const filteredMemories = useMemo(
-    () => debouncedSearch
-      ? memories.filter((m) => m.content.toLowerCase().includes(debouncedSearch))
-      : memories,
-    [memories, debouncedSearch],
-  );
+  const filteredMemories = useMemo(() => {
+    let next = memories;
+    if (filterPersona !== "all") next = next.filter((memory) => memory.persona_key === filterPersona);
+    if (filterType !== "all") next = next.filter((memory) => memory.memory_type === filterType);
+    if (debouncedSearch) {
+      const personaNameByKey = new Map(personasForMemory.map((persona) => [persona.persona_key, persona.display_name.toLowerCase()]));
+      next = next.filter((memory) => (
+        memory.content.toLowerCase().includes(debouncedSearch)
+        || memory.persona_key.toLowerCase().includes(debouncedSearch)
+        || (personaNameByKey.get(memory.persona_key) ?? "").includes(debouncedSearch)
+        || (memory.source ?? "").toLowerCase().includes(debouncedSearch)
+      ));
+    }
+    if (qualityFilter === "needs_attention") {
+      next = next.filter((memory) => isLowConfidence(memory) || isNeverUsed(memory) || isStale(memory));
+    } else if (qualityFilter === "never_used") {
+      next = next.filter(isNeverUsed);
+    } else if (qualityFilter === "low_confidence") {
+      next = next.filter(isLowConfidence);
+    } else if (qualityFilter === "demo") {
+      next = next.filter(isDemoMemory);
+    } else if (qualityFilter === "recent") {
+      next = next.filter(isRecent);
+    }
+    return next;
+  }, [debouncedSearch, filterPersona, filterType, memories, personasForMemory, qualityFilter]);
 
   // ── Realtime subscription: aggiorna la lista quando memorie vengono
   // create/aggiornate/eliminate (sia da utente in un'altra tab che dal
@@ -192,26 +348,74 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     };
     let manual = 0;
     let auto = 0;
+    let demo = 0;
+    let real = 0;
     let hits = 0;
     let latestAddTs = 0;
+    let lowConfidence = 0;
+    let neverUsed = 0;
+    let stale = 0;
+    let disabled = 0;
+    const personasWithMemories = new Set<string>();
     for (const m of memories) {
       byType[m.memory_type] = (byType[m.memory_type] ?? 0) + 1;
-      const isManual = !m.source || m.source === "user_explicit" || m.source === "manual";
-      if (isManual) manual++;
-      else auto++;
+      if (isDemoMemory(m)) demo++;
+      else real++;
+      if (!isDemoMemory(m) && isManualMemory(m)) manual++;
+      else if (!isDemoMemory(m)) auto++;
+      if (!m.enabled) disabled++;
+      if (isLowConfidence(m)) lowConfidence++;
+      if (isNeverUsed(m)) neverUsed++;
+      if (isStale(m)) stale++;
+      if (m.enabled && knownPersonaKeys.has(m.persona_key)) personasWithMemories.add(m.persona_key);
       hits += m.hits_count ?? 0;
       const ts = m.created_at ? new Date(m.created_at).getTime() : 0;
       if (ts > latestAddTs) latestAddTs = ts;
     }
+    const personasWithoutMemories = personasForMemory.filter((persona) => !personasWithMemories.has(persona.persona_key));
+    const coveragePct = personasForMemory.length > 0
+      ? Math.round((personasWithMemories.size / personasForMemory.length) * 100)
+      : 0;
+    const healthPct = memories.length > 0
+      ? Math.max(0, Math.round(100 - ((lowConfidence + neverUsed + stale) / Math.max(1, memories.length * 3)) * 100))
+      : 0;
     return {
       total: memories.length,
       byType,
       manual,
       auto,
+      demo,
+      real,
       hits,
+      lowConfidence,
+      neverUsed,
+      stale,
+      disabled,
+      coveragePct,
+      healthPct,
+      personasWithMemories: personasWithMemories.size,
+      personasWithoutMemories,
       latestAdd: latestAddTs > 0 ? new Date(latestAddTs) : null,
     };
-  }, [memories]);
+  }, [knownPersonaKeys, memories, personasForMemory]);
+
+  const personaHealth = useMemo(
+    () => personasForMemory.map((persona) => {
+      const personaMemories = memories.filter((memory) => memory.enabled && memory.persona_key === persona.persona_key);
+      const weakCount = personaMemories.filter((memory) => isLowConfidence(memory) || isNeverUsed(memory) || isStale(memory)).length;
+      const topMemory = [...personaMemories].sort((a, b) => (b.hits_count ?? 0) - (a.hits_count ?? 0))[0];
+      return {
+        persona,
+        count: personaMemories.length,
+        weakCount,
+        healthPct: personaMemories.length > 0
+          ? Math.max(0, Math.round(100 - (weakCount / personaMemories.length) * 100))
+          : 0,
+        topMemory,
+      };
+    }),
+    [memories, personasForMemory],
+  );
 
   // Mutations
   const upsertMut = useMutation({
@@ -283,7 +487,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
   });
 
   const openCreate = () => {
-    setForm({ ...EMPTY_FORM, persona_key: filterPersona !== "all" ? filterPersona : (personas[0]?.persona_key ?? "") });
+    setForm({ ...EMPTY_FORM, persona_key: filterPersona !== "all" ? filterPersona : (personasForMemory[0]?.persona_key ?? "") });
     setEditOpen(true);
   };
 
@@ -303,13 +507,13 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     <div className={cn(embedded ? "space-y-4" : "p-4 md:p-6 max-w-screen-xl mx-auto space-y-4")}>
       {!embedded && (
         <div className="flex items-start gap-3">
-          <div className="shrink-0 h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-            <Brain className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+          <div className="shrink-0 h-10 w-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+            <Brain className="h-5 w-5 text-orange-600 dark:text-orange-400" />
           </div>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold">Memoria AI Personas</h1>
+            <h1 className="text-2xl font-bold">Centro controllo memoria</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Cose che le 18 AI personas ricordano della tua azienda. Auto-popolate dal feedback loop o aggiunte manualmente.
+              Verifica cosa ricordano le AI, quali personas sono coperte e quali memorie vanno corrette.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -328,47 +532,92 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       )}
 
       {embedded && (
-        <div className="flex justify-end">
-          <Button onClick={openCreate} size="sm" className="gap-2">
-            <Plus className="h-4 w-4" />
-            Aggiungi memoria
-          </Button>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Centro controllo memoria</h2>
+            <p className="text-xs text-muted-foreground">
+              Dati reali, memorie demo e qualità della conoscenza AI nello stesso posto.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setQualityFilter("demo")}
+            >
+              <Sparkles className="h-4 w-4" />
+              Completa personas
+            </Button>
+            <Button onClick={openCreate} size="sm" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Aggiungi memoria
+            </Button>
+          </div>
         </div>
       )}
 
-      <Card className="bg-violet-50/40 dark:bg-violet-950/20 border-violet-200 dark:border-violet-900">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-600" />
-            Come funziona
-          </CardTitle>
-          {/* NB: <div> e non CardDescription (renderizza <p>) per evitare
-              <p> dentro <p> validateDOMNesting warning (i 3 paragrafi sotto
-              sono semanticamente discorsivi e meritano <p>). */}
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p>
-              Ogni volta che chiedi qualcosa a una persona AI (es. CFO), il sistema carica le sue
-              top-5 memory rilevanti e le inietta nel prompt come "Cose che sai dell'utente".
-            </p>
-            <p>
-              Esempi: il CFO ricorda "Florin preferisce vedere il P&L mensile vs settimanale".
-              Il PM Cantiere ricorda "il cantiere XYZ va sempre in ritardo per Bianchi Srl".
-            </p>
-            <p>
-              <strong>Hits count:</strong> quante volte una memory è stata caricata. Le più usate
-              hanno priorità nella selezione top-5.
-            </p>
+      <Card className="overflow-hidden border-orange-200 bg-gradient-to-br from-orange-50 via-white to-slate-50 dark:from-orange-950/20 dark:via-background dark:to-background">
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+                  <Database className="h-3 w-3" />
+                  {stats.real} reali
+                </Badge>
+                {stats.demo > 0 && (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                    <Sparkles className="h-3 w-3" />
+                    Memorie demo {stats.demo}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {stats.coveragePct}% copertura
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  La memoria AI alimenta prompt, chat e Cervello visuale.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Le demo sono visibili per rendere coerente il Cervello; non sono salvate nel database finché non crei o importi memorie reali.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center sm:min-w-[360px]">
+              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
+                <p className="text-xl font-bold tabular-nums">{stats.personasWithMemories}/{personasForMemory.length}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">personas</p>
+              </div>
+              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
+                <p className="text-xl font-bold tabular-nums">{stats.healthPct}%</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">salute</p>
+              </div>
+              <div className="rounded-lg border bg-white/80 p-2 dark:bg-background/60">
+                <p className="text-xl font-bold tabular-nums">{stats.lowConfidence + stats.neverUsed + stats.stale}</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">attenzioni</p>
+              </div>
+            </div>
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
 
       {/* Stats dashboard — aggiornate in realtime via Supabase subscription */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
         <div className="rounded-lg border bg-card p-3">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Totale memorie</div>
           <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.total}</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
-            {stats.manual} manuali · {stats.auto} auto-popolate
+            {stats.real} reali · {stats.demo} demo
+          </div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">QA copertura</div>
+          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.coveragePct}%</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {stats.personasWithMemories}/{personasForMemory.length} personas coperte
           </div>
         </div>
         <div className="rounded-lg border bg-card p-3">
@@ -376,6 +625,13 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.hits}</div>
           <div className="text-[11px] text-muted-foreground mt-0.5">
             quante volte caricate nei prompt AI
+          </div>
+        </div>
+        <div className="rounded-lg border bg-card p-3">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Da verificare</div>
+          <div className="text-2xl font-bold tabular-nums mt-0.5">{stats.lowConfidence + stats.neverUsed + stats.stale}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {stats.neverUsed} mai usate · {stats.lowConfidence} bassa fiducia
           </div>
         </div>
         <div className="rounded-lg border bg-card p-3">
@@ -403,15 +659,67 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         </div>
       </div>
 
+      <div className="rounded-xl border bg-card p-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold">Copertura per persona</p>
+            <p className="text-xs text-muted-foreground">
+              Clicca una persona per filtrare le sue memorie e capire dove il cervello è più forte.
+            </p>
+          </div>
+          {stats.personasWithoutMemories.length > 0 ? (
+            <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
+              <ShieldAlert className="h-3 w-3" />
+              {stats.personasWithoutMemories.length} personas senza memoria
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+              <CheckCircle2 className="h-3 w-3" />
+              Tutte le personas hanno memoria
+            </Badge>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+          {personaHealth.map(({ persona, count, healthPct, weakCount }) => (
+            <button
+              key={persona.persona_key}
+              type="button"
+              onClick={() => setFilterPersona(persona.persona_key)}
+              className={cn(
+                "rounded-lg border p-2 text-left transition-colors hover:bg-muted/50",
+                filterPersona === persona.persona_key && "border-orange-300 bg-orange-50 text-orange-950",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-semibold">{persona.display_name}</p>
+                <span className="text-xs font-bold tabular-nums">{count}</span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className={cn(
+                    "h-full rounded-full",
+                    count === 0 ? "bg-rose-400" : healthPct >= 80 ? "bg-emerald-500" : "bg-amber-500",
+                  )}
+                  style={{ width: `${Math.max(count === 0 ? 8 : healthPct, 8)}%` }}
+                />
+              </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                {count === 0 ? "da completare" : weakCount > 0 ? `${weakCount} attenzioni` : "salute alta"}
+              </p>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card p-3">
         <Select value={filterPersona} onValueChange={setFilterPersona}>
           <SelectTrigger className="h-9 w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tutte le personas</SelectItem>
-            {personas.map((p) => (
+            {personasForMemory.map((p) => (
               <SelectItem key={p.persona_key} value={p.persona_key}>{p.display_name}</SelectItem>
             ))}
           </SelectContent>
@@ -432,7 +740,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Cerca nel contenuto..."
+            placeholder="Cerca contenuto, persona o fonte..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 pl-9"
@@ -446,12 +754,38 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
           className="h-9 gap-2"
         >
           {showDisabled ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          {showDisabled ? "Mostra disabilitate" : "Solo attive"}
+          {showDisabled ? "Nascondi disabilitate" : "Includi disabilitate"}
         </Button>
 
         <Badge variant="outline" className="ml-auto text-xs">
           {filteredMemories.length} entries
         </Badge>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {[
+          { value: "all", label: "Tutte", icon: FilterX },
+          { value: "needs_attention", label: "Da verificare", icon: ShieldAlert },
+          { value: "never_used", label: "Mai usate", icon: Activity },
+          { value: "low_confidence", label: "Bassa fiducia", icon: AlertCircle },
+          { value: "recent", label: "Recenti", icon: Clock3 },
+          { value: "demo", label: "Memorie demo", icon: Sparkles },
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <Button
+              key={item.value}
+              type="button"
+              size="sm"
+              variant={qualityFilter === item.value ? "default" : "outline"}
+              className="h-8 gap-1.5"
+              onClick={() => setQualityFilter(item.value as QualityFilter)}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {item.label}
+            </Button>
+          );
+        })}
       </div>
 
       {/* Memory list */}
@@ -476,14 +810,16 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       ) : (
         <div className="space-y-2">
           {filteredMemories.map((m) => {
-            const persona = personas.find((p) => p.persona_key === m.persona_key);
+            const persona = personasForMemory.find((p) => p.persona_key === m.persona_key);
             const typeBadge = TYPE_LABEL[m.memory_type];
+            const demoPreview = isDemoMemory(m);
             return (
               <div
                 key={m.id}
                 className={cn(
                   "rounded-lg border p-3 flex items-start gap-3 hover:bg-muted/30 transition-colors",
                   !m.enabled && "opacity-50",
+                  demoPreview && "border-amber-200 bg-amber-50/30",
                 )}
               >
                 <div className="flex-1 min-w-0 space-y-1">
@@ -494,10 +830,38 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
                     <Badge variant="outline" className="text-[10px]">
                       {persona?.display_name ?? m.persona_key}
                     </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px]",
+                        demoPreview
+                          ? "bg-amber-100 text-amber-700 border-amber-200"
+                          : isManualMemory(m)
+                            ? "bg-slate-100 text-slate-700 border-slate-200"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200",
+                      )}
+                    >
+                      {sourceLabel(m)}
+                    </Badge>
                     {!m.enabled && (
                       <Badge variant="outline" className="text-[10px] gap-1 bg-slate-100 text-slate-600">
                         <EyeOff className="h-2.5 w-2.5" />
                         Disabilitata
+                      </Badge>
+                    )}
+                    {isNeverUsed(m) && (
+                      <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                        Mai usata
+                      </Badge>
+                    )}
+                    {isLowConfidence(m) && (
+                      <Badge variant="outline" className="text-[10px] bg-rose-50 text-rose-700 border-rose-200">
+                        Da verificare
+                      </Badge>
+                    )}
+                    {isStale(m) && (
+                      <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">
+                        Obsoleta
                       </Badge>
                     )}
                     <span className="text-[10px] text-muted-foreground ml-auto">
@@ -508,6 +872,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
                   {m.source && m.confidence != null && (
                     <p className="text-[10px] text-muted-foreground">
                       Fonte: {m.source} · Confidence: {(m.confidence * 100).toFixed(0)}%
+                      {demoPreview ? " · anteprima non salvata" : ""}
                     </p>
                   )}
                 </div>
@@ -516,7 +881,19 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
                     size="icon"
                     variant="ghost"
                     className="h-7 w-7"
+                    asChild
+                    title="Vedi nel Cervello"
+                  >
+                    <a href={`/azienda/impostazioni/ai-memoria?tab=cervello&memory=${encodeURIComponent(m.id)}`}>
+                      <Link2 className="h-3.5 w-3.5" />
+                    </a>
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
                     onClick={() => toggleMut.mutate({ id: m.id, enabled: !m.enabled })}
+                    disabled={demoPreview}
                     title={m.enabled ? "Disabilita" : "Riattiva"}
                   >
                     {m.enabled ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -526,6 +903,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
                     variant="ghost"
                     className="h-7 w-7"
                     onClick={() => openEdit(m)}
+                    disabled={demoPreview}
                     title="Modifica"
                   >
                     <Edit2 className="h-3.5 w-3.5" />
@@ -539,6 +917,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
                         deleteMut.mutate(m.id);
                       }
                     }}
+                    disabled={demoPreview}
                     title="Elimina"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -567,7 +946,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
                   <SelectValue placeholder="Scegli persona" />
                 </SelectTrigger>
                 <SelectContent>
-                  {personas.map((p) => (
+                  {personasForMemory.map((p) => (
                     <SelectItem key={p.persona_key} value={p.persona_key}>{p.display_name}</SelectItem>
                   ))}
                 </SelectContent>

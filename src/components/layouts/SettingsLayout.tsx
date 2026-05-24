@@ -14,7 +14,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   sedi:                   { title: "Sedi",                     description: "Gestisci le sedi operative della tua azienda" },
   branding:               { title: "White-Label",              description: "Personalizza il brand e i colori della piattaforma" },
   listino:                { title: "Listino prodotti",         description: "Gestisci il catalogo prodotti e servizi" },
-  tariffe:                { title: "Tariffe aziendali",        description: "Configura le tariffe di lavoro e manodopera" },
+  tariffe:                { title: "Manodopera e Servizi",     description: "Configura posa, manodopera, trasporti, pratiche e servizi" },
   "listino-manutenzione": { title: "Listino Manutenzione",      description: "Gestisci i prezzi per tipo impianto e tipo intervento" },
   finanziamenti:          { title: "Finanziamenti",             description: "Tabelle delle finanziarie convenzionate e calcolatore rate" },
   "bundle-serramentista": { title: "Bundle & Pacchetti",         description: "Pacchetti chiavi-in-mano pre-configurati per preventivi serramentista" },

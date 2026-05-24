@@ -21,11 +21,21 @@
  */
 
 import { forwardRef, useState, useMemo, useCallback, useRef, useEffect, useImperativeHandle } from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+  WheelEvent as ReactWheelEvent,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
-import { DEMO_MEMORIES, PERSONA_FALLBACKS } from "./brainGraphDemoMemories";
+import {
+  DEMO_AI_PERSONAS,
+  DEMO_MEMORIES,
+  isOrchestratorPersonaKey,
+  resolveDemoPersonaKey,
+} from "./brainGraphDemoMemories";
 import { BrainStarfield } from "./BrainStarfield";
 import { BrainInsightFeed } from "./BrainInsightFeed";
 import { BrainSemanticSearch } from "./BrainSemanticSearch";
@@ -41,7 +51,7 @@ import {
   Brain, Maximize2, Minimize2, RotateCcw,
   Filter, X, Sparkles, Network, Camera,
   Flame, Palette, ChevronRight, ChevronDown,
-  Link2, Zap, Ghost, Settings2,
+  Link2, Zap, Ghost, Settings2, ZoomIn, ZoomOut,
 } from "lucide-react";
 import {
   Popover, PopoverTrigger, PopoverContent,
@@ -70,10 +80,13 @@ interface PersonaLite {
 }
 
 interface GraphNodeData {
-  type?: "persona" | "memory";
+  type?: "persona" | "memory" | "silvio";
   persona?: PersonaLite;
   memory?: MemoryRow;
   memoryCount?: number;
+  personaCount?: number;
+  activePersonaCount?: number;
+  connectionCount?: number;
   emoji?: string;
   typeLabel?: string;
   personaName?: string;
@@ -102,14 +115,37 @@ interface GraphEdge {
   fill?: string;
 }
 
+interface LooseSupabaseResult<T = unknown> {
+  data?: T | null;
+  error?: unknown;
+}
+
+interface LooseSupabaseQuery<T = unknown> extends PromiseLike<LooseSupabaseResult<T>> {
+  select: (columns: string) => LooseSupabaseQuery<T>;
+  eq: (column: string, value: unknown) => LooseSupabaseQuery<T>;
+  order: (column: string, options?: { ascending?: boolean }) => LooseSupabaseQuery<T>;
+  limit: (count: number) => LooseSupabaseQuery<T>;
+  update: (values: Record<string, unknown>) => LooseSupabaseQuery<T>;
+}
+
+interface LooseSupabaseClient {
+  from: <T = unknown>(table: string) => LooseSupabaseQuery<T>;
+  rpc: <T = unknown>(functionName: string, args?: Record<string, unknown>) => PromiseLike<LooseSupabaseResult<T>>;
+}
+
 type InternalGraphNode = GraphNode;
 type InternalGraphEdge = GraphEdge;
 
 interface BrainGraphCanvasHandle {
   centerGraph: (ids?: string[]) => void;
   fitNodesInView: (ids?: string[], options?: { fitOnlyIfNodesNotInView?: boolean }) => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetView: () => void;
   exportCanvas: () => string | null;
 }
+
+const brainSupabase = supabase as unknown as LooseSupabaseClient;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -338,7 +374,15 @@ function buildGraphData(
   if (filterPersona) filtered = filtered.filter((m) => m.persona_key === filterPersona);
   if (filterType) filtered = filtered.filter((m) => m.memory_type === filterType);
 
-  const activePersonaKeys = new Set(filtered.map((m) => m.persona_key));
+  const graphPersonas = (filterPersona
+    ? personas.filter((p) => p.persona_key === filterPersona)
+    : personas
+  ).sort((a, b) => {
+    if (a.category !== b.category) return a.category.localeCompare(b.category);
+    return a.display_name.localeCompare(b.display_name);
+  });
+  const graphPersonaKeys = new Set(graphPersonas.map((p) => p.persona_key));
+  filtered = filtered.filter((m) => graphPersonaKeys.has(m.persona_key));
 
   // Heat map ranges
   const maxHits = Math.max(1, ...filtered.map((m) => m.hits_count ?? 0));
@@ -353,16 +397,12 @@ function buildGraphData(
     memoriesPerPersona.set(m.persona_key, (memoriesPerPersona.get(m.persona_key) ?? 0) + 1);
   }
   const maxMemCount = Math.max(1, ...memoriesPerPersona.values());
+  const personasInMemoryCount = [...memoriesPerPersona.values()].filter((count) => count > 0).length;
 
-  // Sort active personas per category per posizionarle in ordine deterministico
-  const activePersonasList = [...activePersonaKeys]
-    .map((k) => personaMap.get(k))
-    .filter((p): p is PersonaLite => p != null)
-    .sort((a, b) => {
-      // Ordine per categoria poi per name
-      if (a.category !== b.category) return a.category.localeCompare(b.category);
-      return a.display_name.localeCompare(b.display_name);
-    });
+  // Sort personas per category per posizionarle in ordine deterministico.
+  // Importante: il grafo deve mostrare tutte le personas abilitate, non solo
+  // quelle che hanno gia memorie nel filtro corrente.
+  const activePersonasList = graphPersonas;
 
   // Layout fisso: 2D = cerchio matematico, 3D/core = sfera Fibonacci
   const useFixedCircle = viewDim === "2d";
@@ -403,7 +443,7 @@ function buildGraphData(
     const memCount = memoriesPerPersona.get(p.persona_key) ?? 0;
 
     const size = viewMode === "galaxy"
-      ? 12 + Math.round((memCount / maxMemCount) * 10)   // hub 12-22 (più contenuti)
+      ? 11 + Math.round((memCount / maxMemCount) * 11)   // hub 11-22 (più contenuti)
       : 9;
 
     // Layout circolare deterministico (2D) o sferico (3D core) — mappa pre-calcolata
@@ -428,6 +468,41 @@ function buildGraphData(
     });
     connectionsMap.set(`p_${p.persona_key}`, new Set());
   });
+
+  nodes.push({
+    id: SILVIO_NODE_ID,
+    label: "Silvio",
+    fill: SILVIO_NODE_FILL,
+    size: 34,
+    labelVisible: true,
+    cluster: "silvio_core",
+    fx: 0,
+    fy: 0,
+    fz: 0,
+    data: {
+      type: "silvio",
+      emoji: "🧠",
+      personaCount: activePersonasList.length,
+      activePersonaCount: personasInMemoryCount,
+      memoryCount: filtered.length,
+      previewLabel: "Orchestratore AI aziendale",
+    },
+  });
+  connectionsMap.set(SILVIO_NODE_ID, new Set());
+
+  for (const p of activePersonasList) {
+    const memCount = memoriesPerPersona.get(p.persona_key) ?? 0;
+    const personaNodeId = `p_${p.persona_key}`;
+    edges.push({
+      id: `e_silvio_${p.persona_key}`,
+      source: SILVIO_NODE_ID,
+      target: personaNodeId,
+      size: memCount > 0 ? Math.min(4.2, 1.4 + Math.log2(memCount + 1) * 0.45) : 0.75,
+      fill: memCount > 0 ? "#fb923c" : "#334155",
+    });
+    connectionsMap.get(SILVIO_NODE_ID)?.add(personaNodeId);
+    connectionsMap.get(personaNodeId)?.add(SILVIO_NODE_ID);
+  }
 
   // Memory nodes + edges
   // In galaxy mode mostriamo SOLO le memorie delle personas espanse — il resto
@@ -589,7 +664,7 @@ function buildGraphData(
   // #2: Add cross-persona edges
   for (const [pA, targets] of allCrossPersona) {
     for (const [pB, count] of targets) {
-      if (count >= 1 && activePersonaKeys.has(pA) && activePersonaKeys.has(pB)) {
+      if (count >= 1 && graphPersonaKeys.has(pA) && graphPersonaKeys.has(pB)) {
         edges.push({
           id: `e_xp_${pA}_${pB}`,
           source: `p_${pA}`,
@@ -629,6 +704,36 @@ interface Insights {
   healthPct: number; // score composto (media pesata delle 4 sub-metriche)
   healthBreakdown: HealthBreakdown;
   totalCrossLinks: number;
+}
+
+interface MemoryDuplicateCluster {
+  signature: string;
+  count: number;
+  personas: string[];
+}
+
+interface MemoryQualityReport {
+  reliabilityPct: number;
+  staleCount: number;
+  lowConfidenceCount: number;
+  unusedCount: number;
+  demoCount: number;
+  duplicateClusters: MemoryDuplicateCluster[];
+  trustedSourcePct: number;
+  riskyCount: number;
+  qualityActionQueue: string[];
+}
+
+interface KnowledgeCommunity {
+  key: string;
+  label: string;
+  color: string;
+  personaCount: number;
+  activePersonaCount: number;
+  memoryCount: number;
+  crossLinks: number;
+  healthPct: number;
+  riskLabel: string;
 }
 
 function computeInsights(
@@ -698,9 +803,9 @@ function computeInsights(
   // 1. Coverage: % personas con >=3 memorie
   const memCountByPersona = new Map<string, number>();
   for (const m of enabledMems) memCountByPersona.set(m.persona_key, (memCountByPersona.get(m.persona_key) ?? 0) + 1);
-  const activePersonasCount = memCountByPersona.size;
   const personasWithEnough = [...memCountByPersona.values()].filter((c) => c >= 3).length;
-  const coverage = activePersonasCount > 0 ? Math.round((personasWithEnough / activePersonasCount) * 100) : 0;
+  const personaDenominator = Math.max(1, personas.length);
+  const coverage = personas.length > 0 ? Math.round((personasWithEnough / personaDenominator) * 100) : 0;
 
   // 2. Cross-linkage: % personas con >=1 cross-persona link
   const personasWithCross = new Set<string>();
@@ -708,8 +813,8 @@ function computeInsights(
     if (targets.size > 0) personasWithCross.add(pA);
     for (const pB of targets.keys()) personasWithCross.add(pB);
   }
-  const crossLinkage = activePersonasCount > 0
-    ? Math.round((personasWithCross.size / activePersonasCount) * 100)
+  const crossLinkage = personas.length > 0
+    ? Math.round((personasWithCross.size / personaDenominator) * 100)
     : 0;
 
   // 3. Freshness: % memorie aggiornate ultimi 30gg
@@ -740,6 +845,194 @@ function computeInsights(
   return { godNodes, orphans, bridges, healthPct, healthBreakdown, totalCrossLinks };
 }
 
+function normalizeMemorySignature(content: string) {
+  return content
+    .toLowerCase()
+    .replace(/[^a-zà-ú0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 4 && !STOPWORDS.has(word))
+    .slice(0, 18)
+    .join(" ");
+}
+
+function isDemoMemorySource(source: string | null) {
+  return source?.startsWith("demo") ?? false;
+}
+
+function computeMemoryQualityReport(memories: MemoryRow[], personas: PersonaLite[]): MemoryQualityReport {
+  const enabled = memories.filter((memory) => memory.enabled);
+  const total = enabled.length;
+
+  if (total === 0) {
+    return {
+      reliabilityPct: 0,
+      staleCount: 0,
+      lowConfidenceCount: 0,
+      unusedCount: 0,
+      demoCount: 0,
+      duplicateClusters: [],
+      trustedSourcePct: 0,
+      riskyCount: 0,
+      qualityActionQueue: ["Crea almeno una memoria verificata per iniziare a rendere operativo il cervello."],
+    };
+  }
+
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const staleBeforeMs = now - MEMORY_STALE_DAYS * dayMs;
+  const duplicateMap = new Map<string, { count: number; personas: Set<string> }>();
+  const riskyIds = new Set<string>();
+
+  let staleCount = 0;
+  let lowConfidenceCount = 0;
+  let unusedCount = 0;
+  let demoCount = 0;
+  let trustedCount = 0;
+
+  for (const memory of enabled) {
+    const confidence = memory.confidence ?? 1;
+    const isStale = new Date(memory.created_at).getTime() < staleBeforeMs;
+    const isLowConfidence = confidence < MEMORY_LOW_CONFIDENCE_THRESHOLD;
+    const isUnused = (memory.hits_count ?? 0) === 0;
+    const isDemo = isDemoMemorySource(memory.source);
+
+    if (isStale) {
+      staleCount++;
+      riskyIds.add(memory.id);
+    }
+    if (isLowConfidence) {
+      lowConfidenceCount++;
+      riskyIds.add(memory.id);
+    }
+    if (isUnused) {
+      unusedCount++;
+      riskyIds.add(memory.id);
+    }
+    if (isDemo) demoCount++;
+    if (!isDemo && confidence >= 0.75 && (memory.hits_count ?? 0) > 0) trustedCount++;
+
+    const signature = normalizeMemorySignature(memory.content);
+    if (signature.length >= 24) {
+      const current = duplicateMap.get(signature) ?? { count: 0, personas: new Set<string>() };
+      current.count++;
+      current.personas.add(memory.persona_key);
+      duplicateMap.set(signature, current);
+    }
+  }
+
+  const duplicateClusters = [...duplicateMap.entries()]
+    .filter(([, cluster]) => cluster.count > 1)
+    .map(([signature, cluster]) => ({
+      signature,
+      count: cluster.count,
+      personas: [...cluster.personas],
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  const personasWithMemory = new Set(enabled.map((memory) => memory.persona_key));
+  const coveragePct = personas.length > 0 ? personasWithMemory.size / personas.length : 1;
+  const confidencePct = 1 - (lowConfidenceCount / total);
+  const activityPct = 1 - (unusedCount / total);
+  const freshnessPct = 1 - (staleCount / total);
+  const uniquePct = 1 - (duplicateClusters.reduce((sum, cluster) => sum + cluster.count, 0) / total);
+  const reliabilityPct = Math.max(0, Math.min(100, Math.round(
+    coveragePct * 25
+    + confidencePct * 25
+    + activityPct * 20
+    + freshnessPct * 15
+    + Math.max(0, uniquePct) * 15,
+  )));
+  const trustedSourcePct = Math.round((trustedCount / total) * 100);
+
+  const qualityActionQueue: string[] = [];
+  if (lowConfidenceCount > 0) qualityActionQueue.push(`Rivedi ${lowConfidenceCount} memorie con fiducia sotto il 70%.`);
+  if (staleCount > 0) qualityActionQueue.push(`Verifica ${staleCount} memorie ferme da oltre ${MEMORY_STALE_DAYS} giorni.`);
+  if (unusedCount > 0) qualityActionQueue.push(`Fai usare o archivia ${unusedCount} memorie mai richiamate.`);
+  if (duplicateClusters.length > 0) qualityActionQueue.push(`Unifica ${duplicateClusters.length} cluster di memorie duplicate.`);
+  if (personasWithMemory.size < personas.length) qualityActionQueue.push(`Completa ${personas.length - personasWithMemory.size} personas senza memoria viva.`);
+  if (qualityActionQueue.length === 0) qualityActionQueue.push("Qualità alta: puoi scalare nuove memorie e usarle nelle risposte di Silvio.");
+
+  return {
+    reliabilityPct,
+    staleCount,
+    lowConfidenceCount,
+    unusedCount,
+    demoCount,
+    duplicateClusters,
+    trustedSourcePct,
+    riskyCount: riskyIds.size,
+    qualityActionQueue: qualityActionQueue.slice(0, 5),
+  };
+}
+
+function computeKnowledgeCommunities(
+  personas: PersonaLite[],
+  memories: MemoryRow[],
+  crossPersonaLinks: Map<string, Map<string, number>>,
+): KnowledgeCommunity[] {
+  const byCategory = new Map<string, {
+    personas: PersonaLite[];
+    activePersonas: Set<string>;
+    memoryCount: number;
+    crossLinks: number;
+  }>();
+  const personaCategory = new Map(personas.map((persona) => [persona.persona_key, persona.category] as const));
+
+  for (const persona of personas) {
+    const current = byCategory.get(persona.category) ?? {
+      personas: [],
+      activePersonas: new Set<string>(),
+      memoryCount: 0,
+      crossLinks: 0,
+    };
+    current.personas.push(persona);
+    byCategory.set(persona.category, current);
+  }
+
+  for (const memory of memories) {
+    if (!memory.enabled) continue;
+    const category = personaCategory.get(memory.persona_key);
+    if (!category) continue;
+    const current = byCategory.get(category);
+    if (!current) continue;
+    current.memoryCount++;
+    current.activePersonas.add(memory.persona_key);
+  }
+
+  for (const [sourcePersona, targets] of crossPersonaLinks) {
+    const sourceCategory = personaCategory.get(sourcePersona);
+    if (!sourceCategory) continue;
+    const current = byCategory.get(sourceCategory);
+    if (!current) continue;
+    for (const [targetPersona, count] of targets) {
+      if (personaCategory.get(targetPersona) !== sourceCategory) current.crossLinks += count;
+    }
+  }
+
+  return [...byCategory.entries()]
+    .map(([key, community]) => {
+      const personaCount = community.personas.length;
+      const coverage = personaCount > 0 ? community.activePersonas.size / personaCount : 0;
+      const density = Math.min(1, community.memoryCount / Math.max(1, personaCount * 5));
+      const bridge = Math.min(1, community.crossLinks / Math.max(1, personaCount * 3));
+      const healthPct = Math.round(coverage * 45 + density * 35 + bridge * 20);
+      return {
+        key,
+        label: key.charAt(0).toUpperCase() + key.slice(1),
+        color: PERSONA_CATEGORY_COLORS[key] ?? PERSONA_CATEGORY_COLORS.default,
+        personaCount,
+        activePersonaCount: community.activePersonas.size,
+        memoryCount: community.memoryCount,
+        crossLinks: community.crossLinks,
+        healthPct,
+        riskLabel: healthPct >= 75 ? "forte" : healthPct >= 45 ? "da consolidare" : "debole",
+      };
+    })
+    .sort((a, b) => b.healthPct - a.healthPct)
+    .slice(0, 6);
+}
+
 // ─── Stable SVG graph renderer ────────────────────────────────────────────────
 
 function truncateLabel(value: string | undefined, max = 22) {
@@ -749,8 +1042,26 @@ function truncateLabel(value: string | undefined, max = 22) {
 
 const DEFAULT_GRAPH_VIEW_BOX = { x: -540, y: -440, width: 1080, height: 880 };
 const GRAPH_ASPECT_RATIO = DEFAULT_GRAPH_VIEW_BOX.width / DEFAULT_GRAPH_VIEW_BOX.height;
+const GRAPH_MIN_VIEW_WIDTH = 180;
+const GRAPH_MAX_VIEW_WIDTH = 2600;
+const GRAPH_CONTROL_ZOOM_STEP = 0.82;
+const GRAPH_PAN_CLICK_THRESHOLD = 4;
+const SILVIO_NODE_ID = "silvio_orchestrator";
+const SILVIO_NODE_FILL = "#f97316";
+const MAX_RENDERED_EDGES_2D = 1100;
+const MAX_RENDERED_EDGES_GLOBE = 760;
+const GLOBE_CAMERA_DISTANCE = 760;
+const GLOBE_DEPTH_RANGE = 820;
+const DEMO_MIN_MEMORIES_PER_PERSONA = 5;
+const DEMO_LOADING_GRACE_MS = 1_500;
+const MEMORY_STALE_DAYS = 90;
+const MEMORY_LOW_CONFIDENCE_THRESHOLD = 0.7;
 
-function serializeViewBox(viewBox: typeof DEFAULT_GRAPH_VIEW_BOX) {
+type GraphViewBox = typeof DEFAULT_GRAPH_VIEW_BOX;
+type GraphCamera = { yaw: number; pitch: number };
+type ProjectedGraphPoint = { x: number; y: number; z: number; scale: number; opacity: number };
+
+function serializeViewBox(viewBox: GraphViewBox) {
   return `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
 }
 
@@ -806,15 +1117,44 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
   ref,
 ) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const panStartRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    viewBox: GraphViewBox;
+  } | null>(null);
+  const rotateStartRef = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    camera: GraphCamera;
+  } | null>(null);
+  const didPanRef = useRef(false);
   const selectedSet = useMemo(() => new Set(selections), [selections]);
   const hasSelection = selectedSet.size > 0;
   const [viewBox, setViewBox] = useState(DEFAULT_GRAPH_VIEW_BOX);
+  const [isPanning, setIsPanning] = useState(false);
+  const [isRotatingGlobe, setIsRotatingGlobe] = useState(false);
+  const [camera, setCamera] = useState<GraphCamera>({ yaw: -0.45, pitch: 0.26 });
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node] as const)), [nodes]);
+  const renderedNodes = useMemo(
+    () => [...nodes].sort((a, b) => {
+      if (a.id === SILVIO_NODE_ID) return 1;
+      if (b.id === SILVIO_NODE_ID) return -1;
+      return 0;
+    }),
+    [nodes],
+  );
+  const isGlobeView = viewDim === "3d" || viewDim === "core";
 
   const positions = useMemo(() => {
-    const map = new Map<string, { x: number; y: number; z: number }>();
+    const map = new Map<string, ProjectedGraphPoint>();
     const fallbackRadius = 330;
     const total = Math.max(1, nodes.length);
+    const yawSin = Math.sin(camera.yaw);
+    const yawCos = Math.cos(camera.yaw);
+    const pitchSin = Math.sin(camera.pitch);
+    const pitchCos = Math.cos(camera.pitch);
 
     nodes.forEach((node, index) => {
       const angle = (index / total) * Math.PI * 2 - Math.PI / 2;
@@ -823,17 +1163,214 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
         y: Math.sin(angle) * fallbackRadius,
         z: 0,
       };
-      const z = typeof node.fz === "number" ? node.fz : 0;
-      const perspective = viewDim === "3d" || viewDim === "core" ? z * 0.12 : 0;
+      const baseX = typeof node.fx === "number" ? node.fx : fallback.x;
+      const baseY = typeof node.fy === "number" ? node.fy : fallback.y;
+      const baseZ = typeof node.fz === "number" ? node.fz : 0;
+
+      if (!isGlobeView) {
+        map.set(node.id, { x: baseX, y: baseY, z: baseZ, scale: 1, opacity: 1 });
+        return;
+      }
+
+      const yawX = baseX * yawCos + baseZ * yawSin;
+      const yawZ = -baseX * yawSin + baseZ * yawCos;
+      const pitchY = baseY * pitchCos - yawZ * pitchSin;
+      const pitchZ = baseY * pitchSin + yawZ * pitchCos;
+      const perspective = GLOBE_CAMERA_DISTANCE / Math.max(360, GLOBE_CAMERA_DISTANCE - pitchZ * 0.52);
+      const depth = Math.max(0, Math.min(1, (pitchZ + GLOBE_DEPTH_RANGE / 2) / GLOBE_DEPTH_RANGE));
+
       map.set(node.id, {
-        x: (typeof node.fx === "number" ? node.fx : fallback.x) + perspective,
-        y: (typeof node.fy === "number" ? node.fy : fallback.y) - perspective * 0.35,
-        z,
+        x: yawX * perspective,
+        y: pitchY * perspective,
+        z: pitchZ,
+        scale: 0.58 + depth * 0.56,
+        opacity: 0.28 + depth * 0.72,
       });
     });
 
     return map;
-  }, [nodes, viewDim]);
+  }, [camera.pitch, camera.yaw, isGlobeView, nodes]);
+
+  const visibleEdges = useMemo(() => {
+    const limit = isGlobeView ? MAX_RENDERED_EDGES_GLOBE : MAX_RENDERED_EDGES_2D;
+    if (edges.length <= limit || hasSelection) return edges;
+
+    return [...edges]
+      .sort((a, b) => {
+        const score = (edge: GraphEdge) => {
+          if (edge.id.startsWith("e_silvio_")) return 4_000 + (edge.size ?? 1) * 10;
+          if (edge.id.startsWith("e_xp_")) return 3_000 + (edge.size ?? 1) * 10;
+          if (edge.id.startsWith("e_p_")) return 2_000 + (edge.size ?? 1) * 10;
+          return 1_000 + (edge.size ?? 1) * 10;
+        };
+        return score(b) - score(a);
+      })
+      .slice(0, limit);
+  }, [edges, hasSelection, isGlobeView]);
+
+  const depthSortedNodes = useMemo(
+    () => [...renderedNodes].sort((a, b) => {
+      if (a.id === SILVIO_NODE_ID) return 1;
+      if (b.id === SILVIO_NODE_ID) return -1;
+      if (!isGlobeView) return 0;
+      return (positions.get(a.id)?.z ?? 0) - (positions.get(b.id)?.z ?? 0);
+    }),
+    [isGlobeView, positions, renderedNodes],
+  );
+
+  useEffect(() => {
+    if (viewDim !== "core") return undefined;
+
+    let frameId = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const elapsed = Math.min(48, now - last);
+      last = now;
+      if (!rotateStartRef.current) {
+        setCamera((current) => ({ ...current, yaw: current.yaw + elapsed * 0.00022 }));
+      }
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [viewDim]);
+
+  const updateZoom = useCallback((scale: number, anchor?: { x: number; y: number }) => {
+    setViewBox((current) => {
+      const nextWidth = Math.min(
+        GRAPH_MAX_VIEW_WIDTH,
+        Math.max(GRAPH_MIN_VIEW_WIDTH, current.width * scale),
+      );
+      if (Math.abs(nextWidth - current.width) < 0.1) return current;
+
+      const nextHeight = nextWidth / GRAPH_ASPECT_RATIO;
+      const zoomAnchor = anchor ?? {
+        x: current.x + current.width / 2,
+        y: current.y + current.height / 2,
+      };
+      const widthRatio = nextWidth / current.width;
+      const heightRatio = nextHeight / current.height;
+
+      return {
+        x: zoomAnchor.x - (zoomAnchor.x - current.x) * widthRatio,
+        y: zoomAnchor.y - (zoomAnchor.y - current.y) * heightRatio,
+        width: nextWidth,
+        height: nextHeight,
+      };
+    });
+  }, []);
+
+  const clientPointToGraphPoint = useCallback((clientX: number, clientY: number, sourceViewBox: GraphViewBox = viewBox) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+
+    return {
+      x: sourceViewBox.x + ((clientX - rect.left) / rect.width) * sourceViewBox.width,
+      y: sourceViewBox.y + ((clientY - rect.top) / rect.height) * sourceViewBox.height,
+    };
+  }, [viewBox]);
+
+  const handleWheelZoom = useCallback((event: ReactWheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const anchor = clientPointToGraphPoint(event.clientX, event.clientY);
+    const delta = event.deltaY !== 0 ? event.deltaY : event.deltaX;
+    if (delta === 0) return;
+
+    const normalized = Math.min(0.42, Math.max(0.04, Math.abs(delta) * 0.0016));
+    updateZoom(Math.exp(delta > 0 ? normalized : -normalized), anchor ?? undefined);
+  }, [clientPointToGraphPoint, updateZoom]);
+
+  const handlePanStart = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
+    if (event.button !== 0) return;
+    if ((event.target as Element | null)?.closest?.("[data-brain-node='true']")) return;
+
+    event.preventDefault();
+    svgRef.current?.setPointerCapture(event.pointerId);
+
+    if (isGlobeView && !event.shiftKey) {
+      rotateStartRef.current = {
+        pointerId: event.pointerId,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        camera,
+      };
+      didPanRef.current = false;
+      setIsRotatingGlobe(true);
+      return;
+    }
+
+    panStartRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      viewBox,
+    };
+    didPanRef.current = false;
+    setIsPanning(true);
+  }, [camera, isGlobeView, viewBox]);
+
+  const handlePanMove = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
+    const rotateStart = rotateStartRef.current;
+    if (rotateStart?.pointerId === event.pointerId) {
+      const dx = event.clientX - rotateStart.clientX;
+      const dy = event.clientY - rotateStart.clientY;
+      if (Math.hypot(dx, dy) >= GRAPH_PAN_CLICK_THRESHOLD) didPanRef.current = true;
+      setCamera({
+        yaw: rotateStart.camera.yaw + dx * 0.0065,
+        pitch: Math.max(-1.12, Math.min(1.12, rotateStart.camera.pitch - dy * 0.0052)),
+      });
+      return;
+    }
+
+    const start = panStartRef.current;
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!start || start.pointerId !== event.pointerId || !rect || rect.width <= 0 || rect.height <= 0) return;
+
+    const dx = event.clientX - start.clientX;
+    const dy = event.clientY - start.clientY;
+    if (Math.hypot(dx, dy) >= GRAPH_PAN_CLICK_THRESHOLD) didPanRef.current = true;
+
+    setViewBox({
+      x: start.viewBox.x - dx * (start.viewBox.width / rect.width),
+      y: start.viewBox.y - dy * (start.viewBox.height / rect.height),
+      width: start.viewBox.width,
+      height: start.viewBox.height,
+    });
+  }, []);
+
+  const handlePanEnd = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
+    const rotateStart = rotateStartRef.current;
+    if (rotateStart?.pointerId === event.pointerId) {
+      if (svgRef.current?.hasPointerCapture(event.pointerId)) {
+        svgRef.current.releasePointerCapture(event.pointerId);
+      }
+      rotateStartRef.current = null;
+      setIsRotatingGlobe(false);
+      return;
+    }
+
+    const start = panStartRef.current;
+    if (start?.pointerId === event.pointerId) {
+      if (svgRef.current?.hasPointerCapture(event.pointerId)) {
+        svgRef.current.releasePointerCapture(event.pointerId);
+      }
+      panStartRef.current = null;
+      setIsPanning(false);
+    }
+  }, []);
+
+  const handleSvgClick = useCallback((event: ReactMouseEvent<SVGSVGElement>) => {
+    if (didPanRef.current) {
+      didPanRef.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    onCanvasClick();
+  }, [onCanvasClick]);
 
   const fitToNodes = useCallback((ids?: string[]) => {
     const targetIds = ids && ids.length > 0 ? ids : nodes.map((node) => node.id);
@@ -894,6 +1431,9 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
   useImperativeHandle(ref, () => ({
     centerGraph: (ids?: string[]) => fitToNodes(ids),
     fitNodesInView: (ids?: string[]) => fitToNodes(ids),
+    zoomIn: () => updateZoom(GRAPH_CONTROL_ZOOM_STEP),
+    zoomOut: () => updateZoom(1 / GRAPH_CONTROL_ZOOM_STEP),
+    resetView: () => setViewBox(DEFAULT_GRAPH_VIEW_BOX),
     exportCanvas: () => {
       if (!svgRef.current) return null;
       const clone = svgRef.current.cloneNode(true) as SVGSVGElement;
@@ -901,7 +1441,7 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
       const serialized = new XMLSerializer().serializeToString(clone);
       return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
     },
-  }), [fitToNodes]);
+  }), [fitToNodes, updateZoom]);
 
   return (
     <svg
@@ -910,12 +1450,26 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
       viewBox={serializeViewBox(viewBox)}
       role="img"
       aria-label="Mappa visiva del Cervello AI"
-      onClick={onCanvasClick}
+      onClick={handleSvgClick}
+      onWheel={handleWheelZoom}
+      onPointerDown={handlePanStart}
+      onPointerMove={handlePanMove}
+      onPointerUp={handlePanEnd}
+      onPointerCancel={handlePanEnd}
+      style={{
+        cursor: isPanning || isRotatingGlobe ? "grabbing" : isGlobeView ? "grab" : "grab",
+        touchAction: "none",
+      }}
     >
       <defs>
         <radialGradient id="brain-node-glow" cx="50%" cy="45%" r="60%">
           <stop offset="0%" stopColor="rgba(255,255,255,0.9)" />
           <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </radialGradient>
+        <radialGradient id="silvio-core-gradient" cx="40%" cy="28%" r="72%">
+          <stop offset="0%" stopColor="#fff7ed" />
+          <stop offset="38%" stopColor="#fb923c" />
+          <stop offset="100%" stopColor="#c2410c" />
         </radialGradient>
         <filter id="brain-soft-glow" x="-80%" y="-80%" width="260%" height="260%">
           <feGaussianBlur stdDeviation="5" result="blur" />
@@ -934,23 +1488,38 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
             transform-origin: center;
             animation: brain-core-orbit 58s linear infinite;
           }
+          @keyframes silvio-pulse {
+            0%, 100% { opacity: .28; transform: scale(1); }
+            50% { opacity: .56; transform: scale(1.08); }
+          }
+          .silvio-orbit-ring {
+            transform-box: fill-box;
+            transform-origin: center;
+            animation: silvio-pulse 3.8s ease-in-out infinite;
+          }
           @media (prefers-reduced-motion: reduce) {
-            .brain-core-spin { animation: none; }
+            .brain-core-spin, .silvio-orbit-ring { animation: none; }
           }
         `}</style>
       </defs>
-      <g className={viewDim === "core" ? "brain-core-spin" : undefined}>
-        {edges.map((edge) => {
+      <g>
+        {visibleEdges.map((edge) => {
           const source = positions.get(edge.source);
           const target = positions.get(edge.target);
           if (!source || !target) return null;
           const selected = selectedSet.has(edge.source) || selectedSet.has(edge.target) || selectedSet.has(edge.id);
           const isCross = edge.id.startsWith("e_cross_") || edge.id.startsWith("e_xp_");
-          const opacity = hasSelection && !selected ? 0.12 : isCross ? 0.66 : 0.34;
-          const width = Math.max(0.8, Math.min(5, edge.size ?? 1));
+          const isSilvioEdge = edge.id.startsWith("e_silvio_");
+          const depthOpacity = isGlobeView ? Math.min(source.opacity, target.opacity) : 1;
+          const opacity = (hasSelection && !selected
+            ? 0.12
+            : isSilvioEdge
+              ? (edge.size ?? 1) < 1 ? 0.24 : 0.54
+              : isCross ? 0.66 : 0.34) * depthOpacity;
+          const width = Math.max(0.8, Math.min(5, edge.size ?? 1)) * (isGlobeView ? Math.max(0.62, (source.scale + target.scale) / 2) : 1);
           const midX = (source.x + target.x) / 2;
           const midY = (source.y + target.y) / 2;
-          const curve = isCross ? 24 : 8;
+          const curve = isSilvioEdge ? 0 : isCross ? 24 : 8;
           const d = `M ${source.x} ${source.y} Q ${midX} ${midY - curve} ${target.x} ${target.y}`;
           return (
             <path
@@ -960,6 +1529,8 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
               stroke={selected ? "#fbbf24" : edge.fill ?? (isCross ? "#fb923c" : "#64748b")}
               strokeWidth={selected ? width + 1.2 : width}
               strokeOpacity={opacity}
+              strokeLinecap="round"
+              strokeDasharray={isSilvioEdge && (edge.size ?? 1) < 1 ? "4 7" : undefined}
               vectorEffect="non-scaling-stroke"
               onMouseEnter={(event) => onEdgePointerOver(edge, { nativeEvent: event.nativeEvent })}
               onMouseLeave={onEdgePointerOut}
@@ -967,28 +1538,37 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
           );
         })}
 
-        {nodes.map((node) => {
+        {depthSortedNodes.map((node) => {
           const pos = positions.get(node.id);
           if (!pos) return null;
           const type = node.data?.type;
           const selected = selectedSet.has(node.id);
           const faded = hasSelection && !selected;
           const isPersona = type === "persona";
+          const isSilvio = type === "silvio";
           const radius = isPersona
             ? Math.max(16, (node.size ?? 10) * 1.45)
-            : Math.max(5, (node.size ?? 3) * 2.1);
+            : isSilvio
+              ? Math.max(34, (node.size ?? 18) * 1.18)
+              : Math.max(5, (node.size ?? 3) * 2.1);
           const fill = node.fill ?? "#f97316";
           const emoji = isPersona ? String(node.data?.emoji ?? PERSONA_CATEGORY_EMOJI.default) : "";
           const label = isPersona
             ? truncateLabel(node.data?.persona?.display_name ?? node.label, 24)
+            : isSilvio
+              ? "Silvio"
             : truncateLabel(node.data?.previewLabel ?? node.label, 22);
 
           return (
             <g
               key={node.id}
-              transform={`translate(${pos.x} ${pos.y})`}
-              opacity={faded ? 0.28 : 1}
+              data-brain-node="true"
+              transform={`translate(${pos.x} ${pos.y}) scale(${pos.scale})`}
+              opacity={(faded ? 0.28 : 1) * (isSilvio ? 1 : isGlobeView ? pos.opacity : 1)}
               className="cursor-pointer transition-opacity"
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
               onClick={(event) => {
                 event.stopPropagation();
                 onNodeClick(node);
@@ -998,35 +1578,57 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
                 onNodeDoubleClick(node);
               }}
             >
+              {isSilvio && (
+                <>
+                  <circle className="silvio-orbit-ring" r={radius + 34} fill="none" stroke="#fb923c" strokeWidth={1.2} strokeOpacity={0.48} strokeDasharray="5 8" />
+                  <circle r={radius + 23} fill="#fb923c" opacity={0.13} filter="url(#brain-soft-glow)" />
+                  <circle r={radius + 12} fill="none" stroke="#fed7aa" strokeWidth={1.4} strokeOpacity={0.5} />
+                </>
+              )}
               <circle
                 r={radius + 8}
                 fill={fill}
-                opacity={selected ? 0.22 : isPersona ? 0.14 : 0.08}
-                filter={selected || isPersona ? "url(#brain-soft-glow)" : undefined}
+                opacity={selected ? 0.22 : isSilvio ? 0.24 : isPersona ? 0.14 : 0.08}
+                filter={selected || isPersona || isSilvio ? "url(#brain-soft-glow)" : undefined}
               />
               <circle
                 r={radius}
-                fill={fill}
-                stroke={selected ? "#fde68a" : isPersona ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.38)"}
-                strokeWidth={selected ? 3 : isPersona ? 1.5 : 1}
+                fill={isSilvio ? "url(#silvio-core-gradient)" : fill}
+                stroke={selected ? "#fde68a" : isSilvio ? "#fed7aa" : isPersona ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.38)"}
+                strokeWidth={selected ? 3 : isSilvio ? 2.4 : isPersona ? 1.5 : 1}
               />
               <circle r={Math.max(2, radius * 0.42)} fill="url(#brain-node-glow)" opacity={0.72} />
-              {isPersona && (
+              {(isPersona || isSilvio) && (
                 <text
                   y="5"
                   textAnchor="middle"
-                  fontSize={Math.max(12, radius * 0.58)}
+                  fontSize={isSilvio ? 22 : Math.max(12, radius * 0.58)}
                   className="select-none"
                 >
-                  {emoji}
+                  {isSilvio ? "🧠" : emoji}
                 </text>
               )}
-              {(isPersona || selected) && label && (
+              {isSilvio && (
                 <text
-                  y={radius + 16}
+                  y={radius + 31}
                   textAnchor="middle"
-                  fontSize={isPersona ? 12 : 9}
-                  fontWeight={isPersona ? 700 : 500}
+                  fontSize={9}
+                  fontWeight={700}
+                  fill="#fed7aa"
+                  stroke="#020617"
+                  strokeWidth={3}
+                  paintOrder="stroke"
+                  className="select-none"
+                >
+                  guida tutte le personas
+                </text>
+              )}
+              {(isPersona || isSilvio || selected) && label && (
+                <text
+                  y={radius + (isSilvio ? 18 : 16)}
+                  textAnchor="middle"
+                  fontSize={isSilvio ? 15 : isPersona ? 12 : 9}
+                  fontWeight={isPersona || isSilvio ? 800 : 500}
                   fill={selected ? "#fde68a" : "#f8fafc"}
                   stroke="#020617"
                   strokeWidth={4}
@@ -1068,6 +1670,7 @@ export default function AIBrainGraph() {
   const [timeFilter, setTimeFilter] = useState<"7d" | "30d" | "90d" | "all">("all");
   const [personaSheetKey, setPersonaSheetKey] = useState<string | null>(null);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const [demoLoadingGraceElapsed, setDemoLoadingGraceElapsed] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const livePulseTimeoutRef = useRef<number | null>(null);
 
@@ -1084,9 +1687,8 @@ export default function AIBrainGraph() {
   } = useQuery({
     queryKey: ["brain-graph-personas"],
     queryFn: async (): Promise<PersonaLite[]> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await withTimeout(
-        (supabase as any)
+      const { data, error } = await withTimeout(
+        brainSupabase
           .from("ai_personas_public")
           .select("persona_key, display_name, category, color, icon")
           .eq("enabled", true)
@@ -1094,6 +1696,7 @@ export default function AIBrainGraph() {
         8_000,
         "Caricamento personas AI",
       );
+      if (error) throw error;
       return (data ?? []) as PersonaLite[];
     },
     staleTime: 5 * 60_000,
@@ -1110,9 +1713,8 @@ export default function AIBrainGraph() {
     queryKey: ["brain-graph-memories", effectiveCompany?.id],
     enabled: !!effectiveCompany?.id,
     queryFn: async (): Promise<MemoryRow[]> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await withTimeout(
-        (supabase as any)
+        brainSupabase
           .from("ai_persona_memory")
           .select("id, persona_key, memory_type, content, confidence, hits_count, enabled, source, created_at")
           .eq("company_id", effectiveCompany!.id)
@@ -1129,55 +1731,136 @@ export default function AIBrainGraph() {
     retry: 1,
   });
 
-  const demoFallbackPersonas = useMemo<PersonaLite[]>(() => {
-    const categoryByKey: Record<string, string> = {
-      cfo: "finance",
-      contabile: "finance",
-      pm_cantiere: "operations",
-      commerciale: "sales",
-      hr: "hr",
-      acquisti: "operations",
-      marketing: "marketing",
-      legal: "legal",
-      strategy: "strategy",
-      support: "support",
-      tech: "tech",
-      rspp: "legal",
-    };
+  const remoteGraphPersonas = useMemo<PersonaLite[]>(
+    () => remotePersonas.filter((persona) => !isOrchestratorPersonaKey(persona.persona_key)),
+    [remotePersonas],
+  );
 
-    return Object.keys(PERSONA_FALLBACKS).map((key) => ({
-      persona_key: key,
-      display_name: key
-        .split("_")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" "),
-      category: categoryByKey[key] ?? "default",
-      color: null,
-      icon: null,
-    }));
-  }, []);
-
-  const demoFallbackMemories = useMemo<MemoryRow[]>(
-    () => DEMO_MEMORIES.map((memory, index) => ({
-      id: `demo-${index}`,
-      persona_key: memory.persona_key,
-      memory_type: memory.memory_type,
-      content: memory.content,
-      confidence: memory.confidence,
-      hits_count: memory.hits_count,
-      enabled: true,
-      source: "demo_fallback",
-      created_at: new Date(Date.now() - index * 3_600_000).toISOString(),
-    })),
+  const demoFallbackPersonas = useMemo<PersonaLite[]>(
+    () => DEMO_AI_PERSONAS.filter((persona) => !isOrchestratorPersonaKey(persona.persona_key)),
     [],
   );
 
-  const useDemoFallback = isDemoCompany
-    && (loadingTimedOut || isPersonasError || isMemoriesError)
-    && (remotePersonas.length === 0 || remoteMemories.length === 0);
+  const demoFallbackMemories = useMemo<MemoryRow[]>(() => {
+    const availableKeys = new Set(demoFallbackPersonas.map((persona) => persona.persona_key));
+    return DEMO_MEMORIES.flatMap((memory, index) => {
+      const targetKey = resolveDemoPersonaKey(memory.persona_key, availableKeys);
+      if (!targetKey) return [];
+      return [{
+        id: `demo-${index}`,
+        persona_key: targetKey,
+        memory_type: memory.memory_type,
+        content: memory.content,
+        confidence: memory.confidence,
+        hits_count: memory.hits_count,
+        enabled: true,
+        source: "demo_fallback",
+        created_at: new Date(Date.now() - index * 3_600_000).toISOString(),
+      }];
+    });
+  }, [demoFallbackPersonas]);
 
-  const personas = useDemoFallback && remotePersonas.length === 0 ? demoFallbackPersonas : remotePersonas;
-  const memories = useDemoFallback && remoteMemories.length === 0 ? demoFallbackMemories : remoteMemories;
+  useEffect(() => {
+    if (!isDemoCompany) {
+      setDemoLoadingGraceElapsed(false);
+      return;
+    }
+
+    setDemoLoadingGraceElapsed(false);
+    const timeoutId = window.setTimeout(() => setDemoLoadingGraceElapsed(true), DEMO_LOADING_GRACE_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [effectiveCompany?.id, isDemoCompany]);
+
+  const demoFallbackReady = isDemoCompany
+    && (demoLoadingGraceElapsed || loadingTimedOut || isPersonasError || isMemoriesError)
+    && (remoteGraphPersonas.length === 0 || remoteMemories.length === 0);
+
+  const useDemoFallback = demoFallbackReady;
+
+  const personas = useMemo(
+    () => (useDemoFallback && remoteGraphPersonas.length === 0 ? demoFallbackPersonas : remoteGraphPersonas),
+    [demoFallbackPersonas, remoteGraphPersonas, useDemoFallback],
+  );
+
+  const knownPersonaKeys = useMemo(
+    () => new Set(personas.map((persona) => persona.persona_key)),
+    [personas],
+  );
+
+  const baseMemories = useMemo(
+    () => (useDemoFallback && remoteMemories.length === 0 ? demoFallbackMemories : remoteMemories),
+    [demoFallbackMemories, remoteMemories, useDemoFallback],
+  );
+
+  const normalizedBaseMemories = useMemo<MemoryRow[]>(
+    () => baseMemories.flatMap((memory) => {
+      if (knownPersonaKeys.has(memory.persona_key)) return [memory];
+      const targetKey = resolveDemoPersonaKey(memory.persona_key, knownPersonaKeys);
+      if (!targetKey) return [];
+      return [{ ...memory, persona_key: targetKey }];
+    }),
+    [baseMemories, knownPersonaKeys],
+  );
+
+  const demoCoverageMemories = useMemo<MemoryRow[]>(() => {
+    if (!isDemoCompany || personas.length === 0) return [];
+
+    const counts = new Map<string, number>();
+    const existingByPersona = new Map<string, Set<string>>();
+    for (const memory of normalizedBaseMemories) {
+      if (!memory.enabled || !knownPersonaKeys.has(memory.persona_key)) continue;
+      counts.set(memory.persona_key, (counts.get(memory.persona_key) ?? 0) + 1);
+      if (!existingByPersona.has(memory.persona_key)) existingByPersona.set(memory.persona_key, new Set());
+      existingByPersona.get(memory.persona_key)!.add(memory.content.trim().toLowerCase());
+    }
+
+    const demoRowsByPersona = new Map<string, typeof DEMO_MEMORIES>();
+    for (const memory of DEMO_MEMORIES) {
+      const targetKey = resolveDemoPersonaKey(memory.persona_key, knownPersonaKeys);
+      if (!targetKey) continue;
+      const list = demoRowsByPersona.get(targetKey);
+      if (list) list.push(memory);
+      else demoRowsByPersona.set(targetKey, [memory]);
+    }
+
+    const additions: MemoryRow[] = [];
+    for (const persona of personas) {
+      const currentCount = counts.get(persona.persona_key) ?? 0;
+      if (currentCount >= DEMO_MIN_MEMORIES_PER_PERSONA) continue;
+
+      const usedContent = existingByPersona.get(persona.persona_key) ?? new Set<string>();
+      const candidates = demoRowsByPersona.get(persona.persona_key) ?? [];
+      let addedForPersona = 0;
+      const needed = DEMO_MIN_MEMORIES_PER_PERSONA - currentCount;
+
+      for (const candidate of candidates) {
+        const normalizedContent = candidate.content.trim().toLowerCase();
+        if (usedContent.has(normalizedContent)) continue;
+        usedContent.add(normalizedContent);
+        const overlayIndex = additions.length;
+        additions.push({
+          id: `demo-coverage-${persona.persona_key}-${overlayIndex}`,
+          persona_key: persona.persona_key,
+          memory_type: candidate.memory_type,
+          content: candidate.content,
+          confidence: candidate.confidence,
+          hits_count: Math.max(candidate.hits_count, 3),
+          enabled: true,
+          source: "demo_coverage",
+          created_at: new Date(Date.now() - overlayIndex * 1_800_000).toISOString(),
+        });
+        addedForPersona++;
+        if (addedForPersona >= needed) break;
+      }
+    }
+
+    return additions;
+  }, [isDemoCompany, knownPersonaKeys, normalizedBaseMemories, personas]);
+
+  const memories = useMemo(
+    () => [...normalizedBaseMemories, ...demoCoverageMemories],
+    [demoCoverageMemories, normalizedBaseMemories],
+  );
 
   // ── #4: Real-time subscription ────────────────────────────────────────────
 
@@ -1233,7 +1916,8 @@ export default function AIBrainGraph() {
 
   const { nodes, edges, edgeKeywords, connectionsMap, crossPersonaLinks } = graphData;
 
-  const isGraphLoading = !useDemoFallback && (isPersonasLoading || isMemoriesLoading);
+  const isInitialGraphLoading = !demoFallbackReady && (isPersonasLoading || isMemoriesLoading);
+  const isGraphLoading = isInitialGraphLoading;
 
   useEffect(() => {
     if (!isGraphLoading) {
@@ -1250,6 +1934,14 @@ export default function AIBrainGraph() {
   const insights = useMemo(
     () => computeInsights(nodes, connectionsMap, crossPersonaLinks, memories, personas),
     [nodes, connectionsMap, crossPersonaLinks, memories, personas],
+  );
+  const memoryQuality = useMemo(
+    () => computeMemoryQualityReport(memories, personas),
+    [memories, personas],
+  );
+  const knowledgeCommunities = useMemo(
+    () => computeKnowledgeCommunities(personas, memories, crossPersonaLinks),
+    [personas, memories, crossPersonaLinks],
   );
 
   // Insight narrativo automatico — la frase "vendibile" che racconta cosa sa l'AI
@@ -1297,6 +1989,17 @@ export default function AIBrainGraph() {
   }, [memories, personas, crossPersonaLinks]);
 
   const totalMemories = memories.filter((m) => m.enabled).length;
+  const personasInMemory = useMemo(
+    () => new Set(
+      memories
+        .filter((m) => m.enabled && knownPersonaKeys.has(m.persona_key))
+        .map((m) => m.persona_key),
+    ).size,
+    [knownPersonaKeys, memories],
+  );
+  const personaActivationPct = personas.length > 0
+    ? Math.round((personasInMemory / personas.length) * 100)
+    : 0;
   const totalCrossPersonaLinks = useMemo(() => {
     let n = 0;
     for (const [, t] of crossPersonaLinks) for (const [, c] of t) n += c;
@@ -1331,6 +2034,35 @@ export default function AIBrainGraph() {
     const xpEdges = edges.filter((e) => e.id.startsWith("e_xp_")).length;
     return { personaCount, memoryCount, crossEdges, xpEdges, totalEdges: edges.length };
   }, [nodes, edges]);
+
+  const graphIntegrity = useMemo(() => {
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    const missingEdges = edges.filter((edge) => !nodeIds.has(edge.source) || !nodeIds.has(edge.target));
+    const disconnectedNodes = nodes.filter((node) => (
+      node.id !== SILVIO_NODE_ID
+      && (connectionsMap.get(node.id)?.size ?? 0) === 0
+    ));
+    const memoriesWithoutPersonaEdge = nodes.filter((node) => {
+      if (node.data?.type !== "memory") return false;
+      const personaKey = node.data.memory?.persona_key;
+      return !edges.some((edge) => edge.source === `p_${personaKey}` && edge.target === node.id);
+    });
+    const personasWithoutMemories = nodes.filter((node) => (
+      node.data?.type === "persona"
+      && (node.data.memoryCount ?? 0) === 0
+    ));
+
+    return {
+      ok: missingEdges.length === 0
+        && disconnectedNodes.length === 0
+        && memoriesWithoutPersonaEdge.length === 0
+        && personasWithoutMemories.length === 0,
+      missingEdges: missingEdges.length,
+      disconnectedNodes: disconnectedNodes.length,
+      memoriesWithoutPersonaEdge: memoriesWithoutPersonaEdge.length,
+      personasWithoutMemories: personasWithoutMemories.length,
+    };
+  }, [connectionsMap, edges, nodes]);
 
   // ── #1: Search → selections / actives ─────────────────────────────────────
 
@@ -1376,6 +2108,9 @@ export default function AIBrainGraph() {
         if (e.target === node.id) relatedIds.push(e.source);
       }
       graphRef.current?.centerGraph(relatedIds);
+      setSelectedNode(node);
+    } else if (node.data?.type === "silvio") {
+      graphRef.current?.centerGraph();
       setSelectedNode(node);
     } else if (node.data?.type === "memory") {
       // Zoom to this memory + all connected
@@ -1429,6 +2164,18 @@ export default function AIBrainGraph() {
     setFilterType(null);
     setSearchQuery("");
     setHoveredEdge(null);
+  }, []);
+
+  const zoomInGraph = useCallback(() => {
+    graphRef.current?.zoomIn();
+  }, []);
+
+  const zoomOutGraph = useCallback(() => {
+    graphRef.current?.zoomOut();
+  }, []);
+
+  const fitGraphToView = useCallback(() => {
+    graphRef.current?.centerGraph();
   }, []);
 
   // #9: Export screenshot
@@ -1564,8 +2311,8 @@ export default function AIBrainGraph() {
   }, [effectiveCompany?.name, totalMemories, totalCrossPersonaLinks, insights.healthPct, stats.personaCount, personas, memories, heroInsight]);
 
   // ── Seed demo: popola memorie realistiche per Demo Azienda ──────────────
-  // Mappa ogni persona_key delle memorie demo a un persona_key reale presente
-  // nel sistema (via PERSONA_FALLBACKS). Salta le memorie senza match.
+  // Mappa ogni persona_key demo a un persona_key reale presente nel sistema.
+  // Salta solo le memorie senza un match valido nel catalogo attivo.
   const handleSeedDemo = useCallback(async () => {
     if (!effectiveCompany?.id || !isDemoCompany) return;
     setIsSeeding(true);
@@ -1576,13 +2323,10 @@ export default function AIBrainGraph() {
       let skipped = 0;
 
       for (const mem of DEMO_MEMORIES) {
-        // Find first matching key in fallback chain
-        const fallbackChain = PERSONA_FALLBACKS[mem.persona_key] ?? [mem.persona_key];
-        const targetKey = fallbackChain.find((k) => availableKeys.has(k));
+        const targetKey = resolveDemoPersonaKey(mem.persona_key, availableKeys);
         if (!targetKey) { skipped++; continue; }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await (supabase as any).rpc("record_persona_memory", {
+        const { error } = await brainSupabase.rpc("record_persona_memory", {
           p_company_id: effectiveCompany.id,
           p_user_id: null,
           p_persona_key: targetKey,
@@ -1596,8 +2340,7 @@ export default function AIBrainGraph() {
           inserted++;
           // Boost hits_count to simulate usage
           if (mem.hits_count > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (supabase as any)
+            await brainSupabase
               .from("ai_persona_memory")
               .update({ hits_count: mem.hits_count })
               .eq("company_id", effectiveCompany.id)
@@ -1623,17 +2366,55 @@ export default function AIBrainGraph() {
 
   // ── Fullscreen ────────────────────────────────────────────────────────────
 
-  const toggleFullscreen = useCallback(() => {
+  const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) return;
-    if (!fullscreen) void containerRef.current.requestFullscreen?.();
-    else void document.exitFullscreen?.();
+    if (!fullscreen) {
+      setFullscreen(true);
+      try {
+        await containerRef.current.requestFullscreen?.();
+      } catch {
+        // Fallback: la classe fixed resta attiva anche se il browser blocca Fullscreen API.
+      }
+    } else {
+      setFullscreen(false);
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen?.();
+        } catch {
+          // Fallback visivo già disattivato.
+        }
+      }
+    }
   }, [fullscreen]);
 
   useEffect(() => {
-    const handler = () => setFullscreen(!!document.fullscreenElement);
+    const handler = () => {
+      if (!document.fullscreenElement) setFullscreen(false);
+      else if (document.fullscreenElement === containerRef.current) setFullscreen(true);
+    };
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && fullscreen) {
+        setFullscreen(false);
+        if (document.fullscreenElement) void document.exitFullscreen?.();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [fullscreen]);
+
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [fullscreen]);
 
   // ── Compute final selections ──────────────────────────────────────────────
 
@@ -1768,12 +2549,18 @@ export default function AIBrainGraph() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Cervello AI</h3>
-                <p className="text-[11px] text-slate-600">La conoscenza condivisa delle personas attive</p>
+                <p className="text-[11px] text-slate-600">Tutte le personas AI abilitate, connesse alla memoria aziendale</p>
               </div>
             </div>
 
-            {/* 3 numeri hero */}
+            {/* Numeri hero */}
             <div className="flex items-center gap-4 md:gap-6 md:ml-6">
+              <div>
+                <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">{stats.personaCount}</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">personas AI</div>
+                <div className="text-[9px] text-orange-600 font-semibold">{personasInMemory} in rete · {personaActivationPct}%</div>
+              </div>
+              <div className="h-8 w-px bg-slate-200" />
               <div>
                 <div className="flex items-baseline gap-1.5">
                   <div className="text-2xl font-bold text-slate-900 tabular-nums leading-tight">{totalMemories}</div>
@@ -1896,8 +2683,8 @@ export default function AIBrainGraph() {
       <div
         ref={containerRef}
         className={cn(
-          "relative rounded-xl overflow-hidden border border-slate-800",
-          fullscreen ? "fixed inset-0 z-50 rounded-none" : "h-[600px]",
+          "relative rounded-xl overflow-hidden border border-slate-800 bg-black",
+          fullscreen ? "fixed inset-0 z-[120] h-screen w-screen rounded-none border-0" : "h-[600px]",
         )}
         style={gridBgStyle}
       >
@@ -1969,11 +2756,11 @@ export default function AIBrainGraph() {
         </div>
       </div>
       {/* ── Top bar ────────────────────────────────────────────────────────── */}
-      <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-2 pointer-events-auto">
+      <div className="absolute top-3 left-3 right-3 z-10 flex flex-col gap-2 pointer-events-none sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex max-w-full flex-wrap items-center gap-1.5 pointer-events-auto sm:gap-2">
           <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
             <Brain className="h-3 w-3 text-orange-400" />
-            {stats.personaCount} personas
+            {stats.personaCount} personas · {personasInMemory} in rete
           </Badge>
             <Badge className="bg-slate-900/95 text-slate-200 border-slate-600 backdrop-blur-sm shadow-lg text-[10px] gap-1.5">
               <Sparkles className="h-3 w-3 text-violet-400" />
@@ -1989,6 +2776,22 @@ export default function AIBrainGraph() {
               {stats.xpEdges} cross-persona
             </Badge>
           )}
+          <Badge
+            className={cn(
+              "backdrop-blur-sm text-[10px] gap-1.5 shadow-lg",
+              graphIntegrity.ok
+                ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/40"
+                : "bg-rose-500/15 text-rose-200 border-rose-500/40",
+            )}
+            title={
+              graphIntegrity.ok
+                ? "Tutti i nodi visibili hanno collegamenti validi e ogni persona ha memoria viva"
+                : `${graphIntegrity.missingEdges} edge mancanti, ${graphIntegrity.disconnectedNodes} nodi isolati, ${graphIntegrity.memoriesWithoutPersonaEdge} memorie senza persona, ${graphIntegrity.personasWithoutMemories} personas senza memoria`
+            }
+          >
+            <Zap className="h-3 w-3" />
+            {graphIntegrity.ok ? "QA rete OK" : "QA rete"}
+          </Badge>
           {useDemoFallback && (
             <Badge className="bg-amber-100 text-amber-800 border-amber-300 backdrop-blur-sm text-[10px] gap-1.5">
               Anteprima demo
@@ -1996,9 +2799,10 @@ export default function AIBrainGraph() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 pointer-events-auto">
+        <div className="flex max-w-full flex-wrap items-center justify-start gap-1.5 pointer-events-auto sm:justify-end">
           {/* AI Search semantico con dropdown risultati */}
           <BrainSemanticSearch
+            className="w-40 sm:w-auto"
             memories={memories}
             personas={personas}
             categoryEmoji={PERSONA_CATEGORY_EMOJI}
@@ -2022,7 +2826,7 @@ export default function AIBrainGraph() {
             }}
           />
 
-          {/* Toggle Nucleo 3D rotante (effetto WOW) */}
+          {/* Toggle Globo 3D rotante (effetto WOW) */}
           <Button
             size="sm"
             variant="ghost"
@@ -2033,10 +2837,10 @@ export default function AIBrainGraph() {
                 : "bg-slate-900/95 text-slate-200 border-slate-600 hover:bg-slate-800 hover:text-white",
             )}
             onClick={() => setViewDim(viewDim === "core" ? "2d" : "core")}
-            title={viewDim === "core" ? "Esci dalla modalità Nucleo" : "Nucleo 3D — visione spaziale rotante"}
+            title={viewDim === "core" ? "Esci dal Globo 3D" : "Globo 3D — ruota la conoscenza da ogni angolazione"}
           >
             <Brain className="h-3 w-3" />
-            Nucleo 3D
+            Globo 3D
           </Button>
           {/* Quick actions: Galassia ↔ Dettaglio toggle (singolo pulsante) */}
           <Button
@@ -2074,22 +2878,62 @@ export default function AIBrainGraph() {
               {isSeeding ? "Popolo…" : "Demo"}
             </Button>
           )}
+          {/* Zoom controls */}
+          <div className="flex items-center overflow-hidden rounded-md border border-slate-600 bg-slate-900/95 shadow-sm backdrop-blur-sm">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 rounded-none border-0 text-slate-300 hover:bg-slate-800 hover:text-white"
+              onClick={zoomOutGraph}
+              aria-label="Zoom indietro"
+              title="Zoom indietro"
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 rounded-none border-0 border-l border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+              onClick={zoomInGraph}
+              aria-label="Zoom avanti"
+              title="Zoom avanti"
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 rounded-none border-0 border-l border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+              onClick={fitGraphToView}
+              aria-label="Adatta grafo alla vista"
+              title="Adatta grafo alla vista"
+            >
+              <Network className="h-3.5 w-3.5" />
+            </Button>
+          </div>
           {/* Reset */}
           <Button
+            type="button"
             size="icon"
             variant="ghost"
             className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
             onClick={resetView}
+            aria-label="Reset vista grafo"
             title="Reset vista"
           >
             <RotateCcw className="h-3.5 w-3.5" />
           </Button>
           {/* Fullscreen */}
           <Button
+            type="button"
             size="icon"
             variant="ghost"
             className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
             onClick={toggleFullscreen}
+            aria-label="Modalita fullscreen grafo"
             title={fullscreen ? "Esci fullscreen" : "Fullscreen"}
           >
             {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -2101,6 +2945,7 @@ export default function AIBrainGraph() {
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
+                aria-label="Opzioni avanzate grafo"
                 title="Opzioni avanzate"
               >
                 <Settings2 className="h-3.5 w-3.5" />
@@ -2108,7 +2953,8 @@ export default function AIBrainGraph() {
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="w-60 p-3 bg-slate-900/95 border-slate-600 text-slate-200 shadow-2xl"
+              sideOffset={8}
+              className="z-[80] w-60 p-3 bg-slate-900/95 border-slate-600 text-slate-200 shadow-2xl"
             >
               <div className="space-y-3">
                 <div>
@@ -2149,7 +2995,7 @@ export default function AIBrainGraph() {
                         viewDim === "3d" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
                       onClick={() => setViewDim("3d")}
-                      title="Spazio 3D prospettico"
+                      title="Globo manuale: trascina lo sfondo per ruotare"
                     >
                       3D
                     </button>
@@ -2159,10 +3005,10 @@ export default function AIBrainGraph() {
                         viewDim === "core" ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-slate-700",
                       )}
                       onClick={() => setViewDim("core")}
-                      title="Nucleo: 3D con rotazione automatica"
+                      title="Orbita automatica: trascina per cambiare angolo"
                     >
                       <Brain className="h-3 w-3" />
-                      Nucleo
+                      Orbita
                     </button>
                   </div>
                 </div>
@@ -2194,7 +3040,7 @@ export default function AIBrainGraph() {
           <div className="bg-slate-900/95 backdrop-blur-sm rounded-full border border-slate-600 px-3 py-1 shadow-lg">
             <p className="text-[10px] text-slate-300 flex items-center gap-1.5">
               <Sparkles className="h-3 w-3 text-orange-400" />
-              Click su una persona per esplorare le sue memorie
+              {viewDim === "2d" ? "Click su una persona per esplorare le sue memorie" : "Trascina lo spazio per ruotare il globo"}
             </p>
           </div>
         </div>
@@ -2254,7 +3100,7 @@ export default function AIBrainGraph() {
         </button>
 
         {insightsOpen && (
-          <div className="mt-1 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-600 p-2.5 w-64 space-y-2.5 shadow-2xl">
+          <div className="mt-1 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-600 p-2.5 w-72 max-h-[74vh] overflow-y-auto space-y-2.5 shadow-2xl">
             {/* Health */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -2278,6 +3124,82 @@ export default function AIBrainGraph() {
               <p className="text-[9px] text-slate-300 mt-0.5">
                 {insights.healthPct}% delle memorie usate almeno 1 volta
               </p>
+            </div>
+
+            {/* Memory quality */}
+            <div className="pt-2 border-t border-slate-700/80">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Affidabilita memoria</span>
+                <span className={cn(
+                  "text-[11px] font-bold tabular-nums",
+                  memoryQuality.reliabilityPct >= 75 ? "text-emerald-400" : memoryQuality.reliabilityPct >= 45 ? "text-amber-400" : "text-rose-400",
+                )}>
+                  {memoryQuality.reliabilityPct}%
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { label: "bassa fiducia", value: memoryQuality.lowConfidenceCount },
+                  { label: "vecchie", value: memoryQuality.staleCount },
+                  { label: "mai usate", value: memoryQuality.unusedCount },
+                  { label: "duplicate", value: memoryQuality.duplicateClusters.length },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1">
+                    <div className="text-[12px] font-bold text-slate-100 tabular-nums">{item.value}</div>
+                    <div className="text-[8px] uppercase tracking-wider text-slate-400">{item.label}</div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[9px] text-slate-300">
+                Fonti affidabili: <span className="text-emerald-300 font-semibold">{memoryQuality.trustedSourcePct}%</span>
+                {memoryQuality.demoCount > 0 && <> · demo preview: {memoryQuality.demoCount}</>}
+              </p>
+            </div>
+
+            {/* Community intelligence */}
+            {knowledgeCommunities.length > 0 && (
+              <div className="pt-2 border-t border-slate-700/80">
+                <div className="flex items-center gap-1 mb-1.5">
+                  <Network className="h-3 w-3 text-cyan-300" />
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Community intelligence</span>
+                </div>
+                <div className="space-y-1.5">
+                  {knowledgeCommunities.slice(0, 4).map((community) => (
+                    <div key={community.key} className="rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: community.color }} />
+                          <span className="truncate text-[10px] font-semibold text-slate-100">{community.label}</span>
+                        </div>
+                        <span className={cn(
+                          "text-[10px] font-bold tabular-nums",
+                          community.healthPct >= 75 ? "text-emerald-300" : community.healthPct >= 45 ? "text-amber-300" : "text-rose-300",
+                        )}>
+                          {community.healthPct}%
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[9px] text-slate-400">
+                        {community.activePersonaCount}/{community.personaCount} personas · {community.memoryCount} memorie · {community.crossLinks} ponti · {community.riskLabel}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action queue */}
+            <div className="pt-2 border-t border-slate-700/80">
+              <div className="flex items-center gap-1 mb-1">
+                <Zap className="h-3 w-3 text-orange-400" />
+                <span className="text-[9px] text-slate-300 uppercase tracking-wider font-semibold">Prossime azioni</span>
+              </div>
+              <div className="space-y-1">
+                {memoryQuality.qualityActionQueue.map((action) => (
+                  <div key={action} className="rounded-md bg-orange-500/10 border border-orange-500/20 px-2 py-1 text-[9px] text-orange-100">
+                    {action}
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* God nodes */}
@@ -2452,7 +3374,62 @@ export default function AIBrainGraph() {
         <div className="absolute bottom-3 right-3 z-10 w-72 bg-slate-900/95 backdrop-blur-md rounded-lg border border-slate-600 p-3 pointer-events-auto shadow-2xl">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              {selectedNode.data?.type === "persona" ? (
+              {selectedNode.data?.type === "silvio" ? (
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-orange-300 via-orange-500 to-red-600 flex items-center justify-center text-lg shadow-lg shadow-orange-500/40">
+                      🧠
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white leading-tight">Silvio</p>
+                      <p className="text-[9px] uppercase tracking-wider text-orange-300 font-semibold">orchestratore AI</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-200 leading-relaxed">
+                    Conosce la memoria aziendale, collega le personas e guida le risposte operative del sistema.
+                  </p>
+                  <div className="grid grid-cols-3 gap-1.5 mt-2">
+                    <div className="rounded-md bg-orange-500/15 border border-orange-500/30 px-2 py-1">
+                      <p className="text-sm font-bold text-orange-200 tabular-nums">{stats.personaCount}</p>
+                      <p className="text-[8px] uppercase tracking-wider text-orange-300">personas</p>
+                    </div>
+                    <div className="rounded-md bg-slate-800/80 border border-slate-600 px-2 py-1">
+                      <p className="text-sm font-bold text-slate-100 tabular-nums">{totalMemories}</p>
+                      <p className="text-[8px] uppercase tracking-wider text-slate-300">memorie</p>
+                    </div>
+                    <div className="rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2 py-1">
+                      <p className="text-sm font-bold text-emerald-200 tabular-nums">{totalCrossPersonaLinks}</p>
+                      <p className="text-[8px] uppercase tracking-wider text-emerald-300">ponti</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] text-orange-300 hover:text-orange-200 hover:bg-orange-500/20 gap-1 px-2 bg-orange-500/10 border border-orange-500/30"
+                      onClick={() => {
+                        setViewDim("core");
+                        graphRef.current?.centerGraph();
+                      }}
+                    >
+                      <Brain className="h-3 w-3" />
+                      Nucleo
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] text-slate-300 hover:text-white hover:bg-slate-800 gap-1 px-2"
+                      onClick={() => {
+                        setViewMode("detail");
+                        setExpandedPersonas(new Set(personas.map((p) => p.persona_key)));
+                      }}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      Vedi tutto
+                    </Button>
+                  </div>
+                </>
+              ) : selectedNode.data?.type === "persona" ? (
                 <>
                   <div className="flex items-center gap-2 mb-1">
                     <div
