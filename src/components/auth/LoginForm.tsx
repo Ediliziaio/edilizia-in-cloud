@@ -28,6 +28,7 @@ import { markSessionStarted } from "@/hooks/useSessionTimeout";
 import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
+import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 type ViewMode = "login" | "forgot" | "2fa" | "email-otp";
@@ -440,7 +441,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
                 toast({ title: "Accesso confermato", description: "Benvenuto!" });
                 // AuthContext rileva la sessione già attiva e ridirige automaticamente.
                 // Forziamo un reload per assicurarsi che la dashboard si carichi pulita.
-                window.location.href = "/azienda";
+                window.location.href = COMPANY_APP_HOME;
               }}
             />
           )}

@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Clock,
   DoorOpen,
+  DraftingCompass,
   Filter,
   GalleryHorizontalEnd,
   Grid3X3,
@@ -72,6 +73,19 @@ interface RecentRender {
 }
 
 const categories: RenderCategory[] = [
+  {
+    id: "planimetrie",
+    title: "Planimetrie AI",
+    description: "Da schizzo o PDF a CAD editabile, vista 3D e render per architetti",
+    icon: DraftingCompass,
+    color: "bg-slate-100 text-slate-800",
+    path: "/azienda/render/planimetrie",
+    active: true,
+    badge: "Nuovo",
+    group: "multi",
+    groupLabel: "Progettazione",
+    tags: ["planimetria", "sketch", "cad", "3d", "architetto"],
+  },
   {
     id: "infissi",
     title: "Infissi",
