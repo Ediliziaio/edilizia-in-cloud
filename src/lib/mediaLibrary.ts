@@ -3,6 +3,10 @@ export type MediaLibrarySource = "ai_analysis" | "computo" | "attachment";
 export type MediaLibraryCategory =
   | "tutti"
   | "inbox_ai"
+  | "prodotti"
+  | "finanziamenti"
+  | "computi"
+  | "render"
   | "preventivi"
   | "fiscale"
   | "cantieri"
@@ -123,21 +127,47 @@ export interface MediaLibraryLoadResult {
   warnings: string[];
 }
 
+export interface MediaLibraryCustomFolderRule {
+  name: string;
+  matchQuery: string | null;
+}
+
 const SENSITIVE_DOC_TYPES = new Set([
   "contratto",
   "documento_identita",
   "polizza_assicurativa",
   "verbale_collaudo",
-  "tabella_finanziamento",
 ]);
 
 const FISCAL_DOC_TYPES = new Set(["fattura", "ricevuta", "ddt", "nota_credito", "documento_fiscale"]);
-const QUOTE_DOC_TYPES = new Set(["preventivo", "computo_metrico", "listino_prezzi", "scheda_tecnica"]);
+const PRODUCT_DOC_TYPES = new Set([
+  "scheda_tecnica",
+  "scheda_prodotto",
+  "catalogo_prodotti",
+  "certificazione_prodotto",
+  "manuale_prodotto",
+  "manuale_installazione",
+  "listino_prezzi",
+  "distinta_materiali",
+]);
+const FINANCING_DOC_TYPES = new Set([
+  "tabella_finanziamento",
+  "piano_finanziario",
+  "finanziamento",
+  "finanziaria",
+  "noleggio_operativo",
+  "leasing",
+  "contratto_finanziario",
+]);
+const COMPUTO_DOC_TYPES = new Set(["computo_metrico", "computo", "cme"]);
+const RENDER_DOC_TYPES = new Set(["render", "render_ai", "foto_render", "immagine_render"]);
+const QUOTE_DOC_TYPES = new Set(["preventivo", "offerta", "proposta_commerciale"]);
 const SITE_DOC_TYPES = new Set(["verbale_cantiere", "rapportino", "sal", "documento_pa"]);
 const CRM_DOC_TYPES = new Set(["biglietto_visita", "lead_form", "documento_cliente"]);
 const MEDIA_DOC_TYPES = new Set(["foto_generale", "render", "immagine", "video", "audio"]);
 const SITE_ENTITY_TABLES = new Set(["orders", "tickets", "giornale_lavori", "sicurezza_cantiere", "subappaltatori"]);
-const QUOTE_ENTITY_TABLES = new Set(["quotes", "quote_items", "computo_uploads"]);
+const QUOTE_ENTITY_TABLES = new Set(["quotes", "quote_items"]);
+const COMPUTO_ENTITY_TABLES = new Set(["computo_uploads", "computo_voci_estratte"]);
 const FISCAL_ENTITY_TABLES = new Set(["invoices", "billing_documents", "purchase_orders", "expenses"]);
 const CRM_ENTITY_TABLES = new Set(["customers", "profiles", "opportunities", "marketing_contacts", "contacts"]);
 
@@ -248,6 +278,22 @@ function inferProfile(input: BuildMediaLibraryItemInput): Pick<MediaLibraryItem,
     return { category: "fiscale", securityLevel: "restricted", areaLabel: "Finanza" };
   }
 
+  if (FINANCING_DOC_TYPES.has(docType)) {
+    return { category: "finanziamenti", securityLevel: "restricted", areaLabel: "Finanziamenti" };
+  }
+
+  if (PRODUCT_DOC_TYPES.has(docType)) {
+    return { category: "prodotti", securityLevel: "standard", areaLabel: "Prodotti" };
+  }
+
+  if (COMPUTO_DOC_TYPES.has(docType) || input.source === "computo") {
+    return { category: "computi", securityLevel: "standard", areaLabel: "Computi metrici" };
+  }
+
+  if (RENDER_DOC_TYPES.has(docType)) {
+    return { category: "render", securityLevel: "standard", areaLabel: "Render" };
+  }
+
   if (QUOTE_DOC_TYPES.has(docType) || input.source === "computo") {
     return { category: "preventivi", securityLevel: "standard", areaLabel: "Preventivi" };
   }
@@ -270,6 +316,10 @@ function inferProfile(input: BuildMediaLibraryItemInput): Pick<MediaLibraryItem,
 
   if (QUOTE_ENTITY_TABLES.has(entityTable)) {
     return { category: "preventivi", securityLevel: "standard", areaLabel: "Preventivi" };
+  }
+
+  if (COMPUTO_ENTITY_TABLES.has(entityTable)) {
+    return { category: "computi", securityLevel: "standard", areaLabel: "Computi metrici" };
   }
 
   if (FISCAL_ENTITY_TABLES.has(entityTable)) {
@@ -362,6 +412,21 @@ export function canViewMediaLibraryCategory(
   switch (category) {
     case "riservati":
       return Boolean(permissions.canViewSettingsCustomization);
+    case "finanziamenti":
+      return Boolean(
+        permissions.canViewBilling ||
+          permissions.canViewPrimaNota ||
+          permissions.canViewTesoreria ||
+          permissions.canViewCosts ||
+          permissions.canViewMarketingOpportunities ||
+          permissions.canViewSettingsCustomization,
+      );
+    case "prodotti":
+      return Boolean(permissions.canViewMarketingOpportunities || permissions.canViewOrders || permissions.canViewWarehouse || permissions.canViewSettingsCustomization);
+    case "computi":
+      return Boolean(permissions.canViewMarketingOpportunities || permissions.canViewOrders || permissions.canViewCosts || permissions.canViewSettingsCustomization);
+    case "render":
+      return Boolean(permissions.canViewRenderAi || permissions.canViewMarketingDashboard || permissions.canViewOrders);
     case "fiscale":
       return Boolean(permissions.canViewBilling || permissions.canViewPrimaNota || permissions.canViewTesoreria || permissions.canViewCosts);
     case "preventivi":
@@ -407,14 +472,13 @@ export function mediaLibraryItemMatchesTab(item: MediaLibraryItem, tab: MediaLib
   return item.category === tab;
 }
 
-export function mediaLibraryItemMatchesSearch(item: MediaLibraryItem, query: string): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return true;
-
+function buildSearchText(item: MediaLibraryItem): string {
   return [
     item.fileName,
     item.docType,
+    item.docSubtype,
     item.areaLabel,
+    item.category,
     item.linkedEntityLabel,
     item.linkedEntityTable,
     item.linkedEntityId,
@@ -422,10 +486,67 @@ export function mediaLibraryItemMatchesSearch(item: MediaLibraryItem, query: str
     item.actorId,
     item.integrationLabel,
     item.actionLabel,
+    item.storageBucket,
+    item.storagePath,
     ...item.metadataFacts,
   ]
     .filter(Boolean)
-    .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+    .join(" ")
+    .toLowerCase();
+}
+
+export function mediaLibraryItemMatchesSearch(item: MediaLibraryItem, query: string): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+
+  return buildSearchText(item).includes(normalizedQuery);
+}
+
+export function buildDefaultFolderMatchQuery(name: string): string {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized.includes("prodott") || normalized.includes("schede")) {
+    return "scheda prodotto, scheda tecnica, catalogo, certificazione prodotto, listino";
+  }
+  if (normalized.includes("finanzi") || normalized.includes("leasing") || normalized.includes("noleggio")) {
+    return "finanziamento, finanziaria, tabella finanziamento, leasing, noleggio operativo";
+  }
+  if (normalized.includes("comput")) {
+    return "computo metrico, cme, computo_uploads";
+  }
+  if (normalized.includes("render") || normalized.includes("immagin")) {
+    return "render, render ai, immagine render";
+  }
+  return name.trim();
+}
+
+export function createMediaLibraryFolderSlug(name: string): string {
+  const base = name
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+
+  return `${base || "cartella"}-${Date.now().toString(36)}`;
+}
+
+export function mediaLibraryItemMatchesCustomFolder(
+  item: MediaLibraryItem,
+  folder: MediaLibraryCustomFolderRule,
+): boolean {
+  const rawQuery = (folder.matchQuery ?? "").trim();
+  if (!rawQuery) return false;
+  const tokens = rawQuery
+    .split(/[,\n;|]+/)
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (tokens.length === 0) return false;
+  const searchText = buildSearchText(item);
+  return tokens.some((token) => searchText.includes(token));
 }
 
 export function combineMediaLibrarySourceBatches(batches: MediaLibrarySourceBatch[]): MediaLibraryLoadResult {

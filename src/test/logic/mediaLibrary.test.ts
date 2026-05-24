@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMediaLibraryItem,
+  buildDefaultFolderMatchQuery,
   canAccessMediaLibrary,
   combineMediaLibrarySourceBatches,
+  createMediaLibraryFolderSlug,
   filterMediaLibraryItemsForPermissions,
+  mediaLibraryItemMatchesCustomFolder,
   mediaLibraryItemMatchesTab,
   mediaLibraryItemMatchesSearch,
   pickMediaLibraryDetailItem,
@@ -69,9 +72,9 @@ describe("media library rules", () => {
         createdAt: "2026-05-24T08:00:00Z",
       }),
     ).toMatchObject({
-      category: "preventivi",
+      category: "computi",
       securityLevel: "standard",
-      areaLabel: "Preventivi",
+      areaLabel: "Computi metrici",
     });
 
     expect(
@@ -87,6 +90,42 @@ describe("media library rules", () => {
       category: "foto_media",
       areaLabel: "Cantieri",
     });
+  });
+
+  it("routes product sheets, financing documents, computi and render into dedicated drive folders", () => {
+    expect(
+      buildMediaLibraryItem({
+        id: "product-sheet",
+        source: "ai_analysis",
+        fileName: "scheda prodotto infisso.pdf",
+        docType: "scheda_tecnica",
+        status: "success",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+    ).toMatchObject({ category: "prodotti", areaLabel: "Prodotti", securityLevel: "standard" });
+
+    expect(
+      buildMediaLibraryItem({
+        id: "finance",
+        source: "ai_analysis",
+        fileName: "piano finanziario cliente.pdf",
+        docType: "tabella_finanziamento",
+        status: "success",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+    ).toMatchObject({ category: "finanziamenti", areaLabel: "Finanziamenti", securityLevel: "restricted" });
+
+    expect(
+      buildMediaLibraryItem({
+        id: "render",
+        source: "attachment",
+        fileName: "render cucina.png",
+        docType: "render",
+        status: "attached",
+        mimeType: "image/png",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+    ).toMatchObject({ category: "render", areaLabel: "Render" });
   });
 
   it("adds smart drive metadata for author, integration and document history", () => {
@@ -333,6 +372,31 @@ describe("media library rules", () => {
     expect(mediaLibraryItemMatchesSearch(item, "preventivi")).toBe(true);
     expect(mediaLibraryItemMatchesSearch(item, "bagno")).toBe(true);
     expect(mediaLibraryItemMatchesSearch(item, "fattura")).toBe(false);
+  });
+
+  it("matches user folders through smart keywords without leaking empty folders", () => {
+    const product = buildMediaLibraryItem({
+      id: "product",
+      source: "ai_analysis",
+      fileName: "scheda tecnica pompa di calore.pdf",
+      docType: "scheda_tecnica",
+      status: "success",
+      createdAt: "2026-05-24T08:00:00Z",
+    });
+    const invoice = buildMediaLibraryItem({
+      id: "invoice",
+      source: "ai_analysis",
+      fileName: "fattura fornitore.pdf",
+      docType: "fattura",
+      status: "success",
+      createdAt: "2026-05-24T08:00:00Z",
+    });
+
+    expect(buildDefaultFolderMatchQuery("Prodotti")).toContain("scheda prodotto");
+    expect(createMediaLibraryFolderSlug("Schede prodotti")).toMatch(/^schede-prodotti-[a-z0-9]+$/);
+    expect(mediaLibraryItemMatchesCustomFolder(product, { name: "Prodotti", matchQuery: "scheda tecnica, catalogo" })).toBe(true);
+    expect(mediaLibraryItemMatchesCustomFolder(invoice, { name: "Prodotti", matchQuery: "scheda tecnica, catalogo" })).toBe(false);
+    expect(mediaLibraryItemMatchesCustomFolder(product, { name: "Cartella vuota", matchQuery: "" })).toBe(false);
   });
 
   it("summarizes drive state for KPI cards and cleanup queues", () => {
