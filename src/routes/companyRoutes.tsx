@@ -100,7 +100,6 @@ const SettingsWebhooks = lazy(() => import("@/pages/azienda/settings/SettingsWeb
 const SettingsEmailDomain = lazy(() => import("@/pages/azienda/settings/SettingsEmailDomain"));
 const SettingsEmailPreferences = lazy(() => import("@/pages/azienda/settings/SettingsEmailPreferences"));
 const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBranding"));
-const SettingsBilling = lazy(() => import("@/pages/azienda/settings/SettingsBilling"));
 // v8.6.57 — Wrapper unificato Fatturazione (tab provider esterni + nativa SDI)
 const SettingsFatturazioneUnified = lazy(() => import("@/pages/azienda/settings/SettingsFatturazioneUnified"));
 const SettingsSubscriptionBilling = lazy(() => import("@/pages/azienda/settings/SettingsSubscriptionBilling"));
@@ -139,7 +138,6 @@ function AttivitaRouter() {
 // MP-CLEANUP: MessagingBeta rimosso — dominio "Messaggi Esterni" eliminato.
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
-const AssistenteAIPage = lazy(() => import("@/pages/azienda/AssistenteAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
 const RenderCategoryHub = lazy(() => import("@/pages/azienda/RenderCategoryHub"));
 const RenderHub = lazy(() => import("@/pages/azienda/RenderHub"));
@@ -198,8 +196,6 @@ const FirmaCliente = lazy(() => import("@/pages/azienda/sopralluoghi/FirmaClient
 const SettingsSopralluoghi = lazy(() => import("@/pages/azienda/impostazioni/SettingsSopralluoghi"));
 // 🆕 GAP 7b: callback OAuth Gmail/Outlook
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
-// 🆕 GAP 9b: pagina gestione memoria AI personas
-const AIMemoryPage = lazy(() => import("@/pages/azienda/AIMemoryPage"));
 const AIPersonasHub = lazy(() => import("@/pages/azienda/impostazioni/AIPersonasHub"));
 const SettingsAIAutomazioni = lazy(() => import("@/pages/azienda/impostazioni/SettingsAIAutomazioni"));
 // Preferenze canale notifiche personali (parte del bulk scheduler)
@@ -255,6 +251,7 @@ const MarketingCalendar = lazy(() => import("@/pages/azienda/marketing/Marketing
 const MarketingAutomationBuilder = lazy(() => import("@/pages/azienda/marketing/MarketingAutomationBuilder"));
 const MarketingContactDetail = lazy(() => import("@/pages/azienda/marketing/MarketingContactDetail"));
 const EmailMarketing = lazy(() => import("@/pages/azienda/marketing/EmailMarketing"));
+const ReputationManager = lazy(() => import("@/pages/azienda/marketing/ReputationManager"));
 const CampaignEditor = lazy(() => import("@/pages/azienda/marketing/CampaignEditor"));
 const CampaignSendSettings = lazy(() => import("@/pages/azienda/marketing/CampaignSendSettings"));
 const DragDropEmailBuilder = lazy(() => import("@/pages/azienda/marketing/DragDropEmailBuilder"));
@@ -449,7 +446,7 @@ export default function CompanyRoutesContainer() {
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
         <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />
-        <Route path="personale/portale" element={withCompanyPermission("canViewPersone", <PortalePage />)} />
+        <Route path="personale/portale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PortalePage /></FeatureRoute>)} />
         <Route path="personale/timbratura" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>)} />
         {/* Tesoreria — gated: tesoreria (core, default abilitato su tutti i piani) */}
         <Route path="tesoreria" element={withCompanyPermission("canViewTesoreria", <FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>)} />
@@ -601,6 +598,7 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
         <Route path="marketing/pubblicita" element={withCompanyPermission("canViewMarketingDashboard", <AdsManagerBeta />)} />
         <Route path="marketing/social" element={withCompanyPermission("canViewMarketingDashboard", <SocialManagerBeta />)} />
+        <Route path="marketing/reputazione" element={withCompanyPermission("canViewMarketingDashboard", <ReputationManager />)} />
         <Route path="marketing/ads" element={<Navigate to="/azienda/marketing/pubblicita" replace />} />
         <Route path="marketing/meta-ads" element={<Navigate to="/azienda/marketing/pubblicita" replace />} />
         <Route path="marketing/sms" element={<Navigate to="/azienda/sms-marketing" replace />} />
@@ -782,11 +780,4 @@ export default function CompanyRoutesContainer() {
       </Route>
     </Routes>
   );
-}
-
-// Backward compat: la function-style `companyRoutes()` ritorna un fragment
-// con tutte le routes (path RELATIVI al wildcard parent). Non piu' usata dopo
-// il refactor lazy, ma mantenuta esportata per non rompere eventuali consumer.
-export function companyRoutes() {
-  return <CompanyRoutesContainer />;
 }

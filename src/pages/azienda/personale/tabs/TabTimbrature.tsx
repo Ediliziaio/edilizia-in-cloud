@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useTimbratureAdmin, useLiveStatus } from "@/hooks/useTimbratura";
+import { useTimbratureAdmin, useLiveStatus, type LiveStatusProfilo, type TimbraturaAdminRow } from "@/hooks/useTimbratura";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Clock, LogIn, LogOut, Coffee, MapPin, Loader2 } from "lucide-react";
+import { AlertCircle, Clock, LogIn, LogOut, Coffee, MapPin, Loader2 } from "lucide-react";
 
 const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: string }> = {
   entrata: { icon: LogIn, label: "Entrata", color: "text-emerald-600" },
@@ -19,6 +21,31 @@ const TIPO_ICONS: Record<string, { icon: typeof LogIn; label: string; color: str
   inizio_pausa: { icon: Coffee, label: "Inizio Pausa", color: "text-amber-500" },
   fine_pausa: { icon: Coffee, label: "Fine Pausa", color: "text-blue-500" },
 };
+
+type CampoTimbraturaRow = Tables<"campo_timbrature"> & {
+  profile?: { first_name: string | null; last_name: string | null } | null;
+  order?: { order_code: string | null; description: string | null } | null;
+};
+
+function useLoadingTimeout(isLoading: boolean, delayMs = 8000) {
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setTimedOut(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs, isLoading]);
+
+  return timedOut;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Dati temporaneamente non disponibili";
+}
 
 export function TabTimbrature() {
   const today = new Date().toISOString().slice(0, 10);
@@ -30,10 +57,10 @@ export function TabTimbrature() {
   const rangeFrom = dateFrom <= dateTo ? dateFrom : dateTo;
   const rangeTo = dateFrom <= dateTo ? dateTo : dateFrom;
 
-  const { data: timbrature = [], isLoading } = useTimbratureAdmin(rangeFrom, rangeTo);
+  const { data: timbrature = [], isLoading, isError, error, refetch, isFetching } = useTimbratureAdmin(rangeFrom, rangeTo);
   const { data: liveStatus = [] } = useLiveStatus();
 
-  const { data: timbratureCampo = [], isLoading: loadingCampo } = useQuery({
+  const { data: timbratureCampo = [], isLoading: loadingCampo, isError: isCampoError, error: campoError, refetch: refetchCampo, isFetching: isFetchingCampo } = useQuery({
     queryKey: ["campo-timbrature-admin", companyId, rangeFrom, rangeTo],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -48,14 +75,25 @@ export function TabTimbrature() {
         .lte("timestamp_evento", `${rangeTo}T23:59:59`)
         .order("timestamp_evento", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as CampoTimbraturaRow[];
     },
     enabled: !!companyId,
   });
+  const timbratureTimedOut = useLoadingTimeout(isLoading);
+  const campoTimedOut = useLoadingTimeout(loadingCampo);
 
-  const filtered = timbrature.filter((t: any) => {
-    if (!filterName) return true;
-    return `${t.profilo_nome} ${t.profilo_cognome}`.toLowerCase().includes(filterName.toLowerCase());
+  const normalizedFilter = filterName.trim().toLowerCase();
+
+  const filtered = (timbrature as TimbraturaAdminRow[]).filter((t) => {
+    if (!normalizedFilter) return true;
+    return `${t.profilo_nome} ${t.profilo_cognome}`.toLowerCase().includes(normalizedFilter);
+  });
+
+  const filteredCampo = timbratureCampo.filter((t) => {
+    if (!normalizedFilter) return true;
+    const operaio = `${t.profile?.first_name ?? ""} ${t.profile?.last_name ?? ""}`.toLowerCase();
+    const cantiere = `${t.order?.order_code ?? ""} ${t.order?.description ?? ""}`.toLowerCase();
+    return operaio.includes(normalizedFilter) || cantiere.includes(normalizedFilter);
   });
 
   return (
@@ -73,7 +111,7 @@ export function TabTimbrature() {
             <p className="text-sm text-muted-foreground">Nessun profilo HR attivo</p>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {liveStatus.map((p: any) => (
+              {(liveStatus as LiveStatusProfilo[]).map((p) => (
                 <div
                   key={p.id}
                   className="flex items-center gap-2 rounded-lg border p-2"
@@ -144,10 +182,25 @@ export function TabTimbrature() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {isLoading && !timbratureTimedOut ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Caricamento...
+                  </TableCell>
+                </TableRow>
+              ) : isError || timbratureTimedOut ? (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
+                      <AlertCircle className="h-10 w-10 text-amber-500" aria-hidden="true" />
+                      <p className="text-sm font-medium text-foreground">Timbrature non caricate</p>
+                      <p className="max-w-md text-xs text-muted-foreground">
+                        {isError ? getErrorMessage(error) : "La risposta sta impiegando troppo tempo. Puoi riprovare senza cambiare pagina."}
+                      </p>
+                      <Button size="sm" variant="outline" onClick={() => refetch()}>
+                        {isFetching ? "Forza nuovo tentativo" : "Riprova"}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
@@ -165,7 +218,7 @@ export function TabTimbrature() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((t: any) => {
+                filtered.map((t) => {
                     const tipoInfo = TIPO_ICONS[t.tipo] || { icon: Clock, label: t.tipo, color: "text-foreground" };
                   const TipoIcon = tipoInfo.icon;
                   return (
@@ -218,14 +271,27 @@ export function TabTimbrature() {
         <div className="flex items-center gap-2 mb-3">
           <h3 className="text-base font-semibold">Timbrature App Campo</h3>
           <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-            {timbratureCampo.length} timbrature
+            {filteredCampo.length} timbrature
           </Badge>
         </div>
-        {loadingCampo ? (
+        {loadingCampo && !campoTimedOut ? (
           <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5" /></div>
-        ) : timbratureCampo.length === 0 ? (
+        ) : isCampoError || campoTimedOut ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-8 text-center">
+            <AlertCircle className="mb-2 h-8 w-8 text-amber-500" aria-hidden="true" />
+            <p className="text-sm font-medium">Timbrature App Campo non caricate</p>
+            <p className="mt-1 max-w-md text-xs text-muted-foreground">
+              {isCampoError ? getErrorMessage(campoError) : "La risposta sta impiegando troppo tempo. Puoi riprovare."}
+            </p>
+            <Button className="mt-3" size="sm" variant="outline" onClick={() => refetchCampo()}>
+              {isFetchingCampo ? "Forza nuovo tentativo" : "Riprova"}
+            </Button>
+          </div>
+        ) : filteredCampo.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
-            Nessuna timbratura dall'app campo nel periodo selezionato
+            {filterName
+              ? `Nessuna timbratura app campo per "${filterName}" nel periodo selezionato`
+              : "Nessuna timbratura dall'app campo nel periodo selezionato"}
           </p>
         ) : (
           <Table>
@@ -240,7 +306,7 @@ export function TabTimbrature() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {timbratureCampo.map((t: any) => (
+              {filteredCampo.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-medium text-sm">
                     {t.profile?.first_name} {t.profile?.last_name}

@@ -133,6 +133,7 @@ const NpsSurvey = lazy(() => import("@/pages/feedback/NpsSurvey"));
 const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const PublicChatWidgetPage = lazy(() => import("@/pages/widget/PublicChatWidgetPage"));
+const PublicReview = lazy(() => import("@/pages/public/PublicReview"));
 const SiteChatWidget = lazy(() =>
   import("@/components/public-chat/SiteChatWidget").then((m) => ({ default: m.SiteChatWidget })),
 );
@@ -532,6 +533,7 @@ const App = () => (
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
               <Route path="/feedback/nps" element={<NpsSurvey />} />
+              <Route path="/review/:companyId" element={<PublicReview />} />
               {/* Microsito pubblico Serramenti (no login, token-based) */}
               <Route path="/stima/:token" element={<SerramentiStimaPubblica />} />
 

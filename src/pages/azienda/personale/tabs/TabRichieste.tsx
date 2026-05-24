@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { useRichieste, useCreateRichiesta, useUpdateRichiestaStato, type RichiestaWithProfilo } from "@/hooks/useRichieste";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
@@ -11,10 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Clock, CheckCircle2, XCircle, AlertCircle, Filter, Calendar } from "lucide-react";
+import { Plus, Clock, CheckCircle2, XCircle, AlertCircle, Filter, Calendar, type LucideIcon } from "lucide-react";
 import { format, differenceInCalendarDays } from "date-fns";
 import { it } from "date-fns/locale";
-import type { RichiestaTipo, RichiestaStato } from "@/types/hr";
+import type { HrProfilo, RichiestaTipo, RichiestaStato } from "@/types/hr";
 
 const TIPO_LABELS: Record<RichiestaTipo, string> = {
   ferie: "Ferie",
@@ -34,7 +34,7 @@ const TIPO_LABELS: Record<RichiestaTipo, string> = {
   formazione: "Formazione",
 };
 
-const STATO_STYLE: Record<RichiestaStato, { bg: string; text: string; icon: any; label: string }> = {
+const STATO_STYLE: Record<RichiestaStato, { bg: string; text: string; icon: LucideIcon; label: string }> = {
   in_attesa: { bg: "bg-amber-100", text: "text-amber-700", icon: Clock, label: "In attesa" },
   approvata: { bg: "bg-emerald-100", text: "text-emerald-700", icon: CheckCircle2, label: "Approvata" },
   rifiutata: { bg: "bg-red-100", text: "text-red-600", icon: XCircle, label: "Rifiutata" },
@@ -42,16 +42,44 @@ const STATO_STYLE: Record<RichiestaStato, { bg: string; text: string; icon: any;
   revocata: { bg: "bg-muted", text: "text-muted-foreground", icon: AlertCircle, label: "Revocata" },
 };
 
+const STATO_FILTER_VALUES = ["tutte", "in_attesa", "approvata", "rifiutata", "annullata"] as const;
+type RichiestaStatoFilter = (typeof STATO_FILTER_VALUES)[number];
+
+function isRichiestaStatoFilter(value: string): value is RichiestaStatoFilter {
+  return STATO_FILTER_VALUES.includes(value as RichiestaStatoFilter);
+}
+
+function useLoadingTimeout(isLoading: boolean, delayMs = 8000) {
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setTimedOut(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs, isLoading]);
+
+  return timedOut;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Dati temporaneamente non disponibili";
+}
+
 export function TabRichieste() {
-  const [statoFilter, setStatoFilter] = useState<RichiestaStato | "tutte">("tutte");
+  const [statoFilter, setStatoFilter] = useState<RichiestaStatoFilter>("tutte");
   const [searchText, setSearchText] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [detailReq, setDetailReq] = useState<RichiestaWithProfilo | null>(null);
 
-  const { data: richieste = [], isLoading } = useRichieste(
+  const { data: richieste = [], isLoading, isError, error, refetch, isFetching } = useRichieste(
     statoFilter !== "tutte" ? { stato: statoFilter } : undefined
   );
   const { data: profili = [] } = useAllHrProfili();
+  const loadingTimedOut = useLoadingTimeout(isLoading);
 
   const filtered = useMemo(() => {
     if (!searchText) return richieste;
@@ -87,7 +115,9 @@ export function TabRichieste() {
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as any)}>
+          <Select value={statoFilter} onValueChange={(value) => {
+            if (isRichiestaStatoFilter(value)) setStatoFilter(value);
+          }}>
             <SelectTrigger className="w-[140px] h-9">
               <SelectValue />
             </SelectTrigger>
@@ -114,8 +144,21 @@ export function TabRichieste() {
       </div>
 
       {/* List */}
-      {isLoading ? (
+      {isLoading && !loadingTimedOut ? (
         <div className="text-center py-12 text-muted-foreground">Caricamento...</div>
+      ) : isError || loadingTimedOut ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" aria-hidden="true" />
+            <p className="text-sm font-medium text-foreground">Richieste non caricate</p>
+            <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+              {isError ? getErrorMessage(error) : "La risposta sta impiegando troppo tempo. Puoi riprovare senza uscire dalla pagina."}
+            </p>
+            <Button className="mt-4" size="sm" variant="outline" onClick={() => refetch()}>
+              {isFetching ? "Forza nuovo tentativo" : "Riprova"}
+            </Button>
+          </CardContent>
+        </Card>
       ) : filtered.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">Nessuna richiesta trovata.</CardContent></Card>
       ) : (
@@ -147,7 +190,7 @@ export function TabRichieste() {
   );
 }
 
-function KpiCard({ title, value, icon: Icon, className }: { title: string; value: number; icon: any; className?: string }) {
+function KpiCard({ title, value, icon: Icon, className }: { title: string; value: number; icon: LucideIcon; className?: string }) {
   return (
     <Card className={className}>
       <CardContent className="p-4 flex items-center gap-3">
@@ -203,7 +246,7 @@ function RichiestaRow({ richiesta: r, onClick }: { richiesta: RichiestaWithProfi
 }
 
 /* ── New request dialog ── */
-function NuovaRichiestaDialog({ profili, open, onClose }: { profili: any[]; open: boolean; onClose: () => void }) {
+function NuovaRichiestaDialog({ profili, open, onClose }: { profili: HrProfilo[]; open: boolean; onClose: () => void }) {
   const create = useCreateRichiesta();
   const [profiloId, setProfiloId] = useState("");
   const [tipo, setTipo] = useState<RichiestaTipo>("ferie");
@@ -211,10 +254,44 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: any[]; open
   const [dataFine, setDataFine] = useState("");
   const [ore, setOre] = useState("");
   const [motivo, setMotivo] = useState("");
+  const activeProfili = useMemo(() => profili.filter((p) => p.attivo), [profili]);
+  const selectedProfilo = useMemo(() => profili.find((p) => p.id === profiloId), [profili, profiloId]);
+  const durataGiorni = dataInizio && dataFine && dataFine >= dataInizio
+    ? differenceInCalendarDays(new Date(dataFine), new Date(dataInizio)) + 1
+    : 0;
+  const oreStimate = ore.trim()
+    ? Number(ore)
+    : durataGiorni * Number(selectedProfilo?.ore_giornaliere || 8);
+
+  const saldoHint = useMemo(() => {
+    if (!selectedProfilo || durataGiorni <= 0) return null;
+    if (tipo === "ferie") {
+      return {
+        label: "Ferie",
+        available: `${Number(selectedProfilo.ferie_residue ?? 0)} gg disponibili`,
+        requested: `${durataGiorni} gg richiesti`,
+      };
+    }
+    if (tipo === "permesso") {
+      return {
+        label: "Permessi",
+        available: `${Number(selectedProfilo.permessi_residui_ore ?? 0)}h disponibili`,
+        requested: `${oreStimate || 0}h richieste`,
+      };
+    }
+    if (tipo === "rol") {
+      return {
+        label: "ROL",
+        available: `${Number(selectedProfilo.rol_residuo_ore ?? 0)}h disponibili`,
+        requested: `${oreStimate || 0}h richieste`,
+      };
+    }
+    return null;
+  }, [durataGiorni, oreStimate, selectedProfilo, tipo]);
 
   const handleSubmit = () => {
     if (!profiloId || !dataInizio || !dataFine) {
-      toast_missing();
+      toastMissing();
       return;
     }
 
@@ -249,9 +326,13 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: any[]; open
               <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
               <SelectContent>
                 <ScrollArea className="max-h-[200px]">
-                  {profili.filter((p) => p.attivo).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.nome} {p.cognome}</SelectItem>
-                  ))}
+                  {activeProfili.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">Nessun profilo attivo disponibile</div>
+                  ) : (
+                    activeProfili.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.nome} {p.cognome}</SelectItem>
+                    ))
+                  )}
                 </ScrollArea>
               </SelectContent>
             </Select>
@@ -281,6 +362,17 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: any[]; open
             <Label>Ore richieste (opzionale)</Label>
             <Input type="number" min={0} step={0.5} value={ore} onChange={(e) => setOre(e.target.value)} placeholder="Es. 4" />
           </div>
+          {saldoHint && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-medium">{saldoHint.label}: {saldoHint.requested}</p>
+                  <p className="text-amber-800">{saldoHint.available}. Il sistema blocca richieste sopra saldo o sovrapposte.</p>
+                </div>
+              </div>
+            </div>
+          )}
           <div>
             <Label>Motivo</Label>
             <Textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo della richiesta..." rows={2} />
@@ -297,7 +389,7 @@ function NuovaRichiestaDialog({ profili, open, onClose }: { profili: any[]; open
   );
 }
 
-function toast_missing() {
+function toastMissing() {
   toast.error("Compila tutti i campi obbligatori");
 }
 

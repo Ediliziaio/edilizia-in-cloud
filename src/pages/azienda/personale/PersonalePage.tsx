@@ -1,5 +1,8 @@
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen } from "lucide-react";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard } from "lucide-react";
+import { TabRegiaHr } from "./tabs/TabRegiaHr";
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
 import { TabPresenze } from "./tabs/TabPresenze";
@@ -17,6 +20,34 @@ import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner
 export default function PersonalePage() {
   const hasFleetTrack = useFleetTrackAccess();
   const { isScopriPlan } = useSubscriptionLimits();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const availableTabs = useMemo(() => {
+    const tabs = [
+      "regia",
+      "organigramma",
+      "profili",
+      "timbrature",
+      "presenze",
+      "richieste",
+      "sedi",
+      "festivita",
+      "cedolini",
+      "documenti",
+    ];
+    if (hasFleetTrack) tabs.push("gps-percorsi");
+    return tabs;
+  }, [hasFleetTrack]);
+
+  const rawTab = searchParams.get("tab");
+  const activeTab = rawTab && availableTabs.includes(rawTab) ? rawTab : "regia";
+
+  const handleTabChange = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === "regia") next.delete("tab");
+    else next.set("tab", value);
+    setSearchParams(next);
+  };
 
   if (isScopriPlan) return <UpgradeScopriWall type="hr_completo" inline />;
 
@@ -34,8 +65,11 @@ export default function PersonalePage() {
         </div>
       </div>
 
-      <Tabs defaultValue="organigramma" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="flex flex-nowrap h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm w-full justify-start overflow-x-auto scrollbar-none">
+          <TabsTrigger value="regia" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <LayoutDashboard className="h-4 w-4" /> Regia HR
+          </TabsTrigger>
           <TabsTrigger value="organigramma" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Network className="h-4 w-4" /> Organigramma
           </TabsTrigger>
@@ -70,6 +104,9 @@ export default function PersonalePage() {
           )}
         </TabsList>
 
+        <TabsContent value="regia">
+          <TabRegiaHr onNavigate={handleTabChange} />
+        </TabsContent>
         <TabsContent value="organigramma">
           <TabOrganigramma />
         </TabsContent>

@@ -135,6 +135,10 @@ interface PortalTemplate {
 
 const STORAGE_KEY = "eic-personale-portale-courses-v1";
 
+function getPortalStorageKey(companyId: string | null | undefined) {
+  return companyId ? `${STORAGE_KEY}:${companyId}` : STORAGE_KEY;
+}
+
 const areaLabels: Record<PortalArea, string> = {
   sicurezza: "Sicurezza",
   procedure: "Procedure",
@@ -389,10 +393,10 @@ const assetTypeLabels: Record<PortalAssetType, string> = {
 
 const contentAssetTypes = new Set<PortalAssetType>(["testo", "procedura", "quiz"]);
 
-function loadCourses(): PortalCourse[] {
+function loadCourses(companyId?: string | null): PortalCourse[] {
   if (typeof window === "undefined") return defaultCourses;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(getPortalStorageKey(companyId));
     if (!raw) return defaultCourses;
     const parsed = JSON.parse(raw) as PortalCourse[];
     return Array.isArray(parsed) && parsed.length > 0 ? parsed.map(normalizePortalCourse) : defaultCourses;
@@ -549,7 +553,7 @@ function cloneTemplateCourse(template: PortalTemplate): PortalCourse {
 export default function PortalePage() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
-  const [courses, setCourses] = useState<PortalCourse[]>(loadCourses);
+  const [courses, setCourses] = useState<PortalCourse[]>(() => loadCourses(companyId));
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? "");
   const [remoteEnabled, setRemoteEnabled] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"locale" | "caricamento" | "sincronizzato">("locale");
@@ -630,21 +634,27 @@ export default function PortalePage() {
   };
 
   useEffect(() => {
+    const saveState = saveStateRef.current;
     return () => {
       mountedRef.current = false;
-      if (saveStateRef.current.timer) {
-        clearTimeout(saveStateRef.current.timer);
+      if (saveState.timer) {
+        clearTimeout(saveState.timer);
       }
     };
   }, []);
 
   useEffect(() => {
+    setCourses(loadCourses(companyId));
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!companyId) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(courses));
+      window.localStorage.setItem(getPortalStorageKey(companyId), JSON.stringify(courses));
     } catch {
       // La pagina deve restare utilizzabile anche se il browser blocca lo storage locale.
     }
-  }, [courses]);
+  }, [companyId, courses]);
 
   useEffect(() => {
     let active = true;

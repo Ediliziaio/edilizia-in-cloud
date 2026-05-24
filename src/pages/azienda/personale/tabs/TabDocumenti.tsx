@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { FileText, AlertTriangle, User } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -19,28 +19,33 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProfiloOption {
   id: string;
-  first_name: string | null;
-  last_name: string | null;
+  user_id: string;
+  nome: string;
+  cognome: string;
+  mansione: string | null;
+  reparto: string | null;
 }
 
 export function TabDocumenti() {
-  const { profile } = useAuth();
+  const companyId = useEffectiveCompanyId();
   const [selectedOperaio, setSelectedOperaio] = useState<string>("");
   const [pushBannerDismissed, setPushBannerDismissed] = useState(false);
 
-  // Carica lista profili della company
+  // I documenti operai sono ancora collegati all'account utente: qui partiamo dai profili HR collegati.
   const { data: profili = [], isLoading: loadingProfili } = useQuery<ProfiloOption[]>({
-    queryKey: ["profili-company-list", profile?.company_id],
+    queryKey: ["hr-profili-documenti-list", companyId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name")
-        .eq("company_id", profile!.company_id)
-        .order("last_name", { ascending: true });
+        .from("hr_profili")
+        .select("id, user_id, nome, cognome, mansione, reparto")
+        .eq("company_id", companyId!)
+        .eq("attivo", true)
+        .not("user_id", "is", null)
+        .order("cognome", { ascending: true });
       if (error) throw error;
       return (data ?? []) as ProfiloOption[];
     },
-    enabled: !!profile?.company_id,
+    enabled: !!companyId,
   });
 
   return (
@@ -83,8 +88,9 @@ export function TabDocumenti() {
                 </SelectTrigger>
                 <SelectContent>
                   {profili.map(p => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {[p.first_name, p.last_name].filter(Boolean).join(" ") || p.id.slice(0, 8)}
+                    <SelectItem key={p.id} value={p.user_id}>
+                      {[p.nome, p.cognome].filter(Boolean).join(" ") || p.id.slice(0, 8)}
+                      {p.mansione ? ` · ${p.mansione}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

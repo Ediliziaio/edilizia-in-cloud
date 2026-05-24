@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2, Save, Loader2 } from "lucide-react";
+import { Search, MessageSquare, CreditCard, Mail, Phone, AlertTriangle, Bot, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2, Save, Loader2, Star, BadgeCheck, ThumbsUp, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
@@ -653,6 +653,45 @@ export default function SettingsIntegrations() {
     );
   }, [search, waConfig, stripeConfig]);
 
+  const reputationCards = useMemo(() => {
+    const cards = [
+      {
+        key: "google-business-profile",
+        name: "Google Business Profile",
+        description: "Recensioni Google, link diretto, rating locale e alert su nuove recensioni.",
+        icon: BadgeCheck,
+        iconColor: "text-emerald-700",
+        status: "not_configured" as const,
+        detail: googleAdsIntegration?.status === "connected"
+          ? "Account Google Ads presente. Completa OAuth Business Profile dalla sezione Reputazione."
+          : "Da collegare con OAuth Google Business Profile.",
+      },
+      {
+        key: "facebook-reviews",
+        name: "Facebook Reviews",
+        description: "Legge recensioni e segnali reputazione dalla pagina Facebook collegata.",
+        icon: ThumbsUp,
+        iconColor: "text-sky-700",
+        status: "not_configured" as const,
+        detail: metaIntegration?.status === "connected"
+          ? "Meta base collegato. Mancano ancora i permessi specifici per recensioni e rating pagina."
+          : "Richiede integrazione Meta attiva.",
+      },
+      {
+        key: "site-review-link",
+        name: "Link recensione sito",
+        description: "Modulo proprietario per feedback privato, QR code e raccolta testimonianze.",
+        icon: Link2,
+        iconColor: "text-violet-700",
+        status: "connected" as const,
+        detail: "Disponibile nella sezione Marketing > Reputazione.",
+      },
+    ];
+    if (!search.trim()) return cards;
+    const q = search.toLowerCase();
+    return cards.filter((card) => card.name.toLowerCase().includes(q) || card.description.toLowerCase().includes(q));
+  }, [googleAdsIntegration?.status, metaIntegration?.status, search]);
+
   // KPI integrazioni collegate
   const connectedCount = mainIntegrations.filter((i) => i.integration?.status === "connected").length;
   const totalCount = mainIntegrations.length;
@@ -832,6 +871,63 @@ export default function SettingsIntegrations() {
           Spostato sotto la griglia principale: le calendar/ads connections
           sono primarie, le email/triage sono integrazioni avanzate AI. */}
       <EmailOAuthConnectionsCard />
+
+      {/* ── Reputazione ───────────────────────────────────────────── */}
+      <div className="pt-2 space-y-4">
+        <div className="flex items-center gap-2">
+          <Star className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">Reputazione</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {reputationCards.map((card) => {
+            const Icon = card.icon;
+            const connected = card.status === "connected";
+            return (
+              <Card
+                key={card.key}
+                className={cn(
+                  "flex flex-col overflow-hidden border-l-4",
+                  connected ? "border-l-emerald-500" : "border-l-slate-300",
+                )}
+              >
+                <CardHeader className="flex-row items-start gap-3 space-y-0">
+                  <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", connected ? "bg-emerald-50" : "bg-muted")}>
+                    <Icon className={cn("h-5 w-5", card.iconColor)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-base">{card.name}</CardTitle>
+                      {connected ? (
+                        <Badge className="text-[10px] gap-1 bg-emerald-600 hover:bg-emerald-600">
+                          <CheckCircle2 className="h-2.5 w-2.5" />
+                          Pronto
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          Setup
+                        </Badge>
+                      )}
+                    </div>
+                    <CardDescription className="mt-1 line-clamp-2">{card.description}</CardDescription>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-3">
+                  <p className="text-xs text-muted-foreground">{card.detail}</p>
+                  <Button
+                    variant={connected ? "outline" : "default"}
+                    size="sm"
+                    className="w-full"
+                    onClick={() => navigate("/azienda/marketing/reputazione?tab=integrazioni")}
+                  >
+                    <Star className="mr-2 h-4 w-4" />
+                    Apri Reputazione
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
 
       {/* WhatsApp Bot AI Card */}
       <Card

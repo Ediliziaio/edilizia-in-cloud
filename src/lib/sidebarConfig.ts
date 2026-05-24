@@ -40,6 +40,7 @@ import {
   Image,
   Settings,
   GraduationCap,
+  Star,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -175,6 +176,7 @@ export const macroAreas: MacroArea[] = [
       // ─── Marketing ───
       { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", isBeta: true, demoCompanyOnly: true, groupLabel: "Marketing" },
       { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard", isBeta: true, demoCompanyOnly: true },
+      { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewMarketingDashboard" },
       // 2026-04-27: voce "Fotovoltaico" rimossa dalla sidebar.
       // L'accesso al modulo passa ora dall'Hub Preventivi → tab "Moduli Vendita"
       // (gated dal feature flag modulo_fotovoltaico_attivo). La route resta
@@ -248,4 +250,5 @@ export const marketingNavItems: NavItem[] = [
   { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Zap, permissionKey: "canViewMarketingOpportunities", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: BarChart3, permissionKey: "canViewMarketingReports", category: "marketing", subcategory: "mkt_analisi" },
   { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi", isBeta: true, demoCompanyOnly: true },
+  { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewMarketingDashboard", category: "marketing", subcategory: "mkt_analisi" },
 ];

@@ -3,8 +3,35 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useAuth } from "@/contexts/AuthContext";
 import type { HrTimbratura, TimbraturaTipo } from "@/types/hr";
+import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import type { GPSResult } from "@/hooks/useGPS";
 import { toast } from "sonner";
+
+type HrTimbraturaInsert = TablesInsert<"hr_timbrature">;
+type HrTimbraturaJoined = Tables<"hr_timbrature"> & {
+  hr_profili?: {
+    nome: string | null;
+    cognome: string | null;
+    colore_avatar: string | null;
+    mansione: string | null;
+  } | null;
+};
+
+export type TimbraturaAdminRow = HrTimbratura & {
+  profilo_nome: string | null;
+  profilo_cognome: string | null;
+  profilo_colore: string | null;
+};
+
+export type LiveStatusProfilo = Pick<Tables<"hr_profili">, "id" | "nome" | "cognome" | "colore_avatar" | "mansione"> & {
+  last_tipo: string | null;
+  last_ora: string | null;
+  is_present: boolean;
+};
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Errore sconosciuto";
+}
 
 /** Get the current user's hr_profilo */
 export function useMyHrProfilo() {
@@ -73,22 +100,24 @@ export function useTimbra() {
       gps: GPSResult | null;
     }) => {
       const now = new Date().toISOString();
+      const payload: HrTimbraturaInsert = {
+        company_id: companyId,
+        profilo_id: profiloId,
+        tipo,
+        timestamp: now,
+        data_evento: now.slice(0, 10),
+        ora_evento: now.slice(11, 19),
+        lat: gps?.lat || null,
+        lng: gps?.lng || null,
+        sede_id: gps?.sede_id || null,
+        fonte: "web",
+        ip_address: null,
+        note: gps?.status === "denied" ? "GPS non disponibile" : null,
+      };
+
       const { data, error } = await supabase
         .from("hr_timbrature")
-        .insert({
-          company_id: companyId,
-          profilo_id: profiloId,
-          tipo,
-          timestamp: now,
-          data_evento: now.slice(0, 10),
-          ora_evento: now.slice(11, 19),
-          lat: gps?.lat || null,
-          lng: gps?.lng || null,
-          sede_id: gps?.sede_id || null,
-          fonte: "web",
-          ip_address: null,
-          note: gps?.status === "denied" ? "GPS non disponibile" : null,
-        } as any)
+        .insert(payload)
         .select()
         .single();
 
@@ -100,8 +129,8 @@ export function useTimbra() {
       queryClient.invalidateQueries({ queryKey: ["hr-timbrature"] });
       queryClient.invalidateQueries({ queryKey: ["hr-giornate"] });
     },
-    onError: (err: any) => {
-      toast.error("Errore timbratura: " + err.message);
+    onError: (error: unknown) => {
+      toast.error("Errore timbratura: " + getErrorMessage(error));
     },
   });
 }
@@ -124,12 +153,12 @@ export function useTimbratureAdmin(dateFrom: string, dateTo: string) {
         .limit(200);
 
       if (error) throw error;
-      return (data || []).map((t: any) => ({
+      return ((data || []) as HrTimbraturaJoined[]).map((t) => ({
         ...t,
-        profilo_nome: t.hr_profili?.nome,
-        profilo_cognome: t.hr_profili?.cognome,
-        profilo_colore: t.hr_profili?.colore_avatar,
-      }));
+        profilo_nome: t.hr_profili?.nome ?? null,
+        profilo_cognome: t.hr_profili?.cognome ?? null,
+        profilo_colore: t.hr_profili?.colore_avatar ?? null,
+      })) as TimbraturaAdminRow[];
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
@@ -169,8 +198,8 @@ export function useLiveStatus() {
       if (timbratureError) throw timbratureError;
 
       // Map: for each profilo, find last timbratura
-      return profili.map((p: any) => {
-        const myTimbrature = (timbrature || []).filter((t: any) => t.profilo_id === p.id);
+      return (profili as Pick<Tables<"hr_profili">, "id" | "nome" | "cognome" | "colore_avatar" | "mansione">[]).map((p) => {
+        const myTimbrature = (timbrature || []).filter((t) => t.profilo_id === p.id);
         const last = myTimbrature[0];
         return {
           ...p,
@@ -178,7 +207,7 @@ export function useLiveStatus() {
           last_ora: last?.ora_evento?.slice(0, 5) || null,
           is_present: last?.tipo === "entrata" || last?.tipo === "pausa_fine" || last?.tipo === "fine_pausa",
         };
-      });
+      }) as LiveStatusProfilo[];
     },
     enabled: !!companyId,
     refetchInterval: 60000,
