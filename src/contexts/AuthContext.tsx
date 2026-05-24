@@ -835,6 +835,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setState(prev => ({ ...prev, user: session.user }));
           } else {
             // Slow path — role was never resolved; use TOKEN_REFRESHED as a retry opportunity
+            // but never leave the app in the initial spinner if the retry fails.
+            const cached = readProfileCache(session.user.id);
+            const cacheSuperAdminRejected =
+              cached?.role === "super_admin" && !isSuperAdminEmailAllowed(session.user.email);
+            if (cacheSuperAdminRejected) {
+              logger.warn("[security] cache super_admin rifiutato su TOKEN_REFRESHED: email non in allowlist — cache invalidata");
+              clearProfileCache();
+            }
+            const usedCachedAuth = !!(cached && cached.role !== null && !cacheSuperAdminRejected);
+            if (usedCachedAuth) {
+              resolvedRoleRef.current = cached.role;
+              setState({
+                user: session.user,
+                profile: cached.profile,
+                role: cached.role,
+                company: cached.company,
+                isLoading: false,
+              });
+            }
+
             const myGen = ++authGenRef.current;
             let userData: { profile: Profile | null; role: AppRole | null; company: Company | null };
             // Memory-leak fix: cancella il timer se fetchUserData vince il race
@@ -854,22 +874,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Keep the existing auth state intact; the next token refresh will retry.
               // Blanking role here causes the sidebar to disappear until the page is reloaded.
               logger.warn("[auth] TOKEN_REFRESHED: fetchUserData retry failed — keeping existing state");
+              if (!usedCachedAuth && myGen === authGenRef.current) {
+                setState(prev => prev.isLoading
+                  ? {
+                      user: null,
+                      profile: null,
+                      role: null,
+                      company: null,
+                      isLoading: false,
+                    }
+                  : prev
+                );
+              }
               return;
             }
             if (myGen !== authGenRef.current) return;
             if (userData.role === null) {
               clearProfileCache();
-              resolvedRoleRef.current = null;
-              setState({
-                user: null,
-                profile: null,
-                role: null,
-                company: null,
-                isLoading: false,
-              });
+              if (!usedCachedAuth) {
+                resolvedRoleRef.current = null;
+                setState({
+                  user: null,
+                  profile: null,
+                  role: null,
+                  company: null,
+                  isLoading: false,
+                });
+              }
               return;
             }
             resolvedRoleRef.current = userData.role;
+            writeProfileCache(session.user.id, userData.profile, userData.role, userData.company);
             setState({ user: session.user, ...userData, isLoading: false });
           }
         } else if (event === "SIGNED_OUT" || (event === "INITIAL_SESSION" && !session?.user)) {
