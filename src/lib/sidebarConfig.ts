@@ -22,8 +22,6 @@ import {
   FileSignature,
   FileText,
   BookOpen,
-  Wallet,
-  Shield,
   HardHat,
   Euro,
   Users2,
@@ -31,9 +29,6 @@ import {
   Share2,
   LifeBuoy,
   CalendarClock,
-  BookUser,
-  Coins,
-  Archive,
   TrendingDown,
   ContactRound,
   UserCheck,
@@ -44,10 +39,7 @@ import {
   ShieldAlert,
   Image,
   Settings,
-  Calculator,
-  ShieldCheck,
   GraduationCap,
-  NotebookPen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -141,9 +133,6 @@ export const macroAreas: MacroArea[] = [
     items: [
       // ─── Sub-gruppo: Fatturazione e Documenti (billing_native) ───
       { title: "Fatture", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewBilling", featureKey: "billing_native", groupLabel: "Fatturazione e Documenti" },
-      { title: "Rubrica Fiscale", url: "/azienda/documenti/anagrafiche", icon: BookUser, permissionKey: "canViewBilling", featureKey: "billing_native" },
-      { title: "Registro Incassi", url: "/azienda/documenti/incassi", icon: Coins, permissionKey: "canViewBilling", featureKey: "billing_native" },
-      { title: "Cassetto SDI", url: "/azienda/documenti/cassetto-sdi", icon: Archive, permissionKey: "canViewBilling", featureKey: "billing_native" },
       // Report Fiscali e Impostazioni Fatt. rimosse dalla sidebar (non navigazione quotidiana).
       // Le pagine restano intatte e raggiungibili dall'header della pagina Fatture.
       // ─── Fatturazione esterna (billing_external) ───
@@ -154,9 +143,6 @@ export const macroAreas: MacroArea[] = [
       { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", featureKey: "tesoreria" },
       { title: "Costi", url: "/azienda/costi", icon: TrendingDown, permissionKey: "canViewCosts", moduleKey: "forecast" },
       { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
-      { title: "Contabilità Fiscale", url: "/azienda/contabilita-fiscale", icon: Calculator, permissionKey: "canViewPrimaNota", featureKey: "contabilita_fiscale", groupLabel: "Fiscale" },
-      { title: "Ritenute Garanzia", url: "/azienda/ritenute-garanzia", icon: ShieldCheck, permissionKey: "canViewOrders", featureKey: "ritenute_garanzia", groupLabel: "Fiscale" },
-      { title: "Archivio Sostitutivo", url: "/azienda/archivio-sostitutivo", icon: Archive, permissionKey: "canViewPrimaNota", featureKey: "archivio_sostitutivo", groupLabel: "Fiscale" },
     ],
   },
 
@@ -168,7 +154,6 @@ export const macroAreas: MacroArea[] = [
     items: [
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone", featureKey: "hr_personale" },
       { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canViewPersone", featureKey: "hr_personale" },
-      { title: "Giornale Lavori", url: "/azienda/giornale-lavori", icon: NotebookPen, permissionKey: "canViewGiornaleLavori", featureKey: "giornale_lavori" },
       // MP-CLEANUP: "Messaggi Esterni" rimosso (feature legacy sostituita da Hub WhatsApp multi-numero)
     ],
   },
@@ -235,9 +220,6 @@ export const internalNavItems: NavItem[] = [
   { title: "Fatturazione", url: "/azienda/fatturazione", icon: FileText, permissionKey: "canViewForecast", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
   { title: "Scadenzario", url: "/azienda/scadenzario", icon: CalendarDays, permissionKey: "canViewForecast", featureKey: "billing_external", category: "internal", subcategory: "gi_finanza" },
   { title: "Fatturazione", url: "/azienda/documenti", icon: FileText, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
-  { title: "Rubrica Fiscale", url: "/azienda/documenti/anagrafiche", icon: Users, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
-  { title: "Registro Incassi", url: "/azienda/documenti/incassi", icon: Wallet, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
-  { title: "Cassetto SDI", url: "/azienda/documenti/cassetto-sdi", icon: Shield, permissionKey: "canViewForecast", featureKey: "billing_native", category: "internal", subcategory: "gi_finanza" },
   // "Report" rimosso da internalNavItems (allineato con rimozione da sidebar principale)
   { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewForecast", category: "internal", subcategory: "gi_finanza" },
   

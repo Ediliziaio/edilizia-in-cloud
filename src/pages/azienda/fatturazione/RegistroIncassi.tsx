@@ -27,7 +27,11 @@ const METODI = [
   { value: "sdd", label: "SDD" },
 ];
 
-export default function RegistroIncassi() {
+type RegistroIncassiProps = {
+  embedded?: boolean;
+};
+
+export default function RegistroIncassi({ embedded = false }: RegistroIncassiProps = {}) {
   const navigate = useNavigate();
   const [tab, setTab] = useState("incassi");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -145,7 +149,7 @@ export default function RegistroIncassi() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className={cn("space-y-6", !embedded && "p-6")}>
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">

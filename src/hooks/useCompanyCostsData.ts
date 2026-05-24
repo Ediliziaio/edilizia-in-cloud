@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear } from "date-fns";
+import { format, isWithinInterval, startOfMonth, endOfMonth, addMonths, addDays, subMonths, startOfYear, endOfYear, parseISO, startOfDay, endOfDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -21,7 +21,7 @@ export type { BreakEvenData } from "@/lib/costsUtils";
 
 export type PeriodFilter = "this_month" | "next_month" | "last_3_months" | "this_year" | "all" | "custom";
 export type StatusFilter = "all" | "unpaid" | "paid" | "overdue";
-export type StatusTabFilter = "all" | "sostenuti" | "previsti" | "in_ritardo" | "in_scadenza";
+export type StatusTabFilter = "all" | "sostenuti" | "previsti" | "in_ritardo" | "in_scadenza" | "senza_scadenza";
 
 export type { UnifiedCost } from "@/lib/costsUtils";
 
@@ -34,6 +34,12 @@ export interface CostsFilters {
   originFilter: "all" | "manual" | "order";
   customDateRange?: { start: Date; end: Date } | null;
   statusTabFilter?: StatusTabFilter;
+}
+
+function parseCostDate(value?: string | null): Date | null {
+  if (!value || value === "9999-12-31") return null;
+  const parsed = parseISO(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export function useCompanyCostsData(companyId: string | undefined, filters: CostsFilters, selectedYear?: number, dateFrom?: string, dateTo?: string) {
@@ -52,7 +58,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   }, [periodFilter, customDateRange]);
 
   // Query costs with supplier join
-  const { data: costs = [], isLoading: isLoadingCosts } = useQuery({
+  const costsQuery = useQuery({
     queryKey: [...queryKeys.costs.list(companyId), dateFrom, dateTo],
     queryFn: async () => {
       let query = supabase
@@ -71,9 +77,10 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const { data: costs = [], isLoading: isLoadingCosts } = costsQuery;
 
   // Query suppliers for the form
-  const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery({
+  const suppliersQuery = useQuery({
     queryKey: queryKeys.costs.suppliers(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -88,14 +95,15 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const { data: suppliers = [], isLoading: isLoadingSuppliers } = suppliersQuery;
 
   // Query ALL order items with supplier (for split payments)
-  const { data: orderItemCosts = [], isLoading: isLoadingOrderItems } = useQuery({
+  const orderItemsQuery = useQuery({
     queryKey: queryKeys.costs.orderItems(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("id, name, quantity, purchase_price, status, payment_method, supplier_id, deposit_amount, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name, vat_rate), order:orders!inner(id, order_code, company_id)")
+        .select("id, name, quantity, purchase_price, status, payment_method, supplier_id, deposit_amount, deposit_expected_date, deposit_paid, deposit_paid_date, balance_amount, balance_paid, balance_paid_date, balance_expected_date, is_paid, paid_date, supplier:suppliers(name, vat_rate), order:orders!inner(id, order_code, company_id)")
         .not("supplier_id", "is", null)
         .is("stock_item_id", null)
         .eq("order.company_id", companyId!);
@@ -106,9 +114,10 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const { data: orderItemCosts = [], isLoading: isLoadingOrderItems } = orderItemsQuery;
 
   // Query external teams from orders
-  const { data: externalTeamCosts = [], isLoading: isLoadingExternalTeams } = useQuery({
+  const externalTeamsQuery = useQuery({
     queryKey: queryKeys.costs.externalTeams(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -122,9 +131,10 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const { data: externalTeamCosts = [], isLoading: isLoadingExternalTeams } = externalTeamsQuery;
 
   // Query all active employees for monthly salary costs
-  const { data: activeEmployees = [], isLoading: isLoadingEmployees } = useQuery({
+  const employeesQuery = useQuery({
     queryKey: queryKeys.costs.employees(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -140,9 +150,10 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const { data: activeEmployees = [], isLoading: isLoadingEmployees } = employeesQuery;
 
   // Query commissions from orders
-  const { data: commissionCosts = [], isLoading: isLoadingCommissions } = useQuery({
+  const commissionsQuery = useQuery({
     queryKey: queryKeys.costs.commissions(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -156,9 +167,10 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const { data: commissionCosts = [], isLoading: isLoadingCommissions } = commissionsQuery;
 
   // Query orders for linking
-  const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
+  const ordersQuery = useQuery({
     queryKey: queryKeys.costs.ordersForCosts(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -173,6 +185,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const { data: orders = [], isLoading: isLoadingOrders } = ordersQuery;
 
   // Transform raw data into unified cost format using extracted utilities
   const orderItemsAsVariableCosts = useMemo(() => buildOrderItemCosts(orderItemCosts), [orderItemCosts]);
@@ -192,19 +205,24 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const filteredCosts = useMemo(() => {
     if (originFilter === "order") return [];
     const now = new Date();
+    const todayStart = startOfDay(now);
     let filtered = costs as any[];
 
     if (getPeriodRange) {
       const { start, end } = getPeriodRange;
       filtered = filtered.filter((c: any) => {
         if (!c.due_date) return false;
-        return isWithinInterval(new Date(c.due_date), { start, end });
+        const dueDate = parseCostDate(c.due_date);
+        return !!dueDate && isWithinInterval(dueDate, { start, end });
       });
     }
 
     if (statusFilter === "paid") filtered = filtered.filter((c: any) => c.is_paid);
-    else if (statusFilter === "unpaid") filtered = filtered.filter((c: any) => !c.is_paid && new Date(c.due_date) >= now);
-    else if (statusFilter === "overdue") filtered = filtered.filter((c: any) => !c.is_paid && new Date(c.due_date) < now);
+    else if (statusFilter === "unpaid") filtered = filtered.filter((c: any) => !c.is_paid && (!c.due_date || parseCostDate(c.due_date)! >= todayStart));
+    else if (statusFilter === "overdue") filtered = filtered.filter((c: any) => {
+      const dueDate = parseCostDate(c.due_date);
+      return !c.is_paid && !!dueDate && dueDate < todayStart;
+    });
 
     if (supplierFilter !== "all") {
       if (supplierFilter === "none") filtered = filtered.filter((c: any) => !c.supplier_id);
@@ -234,12 +252,14 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const filteredOrderItemCosts = useMemo(() => {
     if (originFilter === "manual") return [];
     const now = new Date();
+    const todayStart = startOfDay(now);
     let filtered = allOrderDerivedCosts;
     if (getPeriodRange) {
       const { start, end } = getPeriodRange;
       filtered = filtered.filter(c => {
         if (!c.due_date) return false;
-        return isWithinInterval(new Date(c.due_date), { start, end });
+        const dueDate = parseCostDate(c.due_date);
+        return !!dueDate && isWithinInterval(dueDate, { start, end });
       });
     }
     if (searchQuery.trim()) {
@@ -253,8 +273,11 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       );
     }
     if (statusFilter === "paid") filtered = filtered.filter((c) => c.is_paid);
-    else if (statusFilter === "unpaid") filtered = filtered.filter((c) => !c.is_paid && new Date(c.due_date) >= now);
-    else if (statusFilter === "overdue") filtered = filtered.filter((c) => !c.is_paid && new Date(c.due_date) < now);
+    else if (statusFilter === "unpaid") filtered = filtered.filter((c) => !c.is_paid && (!c.due_date || parseCostDate(c.due_date)! >= todayStart));
+    else if (statusFilter === "overdue") filtered = filtered.filter((c) => {
+      const dueDate = parseCostDate(c.due_date);
+      return !c.is_paid && !!dueDate && dueDate < todayStart;
+    });
     if (supplierFilter !== "all") {
       if (supplierFilter === "none") filtered = filtered.filter((c) => !c.supplier_id && !c.supplierName);
       else filtered = filtered.filter((c) => c.supplier_id === supplierFilter);
@@ -267,7 +290,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   }, [allOrderDerivedCosts, getPeriodRange, searchQuery, statusFilter, supplierFilter, categoryFilter, originFilter]);
 
   // Query cost categories from dedicated table
-  const { data: dbCategories = [] } = useQuery({
+  const categoriesQuery = useQuery({
     queryKey: queryKeys.costs.categories(companyId),
     queryFn: async () => {
       const { data, error } = await supabase
@@ -282,6 +305,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+  const { data: dbCategories = [] } = categoriesQuery;
 
   const dynamicCategories = useMemo(() => buildDynamicCategories(dbCategories, costs as any[], suppliers as any[], allOrderDerivedCosts), [dbCategories, costs, suppliers, allOrderDerivedCosts]);
 
@@ -333,19 +357,27 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   // Status tab pre-filtered lists
   const statusTabLists = useMemo(() => {
     const now = new Date();
-    const soon = addDays(now, 7);
+    const todayStart = startOfDay(now);
+    const soonEnd = endOfDay(addDays(now, 7));
     const all = allCostsSorted;
 
     const sostenuti = all.filter(c => c.is_paid);
-    const previsti = all.filter(c => !c.is_paid && c.due_date && new Date(c.due_date) > now);
-    const inRitardo = all.filter(c => !c.is_paid && c.due_date && new Date(c.due_date) < now);
+    const previsti = all.filter(c => {
+      const dueDate = parseCostDate(c.due_date);
+      return !c.is_paid && !!dueDate && dueDate >= todayStart;
+    });
+    const inRitardo = all.filter(c => {
+      const dueDate = parseCostDate(c.due_date);
+      return !c.is_paid && !!dueDate && dueDate < todayStart;
+    });
     const inScadenza = all.filter(c => {
       if (c.is_paid || !c.due_date) return false;
-      const d = new Date(c.due_date);
-      return d >= now && d <= soon;
+      const d = parseCostDate(c.due_date);
+      return !!d && d >= todayStart && d <= soonEnd;
     });
+    const senzaScadenza = all.filter(c => !c.is_paid && (!c.due_date || c.due_date === "9999-12-31"));
 
-    return { sostenuti, previsti, inRitardo, inScadenza };
+    return { sostenuti, previsti, inRitardo, inScadenza, senzaScadenza };
   }, [allCostsSorted]);
 
   // Apply status tab filter
@@ -355,6 +387,7 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       case "previsti": return statusTabLists.previsti;
       case "in_ritardo": return statusTabLists.inRitardo;
       case "in_scadenza": return statusTabLists.inScadenza;
+      case "senza_scadenza": return statusTabLists.senzaScadenza;
       default: return allCostsSorted;
     }
   }, [statusTabFilter, statusTabLists, allCostsSorted]);
@@ -362,18 +395,25 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   // Stats — reactive to active filters
   const stats = useMemo(() => {
     const now = new Date();
-    const soon = addDays(now, 7);
+    const todayStart = startOfDay(now);
+    const soonEnd = endOfDay(addDays(now, 7));
     const allFiltered = [...filteredCosts, ...filteredOrderItemCosts] as any[];
 
     const unpaid = allFiltered.filter((c: any) => !c.is_paid);
     const paid = allFiltered.filter((c: any) => c.is_paid);
-    const overdue = unpaid.filter((c: any) => c.due_date && new Date(c.due_date) < now);
+    const overdue = unpaid.filter((c: any) => {
+      const dueDate = parseCostDate(c.due_date);
+      return !!dueDate && dueDate < todayStart;
+    });
     const expiringSoon = unpaid.filter((c: any) => {
       if (!c.due_date) return false;
-      const d = new Date(c.due_date);
-      return d >= now && d <= soon;
+      const d = parseCostDate(c.due_date);
+      return !!d && d >= todayStart && d <= soonEnd;
     });
-    const previstiList = allFiltered.filter((c: any) => !c.is_paid && c.due_date && new Date(c.due_date) > now);
+    const previstiList = allFiltered.filter((c: any) => {
+      const dueDate = parseCostDate(c.due_date);
+      return !c.is_paid && !!dueDate && dueDate >= todayStart;
+    });
 
     const totalUnpaid = unpaid.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalPaid = paid.reduce((s: number, c: any) => s + Number(c.amount), 0);
@@ -405,16 +445,21 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     const yearStart = startOfYear(new Date(yearForStats, 0, 1));
     const yearEnd = endOfYear(new Date(yearForStats, 0, 1));
     const now = new Date();
+    const todayStart = startOfDay(now);
     const allRaw = [...(costs as any[]), ...allOrderDerivedCosts];
     const yearCosts = allRaw.filter((c: any) => {
       if (!c.due_date) return false;
-      const d = new Date(c.due_date);
+      const d = parseCostDate(c.due_date);
+      if (!d) return false;
       return d >= yearStart && d <= yearEnd;
     });
     const total = yearCosts.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const paidItems = yearCosts.filter((c: any) => c.is_paid);
     const unpaidItems = yearCosts.filter((c: any) => !c.is_paid);
-    const overdueItems = unpaidItems.filter((c: any) => c.due_date && new Date(c.due_date) < now);
+    const overdueItems = unpaidItems.filter((c: any) => {
+      const dueDate = parseCostDate(c.due_date);
+      return !!dueDate && dueDate < todayStart;
+    });
     const totalPaid = paidItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalUnpaid = unpaidItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
     const totalOverdue = overdueItems.reduce((s: number, c: any) => s + Number(c.amount), 0);
@@ -432,7 +477,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
   const availableYears = useMemo(() => {
     const yearsSet = new Set<number>();
     (costs || []).forEach((c: any) => {
-      const y = new Date(c.due_date).getFullYear();
+      const dueDate = parseCostDate(c.due_date);
+      if (!dueDate) return;
+      const y = dueDate.getFullYear();
       if (!isNaN(y)) yearsSet.add(y);
     });
     const now = new Date().getFullYear();
@@ -456,7 +503,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       let fixed = 0;
       let variable = 0;
       (allCostsSorted || []).forEach((c: any) => {
-        const cKey = format(new Date(c.due_date), "yyyy-MM");
+        const dueDate = parseCostDate(c.due_date);
+        if (!dueDate) return;
+        const cKey = format(dueDate, "yyyy-MM");
         if (cKey !== key) return;
         if (c.cost_type === "fixed") fixed += Number(c.amount);
         else variable += Number(c.amount);
@@ -465,6 +514,28 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
       return { month: label, pctFixed: total > 0 ? Math.round((fixed / total) * 100) : 0 };
     });
   }, [allCostsSorted]);
+
+  const queryErrors = [
+    costsQuery.error,
+    suppliersQuery.error,
+    orderItemsQuery.error,
+    externalTeamsQuery.error,
+    employeesQuery.error,
+    commissionsQuery.error,
+    ordersQuery.error,
+    categoriesQuery.error,
+  ].filter(Boolean);
+
+  const refetchAll = () => {
+    void costsQuery.refetch();
+    void suppliersQuery.refetch();
+    void orderItemsQuery.refetch();
+    void externalTeamsQuery.refetch();
+    void employeesQuery.refetch();
+    void commissionsQuery.refetch();
+    void ordersQuery.refetch();
+    void categoriesQuery.refetch();
+  };
 
   return {
     costs,
@@ -489,6 +560,9 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     fixedCostsTrend,
     isLoading: isLoadingCosts || isLoadingSuppliers || isLoadingOrders || isLoadingOrderItems ||
                isLoadingExternalTeams || isLoadingEmployees || isLoadingCommissions,
+    isError: queryErrors.length > 0,
+    errorMessage: queryErrors[0] instanceof Error ? queryErrors[0].message : "Impossibile caricare tutti i dati dei costi.",
+    refetchAll,
     exportCostsCSV,
     allCostsUnfiltered,
     breakEvenData: calculateBreakEven(fixedCosts, 0),

@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useF24 } from '@/hooks/useF24';
 import { useLiquidazioneIVA } from '@/hooks/useLiquidazioneIVA';
 import { F24Generator } from '@/components/contabilita/F24Generator';
+import { FiscalitaNavigation } from '@/components/fatturazione/FiscalitaNavigation';
 import { LiquidazioneIVA } from '@/components/contabilita/LiquidazioneIVA';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,8 @@ export default function ContabilitaFiscale() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      <FiscalitaNavigation />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Contabilità Fiscale</h1>
 

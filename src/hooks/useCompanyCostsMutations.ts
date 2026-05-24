@@ -109,9 +109,9 @@ export function validateCostFormData(data: CostFormData) {
   if (!data.due_date || !isValidDateField(data.due_date)) {
     throw new Error("La data di scadenza è obbligatoria e deve essere valida.");
   }
-  if (recurrence !== "once") {
-    if (!data.end_date || !isValidDateField(data.end_date)) {
-      throw new Error("Per i costi ricorrenti serve una data fine contratto valida.");
+  if (recurrence !== "once" && data.end_date) {
+    if (!isValidDateField(data.end_date)) {
+      throw new Error("La data fine contratto deve essere valida.");
     }
     if (new Date(`${data.end_date}T00:00:00`) < new Date(`${data.due_date}T00:00:00`)) {
       throw new Error("La data fine contratto non può precedere la prima scadenza.");

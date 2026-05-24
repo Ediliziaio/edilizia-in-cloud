@@ -249,10 +249,9 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   const isActive = (url: string) => {
     if (url === "/azienda") return pathname === "/azienda";
     if (url === "/azienda/marketing") return pathname === "/azienda/marketing";
-    // "Fatture" è attiva per /azienda/documenti e tutti i ?tipo=, ma NON per sottopagine autonome
+    // "Fatture" è l'hub unico della fatturazione nativa: documenti, rubrica,
+    // incassi, SDI e fiscalità vivono come tab interne.
     if (url === "/azienda/documenti") {
-      const autonomousSubpaths = ["/azienda/documenti/anagrafiche", "/azienda/documenti/incassi", "/azienda/documenti/cassetto-sdi", "/azienda/documenti/report"];
-      if (autonomousSubpaths.some(p => pathname === p || pathname.startsWith(p + "/"))) return false;
       return pathname === "/azienda/documenti" || pathname.startsWith("/azienda/documenti/");
     }
     if (pathname === url) return true;
@@ -844,6 +843,7 @@ const CompanySidebar = memo(function CompanySidebar() {
   // Mostriamo skeleton finché plan + feature flags non sono risolti: con
   // `isModuleEnabled` fail-closed, altrimenti la sidebar flickererebbe a vuoto.
   const gatingLoading = limitsLoading || flagsLoading;
+  const [menuLoadingFallback, setMenuLoadingFallback] = useState(false);
   const { branding } = useBranding();
   const { effectiveBrand } = useBrandSettings();
   const { mode: billingMode } = useBillingMode();
@@ -1012,8 +1012,19 @@ const CompanySidebar = memo(function CompanySidebar() {
     });
   }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan]);
 
+  useEffect(() => {
+    if (!gatingLoading) {
+      setMenuLoadingFallback(false);
+      return;
+    }
+    setMenuLoadingFallback(false);
+    const timer = window.setTimeout(() => setMenuLoadingFallback(true), 1500);
+    return () => window.clearTimeout(timer);
+  }, [gatingLoading]);
+
   const { state: sidebarState } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";
+  const showMenuSkeleton = gatingLoading && !menuLoadingFallback;
 
   // Su mobile la navigazione è gestita dalla bottom nav + App Grid — niente sidebar
   if (isMobile) return null;
@@ -1057,7 +1068,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                 Durante il loading di plan/feature-flags mostriamo skeleton
                 rows invece di nascondere voci (evita flicker e mancanza
                 momentanea di sezioni a pagamento). */}
-            {gatingLoading ? (
+            {showMenuSkeleton ? (
               <div className="px-3 py-2 space-y-2" aria-label="Caricamento menu">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <Skeleton key={i} className="h-7 w-full" />

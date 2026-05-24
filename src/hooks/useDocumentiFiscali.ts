@@ -2,8 +2,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { queryKeys } from "@/lib/queryKeys";
+import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
 import { toast } from "sonner";
 import type { DocumentoFiscale, TipoDocumento, StatoDocumento } from "@/types/fatturazione";
+
+const DOCUMENTI_QUERY_TIMEOUT_MS = 12_000;
 
 // ─── Filters ──────────────────────────────────────────────────
 
@@ -140,51 +143,61 @@ export function useDocumentiFiscali(filters: DocumentiFiscaliFilters = {}) {
     queryKey: queryKeys.documentiFiscali.list(companyId ?? undefined, filters as unknown as Record<string, unknown>),
     enabled: !!companyId,
     queryFn: async () => {
-      let query = supabase
-        .from("documenti_fiscali" as never)
-        .select("*", { count: "exact" })
-        .eq("company_id", companyId!)
-        .order(filters.showDeleted ? "updated_at" : "data_emissione", { ascending: false })
-        .range(page * perPage, (page + 1) * perPage - 1);
+      const timeout = createTimeoutSignal(DOCUMENTI_QUERY_TIMEOUT_MS);
+      try {
+        let query = supabase
+          .from("documenti_fiscali" as never)
+          .select("*", { count: "estimated" })
+          .eq("company_id", companyId!)
+          .order(filters.showDeleted ? "updated_at" : "data_emissione", { ascending: false })
+          .range(page * perPage, (page + 1) * perPage - 1);
 
-      // Cestino: show only soft-deleted docs; otherwise exclude them
-      if (filters.showDeleted) {
-        query = query.not("deleted_at", "is", null);
-      } else {
-        query = query.is("deleted_at", null);
-      }
+        // Cestino: show only soft-deleted docs; otherwise exclude them
+        if (filters.showDeleted) {
+          query = query.not("deleted_at", "is", null);
+        } else {
+          query = query.is("deleted_at", null);
+        }
 
-      if (filters.tipo) {
-        const tipi = Array.isArray(filters.tipo) ? filters.tipo : [filters.tipo];
-        query = query.in("tipo", tipi);
-      }
-      if (filters.stato && !filters.showDeleted) {
-        const stati = Array.isArray(filters.stato) ? filters.stato : [filters.stato];
-        query = query.in("stato", stati);
-      }
-      if (filters.anagrafica_id) {
-        query = query.eq("anagrafica_id", filters.anagrafica_id);
-      }
-      if (filters.data_da) {
-        query = query.gte("data_emissione", filters.data_da);
-      }
-      if (filters.data_a) {
-        query = query.lte("data_emissione", filters.data_a);
-      }
-      if (filters.search) {
-        query = query.or(`numero.ilike.%${filters.search}%,note_documento.ilike.%${filters.search}%,cliente_snapshot->>ragione_sociale.ilike.%${filters.search}%,cliente_snapshot->>codice_fiscale.ilike.%${filters.search}%,cliente_snapshot->>partita_iva.ilike.%${filters.search}%`);
-      }
+        if (filters.tipo) {
+          const tipi = Array.isArray(filters.tipo) ? filters.tipo : [filters.tipo];
+          query = query.in("tipo", tipi);
+        }
+        if (filters.stato && !filters.showDeleted) {
+          const stati = Array.isArray(filters.stato) ? filters.stato : [filters.stato];
+          query = query.in("stato", stati);
+        }
+        if (filters.anagrafica_id) {
+          query = query.eq("anagrafica_id", filters.anagrafica_id);
+        }
+        if (filters.data_da) {
+          query = query.gte("data_emissione", filters.data_da);
+        }
+        if (filters.data_a) {
+          query = query.lte("data_emissione", filters.data_a);
+        }
+        if (filters.search) {
+          query = query.or(`numero.ilike.%${filters.search}%,note_documento.ilike.%${filters.search}%,cliente_snapshot->>ragione_sociale.ilike.%${filters.search}%,cliente_snapshot->>codice_fiscale.ilike.%${filters.search}%,cliente_snapshot->>partita_iva.ilike.%${filters.search}%`);
+        }
 
-      const { data, error, count } = await query;
-      if (error) throw error;
+        const { data, error, count } = await withClientTimeout(
+          query.abortSignal(timeout.signal),
+          "Documenti fiscali",
+          DOCUMENTI_QUERY_TIMEOUT_MS,
+        );
+        if (error) throw error;
 
-      return {
-        documenti: ((data as unknown[]) ?? []).map((r) => mapRow(r as Record<string, unknown>)),
-        total: count ?? 0,
-        page,
-        perPage,
-      };
+        return {
+          documenti: ((data as unknown[]) ?? []).map((r) => mapRow(r as Record<string, unknown>)),
+          total: count ?? 0,
+          page,
+          perPage,
+        };
+      } finally {
+        timeout.dispose();
+      }
     },
+    retry: 0,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });

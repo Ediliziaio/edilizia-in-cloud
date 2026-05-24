@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Plus, Search, Loader2, Upload, Link2, Unlink, ArrowRightLeft,
@@ -49,13 +50,17 @@ function getInitials(name?: string | null): string {
     .toUpperCase();
 }
 
-export default function AnagraficheList() {
+type AnagraficheListProps = {
+  embedded?: boolean;
+};
+
+export default function AnagraficheList({ embedded = false }: AnagraficheListProps = {}) {
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
   const [mainTab, setMainTab] = useState<"anagrafiche" | "riconciliazione">("anagrafiche");
 
   return (
-    <div className="space-y-6 p-6">
+    <div className={cn("space-y-6", !embedded && "p-6")}>
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex min-w-0 items-start gap-3">
@@ -63,8 +68,8 @@ export default function AnagraficheList() {
               <Users className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Anagrafica fiscale</h1>
-              <p className="mt-0.5 text-sm text-slate-500">Rubrica clienti e fornitori per fatturazione, SDI e riconciliazione.</p>
+              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Clienti fiscali</h1>
+              <p className="mt-0.5 text-sm text-slate-500">Clienti e fornitori fiscali per fatturazione, SDI e riconciliazione.</p>
             </div>
           </div>
         <div className="flex gap-2">

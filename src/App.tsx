@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 // Home is imported eagerly — it's the LCP page and must be in the critical JS bundle
 
 // Extend window type for GA4 gtag
@@ -6,6 +6,7 @@ declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void;
     __EIC_GA_ENABLED?: boolean;
+    __EIC_BOOT_OK__?: () => void;
   }
 }
 
@@ -49,15 +50,59 @@ import { portaleClienteRoutes } from "@/routes/portaleClienteRoutes";
 // che il fallback "piccolo" lasci intravedere la landing/Home sottostante
 // durante il bootstrap dei chunks lazy. z-40 sta sotto al FullScreenSpinner
 // di SubdomainRedirect (z-50) ma sopra a qualsiasi shell di pagina parziale.
-const PageLoader = () => (
-  <div
-    className="fixed inset-0 z-40 flex items-center justify-center bg-background"
-    role="status"
-    aria-live="polite"
-  >
-    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-  </div>
-);
+const PageLoader = () => {
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), 4_000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const recover = () => {
+    try {
+      sessionStorage.removeItem("vite_preload_recovered_v2");
+      sessionStorage.removeItem("_chunk_err_reload_v2");
+      sessionStorage.removeItem("eic_boot_recovery_v1");
+      sessionStorage.removeItem("eic_blank_recovery_v1");
+      sessionStorage.removeItem("_sw_rec");
+    } catch {
+      // Storage non disponibile: il reload resta comunque utile.
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("__recovery", Date.now().toString());
+    window.location.replace(url.toString());
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-background px-6 text-center"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="max-w-sm rounded-xl border bg-card p-6 shadow-sm">
+        <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" />
+        <p className="mt-4 text-sm font-semibold text-foreground">Caricamento applicazione...</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Sto preparando menu, permessi e pagina richiesta.
+        </p>
+        {slow && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs text-amber-900">
+              Il caricamento sta durando troppo. Può essere cache/chunk locale.
+            </p>
+            <button
+              type="button"
+              onClick={recover}
+              className="mt-3 inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground"
+            >
+              Sblocca e ricarica
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // Public & Auth pages
 const Login = lazy(() => import("@/pages/Login"));
@@ -341,6 +386,14 @@ function PublicSiteChatWidgetGate() {
   return <SiteChatWidget />;
 }
 
+function BootGuardDismiss() {
+  useEffect(() => {
+    window.__EIC_BOOT_OK__?.();
+  }, []);
+
+  return null;
+}
+
 /** v8.6.99 — Monta hook globale che forza logout dopo 45gg dal login. */
 function SessionTimeoutGuard() {
   useSessionTimeout();
@@ -353,6 +406,7 @@ const App = () => (
     <TooltipProvider>
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BootGuardDismiss />
         <SubdomainTitleSetter />
         <GARouteTracker />
         <ScrollToTop />

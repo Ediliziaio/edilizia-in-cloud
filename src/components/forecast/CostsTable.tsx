@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, addDays, differenceInCalendarDays } from "date-fns";
+import { format, addDays, differenceInCalendarDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { it } from "date-fns/locale";
@@ -43,6 +43,12 @@ const CATEGORY_COLORS: Record<string, string> = {
   marketing: "border-amber-400 text-amber-600 dark:text-amber-400",
   personale: "border-teal-400 text-teal-600 dark:text-teal-400",
 };
+
+function parseCostDate(value?: string | null): Date | null {
+  if (!value || value === "9999-12-31") return null;
+  const parsed = parseISO(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 function getCategoryColor(category: string): string {
   const key = category.toLowerCase();
@@ -111,7 +117,7 @@ export function CostsTable({
   bulkMarkPaidPending,
   bulkMarkUnpaidPending,
 }: CostsTableProps) {
-  const nowRef = useMemo(() => new Date(), []);
+  const todayRef = useMemo(() => startOfDay(new Date()), []);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(CONFIGURABLE_COLUMNS.map(c => c.key)));
 
   const toggleColumn = (key: string) => {
@@ -124,38 +130,40 @@ export function CostsTable({
   };
 
   const isColVisible = (key: string) => visibleColumns.has(key);
-  const soonRef = useMemo(() => addDays(new Date(), 7), []);
+  const soonRef = useMemo(() => endOfDay(addDays(todayRef, 7)), [todayRef]);
 
   const costAccessors = useMemo(() => ({
     name: (c: UnifiedCost) => c.name,
-    origin: (c: UnifiedCost) => c.isFromOrder ? "Da Ordine" : "Manuale",
+    origin: (c: UnifiedCost) => c.isFromOrder ? "Da modulo" : "Manuale",
     costType: (c: UnifiedCost) => c.cost_type === "fixed" ? "Fisso" : "Variabile",
     supplier: (c: UnifiedCost) => (c as any).supplier?.name || c.supplierName || "",
     category: (c: UnifiedCost) => c.category || "",
     amount: (c: UnifiedCost) => c.amount,
     vatRate: (c: UnifiedCost) => Number(c.vat_rate) || Number((c as any).supplier?.vat_rate) || 0,
     recurrence: (c: UnifiedCost) => c.recurrence,
-    dueDate: (c: UnifiedCost) => c.due_date ? new Date(c.due_date) : null,
+    dueDate: (c: UnifiedCost) => parseCostDate(c.due_date),
     status: (c: UnifiedCost) => {
       if (c.is_paid) return "Pagato";
-      const d = new Date(c.due_date);
-      if (d < nowRef) return "Scaduto";
+      const d = parseCostDate(c.due_date);
+      if (!d) return "Da pianificare";
+      if (d < todayRef) return "Scaduto";
       if (d <= soonRef) return "In scadenza";
       if (c.recurrence !== "once" && d > soonRef) return "Previsto";
       return "Da pagare";
     },
     delay: (c: UnifiedCost) => {
-      if (c.is_paid && c.paid_date && c.due_date) {
-        return differenceInCalendarDays(new Date(c.paid_date), new Date(c.due_date));
+      if (c.is_paid && c.paid_date) {
+        const dueDate = parseCostDate(c.due_date);
+        if (dueDate) return differenceInCalendarDays(parseISO(c.paid_date), dueDate);
       }
       if (!c.is_paid && c.due_date) {
-        const d = new Date(c.due_date);
-        if (d < nowRef) return differenceInCalendarDays(nowRef, d);
+        const d = parseCostDate(c.due_date);
+        if (d && d < todayRef) return differenceInCalendarDays(todayRef, d);
       }
       return 0;
     },
     order: (c: UnifiedCost) => c.order?.order_code || "",
-  }), [nowRef, soonRef]);
+  }), [todayRef, soonRef]);
 
   const costAccessorsWithGross = useMemo(() => ({
     ...costAccessors,
@@ -198,10 +206,10 @@ export function CostsTable({
   const someSelected = selectedIds.size > 0;
 
   const getStatusBadge = (cost: UnifiedCost) => {
-    const dueDate = cost.due_date && cost.due_date !== "9999-12-31" ? new Date(cost.due_date) : null;
+    const dueDate = parseCostDate(cost.due_date);
 
     if (cost.is_paid) {
-      const paidLabel = cost.paid_date ? `Pagato il ${format(new Date(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
+      const paidLabel = cost.paid_date ? `Pagato il ${format(parseISO(cost.paid_date), "dd/MM/yyyy", { locale: it })}` : "Pagato";
       return (
         <div className="flex items-center gap-1 flex-wrap">
           <Badge className="bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 gap-1">
@@ -214,8 +222,8 @@ export function CostsTable({
       );
     }
 
-    if (dueDate && dueDate < nowRef) {
-      const days = differenceInCalendarDays(nowRef, dueDate);
+    if (dueDate && dueDate < todayRef) {
+      const days = differenceInCalendarDays(todayRef, dueDate);
       return (
         <Badge className="bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 gap-1">
           <AlertTriangle className="h-3 w-3" /> Scaduto {days}gg
@@ -223,8 +231,8 @@ export function CostsTable({
       );
     }
 
-    if (dueDate && dueDate >= nowRef && dueDate <= soonRef) {
-      const days = differenceInCalendarDays(dueDate, nowRef);
+    if (dueDate && dueDate >= todayRef && dueDate <= soonRef) {
+      const days = differenceInCalendarDays(dueDate, todayRef);
       return (
         <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 gap-1">
           <Clock className="h-3 w-3" /> In scadenza ({days}gg)
@@ -248,16 +256,18 @@ export function CostsTable({
   };
 
   const getDelayCell = (cost: UnifiedCost) => {
-    if (cost.is_paid && cost.paid_date && cost.due_date && cost.due_date !== "9999-12-31") {
-      const delta = differenceInCalendarDays(new Date(cost.paid_date), new Date(cost.due_date));
+    if (cost.is_paid && cost.paid_date) {
+      const dueDate = parseCostDate(cost.due_date);
+      if (!dueDate) return <span className="text-muted-foreground text-xs">—</span>;
+      const delta = differenceInCalendarDays(parseISO(cost.paid_date), dueDate);
       if (delta > 0) return <span className="text-red-600 font-medium text-xs">+{delta}gg</span>;
       if (delta < 0) return <span className="text-green-600 font-medium text-xs">{delta}gg</span>;
       return <span className="text-muted-foreground text-xs">0gg</span>;
     }
-    if (!cost.is_paid && cost.due_date && cost.due_date !== "9999-12-31") {
-      const d = new Date(cost.due_date);
-      if (d < nowRef) {
-        const days = differenceInCalendarDays(nowRef, d);
+    if (!cost.is_paid) {
+      const d = parseCostDate(cost.due_date);
+      if (d && d < todayRef) {
+        const days = differenceInCalendarDays(todayRef, d);
         return <span className="text-red-600 font-semibold text-xs">+{days}gg</span>;
       }
     }
@@ -385,9 +395,9 @@ export function CostsTable({
                 const vatRate = Number(cost.vat_rate) || Number((cost as any).supplier?.vat_rate) || 0;
                 const { grossAmount, vatAmount } = calculateGrossFromNet(cost.amount, vatRate);
                 const isSelected = selectedIds.has(cost.id);
-                const dueDate = cost.due_date && cost.due_date !== "9999-12-31" ? new Date(cost.due_date) : null;
-                const isOverdue = !cost.is_paid && dueDate && dueDate < nowRef;
-                const isExpiring = !cost.is_paid && dueDate && dueDate >= nowRef && dueDate <= soonRef;
+                const dueDate = parseCostDate(cost.due_date);
+                const isOverdue = !cost.is_paid && dueDate && dueDate < todayRef;
+                const isExpiring = !cost.is_paid && dueDate && dueDate >= todayRef && dueDate <= soonRef;
                 return (
                   <TableRow key={cost.id} className={`${isOverdue ? "bg-red-50/60 dark:bg-red-900/10" : isExpiring ? "bg-orange-50/60 dark:bg-orange-900/10" : cost.isFromOrder ? "bg-orange-50/30 dark:bg-orange-900/5" : ""} ${isSelected ? "bg-muted/50" : ""}`}>
                     <TableCell>
@@ -402,7 +412,7 @@ export function CostsTable({
                     <TableCell>
                       {cost.isFromOrder ? (
                         <Badge className="bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 gap-1 text-[10px] px-1.5">
-                          <Package className="h-3 w-3" /> Da Ordine
+                          <Package className="h-3 w-3" /> Da modulo
                         </Badge>
                       ) : (
                         <Badge className="bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 gap-1 text-[10px] px-1.5">
@@ -481,7 +491,7 @@ export function CostsTable({
                     )}
                     {isColVisible("dueDate") && (
                     <TableCell>
-                      {cost.due_date && cost.due_date !== "9999-12-31" ? format(new Date(cost.due_date), "dd/MM/yyyy", { locale: it }) : "—"}
+                      {dueDate ? format(dueDate, "dd/MM/yyyy", { locale: it }) : "—"}
                     </TableCell>
                     )}
                     {isColVisible("status") && <TableCell>{getStatusBadge(cost)}</TableCell>}

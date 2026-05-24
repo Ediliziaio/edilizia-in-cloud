@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FiscalitaNavigation } from "@/components/fatturazione/FiscalitaNavigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -189,6 +190,8 @@ export default function RegistroIVA() {
 
   return (
     <div className="space-y-6">
+      <FiscalitaNavigation />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

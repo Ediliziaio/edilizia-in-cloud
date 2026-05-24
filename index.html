@@ -53,6 +53,10 @@
         }
         function onError(msg, target) {
           if (_recovered) return;
+          var targetUrl = target && (target.src || target.href || '');
+          var isLocalDevModule =
+            (location.hostname === 'localhost' || location.hostname === '127.0.0.1') &&
+            /\/(@vite|src|node_modules\/\.vite)\//.test(String(targetUrl || ''));
           var isChunkError =
             msg.indexOf('Unexpected token') !== -1 ||
             msg.indexOf('<!DOCTYPE') !== -1 ||
@@ -65,6 +69,7 @@
             msg.indexOf('module script') !== -1 ||
             msg.indexOf('SECRET_INTERNALS') !== -1 ||
             msg.indexOf('before initialization') !== -1 ||
+            isLocalDevModule ||
             isAssetElement(target);
           if (isChunkError) {
             _recovered = '1';
@@ -522,6 +527,13 @@
         </div>
       </div>
     </div>
+    <div id="eic-boot-guard" style="position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;text-align:center">
+      <div style="max-width:420px">
+        <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#f97316;border-radius:999px;margin:0 auto 16px;animation:eic-spin .8s linear infinite"></div>
+        <p style="margin:0;font-size:15px;font-weight:700">Apro Edilizia in Cloud...</p>
+        <p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#6b7280">Se il caricamento locale si blocca, qui comparirà il recupero invece della schermata bianca.</p>
+      </div>
+    </div>
     <style>@keyframes eic-spin{to{transform:rotate(360deg)}}</style>
     <script>
       (function () {
@@ -530,8 +542,20 @@
         }
 
         var BOOT_RECOVERY_KEY = 'eic_boot_recovery_v1';
+        var BLANK_RECOVERY_KEY = 'eic_blank_recovery_v1';
         var PRIVATE_HOST_RE = /^(app|admin|clienti|lavori)\./;
         var LOCAL_DEV_HOST_RE = /^(localhost|127\.0\.0\.1)$/;
+        var PRIVATE_PATH_RE = /^\/(azienda|admin|cliente|campo|tecnico|dipendente|venditore|partner)(\/|$)/;
+
+        function clearRecoveryMarkers() {
+          try {
+            sessionStorage.removeItem('_sw_rec');
+            sessionStorage.removeItem('vite_preload_recovered_v2');
+            sessionStorage.removeItem('_chunk_err_reload_v2');
+            sessionStorage.removeItem(BOOT_RECOVERY_KEY);
+            sessionStorage.removeItem(BLANK_RECOVERY_KEY);
+          } catch (e) {}
+        }
 
         function clearBrowserAppState() {
           return Promise.all([
@@ -550,8 +574,10 @@
 
         function showBootstrapFallback(reason) {
           var root = document.getElementById('root');
-          if (!root) return;
-          root.innerHTML = [
+          var bootGuard = document.getElementById('eic-boot-guard');
+          var target = bootGuard || root;
+          if (!target) return;
+          target.innerHTML = [
             '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,&quot;Segoe UI&quot;,sans-serif;padding:24px;text-align:center">',
               '<div style="max-width:420px">',
                 '<div style="width:44px;height:44px;border-radius:999px;background:#fff7ed;color:#ea580c;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-weight:800">!</div>',
@@ -570,13 +596,13 @@
           var reset = document.getElementById('eic-boot-reset');
           if (retry) {
             retry.onclick = function () {
-              try { sessionStorage.removeItem(BOOT_RECOVERY_KEY); } catch (e) {}
+              clearRecoveryMarkers();
               location.reload();
             };
           }
           if (reset) {
             reset.onclick = function () {
-              try { sessionStorage.removeItem(BOOT_RECOVERY_KEY); } catch (e) {}
+              clearRecoveryMarkers();
               clearBrowserAppState().finally(function () {
                 var url = new URL(location.href);
                 url.searchParams.set('__recovery', Date.now().toString());
@@ -585,6 +611,13 @@
             };
           }
         }
+
+        window.__EIC_BOOT_OK__ = function () {
+          try {
+            var bootGuard = document.getElementById('eic-boot-guard');
+            if (bootGuard) bootGuard.remove();
+          } catch (e) {}
+        };
 
         function recoverBootstrap(reason) {
           try {
@@ -601,6 +634,32 @@
               url.pathname = '/login';
               url.search = '';
             }
+            url.searchParams.set('__recovery', Date.now().toString());
+            location.replace(url.toString());
+          });
+        }
+
+        function recoverBlankScreen() {
+          if (!LOCAL_DEV_HOST_RE.test(location.hostname)) return;
+          if (!PRIVATE_PATH_RE.test(location.pathname)) return;
+
+          var root = document.getElementById('root');
+          var bootGuard = document.getElementById('eic-boot-guard');
+          var bodyText = ((document.body && document.body.innerText) || '').trim();
+          var rootText = ((root && root.innerText) || '').trim();
+          var guardVisible = !!bootGuard;
+          if (bodyText.length > 12 && rootText.length > 12 && !guardVisible) return;
+
+          try {
+            if (sessionStorage.getItem(BLANK_RECOVERY_KEY)) {
+              showBootstrapFallback('local-dev-blank-screen');
+              return;
+            }
+            sessionStorage.setItem(BLANK_RECOVERY_KEY, '1');
+          } catch (e) {}
+
+          clearBrowserAppState().finally(function () {
+            var url = new URL(location.href);
             url.searchParams.set('__recovery', Date.now().toString());
             location.replace(url.toString());
           });
@@ -632,6 +691,8 @@
             recoverBootstrap(stillInitialBootstrap ? 'initial-bootstrap-timeout' : 'private-root-spinner-timeout');
           }
         }, BOOT_TIMEOUT_MS);
+
+        window.setTimeout(recoverBlankScreen, LOCAL_DEV_HOST_RE.test(location.hostname) ? 5_000 : 12_000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

@@ -3,6 +3,7 @@ import { formatDate } from '@/lib/formatters';
 import { useArchivioSostitutivo } from '@/hooks/useArchivioSostitutivo';
 import { ArchivioUploader } from '@/components/archivio/ArchivioUploader';
 import { ArchivioTable } from '@/components/archivio/ArchivioTable';
+import { FiscalitaNavigation } from '@/components/fatturazione/FiscalitaNavigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,6 +27,8 @@ export default function ArchivioSostitutivo() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      <FiscalitaNavigation />
+
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Archiviazione Sostitutiva</h1>
         <p className="text-muted-foreground mt-1">

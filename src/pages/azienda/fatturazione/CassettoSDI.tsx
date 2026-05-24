@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
+import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, RefreshCw, ExternalLink, FileText, Search, Eye, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+
+const SDI_QUERY_TIMEOUT_MS = 12_000;
 
 /** Indenta XML grezzo per visualizzazione leggibile */
 function formatXml(xml: string): string {
@@ -53,7 +56,12 @@ function SdiStatoBadge({ stato }: { stato: string | null }) {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 }
 
-export default function CassettoSDI() {
+type CassettoSDIProps = {
+  embedded?: boolean;
+};
+
+export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {}) {
+  void embedded;
   const companyId = useEffectiveCompanyId();
   const currentYear = new Date().getFullYear();
   const [anno, setAnno] = useState(currentYear);
@@ -62,24 +70,33 @@ export default function CassettoSDI() {
   const [xmlPreviewOpen, setXmlPreviewOpen] = useState(false);
   const [xmlPreviewContent, setXmlPreviewContent] = useState<{ numero: string; xml: string } | null>(null);
 
-  const { data: documenti = [], isLoading } = useQuery({
+  const { data: documenti = [], isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["cassetto-sdi", companyId, anno],
     enabled: !!companyId,
     queryFn: async () => {
+      const timeout = createTimeoutSignal(SDI_QUERY_TIMEOUT_MS);
       // Filtro anno: usa .eq("anno") come primario + fallback su data_emissione per
       // documenti in cui anno non è stato popolato correttamente all'insert (P1-05)
-      const { data, error } = await supabase
-        .from("documenti_fiscali" as never)
-        .select("id, numero, tipo, data_emissione, cliente_snapshot, totale_documento, totale_da_pagare, stato, sdi_id_trasmissione, sdi_stato, sdi_notifica_tipo, sdi_file_xml_url, sdi_ricevuta_url, sdi_data_consegna")
-        .eq("company_id", companyId!)
-        .is("deleted_at", null)
-        .or(`anno.eq.${anno},and(anno.is.null,data_emissione.gte.${anno}-01-01,data_emissione.lte.${anno}-12-31)`)
-        .in("stato", ["inviata_sdi", "consegnata", "accettata", "rifiutata"])
-        .order("data_emissione", { ascending: false });
+      try {
+        const query = supabase
+          .from("documenti_fiscali" as never)
+          .select("id, numero, tipo, data_emissione, cliente_snapshot, totale_documento, totale_da_pagare, stato, sdi_id_trasmissione, sdi_stato, sdi_notifica_tipo, sdi_file_xml_url, sdi_ricevuta_url, sdi_data_consegna")
+          .eq("company_id", companyId!)
+          .is("deleted_at", null)
+          .or(`anno.eq.${anno},and(anno.is.null,data_emissione.gte.${anno}-01-01,data_emissione.lte.${anno}-12-31)`)
+          .in("stato", ["inviata_sdi", "consegnata", "accettata", "rifiutata"])
+          .order("data_emissione", { ascending: false })
+          .abortSignal(timeout.signal);
 
-      if (error) throw error;
-      return data as any[];
+        const { data, error } = await withClientTimeout(query, "Cassetto SDI", SDI_QUERY_TIMEOUT_MS);
+
+        if (error) throw error;
+        return data as any[];
+      } finally {
+        timeout.dispose();
+      }
     },
+    retry: 0,
   });
 
   const kpi = useMemo(() => {
@@ -223,75 +240,97 @@ export default function CassettoSDI() {
       {/* Table */}
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Numero</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead className="text-right">Importo</TableHead>
-                <TableHead>ID Trasmissione</TableHead>
-                <TableHead>Stato SDI</TableHead>
-                <TableHead>Notifica</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Caricamento...</TableCell>
+                  <TableHead>Numero</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-right">Importo</TableHead>
+                  <TableHead>ID Trasmissione</TableHead>
+                  <TableHead>Stato SDI</TableHead>
+                  <TableHead>Notifica</TableHead>
+                  <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nessun documento trasmesso</TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((doc) => (
-                  <TableRow key={doc.id}>
-                    <TableCell className="font-mono font-medium">{doc.numero}</TableCell>
-                    <TableCell>{formatDateShort(doc.data_emissione)}</TableCell>
-                    <TableCell>{doc.cliente_snapshot?.ragione_sociale || "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatCurrency(doc.totale_documento)}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{doc.sdi_id_trasmissione || "—"}</TableCell>
-                    <TableCell><SdiStatoBadge stato={doc.sdi_stato} /></TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{doc.sdi_notifica_tipo || "—"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        {doc.sdi_file_xml_url && (
-                          <>
-                            <Button
-                              variant="ghost" size="icon" className="h-7 w-7"
-                              title="Visualizza XML"
-                              onClick={() => handlePreviewXml(doc.sdi_file_xml_url, doc.numero)}
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost" size="icon" className="h-7 w-7"
-                              title="Scarica XML"
-                              onClick={() => handleDownloadXml(doc.sdi_file_xml_url)}
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
-                        )}
-                        {doc.sdi_ricevuta_url && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Scarica ricevuta" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
-                            <FileText className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        {(doc.sdi_stato === "NS" || doc.stato === "rifiutata") && (
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)}>
-                            <RefreshCw className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Caricamento...</TableCell>
+                  </TableRow>
+                ) : isError ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="py-10">
+                      <div className="flex flex-col items-center justify-center gap-3 text-center">
+                        <AlertTriangle className="h-6 w-6 text-amber-500" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">Errore nel caricamento del Cassetto SDI</p>
+                          <p className="text-xs text-muted-foreground">Riprova senza ricaricare tutta la pagina.</p>
+                        </div>
+                        <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
+                          {isFetching ? (
+                            <>
+                              <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              Riprovo...
+                            </>
+                          ) : "Riprova"}
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Nessun documento trasmesso</TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((doc) => (
+                    <TableRow key={doc.id}>
+                      <TableCell className="font-mono font-medium">{doc.numero}</TableCell>
+                      <TableCell>{formatDateShort(doc.data_emissione)}</TableCell>
+                      <TableCell>{doc.cliente_snapshot?.ragione_sociale || "—"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(doc.totale_documento)}</TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{doc.sdi_id_trasmissione || "—"}</TableCell>
+                      <TableCell><SdiStatoBadge stato={doc.sdi_stato} /></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{doc.sdi_notifica_tipo || "—"}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-1">
+                          {doc.sdi_file_xml_url && (
+                            <>
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7"
+                                title="Visualizza XML"
+                                onClick={() => handlePreviewXml(doc.sdi_file_xml_url, doc.numero)}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost" size="icon" className="h-7 w-7"
+                                title="Scarica XML"
+                                onClick={() => handleDownloadXml(doc.sdi_file_xml_url)}
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
+                          {doc.sdi_ricevuta_url && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Scarica ricevuta" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
+                              <FileText className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {(doc.sdi_stato === "NS" || doc.stato === "rifiutata") && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)}>
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { FiscalitaNavigation } from '@/components/fatturazione/FiscalitaNavigation';
 import { RitenutaBadge } from '@/components/ritenute/RitenutaBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -47,6 +48,8 @@ export default function RitenuteGaranzia() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      <FiscalitaNavigation />
+
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Ritenute di Garanzia</h1>
         <p className="text-muted-foreground mt-1">

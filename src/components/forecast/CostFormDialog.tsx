@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,7 +46,7 @@ interface CostFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   formData: CostFormData;
-  setFormData: (data: CostFormData) => void;
+  setFormData: Dispatch<SetStateAction<CostFormData>>;
   editingCost: UnifiedCost | null;
   suppliers: any[];
   orders: any[];
@@ -361,9 +362,9 @@ export function CostFormDialog({
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <Repeat className="h-3 w-3" /> {editingCost ? `Verranno creati ${periodsPreview.count} nuovi costi aggiuntivi` : `Verranno creati ${periodsPreview.count} costi da ${periodsPreview.from} a ${periodsPreview.to}`}
                   </p>
-                ) : formData.due_date && !formData.end_date ? (
+                ) : formData.due_date && !formData.end_date && !formData.recurrence_auto ? (
                   <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <Info className="h-3 w-3" /> Seleziona la data fine contratto per generare i costi ricorrenti
+                    <Info className="h-3 w-3" /> Senza data fine verrà salvata solo questa scadenza ricorrente
                   </p>
                 ) : null}
 
@@ -476,7 +477,7 @@ export function CostFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
           <Button
             onClick={handleSubmit}
-            disabled={!formData.name.trim() || !formData.amount || !formData.due_date || isSaving || (formData.recurrence !== "once" && !formData.end_date)}
+            disabled={!formData.name.trim() || !formData.amount || !formData.due_date || isSaving}
           >
             {isSaving ? "Salvataggio..." : editingCost ? "Aggiorna" : periodsPreview ? `Crea ${periodsPreview.count} costi` : "Aggiungi"}
           </Button>

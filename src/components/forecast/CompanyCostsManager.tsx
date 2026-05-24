@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { format, addMonths } from "date-fns";
 import { it } from "date-fns/locale";
-import { AlertTriangle, Building2, CalendarIcon, Download, FilterX, Link2, Plus, Repeat, Search, Tags, Upload, Users } from "lucide-react";
+import {
+  AlertTriangle, ArrowRight, Building2, CalendarIcon, ClipboardList, Download,
+  FilterX, Landmark, Link2, ListChecks, Plus, ReceiptText, Repeat, Search,
+  Settings2, Tags, Upload, Users, WalletCards,
+} from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveCostOrigin } from "@/lib/forecastTypes";
@@ -45,6 +50,146 @@ const COST_IMPORT_FIELDS: ImportField[] = [
   { key: "due_date", label: "Data Scadenza", required: true, type: "date" },
   { key: "notes", label: "Note", required: false },
 ];
+
+type CostIntegrationSummary = {
+  total: number;
+  manual: number;
+  linked: number;
+  scheduled: number;
+  paid: number;
+  totalAmount: number;
+  manualAmount: number;
+  linkedAmount: number;
+};
+
+type CostWithRelations = UnifiedCost & {
+  supplier?: { name?: string | null } | null;
+  recurrence_end_date?: string | null;
+  recurrence_auto?: boolean | null;
+};
+
+function getDuplicatedDueDate(dueDate?: string | null) {
+  if (!dueDate || dueDate === "9999-12-31") return format(new Date(), "yyyy-MM-dd");
+  const parsed = new Date(dueDate);
+  if (Number.isNaN(parsed.getTime())) return format(new Date(), "yyyy-MM-dd");
+  return format(addMonths(parsed, 1), "yyyy-MM-dd");
+}
+
+function CostIntegrationPanel({
+  summary,
+  missingCategory,
+  missingSupplier,
+  unscheduled,
+  onShowOrderCosts,
+  onShowUnscheduled,
+  onShowMissingCategories,
+  onShowMissingSuppliers,
+}: {
+  summary: CostIntegrationSummary;
+  missingCategory: number;
+  missingSupplier: number;
+  unscheduled: number;
+  onShowOrderCosts: () => void;
+  onShowUnscheduled: () => void;
+  onShowMissingCategories: () => void;
+  onShowMissingSuppliers: () => void;
+}) {
+  const qualityIssues = missingCategory + missingSupplier + unscheduled;
+  const scheduledPct = summary.total > 0 ? Math.round((summary.scheduled / summary.total) * 100) : 100;
+  const paidPct = summary.total > 0 ? Math.round((summary.paid / summary.total) * 100) : 0;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-950">Regia integrazioni costi</h3>
+            <Badge variant={qualityIssues > 0 ? "outline" : "secondary"} className={qualityIssues > 0 ? "border-orange-300 text-orange-700" : ""}>
+              {qualityIssues > 0 ? `${qualityIssues} controlli aperti` : "Dati allineati"}
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Origine, qualità dati e impatto cassa in un unico punto operativo.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm" className="gap-1">
+            <Link to="/azienda/ordini">
+              <ClipboardList className="h-4 w-4" /> Ordini
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="gap-1">
+            <Link to="/azienda/previsionale">
+              <WalletCards className="h-4 w-4" /> Previsionale
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="gap-1">
+            <Link to="/azienda/prima-nota">
+              <ReceiptText className="h-4 w-4" /> Prima nota
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Origine costi</span>
+            <Landmark className="h-4 w-4 text-slate-500" />
+          </div>
+          <div className="mt-2 text-lg font-semibold">{formatCurrency(summary.totalAmount)}</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {summary.manual} manuali ({formatCurrency(summary.manualAmount)}) · {summary.linked} da moduli ({formatCurrency(summary.linkedAmount)})
+          </p>
+          <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-xs" onClick={onShowOrderCosts}>
+            Vedi costi collegati <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Qualità dati</span>
+            <ListChecks className="h-4 w-4 text-slate-500" />
+          </div>
+          <div className="mt-2 text-lg font-semibold">{scheduledPct}% pianificati</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {missingCategory} senza categoria · {missingSupplier} senza fornitore · {unscheduled} senza scadenza
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {missingCategory > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingCategories}>Categorie</Button>}
+            {missingSupplier > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowMissingSuppliers}>Fornitori</Button>}
+            {unscheduled > 0 && <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={onShowUnscheduled}>Scadenze</Button>}
+            {qualityIssues === 0 && <span className="text-xs text-emerald-700">Nessuna anomalia operativa.</span>}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Impatto cassa</span>
+            <WalletCards className="h-4 w-4 text-slate-500" />
+          </div>
+          <div className="mt-2 text-lg font-semibold">{paidPct}% sostenuti</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Allineato a previsionale e prima nota tramite pagamenti registrati.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
+              <Link to="/azienda/impostazioni/categorie-costi">
+                <Settings2 className="h-3.5 w-3.5" /> Categorie
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
+              <Link to="/azienda/impostazioni/fornitori">
+                <Users className="h-3.5 w-3.5" /> Fornitori
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CompanyCostsManager() {
   const { effectiveCompany } = useAuth();
@@ -115,12 +260,12 @@ export default function CompanyCostsManager() {
   };
 
   const operationalControl = useMemo(() => {
-    const allCosts = data.allCostsUnfiltered || [];
-    const manualCosts = allCosts.filter((cost: any) => !cost.isFromOrder);
-    const missingCategory = manualCosts.filter((cost: any) => !cost.category).length;
-    const missingSupplier = manualCosts.filter((cost: any) => cost.cost_type === "variable" && !cost.supplier_id && !cost.supplierName).length;
-    const linkedToOrders = allCosts.filter((cost: any) => cost.order_id || cost.order).length;
-    const unscheduled = allCosts.filter((cost: any) => !cost.is_paid && (!cost.due_date || cost.due_date === "9999-12-31")).length;
+    const allCosts = (data.allCostsUnfiltered || []) as CostWithRelations[];
+    const manualCosts = allCosts.filter((cost) => !cost.isFromOrder);
+    const missingCategory = manualCosts.filter((cost) => !cost.category).length;
+    const missingSupplier = manualCosts.filter((cost) => cost.cost_type === "variable" && !cost.supplier_id && !cost.supplierName).length;
+    const linkedToOrders = allCosts.filter((cost) => cost.order_id || cost.order).length;
+    const unscheduled = allCosts.filter((cost) => !cost.is_paid && (!cost.due_date || cost.due_date === "9999-12-31")).length;
 
     return {
       missingCategory,
@@ -131,6 +276,79 @@ export default function CompanyCostsManager() {
       overdueAmount: data.stats.totalOverdue,
     };
   }, [data.allCostsUnfiltered, data.stats.overdueCount, data.stats.totalOverdue]);
+
+  const integrationSummary = useMemo<CostIntegrationSummary>(() => {
+    const allCosts = data.allCostsUnfiltered || [];
+    const manualCosts = allCosts.filter((cost: UnifiedCost) => !cost.isFromOrder);
+    const orderCosts = allCosts.filter((cost: UnifiedCost) => cost.isFromOrder);
+    const sum = (items: UnifiedCost[]) => items.reduce((total, cost) => total + Number(cost.amount || 0), 0);
+
+    return {
+      total: allCosts.length,
+      manual: manualCosts.length,
+      linked: orderCosts.length,
+      scheduled: allCosts.filter((cost: UnifiedCost) => cost.due_date && cost.due_date !== "9999-12-31").length,
+      paid: allCosts.filter((cost: UnifiedCost) => cost.is_paid).length,
+      totalAmount: sum(allCosts),
+      manualAmount: sum(manualCosts),
+      linkedAmount: sum(orderCosts),
+    };
+  }, [data.allCostsUnfiltered]);
+
+  const showOverdueCosts = () => {
+    setPeriodFilter("all");
+    setSearchQuery("");
+    setCustomDateRange(null);
+    setOriginFilter("all");
+    setStatusFilter("all");
+    setSupplierFilter("all");
+    setCategoryFilter("all");
+    setStatusTabFilter("in_ritardo");
+  };
+
+  const showMissingCategories = () => {
+    setPeriodFilter("all");
+    setSearchQuery("");
+    setCustomDateRange(null);
+    setOriginFilter("manual");
+    setStatusFilter("all");
+    setSupplierFilter("all");
+    setStatusTabFilter("all");
+    setCategoryFilter("none");
+  };
+
+  const showMissingSuppliers = () => {
+    setPeriodFilter("all");
+    setSearchQuery("");
+    setCustomDateRange(null);
+    setOriginFilter("manual");
+    setStatusFilter("all");
+    setCategoryFilter("all");
+    setStatusTabFilter("all");
+    setSupplierFilter("none");
+  };
+
+  const showOrderCosts = () => {
+    setPeriodFilter("all");
+    setSearchQuery("");
+    setCustomDateRange(null);
+    setOriginFilter("order");
+    setStatusFilter("all");
+    setSupplierFilter("all");
+    setCategoryFilter("all");
+    setStatusTabFilter("all");
+  };
+
+  const showUnscheduledCosts = () => {
+    setPeriodFilter("all");
+    setSearchQuery("");
+    setCustomDateRange(null);
+    setOriginFilter("all");
+    setStatusFilter("all");
+    setSupplierFilter("all");
+    setCategoryFilter("all");
+    setStatusTabFilter("senza_scadenza");
+  };
 
   // Mutations hook
   const mutations = useCompanyCostsMutations({
@@ -163,6 +381,7 @@ export default function CompanyCostsManager() {
   };
 
   const openEdit = (cost: UnifiedCost) => {
+    const editableCost = cost as CostWithRelations;
     setEditingCost(cost);
     setFormData({
       name: cost.name,
@@ -176,29 +395,29 @@ export default function CompanyCostsManager() {
       supplier_id: cost.supplier_id || "none",
       vat_rate: String(cost.vat_rate ?? 22),
       is_gross: false,
-      end_date: "",
-      recurrence_auto: false,
+      end_date: editableCost.recurrence_end_date || "",
+      recurrence_auto: Boolean(editableCost.recurrence_auto),
     });
     setDialogOpen(true);
   };
 
   const openDuplicate = (cost: UnifiedCost) => {
+    const duplicableCost = cost as CostWithRelations;
     setEditingCost(null);
-    const nextMonth = addMonths(new Date(cost.due_date), 1);
     setFormData({
       name: cost.name,
       cost_type: cost.cost_type,
       amount: String(cost.amount),
       category: cost.category || "",
       recurrence: cost.recurrence,
-      due_date: format(nextMonth, "yyyy-MM-dd"),
+      due_date: getDuplicatedDueDate(cost.due_date),
       notes: cost.notes || "",
       order_id: cost.order_id || "none",
       supplier_id: cost.supplier_id || "none",
       vat_rate: String(cost.vat_rate ?? 22),
       is_gross: false,
-      end_date: "",
-      recurrence_auto: false,
+      end_date: duplicableCost.recurrence_end_date || "",
+      recurrence_auto: Boolean(duplicableCost.recurrence_auto),
     });
     setDialogOpen(true);
   };
@@ -310,6 +529,7 @@ export default function CompanyCostsManager() {
                             body: { company_id: companyId },
                           });
                           if (error) throw error;
+                          data.refetchAll();
                           toast({ title: `Generati ${result?.created || 0} costi ricorrenti` });
                         } catch (err) {
                           toast({
@@ -345,6 +565,20 @@ export default function CompanyCostsManager() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {data.isError && (
+            <Alert className="border-red-200 bg-red-50 text-red-900">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  Alcuni dati dei costi non sono stati caricati: {data.errorMessage}
+                </span>
+                <Button variant="outline" size="sm" onClick={data.refetchAll}>
+                  Riprova
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Alert Banner — Overdue payments */}
           {data.stats.overdueCount > 0 && (
             <Alert className="border-orange-300 bg-orange-50 dark:bg-orange-900/10 dark:border-orange-700">
@@ -357,7 +591,7 @@ export default function CompanyCostsManager() {
                   variant="outline"
                   size="sm"
                   className="border-orange-400 text-orange-700 hover:bg-orange-100 dark:border-orange-600 dark:text-orange-400 dark:hover:bg-orange-900/20"
-                  onClick={() => setStatusTabFilter("in_ritardo")}
+                  onClick={showOverdueCosts}
                 >
                   Visualizza
                 </Button>
@@ -368,7 +602,7 @@ export default function CompanyCostsManager() {
           <div className="grid gap-3 md:grid-cols-4">
             <button
               type="button"
-              onClick={() => setStatusTabFilter("in_ritardo")}
+              onClick={showOverdueCosts}
               className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
               <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
@@ -381,7 +615,7 @@ export default function CompanyCostsManager() {
             </button>
             <button
               type="button"
-              onClick={() => setCategoryFilter("none")}
+              onClick={showMissingCategories}
               className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
               <div className="absolute inset-y-0 left-0 w-1 bg-blue-500" />
@@ -394,7 +628,7 @@ export default function CompanyCostsManager() {
             </button>
             <button
               type="button"
-              onClick={() => setSupplierFilter("none")}
+              onClick={showMissingSuppliers}
               className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
               <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500" />
@@ -407,21 +641,32 @@ export default function CompanyCostsManager() {
             </button>
             <button
               type="button"
-              onClick={() => setOriginFilter("order")}
+              onClick={showOrderCosts}
               className="relative overflow-hidden rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
             >
               <div className="absolute inset-y-0 left-0 w-1 bg-orange-500" />
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Collegati a ordini</span>
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Da moduli collegati</span>
                 <Link2 className="h-4 w-4 text-primary" />
               </div>
               <div className="mt-2 flex items-center gap-2">
                 <span className="text-xl font-semibold">{operationalControl.linkedToOrders}</span>
                 {operationalControl.unscheduled > 0 && <Badge variant="outline">{operationalControl.unscheduled} senza scadenza</Badge>}
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">rilevanti per marginalità</p>
+              <p className="mt-1 text-xs text-muted-foreground">ordini, team, personale e provvigioni</p>
             </button>
           </div>
+
+          <CostIntegrationPanel
+            summary={integrationSummary}
+            missingCategory={operationalControl.missingCategory}
+            missingSupplier={operationalControl.missingSupplier}
+            unscheduled={operationalControl.unscheduled}
+            onShowOrderCosts={showOrderCosts}
+            onShowUnscheduled={showUnscheduledCosts}
+            onShowMissingCategories={showMissingCategories}
+            onShowMissingSuppliers={showMissingSuppliers}
+          />
 
           <CostsStatsCards
             stats={data.stats}
@@ -510,7 +755,7 @@ export default function CompanyCostsManager() {
               <SelectContent>
                 <SelectItem value="all">Tutti i fornitori</SelectItem>
                 <SelectItem value="none">Senza fornitore</SelectItem>
-                {data.suppliers.map((s: any) => (
+                {data.suppliers.map((s: { id: string; name: string }) => (
                   <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -530,7 +775,7 @@ export default function CompanyCostsManager() {
               <SelectContent>
                 <SelectItem value="all">Tutte le origini</SelectItem>
                 <SelectItem value="manual">Manuale</SelectItem>
-                <SelectItem value="order">Da Ordine</SelectItem>
+                <SelectItem value="order">Da moduli collegati</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" onClick={resetFilters} disabled={!hasActiveFilters} className="gap-2">
@@ -546,6 +791,7 @@ export default function CompanyCostsManager() {
               { value: "previsti" as StatusTabFilter, label: "Previsti", count: data.statusTabLists.previsti.length },
               { value: "in_ritardo" as StatusTabFilter, label: "In ritardo", count: data.statusTabLists.inRitardo.length },
               { value: "in_scadenza" as StatusTabFilter, label: "In scadenza", count: data.statusTabLists.inScadenza.length },
+              { value: "senza_scadenza" as StatusTabFilter, label: "Senza scadenza", count: data.statusTabLists.senzaScadenza.length },
             ]).map(tab => (
               <Button
                 key={tab.value}
@@ -555,6 +801,7 @@ export default function CompanyCostsManager() {
                   "text-xs gap-1",
                   tab.value === "in_ritardo" && tab.count > 0 && statusTabFilter !== tab.value && "border-red-300 text-red-700 dark:border-red-700 dark:text-red-400",
                   tab.value === "in_scadenza" && tab.count > 0 && statusTabFilter !== tab.value && "border-orange-300 text-orange-700 dark:border-orange-700 dark:text-orange-400",
+                  tab.value === "senza_scadenza" && tab.count > 0 && statusTabFilter !== tab.value && "border-slate-300 text-slate-700",
                 )}
                 onClick={() => setStatusTabFilter(tab.value)}
               >

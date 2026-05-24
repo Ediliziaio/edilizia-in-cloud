@@ -217,11 +217,8 @@ import { BillingModeGuard } from "@/components/billing/BillingModeGuard";
 const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/DocumentiFiscaliList"));
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
 const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
-const CassettoSDI = lazy(() => import("@/pages/azienda/fatturazione/CassettoSDI"));
 const FattureRicevutePage = lazy(() => import("@/pages/azienda/fatturazione/FattureRicevutePage"));
-const RegistroIncassi = lazy(() => import("@/pages/azienda/fatturazione/RegistroIncassi"));
 const RegistroIVA = lazy(() => import("@/pages/azienda/fatturazione/RegistroIVA"));
-const AnagraficheList = lazy(() => import("@/pages/azienda/fatturazione/AnagraficheList"));
 const AnagraficaDetail = lazy(() => import("@/pages/azienda/fatturazione/AnagraficaDetail"));
 const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/ReportFatturazione"));
 // v8.6.57 — ImpostazioniFatturazione ora caricato da SettingsFatturazioneUnified
@@ -416,7 +413,7 @@ export default function CompanyRoutesContainer() {
         <Route path="manutenzione/impianto/:id" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><ImpiantoDetail /></FeatureRoute>)} />
         <Route path="impianti/:impiantoId/storico" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><StoricoImpianto /></FeatureRoute>)} />
         <Route path="previsionale" element={withCompanyPermission("canViewForecast", <CashFlowForecast />)} />
-        <Route path="costi" element={withCompanyPermission("canViewCosts", <CompanyCosts />)} />
+        <Route path="costi" element={withCompanyPermission("canViewCosts", <ErrorBoundary title="Errore nel caricamento costi"><CompanyCosts /></ErrorBoundary>)} />
         
         <Route path="attivita" element={<AttivitaRouter />} />
         {/* Le pagine timbrature-personali, ferie-personali, cedolini-personali
@@ -464,12 +461,12 @@ export default function CompanyRoutesContainer() {
         {/* Native billing routes — gated: documenti (core) + billing mode native */}
         <Route path="documenti" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/nuovo" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>)} />
-        <Route path="documenti/cassetto-sdi" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><CassettoSDI /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/cassetto-sdi" element={<Navigate to="/azienda/documenti?tab=sdi" replace />} />
         <Route path="documenti/fatture-ricevute" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
-        <Route path="documenti/incassi" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIncassi /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/incassi" element={<Navigate to="/azienda/documenti?tab=incassi" replace />} />
         <Route path="documenti/registro-iva" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>)} />
-        <Route path="documenti/anagrafiche" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficheList /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/anagrafiche" element={<Navigate to="/azienda/documenti?tab=rubrica" replace />} />
         <Route path="documenti/anagrafiche/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/proforma" element={<Navigate to="/azienda/documenti?tipo=proforma" replace />} />
         <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti?tipo=preventivo" replace />} />
