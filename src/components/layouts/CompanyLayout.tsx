@@ -972,11 +972,15 @@ const CompanySidebar = memo(function CompanySidebar() {
       return "hidden";
     };
 
-    if (permissions.isLoading) {
+    if (permissions.isLoading || gatingLoading) {
       return items.filter((item) => {
         if (item.url === "/azienda/contenuti-multimediali") return true;
+        if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (!item.featureKey) return true;
-        return passesFeatureGate(item.featureKey) !== "hidden";
+        if (item.featureKey === "billing_external" || item.featureKey === "billing_native") {
+          return passesFeatureGate(item.featureKey) !== "hidden";
+        }
+        return true;
       });
     }
     return items.filter((item) => {
@@ -1015,7 +1019,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
       return true;
     });
-  }, [permissions, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan]);
+  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan]);
 
   useEffect(() => {
     if (!gatingLoading) {

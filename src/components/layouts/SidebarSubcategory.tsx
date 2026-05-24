@@ -27,6 +27,7 @@ export function SidebarSubcategory({
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={isOpen}
         className={cn(
           "flex w-full items-center justify-between px-3 py-1.5 cursor-pointer rounded-md",
           "hover:bg-muted/40 transition-colors duration-150 group/sub"
@@ -64,17 +65,10 @@ export function SidebarSubcategory({
           />
         </span>
       </button>
-      {/* v8.6.49 — Fix bug visivo: il pattern grid-template-rows 0fr→1fr
-          falliva intermittentemente (esp. dopo HMR / re-render multipli)
-          lasciando il subcategory aperto ma con figli invisibili.
-          Sostituito con display:block/none guard più aria-hidden per a11y:
-          niente animation ma rendering bulletproof. */}
-      <div
-        className={cn("transition-opacity duration-150", isOpen ? "block opacity-100" : "hidden opacity-0")}
-        aria-hidden={!isOpen}
-      >
-        <div className="pt-0.5 pb-1">{children}</div>
-      </div>
+      {/* Rendering deterministico: niente classi hidden/opacity combinate,
+          così non può restare spazio vuoto con figli invisibili dopo re-render
+          o refresh dei permessi/feature flag. */}
+      {isOpen && <div className="pt-0.5 pb-1">{children}</div>}
     </div>
   );
 }
