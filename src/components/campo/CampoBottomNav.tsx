@@ -24,7 +24,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: "Home", icon: Home, href: "/campo", exact: true },
   { label: "Lavori", icon: Calendar, href: "/campo/calendario" },
-  { label: "Timbra", icon: Clock, href: "__timbra__" },
+  { label: "Timbra", icon: Clock, href: "/campo/timbratura" },
   { label: "Chat", icon: MessageSquare, href: "/campo/chat" },
   { label: "App", icon: LayoutGrid, href: "/campo/menu" },
 ];
@@ -40,11 +40,10 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
 
   // Subappaltatori non timbrano — filtra il bottone Timbra
   const visibleItems = isSubappaltatore
-    ? NAV_ITEMS.filter((item) => item.href !== "__timbra__")
+    ? NAV_ITEMS.filter((item) => item.label !== "Timbra")
     : NAV_ITEMS;
 
   const isActive = (item: NavItem) => {
-    if (item.href === "__timbra__") return false;
     if (item.exact) return location.pathname === item.href;
     return location.pathname.startsWith(item.href);
   };
@@ -61,13 +60,15 @@ export function CampoBottomNav({ unreadCount = 0, onTimbraClick }: Props) {
           const Icon = item.icon;
 
           // Timbra — bottone speciale al centro (sempre arancione/primary)
-          if (item.href === "__timbra__") {
+          if (item.label === "Timbra") {
             return (
               <Link
                 key="timbra"
-                to="/campo"
+                to={item.href}
+                onClick={onTimbraClick}
                 className="relative flex flex-1 flex-col items-center justify-center gap-0.5"
                 aria-label="Timbratura"
+                aria-current={active ? "page" : undefined}
               >
                 <div className="-mt-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/30">
                   <Icon className="h-6 w-6 text-white stroke-[2.5]" />

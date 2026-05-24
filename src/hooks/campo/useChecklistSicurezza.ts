@@ -12,6 +12,21 @@ import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { isOnline } from "@/lib/campo/network-status";
 
 export type Turno = "mattina" | "pomeriggio" | "notte";
+const CHECKLIST_REQUEST_TIMEOUT_MS = 8000;
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
 
 export interface ChecklistSicurezzaRecord {
   id?: string;
@@ -64,19 +79,26 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
 
   // Fetch record del giorno se esiste
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setState((s) => ({ ...s, loading: false }));
+      return;
+    }
     let cancelled = false;
 
     void (async () => {
       setState((s) => ({ ...s, loading: true, error: null }));
       try {
-        const { data, error } = await supabase
-          .from("checklist_sicurezza" as never)
-          .select("id, company_id, order_id, operaio_id, data, turno, risposte, note, foto_urls, completata, firmata, posizione_gps")
-          .eq("operaio_id", user.id)
-          .eq("data", today)
-          .eq("turno", turno)
-          .maybeSingle();
+        const { data, error } = await withTimeout(
+          supabase
+            .from("checklist_sicurezza" as never)
+            .select("id, company_id, order_id, operaio_id, data, turno, risposte, note, foto_urls, completata, firmata, posizione_gps")
+            .eq("operaio_id", user.id)
+            .eq("data", today)
+            .eq("turno", turno)
+            .maybeSingle(),
+          CHECKLIST_REQUEST_TIMEOUT_MS,
+          "Caricamento checklist troppo lento",
+        );
 
         if (cancelled) return;
 
@@ -102,7 +124,11 @@ export function useChecklistSicurezza(turno: Turno = "mattina"): UseChecklistSta
       } catch (err) {
         if (cancelled) return;
         console.error("[useChecklistSicurezza] errore", err);
-        setState((s) => ({ ...s, loading: false, error: "Errore di rete" }));
+        setState((s) => ({
+          ...s,
+          loading: false,
+          error: err instanceof Error ? err.message : "Errore di rete",
+        }));
       }
     })();
 

@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { EmailSidebar } from "./components/EmailSidebar";
+import { EmailAiCommandCenter } from "./components/EmailAiCommandCenter";
+import { EmailConnectionHealthPanel, type EmailConnectionHealth } from "./components/EmailConnectionHealthPanel";
 import { EmailList } from "./components/EmailList";
 import { EmailViewer } from "./components/EmailViewer";
 import { EmailComposeDialog, type ComposeContext } from "./components/EmailComposeDialog";
@@ -63,7 +65,7 @@ export interface EmailFilter {
   category?: EmailSmartCategory;
 }
 
-export interface EmailConnectionSummary {
+export interface EmailConnectionSummary extends EmailConnectionHealth {
   id: string;
   provider: string;
   email_address: string;
@@ -175,7 +177,7 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase as any)
         .from("v_email_oauth_connections_meta")
-        .select("id, provider, email_address, status")
+        .select("id, provider, provider_label, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_enabled, poll_interval_minutes, expires_at, last_test_ok, last_test_error")
         .eq("company_id", companyId!)
         .eq("user_id", userId!);
       return (data ?? []) as Array<{
@@ -267,6 +269,18 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
           filter={filter}
           onFilterChange={applyFilter}
           connections={connections ?? []}
+        />
+        <EmailConnectionHealthPanel
+          connections={connections ?? []}
+          variant="compact"
+        />
+        <EmailAiCommandCenter
+          onSelectThread={handleSelectThread}
+          onFilterCategory={(category) => applyFilter((current) => ({
+            ...current,
+            category,
+            folder: { type: "system", key: "inbox" },
+          }))}
         />
         <EmailSearchBar
           initialValue={queryCustomerEmail}

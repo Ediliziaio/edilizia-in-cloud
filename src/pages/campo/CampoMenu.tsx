@@ -96,7 +96,7 @@ export default function CampoMenu() {
     {
       title: "Documenti e Altro",
       items: [
-        { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-slate-600 bg-slate-50" },
+        { icon: FileText, label: "Documenti", url: "/campo/sub/documenti", color: "text-slate-600 bg-slate-50" },
         { icon: Settings, label: "Impostazioni", url: "/campo/impostazioni", color: "text-gray-600 bg-gray-50" },
       ],
     },

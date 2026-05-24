@@ -15,7 +15,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   Archive,
@@ -33,6 +32,7 @@ import {
   FolderPlus,
   Forward,
   Inbox,
+  Loader2,
   Mail,
   Maximize2,
   Minimize2,
@@ -198,6 +198,16 @@ type ComposeDraft = {
   attachments: DemoAttachment[];
 };
 
+function withClientTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof window.setTimeout> | undefined;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
+    if (timer) window.clearTimeout(timer);
+  });
+}
+
 function getDemoEmailMessage(row: DemoEmailRow): string {
   if (row.badge === "Lead") {
     return "Buongiorno, abbiamo ricevuto una richiesta per una ristrutturazione bagno in zona Ferrara. Il cliente indica budget 8-12k e preferisce essere ricontattato entro domani mattina.";
@@ -341,30 +351,37 @@ export default function EmailClientPage() {
   const companyId = effectiveCompany?.id;
   const [showSlowFallback, setShowSlowFallback] = useState(false);
   const forceDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("__email_demo");
+  const canCheckConnections = !forceDemo && !!userId && !!companyId;
 
   const { data: connections, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["my-email-connections", userId, companyId],
-    enabled: !forceDemo && !!userId && !!companyId,
+    queryKey: ["my-email-connections", "timeout-v2", userId, companyId],
+    enabled: canCheckConnections,
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from("v_email_oauth_connections_meta")
-        .select("id, provider, email_address, status")
-        .eq("company_id", companyId!)
-        .eq("user_id", userId!);
+      const { data, error } = await withClientTimeout(
+        supabase
+          .from("v_email_oauth_connections_meta")
+          .select("id, provider, email_address, status")
+          .eq("company_id", companyId!)
+          .eq("user_id", userId!),
+        7000,
+        "Il controllo delle caselle email sta impiegando troppo. Riprova o apri la demo operativa.",
+      );
       if (error) throw error;
       return data ?? [];
     },
+    retry: 1,
   });
 
+  const isCheckingConnections = canCheckConnections && isLoading;
+
   useEffect(() => {
-    if (!isLoading) {
+    if (!isCheckingConnections) {
       setShowSlowFallback(false);
       return;
     }
-    const timer = window.setTimeout(() => setShowSlowFallback(true), 5000);
+    const timer = window.setTimeout(() => setShowSlowFallback(true), 2500);
     return () => window.clearTimeout(timer);
-  }, [isLoading]);
+  }, [isCheckingConnections]);
 
   const hasConnections = (connections?.length ?? 0) > 0;
 
@@ -376,15 +393,15 @@ export default function EmailClientPage() {
     );
   }
 
-  if (isLoading && !showSlowFallback) {
+  if (isCheckingConnections && !showSlowFallback) {
     return (
       <div className="container mx-auto p-4 md:p-6">
-        <Skeleton className="h-[calc(100vh-8rem)]" />
+        <EmailConnectingState />
       </div>
     );
   }
 
-  if (isLoading && showSlowFallback) {
+  if (isCheckingConnections && showSlowFallback) {
     return (
       <div className="container mx-auto max-w-6xl p-4 md:p-6">
         <EmptyConnectionsState
@@ -398,7 +415,7 @@ export default function EmailClientPage() {
     );
   }
 
-  if (isError) {
+  if (canCheckConnections && isError) {
     return (
       <div className="container mx-auto max-w-6xl p-4 md:p-6">
         <EmptyConnectionsState
@@ -422,6 +439,68 @@ export default function EmailClientPage() {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+
+function EmailConnectingState() {
+  return (
+    <div className="mx-auto grid min-h-[calc(100vh-8rem)] max-w-5xl place-items-center">
+      <Card className="w-full overflow-hidden border-blue-100 bg-white shadow-sm">
+        <CardContent className="grid gap-5 p-5 md:grid-cols-[0.9fr_1.1fr] md:p-6">
+          <div className="flex flex-col justify-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </span>
+            <h2 className="mt-4 text-xl font-semibold tracking-tight text-slate-950">
+              Verifico le caselle email
+            </h2>
+            <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
+              Sto controllando connessioni, permessi e stato OAuth. La pagina mostra subito un percorso utile anche se Supabase risponde lentamente.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button asChild variant="outline" className="rounded-xl border-blue-200 bg-white">
+                <Link to="/azienda/email?__email_demo=1">
+                  <Eye className="mr-2 h-4 w-4" />
+                  Apri demo
+                </Link>
+              </Button>
+              <Button asChild className="rounded-xl bg-blue-600 hover:bg-blue-700">
+                <Link to="/azienda/impostazioni/mio-profilo">
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  Impostazioni email
+                </Link>
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            {[
+              { label: "Connessioni OAuth", status: "controllo in corso" },
+              { label: "Inbox personale", status: "verifica RLS e company" },
+              { label: "Regia AI", status: "pronta dopo sync" },
+            ].map((item, index) => (
+              <div
+                key={item.label}
+                className={cn(
+                  "rounded-2xl border p-4",
+                  index === 0 ? "border-blue-100 bg-blue-50/70" : "border-slate-100 bg-slate-50/70",
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">{item.label}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.status}</p>
+                  </div>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-blue-600">
+                    {index === 0 ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleCheck className="h-4 w-4" />}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 function EmptyConnectionsState({
   mode = "empty",
@@ -496,7 +575,9 @@ function EmptyConnectionsState({
           </p>
         </div>
 
-        <MailboxPreview />
+        <div className="space-y-4">
+          <MailboxPreview />
+        </div>
       </CardContent>
     </Card>
   );

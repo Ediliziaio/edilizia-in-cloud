@@ -5396,6 +5396,7 @@ export type Database = {
           messaggio_fuori_orario: string | null
           nome_account: string | null
           numero: string
+          operational_settings: Json | null
           orario_attivo: Json | null
           phone_number_id: string | null
           provider: string | null
@@ -5420,6 +5421,7 @@ export type Database = {
           messaggio_fuori_orario?: string | null
           nome_account?: string | null
           numero: string
+          operational_settings?: Json | null
           orario_attivo?: Json | null
           phone_number_id?: string | null
           provider?: string | null
@@ -5444,6 +5446,7 @@ export type Database = {
           messaggio_fuori_orario?: string | null
           nome_account?: string | null
           numero?: string
+          operational_settings?: Json | null
           orario_attivo?: Json | null
           phone_number_id?: string | null
           provider?: string | null

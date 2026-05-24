@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ListPlus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -20,7 +21,7 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data: lists = [] } = useQuery({
-    queryKey: ["marketing-contact-lists", companyId],
+    queryKey: queryKeys.contactLists.list(companyId),
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await supabase
@@ -42,7 +43,7 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
     },
     onSuccess: () => {
       toast.success(`${selectedIds.size} contatti aggiunti alla lista`);
-      queryClient.invalidateQueries({ queryKey: ["marketing-contact-lists"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
       setOpen(false);
     },
     onError: () => toast.error("Errore nell'aggiunta"),
@@ -63,7 +64,7 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
     },
     onSuccess: () => {
       toast.success("Lista creata e contatti aggiunti");
-      queryClient.invalidateQueries({ queryKey: ["marketing-contact-lists"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
       setCreateOpen(false);
       setOpen(false);
     },

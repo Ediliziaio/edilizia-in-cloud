@@ -4,12 +4,13 @@
  * Storico ultimi 14 giorni.
  */
 import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, differenceInMinutes, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   LogIn, LogOut, Coffee,
-  CheckCircle, Loader2, AlertCircle, Navigation, PauseCircle,
+  CheckCircle, Loader2, AlertCircle, Navigation, PauseCircle, HardHat, MapPin,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,6 +25,7 @@ interface Timbratura {
   id: string;
   tipo: TipoTimbratura;
   timestamp_evento: string;
+  order_id?: string | null;
   lat?: number;
   lng?: number;
   indirizzo?: string;
@@ -33,7 +35,12 @@ interface Timbratura {
 export default function CampoTimbratura() {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
-  const companyId = (profile as any)?.company_id ?? null;
+  const [searchParams] = useSearchParams();
+  const companyId = profile?.company_id ?? null;
+  const selectedOrderId = searchParams.get("order_id");
+  const fallbackOrderCode = searchParams.get("order_code");
+  const fallbackOrderTitle = searchParams.get("order_title");
+  const fallbackOrderAddress = searchParams.get("order_address");
   const { lat, lng, accuracy, address, status: gpsStatus, requestPosition } = useGPS(companyId);
   // Profilo HR — usato per sincronizzare la timbratura anche in hr_timbrature
   const { data: hrProfilo } = useMyHrProfilo();
@@ -49,25 +56,56 @@ export default function CampoTimbratura() {
   // Today's timbrature
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const { data: timbratureOggi = [], isLoading: loadingOggi } = useQuery({
-    queryKey: ["campo-timbrature-oggi", user?.id, today],
+  const { data: selectedOrder, isLoading: selectedOrderLoading } = useQuery({
+    queryKey: ["campo-timbratura-order", selectedOrderId, companyId],
+    queryFn: async () => {
+      return await Promise.race([
+        supabase
+          .from("orders")
+          .select("id, order_code, description, indirizzo_lavori")
+          .eq("id", selectedOrderId!)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (error) throw error;
+            return data;
+          }),
+        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 3500)),
+      ]);
+    },
+    enabled: !!selectedOrderId,
+    staleTime: 60_000,
+  });
+
+  const fallbackSelectedOrder = selectedOrderId && (fallbackOrderCode || fallbackOrderTitle || fallbackOrderAddress)
+    ? {
+        id: selectedOrderId,
+        order_code: fallbackOrderCode ?? "Cantiere selezionato",
+        description: fallbackOrderTitle,
+        indirizzo_lavori: fallbackOrderAddress,
+      }
+    : null;
+  const selectedOrderContext = selectedOrder ?? fallbackSelectedOrder;
+
+  const { data: timbratureOggi = [] } = useQuery({
+    queryKey: ["campo-timbrature-oggi", companyId, user?.id, today],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
         .gte("timestamp_evento", `${today}T00:00:00`)
         .lte("timestamp_evento", `${today}T23:59:59`)
         .order("timestamp_evento", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Timbratura[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
   });
 
   // Storico 14 giorni
   const { data: storico = [] } = useQuery({
-    queryKey: ["campo-timbrature-storico", user?.id],
+    queryKey: ["campo-timbrature-storico", companyId, user?.id],
     queryFn: async () => {
       const from = new Date();
       from.setDate(from.getDate() - 14);
@@ -75,12 +113,13 @@ export default function CampoTimbratura() {
         .from("campo_timbrature")
         .select("*")
         .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
         .gte("timestamp_evento", from.toISOString())
         .order("timestamp_evento", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Timbratura[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!companyId,
   });
 
   // Determine current state
@@ -89,39 +128,62 @@ export default function CampoTimbratura() {
   const isActive = lastTimbro?.tipo === "entrata" || lastTimbro?.tipo === "pausa_fine";
   const isUscito = lastTimbro?.tipo === "uscita";
 
-  // Compute ore lavorate
-  let oreLavorate = 0;
+  // Compute ore lavorate: supporta piu sessioni entrata/uscita nella stessa giornata.
+  let minutiLavorati = 0;
   let minutiPausa = 0;
-  for (let i = 0; i < timbratureOggi.length - 1; i++) {
-    const curr = timbratureOggi[i];
-    const next = timbratureOggi[i + 1];
-    if (curr.tipo === "pausa_inizio" && next.tipo === "pausa_fine") {
-      minutiPausa += differenceInMinutes(
-        parseISO(next.timestamp_evento),
-        parseISO(curr.timestamp_evento)
-      );
+  let inizioLavoro: Date | null = null;
+  let inizioPausa: Date | null = null;
+
+  for (const timbro of timbratureOggi) {
+    const ts = parseISO(timbro.timestamp_evento);
+    if (timbro.tipo === "entrata" || timbro.tipo === "pausa_fine") {
+      if (timbro.tipo === "pausa_fine" && inizioPausa) {
+        minutiPausa += Math.max(0, differenceInMinutes(ts, inizioPausa));
+        inizioPausa = null;
+      }
+      inizioLavoro = ts;
+    } else if (timbro.tipo === "pausa_inizio") {
+      if (inizioLavoro) {
+        minutiLavorati += Math.max(0, differenceInMinutes(ts, inizioLavoro));
+        inizioLavoro = null;
+      }
+      inizioPausa = ts;
+    } else if (timbro.tipo === "uscita") {
+      if (inizioLavoro) {
+        minutiLavorati += Math.max(0, differenceInMinutes(ts, inizioLavoro));
+        inizioLavoro = null;
+      }
+      inizioPausa = null;
     }
   }
-  const entrata = timbratureOggi.find(t => t.tipo === "entrata");
-  const uscita = timbratureOggi.find(t => t.tipo === "uscita");
-  if (entrata) {
-    const end = uscita ? parseISO(uscita.timestamp_evento) : new Date();
-    oreLavorate = Math.max(0, differenceInMinutes(end, parseISO(entrata.timestamp_evento)) - minutiPausa) / 60;
+  if (inizioLavoro) {
+    minutiLavorati += Math.max(0, differenceInMinutes(new Date(), inizioLavoro));
   }
+  if (inizioPausa) {
+    minutiPausa += Math.max(0, differenceInMinutes(new Date(), inizioPausa));
+  }
+
+  const oreLavorate = minutiLavorati / 60;
 
   const timbraMutation = useMutation({
     mutationFn: async (tipo: TipoTimbratura) => {
+      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
       const gpsReady = gpsStatus === "success";
       const now = new Date().toISOString();
+      const note = [
+        selectedOrderContext ? `Cantiere: ${selectedOrderContext.order_code ?? selectedOrderContext.id}` : null,
+        address ? `GPS: ${address}` : null,
+      ].filter(Boolean).join(" · ") || null;
       const { error } = await supabase.from("campo_timbrature").insert({
         user_id: user!.id,
         company_id: companyId,
+        order_id: selectedOrderContext?.id ?? selectedOrderId ?? null,
         tipo,
         timestamp_evento: now,
         gps_lat: gpsReady ? lat : null,
         gps_lng: gpsReady ? lng : null,
         gps_accuracy: gpsReady ? Math.round(accuracy) : null,
-        note: address ? `GPS: ${address}` : null,
+        note,
         fonte: "app",
       });
       if (error) throw error;
@@ -132,15 +194,15 @@ export default function CampoTimbratura() {
           await supabase.from("hr_timbrature").insert({
             company_id: companyId,
             profilo_id: profiloId,
-            tipo: tipo as any,
+            tipo,
             timestamp: now,
             data_evento: now.slice(0, 10),
             ora_evento: now.slice(11, 19),
             lat: gpsReady ? lat : null,
             lng: gpsReady ? lng : null,
             fonte: "app",
-            note: address ? `GPS: ${address}` : null,
-          } as any);
+            note,
+          });
         } catch (hrErr) {
           // Non bloccante: la timbratura campo è già avvenuta
           console.warn("[CampoTimbratura] hr_timbrature sync failed:", hrErr);
@@ -163,8 +225,7 @@ export default function CampoTimbratura() {
 
   const getNextAction = (): { tipo: TipoTimbratura; label: string; icon: typeof LogIn; color: string } | null => {
     if (!lastTimbro || lastTimbro.tipo === "uscita") {
-      if (!entrata) return { tipo: "entrata", label: "TIMBRA ENTRATA", icon: LogIn, color: "bg-green-500" };
-      return null;
+      return { tipo: "entrata", label: lastTimbro ? "NUOVA ENTRATA" : "TIMBRA ENTRATA", icon: LogIn, color: "bg-green-500" };
     }
     if (lastTimbro.tipo === "entrata" || lastTimbro.tipo === "pausa_fine") {
       return { tipo: "pausa_inizio", label: "INIZIA PAUSA", icon: Coffee, color: "bg-primary" };
@@ -205,6 +266,62 @@ export default function CampoTimbratura() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {selectedOrderId && selectedOrderLoading && !selectedOrderContext && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-center gap-3 text-sm font-semibold text-primary">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carico il cantiere collegato...
+            </div>
+          </div>
+        )}
+
+        {selectedOrderContext && (
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                <HardHat className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                  Timbratura collegata
+                </p>
+                <p className="truncate text-base font-bold text-foreground">
+                  {selectedOrderContext.order_code}
+                </p>
+                <p className="line-clamp-2 text-sm text-muted-foreground">
+                  {selectedOrderContext.description ?? "Cantiere selezionato"}
+                </p>
+                {selectedOrderContext.indirizzo_lavori && (
+                  <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{selectedOrderContext.indirizzo_lavori}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selectedOrderId && !selectedOrderLoading && !selectedOrderContext && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-amber-100 p-2 text-amber-700">
+                <HardHat className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                  Timbratura collegata
+                </p>
+                <p className="text-sm font-semibold text-amber-900">
+                  Cantiere selezionato
+                </p>
+                <p className="mt-1 text-xs text-amber-800">
+                  Le ore saranno associate al lavoro aperto. Se il nome non appare, ricarica dai lavori assegnati.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Ore lavorate oggi */}
         <div className="bg-muted border border-border rounded-2xl p-5">
@@ -245,7 +362,7 @@ export default function CampoTimbratura() {
         {/* Azioni principali */}
         <div className="space-y-3">
           {/* Azione principale (entrata / pausa) */}
-          {nextAction && !isUscito && (
+          {nextAction && (
             <button
               onClick={() => timbraMutation.mutate(nextAction.tipo)}
               disabled={timbraMutation.isPending}
@@ -279,7 +396,7 @@ export default function CampoTimbratura() {
           {isUscito && (
             <div className="flex items-center justify-center gap-2 py-4 bg-muted border border-border rounded-2xl">
               <CheckCircle className="w-5 h-5 text-green-600" />
-              <p className="text-green-600 font-semibold">Giornata completata</p>
+              <p className="text-green-600 font-semibold">Fuori servizio</p>
             </div>
           )}
 

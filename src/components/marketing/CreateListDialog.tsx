@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +17,12 @@ export function CreateListDialog({ open, onOpenChange, onSave, initialData, isEd
   const [name, setName] = useState(initialData?.name || "");
   const [description, setDescription] = useState(initialData?.description || "");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(initialData?.name || "");
+    setDescription(initialData?.description || "");
+  }, [initialData?.description, initialData?.name, open]);
 
   const handleOpen = (o: boolean) => {
     if (o) {

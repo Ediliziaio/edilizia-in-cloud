@@ -5,10 +5,11 @@ import { WhatsAppMultiNumeroTab } from "@/components/whatsapp-multi/WhatsAppMult
 import TemplatesPage from "./TemplatesPage";
 import NotificheConfigPage from "./NotificheConfigPage";
 import BroadcastListPage from "./BroadcastListPage";
+import OperationalControlPage from "./OperationalControlPage";
 import { useSearchParams } from "react-router-dom";
-import { Bell, Megaphone, MessageSquare, RefreshCw } from "lucide-react";
+import { Bell, Bot, Megaphone, MessageSquare } from "lucide-react";
 
-const VALID_TABS = ["numeri", "template", "broadcast", "notifiche"] as const;
+const VALID_TABS = ["numeri", "regia", "template", "broadcast", "notifiche"] as const;
 type WhatsAppHubTab = typeof VALID_TABS[number];
 
 function normalizeTab(value: string | null): WhatsAppHubTab {
@@ -37,17 +38,21 @@ export default function WhatsAppHubPage() {
               </div>
               <h1 className="text-2xl font-bold">Centro WhatsApp</h1>
               <p className="text-sm text-muted-foreground">
-                Numeri, template Meta, broadcast e notifiche automatiche in un unico pannello operativo.
+                Tre linee aziendali: commerciale, cantieri e amministrazione. Silvio usa ogni numero con regole diverse.
               </p>
             </div>
             <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-              <span className="rounded-lg border bg-background px-3 py-2"><RefreshCw className="mr-1.5 inline h-3.5 w-3.5" />Sync template</span>
-              <span className="rounded-lg border bg-background px-3 py-2"><Megaphone className="mr-1.5 inline h-3.5 w-3.5" />Broadcast</span>
-              <span className="rounded-lg border bg-background px-3 py-2"><Bell className="mr-1.5 inline h-3.5 w-3.5" />Notifiche</span>
+              <span className="rounded-lg border bg-background px-3 py-2"><Megaphone className="mr-1.5 inline h-3.5 w-3.5" />Marketing umano</span>
+              <span className="rounded-lg border bg-background px-3 py-2"><MessageSquare className="mr-1.5 inline h-3.5 w-3.5" />Cantieri con AI</span>
+              <span className="rounded-lg border bg-background px-3 py-2"><Bell className="mr-1.5 inline h-3.5 w-3.5" />Notifiche e ticket</span>
             </div>
           </div>
-          <TabsList className="grid w-full max-w-2xl grid-cols-4">
+          <TabsList className="grid w-full max-w-3xl grid-cols-2 sm:grid-cols-5">
             <TabsTrigger value="numeri" aria-label="Tab Numeri">Numeri</TabsTrigger>
+            <TabsTrigger value="regia" aria-label="Tab Regia operativa">
+              <Bot className="mr-1.5 h-3.5 w-3.5" />
+              Regia
+            </TabsTrigger>
             <TabsTrigger value="template" aria-label="Tab Template">Template</TabsTrigger>
             <TabsTrigger value="broadcast" aria-label="Tab Broadcast">Broadcast</TabsTrigger>
             <TabsTrigger value="notifiche" aria-label="Tab Notifiche">Notifiche</TabsTrigger>
@@ -55,6 +60,9 @@ export default function WhatsAppHubPage() {
 
           <TabsContent value="numeri" className="mt-0">
             <WhatsAppMultiNumeroTab />
+          </TabsContent>
+          <TabsContent value="regia" className="mt-0">
+            <OperationalControlPage />
           </TabsContent>
           <TabsContent value="template" className="mt-0">
             <TemplatesPage />

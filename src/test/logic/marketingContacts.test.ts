@@ -28,19 +28,31 @@ describe("marketing contacts helpers", () => {
   it("keeps valid URL params untouched", () => {
     expect(
       normalizeContactsUrlState({
-        activeTab: "meta",
+        activeTab: "lists",
         page: 3,
         pageSize: 50,
         sortField: "email",
         sortDirection: "asc",
       }),
     ).toMatchObject({
-      activeTab: "meta",
+      activeTab: "lists",
       page: 3,
       pageSize: 50,
       sortField: "email",
       sortDirection: "asc",
     });
+  });
+
+  it("treats the old Facebook leads tab as a regular contacts view", () => {
+    expect(
+      normalizeContactsUrlState({
+        activeTab: "meta",
+        page: 1,
+        pageSize: 25,
+        sortField: "created_at",
+        sortDirection: "desc",
+      }).activeTab,
+    ).toBe("all");
   });
 
   it("sanitizes search text for PostgREST or() filters without erasing useful terms", () => {

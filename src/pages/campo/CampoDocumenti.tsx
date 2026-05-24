@@ -8,13 +8,30 @@ import { format, parseISO, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   FileText, AlertTriangle, CheckCircle, Clock,
-  Download, Loader2,
+  Download, Loader2, RefreshCcw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsCampo } from "@/hooks/useIsCampo";
 import { cn } from "@/lib/utils";
+import SubDocumenti from "./subappaltatore/SubDocumenti";
 
 const PRIVATE_DOC_BUCKET = "documenti-dipendenti";
+const DOCUMENTI_TIMEOUT_MS = 8000;
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
 
 const TIPO_LABELS: Record<string, string> = {
   contratto: "Contratto",
@@ -27,23 +44,33 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 export default function CampoDocumenti() {
+  const { isSubappaltatore } = useIsCampo();
+  return isSubappaltatore ? <SubDocumenti /> : <CampoDocumentiDipendente />;
+}
+
+function CampoDocumentiDipendente() {
   const { user, profile } = useAuth();
   const companyId = profile?.company_id ?? null;
 
-  const { data: documenti = [], isLoading } = useQuery({
+  const { data: documenti = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["campo-documenti", companyId, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("documenti_dipendenti")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("company_id", companyId)
-        .order("data_scadenza", { ascending: true, nullsFirst: false });
+      const { data, error } = await withTimeout(
+        supabase
+          .from("documenti_dipendenti")
+          .select("*")
+          .eq("user_id", user!.id)
+          .eq("company_id", companyId)
+          .order("data_scadenza", { ascending: true, nullsFirst: false }),
+        DOCUMENTI_TIMEOUT_MS,
+        "Caricamento documenti troppo lento",
+      );
       if (error) throw error;
       return data ?? [];
     },
     enabled: !!user?.id && !!companyId,
+    retry: false,
   });
 
   const today = new Date();
@@ -57,10 +84,54 @@ export default function CampoDocumenti() {
     return "valido";
   };
 
+  const pageHeader = (
+    <div>
+      <h1 className="text-lg font-bold tracking-tight text-foreground">Documenti</h1>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        Contratti, certificazioni e documenti caricati dall'ufficio.
+      </p>
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="mx-auto max-w-3xl space-y-4 pb-28">
+        {pageHeader}
+        <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-2xl border bg-background p-6 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <p className="text-sm font-medium text-foreground">Caricamento documenti...</p>
+          <p className="max-w-xs text-xs text-muted-foreground">
+            Se la connessione in cantiere e' lenta, ti mostro un messaggio invece di lasciare la pagina vuota.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 pb-28">
+        {pageHeader}
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold">Documenti non caricati</p>
+              <p className="mt-1 text-xs leading-relaxed">
+                {(error as Error)?.message || "La richiesta non ha risposto in tempo."} Riprova quando la rete e' stabile.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-background px-3 text-xs font-bold text-amber-900 shadow-sm disabled:opacity-60"
+          >
+            {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+            Riprova
+          </button>
+        </div>
       </div>
     );
   }
@@ -89,7 +160,8 @@ export default function CampoDocumenti() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto px-4 py-4 pb-24 space-y-4">
+    <div className="mx-auto flex max-w-3xl flex-col space-y-4 pb-28">
+      {pageHeader}
 
       {/* Alert scadenze */}
       {scadutiCount > 0 && (

@@ -168,7 +168,7 @@ export default function CampoTicketNuovo() {
 
       {/* Submit */}
       <div
-        className="sticky bottom-0 bg-background border-t border-border px-4 py-3 z-20"
+        className="sticky bottom-[calc(4.35rem+env(safe-area-inset-bottom))] z-20 border-t border-border bg-background px-4 py-3 md:bottom-0"
       >
         <button
           onClick={() => submitMutation.mutate()}

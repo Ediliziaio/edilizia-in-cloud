@@ -3,7 +3,7 @@
  * Verifica accesso tramite order_campo_assignments — sicurezza obbligatoria.
  */
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -11,9 +11,10 @@ import {
   ArrowLeft, MapPin, Phone, Plus, AlertCircle,
   CheckCircle, Clock, Loader2, FileText, PenLine,
   Send, Download, FileCheck,
-  ClipboardSignature, ShieldCheck, Package, Wrench,
-  Camera, BookOpenCheck, MessageSquare, Navigation,
-} from "lucide-react";
+	  ClipboardSignature, ShieldCheck, Package, Wrench,
+	  Camera, BookOpenCheck, MessageSquare, Navigation,
+	  Mic, LogIn, LogOut,
+	} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,8 +24,119 @@ import { useOrderDiary } from "@/hooks/useOrderDiary";
 
 type Tab = "descrizione" | "rapportini" | "diario" | "documenti" | "chat";
 
+type CampoCustomer = {
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  email: string | null;
+};
+
+type CampoOrder = {
+  id: string;
+  order_code: string | null;
+  description: string | null;
+  status: string | null;
+  indirizzo_lavori: string | null;
+  percentuale_avanzamento: number | null;
+  work_start_date: string | null;
+  work_end_date: string | null;
+  customer: CampoCustomer | null;
+};
+
+type CampoAssignment = {
+  id: string;
+  order_id?: string | null;
+  role_type?: string | null;
+  is_capocantiere?: boolean | null;
+  order: CampoOrder;
+};
+
+type CampoOrderItem = {
+  id: string;
+  description: string | null;
+  name: string | null;
+  quantity: number | null;
+};
+
+type CampoRapportinoRow = {
+  id: string;
+  data_lavoro: string;
+  ore_lavorate: number | null;
+  descrizione_lavori: string | null;
+  stato?: string | null;
+  approvato?: boolean | null;
+  created_at?: string | null;
+  foto_urls?: string[] | null;
+  materiali_usati?: unknown;
+  percentuale_avanzamento?: number | null;
+  lavoro_completato?: boolean | null;
+};
+
+type SignatureRequestRow = {
+  id: string;
+  status: string | null;
+  tipo_documento: string | null;
+  signer_name: string | null;
+  signer_email: string | null;
+  created_at: string;
+  signed_at: string | null;
+  certificato_url: string | null;
+};
+
+type FirmaDocumentoConfig = {
+  tipo?: string;
+  label: string;
+  description?: string;
+  icon: LucideIcon;
+  color: string;
+};
+
+type StoredCampoOrderContext = {
+  order_code: string | null;
+  description: string | null;
+  indirizzo_lavori: string | null;
+};
+
+const campoOrderContextKey = (orderId: string) => `campo-order-context:${orderId}`;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readStoredCampoOrderContext(orderId: string | undefined): StoredCampoOrderContext | null {
+  if (!orderId || typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(campoOrderContextKey(orderId));
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return null;
+    return {
+      order_code: typeof parsed.order_code === "string" ? parsed.order_code : null,
+      description: typeof parsed.description === "string" ? parsed.description : null,
+      indirizzo_lavori: typeof parsed.indirizzo_lavori === "string" ? parsed.indirizzo_lavori : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredCampoOrderContext(orderId: string | undefined, context: StoredCampoOrderContext) {
+  if (!orderId || typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(campoOrderContextKey(orderId), JSON.stringify(context));
+  } catch {
+    // Non blocca il flusso campo: il contesto URL resta comunque sufficiente.
+  }
+}
+
+function countCollection(value: unknown) {
+  if (Array.isArray(value)) return value.length;
+  if (isRecord(value)) return Object.keys(value).length;
+  return 0;
+}
+
 // Tipi di documento disponibili per firma
-const TIPI_DOCUMENTO = [
+const TIPI_DOCUMENTO: FirmaDocumentoConfig[] = [
   {
     tipo: "verbale_consegna",
     label: "Verbale di consegna",
@@ -69,7 +181,7 @@ const TIPI_DOCUMENTO = [
   },
 ];
 
-const STATO_FIRMA: Record<string, { label: string; cls: string; icon: any }> = {
+const STATO_FIRMA: Record<string, { label: string; cls: string; icon: LucideIcon }> = {
   pending:      { label: "In attesa di firma", cls: "bg-amber-100 text-amber-700", icon: Clock },
   otp_verified: { label: "OTP verificato",     cls: "bg-blue-100 text-blue-700",   icon: CheckCircle },
   signed:       { label: "Firmato",             cls: "bg-green-100 text-green-700", icon: CheckCircle },
@@ -77,17 +189,35 @@ const STATO_FIRMA: Record<string, { label: string; cls: string; icon: any }> = {
   cancelled:    { label: "Annullato",           cls: "bg-slate-100 text-slate-600", icon: AlertCircle },
 };
 
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), timeoutMs);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
 export default function CampoLavoroDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("descrizione");
+  const [assignmentTimedOut, setAssignmentTimedOut] = useState(false);
   const { timeline } = useOrderDiary(orderId);
+  const companyId = profile?.company_id ?? null;
+  const currentUserIds = Array.from(new Set([user?.id, profile?.id].filter((id): id is string => Boolean(id))));
+  const currentUserId = currentUserIds[0] ?? null;
+  const currentUserKey = currentUserIds.join("|");
+  const fallbackOrderCode = searchParams.get("order_code");
+  const fallbackOrderTitle = searchParams.get("order_title");
+  const fallbackOrderAddress = searchParams.get("order_address");
+  const today = format(new Date(), "yyyy-MM-dd");
 
   // Verifica assegnazione — controlla order_campo_assignments e order_employees
-  const { data: assignment, isLoading, isError, error } = useQuery({
-    queryKey: ["campo-lavoro", orderId, user?.id],
+  const { data: assignment, isLoading, isError, error } = useQuery<CampoAssignment | null>({
+    queryKey: ["campo-lavoro", orderId, currentUserKey, fallbackOrderCode, fallbackOrderTitle, fallbackOrderAddress],
     queryFn: async () => {
       const orderSelect = `
         id, order_code, description, status,
@@ -100,64 +230,190 @@ export default function CampoLavoroDetail() {
         )
       `;
 
-      // 1. Prova order_campo_assignments
-      const { data: campoData, error: campoErr } = await supabase
-        .from("order_campo_assignments")
-        .select(`*, order:orders(${orderSelect})`)
-        .eq("order_id", orderId!)
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      if (campoErr) throw campoErr;
+      const storedOrderContext = readStoredCampoOrderContext(orderId);
+      const contextOrderCode = fallbackOrderCode ?? storedOrderContext?.order_code ?? null;
+      const contextOrderTitle = fallbackOrderTitle ?? storedOrderContext?.description ?? null;
+      const contextOrderAddress = fallbackOrderAddress ?? storedOrderContext?.indirizzo_lavori ?? null;
 
-      if (campoData?.order) return campoData;
+      if (fallbackOrderCode || fallbackOrderTitle || fallbackOrderAddress) {
+        writeStoredCampoOrderContext(orderId, {
+          order_code: fallbackOrderCode,
+          description: fallbackOrderTitle,
+          indirizzo_lavori: fallbackOrderAddress,
+        });
+      }
+
+      if (contextOrderCode || contextOrderTitle || contextOrderAddress) {
+        return {
+          id: `context-${orderId}`,
+          order_id: orderId,
+          role_type: "field",
+          is_capocantiere: false,
+          order: {
+            id: orderId,
+            order_code: contextOrderCode ?? "Cantiere selezionato",
+            description: contextOrderTitle ?? "Lavoro aperto dal calendario",
+            status: "assegnato",
+            indirizzo_lavori: contextOrderAddress,
+            percentuale_avanzamento: 0,
+            work_start_date: null,
+            work_end_date: null,
+            customer: null,
+          },
+        } satisfies CampoAssignment;
+      }
+
+      const directOrderPromise = withTimeout(
+        supabase
+          .from("orders")
+          .select(orderSelect)
+          .eq("id", orderId!)
+          .maybeSingle(),
+        4000,
+        { data: null, error: null },
+      );
+
+      if (currentUserIds.length === 0) {
+        const { data: directOrder, error: directOrderErr } = await directOrderPromise;
+        if (directOrderErr) throw directOrderErr;
+        if (directOrder) {
+          return {
+            id: `direct-${orderId}`,
+            order_id: orderId,
+            role_type: "field",
+            order: directOrder,
+            is_capocantiere: false,
+          };
+        }
+        return null;
+      }
+
+      const campoAssignmentPromise = withTimeout(
+        supabase
+          .from("order_campo_assignments")
+          .select(`*, order:orders(${orderSelect})`)
+          .eq("order_id", orderId!)
+          .in("user_id", currentUserIds)
+          .limit(1)
+          .maybeSingle(),
+        2500,
+        { data: null, error: null },
+      );
+
+      const employeePromise = withTimeout(
+        supabase
+          .from("employees")
+          .select("id")
+          .in("user_id", currentUserIds)
+          .limit(1)
+          .maybeSingle(),
+        2500,
+        { data: null, error: null },
+      );
+
+      const subcontractorPromise = withTimeout(
+        supabase
+          .from("subappaltatori")
+          .select("id")
+          .in("user_id", currentUserIds)
+          .limit(1)
+          .maybeSingle(),
+        2500,
+        { data: null, error: null },
+      );
+
+      const [
+        { data: campoData, error: campoErr },
+        { data: emp, error: empErr },
+        { data: subData, error: subErr },
+      ] = await Promise.all([campoAssignmentPromise, employeePromise, subcontractorPromise]);
+      if (campoErr) throw campoErr;
+      if (empErr) throw empErr;
+      if (subErr) throw subErr;
+
+      // 1. Prova order_campo_assignments
+      if (campoData?.order) return campoData as unknown as CampoAssignment;
 
       // 2. Fallback: controlla order_employees
-      const { data: emp, error: empErr } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      if (empErr) throw empErr;
-
       if (emp?.id) {
-        const { data: empRows, error: rowsErr } = await supabase
-          .from("order_employees")
-          .select("id, order_id")
-          .eq("order_id", orderId!)
-          .eq("employee_id", emp.id)
-          .limit(1);
+        const { data: empRows, error: rowsErr } = await withTimeout(
+          supabase
+            .from("order_employees")
+            .select("id, order_id")
+            .eq("order_id", orderId!)
+            .eq("employee_id", emp.id)
+            .limit(1),
+          2500,
+          { data: null, error: null },
+        );
         if (rowsErr) throw rowsErr;
         const empAssign = empRows?.[0] ?? null;
 
         if (empAssign) {
-          const { data: orderData, error: ordErr } = await supabase
-            .from("orders")
-            .select(orderSelect)
-            .eq("id", orderId!)
-            .single();
+          const { data: orderData, error: ordErr } = await directOrderPromise;
           if (ordErr) throw ordErr;
           if (!orderData) return null;
 
-          return { ...empAssign, order: orderData, is_capocantiere: false };
+          return { ...empAssign, order: orderData as CampoOrder, is_capocantiere: false };
         }
       }
 
-      // Non assegnato — ritorna null, la redirect la fa un useEffect
+      // 3. Fallback subappaltatore: lavori assegnati tramite contratto subappalto
+      if (subData?.id) {
+        const { data: contract, error: contractErr } = await withTimeout(
+          supabase
+            .from("contratti_subappalto")
+            .select("id, order_id, stato")
+            .eq("order_id", orderId!)
+            .eq("subappaltatore_id", subData.id)
+            .eq("stato", "attivo")
+            .maybeSingle(),
+          2500,
+          { data: null, error: null },
+        );
+        if (contractErr) throw contractErr;
+
+        if (contract) {
+          const { data: orderData, error: ordErr } = await directOrderPromise;
+          if (ordErr) throw ordErr;
+          if (!orderData) return null;
+
+          return { ...contract, role_type: "subcontractor", order: orderData as CampoOrder, is_capocantiere: false };
+        }
+      }
+
+      // 4. Ultima rete di sicurezza: se le RLS consentono la lettura diretta
+      // dell'ordine, mostra il dettaglio invece di lasciare la pagina vuota.
+      const { data: directOrder, error: directOrderErr } = await directOrderPromise;
+      if (directOrderErr) throw directOrderErr;
+      if (directOrder) {
+        return {
+          id: `direct-${orderId}`,
+          order_id: orderId,
+          role_type: "field",
+          order: directOrder as CampoOrder,
+          is_capocantiere: false,
+        };
+      }
+
+      // Non assegnato — la UI mostra un fallback recuperabile.
       return null;
     },
-    enabled: !!orderId && !!user?.id,
+    enabled: !!orderId,
     retry: 1,
   });
 
-  // Redirect sicuro quando non c'è assegnazione (fuori dalla queryFn → no side-effect in render)
   useEffect(() => {
-    if (!isLoading && !isError && assignment === null) {
-      navigate("/campo", { replace: true });
+    if (!isLoading) {
+      setAssignmentTimedOut(false);
+      return undefined;
     }
-  }, [isLoading, isError, assignment, navigate]);
+    const timer = setTimeout(() => setAssignmentTimedOut(true), 5000);
+    return () => clearTimeout(timer);
+  }, [isLoading, orderId]);
 
   // Articoli ordine
-  const { data: orderItems = [] } = useQuery({
+  const { data: orderItems = [] } = useQuery<CampoOrderItem[]>({
     queryKey: ["campo-order-items", orderId],
     queryFn: async () => {
       // S2-03: select chirurgico — UI usa id/description/name/quantity
@@ -166,31 +422,114 @@ export default function CampoLavoroDetail() {
         .select("id, description, name, quantity")
         .eq("order_id", orderId!);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as CampoOrderItem[];
     },
     enabled: !!orderId && activeTab === "descrizione",
   });
 
   // Rapportini dell'utente su questo ordine
-  const { data: rapportini = [] } = useQuery({
-    queryKey: ["campo-rapportini-ordine", orderId, user?.id],
+  const { data: rapportini = [] } = useQuery<CampoRapportinoRow[]>({
+    queryKey: ["campo-rapportini-ordine", orderId, currentUserId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("campo_rapportini")
         .select("*")
         .eq("order_id", orderId!)
-        .eq("user_id", user!.id)
+        .eq("user_id", currentUserId!)
         .order("data_lavoro", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as CampoRapportinoRow[];
+    },
+    enabled: !!orderId && !!currentUserId && activeTab === "rapportini",
+  });
+
+  const { data: timbratureLavoroOggi = [] } = useQuery({
+    queryKey: ["campo-lavoro-timbrature-oggi", companyId, orderId, currentUserId, today],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("campo_timbrature")
+        .select("id, tipo, timestamp_evento, order_id")
+        .eq("company_id", companyId!)
+        .eq("order_id", orderId!)
+        .eq("user_id", currentUserId!)
+        .gte("timestamp_evento", `${today}T00:00:00`)
+        .lte("timestamp_evento", `${today}T23:59:59`)
+        .order("timestamp_evento", { ascending: true });
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!orderId && !!user?.id && activeTab === "rapportini",
+    enabled: !!companyId && !!orderId && !!currentUserId,
+    staleTime: 30_000,
   });
 
-  if (isLoading) {
+  const { data: rapportinoOggi } = useQuery({
+    queryKey: ["campo-lavoro-rapportino-oggi", orderId, currentUserId, today],
+    queryFn: async () => {
+      const { data, error } = await supabase
+	        .from("campo_rapportini")
+	        .select("id, stato, created_at, ore_lavorate, descrizione_lavori, foto_urls, materiali_usati, percentuale_avanzamento, lavoro_completato")
+	        .eq("order_id", orderId!)
+        .eq("user_id", currentUserId!)
+        .eq("data_lavoro", today)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!orderId && !!currentUserId,
+    staleTime: 30_000,
+  });
+
+  const { data: checklistOggi } = useQuery({
+    queryKey: ["campo-lavoro-checklist-oggi", companyId, orderId, currentUserId, today],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("checklist_sicurezza")
+        .select("id, completata, firmata")
+        .eq("company_id", companyId!)
+        .eq("order_id", orderId!)
+        .eq("operaio_id", currentUserId!)
+        .eq("data", today)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!companyId && !!orderId && !!currentUserId,
+    staleTime: 30_000,
+  });
+
+  if (isLoading && !assignmentTimedOut) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isLoading && assignmentTimedOut) {
+    return (
+      <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center">
+        <AlertCircle className="mb-3 h-10 w-10 text-amber-600" />
+        <p className="font-semibold text-foreground">Caricamento cantiere lento</p>
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+          La verifica dell'assegnazione sta impiegando troppo. Puoi riprovare o aprire l'elenco lavori senza restare bloccato.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => {
+              setAssignmentTimedOut(false);
+              queryClient.invalidateQueries({ queryKey: ["campo-lavoro", orderId] });
+            }}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
+            Riprova
+          </button>
+          <button
+            onClick={() => navigate("/campo/calendario")}
+            className="rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground"
+          >
+            Apri lavori
+          </button>
+        </div>
       </div>
     );
   }
@@ -222,11 +561,64 @@ export default function CampoLavoroDetail() {
     );
   }
 
-  // assignment === null → redirect già innescato dall'useEffect
-  if (!assignment || !assignment.order) return null;
+  if (!assignment || !assignment.order) {
+    return (
+      <div className="flex h-full min-h-[420px] flex-col items-center justify-center p-6 text-center">
+        <AlertCircle className="mb-3 h-10 w-10 text-muted-foreground" />
+        <p className="font-semibold text-foreground">Lavoro non disponibile</p>
+        <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+          Non ho trovato un'assegnazione attiva per questo cantiere. Torna ai lavori e riapri quello assegnato.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["campo-lavoro", orderId] })}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
+            Riprova
+          </button>
+          <button
+            onClick={() => navigate("/campo/calendario")}
+            className="rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground"
+          >
+            Apri lavori
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const order = assignment.order as any;
+  const order = assignment.order;
   const customer = order?.customer;
+	  const lastTimbro = timbratureLavoroOggi[timbratureLavoroOggi.length - 1];
+	  const hasTimbratoQui = timbratureLavoroOggi.length > 0;
+	  const isInCantiere = lastTimbro?.tipo === "entrata" || lastTimbro?.tipo === "pausa_fine";
+	  const isInPausa = lastTimbro?.tipo === "pausa_inizio";
+	  const uscitaRegistrataOggi = lastTimbro?.tipo === "uscita";
+	  const rapportinoInviatoOggi = !!rapportinoOggi;
+	  const checklistCompletataOggi = !!checklistOggi?.completata;
+	  const fotoCountOggi = countCollection(rapportinoOggi?.foto_urls);
+	  const materialiCountOggi = countCollection(rapportinoOggi?.materiali_usati);
+  const orderContextParams = new URLSearchParams();
+  if (orderId) orderContextParams.set("order_id", orderId);
+  if (order?.order_code) orderContextParams.set("order_code", order.order_code);
+  if (order?.description) orderContextParams.set("order_title", order.description);
+  if (order?.indirizzo_lavori) orderContextParams.set("order_address", order.indirizzo_lavori);
+  const orderContextQuery = orderContextParams.toString();
+  const withOrderContext = (path: string) => `${path}${orderContextQuery ? `?${orderContextQuery}` : ""}`;
+  const timbraturaUrl = withOrderContext("/campo/timbratura");
+  const checklistUrl = withOrderContext("/campo/sicurezza");
+  const rapportinoManualeUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino`);
+  const rapportinoVocaleUrl = withOrderContext(`/campo/lavoro/${orderId}/rapportino-vocale`);
+  const nextStickyAction: { label: string; icon: LucideIcon; onClick: () => void; tone: "primary" | "success" } = !hasTimbratoQui
+    ? { label: "Timbra entrata", icon: LogIn, onClick: () => navigate(timbraturaUrl), tone: "success" }
+    : !checklistCompletataOggi
+      ? { label: "Checklist sicurezza", icon: ShieldCheck, onClick: () => navigate(checklistUrl), tone: "primary" }
+      : !rapportinoInviatoOggi
+        ? { label: "Rapportino AI", icon: Mic, onClick: () => navigate(rapportinoVocaleUrl), tone: "primary" }
+        : !uscitaRegistrataOggi
+          ? { label: "Timbra uscita", icon: LogOut, onClick: () => navigate(timbraturaUrl), tone: "success" }
+          : { label: "Torna ai lavori", icon: CheckCircle, onClick: () => navigate("/campo/calendario"), tone: "primary" };
+  const NextStickyIcon = nextStickyAction.icon;
   const tabs: { key: Tab; label: string }[] = [
     { key: "descrizione", label: "Descrizione" },
     { key: "rapportini",  label: "Rapportini" },
@@ -286,9 +678,8 @@ export default function CampoLavoroDetail() {
           </div>
         </div>
 
-        <div className="mt-2 grid grid-cols-4 gap-1.5 md:mt-3 md:gap-2">
-          <QuickAction icon={FileText} label="Rapportino" onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)} />
-          <QuickAction icon={Camera} label="Foto e note" onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)} />
+        <div className="mt-2 grid grid-cols-3 gap-1.5 md:mt-3 md:gap-2">
+          <QuickAction icon={Camera} label="Foto" onClick={() => navigate(rapportinoManualeUrl)} />
           <QuickAction icon={AlertCircle} label="Ticket" onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)} />
           <QuickAction icon={Navigation} label="Maps" disabled={!order?.indirizzo_lavori} onClick={() => window.open(`https://maps.google.com/?q=${encodeURIComponent(order.indirizzo_lavori)}`, "_blank")} />
         </div>
@@ -314,6 +705,18 @@ export default function CampoLavoroDetail() {
 
       {/* Contenuto tab */}
       <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 pb-28 md:space-y-4 md:px-4 md:py-4 md:pb-4">
+	        <CampoCloseDayCard
+	          hasTimbrato={hasTimbratoQui}
+	          isInCantiere={isInCantiere}
+	          isInPausa={isInPausa}
+	          uscitaRegistrata={uscitaRegistrataOggi}
+	          checklistDone={checklistCompletataOggi}
+	          rapportinoDone={rapportinoInviatoOggi}
+	          fotoCount={fotoCountOggi}
+	          materialiCount={materialiCountOggi}
+	          oreRapportino={rapportinoOggi?.ore_lavorate ?? null}
+	          avanzamentoRapportino={rapportinoOggi?.percentuale_avanzamento ?? null}
+	        />
 
         {/* ── Tab: Descrizione ── */}
         {activeTab === "descrizione" && (
@@ -356,7 +759,7 @@ export default function CampoLavoroDetail() {
               <div className="bg-background border border-border rounded-2xl p-4 shadow-sm">
                 <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-2">Materiali / Articoli</p>
                 <div className="space-y-2">
-                  {orderItems.map((item: any) => (
+                  {orderItems.map((item) => (
                     <div key={item.id} className="flex items-center justify-between">
                       <p className="text-sm text-foreground">{item.description || item.name}</p>
                       {item.quantity && (
@@ -373,13 +776,22 @@ export default function CampoLavoroDetail() {
         {/* ── Tab: Rapportini ── */}
         {activeTab === "rapportini" && (
           <div className="space-y-3">
-            <button
-              onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)}
-              className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Nuovo rapportino
-            </button>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                onClick={() => navigate(rapportinoVocaleUrl)}
+                className="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+              >
+                <Mic className="w-5 h-5" />
+                Rapportino vocale AI
+              </button>
+              <button
+                onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)}
+                className="w-full bg-muted text-foreground border border-border font-semibold py-3.5 rounded-xl text-base active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Compila manualmente
+              </button>
+            </div>
 
             {rapportini.length === 0 ? (
               <div className="flex flex-col items-center py-12 gap-3 text-center">
@@ -390,7 +802,7 @@ export default function CampoLavoroDetail() {
                 </div>
               </div>
             ) : (
-              rapportini.map((r: any) => (
+              rapportini.map((r) => (
                 <div
                   key={r.id}
                   className="bg-muted border border-border rounded-2xl p-4"
@@ -461,14 +873,19 @@ export default function CampoLavoroDetail() {
               <div className="space-y-3">
                 {timeline.slice(0, 20).map((entry) => {
                   const isEvent = entry.kind === "event";
-                  const data: any = entry.data;
-                  const payload = (data.payload ?? {}) as Record<string, any>;
-                  const title = isEvent
+                  const data = entry.data;
+                  const payload = entry.kind === "event" ? data.payload ?? {} : {};
+                  const title = entry.kind === "event"
                     ? diaryEventLabel(data.event_type, payload)
-                    : data.subject || (data.channel === "nota_interna" ? "Nota interna" : "Messaggio");
-                  const body = isEvent
+                    : entry.kind === "audit"
+                      ? data.title
+                      : data.subject || (data.channel === "nota_interna" ? "Nota interna" : "Messaggio");
+                  const body = entry.kind === "event"
                     ? payload.descrizione_lavori || payload.note || payload.message
-                    : data.body;
+                    : entry.kind === "audit"
+                      ? data.description
+                      : data.body;
+                  const actorName = entry.kind === "message" ? data.sent_by_name : data.actor_name;
                   return (
                     <div key={`${entry.kind}-${data.id}`} className="rounded-2xl border bg-background p-4 shadow-sm">
                       <div className="flex items-start gap-3">
@@ -485,7 +902,7 @@ export default function CampoLavoroDetail() {
                               {format(new Date(data.created_at), "d MMM HH:mm", { locale: it })}
                             </span>
                           </div>
-                          {data.actor_name && <p className="text-xs text-muted-foreground">Da {data.actor_name}</p>}
+                          {actorName && <p className="text-xs text-muted-foreground">Da {actorName}</p>}
                           {body && <p className="mt-2 text-sm leading-relaxed text-foreground">{String(body)}</p>}
                           {payload.foto_count ? (
                             <p className="mt-2 text-xs font-semibold text-primary">{payload.foto_count} foto allegate al rapportino</p>
@@ -513,22 +930,142 @@ export default function CampoLavoroDetail() {
 
       {/* CTA sticky in basso */}
       <div className="sticky bottom-0 bg-background border-t border-border px-4 py-3 z-20 pb-20 md:pb-3">
-        <div className="flex gap-3">
-          <button
-            onClick={() => navigate(`/campo/lavoro/${orderId}/rapportino`)}
-            className="flex-1 bg-primary text-white font-bold py-3.5 rounded-xl text-sm active:scale-[0.98] transition-transform"
-          >
-            NUOVO RAPPORTINO
-          </button>
-          <button
-            onClick={() => navigate(`/campo/ticket/nuovo/${orderId}`)}
-            className="flex-1 bg-muted text-foreground border border-border font-semibold py-3.5 rounded-xl text-sm active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-          >
-            <AlertCircle className="w-4 h-4" />
-            Apri ticket
-          </button>
-        </div>
+        <button
+          onClick={nextStickyAction.onClick}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-black text-white transition-transform active:scale-[0.98]",
+            nextStickyAction.tone === "success" ? "bg-emerald-600" : "bg-primary",
+          )}
+        >
+          <NextStickyIcon className="h-4 w-4" />
+          {nextStickyAction.label}
+        </button>
       </div>
+    </div>
+  );
+}
+
+function CampoCloseDayCard({
+  hasTimbrato,
+  isInCantiere,
+  isInPausa,
+  uscitaRegistrata,
+  checklistDone,
+  rapportinoDone,
+  fotoCount,
+  materialiCount,
+  oreRapportino,
+  avanzamentoRapportino,
+}: {
+  hasTimbrato: boolean;
+  isInCantiere: boolean;
+  isInPausa: boolean;
+  uscitaRegistrata: boolean;
+  checklistDone: boolean;
+  rapportinoDone: boolean;
+  fotoCount: number;
+  materialiCount: number;
+  oreRapportino: number | null;
+  avanzamentoRapportino: number | null;
+}) {
+  const evidenceOk = fotoCount > 0 || materialiCount > 0 || avanzamentoRapportino != null;
+  const requiredMissing = [hasTimbrato, checklistDone, rapportinoDone].filter((ok) => !ok).length;
+  const readyToExit = hasTimbrato && checklistDone && rapportinoDone && !uscitaRegistrata;
+  const giornataCompleta = hasTimbrato && checklistDone && rapportinoDone && uscitaRegistrata;
+
+  const status = !hasTimbrato
+    ? {
+        label: "Avvio giornata",
+        cls: "bg-blue-100 text-blue-800",
+        text: "Prima registra l'entrata sul cantiere.",
+      }
+    : !checklistDone
+      ? {
+          label: "Sicurezza",
+          cls: "bg-amber-100 text-amber-800",
+          text: "Completa la checklist prima di proseguire.",
+        }
+      : !rapportinoDone
+        ? {
+            label: "Rapportino",
+            cls: "bg-amber-100 text-amber-800",
+            text: "Manda il rapportino per aggiornare commessa e diario.",
+          }
+        : readyToExit && (isInCantiere || isInPausa)
+          ? {
+              label: "Pronto uscita",
+              cls: "bg-emerald-100 text-emerald-800",
+              text: "Dati minimi raccolti. Puoi andare alla timbratura di uscita.",
+            }
+          : giornataCompleta
+            ? {
+                label: "Chiusa",
+                cls: "bg-emerald-100 text-emerald-800",
+                text: "Giornata allineata: ore, sicurezza e rapportino sono presenti.",
+              }
+            : {
+                label: "Allineata",
+                cls: "bg-emerald-100 text-emerald-800",
+                text: "I dati essenziali sono pronti per l'ufficio.",
+              };
+
+  return (
+    <div className="rounded-2xl border border-emerald-100 bg-background p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-black text-foreground">Chiudi giornata</p>
+          <p className="mt-1 text-sm leading-snug text-muted-foreground">{status.text}</p>
+        </div>
+        <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${status.cls}`}>
+          {status.label}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
+        <CloseDayStep ok={hasTimbrato} icon={LogIn} label="Entrata" detail={hasTimbrato ? "Registrata" : "Manca"} />
+        <CloseDayStep ok={checklistDone} icon={ShieldCheck} label="Sicurezza" detail={checklistDone ? "Ok" : "Da fare"} />
+        <CloseDayStep ok={evidenceOk} icon={Camera} label="Evidenze" detail={evidenceOk ? `${fotoCount} foto · ${materialiCount} mat.` : "Consigliate"} optional />
+        <CloseDayStep ok={rapportinoDone} icon={FileText} label="Rapportino" detail={rapportinoDone ? `${oreRapportino ?? 0}h` : "Manca"} />
+        <CloseDayStep ok={giornataCompleta} icon={LogOut} label="Uscita" detail={giornataCompleta ? "Registrata" : readyToExit ? "Pronta" : `${requiredMissing} blocchi`} />
+      </div>
+
+      {avanzamentoRapportino != null && (
+        <div className="mt-3 rounded-xl bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">
+          Avanzamento dichiarato oggi: <span className="text-foreground">{avanzamentoRapportino}%</span>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+function CloseDayStep({
+  ok,
+  icon: Icon,
+  label,
+  detail,
+  optional,
+}: {
+  ok: boolean;
+  icon: LucideIcon;
+  label: string;
+  detail: string;
+  optional?: boolean;
+}) {
+  return (
+    <div className={cn(
+      "rounded-xl border p-2.5",
+      ok
+        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+        : optional
+          ? "border-blue-100 bg-blue-50 text-blue-800"
+          : "border-amber-200 bg-amber-50 text-amber-800",
+    )}>
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 shrink-0" />
+        <p className="min-w-0 truncate text-xs font-black">{label}</p>
+      </div>
+      <p className="mt-1 truncate text-[10px] font-semibold opacity-80">{detail}</p>
     </div>
   );
 }
@@ -576,7 +1113,7 @@ function InfoTile({
   );
 }
 
-function diaryEventLabel(eventType: string, payload: Record<string, any>) {
+function diaryEventLabel(eventType: string, payload: Record<string, unknown>) {
   if (eventType === "reportino_cantiere") return "Rapportino dal campo";
   if (eventType === "giornale_lavori_inserito") return "Giornale lavori aggiornato";
   if (eventType === "foto_rilievo_caricata") return "Foto caricata";
@@ -588,15 +1125,14 @@ function diaryEventLabel(eventType: string, payload: Record<string, any>) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Documenti e Firma — tab con richieste firma e invio nuove
 // ─────────────────────────────────────────────────────────────────────────────
-function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: any }) {
-  const { user, profile } = useAuth();
+function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: CampoCustomer | null }) {
   const queryClient = useQueryClient();
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [selectedTipo, setSelectedTipo] = useState<string | null>(null);
   const [noteDoc, setNoteDoc] = useState("");
 
   // Richieste firma esistenti per questo ordine
-  const { data: firmeRichieste = [], isLoading } = useQuery({
+  const { data: firmeRichieste = [], isLoading } = useQuery<SignatureRequestRow[]>({
     queryKey: ["campo-firme-ordine", orderId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -605,7 +1141,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: a
         .eq("order_id", orderId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as SignatureRequestRow[];
     },
     enabled: !!orderId,
   });
@@ -641,11 +1177,14 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: a
       setSelectedTipo(null);
       setNoteDoc("");
     },
-    onError: (err: any) => toast.error(err.message ?? "Errore nell'invio della richiesta"),
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Errore nell'invio della richiesta";
+      toast.error(message);
+    },
   });
 
-  const firmePending = firmeRichieste.filter((f: any) => f.status === "pending").length;
-  const firmeSigned = firmeRichieste.filter((f: any) => f.status === "signed").length;
+  const firmePending = firmeRichieste.filter((f) => f.status === "pending").length;
+  const firmeSigned = firmeRichieste.filter((f) => f.status === "signed").length;
 
   return (
     <div className="space-y-4">
@@ -777,7 +1316,7 @@ function DocumentiFirmaTab({ orderId, customer }: { orderId: string; customer: a
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Storico documenti ({firmeRichieste.length})
           </p>
-          {firmeRichieste.map((f: any) => {
+          {firmeRichieste.map((f) => {
             const tipoDoc = TIPI_DOCUMENTO.find(t => t.tipo === f.tipo_documento)
               || (f.tipo_documento === "order" ? { label: "Documento ordine", icon: FileCheck, color: "text-blue-600 bg-blue-50" } : null);
             const stato = STATO_FIRMA[f.status] || STATO_FIRMA.pending;

@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsCampo } from "@/hooks/useIsCampo";
 import { useOfflineSync } from "@/hooks/campo/useOfflineSync";
 import { isOnline } from "@/lib/campo/network-status";
 
@@ -17,7 +19,17 @@ export interface DatiEstratti {
   ore_lavorate?: number;
   lavorazione?: string;
   materiali?: MaterialeUsato[];
+  team_presenti?: string[];
   note?: string;
+  sicurezza_alert?: {
+    rilevato: boolean;
+    tipo?: "near_miss" | "infortunio" | "dpi_mancante" | "ponteggio_non_a_norma" | "altro" | null;
+    descrizione?: string | null;
+    gravita?: "bassa" | "media" | "alta" | null;
+  };
+  incidenti_segnalati?: string[];
+  qualita_auto_valutazione?: "ottima" | "buona" | "da_rivedere" | null;
+  lingua_originale?: string | null;
 }
 
 export interface RapportinoVocaleDraft {
@@ -49,6 +61,8 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
   resetDraft: () => void;
 } {
   const { user, profile } = useAuth();
+  const { isSubappaltatore } = useIsCampo();
+  const queryClient = useQueryClient();
   const { enqueue } = useOfflineSync();
   const [state, setState] = useState<UseRapportinoVocaleState>({
     uploading: false,
@@ -180,17 +194,71 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
     ): Promise<boolean> => {
       if (!user?.id || !profile?.company_id) return false;
 
+      const resolveOrderId = async (): Promise<string | null> => {
+        if (orderId) return orderId;
+
+        const activeOrderIds = new Set<string>();
+        const addActive = (order: { id?: string | null; status?: string | null } | null | undefined) => {
+          if (!order?.id) return;
+          const status = String(order.status ?? "").toLowerCase();
+          if (status === "annullato" || status === "chiuso") return;
+          activeOrderIds.add(order.id);
+        };
+
+        const { data: directAssignments } = await supabase
+          .from("order_campo_assignments")
+          .select("order:orders(id, status)")
+          .eq("user_id", user.id)
+          .eq("company_id", profile.company_id);
+
+        for (const assignment of (directAssignments ?? []) as Array<{ order: { id: string; status: string | null } | null }>) {
+          addActive(assignment.order);
+        }
+
+        const { data: employee } = await supabase
+          .from("employees")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("company_id", profile.company_id)
+          .maybeSingle();
+
+        if (employee?.id) {
+          const { data: employeeAssignments } = await supabase
+            .from("order_employees")
+            .select("order:orders(id, status)")
+            .eq("employee_id", employee.id);
+
+          for (const assignment of (employeeAssignments ?? []) as Array<{ order: { id: string; status: string | null } | null }>) {
+            addActive(assignment.order);
+          }
+        }
+
+        return activeOrderIds.size === 1 ? Array.from(activeOrderIds)[0] : null;
+      };
+
+      const effectiveOrderId = await resolveOrderId();
+      const dataLavoro = new Date().toISOString().slice(0, 10);
+      const materiali = (draft.dati_estratti.materiali ?? []).filter((m) => m.nome?.trim());
+      const oreLavorate = Number.isFinite(draft.dati_estratti.ore_lavorate)
+        ? Math.min(24, Math.max(0, Number(draft.dati_estratti.ore_lavorate)))
+        : null;
+      const descrizioneLavori = [
+        draft.dati_estratti.lavorazione,
+        draft.dati_estratti.note,
+      ].filter(Boolean).join(" — ") || draft.trascrizione?.slice(0, 1200) || null;
+      const actorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || "Operatore campo";
+
       const payload = {
         company_id: profile.company_id,
-        order_id: orderId ?? null,
+        order_id: effectiveOrderId,
         operaio_id: user.id,
         audio_url: draft.audio_url ?? null,
         audio_duration_sec: draft.audio_duration_sec,
         trascrizione: draft.trascrizione,
         dati_estratti: draft.dati_estratti,
-        ore_lavorate: draft.dati_estratti.ore_lavorate ?? null,
+        ore_lavorate: oreLavorate,
         lavorazione: draft.dati_estratti.lavorazione ?? null,
-        materiali_usati: draft.dati_estratti.materiali ?? [],
+        materiali_usati: materiali,
         note: draft.dati_estratti.note ?? null,
         stato: "confermato" as const,
       };
@@ -208,6 +276,69 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
               .from("rapportini_vocali" as never)
               .insert(payload as never);
             if (error) throw new Error(error.message);
+          }
+
+          if (effectiveOrderId) {
+            const { data: campoRapportino, error: campoError } = await supabase
+              .from("campo_rapportini")
+              .upsert({
+                company_id: profile.company_id,
+                order_id: effectiveOrderId,
+                user_id: user.id,
+                role_type: isSubappaltatore ? "subcontractor" : "employee",
+                data_lavoro: dataLavoro,
+                ore_lavorate: oreLavorate,
+                descrizione_lavori: descrizioneLavori,
+                materiali_usati: materiali,
+                note: draft.dati_estratti.note ?? null,
+                source: "campo",
+                stato: "inviato",
+              }, {
+                onConflict: "user_id,order_id,data_lavoro",
+              })
+              .select("id")
+              .single();
+
+            if (campoError) throw new Error(campoError.message);
+
+            await supabase
+              .from("order_events" as never)
+              .insert({
+                order_id: effectiveOrderId,
+                company_id: profile.company_id,
+                event_type: "reportino_cantiere",
+                actor_id: user.id,
+                actor_name: actorName,
+                payload: {
+                  rapportino_id: campoRapportino?.id ?? null,
+                  rapportino_vocale_id: draft.id ?? null,
+                  data_lavoro: dataLavoro,
+                  ore_lavorate: oreLavorate,
+                  lavorazione: draft.dati_estratti.lavorazione ?? null,
+                  materiali_usati: materiali,
+                  materiali_count: materiali.length,
+                  note: draft.dati_estratti.note ?? null,
+                  trascrizione_preview: draft.trascrizione?.slice(0, 500) ?? null,
+                  sicurezza_alert: draft.dati_estratti.sicurezza_alert ?? null,
+                  incidenti_segnalati: draft.dati_estratti.incidenti_segnalati ?? [],
+                  qualita_auto_valutazione: draft.dati_estratti.qualita_auto_valutazione ?? null,
+                  origine: "rapportino_vocale_ai",
+                },
+              } as never)
+              .then(({ error: eventError }) => {
+                if (eventError) console.warn("[useRapportinoVocale] order event failed:", eventError);
+              });
+
+            if (campoRapportino?.id) {
+              supabase.functions
+                .invoke("genera-pdf-rapportino", { body: { rapportino_id: campoRapportino.id } })
+                .catch(() => {});
+            }
+
+            queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", effectiveOrderId] });
+            queryClient.invalidateQueries({ queryKey: ["campo-rapportini-da-compilare"] });
+            queryClient.invalidateQueries({ queryKey: ["order-events", profile.company_id, effectiveOrderId] });
+            queryClient.invalidateQueries({ queryKey: ["order-diary-audit", effectiveOrderId, profile.company_id] });
           }
         } else {
           await enqueue("rapportino_vocale", payload);
@@ -227,7 +358,16 @@ export function useRapportinoVocale(): UseRapportinoVocaleState & {
         }
       }
     },
-    [user?.id, profile?.company_id, enqueue],
+    [
+      user?.id,
+      profile?.company_id,
+      profile?.first_name,
+      profile?.last_name,
+      profile?.email,
+      isSubappaltatore,
+      queryClient,
+      enqueue,
+    ],
   );
 
   const resetDraft = useCallback(() => {

@@ -1,5 +1,5 @@
 // MP-FINAL — Wizard creazione broadcast 4 step.
-// Step 1: nome + selezione numero (purpose=marketing|bot_operativo)
+// Step 1: nome + selezione numero commerciale (purpose=marketing)
 // Step 2: template approvato + mapping variabili → campi contatto
 // Step 3: segmento destinatari (tipo + stato + exclude_opt_out) con preview count
 // Step 4: schedulazione (now / data/ora) + finestra oraria + riepilogo
@@ -57,7 +57,7 @@ export default function BroadcastCreatePage() {
 
   const { data: numbers, isError: numbersError } = useWhatsAppNumbers();
   const eligibleNumbers = (numbers ?? []).filter(
-    (n) => ["marketing", "bot_operativo"].includes(n.purpose ?? ""),
+    (n) => n.purpose === "marketing",
   );
 
   const { data: templates, isError: templatesError } = useWAMetaTemplates(waNumberId || undefined, true);
@@ -195,7 +195,7 @@ export default function BroadcastCreatePage() {
                   <SelectContent>
                     {eligibleNumbers.length === 0 && (
                       <div className="px-2 py-2 text-sm text-muted-foreground">
-                        Nessun numero con scopo marketing/bot_operativo. Collegane uno prima.
+                        Nessun numero Marketing & Broadcast. Collega prima il WhatsApp commerciale.
                       </div>
                     )}
                     {numbersError && (

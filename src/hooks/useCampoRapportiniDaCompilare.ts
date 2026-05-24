@@ -10,11 +10,14 @@
  *   2. Query campo_rapportini di oggi (data_lavoro = today) WHERE user_id = me
  *      → mappa Set<order_id> già coperti
  *   3. Diff: order_id in (1) MA NOT in (2) → da compilare
+ *   4. Se le timbrature sono generiche ma l'operaio ha un solo cantiere attivo,
+ *      lo usa come inferenza pratica per non perdere il rapportino.
  *
  * Usato in CampoHome per la card "Crea i rapportini di oggi".
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface RapportinoMancante {
   order_id: string;
@@ -36,10 +39,25 @@ interface RapportinoExistRow {
   order_id: string;
 }
 
+interface AssignmentOrderRow {
+  id: string;
+  order_code: string | null;
+  description: string | null;
+  status: string | null;
+}
+
+interface OrderAssignmentRow {
+  order_id: string | null;
+  order: AssignmentOrderRow | null;
+}
+
 export function useCampoRapportiniDaCompilare(userId: string | undefined) {
+  const { profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
+
   return useQuery({
-    queryKey: ["campo-rapportini-da-compilare", userId],
-    enabled: !!userId,
+    queryKey: ["campo-rapportini-da-compilare", userId, companyId],
+    enabled: !!userId && !!companyId,
     staleTime: 60_000, // refetch ogni minuto
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<RapportinoMancante[]> => {
@@ -59,7 +77,6 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
         .eq("user_id", userId!)
         .gte("timestamp_evento", todayStartIso)
         .lt("timestamp_evento", tomorrowStartIso)
-        .not("order_id", "is", null)
         .order("timestamp_evento", { ascending: true });
 
       if (tErr || !timbrature || timbrature.length === 0) return [];
@@ -89,6 +106,49 @@ export function useCampoRapportiniDaCompilare(userId: string | undefined) {
           });
         } else {
           existing.prossima_timbratura_at = t.timestamp_evento;
+        }
+      }
+
+      const hasGenericTimbrature = (timbrature as TimbraturaRow[]).some((t) => !t.order_id);
+      if (byOrder.size === 0 && hasGenericTimbrature && companyId) {
+        const { data: employee } = await supabase
+          .from("employees")
+          .select("id")
+          .eq("user_id", userId!)
+          .eq("company_id", companyId)
+          .maybeSingle();
+
+        if (employee?.id) {
+          const { data: assignments } = await supabase
+            .from("order_employees")
+            .select(`
+              order_id,
+              order:orders(id, order_code, description, status)
+            `)
+            .eq("employee_id", employee.id);
+
+          const activeOrders = ((assignments ?? []) as OrderAssignmentRow[]).filter((a) => {
+            if (!a.order?.id || coverti.has(a.order.id)) return false;
+            const status = String(a.order.status ?? "").toLowerCase();
+            return status !== "annullato" && status !== "chiuso";
+          });
+
+          if (activeOrders.length === 1) {
+            const inferred = activeOrders[0].order;
+            if (inferred) {
+              const genericTimbrature = timbrature as TimbraturaRow[];
+              const first = genericTimbrature[0];
+              const last = genericTimbrature[genericTimbrature.length - 1] ?? first;
+              byOrder.set(inferred.id, {
+                order_id: inferred.id,
+                order_code: inferred.order_code ?? null,
+                description: inferred.description ?? null,
+                prima_timbratura_at: first.timestamp_evento,
+                prossima_timbratura_at: last.timestamp_evento,
+                ore_in_cantiere_stimate: 0,
+              });
+            }
+          }
         }
       }
 

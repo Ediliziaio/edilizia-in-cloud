@@ -15,6 +15,7 @@ import {
   CalendarDays, Receipt, ClipboardCheck,
   ClipboardList,
   Ticket, CalendarDays as CalendarDaysIcon,
+  Sparkles, Navigation, Send, FilePenLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,9 +39,36 @@ const PRIORITY_CONFIG: Record<string, { label: string; dotClass: string; badgeCl
 
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 
+interface CampoAiOrder {
+  id: string;
+  order_code: string | null;
+  description: string | null;
+  status?: string | null;
+  indirizzo_lavori: string | null;
+  percentuale_avanzamento?: number | null;
+  work_start_date?: string | null;
+  work_end_date?: string | null;
+}
+
+interface CampoAiAssignment {
+  id: string;
+  order_id: string | null;
+  is_capocantiere?: boolean | null;
+  order: CampoAiOrder | null;
+}
+
+interface CampoAiTask {
+  id: string;
+  title: string;
+  priority: string | null;
+  status: string | null;
+  due_date: string | null;
+  order_id: string | null;
+  order: Pick<CampoAiOrder, "order_code" | "description" | "indirizzo_lavori"> | null;
+}
+
 export default function CampoHome() {
-  const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { profile } = useAuth();
   const { isOperaio, isSubappaltatore } = useIsCampo();
 
   const ora = new Date().getHours();
@@ -70,6 +98,7 @@ export default function CampoHome() {
 
       {/* Timbratura — sempre in cima su mobile */}
       {isOperaio && <TimbraturaCampo />}
+      {isOperaio && <AssistenteCampoOperaio />}
 
       {/* Azioni rapide — griglia 4 colonne su mobile */}
       <AccesaoRapido isOperaio={isOperaio} isSubappaltatore={isSubappaltatore} />
@@ -209,7 +238,7 @@ function TimbraturaCampo() {
                 "bg-slate-400"
               }`} />
               <span className="font-medium">
-                {isUscito ? "Giornata completata" :
+                {isUscito ? "Fuori servizio" :
                  isInPausa ? "In pausa" :
                  isEntrato ? "In servizio" :
                  "Non hai ancora timbrato"}
@@ -222,45 +251,43 @@ function TimbraturaCampo() {
             </div>
 
             {/* Bottoni azione */}
-            {!isUscito && (
-              <div className="flex flex-wrap gap-2">
-                {nonHaTimbrato && (
-                  <Button className="flex-1 min-w-[120px] gap-2 bg-green-600 hover:bg-green-700 text-white"
-                    disabled={isMutating} onClick={() => timbraMutation.mutate("entrata")}>
-                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                    Entrata
+            <div className="flex flex-wrap gap-2">
+              {(nonHaTimbrato || isUscito) && (
+                <Button className="flex-1 min-w-[120px] gap-2 bg-green-600 hover:bg-green-700 text-white"
+                  disabled={isMutating} onClick={() => timbraMutation.mutate("entrata")}>
+                  {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                  Entrata
+                </Button>
+              )}
+              {isEntrato && (
+                <>
+                  <Button variant="outline" className="flex-1 min-w-[120px] gap-2"
+                    disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_inizio")}>
+                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}
+                    Pausa
                   </Button>
-                )}
-                {isEntrato && (
-                  <>
-                    <Button variant="outline" className="flex-1 min-w-[120px] gap-2"
-                      disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_inizio")}>
-                      {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}
-                      Pausa
-                    </Button>
-                    <Button variant="destructive" className="flex-1 min-w-[120px] gap-2"
-                      disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>
-                      {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                      Uscita
-                    </Button>
-                  </>
-                )}
-                {isInPausa && (
-                  <>
-                    <Button className="flex-1 min-w-[120px] gap-2 bg-amber-600 hover:bg-amber-700 text-white"
-                      disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_fine")}>
-                      {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                      Fine Pausa
-                    </Button>
-                    <Button variant="destructive" className="flex-1 min-w-[120px] gap-2"
-                      disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>
-                      {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                      Uscita
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
+                  <Button variant="destructive" className="flex-1 min-w-[120px] gap-2"
+                    disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>
+                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                    Uscita
+                  </Button>
+                </>
+              )}
+              {isInPausa && (
+                <>
+                  <Button className="flex-1 min-w-[120px] gap-2 bg-amber-600 hover:bg-amber-700 text-white"
+                    disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_fine")}>
+                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                    Fine Pausa
+                  </Button>
+                  <Button variant="destructive" className="flex-1 min-w-[120px] gap-2"
+                    disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>
+                    {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                    Uscita
+                  </Button>
+                </>
+              )}
+            </div>
 
             {/* Timeline timbrature di oggi */}
             {timbratureOggi.length > 0 && (
@@ -285,6 +312,253 @@ function TimbraturaCampo() {
             )}
           </>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Assistente Campo Operaio — guida pratica con dati già presenti
+// ─────────────────────────────────────────────────────────────────────────────
+function AssistenteCampoOperaio() {
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  const companyId = profile?.company_id ?? null;
+  const { data: rapportiniMancanti = [] } = useCampoRapportiniDaCompilare(user?.id);
+
+  const { data: employeeId } = useQuery({
+    queryKey: ["campo-ai-employee-id", user?.id, companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.id ?? null;
+    },
+    enabled: !!user?.id && !!companyId,
+    staleTime: 60_000,
+  });
+
+  const { data: lavori = [], isLoading } = useQuery<CampoAiAssignment[]>({
+    queryKey: ["campo-ai-lavori-oggi", employeeId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("order_employees")
+        .select(`
+          id, order_id, is_capocantiere,
+          order:orders(
+            id, order_code, description, status,
+            indirizzo_lavori, percentuale_avanzamento,
+            work_start_date, work_end_date
+          )
+        `)
+        .eq("employee_id", employeeId!);
+      if (error) throw error;
+
+      const seen = new Set<string>();
+      return ((data ?? []) as CampoAiAssignment[]).filter((a) => {
+        if (!a.order?.id || seen.has(a.order.id)) return false;
+        seen.add(a.order.id);
+        const status = String(a.order.status ?? "").toLowerCase();
+        return status !== "annullato" && status !== "chiuso";
+      });
+    },
+    enabled: !!employeeId,
+    staleTime: 60_000,
+  });
+
+  const { data: taskAperte = [] } = useQuery<CampoAiTask[]>({
+    queryKey: ["campo-ai-task-oggi", user?.id, companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select(`
+          id, title, priority, status, due_date, order_id,
+          order:orders!tasks_order_id_fkey(order_code, description, indirizzo_lavori)
+        `)
+        .eq("company_id", companyId!)
+        .eq("assigned_to", user!.id)
+        .neq("status", "completata")
+        .order("due_date", { ascending: true })
+        .limit(4);
+      if (error) throw error;
+      return (data ?? []) as CampoAiTask[];
+    },
+    enabled: !!user?.id && !!companyId,
+    staleTime: 60_000,
+  });
+
+  const prossimoLavoro = useMemo(() => {
+    if (!lavori.length) return null;
+    const today = startOfDay(new Date()).getTime();
+    const sortable = [...lavori].sort((a, b) => {
+      const aStart = a.order?.work_start_date ? startOfDay(new Date(a.order.work_start_date)).getTime() : today;
+      const bStart = b.order?.work_start_date ? startOfDay(new Date(b.order.work_start_date)).getTime() : today;
+      const aScore = aStart >= today ? aStart : today + Math.abs(today - aStart);
+      const bScore = bStart >= today ? bStart : today + Math.abs(today - bStart);
+      return aScore - bScore;
+    });
+    return sortable[0] ?? null;
+  }, [lavori]);
+
+  const prossimoTask = useMemo(() => {
+    const priorityScore: Record<string, number> = { urgente: 4, alta: 3, normale: 2, bassa: 1 };
+    return [...taskAperte].sort((a, b) => {
+      const dueA = a.due_date ? new Date(a.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+      const dueB = b.due_date ? new Date(b.due_date).getTime() : Number.MAX_SAFE_INTEGER;
+      if (dueA !== dueB) return dueA - dueB;
+      return (priorityScore[b.priority ?? "normale"] ?? 2) - (priorityScore[a.priority ?? "normale"] ?? 2);
+    })[0] ?? null;
+  }, [taskAperte]);
+
+  const focusRapportino = rapportiniMancanti[0] ?? null;
+  const focusOrder = focusRapportino
+    ? { id: focusRapportino.order_id, order_code: focusRapportino.order_code, description: focusRapportino.description, indirizzo_lavori: null }
+    : prossimoLavoro?.order ?? null;
+
+  const suggestion = focusRapportino
+    ? "Prima chiudi il rapportino: aggiorna ore, diario lavori e avanzamento del cantiere."
+    : prossimoTask
+      ? "Parti dalla task piu urgente, poi timbra sul cantiere e manda il rapportino a fine lavoro."
+      : focusOrder
+        ? "Vai al cantiere, timbra collegando la commessa e a fine turno invia il rapportino vocale."
+        : "Nessun cantiere prioritario trovato: controlla calendario o chiedi indicazioni al responsabile.";
+
+  const openMaps = () => {
+    const address = focusOrder?.indirizzo_lavori;
+    if (!address) return;
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`, "_blank", "noopener,noreferrer");
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="border-blue-100 bg-blue-50/40">
+        <CardContent className="space-y-3 p-4">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="h-14 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="overflow-hidden border-blue-100 bg-gradient-to-br from-blue-50 via-background to-emerald-50/70">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="rounded-xl bg-blue-600 p-2 text-white">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              AI Campo
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ti dice cosa fare adesso e cosa non dimenticare.
+            </p>
+          </div>
+          <Badge className={focusRapportino ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}>
+            {focusRapportino ? "Azione richiesta" : "Pronto"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="rounded-2xl border bg-background/85 p-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-xl bg-primary/10 p-2 text-primary">
+              {focusRapportino ? <FilePenLine className="h-4 w-4" /> : <Navigation className="h-4 w-4" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                Prossima mossa
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-snug text-foreground">
+                {suggestion}
+              </p>
+              {focusOrder && (
+                <div className="mt-2 min-w-0 rounded-xl bg-muted/60 px-3 py-2">
+                  <p className="truncate text-sm font-bold">{focusOrder.order_code ?? "Cantiere"}</p>
+                  <p className="truncate text-xs text-muted-foreground">{focusOrder.description ?? "Nessuna descrizione"}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {prossimoTask && (
+          <button
+            type="button"
+            onClick={() => navigate("/campo/attivita")}
+            className="flex w-full items-center justify-between rounded-xl border border-blue-100 bg-white/70 px-3 py-2 text-left transition-colors hover:bg-white active:scale-[0.99]"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Task consigliata</p>
+              <p className="truncate text-sm font-semibold">{prossimoTask.title}</p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-blue-700" />
+          </button>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {focusOrder && (
+            <Button
+              type="button"
+              className="h-10 gap-2"
+              onClick={() => navigate(`/campo/lavoro/${focusOrder.id}`)}
+            >
+              <ClipboardCheck className="h-4 w-4" />
+              Lavoro
+            </Button>
+          )}
+          {focusOrder && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 gap-2"
+              onClick={() => navigate(`/campo/timbratura?order_id=${focusOrder.id}`)}
+            >
+              <Clock className="h-4 w-4" />
+              Timbra
+            </Button>
+          )}
+          {focusOrder?.indirizzo_lavori && (
+            <Button type="button" variant="outline" className="h-10 gap-2" onClick={openMaps}>
+              <Navigation className="h-4 w-4" />
+              Maps
+            </Button>
+          )}
+          {focusRapportino ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-10 gap-2 bg-violet-100 text-violet-800 hover:bg-violet-200"
+              onClick={() => navigate(`/campo/lavoro/${focusRapportino.order_id}/rapportino-vocale`)}
+            >
+              <Send className="h-4 w-4" />
+              Invia
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-10 gap-2"
+              onClick={() => navigate("/campo/sicurezza")}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Check
+            </Button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {["Ore", "Diario", "Avanzamento", "Foto"].map((item) => (
+            <span key={item} className="rounded-full bg-background/80 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+              aggiorna {item}
+            </span>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
@@ -913,7 +1187,7 @@ function AccesaoRapido({ isOperaio, isSubappaltatore }: { isOperaio: boolean; is
       { icon: ShieldCheck, label: "Sicurezza", url: "/campo/sicurezza", color: "text-emerald-600 bg-emerald-50" },
       { icon: Mic, label: "Rapportino", url: "/campo/rapportino-vocale", color: "text-violet-600 bg-violet-50" },
       { icon: ClipboardCheck, label: "SAL", url: "/campo/sal", color: "text-teal-600 bg-teal-50" },
-      { icon: FileText, label: "Documenti", url: "/campo/documenti", color: "text-blue-600 bg-blue-50" },
+      { icon: FileText, label: "Documenti", url: "/campo/sub/documenti", color: "text-blue-600 bg-blue-50" },
       { icon: MessageSquare, label: "Chat", url: "/campo/chat", color: "text-indigo-600 bg-indigo-50" },
       { icon: Ticket, label: "Ticket", url: "/campo/ticket/nuovo", color: "text-amber-600 bg-amber-50" },
     ] : []),

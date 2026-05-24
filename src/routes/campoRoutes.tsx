@@ -6,12 +6,12 @@ import { lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+import CampoLavoroDetail from "@/pages/campo/CampoLavoroDetail";
 import { CAMPO_ROLES } from "@/types/auth";
 
 const CampoLayout         = lazy(() => import("@/components/layouts/CampoLayout"));
 const CampoHome           = lazy(() => import("@/pages/campo/CampoHome"));
 const CampoCalendario     = lazy(() => import("@/pages/campo/CampoCalendario"));
-const CampoLavoroDetail   = lazy(() => import("@/pages/campo/CampoLavoroDetail"));
 const CampoRapportino     = lazy(() => import("@/pages/campo/CampoRapportino"));
 const CampoTimbratura     = lazy(() => import("@/pages/campo/CampoTimbratura"));
 const CampoMagazzino      = lazy(() => import("@/pages/campo/CampoMagazzino"));
@@ -47,12 +47,14 @@ export default function CampoRoutesContainer() {
       >
         <Route index element={<CampoHome />} />
         <Route path="calendario" element={<CampoCalendario />} />
-        <Route path="lavoro/:orderId" element={<CampoLavoroDetail />} />
-        <Route path="lavoro/:orderId/rapportino" element={<CampoRapportino />} />
-        <Route path="lavoro/:orderId/rapportino/:rapportinoId" element={<CampoRapportino />} />
+        <Route path="lavoro/:orderId/*">
+          <Route index element={<CampoLavoroDetail />} />
+          <Route path="rapportino" element={<CampoRapportino />} />
+          <Route path="rapportino/:rapportinoId" element={<CampoRapportino />} />
+          <Route path="rapportino-vocale" element={<CampoRapportinoVoce />} />
+        </Route>
         <Route path="sicurezza" element={<CampoChecklistSicurezza />} />
         <Route path="rapportino-vocale" element={<CampoRapportinoVoce />} />
-        <Route path="lavoro/:orderId/rapportino-vocale" element={<CampoRapportinoVoce />} />
         <Route path="timbratura" element={<CampoTimbratura />} />
         <Route path="presenze" element={<CampoPresenze />} />
         <Route path="ferie" element={<CampoFerie />} />
@@ -75,5 +77,3 @@ export default function CampoRoutesContainer() {
     </Routes>
   );
 }
-
-export function campoRoutes() { return <CampoRoutesContainer />; }

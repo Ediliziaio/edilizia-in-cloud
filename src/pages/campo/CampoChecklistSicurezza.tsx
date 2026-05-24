@@ -67,9 +67,23 @@ export default function CampoChecklistSicurezza(): JSX.Element {
   // ─── Skeleton loader ──
   if (loading) {
     return (
-      <div className="p-4 space-y-3">
-        <div className="h-8 bg-muted rounded animate-pulse w-3/4" />
-        <div className="h-4 bg-muted rounded animate-pulse w-1/2" />
+      <div className="space-y-4 pb-28">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/campo")}
+            aria-label="Torna alla home"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted transition-transform active:scale-95"
+          >
+            <ChevronLeft className="h-5 w-5 text-foreground" />
+          </button>
+          <div>
+            <h1 className="text-lg font-bold leading-tight text-foreground">
+              Checklist Sicurezza
+            </h1>
+            <p className="text-xs text-muted-foreground">Caricamento controllo giornaliero...</p>
+          </div>
+        </div>
         {Array.from({ length: 8 }).map((_, i) => (
           <div key={i} className="h-16 bg-muted rounded-xl animate-pulse" />
         ))}
@@ -219,8 +233,8 @@ export default function CampoChecklistSicurezza(): JSX.Element {
 
       {/* CTA fissa in fondo */}
       <div
-        className="fixed bottom-0 left-0 right-0 p-4 bg-background/95 backdrop-blur border-t border-border"
-        style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+        className="fixed left-0 right-0 bottom-[calc(4.35rem+env(safe-area-inset-bottom))] border-t border-border bg-background/95 p-4 backdrop-blur md:bottom-0"
+        style={{ paddingBottom: "1rem" }}
       >
         <button
           type="button"
@@ -243,7 +257,7 @@ export default function CampoChecklistSicurezza(): JSX.Element {
           ) : (
             <>
               <ShieldCheck className="w-5 h-5" />
-              CONFERMA CHECKLIST E TIMBRA INGRESSO
+              CONFERMA CHECKLIST
             </>
           )}
         </button>

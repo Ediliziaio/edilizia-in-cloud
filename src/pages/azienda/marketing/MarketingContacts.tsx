@@ -155,6 +155,13 @@ export default function MarketingContacts() {
   const setActiveTab = useCallback((v: ContactsTab) => {
     setURLParams({ activeTab: v, page: 1 });
   }, [setURLParams]);
+
+  useEffect(() => {
+    if (urlFilters.activeTab !== normalizedUrl.activeTab) {
+      setURLParam("activeTab", normalizedUrl.activeTab);
+    }
+  }, [normalizedUrl.activeTab, setURLParam, urlFilters.activeTab]);
+
   const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
   const search = useDebounce(searchInput, 350);
   const page = normalizedUrl.page;
@@ -517,10 +524,6 @@ export default function MarketingContacts() {
       }
 
       if (finalIds) query = query.in("id", finalIds);
-
-      if (activeTab === "meta") {
-        query = query.eq("source", "Meta Lead Ads");
-      }
 
       // Preset "lead da contattare" — applicato server-side se ?filter=stale|stale_2h.
       // - stale_2h: lead nuovi (creati ≤ 2h fa) ma non ancora contattati
@@ -1111,9 +1114,6 @@ export default function MarketingContacts() {
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ContactsTab)}>
         <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
           <TabsTrigger value="all" className="data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">Tutti</TabsTrigger>
-          <TabsTrigger value="meta" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-            🎯 Lead Facebook
-          </TabsTrigger>
           <TabsTrigger value="lists" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             Liste
             {listCount > 0 && <Badge variant="secondary" className="text-xs h-5 px-1.5">{listCount}</Badge>}
@@ -1123,7 +1123,7 @@ export default function MarketingContacts() {
 
       {activeTab === "lists" ? (
         <ContactListsView />
-      ) : activeTab === "meta" || activeTab === "all" ? (
+      ) : activeTab === "all" ? (
         <>
           {/* Filter bar */}
           <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">

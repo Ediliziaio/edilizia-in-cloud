@@ -8,7 +8,7 @@ import { format, parseISO, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   FileText, Upload, AlertTriangle, CheckCircle,
-  Clock, Loader2, Trash2, Download, X,
+  Clock, Loader2, Trash2, Download, X, RefreshCcw,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +27,7 @@ const TIPI_DOCUMENTO = [
 
 const PRIVATE_DOC_BUCKET = "documenti-dipendenti";
 const MAX_FILE_SIZE = 15 * 1024 * 1024;
+const SUB_DOCUMENTI_TIMEOUT_MS = 8000;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -37,6 +38,20 @@ const ALLOWED_MIME_TYPES = new Set([
 
 function isStoragePath(value: string | null | undefined) {
   return !!value && !/^https?:\/\//i.test(value);
+}
+
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 export default function SubDocumenti() {
@@ -53,20 +68,25 @@ export default function SubDocumenti() {
 
   const today = new Date();
 
-  const { data: documenti = [], isLoading } = useQuery({
+  const { data: documenti = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["sub-documenti", companyId, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
-        .from("documenti_dipendenti")
-        .select("*")
-        .eq("user_id", user!.id)
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
+      const { data, error } = await withTimeout(
+        supabase
+          .from("documenti_dipendenti")
+          .select("*")
+          .eq("user_id", user!.id)
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false }),
+        SUB_DOCUMENTI_TIMEOUT_MS,
+        "Caricamento documenti troppo lento",
+      );
       if (error) throw error;
       return data ?? [];
     },
     enabled: !!user?.id && !!companyId,
+    retry: false,
   });
 
   const getScadenzaStatus = (dataScad: string | null) => {
@@ -190,6 +210,27 @@ export default function SubDocumenti() {
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : isError ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold">Documenti non caricati</p>
+                <p className="mt-1 text-xs leading-relaxed">
+                  {(error as Error)?.message || "La richiesta non ha risposto in tempo."} Riprova quando la rete e' stabile.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl bg-background px-3 text-xs font-bold text-amber-900 shadow-sm disabled:opacity-60"
+            >
+              {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              Riprova
+            </button>
           </div>
         ) : documenti.length === 0 ? (
           <div className="flex flex-col items-center py-16 gap-3 text-center">

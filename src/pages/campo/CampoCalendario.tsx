@@ -5,6 +5,7 @@
  */
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import type { NavigateFunction } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   format, addDays, startOfWeek, startOfMonth, endOfMonth, isSameDay,
@@ -21,6 +22,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsCampo } from "@/hooks/useIsCampo";
 import { cn } from "@/lib/utils";
 import { haversineMeters } from "@/lib/tsp";
 import { forwardGeocode } from "@/lib/geocoding";
@@ -30,19 +32,21 @@ import {
 import { Button } from "@/components/ui/button";
 
 // ── Types ──
+interface OrderSummary {
+  id: string;
+  order_code: string;
+  description: string;
+  status: string;
+  indirizzo_lavori: string | null;
+  percentuale_avanzamento: number;
+  work_start_date: string | null;
+  work_end_date: string | null;
+}
+
 interface Cantiere {
   id: string;
   type: "cantiere";
-  order: {
-    id: string;
-    order_code: string;
-    description: string;
-    status: string;
-    indirizzo_lavori: string | null;
-    percentuale_avanzamento: number;
-    work_start_date: string | null;
-    work_end_date: string | null;
-  };
+  order: OrderSummary;
   lat?: number;
   lng?: number;
 }
@@ -65,6 +69,18 @@ interface Appuntamento {
 }
 
 type CalendarItem = Cantiere | Appuntamento;
+
+type AssignmentRow = {
+  id: string;
+  order_id: string | null;
+  order: OrderSummary | null;
+};
+
+type AppointmentRow = Omit<Appuntamento, "type" | "formatted_address"> & {
+  formatted_address: string | null;
+  address_line?: string | null;
+  address_city?: string | null;
+};
 
 // ── Helpers ──
 function dayLabel(day: Date): string {
@@ -117,12 +133,48 @@ function itemTitle(item: CalendarItem): string {
   return item.order?.description || item.order?.order_code || "Cantiere";
 }
 
+function campoLavoroUrl(order: {
+  id: string;
+  order_code?: string | null;
+  description?: string | null;
+  indirizzo_lavori?: string | null;
+}): string {
+  const params = new URLSearchParams();
+  if (order.order_code) params.set("order_code", order.order_code);
+  if (order.description) params.set("order_title", order.description);
+  if (order.indirizzo_lavori) params.set("order_address", order.indirizzo_lavori);
+  const query = params.toString();
+  return `/campo/lavoro/${order.id}${query ? `?${query}` : ""}`;
+}
+
+function isOpenOrder(order: OrderSummary | null | undefined): order is OrderSummary {
+  if (!order?.id) return false;
+  const status = order.status?.toLowerCase();
+  return status !== "annullato" && status !== "chiuso";
+}
+
+function assignmentsToCantieri(rows: AssignmentRow[] | null | undefined): Cantiere[] {
+  const seen = new Set<string>();
+  return (rows ?? [])
+    .filter((row) => {
+      if (!isOpenOrder(row.order) || seen.has(row.order.id)) return false;
+      seen.add(row.order.id);
+      return true;
+    })
+    .map((row) => ({
+      id: row.id,
+      type: "cantiere" as const,
+      order: row.order!,
+    }));
+}
+
 // Sede demo
 const SEDE = { lat: 45.4642, lng: 9.1900, label: "Sede" }; // Milano
 
 export default function CampoCalendario() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { isSubappaltatore } = useIsCampo();
 
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [selectedAppuntamento, setSelectedAppuntamento] = useState<Appuntamento | null>(null);
@@ -147,27 +199,55 @@ export default function CampoCalendario() {
   });
 
   // Cantieri assegnati
-  const { data: allCantieri = [], isLoading: loadingCantieri } = useQuery({
-    queryKey: ["campo-lavori-full", employeeId],
+  const { data: allCantieri = [], isLoading: loadingCantieri } = useQuery<Cantiere[]>({
+    queryKey: ["campo-lavori-full", employeeId, user?.id, profile?.company_id, isSubappaltatore],
     queryFn: async () => {
+      if (isSubappaltatore) {
+        const { data: directAssignments, error: directError } = await supabase
+          .from("order_campo_assignments")
+          .select(`
+            id, order_id, role_type, note,
+            order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)
+          `)
+          .eq("user_id", user!.id);
+        if (directError) throw directError;
+
+        const directCantieri = assignmentsToCantieri(directAssignments as AssignmentRow[] | null);
+        if (directCantieri.length > 0) return directCantieri;
+
+        const { data: subcontractor, error: subcontractorError } = await supabase
+          .from("subappaltatori")
+          .select("id")
+          .eq("user_id", user!.id)
+          .maybeSingle();
+        if (subcontractorError) throw subcontractorError;
+        if (!subcontractor?.id) return [];
+
+        const { data: contracts, error: contractsError } = await supabase
+          .from("contratti_subappalto")
+          .select(`
+            id, order_id, stato,
+            order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)
+          `)
+          .eq("subappaltatore_id", subcontractor.id)
+          .eq("stato", "attivo");
+        if (contractsError) throw contractsError;
+
+        return assignmentsToCantieri(contracts as AssignmentRow[] | null);
+      }
+
       const { data, error } = await supabase
         .from("order_employees")
         .select(`id, order_id, order:orders(id, order_code, description, status, indirizzo_lavori, percentuale_avanzamento, work_start_date, work_end_date)`)
         .eq("employee_id", employeeId!);
       if (error) throw error;
-      const seen = new Set<string>();
-      return (data ?? []).filter((a: any) => {
-        if (!a.order?.id || seen.has(a.order.id)) return false;
-        seen.add(a.order.id);
-        const s = a.order.status?.toLowerCase();
-        return s !== "annullato" && s !== "chiuso";
-      }).map((a: any) => ({ ...a, type: "cantiere" as const }));
+      return assignmentsToCantieri(data as AssignmentRow[] | null);
     },
-    enabled: !!employeeId,
+    enabled: isSubappaltatore ? !!user?.id : !!employeeId,
   });
 
   // Appuntamenti assegnati all'operaio
-  const { data: allAppuntamenti = [], isLoading: loadingApp } = useQuery({
+  const { data: allAppuntamenti = [], isLoading: loadingApp } = useQuery<Appuntamento[]>({
     queryKey: ["campo-appuntamenti", user?.id, profile?.company_id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -178,7 +258,7 @@ export default function CampoCalendario() {
         .neq("status", "annullato")
         .neq("status", "cancelled");
       if (error) throw error;
-      return (data ?? []).map((a: any) => ({
+      return ((data ?? []) as AppointmentRow[]).map((a) => ({
         ...a,
         type: "appuntamento" as const,
         formatted_address: a.formatted_address || [a.address_line, a.address_city].filter(Boolean).join(", ") || null,
@@ -192,7 +272,7 @@ export default function CampoCalendario() {
   // Filtra items per giorno
   const itemsForDay = useMemo(() => {
     return (day: Date): CalendarItem[] => {
-      const cantieri = allCantieri.filter((a: any) => {
+      const cantieri = allCantieri.filter((a) => {
         const o = a.order;
         if (!o) return false;
         if (o.work_start_date && o.work_end_date) {
@@ -202,12 +282,12 @@ export default function CampoCalendario() {
         return true;
       });
 
-      const appuntamenti = allAppuntamenti.filter((a: any) =>
+      const appuntamenti = allAppuntamenti.filter((a) =>
         a.appointment_date && isSameDay(parseISO(a.appointment_date), day)
       );
 
       // Ordina appuntamenti per orario, poi cantieri
-      const sortedApp = [...appuntamenti].sort((a: any, b: any) => {
+      const sortedApp = [...appuntamenti].sort((a, b) => {
         if (!a.appointment_time) return 1;
         if (!b.appointment_time) return -1;
         return a.appointment_time.localeCompare(b.appointment_time);
@@ -243,7 +323,7 @@ export default function CampoCalendario() {
 
   useEffect(() => {
     let cancelled = false;
-    const toGeocode = allCantieri.filter((c: any) => {
+    const toGeocode = allCantieri.filter((c) => {
       const addr = c.order?.indirizzo_lavori;
       return addr && !(addr in geocodedCoords);
     });
@@ -253,7 +333,7 @@ export default function CampoCalendario() {
       const results: Record<string, { lat: number; lng: number } | null> = {};
       for (const c of toGeocode) {
         if (cancelled) break;
-        const addr = (c as any).order?.indirizzo_lavori;
+        const addr = c.order?.indirizzo_lavori;
         if (!addr) continue;
         const coords = await forwardGeocode(addr);
         results[addr] = coords;
@@ -585,7 +665,7 @@ export default function CampoCalendario() {
                     </span>
                     {a.order && (
                       <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                        {(a.order as any).order_code}
+                        {a.order.order_code}
                       </span>
                     )}
                   </div>
@@ -648,7 +728,12 @@ export default function CampoCalendario() {
                     <Button
                       onClick={() => {
                         setSelectedAppuntamento(null);
-                        navigate(`/campo/lavoro/${a.order_id}`);
+                        navigate(campoLavoroUrl({
+                          id: a.order_id!,
+                          order_code: a.order?.order_code,
+                          description: a.description ?? a.title,
+                          indirizzo_lavori: a.formatted_address,
+                        }));
                       }}
                       className="w-full h-12 text-base font-semibold rounded-2xl"
                     >
@@ -738,7 +823,7 @@ function AppuntamentoCard({
   onShowDetail,
 }: {
   item: Appuntamento;
-  navigate: any;
+  navigate: NavigateFunction;
   distanceFromSede?: number;
   onShowDetail?: (a: Appuntamento) => void;
 }) {
@@ -749,7 +834,12 @@ function AppuntamentoCard({
 
   return (
     <button
-      onClick={() => onShowDetail ? onShowDetail(item) : (item.order_id ? navigate(`/campo/lavoro/${item.order_id}`) : null)}
+      onClick={() => onShowDetail ? onShowDetail(item) : (item.order_id ? navigate(campoLavoroUrl({
+        id: item.order_id,
+        order_code: item.order?.order_code,
+        description: item.description ?? item.title,
+        indirizzo_lavori: item.formatted_address,
+      })) : null)}
       className="w-full bg-background border-l-4 border-l-violet-400 border border-border/80 rounded-2xl p-4 text-left active:scale-[0.98] transition-all shadow-sm mb-3"
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -761,7 +851,7 @@ function AppuntamentoCard({
             </span>
             {item.order && (
               <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                {(item.order as any).order_code}
+                {item.order.order_code}
               </span>
             )}
           </div>
@@ -823,7 +913,7 @@ function CantiereCard({
 }: {
   item: Cantiere;
   selectedDay: Date;
-  navigate: any;
+  navigate: NavigateFunction;
   distanceFromSede?: number;
 }) {
   const order = item.order;
@@ -843,7 +933,7 @@ function CantiereCard({
 
   return (
     <button
-      onClick={() => navigate(`/campo/lavoro/${order.id}`)}
+      onClick={() => navigate(campoLavoroUrl(order))}
       className="w-full bg-background border border-border/80 rounded-2xl p-4 text-left active:scale-[0.98] transition-all shadow-sm mb-3"
     >
       <div className="flex items-start justify-between gap-2 mb-2">

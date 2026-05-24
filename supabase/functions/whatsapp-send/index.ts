@@ -2,6 +2,69 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+type SendType = "text" | "interactive" | "template";
+type TemplateLanguageInput = string | { code?: string } | undefined;
+
+interface SendBody {
+  company_id?: string;
+  wa_number_id?: string | null;
+  to?: string;
+  type?: SendType;
+  text?: string | { body?: string };
+  interactive?: Record<string, unknown>;
+  template?: {
+    name?: string;
+    language?: string | { code?: string };
+    components?: unknown[];
+    variables?: Record<string, unknown>;
+  };
+  log_message?: boolean;
+}
+
+function extractJwtRole(authHeader: string): string | null {
+  if (!authHeader.startsWith("Bearer ")) return null;
+  const jwt = authHeader.substring(7);
+  const parts = jwt.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.role === "string" ? payload.role : null;
+  } catch {
+    return null;
+  }
+}
+
+function inferType(body: SendBody): SendType | null {
+  if (body.type) return body.type;
+  if (body.template) return "template";
+  if (body.interactive) return "interactive";
+  if (body.text) return "text";
+  return null;
+}
+
+function textBody(text: SendBody["text"]): string | null {
+  if (typeof text === "string") return text.trim() || null;
+  if (text?.body && typeof text.body === "string") return text.body.trim() || null;
+  return null;
+}
+
+function templateLanguage(language: TemplateLanguageInput) {
+  if (typeof language === "string") return { code: language };
+  if (language && typeof language === "object" && "code" in language && typeof language.code === "string") {
+    return { code: language.code };
+  }
+  return { code: "it" };
+}
+
+function variablesToComponents(variables: Record<string, unknown> | undefined) {
+  const values = Object.values(variables ?? {}).filter((v) => v !== null && v !== undefined);
+  if (values.length === 0) return undefined;
+  return [{
+    type: "body",
+    parameters: values.map((value) => ({ type: "text", text: String(value) })),
+  }];
+}
+
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
@@ -11,31 +74,26 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // ── Auth: Bearer token (user) OR x-cron-secret (internal service) ──
-    const authHeader = req.headers.get("Authorization");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const authHeader = req.headers.get("Authorization") ?? "";
     const cronSecret = req.headers.get("x-cron-secret");
-    const internalSecret =
-      Deno.env.get("INTERNAL_CRON_SECRET") ||
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") || serviceKey;
+    const roleClaim = extractJwtRole(authHeader);
 
-    let isAuthenticated = false;
+    let isAuthenticated =
+      authHeader === `Bearer ${serviceKey}` ||
+      roleClaim === "service_role" ||
+      (cronSecret?.length ? cronSecret === internalSecret : false);
 
-    if (cronSecret && cronSecret === internalSecret) {
-      isAuthenticated = true;
-    } else if (authHeader?.startsWith("Bearer ")) {
+    if (!isAuthenticated && authHeader.startsWith("Bearer ")) {
       const token = authHeader.replace("Bearer ", "");
       const supabaseUser = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_ANON_KEY")!,
-        { global: { headers: { Authorization: authHeader } } }
+        { global: { headers: { Authorization: authHeader } } },
       );
-      const {
-        data: { user },
-        error: authErr,
-      } = await supabaseUser.auth.getUser(token);
-      if (!authErr && user) {
-        isAuthenticated = true;
-      }
+      const { data: { user }, error: authErr } = await supabaseUser.auth.getUser(token);
+      isAuthenticated = !authErr && !!user;
     }
 
     if (!isAuthenticated) {
@@ -45,121 +103,121 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── Parse body ──────────────────────────────────────────────────────
-    const {
-      company_id,
-      to,
-      type,
-      text,
-      interactive,
-      template,
-      log_message = true,
-    } = await req.json();
+    const body = (await req.json()) as SendBody;
+    const companyId = body.company_id;
+    const to = body.to?.replace(/[^0-9]/g, "") ?? "";
+    const type = inferType(body);
+    const logMessage = body.log_message !== false;
 
-    if (!company_id || !to || !type) {
+    if (!companyId || !to || !type) {
       return new Response(
-        JSON.stringify({
-          error: "Parametri mancanti: company_id, to, type sono obbligatori",
-        }),
-        { status: 400, headers: jsonHeaders }
+        JSON.stringify({ error: "Parametri mancanti: company_id, to e contenuto sono obbligatori" }),
+        { status: 400, headers: jsonHeaders },
       );
     }
 
     if (!["text", "interactive", "template"].includes(type)) {
       return new Response(
-        JSON.stringify({
-          error: "Tipo non valido. Valori ammessi: text, interactive, template",
-        }),
-        { status: 400, headers: jsonHeaders }
+        JSON.stringify({ error: "Tipo non valido. Valori ammessi: text, interactive, template" }),
+        { status: 400, headers: jsonHeaders },
       );
     }
 
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      serviceKey,
     );
 
-    // ── Load WhatsApp config ────────────────────────────────────────────
-    const { data: waConfig } = await adminClient
-      .from("messaging_whatsapp_config")
-      .select("phone_number_id, access_token_encrypted")
-      .eq("company_id", company_id)
-      .eq("is_connected", true)
-      .maybeSingle();
+    let phoneNumberId: string | null = null;
+    let accessTokenEncrypted: string | null = null;
+    let fromPhoneForLog = "";
 
-    if (!waConfig?.phone_number_id || !waConfig?.access_token_encrypted) {
-      return new Response(
-        JSON.stringify({
-          error: "WhatsApp non configurato per questa azienda",
-        }),
-        { status: 400, headers: jsonHeaders }
-      );
+    if (body.wa_number_id) {
+      const { data: waNumber, error: waErr } = await adminClient
+        .from("ai_whatsapp_numbers")
+        .select("id, numero, phone_number_id, access_token_encrypted, company_id")
+        .eq("id", body.wa_number_id)
+        .eq("company_id", companyId)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (waErr) {
+        return new Response(JSON.stringify({ error: waErr.message }), { status: 400, headers: jsonHeaders });
+      }
+      if (!waNumber?.phone_number_id || !waNumber?.access_token_encrypted) {
+        return new Response(
+          JSON.stringify({ error: "Numero WhatsApp non configurato o token mancante" }),
+          { status: 400, headers: jsonHeaders },
+        );
+      }
+      phoneNumberId = waNumber.phone_number_id;
+      accessTokenEncrypted = waNumber.access_token_encrypted;
+      fromPhoneForLog = waNumber.numero ?? phoneNumberId;
+    } else {
+      const { data: legacyConfig } = await adminClient
+        .from("messaging_whatsapp_config")
+        .select("phone_number_id, access_token_encrypted")
+        .eq("company_id", companyId)
+        .eq("is_connected", true)
+        .maybeSingle();
+
+      if (!legacyConfig?.phone_number_id || !legacyConfig?.access_token_encrypted) {
+        return new Response(
+          JSON.stringify({ error: "WhatsApp non configurato per questa azienda" }),
+          { status: 400, headers: jsonHeaders },
+        );
+      }
+      phoneNumberId = legacyConfig.phone_number_id;
+      accessTokenEncrypted = legacyConfig.access_token_encrypted;
+      fromPhoneForLog = legacyConfig.phone_number_id;
     }
 
-    // ── Decrypt access token ────────────────────────────────────────────
-    const encKey = getEncryptionKey();
-    const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
-
-    // ── Build Meta Graph API payload ────────────────────────────────────
-    const cleanPhone = to.replace(/[^0-9]/g, "");
-    if (!cleanPhone) {
-      return new Response(
-        JSON.stringify({ error: "Numero di telefono non valido" }),
-        { status: 400, headers: jsonHeaders }
-      );
-    }
-
+    const accessToken = await decryptMaybeEncrypted(accessTokenEncrypted, getEncryptionKey());
     const payload: Record<string, unknown> = {
       messaging_product: "whatsapp",
-      to: cleanPhone,
+      to,
       type,
     };
 
+    let logContent = "";
     if (type === "text") {
-      if (!text?.body) {
-        return new Response(
-          JSON.stringify({ error: "Campo text.body obbligatorio per tipo text" }),
-          { status: 400, headers: jsonHeaders }
-        );
+      const bodyText = textBody(body.text);
+      if (!bodyText) {
+        return new Response(JSON.stringify({ error: "Campo text obbligatorio" }), {
+          status: 400,
+          headers: jsonHeaders,
+        });
       }
-      payload.text = { body: text.body };
+      payload.text = { body: bodyText };
+      logContent = bodyText;
     } else if (type === "interactive") {
-      if (!interactive?.type || !interactive?.body || !interactive?.action) {
+      if (!body.interactive?.type || !body.interactive?.body || !body.interactive?.action) {
         return new Response(
-          JSON.stringify({
-            error:
-              "Campi interactive.type, interactive.body, interactive.action obbligatori per tipo interactive",
-          }),
-          { status: 400, headers: jsonHeaders }
+          JSON.stringify({ error: "Campi interactive.type, body e action obbligatori" }),
+          { status: 400, headers: jsonHeaders },
         );
       }
-      payload.interactive = {
-        type: interactive.type, // 'button' | 'list'
-        body: interactive.body,
-        action: interactive.action,
-        ...(interactive.header ? { header: interactive.header } : {}),
-        ...(interactive.footer ? { footer: interactive.footer } : {}),
-      };
+      payload.interactive = body.interactive;
+      const interactiveBody = body.interactive.body as { text?: string } | undefined;
+      logContent = interactiveBody?.text || JSON.stringify(body.interactive);
     } else if (type === "template") {
-      if (!template?.name || !template?.language) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Campi template.name e template.language obbligatori per tipo template",
-          }),
-          { status: 400, headers: jsonHeaders }
-        );
+      if (!body.template?.name) {
+        return new Response(JSON.stringify({ error: "Campo template.name obbligatorio" }), {
+          status: 400,
+          headers: jsonHeaders,
+        });
       }
+      const components = body.template.components ?? variablesToComponents(body.template.variables);
       payload.template = {
-        name: template.name,
-        language: template.language,
-        ...(template.components ? { components: template.components } : {}),
+        name: body.template.name,
+        language: templateLanguage(body.template.language),
+        ...(components ? { components } : {}),
       };
+      logContent = `[Template: ${body.template.name}]`;
     }
 
-    // ── Call Meta Graph API ──────────────────────────────────────────────
     const metaRes = await fetch(
-      `https://graph.facebook.com/v21.0/${waConfig.phone_number_id}/messages`,
+      `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
       {
         method: "POST",
         headers: {
@@ -167,11 +225,10 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
-      }
+      },
     );
 
     const metaResult = await metaRes.json();
-
     if (!metaRes.ok) {
       console.error("[whatsapp-send] Meta API error:", metaResult);
       return new Response(
@@ -179,34 +236,27 @@ Deno.serve(async (req) => {
           error: metaResult.error?.message || "Errore invio WhatsApp",
           meta_error: metaResult.error,
         }),
-        { status: 502, headers: jsonHeaders }
+        { status: 502, headers: jsonHeaders },
       );
     }
 
-    const metaMessageId = metaResult.messages?.[0]?.id || null;
+    const metaMessageId = metaResult.messages?.[0]?.id ||
+      `out_${Date.now()}_${crypto.randomUUID()}`;
 
-    // ── Log outbound message ────────────────────────────────────────────
-    if (log_message) {
-      let logContent = "";
-      if (type === "text") {
-        logContent = text.body;
-      } else if (type === "interactive") {
-        logContent = interactive.body?.text || JSON.stringify(interactive);
-      } else if (type === "template") {
-        logContent = `[Template: ${template.name}]`;
-      }
-
+    if (logMessage) {
       const { error: logErr } = await adminClient
         .from("whatsapp_messages")
         .insert({
-          company_id,
+          company_id: companyId,
+          wa_number_id: body.wa_number_id ?? null,
+          wa_message_id: metaMessageId,
           direction: "outbound",
-          phone_number: cleanPhone,
+          from_phone: fromPhoneForLog,
+          to_phone: to,
           message_type: type,
-          content: logContent,
-          meta_message_id: metaMessageId,
-          status: "sent",
-          created_at: new Date().toISOString(),
+          content_text: logContent,
+          processing_status: "processed",
+          processed_at: new Date().toISOString(),
         });
 
       if (logErr) {
@@ -214,17 +264,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Response ────────────────────────────────────────────────────────
     return new Response(
-      JSON.stringify({
-        success: true,
-        meta_message_id: metaMessageId,
-      }),
-      { status: 200, headers: jsonHeaders }
+      JSON.stringify({ success: true, meta_message_id: metaMessageId }),
+      { status: 200, headers: jsonHeaders },
     );
   } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : "Errore interno del server";
+    const message = err instanceof Error ? err.message : "Errore interno del server";
     console.error("[whatsapp-send] Error:", err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,

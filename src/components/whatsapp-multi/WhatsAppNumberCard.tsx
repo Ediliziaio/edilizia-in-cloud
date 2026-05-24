@@ -16,7 +16,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CheckCircle2, AlertTriangle, Phone, Trash2, Settings2 } from "lucide-react";
 import {
+  PURPOSE_AUTONOMY,
   PURPOSE_DESCRIPTIONS,
+  PURPOSE_EXAMPLES,
+  PURPOSE_GROUP_BY_PURPOSE,
+  PURPOSE_GROUPS,
   PURPOSE_LABELS,
   useDeleteWANumber,
   type WANumber,
@@ -31,6 +35,7 @@ interface Props {
 export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
   const del = useDeleteWANumber();
   const purpose = number.purpose as WAPurpose;
+  const group = PURPOSE_GROUPS[PURPOSE_GROUP_BY_PURPOSE[purpose]];
   const active = number.stato === "active" && number.webhook_verified;
 
   return (
@@ -55,7 +60,7 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {PURPOSE_LABELS[purpose]}
+              {group.label}
             </p>
           </div>
         </div>
@@ -76,6 +81,20 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
         <p className="text-xs text-muted-foreground">
           {PURPOSE_DESCRIPTIONS[purpose]}
         </p>
+
+        <div className="rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">{PURPOSE_LABELS[purpose]}</span>
+          <span className="block">{PURPOSE_AUTONOMY[purpose]}</span>
+        </div>
+
+        <ul className="space-y-1 text-xs text-muted-foreground">
+          {PURPOSE_EXAMPLES[purpose].slice(0, 2).map((example) => (
+            <li key={example} className="flex gap-1.5">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
+              <span>{example}</span>
+            </li>
+          ))}
+        </ul>
 
         <div className="flex items-center gap-2 pt-2">
           {onOpenSettings && (

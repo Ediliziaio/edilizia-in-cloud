@@ -6,6 +6,7 @@
  *   { action: 'analysis',         thread_id: string }
  *   { action: 'operation_proposals', thread_id: string }
  *   { action: 'reply_suggestions', thread_id: string, language?: string }
+ *   { action: 'triage_inbox',     company_id?: string, limit?: number }
  *
  * Output:
  *   summary  → { summary: "...", action_items: [...] }
@@ -39,6 +40,17 @@ interface ThreadMessage {
   raw_text: string | null;
 }
 
+interface InboxTriageRow {
+  id: string;
+  company_id: string;
+  from_email: string | null;
+  from_name: string | null;
+  subject: string | null;
+  raw_text: string | null;
+  attachments: unknown;
+  received_at: string;
+}
+
 interface EmailAnalysisResult {
   category: string;
   priority: string;
@@ -66,6 +78,62 @@ const ALLOWED_CATEGORIES = new Set([
 ]);
 
 const ALLOWED_PRIORITIES = new Set(["alta", "media", "bassa", "nessuna"]);
+
+const TRIAGE_CATEGORY_TERMS: Array<{
+  category: string;
+  priority: "alta" | "media" | "bassa" | "nessuna";
+  suggestedAction: string;
+  terms: string[];
+}> = [
+  {
+    category: "fornitore",
+    priority: "media",
+    suggestedAction: "verifica_fornitore",
+    terms: ["oda", "ordine di acquisto", "ordine acquisto", "fornitore", "consegna", "merce", "bancali", "spedizione"],
+  },
+  {
+    category: "fornitore",
+    priority: "alta",
+    suggestedAction: "abbina_ddt",
+    terms: ["ddt", "documento di trasporto", "bolla", "colli", "parziale", "danneggiato"],
+  },
+  {
+    category: "preventivo",
+    priority: "media",
+    suggestedAction: "crea_preventivo",
+    terms: ["preventivo", "offerta", "computo", "sopralluogo", "ristrutturazione", "serramenti", "bagno"],
+  },
+  {
+    category: "lead",
+    priority: "alta",
+    suggestedAction: "crea_lead",
+    terms: ["nuovo lead", "richiesta contatto", "form contatto", "budget", "zona"],
+  },
+  {
+    category: "fattura",
+    priority: "media",
+    suggestedAction: "carica_fattura",
+    terms: ["fattura", "iva", "bonifico", "pagamento", "scadenza", "insoluto"],
+  },
+  {
+    category: "pratica_amministrativa",
+    priority: "media",
+    suggestedAction: "crea_task_amministrazione",
+    terms: ["commercialista", "contabilita", "f24", "agenzia entrate", "cassetto fiscale", "cila", "scia"],
+  },
+  {
+    category: "support",
+    priority: "alta",
+    suggestedAction: "apri_ticket",
+    terms: ["reclamo", "guasto", "problema", "non funziona", "assistenza", "urgente", "bloccato"],
+  },
+  {
+    category: "spam",
+    priority: "nessuna",
+    suggestedAction: "spam",
+    terms: ["unsubscribe", "hai vinto", "casino", "crypto", "lotteria", "offerta imperdibile"],
+  },
+];
 
 async function callClaude(systemPrompt: string, userPrompt: string, jsonMode = false): Promise<string> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -125,6 +193,101 @@ function normalizePriority(value: unknown): string {
   if (raw === "medium") return "media";
   if (raw === "low") return "bassa";
   return ALLOWED_PRIORITIES.has(raw) ? raw : "nessuna";
+}
+
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function attachmentNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    if (!item || typeof item !== "object") return "";
+    const record = item as Record<string, unknown>;
+    return String(record.name ?? record.filename ?? record.file_name ?? "").trim();
+  }).filter(Boolean);
+}
+
+function priorityRank(value: string): number {
+  if (value === "alta") return 3;
+  if (value === "media") return 2;
+  if (value === "bassa") return 1;
+  return 0;
+}
+
+function compactSummary(row: InboxTriageRow, matchedTerms: string[]): string {
+  const sender = row.from_name || row.from_email || "Mittente sconosciuto";
+  const subject = row.subject || "senza oggetto";
+  const reason = matchedTerms.length ? `Segnali: ${matchedTerms.slice(0, 3).join(", ")}.` : "Classificazione predittiva.";
+  return `${sender} · ${subject}. ${reason}`.slice(0, 500);
+}
+
+function classifyInboxRow(row: InboxTriageRow): {
+  category: string;
+  priority: string;
+  summary: string;
+  suggested_action: string;
+  extracted: Record<string, unknown>;
+} {
+  const text = normalizeText([
+    row.from_email,
+    row.from_name,
+    row.subject,
+    row.raw_text?.slice(0, 1800),
+    attachmentNames(row.attachments).join(" "),
+  ].filter(Boolean).join(" "));
+
+  let best = {
+    category: "altro",
+    priority: "bassa",
+    suggestedAction: "rispondi",
+    score: 0,
+    terms: [] as string[],
+  };
+
+  for (const rule of TRIAGE_CATEGORY_TERMS) {
+    const terms = rule.terms.filter((term) => text.includes(normalizeText(term)));
+    const score = terms.length * 10 + priorityRank(rule.priority);
+    if (score > best.score) {
+      best = {
+        category: rule.category,
+        priority: rule.priority,
+        suggestedAction: rule.suggestedAction,
+        score,
+        terms,
+      };
+    }
+  }
+
+  const urgentTerms = ["urgente", "entro oggi", "entro domani", "scadenza", "bloccato", "ritardo", "insoluto", "reclamo"];
+  const urgentHits = urgentTerms.filter((term) => text.includes(term));
+  const priority = urgentHits.length > 0 && best.category !== "spam"
+    ? "alta"
+    : best.priority;
+  const terms = [...new Set([...best.terms, ...urgentHits])];
+
+  return {
+    category: best.category,
+    priority,
+    summary: compactSummary(row, terms),
+    suggested_action: best.suggestedAction,
+    extracted: {
+      auto_triage: true,
+      triage_version: "email_fast_v1",
+      confidence: Math.max(0.38, Math.min(0.94, 0.42 + best.score / 80)),
+      matched_terms: terms,
+      sender: {
+        name: row.from_name,
+        email: row.from_email,
+      },
+      received_at: row.received_at,
+    },
+  };
 }
 
 function stringArray(value: unknown): string[] {
@@ -551,8 +714,57 @@ Deno.serve(async (req) => {
     return jsonRes({ ok: false, error: "Unauthorized" }, 401);
   }
 
-  let body: { action?: string; thread_id?: string; language?: string } = {};
+  let body: { action?: string; thread_id?: string; language?: string; company_id?: string; limit?: number } = {};
   try { body = await req.json(); } catch { /* empty */ }
+
+  if (body.action === "triage_inbox") {
+    const limit = Math.max(1, Math.min(80, Number(body.limit ?? 30)));
+    let inboxQuery = supabase
+      .from("email_inbox")
+      .select("id, company_id, from_email, from_name, subject, raw_text, attachments, received_at")
+      .eq("user_id", userId)
+      .eq("is_trashed", false)
+      .or("ai_processed_at.is.null,ai_category.is.null")
+      .order("received_at", { ascending: false })
+      .limit(limit);
+
+    if (body.company_id) {
+      inboxQuery = inboxQuery.eq("company_id", body.company_id);
+    }
+
+    const { data: inboxRows, error: inboxError } = await inboxQuery;
+    if (inboxError) return jsonRes({ ok: false, error: inboxError.message }, 500);
+
+    let processed = 0;
+    const categories: Record<string, number> = {};
+    for (const row of (inboxRows ?? []) as InboxTriageRow[]) {
+      const triage = classifyInboxRow(row);
+      const { error: updateError } = await supabase
+        .from("email_inbox")
+        .update({
+          ai_category: triage.category,
+          ai_priority: triage.priority,
+          ai_summary: triage.summary,
+          ai_suggested_action: triage.suggested_action,
+          ai_extracted: triage.extracted,
+          ai_processed_at: new Date().toISOString(),
+          ai_error: null,
+        })
+        .eq("id", row.id)
+        .eq("user_id", userId);
+
+      if (!updateError) {
+        processed++;
+        categories[triage.category] = (categories[triage.category] ?? 0) + 1;
+      }
+    }
+
+    return jsonRes({
+      ok: true,
+      processed,
+      categories,
+    });
+  }
 
   if (!body.thread_id) return jsonRes({ ok: false, error: "thread_id required" }, 400);
   if (
@@ -563,7 +775,7 @@ Deno.serve(async (req) => {
   ) {
     return jsonRes({
       ok: false,
-      error: "action must be 'summary', 'analysis', 'operation_proposals' or 'reply_suggestions'",
+      error: "action must be 'summary', 'analysis', 'operation_proposals', 'reply_suggestions' or 'triage_inbox'",
     }, 400);
   }
 

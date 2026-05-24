@@ -1,8 +1,8 @@
-export type ContactsTab = "all" | "lists" | "meta";
+export type ContactsTab = "all" | "lists";
 export type ContactsSortField = "first_name" | "phone" | "email" | "company_name" | "created_at" | "last_activity_at";
 export type ContactsSortDirection = "asc" | "desc";
 
-const VALID_TABS = new Set<ContactsTab>(["all", "lists", "meta"]);
+const VALID_TABS = new Set<ContactsTab>(["all", "lists"]);
 const VALID_PAGE_SIZES = new Set([25, 50, 100]);
 const VALID_SORT_FIELDS = new Set<ContactsSortField>([
   "first_name",

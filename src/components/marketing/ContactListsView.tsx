@@ -5,6 +5,7 @@ import { it } from "date-fns/locale";
 import { Plus, MoreHorizontal, Pencil, Trash2, Users, List, ArrowLeft, Search, UserPlus, UserMinus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { sanitizeContactSearchTerm } from "@/lib/marketingContacts";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,10 +65,13 @@ export function ContactListsView() {
         .order("created_at", { ascending: false });
       if (error) throw error;
 
+      const listIds = (data || []).map(l => l.id);
+      if (listIds.length === 0) return [];
+
       const { data: counts, error: countError } = await supabase
         .from("marketing_contact_list_members")
         .select("list_id")
-        .in("list_id", (data || []).map(l => l.id));
+        .in("list_id", listIds);
       if (countError) throw countError;
 
       const countMap: Record<string, number> = {};
@@ -470,6 +474,14 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setSearch("");
+      setSelected(new Set());
+    }
+    onOpenChange(nextOpen);
+  };
+
   // Fetch existing member IDs
   const { data: existingIds = [] } = useQuery({
     queryKey: queryKeys.listMembers.ids(listId),
@@ -496,8 +508,9 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
         .order("first_name")
         .limit(50);
 
-      if (search.trim()) {
-        const s = `%${search.trim()}%`;
+      const safeSearch = sanitizeContactSearchTerm(search);
+      if (safeSearch) {
+        const s = `%${safeSearch}%`;
         query = query.or(`first_name.ilike.${s},last_name.ilike.${s},phone.ilike.${s},email.ilike.${s}`);
       }
 
@@ -520,7 +533,7 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
       toast.success(`${selected.size} contatti aggiunti alla lista`);
       setSelected(new Set());
       setSearch("");
-      onOpenChange(false);
+      handleOpenChange(false);
       onDone();
     },
     onError: () => toast.error("Errore nell'aggiunta"),
@@ -535,7 +548,7 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Aggiungi contatti alla lista</DialogTitle>

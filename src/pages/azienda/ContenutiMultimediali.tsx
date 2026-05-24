@@ -10,7 +10,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
-  Database,
+  Database as DatabaseIcon,
   Download,
   Eye,
   FileText,
@@ -223,7 +223,7 @@ const TAB_ICONS: Record<DriveTab, LucideIcon> = {
   computi: Calculator,
   render: ImageIcon,
   preventivi: FileText,
-  fiscale: Database,
+  fiscale: DatabaseIcon,
   cantieri: FolderOpen,
   crm: UserRound,
   foto_media: ImageIcon,
@@ -1274,7 +1274,7 @@ function MediaDetailPanel({
 
         <div className="rounded-md border bg-muted/20 p-3 text-sm">
           <div className="mb-3 flex items-center gap-2 font-medium">
-            <Database className="h-4 w-4 text-orange-500" />
+            <DatabaseIcon className="h-4 w-4 text-orange-500" />
             Carta identita documento
           </div>
           <div className="space-y-3">

@@ -1,11 +1,11 @@
 // MP03 — Handler marketing PRODUCTION.
-// Canale outbound-only. Inbound: aggiorna broadcast recipient + opt-out +
-// route ad assistenza se configurata, altrimenti ticket generico.
+// Canale commerciale. Inbound: aggiorna broadcast recipient, gestisce opt-out
+// e apre una coda umana per l'ufficio marketing/commerciale.
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { InboundContext } from "../types.ts";
 import { persistInboundMessage } from "./_shared.ts";
-import { isStopMessage, sendPlainReply } from "./_contact.ts";
+import { isStopMessage, markOptOut, resolveOrCreateContact, sendPlainReply } from "./_contact.ts";
 
 function normalizePhone(phone: string): string {
   return (phone ?? "").replace(/[^0-9]/g, "");
@@ -18,7 +18,7 @@ export async function handleMarketing(
   const { waNumber, extracted, senderPhone } = ctx;
   const companyId = waNumber.company_id;
 
-  await persistInboundMessage(supabase, ctx);
+  const messageId = await persistInboundMessage(supabase, ctx);
 
   const normalized = normalizePhone(senderPhone);
 
@@ -40,19 +40,16 @@ export async function handleMarketing(
       .eq("id", recipient.id);
   }
 
-  const { data: contact } = await supabase
-    .from("marketing_contacts")
-    .select("id, opt_out")
-    .eq("company_id", companyId)
-    .eq("telefono_normalized", normalized)
-    .maybeSingle();
+  const contact = await resolveOrCreateContact(supabase, senderPhone, companyId, {
+    tipo: "lead",
+    stato: "whatsapp_da_gestire",
+    source: "whatsapp_marketing",
+    firstMessage: extracted.content,
+  });
 
   if (isStopMessage(extracted.content)) {
     if (contact) {
-      await supabase
-        .from("marketing_contacts")
-        .update({ opt_out: true, opt_out_at: new Date().toISOString() })
-        .eq("id", contact.id);
+      await markOptOut(supabase, contact.id);
     }
     await sendPlainReply(
       waNumber.id,
@@ -63,46 +60,34 @@ export async function handleMarketing(
     return;
   }
 
-  // Route ad assistenza se configurata
-  const { data: assistenzaNum } = await supabase
-    .from("ai_whatsapp_numbers")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("purpose", "assistenza")
-    .is("deleted_at", null)
-    .eq("stato", "active")
-    .maybeSingle();
-
-  if (assistenzaNum) {
-    const baseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    await fetch(`${baseUrl}/functions/v1/assistenza-ai-processor`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${serviceKey}`,
-      },
-      body: JSON.stringify({
-        wa_number_id: assistenzaNum.id,
-        contact_id: contact?.id,
-        routed_from: "marketing",
-        phone: senderPhone,
-        content: extracted.content,
-      }),
-    }).catch(() => {});
-    return;
-  }
-
-  // Ticket generico
+  // Marketing deve restare in mano all'ufficio: Silvio prepara contesto,
+  // ma non rimbalza automaticamente la risposta verso assistenza AI.
   if (contact) {
+    await supabase.from("marketing_contact_activities").insert({
+      company_id: companyId,
+      contact_id: contact.id,
+      activity_type: "whatsapp_marketing_reply",
+      description: extracted.content || "(messaggio WhatsApp con media)",
+      metadata: {
+        wa_number_id: waNumber.id,
+        wa_message_id: ctx.msg.id ?? null,
+        message_id: messageId,
+        phone: senderPhone,
+        normalized_phone: normalized,
+        purpose: "marketing",
+      },
+    });
+
     await supabase.from("support_tickets").insert({
       company_id: companyId,
       contact_id: contact.id,
-      titolo: "Risposta a broadcast marketing",
-      descrizione: extracted.content || "(media non testo)",
+      titolo: "Risposta WhatsApp marketing da gestire",
+      descrizione: `Messaggio da ${senderPhone}:\n\n${extracted.content || "(media non testo)"}`,
       urgenza: "media",
-      categoria: "altro",
+      categoria: "commerciale",
       source: "whatsapp_marketing",
+      stato: "aperto",
+      channel_msg_id: messageId,
     });
   }
 }

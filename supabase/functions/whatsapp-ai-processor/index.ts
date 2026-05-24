@@ -32,6 +32,15 @@ import { InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 import { checkBudget, consumeBudget, estimateCostEur } from "./budget.ts";
 import { logToolCall } from "./observability.ts";
 import type { ToolCtx } from "./tools/shared/types.ts";
+import {
+  buildOperationalSystemPrompt,
+  filterOperationalTools,
+  normalizeOperationalSettings,
+} from "./settings.ts";
+import {
+  buildTriagePrompt,
+  classifyOperationalMessage,
+} from "./operationalTriage.ts";
 
 const OPENAI_MODEL_DEFAULT = Deno.env.get("OPENAI_MODEL_DEFAULT") ?? "gpt-4o";
 const MAX_ITERATIONS = 3;
@@ -88,7 +97,7 @@ Deno.serve(async (req) => {
   const { data: msg, error: msgErr } = await supabase
     .from("whatsapp_messages")
     .select(
-      "id, company_id, wa_number_id, wa_message_id, from_phone, to_phone, message_type, content_text, media_url, media_storage_path, processing_status, metadata, created_at",
+      "id, company_id, wa_number_id, wa_message_id, from_phone, to_phone, message_type, content_text, media_url, media_storage_path, processing_status, metadata, ai_extracted_data, created_at",
     )
     .eq("id", body.message_id)
     .maybeSingle();
@@ -101,6 +110,17 @@ Deno.serve(async (req) => {
     return json({ skip: "already_processed", status: msg.processing_status }, 200);
   }
 
+  const { data: waNumberSettings } = msg.wa_number_id
+    ? await supabase
+      .from("ai_whatsapp_numbers")
+      .select("operational_settings")
+      .eq("id", msg.wa_number_id)
+      .maybeSingle()
+    : { data: null };
+  const operationalSettings = normalizeOperationalSettings(
+    waNumberSettings?.operational_settings,
+  );
+
   // Lock ottimistico
   await supabase
     .from("whatsapp_messages")
@@ -109,10 +129,24 @@ Deno.serve(async (req) => {
     .eq("processing_status", "received");
 
   try {
+    let operationalTriage = classifyOperationalMessage({
+      contentText: msg.content_text,
+      messageType: msg.message_type,
+    });
+    await persistOperationalTriage(supabase, body.message_id, msg.ai_extracted_data, operationalTriage);
+
     // Identity (inline, no inter-function fetch)
     const identity = await resolveIdentity(supabase, msg.from_phone, msg.company_id);
     if (!identity.matched) {
-      await sendReply(msg, STR.operaio.unknown_user);
+      if (operationalSettings.unknown_worker_mode === "create_review_ticket") {
+        await createUnknownWorkerTicket(supabase, msg);
+      }
+      await sendReply(
+        msg,
+        operationalSettings.unknown_worker_mode === "create_review_ticket"
+          ? "Non ti riconosco ancora. Ho avvisato l'ufficio per collegare questo numero all'anagrafica corretta."
+          : STR.operaio.unknown_user,
+      );
       return markDone(supabase, body.message_id, "processed");
     }
 
@@ -144,6 +178,12 @@ Deno.serve(async (req) => {
       }
     }
 
+    operationalTriage = classifyOperationalMessage({
+      contentText: userContent || msg.content_text,
+      messageType: msg.message_type,
+    });
+    await persistOperationalTriage(supabase, body.message_id, msg.ai_extracted_data, operationalTriage);
+
     // History: ultimi 10 turni
     const { data: history } = await supabase
       .from("whatsapp_messages")
@@ -165,7 +205,7 @@ Deno.serve(async (req) => {
     const systemPrompt =
       identity.kind === "titolare" || identity.kind === "admin"
         ? SYSTEM_PROMPT_TITOLARE
-        : SYSTEM_PROMPT_OPERAIO;
+        : `${SYSTEM_PROMPT_OPERAIO}\n\n${buildOperationalSystemPrompt(operationalSettings)}\n\n${buildTriagePrompt(operationalTriage)}`;
 
     const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
@@ -174,7 +214,11 @@ Deno.serve(async (req) => {
     ];
 
     // Tool filter per role
-    const availableTools = filterToolsByGrants(identity.role_grants);
+    const grantedTools = filterToolsByGrants(identity.role_grants);
+    const availableTools =
+      identity.kind === "operaio"
+        ? filterOperationalTools(grantedTools, operationalSettings)
+        : grantedTools;
     const openaiTools = toOpenAISpec(availableTools);
 
     // Session
@@ -408,6 +452,48 @@ function json(payload: unknown, status = 200): Response {
   });
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeOperationalTriage(
+  value: unknown,
+  triage: unknown,
+): Record<string, unknown> {
+  return {
+    ...(isPlainRecord(value) ? value : {}),
+    operational_triage: triage,
+  };
+}
+
+async function persistOperationalTriage(
+  supabase: SupabaseClient,
+  id: string,
+  existingExtractedData: unknown,
+  triage: {
+    intent: string;
+    confidence: number;
+  },
+): Promise<void> {
+  const { error } = await supabase
+    .from("whatsapp_messages")
+    .update({
+      ai_intent: triage.intent,
+      ai_confidence: triage.confidence,
+      ai_extracted_data: mergeOperationalTriage(existingExtractedData, triage),
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      fn: "persistOperationalTriage",
+      error: error.message,
+      wa_message_id: id,
+    }));
+  }
+}
+
 async function markDone(
   supabase: SupabaseClient,
   id: string,
@@ -426,9 +512,40 @@ async function markDone(
 }
 
 interface MsgForSend {
+  id?: string;
   wa_number_id: string | null;
   from_phone: string;
+  content_text?: string | null;
+  message_type?: string;
   company_id: string;
+}
+
+async function createUnknownWorkerTicket(
+  supabase: SupabaseClient,
+  msg: MsgForSend,
+): Promise<void> {
+  try {
+    await supabase.from("support_tickets").insert({
+      company_id: msg.company_id,
+      titolo: "WhatsApp operativo: numero non riconosciuto",
+      descrizione: [
+        `Numero: ${msg.from_phone}`,
+        `Tipo messaggio: ${msg.message_type ?? "sconosciuto"}`,
+        msg.content_text ? `Messaggio: ${msg.content_text}` : null,
+      ].filter(Boolean).join("\n"),
+      categoria: "whatsapp_operativo",
+      source: "whatsapp_operativo",
+      stato: "aperto",
+      urgenza: "media",
+      channel_msg_id: msg.id ?? null,
+    });
+  } catch (e) {
+    console.error(JSON.stringify({
+      level: "warn",
+      fn: "createUnknownWorkerTicket",
+      error: String(e),
+    }));
+  }
 }
 
 async function sendReply(msg: MsgForSend, text: string): Promise<void> {

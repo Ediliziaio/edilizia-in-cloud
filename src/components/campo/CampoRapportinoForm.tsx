@@ -3,7 +3,20 @@
  * L'operaio può correggere qualsiasi campo prima di confermare.
  */
 import { useState, useEffect } from "react";
-import { ChevronDown, ChevronUp, Loader2, Send, Plus, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
+  Loader2,
+  PackageCheck,
+  Send,
+  ShieldAlert,
+  Sparkles,
+  Plus,
+  X,
+} from "lucide-react";
 import type {
   RapportinoVocaleDraft,
   MaterialeUsato,
@@ -15,6 +28,7 @@ interface CampoRapportinoFormProps {
   onChange: (draft: RapportinoVocaleDraft) => void;
   onConfirm: () => void;
   saving?: boolean;
+  orderLinked?: boolean;
 }
 
 export default function CampoRapportinoForm({
@@ -23,6 +37,7 @@ export default function CampoRapportinoForm({
   onChange,
   onConfirm,
   saving,
+  orderLinked,
 }: CampoRapportinoFormProps): JSX.Element {
   const [showTranscript, setShowTranscript] = useState(false);
   const [local, setLocal] = useState<RapportinoVocaleDraft>(draft);
@@ -82,9 +97,74 @@ export default function CampoRapportinoForm({
   }
 
   const materiali = local.dati_estratti.materiali ?? [];
+  const materialiValidi = materiali.filter((m) => m.nome?.trim()).length;
+  const oreValide = typeof local.dati_estratti.ore_lavorate === "number" && local.dati_estratti.ore_lavorate > 0;
+  const haDescrizione = Boolean(local.dati_estratti.lavorazione?.trim() || local.dati_estratti.note?.trim() || local.trascrizione?.trim());
+  const safetyAlert = local.dati_estratti.sicurezza_alert;
+  const incidenti = local.dati_estratti.incidenti_segnalati ?? [];
+  const canConfirm = oreValide || haDescrizione || materialiValidi > 0;
+  const qualityLabel: Record<string, string> = {
+    ottima: "Qualità ottima",
+    buona: "Qualità buona",
+    da_rivedere: "Da rivedere",
+  };
 
   return (
     <div className="space-y-4 pb-32">
+      {/* Regia AI */}
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-amber-400 p-2 text-slate-950">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-amber-200">AI ha preparato il rapportino</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-300">
+              Controlla i campi. Al salvataggio aggiorna rapportini, diario commessa e materiali.
+              {!orderLinked && " Se hai un solo cantiere attivo, lo collega automaticamente."}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <AiCheck ok={oreValide} icon={Clock3} label={oreValide ? `${local.dati_estratti.ore_lavorate}h` : "Ore mancanti"} />
+              <AiCheck ok={haDescrizione} icon={CheckCircle2} label={haDescrizione ? "Lavoro letto" : "Descrizione"} />
+              <AiCheck ok={materialiValidi > 0} icon={PackageCheck} label={materialiValidi > 0 ? `${materialiValidi} materiali` : "Materiali"} />
+              <AiCheck ok={orderLinked} icon={CheckCircle2} label={orderLinked ? "Commessa ok" : "Auto-link"} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {safetyAlert?.rilevato && (
+        <div role="alert" className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3">
+          <div className="flex items-start gap-2">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-300" />
+            <div>
+              <p className="text-sm font-bold text-red-200">Segnalazione sicurezza rilevata</p>
+              <p className="mt-1 text-xs text-red-100/80">
+                {safetyAlert.descrizione || "L'AI ha rilevato un possibile tema sicurezza nel vocale."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {incidenti.length > 0 && (
+        <div className="rounded-2xl border border-orange-500/35 bg-orange-500/10 p-3">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-300" />
+            <div>
+              <p className="text-sm font-bold text-orange-200">Criticità nel rapportino</p>
+              <p className="mt-1 text-xs text-orange-100/80">{incidenti.slice(0, 2).join(" · ")}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {local.dati_estratti.qualita_auto_valutazione && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-300">
+          Valutazione AI: <span className="font-semibold text-slate-100">{qualityLabel[local.dati_estratti.qualita_auto_valutazione]}</span>
+        </div>
+      )}
+
       {/* Ore lavorate */}
       <div className="space-y-1.5">
         <label
@@ -235,17 +315,17 @@ export default function CampoRapportinoForm({
 
       {/* CTA fissa */}
       <div
-        className="fixed bottom-0 left-0 right-0 p-4 bg-slate-950/95 backdrop-blur border-t border-slate-800"
-        style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+        className="fixed left-0 right-0 bottom-[calc(4.35rem+env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-950/95 p-4 backdrop-blur md:bottom-0"
+        style={{ paddingBottom: "1rem" }}
       >
         <button
           type="button"
           onClick={onConfirm}
-          disabled={saving}
+          disabled={saving || !canConfirm}
           className={`
             w-full h-14 rounded-xl font-bold text-base flex items-center justify-center gap-2
             transition-all active:scale-[0.98]
-            ${saving
+            ${saving || !canConfirm
               ? "bg-amber-500/50 text-amber-950 cursor-wait"
               : "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/30"
             }
@@ -259,11 +339,30 @@ export default function CampoRapportinoForm({
           ) : (
             <>
               <Send className="w-5 h-5" />
-              CONFERMA RAPPORTINO
+              {canConfirm ? "CONFERMA RAPPORTINO" : "COMPLETA ALMENO UN CAMPO"}
             </>
           )}
         </button>
       </div>
+    </div>
+  );
+}
+
+function AiCheck({
+  ok,
+  icon: Icon,
+  label,
+}: {
+  ok: boolean;
+  icon: typeof Clock3;
+  label: string;
+}): JSX.Element {
+  return (
+    <div className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-[11px] font-semibold ${
+      ok ? "bg-emerald-400/15 text-emerald-200" : "bg-slate-900 text-slate-400"
+    }`}>
+      <Icon className="h-3.5 w-3.5" />
+      <span className="truncate">{label}</span>
     </div>
   );
 }

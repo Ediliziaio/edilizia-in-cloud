@@ -3,7 +3,7 @@
  * Usa la stessa UX white-sidebar dell'app principale.
  * Su mobile la sidebar diventa un sheet laterale.
  */
-import { Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import {
   Home,
   Calendar,
@@ -36,6 +36,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { PoweredByBadge } from "@/components/shared/PoweredByBadge";
 import { CampoBottomNav } from "@/components/campo/CampoBottomNav";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import {
   Sidebar,
   SidebarContent,
@@ -48,6 +49,10 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
+
+type ChatMembership = {
+  channel_id: string;
+};
 
 type CampoNavItem = {
   title: string;
@@ -72,7 +77,7 @@ export default function CampoLayout() {
         .select("channel_id")
         .eq("user_id", user.id);
       if (!membership?.length) return 0;
-      const channelIds = membership.map((member: { channel_id: string }) => member.channel_id);
+      const channelIds = (membership as ChatMembership[]).map((member) => member.channel_id);
       const since = new Date();
       since.setDate(since.getDate() - 1);
       const { count } = await supabase
@@ -103,7 +108,7 @@ export default function CampoLayout() {
     { title: "Chat", url: "/campo/chat", icon: MessageSquare, badge: unreadCount },
     { title: "Sicurezza", url: "/campo/sicurezza", icon: Shield },
     { title: "Tesserino", url: "/campo/tesserino", icon: CreditCard },
-    { title: "Documenti", url: "/campo/documenti", icon: FileText },
+    { title: "Documenti", url: "/campo/sub/documenti", icon: FileText },
     { title: "Apri Ticket", url: "/campo/ticket/nuovo", icon: Ticket },
     { title: "Impostazioni", url: "/campo/impostazioni", icon: Settings },
   ];
@@ -130,13 +135,27 @@ export default function CampoLayout() {
         {/* Sidebar */}
         <Sidebar collapsible="icon" className="border-r">
           <div className="space-y-2 border-b px-3 py-3">
+            <Link
+              to="/campo"
+              aria-label="Vai alla home Edilizia in Cloud"
+              className="flex min-w-0 items-center overflow-hidden rounded-lg transition-colors hover:bg-accent/60 group-data-[collapsible=icon]:justify-center"
+            >
+              <img
+                src={ediliziaLogo}
+                alt="Edilizia in Cloud"
+                className="h-8 max-w-[158px] object-contain group-data-[collapsible=icon]:hidden"
+              />
+              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-[11px] font-black text-primary-foreground group-data-[collapsible=icon]:flex">
+                EiC
+              </span>
+            </Link>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <HardHat className="w-4 h-4 text-primary" />
               </div>
               <div className="overflow-hidden group-data-[collapsible=icon]:hidden">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none">
-                  {roleLabel}
+                  Area {roleLabel}
                 </p>
                 <p className="text-sm font-semibold truncate leading-tight">
                   {profile?.first_name} {profile?.last_name}
