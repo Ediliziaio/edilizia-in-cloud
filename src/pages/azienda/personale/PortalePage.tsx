@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   BookMarked,
   BookOpenCheck,
@@ -9,7 +11,9 @@ import {
   Building2,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   ClipboardCheck,
   Clock3,
   Copy,
@@ -448,6 +452,7 @@ function getAssetModuleTitle(course: PortalCourse, asset: PortalAsset) {
 }
 
 function getAssetActionLabel(asset: PortalAsset) {
+  if (asset.content && !asset.downloadUrl && !asset.source) return "Apri";
   if (asset.type === "video") return "Guarda";
   if (asset.type === "link") return "Apri";
   if (asset.type === "testo" || asset.type === "procedura" || asset.type === "quiz") return "Apri";
@@ -459,6 +464,10 @@ function formatFileSize(size?: number) {
   if (!size || size <= 0) return "";
   if (size < 1024 * 1024) return `${Math.ceil(size / 1024)} KB`;
   return `${(size / 1024 / 1024).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
+function hasAssetResource(asset: PortalAsset) {
+  return Boolean(asset.downloadUrl || asset.source || asset.content);
 }
 
 function inferAssetType(file: File): PortalAssetType {
@@ -474,8 +483,8 @@ function getAssetStorageHint(asset: PortalAsset) {
   if (asset.fileName && fileSize) return `${asset.fileName} · ${fileSize}`;
   if (asset.fileName) return asset.fileName;
   if (asset.source) return asset.source;
-  if (asset.content) return "Contenuto scritto nel corso";
-  return "Nessun file/link collegato";
+  if (asset.content) return "Anteprima disponibile nel portale";
+  return "Da collegare in gestione";
 }
 
 function validateMaterialFile(file: File) {
@@ -1009,7 +1018,9 @@ export default function PortalePage() {
 
   const openAssetAction = async (asset: PortalAsset) => {
     const target = asset.downloadUrl ?? asset.source;
-    if (asset.content && (contentAssetTypes.has(asset.type) || !target)) {
+    const isLocalDraftFile = target?.startsWith("locale/");
+
+    if (asset.content && (contentAssetTypes.has(asset.type) || !target || isLocalDraftFile)) {
       setAssetPreview(asset);
       return;
     }
@@ -1700,6 +1711,7 @@ function PortalCommandCenter({
   onOpenModule: () => void;
   onOpenAsset: () => void;
 }) {
+  const [isExpanded, setIsExpanded] = useState(true);
   const nextActions = [
     {
       title: course && course.modules.length < 2 ? "Aggiungi almeno un secondo modulo" : "Controlla ordine moduli",
@@ -1716,99 +1728,146 @@ function PortalCommandCenter({
   ];
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <Rocket className="h-5 w-5 text-blue-600" />
-              <h2 className="text-lg font-bold text-slate-950">Centro operativo Portale</h2>
-            </div>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Parti da template, completa la qualità del corso e pubblica solo quando il percorso è chiaro.
-            </p>
-          </div>
-          <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-700">
-            {stats.inReview} in revisione
-          </Badge>
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          {templates.map((template) => (
-            <button
-              key={template.id}
-              type="button"
-              onClick={() => onCreateFromTemplate(template)}
-              className="group rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm">
-                <WandSparkles className="h-4 w-4" />
-              </div>
-              <h3 className="mt-3 text-sm font-bold text-slate-950">{template.title}</h3>
-              <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">{template.description}</p>
-              <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
-                Usa template
-                <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+    <section className="space-y-2">
+      {!isExpanded && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded(true)}
+          aria-expanded={isExpanded}
+          aria-controls="portal-command-center-panel"
+          className="flex w-full flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 text-left shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+              <Rocket className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-bold text-slate-950">Centro operativo Portale</span>
+              <span className="mt-0.5 block text-sm text-slate-500">
+                Qualità {quality.score}% · {stats.inReview} in revisione · {templates.length} template pronti
               </span>
-            </button>
-          ))}
-        </div>
-      </div>
+            </span>
+          </span>
+          <span className="inline-flex h-8 items-center gap-2 rounded-full bg-blue-50 px-3 text-sm font-semibold text-blue-700">
+            Mostra
+            <ChevronDown className="h-4 w-4" />
+          </span>
+        </button>
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(280px,1fr)] xl:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Qualità corso</p>
-              <h3 className="mt-1 text-2xl font-bold text-slate-950">{quality.score}%</h3>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <Target className="h-5 w-5" />
-            </div>
-          </div>
-          <Progress value={quality.score} className="mt-4 h-2" />
-          <div className="mt-4 space-y-2">
-            {quality.checks.map((check) => (
-              <div key={check.label} className="flex items-center gap-2 text-sm">
-                {check.done ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-orange-500" />
-                )}
-                <span className={cn(check.done ? "text-slate-700" : "font-medium text-slate-900")}>{check.label}</span>
+      {isExpanded && (
+        <div
+          id="portal-command-center-panel"
+          className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)]"
+        >
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Rocket className="h-5 w-5 text-blue-600" />
+                  <h2 className="text-lg font-bold text-slate-950">Centro operativo Portale</h2>
+                </div>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Parti da template, completa la qualità del corso e pubblica solo quando il percorso è chiaro.
+                </p>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <Flag className="h-5 w-5 text-orange-500" />
-            <h3 className="font-bold text-slate-950">Prossime azioni</h3>
-          </div>
-          <div className="space-y-3">
-            {nextActions.map((item) => {
-              const Icon = item.icon;
-              return (
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-700">
+                  {stats.inReview} in revisione
+                </Badge>
                 <button
-                  key={item.title}
                   type="button"
-                  onClick={item.action}
-                  className="flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                  aria-expanded={isExpanded}
+                  aria-controls="portal-command-center-panel"
+                  onClick={() => setIsExpanded(false)}
+                  className="inline-flex h-8 items-center gap-1 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-950">{item.title}</span>
-                    <span className="mt-0.5 block text-xs leading-5 text-slate-500">{item.description}</span>
+                  Nascondi
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {templates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => onCreateFromTemplate(template)}
+                  className="group rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm">
+                    <WandSparkles className="h-4 w-4" />
+                  </div>
+                  <h3 className="mt-3 text-sm font-bold text-slate-950">{template.title}</h3>
+                  <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">{template.description}</p>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-700">
+                    Usa template
+                    <ChevronRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
                   </span>
                 </button>
-              );
-            })}
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(280px,1fr)] xl:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Qualità corso</p>
+                  <h3 className="mt-1 text-2xl font-bold text-slate-950">{quality.score}%</h3>
+                </div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <Target className="h-5 w-5" />
+                </div>
+              </div>
+              <Progress value={quality.score} className="mt-4 h-2" />
+              <div className="mt-4 space-y-2">
+                {quality.checks.map((check) => (
+                  <div key={check.label} className="flex items-center gap-2 text-sm">
+                    {check.done ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-orange-500" />
+                    )}
+                    <span className={cn(check.done ? "text-slate-700" : "font-medium text-slate-900")}>
+                      {check.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <Flag className="h-5 w-5 text-orange-500" />
+                <h3 className="font-bold text-slate-950">Prossime azioni</h3>
+              </div>
+              <div className="space-y-3">
+                {nextActions.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.title}
+                      type="button"
+                      onClick={item.action}
+                      className="flex w-full items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 shadow-sm">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-950">{item.title}</span>
+                        <span className="mt-0.5 block text-xs leading-5 text-slate-500">{item.description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }
@@ -2069,12 +2128,19 @@ function CourseBuilder({
                       <div className="flex flex-wrap gap-2">
                         {moduleAssets.map((asset) => {
                           const Icon = assetIcon[asset.type];
+                          const isOpenable = hasAssetResource(asset);
                           return (
                             <button
                               key={asset.id}
                               type="button"
                               onClick={() => onOpenAsset(asset)}
-                              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                              disabled={!isOpenable}
+                              className={cn(
+                                "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition",
+                                isOpenable
+                                  ? "border-slate-200 bg-slate-50 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                  : "cursor-not-allowed border-orange-200 bg-orange-50 text-orange-700",
+                              )}
                             >
                               <Icon className="h-3.5 w-3.5 shrink-0" />
                               <span className="truncate">{asset.title}</span>
@@ -2138,6 +2204,7 @@ function CourseBuilder({
           )}
           {course.assets.map((asset) => {
             const Icon = assetIcon[asset.type];
+            const isOpenable = hasAssetResource(asset);
             return (
               <div key={asset.id} className="rounded-xl border border-slate-200 p-3">
                 <div className="flex items-start gap-3">
@@ -2184,17 +2251,18 @@ function CourseBuilder({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 shrink-0 gap-1 px-2 text-xs text-blue-700"
+                    className="h-7 shrink-0 gap-1 px-2 text-xs text-blue-700 disabled:text-slate-400"
                     onClick={() => onOpenAsset(asset)}
+                    disabled={!isOpenable}
                   >
                     {asset.type === "link" ? (
                       <ExternalLink className="h-3.5 w-3.5" />
-                    ) : asset.downloadable === false ? (
+                    ) : asset.downloadable === false || asset.content ? (
                       <Eye className="h-3.5 w-3.5" />
                     ) : (
                       <Download className="h-3.5 w-3.5" />
                     )}
-                    {getAssetActionLabel(asset)}
+                    {isOpenable ? getAssetActionLabel(asset) : "Da collegare"}
                   </Button>
                 </div>
               </div>
@@ -2416,15 +2484,27 @@ function PortalPreview({
 }) {
   const learnerCourses = useMemo(() => {
     const visibleCourses = courses.filter((item) => item.status === "pubblicato");
-    return visibleCourses.length > 0 ? visibleCourses : courses;
-  }, [courses]);
+    const baseCourses = visibleCourses.length > 0 ? visibleCourses : courses;
+
+    if (!course || baseCourses.some((item) => item.id === course.id)) {
+      return baseCourses;
+    }
+
+    return [course, ...baseCourses];
+  }, [course, courses]);
   const [learnerSearch, setLearnerSearch] = useState("");
   const [learnerFilter, setLearnerFilter] = useState<LearnerCourseFilter>("tutti");
+  const [learnerView, setLearnerView] = useState<"library" | "course">("library");
+  const [courseExperienceView, setCourseExperienceView] = useState<"overview" | "lesson">("overview");
   const [learnerCourseId, setLearnerCourseId] = useState(course?.id ?? learnerCourses[0]?.id ?? "");
   const [completedPreviewModules, setCompletedPreviewModules] = useState<Record<string, boolean>>({});
+  const [activePreviewAssetId, setActivePreviewAssetId] = useState("");
+  const lastSyncedSelectedCourseId = useRef<string | undefined>(course?.id);
+  const selectedCourseFirstModuleId = course?.modules[0]?.id ?? "";
   const activeLearnerCourse =
     learnerCourses.find((item) => item.id === learnerCourseId) ?? learnerCourses[0] ?? course;
   const [activeModuleId, setActiveModuleId] = useState(activeLearnerCourse?.modules[0]?.id ?? "");
+  const hasLearnerModules = (activeLearnerCourse?.modules.length ?? 0) > 0;
   const activeModule = activeLearnerCourse?.modules.find((module) => module.id === activeModuleId)
     ?? activeLearnerCourse?.modules[0];
   const getPreviewModuleCompletion = (module: PortalModule, courseId = activeLearnerCourse?.id ?? "") =>
@@ -2442,9 +2522,14 @@ function PortalPreview({
     ? activeLearnerCourse.modules.every((module) => getPreviewModuleCompletion(module, activeLearnerCourse.id) >= 100)
     : false;
   const courseAssets = activeLearnerCourse?.assets ?? [];
-  const moduleAssets = activeModule
-    ? courseAssets.filter((asset) => !asset.moduleId || asset.moduleId === activeModule.id)
-    : courseAssets;
+  const activeModuleAssets = activeModule ? courseAssets.filter((asset) => asset.moduleId === activeModule.id) : [];
+  const generalCourseAssets = courseAssets.filter((asset) => !asset.moduleId);
+  const moduleAssets = activeModule ? [...activeModuleAssets, ...generalCourseAssets] : courseAssets;
+  const activePreviewAsset =
+    moduleAssets.find((asset) => asset.id === activePreviewAssetId) ??
+    moduleAssets.find((asset) => asset.type === "video") ??
+    moduleAssets[0];
+  const hasGeneralCourseAssets = generalCourseAssets.length > 0;
   const nextModuleIndex = activeLearnerCourse?.modules.findIndex((module) => module.id === activeModule?.id) ?? 0;
   const nextModule = activeLearnerCourse?.modules[nextModuleIndex + 1];
   const filteredLearnerCourses = useMemo(() => {
@@ -2466,10 +2551,84 @@ function PortalPreview({
     const completion = item.id === activeLearnerCourse?.id ? previewCourseCompletion : item.completion;
     return completion >= 100;
   }).length;
+  const currentModuleNumber = activeLearnerCourse?.modules.findIndex((module) => module.id === activeModule?.id) ?? 0;
+  const readableModuleNumber = currentModuleNumber >= 0 ? currentModuleNumber + 1 : 1;
+  const remainingModules = activeLearnerCourse?.modules.filter(
+    (module) => getPreviewModuleCompletion(module, activeLearnerCourse.id) < 100,
+  ).length ?? 0;
+  const completedModulesCount = activeLearnerCourse?.modules.length
+    ? activeLearnerCourse.modules.length - remainingModules
+    : 0;
+  const quizAssets = courseAssets.filter((asset) => asset.type === "quiz");
+  const materialAssets = courseAssets.filter((asset) => asset.type !== "quiz");
+  const courseHasQuizStep =
+    quizAssets.length > 0 || activeLearnerCourse?.modules.some((module) => /quiz|verifica/i.test(module.title));
 
   const scrollToPreviewSection = (elementId: string) => {
     document.getElementById(elementId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const scrollCourseToTop = () => {
+    document.getElementById("portal-course-detail")?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const openLearnerCourse = (selectedCourse: PortalCourse, moduleId = selectedCourse.modules[0]?.id ?? "") => {
+    setLearnerCourseId(selectedCourse.id);
+    setActiveModuleId(moduleId);
+    setActivePreviewAssetId("");
+    setCourseExperienceView("overview");
+    setLearnerView("course");
+    toast.success(`Corso aperto: ${selectedCourse.title}`);
+    window.requestAnimationFrame(scrollCourseToTop);
+  };
+
+  const backToLearnerLibrary = () => {
+    setCourseExperienceView("overview");
+    setLearnerView("library");
+    window.requestAnimationFrame(() => scrollToPreviewSection("portal-preview-root"));
+  };
+
+  const openLearnerLesson = (moduleId = activeModule?.id ?? activeLearnerCourse?.modules[0]?.id ?? "") => {
+    const targetModuleId = moduleId || activeModule?.id || activeLearnerCourse?.modules[0]?.id || "";
+
+    if (!targetModuleId) {
+      toast.info("Aggiungi almeno un modulo per aprire la pagina lezione.");
+      setCourseExperienceView("overview");
+      window.requestAnimationFrame(scrollCourseToTop);
+      return;
+    }
+
+    setActiveModuleId(targetModuleId);
+    setActivePreviewAssetId("");
+    setCourseExperienceView("lesson");
+    window.setTimeout(() => scrollToPreviewSection("portal-preview-player"), 0);
+  };
+
+  const openLearnerMaterials = () => {
+    setCourseExperienceView("lesson");
+    window.setTimeout(() => scrollToPreviewSection("portal-preview-materials"), 0);
+  };
+
+  useEffect(() => {
+    if (learnerView !== "course") return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCourseExperienceView("overview");
+        setLearnerView("library");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [learnerView]);
 
   const completeActiveModule = () => {
     if (!activeLearnerCourse || !activeModule) return;
@@ -2497,6 +2656,18 @@ function PortalPreview({
   }, [activeLearnerCourse, learnerCourseId, learnerCourses]);
 
   useEffect(() => {
+    if (!course?.id || lastSyncedSelectedCourseId.current === course.id) return;
+    if (!learnerCourses.some((item) => item.id === course.id)) return;
+
+    lastSyncedSelectedCourseId.current = course.id;
+    setLearnerCourseId(course.id);
+    setActiveModuleId(selectedCourseFirstModuleId);
+    setActivePreviewAssetId("");
+    setCourseExperienceView("overview");
+    setLearnerView("library");
+  }, [course?.id, learnerCourses, selectedCourseFirstModuleId]);
+
+  useEffect(() => {
     if (!activeLearnerCourse) return;
     const hasModule = activeLearnerCourse.modules.some((module) => module.id === activeModuleId);
     if (!hasModule) {
@@ -2504,10 +2675,21 @@ function PortalPreview({
     }
   }, [activeLearnerCourse, activeModuleId]);
 
-  if (!activeLearnerCourse) return null;
+  if (!activeLearnerCourse) {
+    return (
+      <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+        <GraduationCap className="mx-auto h-10 w-10 text-slate-400" />
+        <h3 className="mt-4 text-lg font-bold text-slate-950">Nessun corso disponibile nella pagina utente</h3>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
+          Crea un corso o pubblicane almeno uno per vedere la libreria che useranno dipendenti, collaboratori e team di
+          cantiere.
+        </p>
+      </section>
+    );
+  }
 
   return (
-    <section className="space-y-5">
+    <section id="portal-preview-root" className="space-y-5">
       <div className="sticky top-2 z-10 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3">
@@ -2515,32 +2697,86 @@ function PortalPreview({
               <GraduationCap className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-slate-950">Demo Azienda Academy</p>
-              <p className="truncate text-xs text-slate-500">Area utente · corsi, procedure, materiali e attestati</p>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="truncate text-sm font-bold text-slate-950">Demo Azienda Academy</p>
+                <Badge variant="outline" className="hidden border-blue-200 bg-blue-50 text-[11px] text-blue-700 sm:inline-flex">
+                  Anteprima admin
+                </Badge>
+              </div>
+              <p className="truncate text-xs text-slate-500">Area utente finale · corsi, materiali, quiz e attestati</p>
             </div>
           </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row lg:max-w-2xl">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                value={learnerSearch}
-                onChange={(event) => setLearnerSearch(event.target.value)}
-                className="h-10 rounded-2xl border-slate-200 pl-9 text-base sm:text-sm"
-                placeholder="Cerca corsi, manuali o procedure"
-              />
-            </div>
-            <Button
-              variant="outline"
-              className="h-10 gap-2 rounded-2xl border-blue-200 text-blue-700"
-              onClick={() => scrollToPreviewSection("portal-preview-materials")}
-            >
-              <Download className="h-4 w-4" />
-              Materiali
-            </Button>
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 flex-col gap-2 sm:flex-row lg:max-w-2xl",
+              learnerView === "course" && "sm:justify-end",
+            )}
+          >
+            {learnerView === "library" ? (
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={learnerSearch}
+                  onChange={(event) => setLearnerSearch(event.target.value)}
+                  className="h-10 rounded-2xl border-slate-200 pl-9 text-base sm:text-sm"
+                  placeholder="Cerca corsi, manuali o procedure"
+                />
+              </div>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  className="h-10 gap-2 rounded-2xl border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  onClick={backToLearnerLibrary}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Torna ai corsi
+                </Button>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-10 gap-2 rounded-2xl",
+                    courseExperienceView === "overview"
+                      ? "border-blue-200 bg-blue-50 text-blue-700"
+                      : "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
+                  )}
+                  onClick={() => {
+                    setCourseExperienceView("overview");
+                    window.requestAnimationFrame(scrollCourseToTop);
+                  }}
+                >
+                  <BookOpenCheck className="h-4 w-4" />
+                  Panoramica
+                </Button>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-10 gap-2 rounded-2xl",
+                    courseExperienceView === "lesson"
+                      ? "border-blue-200 bg-blue-50 text-blue-700"
+                      : "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
+                  )}
+                  onClick={() => openLearnerLesson()}
+                >
+                  <PlayCircle className="h-4 w-4" />
+                  Lezione
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-10 gap-2 rounded-2xl border-blue-200 text-blue-700"
+                  onClick={openLearnerMaterials}
+                >
+                  <Download className="h-4 w-4" />
+                  Materiali
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
 
+      {learnerView === "library" ? (
+        <>
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-5 bg-gradient-to-br from-blue-950 via-blue-900 to-slate-900 p-5 text-white lg:grid-cols-[minmax(0,1.1fr)_360px] lg:p-6">
           <div className="flex min-w-0 flex-col justify-between gap-5">
@@ -2552,11 +2788,10 @@ function PortalPreview({
                 </Badge>
               </div>
               <h2 className="mt-4 max-w-3xl text-2xl font-bold tracking-tight sm:text-3xl">
-                La persona entra qui e vede solo i corsi a cui ha accesso.
+                I tuoi corsi sbloccati
               </h2>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100">
-                Questa non è la schermata di gestione: è la libreria operativa che vedrà l'utente finale. Da qui può
-                aprire un corso, continuare una lezione, scaricare materiali e completare moduli.
+                Riprendi le lezioni, consulta procedure e materiali, completa i moduli e tieni sotto controllo gli attestati.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -2578,7 +2813,9 @@ function PortalPreview({
             </div>
             <Button
               className="mt-4 h-11 w-full bg-white text-blue-800 hover:bg-blue-50"
-              onClick={() => scrollToPreviewSection("portal-preview-player")}
+              onClick={() =>
+                openLearnerCourse(activeLearnerCourse, activeModule?.id ?? activeLearnerCourse.modules[0]?.id ?? "")
+              }
             >
               <PlayCircle className="mr-2 h-4 w-4" />
               Riprendi corso
@@ -2593,7 +2830,7 @@ function PortalPreview({
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Libreria personale</p>
             <h3 className="mt-1 text-xl font-bold text-slate-950">I tuoi corsi sbloccati</h3>
             <p className="mt-1 text-sm text-slate-500">
-              L'utente vede questa griglia a tutta pagina: corsi pubblicati, progresso e prossimo passo.
+              Corsi pubblicati, stato di avanzamento e prossimo passo.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2627,11 +2864,7 @@ function PortalPreview({
               course={item}
               completion={item.id === activeLearnerCourse.id ? previewCourseCompletion : item.completion}
               active={item.id === activeLearnerCourse.id}
-              onOpen={() => {
-                setLearnerCourseId(item.id);
-                setActiveModuleId(item.modules[0]?.id ?? "");
-                toast.success(`Corso aperto: ${item.title}`);
-              }}
+              onOpen={() => openLearnerCourse(item)}
             />
           ))}
         </div>
@@ -2644,203 +2877,373 @@ function PortalPreview({
           </div>
         )}
       </section>
-
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-gradient-to-r from-white via-blue-50 to-orange-50 p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                    {areaLabels[activeLearnerCourse.area]}
-                  </Badge>
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                    Sbloccato
-                  </Badge>
-                  <Badge variant="outline">{audienceLabels[activeLearnerCourse.audience]}</Badge>
-                </div>
-                <h3 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">{activeLearnerCourse.title}</h3>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{activeLearnerCourse.description}</p>
-              </div>
-              <Button
-                className="h-11 shrink-0 gap-2 bg-blue-600 hover:bg-blue-700"
-                onClick={() => scrollToPreviewSection("portal-preview-player")}
-              >
-                <PlayCircle className="h-4 w-4" />
-                Avvia lezione
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_330px]">
-            <div className="space-y-4">
-              <div id="portal-preview-player" className="scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 text-white shadow-sm">
-                <div className="flex aspect-video min-h-[260px] flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_20%,rgba(59,130,246,0.35),transparent_35%),linear-gradient(135deg,#0f172a,#1d4ed8)] p-6 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/15 backdrop-blur">
-                    {isActiveModuleCompleted ? <CheckCircle2 className="h-9 w-9" /> : <PlayCircle className="h-9 w-9" />}
-                  </div>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-blue-100">Lezione corrente</p>
-                  <h4 className="mt-1 max-w-2xl text-2xl font-bold">{activeModule?.title ?? "Modulo introduttivo"}</h4>
-                  <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">
-                    {activeModule?.description ?? "Seleziona un modulo per vedere contenuti, materiali e avanzamento."}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-3 border-t border-white/10 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-wrap gap-2 text-xs text-blue-100">
-                    <span className="rounded-full bg-white/10 px-3 py-1">{activeModule?.duration ?? "Da definire"}</span>
-                    <span className="rounded-full bg-white/10 px-3 py-1">{activeModule?.lessons ?? 0} lezioni</span>
-                    <span className="rounded-full bg-white/10 px-3 py-1">{moduleAssets.length} materiali</span>
-                    {isActiveModuleCompleted && (
-                      <span className="rounded-full bg-emerald-400/20 px-3 py-1 text-emerald-100">Completata</span>
-                    )}
-                  </div>
-                  <Button
-                    variant="secondary"
-                    className="bg-white text-blue-800 hover:bg-blue-50"
-                    onClick={completeActiveModule}
-                    disabled={isActiveModuleCompleted}
-                  >
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    {isActiveModuleCompleted ? "Lezione completata" : "Completa lezione"}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-slate-200 bg-white p-4">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-lg font-bold text-slate-950">Programma del corso</h4>
-                    <p className="text-sm text-slate-500">Ogni modulo è cliccabile e mostra contenuti e materiali.</p>
-                  </div>
-                  <Badge variant="outline">{activeLearnerCourse.modules.length} moduli</Badge>
-                </div>
-                <div className="space-y-3">
-                  {activeLearnerCourse.modules.map((module, index) => (
-                    (() => {
-                      const previewRate = getPreviewModuleCompletion(module, activeLearnerCourse.id);
-                      return (
-                    <button
-                      key={module.id}
-                      type="button"
-                      className={cn(
-                        "flex w-full gap-3 rounded-2xl border p-4 text-left transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-                        module.id === activeModule?.id ? "border-blue-300 bg-blue-50 ring-1 ring-blue-100" : "border-slate-200 bg-white",
-                      )}
-                      onClick={() => setActiveModuleId(module.id)}
-                    >
-                      <div
-                        className={cn(
-                          "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-bold",
-                          previewRate >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
-                        )}
-                      >
-                        {previewRate >= 100 ? <CheckCircle2 className="h-5 w-5" /> : index + 1}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-bold text-slate-950">{module.title}</p>
-                          <span className="text-xs font-medium text-slate-500">{module.duration}</span>
-                        </div>
-                        <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{module.description}</p>
-                        <div className="mt-3 flex items-center gap-3">
-                          <Progress value={previewRate} className="h-2 flex-1" />
-                          <span className="w-10 text-right text-xs font-bold text-slate-600">{previewRate}%</span>
-                        </div>
-                      </div>
-                    </button>
-                      );
-                    })()
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <aside className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h4 className="font-bold text-slate-950">Il tuo avanzamento</h4>
-                <div className="mt-4 flex items-end justify-between">
-                  <span className="text-4xl font-bold text-slate-950">{previewCourseCompletion}%</span>
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                    In corso
-                  </Badge>
-                </div>
-                <Progress value={previewCourseCompletion} className="mt-4 h-2" />
-                <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                  <InfoTile label="Moduli" value={String(activeLearnerCourse.modules.length)} icon={ListChecks} />
-                  <InfoTile label="Materiali" value={String(courseAssets.length)} icon={FileArchive} />
-                </div>
-              </div>
-
-              <div id="portal-preview-materials" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="font-bold text-slate-950">Materiali del modulo</h4>
-                    <p className="text-sm text-slate-500">Download e risorse autorizzate.</p>
-                  </div>
-                  <Download className="h-5 w-5 text-blue-600" />
-                </div>
-                <div className="space-y-3">
-                  {moduleAssets.map((asset) => (
-                    <LearnerAssetRow
-                      key={asset.id}
-                      asset={asset}
-                      course={activeLearnerCourse}
-                      onOpen={() => onOpenAsset(asset)}
-                    />
-                  ))}
-                  {moduleAssets.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">
-                      Nessun materiale per questo modulo.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-orange-200 bg-orange-50 p-4">
-                <h4 className="font-bold text-orange-950">Prossimo passo</h4>
-                <p className="mt-2 text-sm leading-6 text-orange-900">
-                  {nextModule ? `Dopo questa lezione continua con: ${nextModule.title}.` : "Completa il quiz finale e scarica l'attestato interno."}
-                </p>
-                {nextModule && (
-                  <Button
-                    variant="outline"
-                    className="mt-3 h-9 w-full border-orange-200 bg-white text-orange-700 hover:bg-orange-100"
-                    onClick={() => {
-                      setActiveModuleId(nextModule.id);
-                      scrollToPreviewSection("portal-preview-player");
-                    }}
-                  >
-                    Apri prossimo modulo
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-
-              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-emerald-700" />
-                  <h4 className="font-bold text-emerald-950">Attestato interno</h4>
-                </div>
-                <p className="mt-2 text-sm leading-6 text-emerald-900">
-                  Disponibile automaticamente al completamento del corso. L'azienda conserva storico, data e presa visione.
-                </p>
+        </>
+      ) : typeof document === "undefined" ? null : createPortal(
+        <section
+          id="portal-course-detail"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Pagina corso ${activeLearnerCourse.title}`}
+          className="fixed inset-0 z-[9999] isolate min-h-dvh overflow-y-auto overscroll-contain bg-slate-50"
+        >
+          <div className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm">
+            <div className="mx-auto flex max-w-[1640px] flex-col gap-3 px-4 py-3 lg:px-6 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
                 <Button
                   variant="outline"
-                  className="mt-3 h-9 w-full border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-100"
-                  onClick={() =>
-                    isPreviewCourseCompleted
-                      ? toast.success("Attestato interno disponibile nella preview.")
-                      : toast.info("Completa tutti i moduli per sbloccare l'attestato.")
-                  }
+                  className="h-11 shrink-0 gap-2 rounded-2xl border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  onClick={backToLearnerLibrary}
                 >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Vedi attestato
+                  <ArrowLeft className="h-4 w-4" />
+                  Torna alla piattaforma
                 </Button>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Pagina corso</p>
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-[11px] text-emerald-700">
+                      Vista utente finale
+                    </Badge>
+                  </div>
+                  <h3 className="truncate text-lg font-bold text-slate-950 lg:text-xl">{activeLearnerCourse.title}</h3>
+                </div>
               </div>
-            </aside>
+
+              <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-10 gap-2 rounded-2xl",
+                      courseExperienceView === "overview"
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
+                    )}
+                    onClick={() => {
+                      setCourseExperienceView("overview");
+                      window.requestAnimationFrame(scrollCourseToTop);
+                    }}
+                  >
+                    <BookOpenCheck className="h-4 w-4" />
+                    Panoramica
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "h-10 gap-2 rounded-2xl",
+                      courseExperienceView === "lesson"
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700",
+                    )}
+                    onClick={() => openLearnerLesson()}
+                  >
+                    <PlayCircle className="h-4 w-4" />
+                    Lezione
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-10 gap-2 rounded-2xl border-blue-200 text-blue-700"
+                    onClick={openLearnerMaterials}
+                  >
+                    <Download className="h-4 w-4" />
+                    Materiali
+                  </Button>
+                </div>
+
+                <div className="hidden gap-2 2xl:grid 2xl:grid-cols-3 2xl:w-[520px]">
+                  <LearnerDetailPill
+                    icon={BookOpenCheck}
+                    label="Modulo"
+                    value={`${hasLearnerModules ? readableModuleNumber : 0}/${activeLearnerCourse.modules.length}`}
+                  />
+                  <LearnerDetailPill icon={Video} label="Lezione" value={activeModule?.duration ?? "Da definire"} />
+                  <LearnerDetailPill icon={FileArchive} label="Materiali" value={String(moduleAssets.length)} />
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+
+          <div className="mx-auto max-w-[1640px] px-4 py-5 lg:px-6 lg:py-6">
+            <div className="mb-5 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+              <div className="grid gap-5 bg-gradient-to-r from-white via-blue-50 to-orange-50 p-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:p-6">
+                <div className="min-w-0 space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+                      {areaLabels[activeLearnerCourse.area]}
+                    </Badge>
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                      Sbloccato
+                    </Badge>
+                    <Badge variant="outline">{audienceLabels[activeLearnerCourse.audience]}</Badge>
+                  </div>
+                  <div>
+                    <h2 className="max-w-4xl text-2xl font-bold tracking-tight text-slate-950 lg:text-4xl">
+                      {activeLearnerCourse.title}
+                    </h2>
+                    <p className="mt-3 max-w-4xl text-base leading-7 text-slate-600">
+                      {activeLearnerCourse.description}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-blue-100 bg-white/90 p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Avanzamento</p>
+                      <div className="mt-1 flex items-end gap-2">
+                        <span className="text-4xl font-bold text-slate-950">{previewCourseCompletion}%</span>
+                        <span className="pb-1 text-xs font-semibold text-slate-500">
+                          {remainingModules} moduli aperti
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                      <GraduationCap className="h-5 w-5" />
+                    </div>
+                  </div>
+                  <Progress value={previewCourseCompletion} className="mt-4 h-2" />
+                  <Button
+                    className="mt-4 h-11 w-full gap-2 bg-blue-600 hover:bg-blue-700"
+                    onClick={() => openLearnerLesson(activeModule?.id ?? activeLearnerCourse.modules[0]?.id ?? "")}
+                    disabled={!hasLearnerModules}
+                  >
+                    <PlayCircle className="h-4 w-4" />
+                    {hasLearnerModules ? "Avvia lezione" : "Aggiungi moduli"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {courseExperienceView === "overview" ? (
+              <LearnerCourseOverview
+                course={activeLearnerCourse}
+                activeModuleId={activeModule?.id ?? ""}
+                completion={previewCourseCompletion}
+                remainingModules={remainingModules}
+                completedModules={completedModulesCount}
+                courseAssets={courseAssets}
+                materialAssets={materialAssets}
+                quizAssets={quizAssets}
+                hasQuizStep={courseHasQuizStep}
+                onOpenLesson={(moduleId) => openLearnerLesson(moduleId)}
+                onOpenMaterials={openLearnerMaterials}
+                getModuleCompletion={(module) => getPreviewModuleCompletion(module, activeLearnerCourse.id)}
+                onOpenAsset={onOpenAsset}
+              />
+            ) : (
+            <div className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
+              <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-950">Programma corso</h4>
+                      <p className="text-sm text-slate-500">Scegli un modulo e guarda i contenuti sotto.</p>
+                    </div>
+                    <Badge variant="outline">{activeLearnerCourse.modules.length}</Badge>
+                  </div>
+                  <div className="space-y-2">
+                    {activeLearnerCourse.modules.map((module, index) => {
+                      const previewRate = getPreviewModuleCompletion(module, activeLearnerCourse.id);
+                      return (
+                        <button
+                          key={module.id}
+                          type="button"
+                          className={cn(
+                            "flex w-full gap-3 rounded-2xl border p-3 text-left transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                            module.id === activeModule?.id
+                              ? "border-blue-300 bg-blue-50 ring-1 ring-blue-100"
+                              : "border-slate-200 bg-white",
+                          )}
+                          onClick={() => openLearnerLesson(module.id)}
+                        >
+                          <div
+                            className={cn(
+                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
+                              previewRate >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
+                            )}
+                          >
+                            {previewRate >= 100 ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="line-clamp-2 text-sm font-bold text-slate-950">{module.title}</p>
+                              <span className="shrink-0 text-xs font-medium text-slate-500">{module.duration}</span>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{module.description}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <Progress value={previewRate} className="h-1.5 flex-1" />
+                              <span className="w-8 text-right text-[11px] font-bold text-slate-500">{previewRate}%</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {activeLearnerCourse.modules.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
+                        Nessun modulo pubblicato. La vista lezione resta bloccata finche non viene aggiunto contenuto.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="font-bold text-slate-950">Il tuo percorso</h4>
+                      <p className="text-sm text-slate-500">Avanzamento e risorse totali</p>
+                    </div>
+                    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                      In corso
+                    </Badge>
+                  </div>
+                  <div className="mt-4 flex items-end gap-3">
+                    <span className="text-4xl font-bold text-slate-950">{previewCourseCompletion}%</span>
+                    <span className="pb-1 text-sm text-slate-500">completato</span>
+                  </div>
+                  <Progress value={previewCourseCompletion} className="mt-4 h-2" />
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                    <InfoTile label="Moduli" value={String(activeLearnerCourse.modules.length)} icon={ListChecks} />
+                    <InfoTile label="Materiali" value={String(courseAssets.length)} icon={FileArchive} />
+                  </div>
+                </div>
+              </aside>
+
+              <div className="min-w-0 space-y-4">
+                <LearnerLessonPlayer
+                  module={activeModule}
+                  asset={activePreviewAsset}
+                  isCompleted={isActiveModuleCompleted}
+                  nextModule={nextModule}
+                  onComplete={completeActiveModule}
+                  onNextModule={() => {
+                    if (!nextModule) return;
+                    openLearnerLesson(nextModule.id);
+                  }}
+                  onOpenAsset={onOpenAsset}
+                />
+
+                <LearnerLessonGuidance
+                  module={activeModule}
+                  activeAsset={activePreviewAsset}
+                  moduleAssets={moduleAssets}
+                  hasQuizStep={courseHasQuizStep}
+                  isCompleted={isActiveModuleCompleted}
+                  onOpenMaterials={openLearnerMaterials}
+                />
+
+                <div id="portal-preview-materials" className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h4 className="text-lg font-bold text-slate-950">Materiali, quiz e allegati</h4>
+                      <p className="text-sm text-slate-500">
+                        {hasGeneralCourseAssets
+                          ? "Risorse del modulo piu materiali generali del corso."
+                          : "Risorse, PDF, video, procedure e quiz collegati al modulo."}
+                      </p>
+                    </div>
+                    <Download className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    {moduleAssets.map((asset) => (
+                      <LearnerAssetRow
+                        key={asset.id}
+                        asset={asset}
+                        course={activeLearnerCourse}
+                        active={asset.id === activePreviewAsset?.id}
+                        onSelect={() => {
+                          setActivePreviewAssetId(asset.id);
+                          scrollToPreviewSection("portal-preview-player");
+                        }}
+                        onOpen={() => onOpenAsset(asset)}
+                      />
+                    ))}
+                    {moduleAssets.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 lg:col-span-2">
+                        Nessun materiale per questo modulo.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <h4 className="font-bold text-slate-950">Azioni studente</h4>
+                    <p className="mt-1 text-sm text-slate-500">Note, domande e presa visione restano nel percorso.</p>
+                    <div className="mt-4 space-y-2">
+                      <Button
+                        variant="outline"
+                        className="h-10 w-full justify-start gap-2 border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                        onClick={() => toast.info("Nota salvata nella preview del corso.")}
+                      >
+                        <FileText className="h-4 w-4" />
+                        Aggiungi nota
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-10 w-full justify-start gap-2 border-slate-200 text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                        onClick={() => toast.info("Richiesta chiarimento inviata al responsabile nella preview.")}
+                      >
+                        <UserRoundCheck className="h-4 w-4" />
+                        Chiedi chiarimento
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-10 w-full justify-start gap-2 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        onClick={() => toast.success("Presa visione registrata nella preview.")}
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        Firma presa visione
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-orange-200 bg-orange-50 p-4 shadow-sm">
+                    <h4 className="font-bold text-orange-950">Prossimo passo</h4>
+                    <p className="mt-2 text-sm leading-6 text-orange-900">
+                      {nextModule ? `Continua con: ${nextModule.title}.` : "Completa il quiz finale e scarica l'attestato interno."}
+                    </p>
+                    {nextModule && (
+                      <Button
+                        variant="outline"
+                        className="mt-4 h-10 w-full border-orange-200 bg-white text-orange-700 hover:bg-orange-100"
+                        onClick={() => {
+                          openLearnerLesson(nextModule.id);
+                        }}
+                      >
+                        Apri modulo
+                        <ChevronRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-emerald-700" />
+                      <h4 className="font-bold text-emerald-950">Attestato</h4>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-emerald-900">
+                      Si sblocca al completamento del corso con storico e presa visione.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="mt-4 h-10 w-full border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-100"
+                      onClick={() =>
+                        isPreviewCourseCompleted
+                          ? toast.success("Attestato interno disponibile nella preview.")
+                          : toast.info("Completa tutti i moduli per sbloccare l'attestato.")
+                      }
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Vedi attestato
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            )}
+          </div>
+        </section>,
+        document.body,
+      )}
     </section>
   );
 }
@@ -2854,6 +3257,595 @@ function LearnerMetric({ label, value, icon: Icon }: { label: string; value: str
       </div>
       <p className="mt-2 text-2xl font-bold text-white">{value}</p>
     </div>
+  );
+}
+
+function LearnerDetailPill({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Video }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white/85 p-3 shadow-sm">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <Icon className="h-4 w-4 text-blue-600" />
+        {label}
+      </div>
+      <p className="mt-1 text-lg font-bold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function LearnerCourseOverview({
+  course,
+  activeModuleId,
+  completion,
+  remainingModules,
+  completedModules,
+  courseAssets,
+  materialAssets,
+  quizAssets,
+  hasQuizStep,
+  onOpenLesson,
+  onOpenMaterials,
+  getModuleCompletion,
+  onOpenAsset,
+}: {
+  course: PortalCourse;
+  activeModuleId: string;
+  completion: number;
+  remainingModules: number;
+  completedModules: number;
+  courseAssets: PortalAsset[];
+  materialAssets: PortalAsset[];
+  quizAssets: PortalAsset[];
+  hasQuizStep: boolean;
+  onOpenLesson: (moduleId: string) => void;
+  onOpenMaterials: () => void;
+  getModuleCompletion: (module: PortalModule) => number;
+  onOpenAsset: (asset: PortalAsset) => void;
+}) {
+  const hasModules = course.modules.length > 0;
+  const lessonsTotal = course.modules.reduce((sum, module) => sum + module.lessons, 0);
+  const firstOpenModule = course.modules.find((module) => getModuleCompletion(module) < 100) ?? course.modules[0];
+  const featuredAssets = courseAssets.slice(0, 4);
+  const openableMaterials = materialAssets.filter(hasAssetResource).length;
+  const journeySteps: Array<{
+    title: string;
+    description: string;
+    action: string;
+    icon: typeof Video;
+    onClick: () => void;
+    disabled?: boolean;
+    tone: "blue" | "emerald" | "orange";
+  }> = [
+    {
+      title: "1. Apri la lezione",
+      description: "Video, testo o procedura occupano lo spazio principale, senza distrazioni laterali.",
+      action: hasModules ? "Vai alla lezione" : "Modulo mancante",
+      icon: PlayCircle,
+      onClick: () => onOpenLesson(firstOpenModule?.id ?? course.modules[0]?.id ?? ""),
+      disabled: !hasModules,
+      tone: "blue",
+    },
+    {
+      title: "2. Consulta materiali",
+      description: `${openableMaterials} risorse apribili: PDF, procedure, video o allegati collegati ai moduli.`,
+      action: "Vedi materiali",
+      icon: FileArchive,
+      onClick: onOpenMaterials,
+      tone: "emerald",
+    },
+    {
+      title: "3. Conferma e traccia",
+      description: hasQuizStep
+        ? `${Math.max(quizAssets.length, 1)} verifica prevista prima di chiudere il percorso.`
+        : "Presa visione, note e attestato interno restano tracciati nel portale.",
+      action: hasModules ? (hasQuizStep ? "Apri verifica" : "Vedi stato") : "Modulo mancante",
+      icon: ClipboardCheck,
+      onClick: () => onOpenLesson(firstOpenModule?.id ?? course.modules[0]?.id ?? ""),
+      disabled: !hasModules,
+      tone: "orange",
+    },
+  ];
+
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="min-w-0 space-y-5">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Pagina corso utente</p>
+              <h3 className="mt-1 text-2xl font-bold text-slate-950">Cosa trovi in questo percorso</h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                L'utente vede prima la struttura completa del corso, poi entra nella singola lezione quando vuole
+                guardare video, leggere materiali o completare quiz.
+              </p>
+            </div>
+            <Button
+              className="h-11 shrink-0 gap-2 bg-blue-600 hover:bg-blue-700"
+              onClick={() => onOpenLesson(firstOpenModule?.id ?? course.modules[0]?.id ?? "")}
+              disabled={!hasModules}
+            >
+              <PlayCircle className="h-4 w-4" />
+              {hasModules ? (completion > 0 ? "Riprendi lezione" : "Inizia corso") : "Aggiungi moduli"}
+            </Button>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <InfoTile label="Moduli" value={String(course.modules.length)} icon={ListChecks} />
+            <InfoTile label="Lezioni" value={String(lessonsTotal)} icon={Video} />
+            <InfoTile label="Completati" value={String(completedModules)} icon={CheckCircle2} />
+            <InfoTile label="Materiali" value={String(materialAssets.length)} icon={FileArchive} />
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Esperienza utente finale</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-950">Come verra usato il corso</h3>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                La panoramica resta una pagina di ingresso; la lezione apre una vista ampia con programma a sinistra,
+                contenuto grande e risorse sotto.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
+              {hasQuizStep ? "Quiz previsto" : "Percorso tracciato"}
+            </Badge>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-3">
+            {journeySteps.map((step) => (
+              <button
+                key={step.title}
+                type="button"
+                onClick={step.onClick}
+                disabled={step.disabled}
+                className={cn(
+                  "group rounded-3xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                  step.tone === "blue" && "border-blue-100 bg-blue-50/60 hover:border-blue-300",
+                  step.tone === "emerald" && "border-emerald-100 bg-emerald-50/60 hover:border-emerald-300",
+                  step.tone === "orange" && "border-orange-100 bg-orange-50/60 hover:border-orange-300",
+                  step.disabled && "cursor-not-allowed opacity-60 hover:translate-y-0 hover:shadow-none",
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-sm",
+                    step.tone === "blue" && "text-blue-700",
+                    step.tone === "emerald" && "text-emerald-700",
+                    step.tone === "orange" && "text-orange-700",
+                  )}
+                >
+                  <step.icon className="h-5 w-5" />
+                </div>
+                <h4 className="mt-4 text-base font-bold text-slate-950">{step.title}</h4>
+                <p className="mt-2 min-h-[60px] text-sm leading-6 text-slate-600">{step.description}</p>
+                <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-blue-700">
+                  {step.action}
+                  <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Programma</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-950">Moduli del corso</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Ogni modulo apre una pagina lezione dedicata, con video grande e materiali sotto.
+              </p>
+            </div>
+            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
+              {remainingModules} da completare
+            </Badge>
+          </div>
+
+          <div className="space-y-3">
+            {course.modules.map((module, index) => {
+              const moduleCompletion = getModuleCompletion(module);
+              const isActive = module.id === activeModuleId;
+              return (
+                <button
+                  key={module.id}
+                  type="button"
+                  onClick={() => onOpenLesson(module.id)}
+                  className={cn(
+                    "group grid w-full gap-3 rounded-3xl border bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-blue-50/60 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 md:grid-cols-[64px_minmax(0,1fr)_160px]",
+                    isActive ? "border-blue-300 ring-1 ring-blue-100" : "border-slate-200",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-bold",
+                      moduleCompletion >= 100 ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700",
+                    )}
+                  >
+                    {moduleCompletion >= 100 ? <CheckCircle2 className="h-6 w-6" /> : index + 1}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-lg font-bold text-slate-950">{module.title}</h4>
+                      <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                        {module.lessons} lezioni
+                      </Badge>
+                      <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
+                        {module.duration}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{module.description}</p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <Progress value={moduleCompletion} className="h-2 flex-1" />
+                      <span className="w-10 text-right text-xs font-bold text-slate-500">{moduleCompletion}%</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-start md:justify-end">
+                    <span className="inline-flex h-10 items-center gap-2 rounded-full bg-blue-50 px-4 text-sm font-bold text-blue-700 transition group-hover:bg-blue-600 group-hover:text-white">
+                      Apri
+                      <ChevronRight className="h-4 w-4" />
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+            {course.modules.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-center">
+                <BookOpenCheck className="mx-auto h-8 w-8 text-slate-400" />
+                <h4 className="mt-3 font-bold text-slate-950">Nessun modulo nel corso</h4>
+                <p className="mt-1 text-sm text-slate-500">
+                  Aggiungi almeno un modulo dal builder per rendere questa pagina realmente fruibile dall'utente.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:p-6">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Risorse</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-950">Materiali e quiz disponibili</h3>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="w-fit">{materialAssets.length} materiali</Badge>
+              <Badge variant="outline" className="w-fit">{quizAssets.length} quiz</Badge>
+            </div>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {featuredAssets.map((asset) => {
+              const targetModuleId = asset.moduleId ?? firstOpenModule?.id ?? course.modules[0]?.id ?? "";
+
+              return (
+                <LearnerAssetRow
+                  key={asset.id}
+                  asset={asset}
+                  course={course}
+                  onSelect={targetModuleId ? () => onOpenLesson(targetModuleId) : undefined}
+                  onOpen={() => onOpenAsset(asset)}
+                />
+              );
+            })}
+            {featuredAssets.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500 lg:col-span-2">
+                Nessun materiale collegato al corso.
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <aside className="space-y-4 xl:sticky xl:top-24 xl:self-start">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Avanzamento</p>
+              <p className="mt-1 text-4xl font-bold text-slate-950">{completion}%</p>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <Target className="h-5 w-5" />
+            </div>
+          </div>
+          <Progress value={completion} className="mt-4 h-2" />
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            {remainingModules > 0
+              ? `Restano ${remainingModules} moduli da completare.`
+              : "Percorso completato: puoi scaricare attestato e materiali."}
+          </p>
+        </section>
+
+        <section className="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Flag className="h-5 w-5 text-orange-600" />
+            <h3 className="font-bold text-orange-950">Prossimo passo</h3>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-orange-900">
+            {firstOpenModule
+              ? `Apri "${firstOpenModule.title}" e completa i contenuti del modulo.`
+              : "Aggiungi moduli per rendere il corso operativo."}
+          </p>
+          <Button
+            variant="outline"
+            className="mt-4 h-10 w-full border-orange-200 bg-white text-orange-700 hover:bg-orange-100"
+            onClick={() => onOpenLesson(firstOpenModule?.id ?? course.modules[0]?.id ?? "")}
+            disabled={!hasModules}
+          >
+            {hasModules ? "Vai alla lezione" : "Aggiungi modulo"}
+            <ChevronRight className="ml-2 h-4 w-4" />
+          </Button>
+        </section>
+
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-blue-600" />
+            <h3 className="font-bold text-slate-950">Accesso e attestato</h3>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            L'utente vede solo i corsi sbloccati. Attestato e presa visione restano legati al completamento.
+          </p>
+        </section>
+      </aside>
+    </div>
+  );
+}
+
+function LearnerLessonPlayer({
+  module,
+  asset,
+  isCompleted,
+  nextModule,
+  onComplete,
+  onNextModule,
+  onOpenAsset,
+}: {
+  module?: PortalModule;
+  asset?: PortalAsset;
+  isCompleted: boolean;
+  nextModule?: PortalModule;
+  onComplete: () => void;
+  onNextModule: () => void;
+  onOpenAsset: (asset: PortalAsset) => void;
+}) {
+  const SelectedIcon = asset ? assetIcon[asset.type] : PlayCircle;
+  const isVideo = asset?.type === "video";
+  const isDocument = asset && ["pdf", "documento", "procedura", "testo", "quiz"].includes(asset.type);
+  const previewTitle = asset?.title ?? module?.title ?? "Lezione";
+  const previewDescription =
+    asset?.content ??
+    module?.description ??
+    "Seleziona un modulo o un materiale per vedere video, risorse e contenuti collegati alla lezione.";
+  const durationLabel = asset?.duration ?? module?.duration ?? "Da definire";
+  const resourceLabel = asset ? getAssetStorageHint(asset) : "Nessun materiale selezionato";
+
+  return (
+    <div
+      id="portal-preview-player"
+      className="scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+    >
+      <div className="bg-slate-950 p-3 text-white sm:p-4">
+        <div className="relative aspect-video overflow-hidden rounded-2xl bg-slate-900 shadow-2xl">
+          <div
+            className={cn(
+              "absolute inset-0",
+              isVideo
+                ? "bg-[radial-gradient(circle_at_76%_20%,rgba(251,146,60,0.38),transparent_28%),linear-gradient(135deg,#0f172a,#1d4ed8_58%,#ea580c)]"
+                : "bg-[radial-gradient(circle_at_72%_22%,rgba(59,130,246,0.35),transparent_30%),linear-gradient(135deg,#111827,#334155)]",
+            )}
+          />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(15,23,42,0.74),rgba(15,23,42,0.18),rgba(15,23,42,0.72))]" />
+
+          {isDocument && (
+            <div className="absolute right-5 top-5 hidden w-48 rounded-2xl border border-white/20 bg-white/90 p-3 text-slate-900 shadow-xl md:block">
+              <div className="h-2 w-24 rounded-full bg-slate-200" />
+              <div className="mt-3 space-y-2">
+                <div className="h-1.5 rounded-full bg-slate-200" />
+                <div className="h-1.5 rounded-full bg-slate-200" />
+                <div className="h-1.5 w-28 rounded-full bg-slate-200" />
+              </div>
+              <div className="mt-4 h-16 rounded-xl bg-blue-50" />
+            </div>
+          )}
+
+          <div className="relative flex h-full flex-col justify-between p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Badge className="border-white/20 bg-white/15 text-white hover:bg-white/15">
+                {asset ? assetTypeLabels[asset.type] : "Lezione"}
+              </Badge>
+              <span className="rounded-full bg-black/30 px-3 py-1 text-xs font-semibold text-white/85">
+                {durationLabel}
+              </span>
+            </div>
+
+            <div className="flex flex-1 items-center justify-center py-8">
+              <div className="flex h-24 w-24 items-center justify-center rounded-full border border-white/25 bg-white/15 shadow-xl backdrop-blur sm:h-28 sm:w-28">
+                {isCompleted ? <CheckCircle2 className="h-12 w-12" /> : <PlayCircle className="h-12 w-12" />}
+              </div>
+            </div>
+
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">
+                {isVideo ? "Anteprima video" : "Anteprima contenuto"}
+              </p>
+              <h4 className="mt-1 line-clamp-2 text-2xl font-bold sm:text-3xl">{previewTitle}</h4>
+              <div className="mt-4 flex items-center gap-3 text-xs text-white/80">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20">
+                  <div className="h-full w-[42%] rounded-full bg-orange-400" />
+                </div>
+                <span>0:00 / {durationLabel}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200 bg-white p-4 lg:p-5">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Lezione corrente</p>
+            <h4 className="mt-1 text-xl font-bold text-slate-950">{module?.title ?? "Modulo introduttivo"}</h4>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
+              {module?.description ?? "Apri un modulo per vedere contenuti, materiali e avanzamento."}
+            </p>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                  <SelectedIcon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-950">{previewTitle}</p>
+                  <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">{previewDescription}</p>
+                  <p className="mt-2 text-xs font-medium text-emerald-700">{resourceLabel}</p>
+                </div>
+              </div>
+              {asset && (
+                <Button
+                  variant="outline"
+                  className="mt-3 h-9 gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                  onClick={() => onOpenAsset(asset)}
+                >
+                  {asset.type === "link" ? <ExternalLink className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  Apri contenuto completo
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <Button
+              className="h-11 bg-blue-600 hover:bg-blue-700"
+              onClick={onComplete}
+              disabled={isCompleted}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              {isCompleted ? "Lezione completata" : "Completa lezione"}
+            </Button>
+            {nextModule && (
+              <Button variant="outline" className="h-11" onClick={onNextModule}>
+                Prossimo modulo
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LearnerLessonGuidance({
+  module,
+  activeAsset,
+  moduleAssets,
+  hasQuizStep,
+  isCompleted,
+  onOpenMaterials,
+}: {
+  module?: PortalModule;
+  activeAsset?: PortalAsset;
+  moduleAssets: PortalAsset[];
+  hasQuizStep: boolean;
+  isCompleted: boolean;
+  onOpenMaterials: () => void;
+}) {
+  const openableAssets = moduleAssets.filter(hasAssetResource);
+  const moduleHasQuiz =
+    moduleAssets.some((asset) => asset.type === "quiz") || /quiz|verifica/i.test(module?.title ?? "");
+  const currentContentLabel = activeAsset ? assetTypeLabels[activeAsset.type] : "lezione";
+  const checklist = [
+    {
+      label: "Guarda o leggi il contenuto principale",
+      detail: `Contenuto corrente: ${currentContentLabel}.`,
+      done: isCompleted,
+      icon: PlayCircle,
+    },
+    {
+      label: "Consulta gli allegati utili",
+      detail:
+        openableAssets.length > 0
+          ? `${openableAssets.length} risorse apribili per questo modulo.`
+          : "Nessun allegato apribile collegato al modulo.",
+      done: openableAssets.length > 0,
+      icon: FileArchive,
+    },
+    {
+      label: moduleHasQuiz || hasQuizStep ? "Completa verifica o presa visione" : "Firma presa visione se richiesta",
+      detail: moduleHasQuiz || hasQuizStep ? "La verifica chiude il percorso formativo." : "Tracciamento pronto per corsi obbligatori.",
+      done: isCompleted && (moduleHasQuiz || hasQuizStep),
+      icon: ClipboardCheck,
+    },
+  ];
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm lg:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Guida rapida</p>
+            <h4 className="mt-1 text-lg font-bold text-slate-950">Cosa fare in questa lezione</h4>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              I passaggi restano visibili sotto al contenuto, cosi l'utente capisce sempre cosa manca.
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className={cn(
+              "w-fit",
+              isCompleted
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-blue-200 bg-blue-50 text-blue-700",
+            )}
+          >
+            {isCompleted ? "Completata" : "In corso"}
+          </Badge>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {checklist.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                      item.done ? "bg-emerald-50 text-emerald-700" : "bg-white text-blue-700",
+                    )}
+                  >
+                    {item.done ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-950">{item.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{item.detail}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <aside className="rounded-3xl border border-blue-100 bg-blue-50/70 p-4 shadow-sm lg:p-5">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+          <Target className="h-5 w-5" />
+        </div>
+        <h4 className="mt-4 font-bold text-slate-950">{module?.title ?? "Modulo selezionato"}</h4>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {isCompleted
+            ? "Modulo segnato come completato nella preview. Puoi passare al prossimo contenuto."
+            : "Completa la lezione e apri i materiali prima di registrare la presa visione."}
+        </p>
+        <Button
+          variant="outline"
+          className="mt-4 h-10 w-full gap-2 border-blue-200 bg-white text-blue-700 hover:bg-blue-100"
+          onClick={onOpenMaterials}
+        >
+          <Download className="h-4 w-4" />
+          Vai ai materiali
+        </Button>
+      </aside>
+    </section>
   );
 }
 
@@ -2925,43 +3917,80 @@ function LearnerCourseCard({
 function LearnerAssetRow({
   asset,
   course,
+  active,
+  onSelect,
   onOpen,
 }: {
   asset: PortalAsset;
   course: PortalCourse;
+  active?: boolean;
+  onSelect?: () => void;
   onOpen: () => void;
 }) {
   const Icon = assetIcon[asset.type];
+  const isOpenable = hasAssetResource(asset);
+  const isSelectable = Boolean(onSelect);
 
   return (
-    <div className="rounded-2xl border border-slate-200 p-3">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+    <div
+      role={isSelectable ? "button" : undefined}
+      tabIndex={isSelectable ? 0 : undefined}
+      onClick={isSelectable ? onSelect : undefined}
+      onKeyDown={(event) => {
+        if (onSelect && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        "rounded-2xl border bg-white p-3 transition hover:border-blue-200 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+        active ? "border-blue-300 bg-blue-50/40 ring-1 ring-blue-100" : "border-slate-200",
+        isSelectable && "cursor-pointer",
+      )}
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-blue-700",
+            active ? "bg-blue-100" : "bg-blue-50",
+          )}
+        >
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-slate-950">{asset.title}</p>
-          <p className="text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm font-bold text-slate-950">{asset.title}</p>
+            <Badge variant="outline" className="h-6 border-slate-200 bg-slate-50 text-[11px] text-slate-600">
+              {assetTypeLabels[asset.type]}
+            </Badge>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
             {getAssetModuleTitle(course, asset)} · {asset.duration}
           </p>
-          <p className="mt-0.5 truncate text-xs text-slate-400">{getAssetStorageHint(asset)}</p>
+          <p className={cn("mt-0.5 truncate text-xs", isOpenable ? "text-emerald-700" : "text-orange-600")}>
+            {getAssetStorageHint(asset)}
+          </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 shrink-0 gap-1 border-blue-200 px-3 text-blue-700 hover:bg-blue-50 disabled:border-slate-200 disabled:text-slate-400"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+          disabled={!isOpenable}
+        >
+          {asset.type === "link" ? (
+            <ExternalLink className="h-3.5 w-3.5" />
+          ) : asset.downloadable === false || asset.content ? (
+            <Eye className="h-3.5 w-3.5" />
+          ) : (
+            <Download className="h-3.5 w-3.5" />
+          )}
+          {isOpenable ? getAssetActionLabel(asset) : "Da collegare"}
+        </Button>
       </div>
-      <Button
-        variant="outline"
-        size="sm"
-        className="mt-3 h-9 w-full gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
-        onClick={onOpen}
-      >
-        {asset.type === "link" ? (
-          <ExternalLink className="h-3.5 w-3.5" />
-        ) : asset.downloadable === false ? (
-          <Eye className="h-3.5 w-3.5" />
-        ) : (
-          <Download className="h-3.5 w-3.5" />
-        )}
-        {getAssetActionLabel(asset)}
-      </Button>
     </div>
   );
 }
