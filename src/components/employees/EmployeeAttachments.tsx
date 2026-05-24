@@ -241,8 +241,11 @@ export function EmployeeAttachments({
   const handleUpload = async () => {
     if (!selectedFile) return;
     setIsUploading(true);
-    await uploadMutation.mutateAsync(selectedFile);
-    setIsUploading(false);
+    try {
+      await uploadMutation.mutateAsync(selectedFile);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const formatFileSize = (bytes: number) => {

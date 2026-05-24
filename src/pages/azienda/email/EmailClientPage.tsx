@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import {
   Archive,
   ArrowRight,
@@ -436,7 +437,7 @@ function EmptyConnectionsState({
 
   return (
     <Card className="overflow-hidden border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-orange-50/40 shadow-sm">
-      <CardContent className="grid gap-8 p-5 md:grid-cols-[0.9fr_1.4fr] md:p-8">
+      <CardContent className="grid gap-8 p-5 md:grid-cols-[0.82fr_1.5fr] md:p-8">
         <div className="flex flex-col justify-center">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-100 bg-white shadow-sm">
             <Plug className="h-7 w-7 text-blue-600" />
@@ -504,179 +505,251 @@ function EmptyConnectionsState({
 function MailboxPreview() {
   const accounts = demoEmailAccounts;
   const folders = demoEmailFolders;
-  const rows = demoEmailRows.slice(0, 4);
+  const rows = demoEmailRows.slice(0, 5);
   const selectedRow = rows[0];
+  const aiActions = [
+    { icon: CalendarClock, label: "Ritardo ODA", text: "Aggiorna data e avvisa cantiere", tone: "orange" },
+    { icon: PackageCheck, label: "Abbina DDT", text: "Collega colli e foto scarico", tone: "blue" },
+    { icon: Truck, label: "Prepara acquisto", text: "Suggerisci merce sostitutiva", tone: "green" },
+  ];
 
   return (
-    <div className="rounded-[28px] border border-blue-100 bg-white p-3 shadow-xl shadow-blue-100/60">
-      <div className="grid h-[520px] overflow-hidden rounded-2xl border border-slate-100 bg-white md:grid-cols-[210px_minmax(0,1fr)] 2xl:grid-cols-[190px_minmax(0,1fr)_245px]">
-        <aside className="hidden border-r border-blue-100 bg-gradient-to-b from-white to-blue-50/60 p-3 sm:block">
-          <button className="mb-4 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm">
+    <div className="relative overflow-hidden rounded-[30px] border border-blue-100 bg-white p-3 shadow-2xl shadow-blue-100/70">
+      <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-blue-100/50 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-16 left-20 h-40 w-40 rounded-full bg-orange-100/50 blur-3xl" />
+      <div className="relative grid h-[560px] overflow-hidden rounded-[24px] border border-slate-200 bg-white md:grid-cols-[176px_minmax(0,1fr)] 2xl:grid-cols-[172px_minmax(0,1fr)_260px]">
+        <aside className="hidden border-r border-slate-200 bg-slate-50/80 p-3 sm:block">
+          <button className="mb-3 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-200">
             <PencilLine className="h-4 w-4" />
             Scrivi
           </button>
+
+          <div className="mb-3 rounded-2xl border border-blue-100 bg-white p-2">
+            <p className="px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Caselle</p>
+            <div className="mt-2 space-y-1">
+              {accounts.map((account, index) => (
+                <div
+                  key={account.email}
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl px-2 py-1.5 text-[11px]",
+                    index === 0 ? "bg-blue-50 text-slate-800" : "text-slate-500",
+                  )}
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full ${account.color}`} />
+                  <span className="min-w-0 flex-1 truncate">{account.email}</span>
+                  <span className="font-semibold text-slate-600">{account.unread}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="space-y-1">
-            {folders.map((folder, index) => {
+            {folders.slice(0, 6).map((folder, index) => {
               const Icon = folder.icon;
               return (
                 <div
                   key={folder.label}
-                  className={index === 0
-                    ? "rounded-xl bg-blue-600 px-3 py-2 text-white shadow-sm"
-                    : "rounded-xl px-3 py-2 text-slate-600"}
-                >
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    {folder.open ? <ChevronDown className="h-3 w-3 opacity-70" /> : <span className="h-3 w-3" />}
-                    <Icon className="h-4 w-4" />
-                    <span className="min-w-0 flex-1 truncate">{folder.label}</span>
-                    <span className="text-xs">{folder.count}</span>
-                  </div>
-                  {folder.open && (
-                    <div className="ml-8 mt-2 space-y-1 border-l border-blue-100 pl-2">
-                      {accounts.map((account, emailIndex) => (
-                        <div
-                          key={`${folder.label}-${account.email}`}
-                          className={index === 0 && emailIndex === 0
-                            ? "flex items-center gap-2 rounded-lg bg-white/80 px-2 py-1 text-[11px] text-slate-700"
-                            : index === 0
-                              ? "flex items-center gap-2 rounded-lg px-2 py-1 text-[11px] text-blue-100/90"
-                            : "flex items-center gap-2 rounded-lg px-2 py-1 text-[11px] text-slate-500"}
-                        >
-                          <span className={`h-2 w-2 rounded-full ${account.color}`} />
-                          <span className="min-w-0 flex-1 truncate">{account.email}</span>
-                          {index === 0 && <span className="text-[10px] font-semibold">{account.unread}</span>}
-                        </div>
-                      ))}
-                    </div>
+                  className={cn(
+                    "rounded-xl px-2.5 py-2 text-slate-600 transition",
+                    index === 0 ? "bg-blue-600 text-white shadow-sm" : "hover:bg-white",
                   )}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold">
+                    {folder.open ? <ChevronDown className="h-3 w-3 opacity-70" /> : <span className="h-3 w-3" />}
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{folder.label}</span>
+                    <span className="text-[11px]">{folder.count}</span>
+                  </div>
                 </div>
               );
             })}
           </div>
         </aside>
-        <main className="flex min-w-0 flex-col">
-          <div className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/50 to-orange-50/40 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-base font-semibold text-slate-950">Posta in arrivo</p>
-                <p className="text-xs text-slate-500">email@demo.srl · 1-25 di 244 email</p>
+
+        <main className="flex min-w-0 flex-col 2xl:border-r 2xl:border-slate-200">
+          <div className="border-b border-slate-200 bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-lg font-bold text-slate-950">Posta in arrivo</p>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                    Sync
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-500">email@demo.srl · 1-25 di 244 email</p>
               </div>
-              <div className="flex items-center gap-2 text-slate-400">
-                <Search className="h-5 w-5" />
-                <MoreHorizontal className="h-5 w-5" />
+              <div className="flex items-center gap-1 text-slate-400">
+                <button className="rounded-xl p-2 hover:bg-slate-100" aria-label="Cerca nella posta">
+                  <Search className="h-4 w-4" />
+                </button>
+                <button className="rounded-xl p-2 hover:bg-slate-100" aria-label="Azioni posta">
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs text-slate-400">
-              <Search className="h-3.5 w-3.5 text-blue-500" />
-              Cerca: from:fornitore ODA after:2026-05-01
+
+            <div className="mt-3 flex items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 px-3 py-2.5 text-xs text-slate-500">
+              <Search className="h-4 w-4 shrink-0 text-blue-600" />
+              <span className="min-w-0 truncate">Cerca: from:fornitore ODA after:2026-05-01</span>
             </div>
-            <div className="mt-3 flex gap-2">
-              {["Tutte", "Da fare", "Lead", "Fornitori"].map((chip, index) => (
-                <span key={chip} className={index === 0
-                  ? "rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800"
-                  : "rounded-full bg-white px-3 py-1 text-xs text-slate-500"}
+
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {["Tutte", "Da fare", "Lead", "Fornitori", "DDT"].map((chip, index) => (
+                <span
+                  key={chip}
+                  className={cn(
+                    "shrink-0 rounded-full px-3 py-1 text-xs",
+                    index === 0 ? "bg-blue-600 font-semibold text-white shadow-sm" : "bg-slate-50 text-slate-600",
+                  )}
                 >
                   {chip}
                 </span>
               ))}
             </div>
           </div>
-          <div className="mx-3 mt-3 rounded-2xl border border-orange-100 bg-orange-50/80 p-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-orange-900">
+
+          <div className="border-b border-orange-100 bg-orange-50/55 px-4 py-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-orange-950">
               <Sparkles className="h-4 w-4 text-orange-600" />
-              Silvio ha trovato 3 email operative
+              Silvio ha trovato 3 priorità operative
             </div>
             <div className="mt-2 grid gap-2 text-[11px] text-slate-600 sm:grid-cols-3">
-              <span className="inline-flex items-center gap-1 rounded-xl bg-white px-2 py-1">
-                <CalendarClock className="h-3.5 w-3.5 text-orange-600" />
-                aggiorna ritardi ODA
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-xl bg-white px-2 py-1">
-                <PackageCheck className="h-3.5 w-3.5 text-blue-600" />
-                abbina DDT
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-xl bg-white px-2 py-1">
-                <Truck className="h-3.5 w-3.5 text-emerald-600" />
-                prepara acquisti
-              </span>
+              {aiActions.map((action) => {
+                const Icon = action.icon;
+                const toneClass =
+                  action.tone === "orange"
+                    ? "text-orange-700"
+                    : action.tone === "green"
+                      ? "text-emerald-700"
+                      : "text-blue-700";
+                return (
+                  <span key={action.label} className="rounded-xl bg-white px-2.5 py-2 shadow-sm">
+                    <span className={cn("flex items-center gap-1 font-semibold", toneClass)}>
+                      <Icon className="h-3.5 w-3.5" />
+                      {action.label}
+                    </span>
+                    <span className="mt-0.5 block truncate text-slate-500">{action.text}</span>
+                  </span>
+                );
+              })}
             </div>
           </div>
-          <div className="min-h-0 flex-1 space-y-2 overflow-hidden p-3">
+
+          <div className="min-h-0 flex-1 space-y-2 overflow-hidden bg-slate-50/70 p-3">
             {rows.map((row) => (
               <div
                 key={row.subject}
-                className={row.subject === selectedRow.subject
-                  ? "rounded-2xl border border-blue-200 bg-blue-50/70 p-3 shadow-sm"
-                  : "rounded-2xl border border-blue-100 bg-white p-3 shadow-sm"}
+                className={cn(
+                  "rounded-2xl border p-3 shadow-sm transition",
+                  row.subject === selectedRow.subject
+                    ? "border-blue-300 bg-white ring-2 ring-blue-100"
+                    : "border-slate-200 bg-white/90",
+                )}
               >
                 <div className="flex items-start gap-3">
-                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${row.color}`}>
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-xs font-bold text-white ${row.color}`}>
                     {row.from.slice(0, 2).toUpperCase()}
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-slate-950">{row.from}</p>
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">{row.badge}</span>
+                      <p className={cn("truncate text-sm text-slate-950", row.unread ? "font-bold" : "font-semibold")}>{row.from}</p>
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">{row.badge}</span>
+                      {row.starred && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-300 text-amber-400" />}
                       {row.unread && <span className="h-2 w-2 rounded-full bg-blue-500" />}
                     </div>
-                    <p className="mt-1 truncate text-xs text-slate-600">{row.subject}</p>
+                    <p className={cn("mt-1 truncate text-xs", row.unread ? "font-semibold text-slate-800" : "text-slate-600")}>{row.subject}</p>
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
                       <span className="min-w-0 flex-1 truncate">{row.preview}</span>
                       {row.attachments > 0 && (
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5">
                           <Paperclip className="h-3 w-3" />
                           {row.attachments}
                         </span>
                       )}
-                      <span>{row.time}</span>
+                      <span className="shrink-0">{row.time}</span>
                     </div>
                   </div>
                 </div>
               </div>
             ))}
-            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-center text-xs font-semibold text-blue-700">
-              Carica email precedenti
+
+            <div className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm 2xl:hidden">
+              <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
+                <Bot className="h-4 w-4 text-blue-600" />
+                Analisi operativa
+              </div>
+              <p className="mt-2 text-[11px] leading-snug text-slate-600">
+                Ritardo ODA rilevato, DDT da abbinare e risposta al fornitore già pronta.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {["Crea task", "Aggiorna ODA", "Rispondi"].map((label) => (
+                  <span key={label} className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">
+                    {label}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </main>
-        <section className="hidden min-w-0 border-l border-blue-100 bg-white 2xl:flex 2xl:flex-col">
-          <div className="border-b border-blue-100 p-4">
-            <div className="flex items-center justify-between">
-              <span className="rounded-full bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-700">
+
+        <section className="hidden min-w-0 flex-col bg-white 2xl:flex">
+          <div className="border-b border-slate-200 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <span className="rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-bold text-orange-700">
                 {selectedRow.badge}
               </span>
               <CircleCheck className="h-5 w-5 text-emerald-500" />
             </div>
-            <h3 className="mt-3 text-sm font-semibold leading-tight text-slate-950">{selectedRow.subject}</h3>
+            <h3 className="mt-3 line-clamp-2 text-sm font-bold leading-tight text-slate-950">{selectedRow.subject}</h3>
             <p className="mt-1 truncate text-[11px] text-slate-500">
               Da {selectedRow.email} a email@demo.srl
             </p>
           </div>
+
           <div className="min-h-0 flex-1 space-y-3 overflow-hidden p-4">
             <div className="rounded-2xl border border-blue-100 bg-blue-50/80 p-3">
-              <div className="flex items-center gap-2 text-xs font-semibold text-blue-900">
+              <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
                 <Bot className="h-4 w-4 text-blue-600" />
-                Analisi AI
+                Analisi operativa
               </div>
-              <ul className="mt-2 space-y-2 text-[11px] leading-snug text-slate-600">
-                <li>Ritardo su ODA 2026-018 rilevato.</li>
-                <li>Aggiornare data consegna e avvisare cantiere.</li>
-                <li>Bozza risposta pronta per conferma.</li>
-              </ul>
+              <div className="mt-3 space-y-2 text-[11px] leading-snug text-slate-600">
+                <p className="rounded-xl bg-white p-2">
+                  <span className="font-semibold text-slate-900">Ritardo rilevato:</span> ODA 2026-018 slitta al 28/05.
+                </p>
+                <p className="rounded-xl bg-white p-2">
+                  <span className="font-semibold text-slate-900">Impatto:</span> aggiornare consegna e avvisare il capo cantiere.
+                </p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-100 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Anteprima messaggio</p>
+
+            <div className="rounded-2xl border border-slate-200 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Messaggio</p>
               <p className="mt-2 text-xs leading-5 text-slate-600">
-                Buongiorno, confermiamo che la consegna prevista per l'ODA 2026-018 slitta al 28/05 per ritardo del reparto
-                verniciatura. Possiamo anticipare i profili standard disponibili a magazzino.
+                Buongiorno, confermiamo che la consegna prevista per l'ODA 2026-018 slitta al 28/05. Possiamo anticipare i
+                profili standard disponibili a magazzino e completare il saldo merce alla nuova data.
               </p>
+              <div className="mt-3 rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-[11px] font-medium text-orange-800">
+                Allegati rilevati: DDT provvisorio, foto colli, conferma nuova data.
+              </div>
             </div>
-            <div className="grid gap-2 text-[11px] text-slate-600">
-              {["Crea task logistica", "Aggiorna ODA", "Scrivi risposta"].map((action) => (
-                <button key={action} className="rounded-xl border border-blue-100 bg-white px-3 py-2 text-left font-medium text-blue-700 shadow-sm">
-                  {action}
-                </button>
-              ))}
+
+            <div className="grid gap-2 text-[11px]">
+              {[
+                { icon: CalendarClock, label: "Crea task logistica" },
+                { icon: PackageCheck, label: "Aggiorna ODA" },
+                { icon: Reply, label: "Scrivi risposta" },
+              ].map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.label}
+                    className="flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 py-2 text-left font-semibold text-blue-700 shadow-sm"
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {action.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </section>

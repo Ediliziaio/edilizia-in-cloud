@@ -3,7 +3,7 @@
  * - Furgone: scorte assegnate all'operaio con +/- e segnalazione riordino
  * - Cantiere: warehouse_items dell'ordine attivo (sola lettura)
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Package, AlertTriangle, Minus, Plus, Loader2, Warehouse } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +49,19 @@ export default function CampoMagazzino() {
   });
 
   const [selectedCantiere, setSelectedCantiere] = useState<string>("");
+
+  useEffect(() => {
+    if (activeTab !== "cantiere") return;
+
+    if (cantieri.length === 1 && !selectedCantiere) {
+      setSelectedCantiere(cantieri[0]?.id ?? "");
+      return;
+    }
+
+    if (selectedCantiere && !cantieri.some((c: any) => c.id === selectedCantiere)) {
+      setSelectedCantiere("");
+    }
+  }, [activeTab, cantieri, selectedCantiere]);
 
   // Warehouse items del cantiere selezionato
   const { data: warehouseItems = [], isLoading: loadingWarehouse } = useQuery({
@@ -233,19 +246,12 @@ export default function CampoMagazzino() {
                 ))}
               </select>
             )}
-            {cantieri.length === 1 && !selectedCantiere && (
-              // Auto-select if only one
-              <></>
-            )}
-
-            {!selectedCantiere && cantieri.length === 1 ? (
-              (() => { if (!selectedCantiere) setSelectedCantiere(cantieri[0]?.id); return null; })()
-            ) : null}
-
-            {!selectedCantiere && cantieri.length !== 1 ? (
+            {!selectedCantiere ? (
               <div className="flex flex-col items-center py-16 gap-3 text-center">
                 <Warehouse className="w-10 h-10 text-muted-foreground" />
-                <p className="text-muted-foreground text-sm">Seleziona un cantiere</p>
+                <p className="text-muted-foreground text-sm">
+                  {cantieri.length === 1 ? "Preparazione cantiere…" : "Seleziona un cantiere"}
+                </p>
               </div>
             ) : loadingWarehouse ? (
               <div className="flex items-center justify-center py-12">

@@ -228,6 +228,7 @@ const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/Repor
 // (wrapper con tabs). Non più import diretto qui per evitare duplicato chunk.
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage"));
+const PortalePage = lazy(() => import("@/pages/azienda/personale/PortalePage"));
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
 // PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
@@ -451,6 +452,7 @@ export default function CompanyRoutesContainer() {
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
         <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />
+        <Route path="personale/portale" element={withCompanyPermission("canViewPersone", <PortalePage />)} />
         <Route path="personale/timbratura" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>)} />
         {/* Tesoreria — gated: tesoreria (core, default abilitato su tutti i piani) */}
         <Route path="tesoreria" element={withCompanyPermission("canViewTesoreria", <FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>)} />

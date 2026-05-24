@@ -46,6 +46,8 @@ import {
   Settings,
   Calculator,
   ShieldCheck,
+  GraduationCap,
+  NotebookPen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ModuleKey } from "@/hooks/useSubscriptionLimits";
@@ -165,6 +167,8 @@ export const macroAreas: MacroArea[] = [
     icon: Users2,
     items: [
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone", featureKey: "hr_personale" },
+      { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canViewPersone", featureKey: "hr_personale" },
+      { title: "Giornale Lavori", url: "/azienda/giornale-lavori", icon: NotebookPen, permissionKey: "canViewGiornaleLavori", featureKey: "giornale_lavori" },
       // MP-CLEANUP: "Messaggi Esterni" rimosso (feature legacy sostituita da Hub WhatsApp multi-numero)
     ],
   },
@@ -240,6 +244,7 @@ export const internalNavItems: NavItem[] = [
   // MP-CLEANUP: "Messaggi Esterni" rimosso
   { title: "Chat Team", url: "/azienda/chat", icon: MessageCircle, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
+  { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewAutomazioni", category: "internal", subcategory: "gi_automation" },
   { title: "Agenti AI Interni", url: "/azienda/agenti-ai?tipo=platform", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
 ];
