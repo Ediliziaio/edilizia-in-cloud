@@ -3,13 +3,19 @@
  * (operaio interno o subappaltatore).
  */
 import { useAuth } from "@/contexts/AuthContext";
+import { resolveRouteAccessRole } from "@/lib/auth/multiCompany";
 
 export function useIsCampo() {
-  const { role, profile, user } = useAuth();
+  const { role, profile, user, multiCompanyAccesses, selectedMultiCompanyId } = useAuth();
+  const currentRole = resolveRouteAccessRole({
+    globalRole: role,
+    accesses: multiCompanyAccesses,
+    selectedCompanyId: selectedMultiCompanyId,
+  });
 
-  const isOperaio = role === "employee";
-  const isSubappaltatore = role === "subcontractor";
+  const isOperaio = currentRole === "employee";
+  const isSubappaltatore = currentRole === "subcontractor";
   const isCampo = isOperaio || isSubappaltatore;
 
-  return { isCampo, isOperaio, isSubappaltatore, role, profile, user };
+  return { isCampo, isOperaio, isSubappaltatore, role: currentRole, profile, user };
 }

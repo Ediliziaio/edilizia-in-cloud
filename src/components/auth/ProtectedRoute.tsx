@@ -7,6 +7,7 @@ import { logger } from "@/utils/logger";
 import { useEffect, useState } from "react";
 import { LoadingTimeoutFallback } from "@/components/auth/LoadingTimeoutFallback";
 import { captureVelocityError } from "@/lib/velocity/sentry";
+import { resolveRouteAccessRole } from "@/lib/auth/multiCompany";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -14,9 +15,14 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-  const { user, role, isLoading } = useAuth();
+  const { user, role, isLoading, multiCompanyAccesses, selectedMultiCompanyId } = useAuth();
   const location = useLocation();
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const routeRole = resolveRouteAccessRole({
+    globalRole: role,
+    accesses: multiCompanyAccesses,
+    selectedCompanyId: selectedMultiCompanyId,
+  });
 
   useEffect(() => {
     if (!isLoading) {
@@ -84,7 +90,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/azienda" replace />;
   }
 
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
+  if (allowedRoles && routeRole && !allowedRoles.includes(routeRole)) {
     // Redirect to the appropriate dashboard based on role
     const roleRedirects: Record<string, string> = {
       super_admin: "/admin",
@@ -102,7 +108,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       platform_implementation: "/admin",
       multi_company_user: "/azienda",
     };
-    const redirectPath = roleRedirects[role] || "/login";
+    const redirectPath = roleRedirects[routeRole] || "/login";
     return <Navigate to={redirectPath} replace />;
   }
 

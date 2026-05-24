@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 import { withClientTimeout } from "@/lib/query-timeout";
+import { resolveSelectedAccessRole } from "@/lib/auth/multiCompany";
 
 export interface Permissions {
   canViewDashboard: boolean;
@@ -286,18 +287,19 @@ export function usePermissions(): Permissions {
   const queryClient = useQueryClient();
   const effectiveCompanyId = effectiveCompany?.id ?? selectedMultiCompanyId ?? impersonatedCompanyId ?? null;
 
-  const isStaffRole = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "");
-  // I `multi_company_user` hanno una single row in `staff_permissions` che fa
-  // da baseline: necessario fetchare anche per loro (insieme allo staff classico).
-  const needsStaffPermsFetch = isStaffRole || role === "multi_company_user";
+  const staffLikeRoles = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
 
-  // Risolve l'access_role per la company corrente (per multi_company_user).
-  // Usato per discriminare ALL_PERMISSIONS (company_admin) vs staff branch.
+  // Risolve il ruolo effettivo per la company corrente. Se l'utente ha una riga
+  // multi_company_access, quella vince sul ruolo globale: evita che un admin in
+  // Azienda A diventi automaticamente admin anche in Azienda B.
   const currentAccessRole = useMemo(() => {
-    if (role !== "multi_company_user") return null;
-    const a = multiCompanyAccesses.find((x) => x.company_id === selectedMultiCompanyId);
-    return a?.access_role ?? null;
+    return resolveSelectedAccessRole({
+      globalRole: role,
+      accesses: multiCompanyAccesses,
+      selectedCompanyId: selectedMultiCompanyId,
+    });
   }, [role, multiCompanyAccesses, selectedMultiCompanyId]);
+  const needsStaffPermsFetch = staffLikeRoles.includes(currentAccessRole || "");
 
   const {
     data: permissions,
@@ -417,39 +419,17 @@ export function usePermissions(): Permissions {
     return NO_PERMISSIONS;
   }
 
-  // Super admin and company admin have all permissions
-  if (role === "super_admin" || role === "company_admin") {
+  // Super admin and selected-company admin have all permissions.
+  if (role === "super_admin" || currentAccessRole === "company_admin") {
     return ALL_PERMISSIONS;
   }
 
-  // ─── Multi-company user: il ruolo "effettivo" dipende dall'access_role
-  // della company correntemente selezionata.
-  //  - access_role = "company_admin"   → ALL_PERMISSIONS (admin sull'azienda)
-  //  - access_role = "company_staff" / "salesperson" / "call_center" → leggi
-  //    permessi granulari dalla riga staff_permissions
-  //  - altrimenti (no access selezionato / dati non ancora pronti) → NO_PERMISSIONS
-  if (role === "multi_company_user") {
-    if (!currentAccessRole) {
-      // Multi-company user collegato ma nessuna company selezionata yet
-      // (il fetch in AuthContext popola accesses async). Non blocchiamo l'UI:
-      // mostriamo loading per evitare flicker tra NO_PERMISSIONS → ALL.
-      if (multiCompanyAccesses.length === 0) {
-        return { ...NO_PERMISSIONS, isLoading: true };
-      }
-      // Accessi caricati ma nessuno selezionato: fail-safe
-      return NO_PERMISSIONS;
+  // Utente multi-azienda senza company selezionata: fail-safe durante il fetch,
+  // poi NO_PERMISSIONS se la configurazione non contiene un accesso valido.
+  if (role === "multi_company_user" && !currentAccessRole) {
+    if (multiCompanyAccesses.length === 0) {
+      return { ...NO_PERMISSIONS, isLoading: true };
     }
-    if (currentAccessRole === "company_admin") {
-      return ALL_PERMISSIONS;
-    }
-    // Staff-like access roles: usa la riga staff_permissions
-    if (["company_staff", "salesperson", "call_center"].includes(currentAccessRole)) {
-      if (!effectiveCompanyId) return { ...NO_PERMISSIONS, isLoading: true };
-      if (isLoading) return { ...NO_PERMISSIONS, isLoading: true };
-      if (permissionsLoadError) return { ...NO_PERMISSIONS, loadError: permissionsLoadError };
-      return mapDbRowToPermissions(permissions);
-    }
-    // Ruolo accesso sconosciuto → fail-safe
     return NO_PERMISSIONS;
   }
 
@@ -466,8 +446,10 @@ export function usePermissions(): Permissions {
     return ALL_PERMISSIONS;
   }
 
-  // Staff: return permissions from database
-  if (["company_staff", "salesperson", "call_center", "employee", "subcontractor"].includes(role || "")) {
+  // Staff-like roles: return permissions from database. This branch covers both
+  // normal staff users and company_admin users downgraded to staff in the
+  // selected multi-company access.
+  if (staffLikeRoles.includes(currentAccessRole || "")) {
     if (!effectiveCompanyId) return { ...NO_PERMISSIONS, isLoading: true };
     if (isLoading) {
       return { ...NO_PERMISSIONS, isLoading: true };

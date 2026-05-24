@@ -8,6 +8,7 @@ import { captureVelocityError, setSentryUserContext } from "@/lib/velocity/sentr
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { queryKeys } from "@/lib/queryKeys";
 import { warmupCriticalEdgeFunctions } from "@/lib/utils/edgeWarmup";
+import { mergeProfileCompanyAccess, resolveMultiCompanySelection } from "@/lib/auth/multiCompany";
 
 /**
  * Velocity Protocol — V1/V2
@@ -52,6 +53,9 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const SESSION_ID_KEY = "user_session_id";
 const IMP_COMPANY_KEY = "imp_company_id";
 const IMP_TOKEN_KEY = "imp_token";
+const MULTI_COMPANY_KEY = "multi_company_selected";
+const MULTI_COMPANY_ACCESS_CACHE_KEY = "multi_company_accesses_v1";
+const MULTI_COMPANY_ACCESS_CACHE_TTL_MS = 15 * 60 * 1000;
 // Timestamp (ms) of when the impersonation token was created — used to skip redundant
 // remote validation for freshly-minted tokens (avoids an edge-function cold-start per load).
 const IMP_TOKEN_TS_KEY = "imp_token_ts";
@@ -86,6 +90,42 @@ function writeProfileCache(userId: string, profile: Profile | null, role: AppRol
 
 function clearProfileCache() {
   try { sessionStorage.removeItem(AUTH_PROFILE_CACHE_KEY); } catch { /* storage non disponibile — silenzioso */ }
+}
+
+function readMultiCompanyAccessCache(): { userId: string | null; accesses: MultiCompanyAccess[] } | null {
+  try {
+    const raw = sessionStorage.getItem(MULTI_COMPANY_ACCESS_CACHE_KEY);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (Date.now() - Number(entry.cachedAt ?? 0) > MULTI_COMPANY_ACCESS_CACHE_TTL_MS) return null;
+    if (!Array.isArray(entry.accesses)) return null;
+    return {
+      userId: typeof entry.userId === "string" ? entry.userId : null,
+      accesses: entry.accesses as MultiCompanyAccess[],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeMultiCompanyAccessCache(userId: string, accesses: MultiCompanyAccess[]) {
+  try {
+    sessionStorage.setItem(
+      MULTI_COMPANY_ACCESS_CACHE_KEY,
+      JSON.stringify({ userId, accesses, cachedAt: Date.now() }),
+    );
+  } catch {
+    // sessionStorage full or unavailable — skip silently
+  }
+}
+
+function clearMultiCompanySession() {
+  try {
+    sessionStorage.removeItem(MULTI_COMPANY_KEY);
+    sessionStorage.removeItem(MULTI_COMPANY_ACCESS_CACHE_KEY);
+  } catch {
+    // storage non disponibile — silenzioso
+  }
 }
 
 function errorText(error: unknown): string {
@@ -233,11 +273,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Multi-company state (combined to reduce re-renders)
-  const MULTI_COMPANY_KEY = "multi_company_selected";
-  const [multiCompanyState, setMultiCompanyState] = useState({
-    accesses: [] as MultiCompanyAccess[],
-    selectedId: sessionStorage.getItem(MULTI_COMPANY_KEY),
-    selectedCompany: null as Company | null,
+  const [multiCompanyState, setMultiCompanyState] = useState(() => {
+    const selectedId = sessionStorage.getItem(MULTI_COMPANY_KEY);
+    const cachedAccesses = readMultiCompanyAccessCache()?.accesses ?? [];
+    const selectedCompany = selectedId
+      ? cachedAccesses.find((access) => access.company_id === selectedId)?.company ?? null
+      : null;
+    return {
+      accesses: cachedAccesses,
+      selectedId,
+      selectedCompany,
+    };
   });
   const multiCompanyAccesses = multiCompanyState.accesses;
   const selectedMultiCompanyId = multiCompanyState.selectedId;
@@ -252,6 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.removeItem(IMP_COMPANY_KEY);
     sessionStorage.removeItem(IMP_TOKEN_KEY);
     sessionStorage.removeItem(IMP_TOKEN_TS_KEY);
+    clearMultiCompanySession();
     sessionStorage.removeItem("admin_session_token");
 
     authGenRef.current++;
@@ -355,7 +402,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     validateImpersonation();
     return () => { cancelled = true; };
-  }, [state.role]);
+  }, [state.role, queryClient]);
 
   const fetchUserData = useCallback(async (userId: string, userEmail: string | null | undefined) => {
     // Velocity — V1: timeout sulla critical path di auth.
@@ -1091,6 +1138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await endSession();
     sessionStorage.removeItem("quick_login_original_email");
     sessionStorage.removeItem("quick_login_original_name");
+    clearMultiCompanySession();
     // v8.6.99 — clear session_started_at marker per useSessionTimeout
     try { localStorage.removeItem("eic_session_started_at"); } catch { /* ignore */ }
     await supabase.auth.signOut();
@@ -1145,7 +1193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logger.error("Impersonation error:", err);
       return null;
     }
-  }, [state.role]);
+  }, [state.role, queryClient]);
 
   const exitImpersonation = useCallback(async () => {
     try {
@@ -1217,15 +1265,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSentryUserContext(null);
       return;
     }
+    const tenantId = multiCompanyState.selectedCompany?.id ?? state.company?.id ?? null;
     setSentryUserContext({
       id: state.user.id,
       role: state.role ?? null,
-      tenantId: state.company?.id ?? null,
+      tenantId,
       // Niente email di default: la decisione di sharare l'email con Sentry
       // è una scelta di policy (GDPR/privacy). Se vuoi attivarla, scommenta:
       // email: state.user.email,
     });
-  }, [state.user?.id, state.role, state.company?.id]);
+  }, [state.user, state.role, state.company?.id, multiCompanyState.selectedCompany?.id]);
 
   // ── Realtime: company_feature_overrides ──────────────────────────────────
   // Quando il SuperAdmin modifica un override (sblocca/blocca feature, cambia
@@ -1244,10 +1293,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const hasActiveImp = !!impersonatedCompanyId && !!impersonationToken;
     const isImp = (state.role === "super_admin" && !!impersonatedCompanyId) || hasActiveImp;
-    const isPlatform = state.role?.startsWith("platform_") ?? false;
     const effCompanyId = isImp
       ? impersonatedCompanyId
-      : (state.role === "multi_company_user" || isPlatform) && multiCompanyState.selectedId
+      : multiCompanyState.selectedCompany && multiCompanyState.selectedId
         ? multiCompanyState.selectedId
         : state.company?.id ?? null;
 
@@ -1294,6 +1342,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     impersonatedCompanyId,
     impersonationToken,
     multiCompanyState.selectedId,
+    multiCompanyState.selectedCompany,
+    state.user,
     queryClient,
   ]);
 
@@ -1310,10 +1360,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const hasActiveImp = !!impersonatedCompanyId && !!impersonationToken;
     const isImp = (state.role === "super_admin" && !!impersonatedCompanyId) || hasActiveImp;
-    const isPlatform = state.role?.startsWith("platform_") ?? false;
     const effCompanyId = isImp
       ? impersonatedCompanyId
-      : (state.role === "multi_company_user" || isPlatform) && multiCompanyState.selectedId
+      : multiCompanyState.selectedCompany && multiCompanyState.selectedId
         ? multiCompanyState.selectedId
         : state.company?.id ?? null;
 
@@ -1366,26 +1415,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     impersonatedCompanyId,
     impersonationToken,
     multiCompanyState.selectedId,
+    multiCompanyState.selectedCompany,
+    state.user,
     queryClient,
   ]);
 
-  // Fetch multi-company accesses for multi_company_user and platform roles
+  // Fetch multi-company accesses for any authenticated user. The table already
+  // enforces user_id = auth.uid() via RLS, so a normal company_admin/staff with
+  // multiple granted companies can switch tenants without needing a special
+  // global role.
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
 
     async function fetchMultiCompanyAccesses() {
-      const platformRoles: string[] = [
-        "multi_company_user",
-        "platform_manager",
-        "platform_sales",
-        "platform_support",
-        "platform_marketing",
-        "platform_implementation",
-      ];
-      if (!state.user || !state.role || !platformRoles.includes(state.role)) {
-        if (!cancelled) setMultiCompanyState(prev => ({ ...prev, accesses: [] }));
+      if (state.isLoading) {
         return;
+      }
+
+      if (!state.user) {
+        if (!cancelled) {
+          clearMultiCompanySession();
+          setMultiCompanyState({ accesses: [], selectedId: null, selectedCompany: null });
+        }
+        return;
+      }
+
+      const cachedAccesses = readMultiCompanyAccessCache();
+      if (cachedAccesses?.userId && cachedAccesses.userId !== state.user.id) {
+        clearMultiCompanySession();
+        setMultiCompanyState({ accesses: [], selectedId: null, selectedCompany: null });
       }
 
       const { data, error } = await supabase
@@ -1403,23 +1462,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const accesses = (data || []).map((a: any) => ({
+      type MultiCompanyAccessRow = MultiCompanyAccess & { companies?: Company | null };
+      const fetchedAccesses = ((data || []) as MultiCompanyAccessRow[]).map((a) => ({
         ...a,
-        company: a.companies as Company,
+        company: a.companies ?? undefined,
       })) as MultiCompanyAccess[];
+      const accesses = mergeProfileCompanyAccess({
+        accesses: fetchedAccesses,
+        profileCompany: state.company,
+        userId: state.user.id,
+        globalRole: state.role,
+        createdAt: state.profile?.created_at,
+      });
+      writeMultiCompanyAccessCache(state.user.id, accesses);
 
-      // Auto-select first company if none selected
       setMultiCompanyState(prev => {
-        const currentSelectedId = prev.selectedId;
-        if (!currentSelectedId && accesses.length > 0) {
-          const firstId = accesses[0].company_id;
-          sessionStorage.setItem(MULTI_COMPANY_KEY, firstId);
-          return { accesses, selectedId: firstId, selectedCompany: accesses[0].company || null };
-        } else if (currentSelectedId) {
-          const found = accesses.find(a => a.company_id === currentSelectedId);
-          return { accesses, selectedId: currentSelectedId, selectedCompany: found?.company || null };
+        const selected = resolveMultiCompanySelection({
+          accesses,
+          storedCompanyId: prev.selectedId,
+          profileCompanyId: state.profile?.company_id,
+        });
+
+        if (selected.selectedId) {
+          sessionStorage.setItem(MULTI_COMPANY_KEY, selected.selectedId);
+        } else {
+          sessionStorage.removeItem(MULTI_COMPANY_KEY);
         }
-        return { ...prev, accesses };
+
+        return {
+          accesses,
+          selectedId: selected.selectedId,
+          selectedCompany: selected.selectedCompany,
+        };
       });
     }
 
@@ -1428,15 +1502,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       controller.abort();
     };
-  }, [state.role, state.user?.id]);
+  }, [state.isLoading, state.role, state.user, state.profile?.company_id, state.profile?.created_at, state.company]);
 
   const switchMultiCompany = useCallback((companyId: string) => {
+    const found = multiCompanyAccesses.find(a => a.company_id === companyId);
+    if (!found) {
+      toast.error("Azienda non disponibile", {
+        description: "Non risulta più tra gli accessi collegati al tuo account.",
+      });
+      return;
+    }
+    if (companyId === selectedMultiCompanyId) return;
+
     sessionStorage.setItem(MULTI_COMPANY_KEY, companyId);
+    if (state.user?.id) {
+      writeMultiCompanyAccessCache(state.user.id, multiCompanyAccesses);
+    }
+    setViewAsRoleState(null);
+    setViewAsUserId(null);
     setMultiCompanyState(prev => {
-      const found = prev.accesses.find(a => a.company_id === companyId);
       return { ...prev, selectedId: companyId, selectedCompany: found?.company || null };
     });
-  }, []);
+    queryClient.clear();
+    toast.success("Azienda cambiata", {
+      description: found.company?.name ?? "Il contesto aziendale è stato aggiornato.",
+    });
+  }, [multiCompanyAccesses, queryClient, selectedMultiCompanyId, state.user?.id]);
 
   // isImpersonating is true as soon as impersonatedCompanyId is set (not waiting for impersonatedCompany
   // to be fetched). This prevents the route guard from redirecting the superadmin to /admin
@@ -1447,13 +1538,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasActiveImpersonationSession = !!impersonatedCompanyId && !!impersonationToken;
   const isImpersonating = (state.role === "super_admin" && !!impersonatedCompanyId) || hasActiveImpersonationSession;
 
-  // Effective company: impersonation > multi-company (including platform_* roles) > real company
-  const isPlatformRole = state.role?.startsWith("platform_") ?? false;
+  // Effective company: impersonation > selected multi-company access > real company
   const effectiveCompany = isImpersonating
     ? impersonatedCompany
-    : (state.role === "multi_company_user" || isPlatformRole) && multiCompanyObj
-      ? multiCompanyObj
-      : state.company;
+    : multiCompanyObj ?? state.company;
 
   const contextValue = useMemo(
     () => ({
@@ -1476,7 +1564,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       viewAsUserId,
       setViewAsRole,
     }),
-    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyState, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
+    [state, signIn, signOut, refreshAuth, impersonatedCompanyId, impersonationToken, impersonatedCompany, isImpersonating, isImpersonationReady, impersonateCompany, exitImpersonation, effectiveCompany, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany, viewAsRole, viewAsUserId, setViewAsRole]
   );
 
   return (

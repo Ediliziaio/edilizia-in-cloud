@@ -37,6 +37,8 @@ import {
 import { CreateUserWizard, type WizardUserFormData } from "@/components/users/CreateUserWizard";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
+import { usePermissions } from "@/hooks/usePermissions";
+import { withClientTimeout } from "@/lib/query-timeout";
 
 type EffectiveRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 type StatusFilter = "all" | "online" | "blocked" | "locked" | "never" | "inactive";
@@ -179,6 +181,20 @@ function determineEffectiveRole(roles: string[]): EffectiveRole {
   return "company_staff";
 }
 
+async function readUsersOptionalRows<T>(
+  task: PromiseLike<{ data: unknown; error: unknown }>,
+  label: string,
+  timeoutMs = 6_000,
+): Promise<T[]> {
+  try {
+    const response = await withClientTimeout(task, label, timeoutMs);
+    if (response.error) return [];
+    return (response.data ?? []) as T[];
+  } catch {
+    return [];
+  }
+}
+
 // ─── Delete User Dialog ───────────────────────────────────────────────
 function DeleteUserDialog({
   user: targetUser,
@@ -279,8 +295,9 @@ function DeleteUserDialog({
 
 // ─── Main Component ───────────────────────────────────────────────────
 export function UsersConfig() {
-  const { user, effectiveCompany, role } = useAuth();
-  const canManageUsers = role === "company_admin" || role === "super_admin";
+  const { user, effectiveCompany, profile, role } = useAuth();
+  const permissions = usePermissions();
+  const canManageUsers = permissions.isAdmin;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const effectiveCompanyId = effectiveCompany?.id;
@@ -341,13 +358,33 @@ export function UsersConfig() {
 
   // ── Company Users Query ─────────────────────────────────────────────
   const { data: companyUsers = [], isLoading } = useQuery({
-    queryKey: ["company-users", effectiveCompanyId],
+    queryKey: ["company-users", effectiveCompanyId, profile?.id, role],
     queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, email, phone, last_login_at, locked_until, failed_login_count, is_blocked")
-        .eq("company_id", effectiveCompanyId!);
-      if (profilesError) throw profilesError;
+      const dbProfiles = await readUsersOptionalRows<Pick<CompanyUser,
+        "id" | "first_name" | "last_name" | "email" | "phone" | "last_login_at" | "locked_until" | "failed_login_count"
+      >>(
+        supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email, phone, last_login_at, locked_until, failed_login_count")
+          .eq("company_id", effectiveCompanyId!),
+        "Caricamento utenti",
+      );
+      const seedProfiles = profile?.id && effectiveCompanyId
+        ? [{
+          id: profile.id,
+          first_name: profile.first_name ?? "",
+          last_name: profile.last_name ?? "",
+          email: profile.email ?? user?.email ?? "",
+          phone: profile.phone ?? null,
+          last_login_at: profile.last_login_at ?? null,
+          locked_until: profile.locked_until ?? null,
+          failed_login_count: profile.failed_login_count ?? 0,
+        }]
+        : [];
+      const profiles = [...seedProfiles, ...dbProfiles].reduce<typeof dbProfiles>((acc, current) => {
+        if (!acc.some((item) => item.id === current.id)) acc.push(current);
+        return acc;
+      }, []);
 
       const userIds = profiles.map((p) => p.id);
       if (userIds.length === 0) return [];
@@ -355,49 +392,55 @@ export function UsersConfig() {
       // Bound paranoici su queries multi-utente: anche se userIds è già
       // limitato dalla query profiles a monte, esplicitare i limit evita
       // payload runaway su company molto grandi (3000+ utenti).
-      const [rolesRes, sessionsRes, permsRes] = await Promise.all([
-        supabase
+      const [rolesRows, sessionsRows, permsRows, blockedRows] = await Promise.all([
+        readUsersOptionalRows<{ user_id: string; role: string }>(supabase
           .from("user_roles")
           .select("user_id, role")
           .in("user_id", userIds)
-          .limit(5000),
-        supabase
+          .limit(5000), "Ruoli utenti"),
+        readUsersOptionalRows<{ user_id: string }>(supabase
           .from("user_sessions")
           .select("user_id")
           .eq("company_id", effectiveCompanyId!)
           .eq("is_active", true)
-          .limit(2000),
+          .limit(2000), "Sessioni utenti"),
         // staff_permissions ha schema molto largo (30+ permission booleans);
         // qui carichiamo "*" perché la UI mostra il pannello permessi completo
         // su click. Bound numerico evita full-table fetch su DB drift.
-        supabase
+        readUsersOptionalRows<StaffPermissions & { user_id: string }>(supabase
           .from("staff_permissions")
           .select("*")
           .in("user_id", userIds)
-          .limit(2000),
+          .limit(2000), "Permessi utenti"),
+        readUsersOptionalRows<{ id: string; is_blocked: boolean | null }>(supabase
+          .from("profiles")
+          .select("id, is_blocked")
+          .in("id", userIds)
+          .limit(2000), "Stato blocco utenti"),
       ]);
-      if (rolesRes.error) throw rolesRes.error;
-      if (sessionsRes.error) throw sessionsRes.error;
-      if (permsRes.error) throw permsRes.error;
 
       const rolesByUser: Record<string, string[]> = {};
-      rolesRes.data?.forEach((r) => {
+      if (profile?.id && role) rolesByUser[profile.id] = [role];
+      rolesRows.forEach((r) => {
         if (!rolesByUser[r.user_id]) rolesByUser[r.user_id] = [];
         rolesByUser[r.user_id].push(r.role);
       });
 
       const sessionsByUser: Record<string, number> = {};
-      sessionsRes.data?.forEach((s) => {
+      sessionsRows.forEach((s) => {
         sessionsByUser[s.user_id] = (sessionsByUser[s.user_id] || 0) + 1;
       });
 
       const permissionsMap: Record<string, StaffPermissions> = {};
-      permsRes.data?.forEach((p) => { permissionsMap[p.user_id] = p as unknown as StaffPermissions; });
+      permsRows.forEach((p) => { permissionsMap[p.user_id] = p; });
+      const blockedByUser: Record<string, boolean> = {};
+      blockedRows.forEach((row) => { blockedByUser[row.id] = row.is_blocked === true; });
 
       const companyRoles = ["company_admin", "company_staff", "salesperson", "call_center", "employee", "worker", "subcontractor"];
-      const companyUserIds = Object.entries(rolesByUser)
+      const companyUserIdsFromRoles = Object.entries(rolesByUser)
         .filter(([, userRoles]) => userRoles.some((r) => companyRoles.includes(r)))
         .map(([uid]) => uid);
+      const companyUserIds = companyUserIdsFromRoles.length > 0 ? companyUserIdsFromRoles : userIds;
 
       if (companyUserIds.length === 0) return [];
 
@@ -411,7 +454,7 @@ export function UsersConfig() {
           allRoles: userRoles,
           permissions: permissionsMap[uid] || null,
           active_sessions: sessionsByUser[uid] || 0,
-          is_blocked: profile.is_blocked ?? false,
+          is_blocked: blockedByUser[uid] ?? false,
         }];
       }) as CompanyUser[];
     },
@@ -419,8 +462,29 @@ export function UsersConfig() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const authFallbackUsers = useMemo<CompanyUser[]>(() => {
+    if (!user?.id) return [];
+    const fallbackRoles = role ? [role] : ["company_admin"];
+    return [{
+      id: user.id,
+      first_name: profile?.first_name ?? "",
+      last_name: profile?.last_name ?? "",
+      email: profile?.email ?? user.email ?? "",
+      phone: profile?.phone ?? null,
+      effectiveRole: determineEffectiveRole(fallbackRoles),
+      allRoles: fallbackRoles,
+      permissions: null,
+      last_login_at: profile?.last_login_at ?? null,
+      locked_until: profile?.locked_until ?? null,
+      failed_login_count: profile?.failed_login_count ?? 0,
+      active_sessions: 0,
+      is_blocked: false,
+    }];
+  }, [profile, role, user]);
+  const visibleCompanyUsers = companyUsers.length > 0 ? companyUsers : authFallbackUsers;
+
   // ── KPI ─────────────────────────────────────────────────────────────
-  const roleCounts = companyUsers.reduce((acc, u) => {
+  const roleCounts = visibleCompanyUsers.reduce((acc, u) => {
     acc[u.effectiveRole] = (acc[u.effectiveRole] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
@@ -432,7 +496,7 @@ export function UsersConfig() {
     return acc;
   }, {} as Record<string, Set<string>>);
 
-  const statusCounts = companyUsers.reduce((acc, u) => {
+  const statusCounts = visibleCompanyUsers.reduce((acc, u) => {
     const status = getUserStatusKey(u);
     acc[status] = (acc[status] || 0) + 1;
     return acc;
@@ -654,12 +718,12 @@ export function UsersConfig() {
           .from("user_roles")
           .select("user_id")
           .eq("user_id", userId)
-          .eq("role", role as any)
+          .eq("role", role)
           .maybeSingle();
         if (!existingRole) {
           const { error } = await supabase
             .from("user_roles")
-            .insert({ user_id: userId, role: role as any });
+            .insert({ user_id: userId, role });
           if (error) throw error;
         }
 
@@ -695,7 +759,7 @@ export function UsersConfig() {
           .from("user_roles")
           .delete()
           .eq("user_id", userId)
-          .eq("role", role as any);
+          .eq("role", role);
         if (error) throw error;
 
         // Se rimuoviamo "salesperson" disattiviamo la riga salespeople
@@ -727,7 +791,7 @@ export function UsersConfig() {
   const isCurrentUser = (userId: string) => userId === user?.id;
   const getInitials = (fn: string, ln: string) => `${fn.charAt(0)}${ln.charAt(0)}`.toUpperCase();
 
-  const filteredUsers = companyUsers.filter((u) => {
+  const filteredUsers = visibleCompanyUsers.filter((u) => {
     const matchesSearch = searchQuery === "" ||
       `${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === "all" || u.effectiveRole === roleFilter;
@@ -760,7 +824,7 @@ export function UsersConfig() {
   const handleBulkDelete = async () => {
     const selected = Array.from(selectedUsers);
     const blocked = selected.filter((uid) => {
-      const selectedUser = companyUsers.find((u) => u.id === uid);
+      const selectedUser = visibleCompanyUsers.find((u) => u.id === uid);
       return !selectedUser || isCurrentUser(uid) || selectedUser.effectiveRole === COMPANY_ADMIN_ROLE;
     });
     const deletable = selected.filter((uid) => !blocked.includes(uid));
@@ -897,7 +961,7 @@ export function UsersConfig() {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted text-sm font-medium">
           <Users className="h-4 w-4" />
-          {companyUsers.length} utenti
+          {visibleCompanyUsers.length} utenti
         </div>
         {Object.entries(ROLE_CONFIG).map(([key, cfg]) => {
           const count = roleCounts[key] || 0;
@@ -1063,14 +1127,14 @@ export function UsersConfig() {
             <div className="p-12 text-center text-muted-foreground">
               <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p className="font-medium">
-                {companyUsers.length === 0 ? "Nessun utente" : "Nessun risultato"}
+                {visibleCompanyUsers.length === 0 ? "Nessun utente" : "Nessun risultato"}
               </p>
               <p className="text-sm mt-1">
-                {companyUsers.length === 0
+                {visibleCompanyUsers.length === 0
                   ? "Crea il primo utente per iniziare."
                   : "Prova a modificare i filtri."}
               </p>
-              {companyUsers.length === 0 && (
+              {visibleCompanyUsers.length === 0 && (
                 <Button variant="outline" size="sm" className="mt-3" onClick={() => setCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-1.5" /> Crea utente
                 </Button>
@@ -1274,7 +1338,7 @@ export function UsersConfig() {
         user={deleteTarget}
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
-        companyUsers={companyUsers}
+        companyUsers={visibleCompanyUsers}
         onConfirm={(userId, reassignToUserId) => {
           deleteUserMutation.mutate({ userId, reassignToUserId });
         }}

@@ -60,9 +60,11 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
+import ediliziaLogoSmall from "@/assets/edilizia-in-cloud-logo-small.webp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
 import {
   Sidebar,
   SidebarContent,
@@ -113,28 +115,45 @@ import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
 import { NpsModal } from "@/components/onboarding/NpsModal";
 import { SilvioFAB } from "@/components/silvio/SilvioFAB";
 
-const MultiCompanySwitcher = memo(function MultiCompanySwitcher() {
-  const { role, multiCompanyAccesses, selectedMultiCompanyId, switchMultiCompany } = useAuth();
-
-  if (role !== "multi_company_user" || multiCompanyAccesses.length <= 1) return null;
+const CompanyBrandHeader = memo(function CompanyBrandHeader({
+  isCollapsed,
+  logoUrl,
+  platformName,
+}: {
+  isCollapsed: boolean;
+  logoUrl?: string | null;
+  platformName?: string | null;
+}) {
+  const logoSrc = logoUrl ?? (isCollapsed ? ediliziaLogoSmall : ediliziaLogo);
+  const logoAlt = logoUrl ? (platformName ?? "Logo piattaforma") : "EdiliziaInCloud";
 
   return (
-    <div className="bg-muted/50 border-b px-4 py-2">
-      <div className="flex items-center gap-2">
-        <Building2 className="h-4 w-4 text-muted-foreground" />
-        <select
-          value={selectedMultiCompanyId || ""}
-          onChange={(e) => switchMultiCompany(e.target.value)}
-          className="text-sm bg-transparent border rounded px-2 py-1 flex-1 max-w-xs"
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          to="/azienda"
+          className={cn(
+            "flex min-w-0 items-center rounded-lg text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60",
+            isCollapsed ? "h-11 w-11 justify-center p-1.5" : "h-12 w-full justify-start px-1",
+          )}
+          aria-label={platformName ?? "EdiliziaInCloud"}
         >
-          {multiCompanyAccesses.map((access) => (
-            <option key={access.company_id} value={access.company_id}>
-              {access.company?.name || access.company_id}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
+          <img
+            src={logoSrc}
+            alt={logoAlt}
+            className={cn(
+              "object-contain",
+              isCollapsed ? "max-h-8 max-w-8" : "h-10 max-w-[205px]",
+            )}
+          />
+        </Link>
+      </TooltipTrigger>
+      {isCollapsed && (
+        <TooltipContent side="right">
+          {platformName ?? "EdiliziaInCloud"}
+        </TooltipContent>
+      )}
+    </Tooltip>
   );
 });
 
@@ -799,8 +818,8 @@ const CompanySidebar = memo(function CompanySidebar() {
   // restituisce i permessi REALI dell'utente target (letti da staff_permissions),
   // così la sidebar riflette esattamente quello che vedrebbe quell'utente.
   const permissions = usePermissions();
-  const { isModuleEnabled, isScopriPlan, currentPlan, includedModules, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
-  const { isFeatureEnabled, isFeaturePreview, getFeatureAccessLevel, isLoading: flagsLoading } = useFeatureFlags();
+  const { isModuleEnabled, isScopriPlan, currentPlan, isLoading: limitsLoading } = useSubscriptionLimits({ includeUsageCounts: false });
+  const { isFeaturePreview, getFeatureAccessLevel, isLoading: flagsLoading } = useFeatureFlags();
 
   // v8.6.102 — Super-admin bypass per badge DEMO.
   // Bug fix: durante il bootstrap impersonation, il super_admin vedeva per
@@ -1041,22 +1060,18 @@ const CompanySidebar = memo(function CompanySidebar() {
   return (
     <Sidebar className="border-r" collapsible="icon">
       <div
-        className="flex h-14 items-center border-b border-sidebar-border px-4 overflow-hidden bg-sidebar-accent/40"
+        className={cn(
+          "border-b border-sidebar-border overflow-hidden bg-sidebar-accent/40",
+          isCollapsed ? "flex flex-col items-center gap-2.5 px-2 py-3" : "space-y-2.5 px-3 py-4",
+        )}
         style={effectiveBrand.isWhiteLabel ? { backgroundColor: effectiveBrand.primaryColor, color: effectiveBrand.textOnPrimary } : undefined}
       >
-        {!isCollapsed && (
-          <Link to="/azienda" className="flex items-center gap-2">
-            {branding?.logo_url ? (
-              <img src={branding.logo_url} alt={effectiveCompany?.name || "Logo"} className="h-8 max-h-8 object-contain" />
-            ) : effectiveCompany?.logo_url ? (
-              <img src={effectiveCompany.logo_url} alt={effectiveCompany.name} className="h-8 max-h-8 object-contain" />
-            ) : effectiveBrand.platformName ? (
-              <span className="font-semibold text-sm truncate">{effectiveBrand.platformName}</span>
-            ) : (
-              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
-            )}
-          </Link>
-        )}
+        <CompanyBrandHeader
+          isCollapsed={isCollapsed}
+          logoUrl={branding?.logo_url}
+          platformName={effectiveBrand.platformName}
+        />
+        <CompanyContextSwitcher isCollapsed={isCollapsed} />
       </div>
       <SidebarContent>
         {isSettingsRoute ? (
@@ -1294,7 +1309,6 @@ export function CompanyLayout() {
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
           <ViewAsBanner />
-          <MultiCompanySwitcher />
           <AnnouncementBanner />
           <SubscriptionBanner />
           <header className="h-14 border-b flex items-center px-3 gap-2 md:gap-4 bg-background">
@@ -1371,9 +1385,6 @@ export function CompanyLayout() {
                 )}
               </Button>
             )}
-            <span className="hidden md:block text-sm text-muted-foreground truncate max-w-[150px]">
-              {effectiveCompany?.name}
-            </span>
           </header>
           <OfflineBanner />
           {deferredRealtimeReady && <LifecycleNotificationsBanner />}

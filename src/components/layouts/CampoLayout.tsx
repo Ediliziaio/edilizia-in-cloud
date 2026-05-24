@@ -3,7 +3,7 @@
  * Usa la stessa UX white-sidebar dell'app principale.
  * Su mobile la sidebar diventa un sheet laterale.
  */
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import {
   Home,
   Calendar,
@@ -22,6 +22,7 @@ import {
   CalendarDays,
   Receipt,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsCampo } from "@/hooks/useIsCampo";
 import { useQuery } from "@tanstack/react-query";
@@ -46,12 +47,20 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
+import { CompanyContextSwitcher } from "@/components/layouts/CompanyContextSwitcher";
+
+type CampoNavItem = {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  end?: boolean;
+  badge?: number;
+};
 
 export default function CampoLayout() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { profile, user, signOut, company } = useAuth();
+  const { profile, user, signOut, company, effectiveCompany } = useAuth();
   const { isOperaio } = useIsCampo();
+  const activeCompany = effectiveCompany ?? company;
 
   // Conta messaggi non letti
   const { data: unreadCount = 0 } = useQuery({
@@ -63,7 +72,7 @@ export default function CampoLayout() {
         .select("channel_id")
         .eq("user_id", user.id);
       if (!membership?.length) return 0;
-      const channelIds = membership.map((m: any) => m.channel_id);
+      const channelIds = membership.map((member: { channel_id: string }) => member.channel_id);
       const since = new Date();
       since.setDate(since.getDate() - 1);
       const { count } = await supabase
@@ -83,7 +92,7 @@ export default function CampoLayout() {
   const roleLabel = isOperaio ? "Operaio" : "Subappaltatore";
 
   // Nav items per operaio
-  const operaioItems = [
+  const operaioItems: CampoNavItem[] = [
     { title: "Home", url: "/campo", icon: Home, end: true },
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
     { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
@@ -100,7 +109,7 @@ export default function CampoLayout() {
   ];
 
   // Nav items per subappaltatore
-  const subItems = [
+  const subItems: CampoNavItem[] = [
     { title: "Home", url: "/campo", icon: Home, end: true },
     { title: "Lavori", url: "/campo/calendario", icon: Calendar },
     { title: "Attività", url: "/campo/attivita", icon: ClipboardCheck },
@@ -120,17 +129,22 @@ export default function CampoLayout() {
       <div className="flex min-h-screen w-full bg-muted/30">
         {/* Sidebar */}
         <Sidebar collapsible="icon" className="border-r">
-          <div className="flex h-14 items-center border-b px-4 gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <HardHat className="w-4 h-4 text-primary" />
+          <div className="space-y-2 border-b px-3 py-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <HardHat className="w-4 h-4 text-primary" />
+              </div>
+              <div className="overflow-hidden group-data-[collapsible=icon]:hidden">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none">
+                  {roleLabel}
+                </p>
+                <p className="text-sm font-semibold truncate leading-tight">
+                  {profile?.first_name} {profile?.last_name}
+                </p>
+              </div>
             </div>
-            <div className="overflow-hidden group-data-[collapsible=icon]:hidden">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-none">
-                {roleLabel}
-              </p>
-              <p className="text-sm font-semibold truncate leading-tight">
-                {profile?.first_name} {profile?.last_name}
-              </p>
+            <div className="group-data-[collapsible=icon]:hidden">
+              <CompanyContextSwitcher showSecurityNote={false} />
             </div>
           </div>
 
@@ -146,15 +160,15 @@ export default function CampoLayout() {
                       <SidebarMenuButton asChild>
                         <NavLink
                           to={item.url}
-                          end={(item as any).end}
+                          end={item.end}
                           className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
                           activeClassName="bg-accent text-accent-foreground font-medium"
                         >
                           <item.icon className="h-4 w-4 shrink-0" />
                           <span className="truncate">{item.title}</span>
-                          {(item as any).badge > 0 && (
+                          {!!item.badge && item.badge > 0 && (
                             <Badge variant="destructive" className="ml-auto h-5 min-w-5 text-[10px] px-1">
-                              {(item as any).badge > 9 ? "9+" : (item as any).badge}
+                              {item.badge > 9 ? "9+" : item.badge}
                             </Badge>
                           )}
                         </NavLink>
@@ -218,10 +232,10 @@ export default function CampoLayout() {
             <div className="flex items-center gap-2 text-sm text-secondary-foreground/80">
               <HardHat className="h-4 w-4" />
               <span>Area {roleLabel}</span>
-              {company?.name && (
+              {activeCompany?.name && (
                 <>
                   <span className="text-secondary-foreground/40">&middot;</span>
-                  <span className="font-medium text-secondary-foreground">{company.name}</span>
+                  <span className="font-medium text-secondary-foreground">{activeCompany.name}</span>
                 </>
               )}
             </div>

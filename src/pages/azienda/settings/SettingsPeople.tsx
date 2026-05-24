@@ -1,28 +1,29 @@
 /**
  * Pagina unificata "Persone & Accessi"
  *
- * 5 tab:
+ * 6 tab:
  *  1. Utenti & Accessi  — gestione accessi, ruoli, permessi, sicurezza
- *  2. Dipendenti        — operai + staff interno, stipendi, rapportini, ferie
- *  3. Subappaltatori    — squadre esterne + accesso campo
- *  4. Venditori         — gestione venditori con provvigioni
- *  5. Team              — team con drag-and-drop
+ *  2. Sicurezza accessi — governance, rischi, 2FA, multi-azienda
+ *  3. Dipendenti        — operai + staff interno, stipendi, rapportini, ferie
+ *  4. Subappaltatori    — squadre esterne + accesso campo
+ *  5. Venditori         — gestione venditori con provvigioni
+ *  6. Team              — team con drag-and-drop
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Shield, TrendingUp, Users, UsersRound, Loader2, Building2, Info } from "lucide-react";
+import { Shield, ShieldCheck, TrendingUp, Users, UsersRound, Loader2, Building2, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
 import { SubappaltatoriTab } from "@/components/settings/SubappaltatoriTab";
+import { AccessGovernancePanel } from "@/components/settings/AccessGovernancePanel";
 import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
-import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 
-type PeopleTab = "utenti" | "dipendenti" | "subappaltatori" | "venditori" | "team";
+type PeopleTab = "utenti" | "sicurezza-accessi" | "dipendenti" | "subappaltatori" | "venditori" | "team";
 
-const VALID_TABS: PeopleTab[] = ["utenti", "dipendenti", "subappaltatori", "venditori", "team"];
+const VALID_TABS: PeopleTab[] = ["utenti", "sicurezza-accessi", "dipendenti", "subappaltatori", "venditori", "team"];
 
 function isValidTab(tab: string | null): tab is PeopleTab {
   return VALID_TABS.includes(tab as PeopleTab);
@@ -30,10 +31,9 @@ function isValidTab(tab: string | null): tab is PeopleTab {
 
 export default function SettingsPeople() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { role } = useAuth();
   const permissions = usePermissions();
 
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const isAdmin = permissions.isAdmin;
   const canViewUsers = isAdmin || permissions.canViewUsers;
   const canViewPeople = isAdmin || permissions.canViewSettingsPeople;
 
@@ -58,6 +58,7 @@ export default function SettingsPeople() {
   const tabParam = searchParams.get("tab");
   const resolveDefaultTab = (): PeopleTab => {
     if (tabParam === "staff" || tabParam === "operai") return "dipendenti";
+    if (tabParam === "sicurezza" || tabParam === "accessi") return "sicurezza-accessi";
     if (isValidTab(tabParam)) return tabParam;
     if (canViewUsers) return "utenti";
     if (canViewPeople) return "dipendenti";
@@ -77,6 +78,12 @@ export default function SettingsPeople() {
           <TabsTrigger value="utenti" className="gap-1.5 shrink-0">
             <Shield className="h-4 w-4" />
             Utenti & Accessi
+          </TabsTrigger>
+        )}
+        {canViewUsers && (
+          <TabsTrigger value="sicurezza-accessi" className="gap-1.5 shrink-0">
+            <ShieldCheck className="h-4 w-4" />
+            Sicurezza accessi
           </TabsTrigger>
         )}
         {canViewPeople && (
@@ -125,6 +132,12 @@ export default function SettingsPeople() {
             </div>
           </div>
           <UsersConfig />
+        </TabsContent>
+      )}
+
+      {canViewUsers && (
+        <TabsContent value="sicurezza-accessi">
+          <AccessGovernancePanel />
         </TabsContent>
       )}
 

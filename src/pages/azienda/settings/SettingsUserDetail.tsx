@@ -19,6 +19,23 @@ import { UserActivityLogTab } from "@/components/users/UserActivityLogTab";
 import { UserSecurityTab } from "@/components/users/UserSecurityTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
 import { DEFAULT_PERMISSIONS, syncLegacyMarketingFlags, syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
+import { usePermissions } from "@/hooks/usePermissions";
+import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
+import type { Database, Json } from "@/integrations/supabase/types";
+
+type CompanyUserRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
+type DbRole = Database["public"]["Enums"]["app_role"];
+type UserAuditInsert = Database["public"]["Tables"]["user_audit_log"]["Insert"];
+
+const COMPANY_LEVEL_ROLES: DbRole[] = [
+  "company_admin",
+  "company_staff",
+  "salesperson",
+  "call_center",
+  "employee",
+  "worker",
+  "subcontractor",
+];
 
 interface UserDetail {
   id: string;
@@ -37,7 +54,9 @@ interface UserDetail {
   blocked_at: string | null;
   blocked_by: string | null;
   block_reason: string | null;
-  role: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor" | undefined;
+  role: CompanyUserRole | undefined;
+  access_company_id: string | null;
+  is_multi_company_access: boolean;
   /** Ruoli aggiuntivi commerciali (salesperson/call_center quando il primary è altro) */
   additionalRoles: ("salesperson" | "call_center")[];
   permissions: StaffPermissions | null;
@@ -56,20 +75,45 @@ const SIDEBAR_TABS = [
 
 type TabId = typeof SIDEBAR_TABS[number]["id"];
 
+function personName(userData: Pick<UserDetail, "first_name" | "last_name" | "email"> | undefined) {
+  return `${userData?.first_name ?? ""} ${userData?.last_name ?? ""}`.trim() || userData?.email || "Utente";
+}
+
+async function ensureStaffPermissionsRow(userId: string, companyId: string) {
+  const { data: existingPermissions } = await supabase
+    .from("staff_permissions")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (!existingPermissions) {
+    const { error } = await supabase.from("staff_permissions").insert({ user_id: userId, company_id: companyId });
+    if (error) throw error;
+  }
+}
+
+function writeUserAuditLog(payload: UserAuditInsert) {
+  supabase.from("user_audit_log").insert(payload).then(({ error: auditErr }) => {
+    if (auditErr) console.error("[audit-log] insert failed:", auditErr.message);
+  });
+}
+
 export default function SettingsUserDetail() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { role, isLoading: authLoading, user: currentUser, isImpersonating } = useAuth();
+  const { isLoading: authLoading, user: currentUser, isImpersonating, effectiveCompany } = useAuth();
+  const permissions = usePermissions();
   const queryClient = useQueryClient();
 
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const isAdmin = permissions.isAdmin;
 
   // Wait for auth to resolve before checking permissions — prevents "Accesso negato"
   // flash on first render when role is still null (loading state).
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || permissions.isLoading) return;
     if (!isAdmin) {
       toast({
         title: "Accesso negato",
@@ -78,7 +122,7 @@ export default function SettingsUserDetail() {
       });
       navigate("/azienda/impostazioni/profilo", { replace: true });
     }
-  }, [authLoading, isAdmin, navigate, toast]);
+  }, [authLoading, permissions.isLoading, isAdmin, navigate, toast]);
 
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     const tabParam = searchParams.get("tab");
@@ -89,7 +133,7 @@ export default function SettingsUserDetail() {
   });
 
   const { data: userData, isLoading } = useQuery<UserDetail>({
-    queryKey: queryKeys.users.detail(userId),
+    queryKey: [...queryKeys.users.detail(userId), effectiveCompany?.id],
     queryFn: async (): Promise<UserDetail> => {
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -103,10 +147,24 @@ export default function SettingsUserDetail() {
         .select("role")
         .eq("user_id", userId!);
 
-      // Determine effective role with priority: company_admin > salesperson > call_center > company_staff > employee > subcontractor
+      const accessCompanyId = effectiveCompany?.id ?? profile.company_id ?? null;
+      const { data: multiCompanyAccess } = accessCompanyId
+        ? await supabase
+          .from("multi_company_access")
+          .select("access_role, company_id")
+          .eq("user_id", userId!)
+          .eq("company_id", accessCompanyId)
+          .maybeSingle()
+        : { data: null };
+
+      const selectedAccessRole = normalizeCompanyAccessRole(multiCompanyAccess?.access_role);
+      const isMultiCompanyAccess = !!multiCompanyAccess && profile.company_id !== accessCompanyId;
+
+      // Determine effective role with priority: selected company access > global company role.
       const roleSet = new Set(roles?.map(r => r.role) || []);
-      let effectiveRole: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor" | undefined;
-      if (roleSet.has("company_admin")) effectiveRole = "company_admin";
+      let effectiveRole: CompanyUserRole | undefined;
+      if (selectedAccessRole) effectiveRole = selectedAccessRole as CompanyUserRole;
+      else if (roleSet.has("company_admin")) effectiveRole = "company_admin";
       else if (roleSet.has("salesperson")) effectiveRole = "salesperson";
       else if (roleSet.has("call_center")) effectiveRole = "call_center";
       else if (roleSet.has("company_staff")) effectiveRole = "company_staff";
@@ -126,7 +184,8 @@ export default function SettingsUserDetail() {
           .from("staff_permissions")
           .select("*")
           .eq("user_id", userId!)
-          .single();
+          .eq("company_id", accessCompanyId!)
+          .maybeSingle();
         if (perms) {
           permissions = perms as unknown as StaffPermissions;
         }
@@ -135,29 +194,32 @@ export default function SettingsUserDetail() {
       return {
         ...profile,
         role: effectiveRole,
+        access_company_id: accessCompanyId,
+        is_multi_company_access: isMultiCompanyAccess,
         additionalRoles,
         permissions,
       };
     },
-    enabled: !!userId,
+    enabled: !!userId && !!effectiveCompany?.id,
   });
 
   // ── Toggle ruolo aggiuntivo (salesperson/call_center secondario) ──
   const toggleAdditionalRoleMutation = useMutation({
     mutationFn: async ({ role: addRole, add }: { role: "salesperson" | "call_center"; add: boolean }) => {
-      if (!userId || !userData?.company_id) throw new Error("Utente non inizializzato");
+      const companyId = userData?.access_company_id ?? userData?.company_id;
+      if (!userId || !companyId) throw new Error("Utente non inizializzato");
       if (add) {
         // Select-then-insert (safe anche senza unique constraint)
         const { data: existing } = await supabase
           .from("user_roles")
           .select("user_id")
           .eq("user_id", userId)
-          .eq("role", addRole as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+          .eq("role", addRole)
           .maybeSingle();
         if (!existing) {
           const { error } = await supabase
             .from("user_roles")
-            .insert({ user_id: userId, role: addRole as any }); // eslint-disable-line @typescript-eslint/no-explicit-any
+            .insert({ user_id: userId, role: addRole });
           if (error) throw error;
         }
         // Se è salesperson, crea/riattiva riga in tabella salespeople
@@ -166,18 +228,18 @@ export default function SettingsUserDetail() {
             .from("salespeople")
             .select("id")
             .eq("user_id", userId)
-            .eq("company_id", userData.company_id)
+            .eq("company_id", companyId)
             .maybeSingle();
           if (!sp) {
 
             await supabase.from("salespeople").insert({
               user_id: userId,
-              company_id: userData.company_id,
+              company_id: companyId,
               first_name: userData.first_name || "",
               last_name: userData.last_name || "",
               email: userData.email || null,
               is_active: true,
-            } as any);
+            });
           } else {
             await supabase.from("salespeople").update({ is_active: true }).eq("id", sp.id);
           }
@@ -187,14 +249,14 @@ export default function SettingsUserDetail() {
           .from("user_roles")
           .delete()
           .eq("user_id", userId)
-          .eq("role", addRole as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+          .eq("role", addRole);
         if (error) throw error;
         if (addRole === "salesperson") {
           await supabase
             .from("salespeople")
             .update({ is_active: false })
             .eq("user_id", userId)
-            .eq("company_id", userData.company_id);
+            .eq("company_id", companyId);
         }
       }
     },
@@ -243,7 +305,7 @@ export default function SettingsUserDetail() {
   const savePermissionsMutation = useMutation({
     mutationFn: async (permissions: StaffPermissions) => {
       if (!userId) throw new Error("userId mancante");
-      const companyId = userData?.company_id;
+      const companyId = userData?.access_company_id ?? userData?.company_id;
       if (!companyId) {
         throw new Error("company_id mancante nel profilo utente");
       }
@@ -269,16 +331,15 @@ export default function SettingsUserDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       // Audit log (fire-and-forget, but log errors)
-      if (currentUser && userData?.company_id) {
-        supabase.from("user_audit_log").insert({
-          company_id: userData.company_id,
+      const auditCompanyId = userData?.access_company_id ?? userData?.company_id;
+      if (currentUser && auditCompanyId) {
+        writeUserAuditLog({
+          company_id: auditCompanyId,
           actor_id: currentUser.id,
           target_user_id: userId!,
           action: "permissions_updated",
           details: {},
           is_impersonated: isImpersonating,
-        } as any).then(({ error: auditErr }) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-          if (auditErr) console.error("[audit-log] insert failed:", auditErr.message);
         });
       }
       toast({ title: "Permessi salvati", description: "I permessi sono stati aggiornati." });
@@ -293,12 +354,12 @@ export default function SettingsUserDetail() {
   });
 
   const changeRoleMutation = useMutation({
-    mutationFn: async (newRole: "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor") => {
+    mutationFn: async (newRole: CompanyUserRole) => {
       if (!userId) throw new Error("userId mancante");
       const currentRole = userData?.role;
       if (currentRole === newRole) return;
 
-      const companyId = userData?.company_id;
+      const companyId = userData?.access_company_id ?? userData?.company_id;
       if (!companyId) throw new Error("company_id mancante nel profilo utente");
 
       // GUARD 1: self-edit — non permettere di revocare il proprio ruolo admin
@@ -343,10 +404,38 @@ export default function SettingsUserDetail() {
         }
       }
 
+      if (userData?.is_multi_company_access) {
+        const { data: existingAccess } = await supabase
+          .from("multi_company_access")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("company_id", companyId)
+          .maybeSingle();
+
+        if (existingAccess?.id) {
+          const { error } = await supabase
+            .from("multi_company_access")
+            .update({ access_role: newRole })
+            .eq("id", existingAccess.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("multi_company_access")
+            .insert({ user_id: userId, company_id: companyId, access_role: newRole });
+          if (error) throw error;
+        }
+
+        if (newRole !== "company_admin") {
+          await ensureStaffPermissionsRow(userId, companyId);
+        }
+
+        return;
+      }
+
       // Remove all company-level roles first
       const { error: deleteError } = await supabase.from("user_roles").delete()
         .eq("user_id", userId)
-        .in("role", ["company_admin", "company_staff", "salesperson", "call_center", "employee", "worker", "subcontractor"]);
+        .in("role", COMPANY_LEVEL_ROLES);
       if (deleteError) throw deleteError;
 
       if (newRole === "company_admin") {
@@ -374,31 +463,40 @@ export default function SettingsUserDetail() {
 
       // Ensure staff_permissions row exists for non-admin roles
       if (newRole !== "company_admin") {
-        const { data: existing } = await supabase.from("staff_permissions").select("user_id").eq("user_id", userId).maybeSingle();
-        if (!existing) {
-          await supabase.from("staff_permissions").insert({ user_id: userId, company_id: companyId } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
-        }
+        await ensureStaffPermissionsRow(userId, companyId);
       }
 
       // If salesperson, ensure salespeople record exists (o riattiva se era disattivata)
       if (newRole === "salesperson") {
         const { data: existingSp } = await supabase.from("salespeople").select("id, is_active").eq("user_id", userId).eq("company_id", companyId).maybeSingle();
         if (!existingSp) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const salespersonPayload = { user_id: userId, company_id: companyId, first_name: userData?.first_name || "", last_name: userData?.last_name || "", email: userData?.email || "", is_active: true } as any;
-          await supabase.from("salespeople").insert(salespersonPayload);
+          await supabase.from("salespeople").insert({
+            user_id: userId,
+            company_id: companyId,
+            first_name: userData?.first_name || "",
+            last_name: userData?.last_name || "",
+            email: userData?.email || "",
+            is_active: true,
+          });
         } else if (!existingSp.is_active) {
           await supabase.from("salespeople").update({ is_active: true }).eq("id", existingSp.id);
         }
       }
 
-      // If subcontractor, ensure subcontractors record exists
+      // If subcontractor, ensure the Italian subappaltatori record exists.
       if (newRole === "subcontractor") {
-        const { data: existingSub } = await supabase.from("subcontractors").select("id").eq("user_id", userId).maybeSingle();
+        const { data: existingSub } = await supabase.from("subappaltatori").select("id").eq("user_id", userId).eq("company_id", companyId).maybeSingle();
         if (!existingSub) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const subPayload = { user_id: userId, company_id: companyId, company_name: `${userData?.first_name || ""} ${userData?.last_name || ""}`.trim(), contact_name: `${userData?.first_name || ""} ${userData?.last_name || ""}`.trim(), email: userData?.email || "", is_active: true } as any;
-          await supabase.from("subcontractors").insert(subPayload);
+          const name = personName(userData);
+          await supabase.from("subappaltatori").insert({
+            user_id: userId,
+            company_id: companyId,
+            ragione_sociale: name,
+            responsabile: name,
+            email: userData?.email || "",
+            user_email: userData?.email || "",
+            is_active: true,
+          });
         }
       }
     },
@@ -406,12 +504,19 @@ export default function SettingsUserDetail() {
       queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(userId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.users.companyUsers });
       // Audit log
-      if (currentUser && userData?.company_id) {
-        // is_impersonated is a DB column not present in generated types — cast is intentional
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const auditPayload = { company_id: userData.company_id, actor_id: currentUser.id, target_user_id: userId!, action: "role_changed", details: { from: userData.role, to: newRole }, is_impersonated: isImpersonating } as any;
-        supabase.from("user_audit_log").insert(auditPayload).then(({ error: auditErr }) => {
-          if (auditErr) console.error("[audit-log] insert failed:", auditErr.message);
+      const auditCompanyId = userData?.access_company_id ?? userData?.company_id;
+      if (currentUser && auditCompanyId) {
+        writeUserAuditLog({
+          company_id: auditCompanyId,
+          actor_id: currentUser.id,
+          target_user_id: userId!,
+          action: "role_changed",
+          details: {
+            from: userData.role ?? null,
+            to: newRole,
+            multiCompanyAccess: userData.is_multi_company_access,
+          } satisfies Json,
+          is_impersonated: isImpersonating,
         });
       }
       toast({ title: "Ruolo aggiornato", description: "Il ruolo dell'utente è stato modificato." });
@@ -426,7 +531,7 @@ export default function SettingsUserDetail() {
   });
 
   // While auth is resolving, show a loading state instead of a blank/redirect flash
-  if (authLoading) {
+  if (authLoading || permissions.isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
