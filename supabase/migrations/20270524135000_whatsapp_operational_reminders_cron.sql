@@ -15,7 +15,7 @@ BEGIN
     PERFORM cron.schedule(
       'whatsapp-operational-reminders',
       '*/15 * * * *',
-      $$ SELECT public.silvio_invoke_edge('whatsapp-operational-reminders', '{}'::jsonb); $$
+      $cron$ SELECT public.silvio_invoke_edge('whatsapp-operational-reminders', '{}'::jsonb); $cron$
     );
   END IF;
 EXCEPTION WHEN OTHERS THEN
