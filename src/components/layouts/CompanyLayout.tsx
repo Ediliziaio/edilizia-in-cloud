@@ -995,7 +995,9 @@ const CompanySidebar = memo(function CompanySidebar() {
   );
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
-  const showDriveLink = permissions.isLoading || gatingLoading || canAccessMediaLibrary(permissions);
+  const showDriveLink =
+    !isCommercialistaMode &&
+    (permissions.isLoading || gatingLoading || canAccessMediaLibrary(permissions));
   const isDriveRoute = location.pathname.startsWith("/azienda/contenuti-multimediali");
   const { setOpenMobile } = useSidebar();
 
@@ -1303,7 +1305,13 @@ const CompanySidebar = memo(function CompanySidebar() {
                     )}
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Link to="/azienda/impostazioni/mio-profilo">
+                        <Link
+                          to={
+                            isCommercialistaMode
+                              ? commercialistaReturnTo
+                              : "/azienda/impostazioni/mio-profilo"
+                          }
+                        >
                           <Avatar className="h-8 w-8 cursor-pointer ring-2 ring-sidebar-border hover:ring-sidebar-primary transition-colors">
                             <AvatarImage src={profile?.avatar_url ?? undefined} alt="Avatar" />
                             <AvatarFallback className="bg-sidebar-primary/10 text-sidebar-primary text-xs font-semibold">
@@ -1313,7 +1321,9 @@ const CompanySidebar = memo(function CompanySidebar() {
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent side="right">
-                        {profile?.first_name} {profile?.last_name} — Il mio profilo
+                        {isCommercialistaMode
+                          ? "Torna allo studio"
+                          : `${profile?.first_name} ${profile?.last_name} — Il mio profilo`}
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -1366,16 +1376,18 @@ const CompanySidebar = memo(function CompanySidebar() {
                           </Button>
                         </Link>
                       )}
-                      <Link to="/azienda/impostazioni/mio-profilo">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-                        >
-                          <Settings className="h-3.5 w-3.5" />
-                          Impostazioni
-                        </Button>
-                      </Link>
+                      {!isCommercialistaMode && (
+                        <Link to="/azienda/impostazioni/mio-profilo">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                            Impostazioni
+                          </Button>
+                        </Link>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1576,17 +1588,21 @@ export function CompanyLayout() {
             </Button>
             {/* v8.6.70 — Rotellina Impostazioni (mobile): apre l'hub griglia
                 /azienda/impostazioni (SettingsIndexRoute → SettingsMobileHub
-                su mobile, redirect a mio-profilo su desktop). */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative h-9 w-9 shrink-0 md:hidden"
-              onClick={() => navigate("/azienda/impostazioni")}
-              title="Impostazioni"
-              aria-label="Impostazioni"
-            >
-              <SettingsIcon className="h-4 w-4" aria-hidden="true" />
-            </Button>
+                su mobile, redirect a mio-profilo su desktop).
+                Nascosta in modalità commercialista — non deve accedere alle
+                impostazioni dell'azienda cliente. */}
+            {!isCommercialistaMode && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-9 w-9 shrink-0 md:hidden"
+                onClick={() => navigate("/azienda/impostazioni")}
+                title="Impostazioni"
+                aria-label="Impostazioni"
+              >
+                <SettingsIcon className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
             {/* AI: azioni proposte che richiedono OK utente (MP-AIE-03)
                 v8.6.69 — Nascoste su mobile (icona inbox+badge); restano su md+.
                 Motivazione UX: header mobile sovraffollato, l'utente accede

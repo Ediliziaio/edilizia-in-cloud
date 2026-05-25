@@ -227,9 +227,11 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   // Persone (lettura HR)
   canViewPersone: true,
   canViewEmployees: true,
-  // Settings: read-only profile per vedere anagrafica azienda
-  canViewSettingsProfile: true,
-  canViewSettings: true,
+  // Settings: ESPLICITAMENTE NO — il commercialista non deve modificare
+  // o vedere la configurazione dell'azienda cliente (anagrafica, fornitori,
+  // listini, branding, abbonamento, utenti, sicurezza)
+  canViewSettingsProfile: false,
+  canViewSettings: false,
   // ESPLICITAMENTE NO marketing / automazioni / vendita
   canViewMarketing: false, canEditMarketing: false,
   canViewMarketingDashboard: false, canViewMarketingContacts: false,
