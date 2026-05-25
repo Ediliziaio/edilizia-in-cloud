@@ -138,7 +138,6 @@ function companyInitials(name: string) {
 export default function AccountantCompanyDetail() {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: access, isLoading } = useAccountantCompanyAccess(companyId);
 
