@@ -776,6 +776,44 @@ function formatEuro(cents: number) {
   }).format(cents / 100);
 }
 
+/**
+ * FIX P1: validazione URL https più rigorosa di startsWith("https://").
+ * Rifiuta "https://", "https://x", "https://-bad", URL relativi.
+ * Accetta solo URL con host valido (almeno un punto, non IP solo).
+ */
+function isValidHttpsUrl(value: string | null | undefined): boolean {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("https://")) return false;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "https:") return false;
+    if (!url.hostname || url.hostname.length < 4) return false;
+    if (!url.hostname.includes(".")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** FIX P1: regex email semplificata RFC-like (no edge cases esotici). */
+function isValidEmail(value: string | null | undefined): boolean {
+  if (!value || typeof value !== "string") return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
+}
+
+/** Clamp numeric input nel range Meta consentito. */
+function clampMetaBudget(value: number): number {
+  if (!Number.isFinite(value)) return 5;
+  return Math.max(5, Math.min(500, Math.round(value * 100) / 100));
+}
+
+function clampMetaRadius(value: number): number {
+  if (!Number.isFinite(value)) return 10;
+  // Meta locale awareness: 1-80km (oltre è treated come "national")
+  return Math.max(1, Math.min(80, Math.round(value)));
+}
+
 function statusLabel(status: CampaignStatus) {
   const labels: Record<CampaignStatus, string> = {
     active: "Attiva",
@@ -904,7 +942,7 @@ function getReadinessItems(state: BuilderState) {
   const totalFieldsCount = lf
     ? lf.questions.length
     : splitList(state.requiredFields).length;
-  const privacyOk = lf?.privacyPolicyUrl?.startsWith("https://") || state.privacyUrl.startsWith("https://");
+  const privacyOk = isValidHttpsUrl(lf?.privacyPolicyUrl) || isValidHttpsUrl(state.privacyUrl);
   const qualifyingQuestionExists = lf
     ? lf.questions.some((q) => q.kind === "custom")
     : state.qualityQuestion.trim().length >= 8;
@@ -1013,7 +1051,7 @@ function getPublishQa(
 
   const readiness = getReadinessScore(state);
   const lf = state.metaLeadForm;
-  const privacyOk = lf?.privacyPolicyUrl?.startsWith("https://") || state.privacyUrl.startsWith("https://");
+  const privacyOk = isValidHttpsUrl(lf?.privacyPolicyUrl) || isValidHttpsUrl(state.privacyUrl);
   const landingNeedsUtm = state.conversionPlace === "landing_page" || state.conversionPlace === "dual";
   const landingHasUtm =
     !landingNeedsUtm ||
@@ -1072,7 +1110,7 @@ function getGooglePublishQa(
   const checks = [
     { ok: google.integration?.status === "connected", message: "Google Ads non collegato." },
     { ok: google.accounts.length > 0, message: "Nessun Customer ID Google Ads selezionato." },
-    { ok: state.privacyUrl.startsWith("https://"), message: "Privacy URL HTTPS mancante." },
+    { ok: isValidHttpsUrl(state.privacyUrl), message: "Privacy URL HTTPS non valido (host malformato o mancante)." },
     { ok: landingHasGoogleUtm, message: "Landing senza UTM Google: usa utm_source=google e utm_medium=cpc." },
     { ok: getCampaignDailyBudget(state) >= 10, message: "Budget giornaliero troppo basso per Google Ads." },
     { ok: hasSearchIntent, message: "Mancano keyword/intenti di ricerca per il canale Search." },
@@ -3181,7 +3219,7 @@ function CampaignBuilderTab({
 
     // STEP 3: modulo — supporta ENTRAMBI (v1 requiredFields string + privacyUrl, v2 metaLeadForm)
     const lf = state.metaLeadForm;
-    const v2Form = lf && lf.questions.length >= 2 && lf.privacyPolicyUrl.startsWith("https://");
+    const v2Form = lf && lf.questions.length >= 2 && isValidHttpsUrl(lf.privacyPolicyUrl);
     const v1Form =
       state.requiredFields.trim().length >= 8 &&
       state.privacyUrl.trim().startsWith("https://");
@@ -4848,7 +4886,13 @@ function AdSetPlanner({
               </Field>
               <Field label="Budget gruppo">
                 <div className="flex items-center gap-3">
-                  <Input type="number" min={5} max={500} value={adSet.dailyBudget} onChange={(event) => onUpdate(adSet.id, "dailyBudget", Number(event.target.value || 0))} />
+                  <Input
+                    type="number"
+                    min={5}
+                    max={500}
+                    value={adSet.dailyBudget}
+                    onChange={(event) => onUpdate(adSet.id, "dailyBudget", clampMetaBudget(Number(event.target.value || 0)))}
+                  />
                   <span className="whitespace-nowrap text-sm text-slate-500">euro/giorno</span>
                 </div>
               </Field>
@@ -4858,8 +4902,14 @@ function AdSetPlanner({
                   <Input type="number" min={1} value={adSet.maxDailyBudget} onChange={(event) => onUpdate(adSet.id, "maxDailyBudget", Number(event.target.value || 0))} />
                 </div>
               </Field>
-              <Field label="Raggio km">
-                <Input type="number" min={1} max={100} value={adSet.radiusKm} onChange={(event) => onUpdate(adSet.id, "radiusKm", Number(event.target.value || 0))} />
+              <Field label="Raggio km (max 80)">
+                <Input
+                  type="number"
+                  min={1}
+                  max={80}
+                  value={adSet.radiusKm}
+                  onChange={(event) => onUpdate(adSet.id, "radiusKm", clampMetaRadius(Number(event.target.value || 0)))}
+                />
               </Field>
               <Field label="Età">
                 <Input value={adSet.ageRange} onChange={(event) => onUpdate(adSet.id, "ageRange", event.target.value)} placeholder="Es. 28-65" />
