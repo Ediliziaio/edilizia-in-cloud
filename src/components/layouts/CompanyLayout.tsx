@@ -257,7 +257,7 @@ const SCOPRI_LOCKED_ROUTES = [
   "/azienda/scadenzario",
   "/azienda/previsionale",
   "/azienda/marketing",
-  "/azienda/sms-marketing",
+  "/azienda/sms",
   "/azienda/personale",
   "/azienda/magazzino",
   "/azienda/giornale-lavori",

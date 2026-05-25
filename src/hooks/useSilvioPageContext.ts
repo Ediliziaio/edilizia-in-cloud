@@ -17,7 +17,7 @@
  * opache. Il server valida l'accesso prima di iniettare nel prompt.
  */
 import { useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 
 export interface SilvioPageContext {
   /** Tipo entità interpretabile dall'edge function */
@@ -32,7 +32,9 @@ export interface SilvioPageContext {
     | "bank_overview"
     | "cantiere_overview"
     | "marketing_overview"
-    | "personale_overview";
+    | "personale_overview"
+    | "talent_candidate"
+    | "selezioni_overview";
   /** ID UUID dell'entità — null per overview pagine senza ID */
   entity_id: string | null;
   /** Etichetta human-readable per UI ("Commessa", "Cliente", ecc.) */
@@ -79,7 +81,18 @@ const RULES: ContextRule[] = [
  */
 export function useSilvioPageContext(): SilvioPageContext | null {
   const { pathname } = useLocation();
+  const [searchParams] = useSearchParams();
+  const tab = searchParams.get("tab");
   return useMemo(() => {
+    // Sotto-tab "selezioni" del personale → context dedicato Talent Assessment
+    if (pathname === "/azienda/personale" && tab === "selezioni") {
+      return {
+        entity_type: "selezioni_overview",
+        entity_id: null,
+        route_label: "Selezioni HR",
+        route_path: pathname,
+      };
+    }
     for (const rule of RULES) {
       const match = pathname.match(rule.pattern);
       if (!match) continue;
@@ -94,5 +107,5 @@ export function useSilvioPageContext(): SilvioPageContext | null {
       };
     }
     return null;
-  }, [pathname]);
+  }, [pathname, tab]);
 }

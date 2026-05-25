@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AlertTriangle,
   Archive,
@@ -33,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { retryWithBackoff } from "@/lib/retryWithBackoff";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -521,7 +523,12 @@ function iconForItem(item: MediaLibraryItem) {
   return FileText;
 }
 
+const EMPTY_QUERY_RESULT = { data: [], error: null } as const;
+
 async function loadMediaItems(companyId: string, options: MediaLibraryLoadOptions = {}): Promise<MediaLibraryLoadResult> {
+  // Se non abbiamo userId (utente non loggato), evitiamo del tutto la query e
+  // ritorniamo un risultato vuoto tipizzato. Niente race condition fittizia
+  // con Promise.resolve "valido": il flusso è esplicitamente skip.
   const emailQuery = options.userId
     ? supabase
         .from("email_attachments")
@@ -530,7 +537,7 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
         .eq("user_id", options.userId)
         .order("created_at", { ascending: false })
         .limit(80)
-    : Promise.resolve({ data: [], error: null });
+    : Promise.resolve(EMPTY_QUERY_RESULT);
 
   const [
     analysisResult,
@@ -637,6 +644,30 @@ async function loadMediaItems(companyId: string, options: MediaLibraryLoadOption
       .order("created_at", { ascending: false })
       .limit(80),
   ]);
+
+  // FIX P1: log errori di ogni fonte invece di silenziarli — utile in produzione
+  // per diagnosticare casi tipo "perché Drive non vede i computi?".
+  const sourceResults: Array<{ name: string; error: unknown }> = [
+    { name: "analysisResult", error: analysisResult.error },
+    { name: "computoResult", error: computoResult.error },
+    { name: "attachmentResult", error: attachmentResult.error },
+    { name: "emailResult", error: emailResult.error },
+    { name: "marketingDocumentResult", error: marketingDocumentResult.error },
+    { name: "sitePhotoResult", error: sitePhotoResult.error },
+    { name: "companyPhotoResult", error: companyPhotoResult.error },
+    { name: "quotePdfResult", error: quotePdfResult.error },
+    { name: "quoteMaterialResult", error: quoteMaterialResult.error },
+    { name: "renderSessionResult", error: renderSessionResult.error },
+    { name: "serramentiMediaResult", error: serramentiMediaResult.error },
+    { name: "employeeDocumentResult", error: employeeDocumentResult.error },
+    { name: "subcontractorDocumentResult", error: subcontractorDocumentResult.error },
+    { name: "workerDocumentResult", error: workerDocumentResult.error },
+  ];
+  for (const { name, error } of sourceResults) {
+    if (error) {
+      console.warn(`[EiC Drive] fonte ${name} ha errore:`, (error as { message?: string }).message ?? error);
+    }
+  }
 
   const analysisRows = analysisResult.error ? [] : ((analysisResult.data ?? []) as DocumentAnalysisRow[]);
   const computoRows = computoResult.error ? [] : ((computoResult.data ?? []) as ComputoUploadRow[]);
@@ -1099,6 +1130,9 @@ export default function ContenutiMultimediali() {
   const [newFolderDescription, setNewFolderDescription] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [authExpired, setAuthExpired] = useState(false);
+  const [droppedFile, setDroppedFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const {
     data: mediaLoadResult = EMPTY_MEDIA_LOAD_RESULT,
@@ -1112,6 +1146,19 @@ export default function ContenutiMultimediali() {
     staleTime: 20_000,
     queryFn: () => loadMediaItems(companyId!, { userId: user?.id ?? null }),
   });
+
+  // Detect auth errors (401/403) e segna la sessione come scaduta.
+  // Mostriamo un banner con CTA al login invece di fare redirect automatico,
+  // così l'utente non perde il contesto e capisce cosa è successo.
+  useEffect(() => {
+    if (!error) return;
+    const msg = error instanceof Error ? error.message.toLowerCase() : "";
+    const status = (error as { status?: number; statusCode?: number }).status
+      ?? (error as { status?: number; statusCode?: number }).statusCode;
+    if (status === 401 || status === 403 || msg.includes("jwt") || msg.includes("unauthorized") || msg.includes("not authenticated")) {
+      setAuthExpired(true);
+    }
+  }, [error]);
 
   const {
     data: customFolders = [],
@@ -1281,9 +1328,17 @@ export default function ContenutiMultimediali() {
 
     setOpeningId(item.id);
     try {
-      const { data, error: signedError } = await supabase.storage
-        .from(target.storageBucket)
-        .createSignedUrl(target.storagePath, 3600);
+      const { data, error: signedError } = await retryWithBackoff(
+        () => supabase.storage.from(target.storageBucket).createSignedUrl(target.storagePath, 3600),
+        {
+          maxAttempts: 3,
+          onRetry: (attempt, _err, nextMs) => {
+            if (attempt === 1) {
+              toast.info("Riprovo ad aprire il file...", { description: `Tentativo ${attempt + 1} tra ${Math.round(nextMs / 1000)}s` });
+            }
+          },
+        },
+      );
 
       if (signedError || !data?.signedUrl) {
         throw new Error(signedError?.message ?? "URL firmato non generato");
@@ -1479,41 +1534,100 @@ export default function ContenutiMultimediali() {
           <CardContent className="p-0">
             {isLoading ? (
               <div className="space-y-2 p-4">
+                {/* Skeleton "ad forma" della MediaRow vera: icona + nome + 2 badge + 2 azioni */}
                 {Array.from({ length: 6 }).map((_, index) => (
-                  <Skeleton key={index} className="h-16 w-full" />
+                  <div key={index} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3">
+                    <Skeleton className="h-10 w-10 shrink-0 rounded-lg" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-2/3" />
+                      <div className="flex gap-2">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-3 w-24" />
+                        <Skeleton className="h-3 w-20" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-8 w-20 rounded-md" />
+                    <Skeleton className="h-8 w-16 rounded-md" />
+                  </div>
                 ))}
               </div>
+            ) : authExpired ? (
+              <EmptyState
+                inline
+                icon={AlertTriangle}
+                title="Sessione scaduta"
+                description="La tua sessione è terminata. Accedi di nuovo per continuare a vedere i tuoi documenti."
+                action={{ label: "Vai al login", onClick: () => navigate("/login?redirect=/azienda/contenuti-multimediali"), variant: "default" }}
+              />
             ) : error ? (
               <EmptyState
                 inline
                 icon={AlertTriangle}
                 title="Archivio non caricato"
-                description="Non riesco a leggere una o piu fonti documentali. Riprova tra poco."
+                description={`Non riesco a leggere una o più fonti documentali. ${error instanceof Error ? error.message : ""}`.trim()}
                 action={{ label: "Riprova", onClick: () => refetch(), variant: "outline" }}
               />
             ) : filteredItems.length === 0 ? (
-              <EmptyState
-                inline
-                icon={FileText}
-                title="Nessun contenuto in questa vista"
-                description="Carica un documento o cambia filtro per visualizzare gli allegati gia presenti."
-                action={{ label: "Carica documento", onClick: () => setShowSmartImport(true) }}
-              />
-            ) : (
-              <ScrollArea className="h-[min(58vh,620px)]">
-                <div className="divide-y">
-                  {filteredItems.map((item) => (
-                    <MediaRow
-                      key={item.id}
-                      item={item}
-                      selected={selectedItem?.id === item.id}
-                      opening={openingId === item.id}
-                      onSelect={() => setSelectedId(item.id)}
-                      onOpen={() => openSignedDocument(item)}
-                    />
-                  ))}
+              rawItems.length === 0 ? (
+                // Azienda nuova senza alcun documento: onboarding ricco con 3 azioni
+                <div className="space-y-4 p-6">
+                  <div className="text-center">
+                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-md">
+                      <FileText className="h-8 w-8" />
+                    </div>
+                    <h3 className="mt-4 text-xl font-bold tracking-tight text-slate-950">Il Drive è vuoto, iniziamo</h3>
+                    <p className="mt-1 text-sm text-slate-600">3 modi per popolare l'archivio. Tutti sicuri e tracciati.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowSmartImport(true)}
+                      className="flex flex-col items-start gap-2 rounded-2xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-white p-4 text-left transition hover:border-orange-400 hover:shadow-md"
+                    >
+                      <UploadCloud className="h-6 w-6 text-orange-600" />
+                      <p className="text-sm font-bold text-slate-900">Carica un documento</p>
+                      <p className="text-xs text-slate-600">DDT, fatture, computi, foto, contratti. L'AI riconosce il tipo automaticamente.</p>
+                      <span className="mt-auto text-xs font-semibold text-orange-700">Inizia →</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("inbox_ai")}
+                      className="flex flex-col items-start gap-2 rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 text-left transition hover:border-blue-400 hover:shadow-md"
+                    >
+                      <Inbox className="h-6 w-6 text-blue-600" />
+                      <p className="text-sm font-bold text-slate-900">Inbox AI</p>
+                      <p className="text-xs text-slate-600">Inoltra documenti via email a un indirizzo dedicato. Silvio li classifica.</p>
+                      <span className="mt-auto text-xs font-semibold text-blue-700">Configura →</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowFolderDialog(true)}
+                      className="flex flex-col items-start gap-2 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 text-left transition hover:border-emerald-400 hover:shadow-md"
+                    >
+                      <FolderPlus className="h-6 w-6 text-emerald-600" />
+                      <p className="text-sm font-bold text-slate-900">Crea una cartella</p>
+                      <p className="text-xs text-slate-600">Organizza per progetto, cliente o tipo. Le regole automatiche fanno il resto.</p>
+                      <span className="mt-auto text-xs font-semibold text-emerald-700">Crea →</span>
+                    </button>
+                  </div>
                 </div>
-              </ScrollArea>
+              ) : (
+                <EmptyState
+                  inline
+                  icon={FileText}
+                  title="Nessun contenuto in questa vista"
+                  description="Cambia filtro o tab per visualizzare gli allegati già presenti nell'archivio."
+                  action={{ label: "Mostra tutti", onClick: () => setActiveTab("tutti"), variant: "outline" }}
+                />
+              )
+            ) : (
+              <VirtualizedMediaList
+                items={filteredItems}
+                selectedId={selectedItem?.id ?? null}
+                openingId={openingId}
+                onSelect={setSelectedId}
+                onOpen={openSignedDocument}
+              />
             )}
           </CardContent>
         </Card>
@@ -1598,10 +1712,89 @@ export default function ContenutiMultimediali() {
         open={showSmartImport}
         onOpenChange={(open) => {
           setShowSmartImport(open);
-          if (!open) void refetch();
+          // FIX P2: refetch sincronizzato + feedback all'utente che la lista
+          // si sta aggiornando, così non sembra "sparito" il file appena uploadato.
+          if (!open) {
+            setDroppedFile(null);
+            const toastId = toast.loading("Aggiorno la lista documenti...");
+            refetch()
+              .then(() => toast.success("Lista aggiornata", { id: toastId }))
+              .catch(() => toast.error("Aggiornamento fallito, ricarica la pagina", { id: toastId }));
+          }
         }}
         onComputoReady={handleComputoReady}
+        initialFile={droppedFile}
       />
+
+      {/* Drag & drop overlay globale: quando l'utente trascina un file da Finder
+          sopra qualunque punto del Drive, mostra un overlay invitante; al drop apre
+          il SmartDocumentImportModal con il file già selezionato. */}
+      <PageDropOverlay
+        active={isDraggingFile}
+        onFileDropped={(droppedFile) => {
+          setDroppedFile(droppedFile);
+          setShowSmartImport(true);
+          setIsDraggingFile(false);
+        }}
+        onDragStateChange={setIsDraggingFile}
+      />
+    </div>
+  );
+}
+
+function PageDropOverlay({
+  active,
+  onFileDropped,
+  onDragStateChange,
+}: {
+  active: boolean;
+  onFileDropped: (file: File) => void;
+  onDragStateChange: (dragging: boolean) => void;
+}) {
+  useEffect(() => {
+    let dragCounter = 0;
+    const onDragEnter = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("Files")) return;
+      dragCounter++;
+      onDragStateChange(true);
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes("Files")) return;
+      dragCounter = Math.max(0, dragCounter - 1);
+      if (dragCounter === 0) onDragStateChange(false);
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!e.dataTransfer?.files?.length) return;
+      e.preventDefault();
+      dragCounter = 0;
+      const f = e.dataTransfer.files[0];
+      if (f) onFileDropped(f);
+    };
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [onFileDropped, onDragStateChange]);
+
+  if (!active) return null;
+  return (
+    <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-orange-500/20 backdrop-blur-sm transition-opacity">
+      <div className="rounded-3xl border-4 border-dashed border-orange-500 bg-white/95 px-12 py-10 shadow-2xl">
+        <div className="flex flex-col items-center gap-3">
+          <UploadCloud className="h-16 w-16 text-orange-600" />
+          <p className="text-2xl font-bold text-slate-950">Rilascia qui per caricare</p>
+          <p className="text-sm text-slate-600">Silvio classifica automaticamente il documento e lo collega.</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1777,6 +1970,63 @@ function IntegrationCoveragePanel({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function VirtualizedMediaList({
+  items,
+  selectedId,
+  openingId,
+  onSelect,
+  onOpen,
+}: {
+  items: MediaLibraryItem[];
+  selectedId: string | null;
+  openingId: string | null;
+  onSelect: (id: string) => void;
+  onOpen: (item: MediaLibraryItem) => void;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 76, // ~ altezza di una MediaRow con icona + 3 righe testo + 2 azioni
+    overscan: 6,
+  });
+
+  return (
+    <div
+      ref={parentRef}
+      className="h-[min(58vh,620px)] overflow-auto"
+      style={{ contain: "strict" }}
+    >
+      <div
+        className="relative w-full"
+        style={{ height: `${virtualizer.getTotalSize()}px` }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const item = items[virtualRow.index];
+          if (!item) return null;
+          return (
+            <div
+              key={item.id}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              className="absolute left-0 top-0 w-full border-b border-slate-100"
+              style={{ transform: `translateY(${virtualRow.start}px)` }}
+            >
+              <MediaRow
+                item={item}
+                selected={selectedId === item.id}
+                opening={openingId === item.id}
+                onSelect={() => onSelect(item.id)}
+                onOpen={() => onOpen(item)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

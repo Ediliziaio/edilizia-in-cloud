@@ -8,7 +8,8 @@ import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvi
 import { Loader2, MessageSquare } from "lucide-react";
 import { lazy, Suspense } from "react";
 
-const SmsMarketing = lazy(() => import("@/pages/azienda/sms-marketing"));
+// MP-CLN 2026-05-25: la pagina azienda è stata unificata in /azienda/sms (era /sms-marketing)
+const SmsMarketing = lazy(() => import("@/pages/azienda/sms"));
 
 export default function AdminSmsMarketing() {
   const { hasAccess, permLoading } = useAdminMarketing();

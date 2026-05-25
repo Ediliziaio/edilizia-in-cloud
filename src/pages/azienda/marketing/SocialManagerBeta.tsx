@@ -992,6 +992,14 @@ function CalendarioTab({
       </div>
 
       {/* ── CALENDAR BODY ─────────────────────────────────────────────── */}
+      {/* MIGL: timezone badge — chiarisce in che fuso vengono mostrate le date */}
+      <div className="mb-2 flex items-center justify-end">
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+          <Clock className="h-3 w-3" />
+          Orari in {Intl.DateTimeFormat().resolvedOptions().timeZone ?? "ora locale"}
+        </span>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
 
         {/* MONTH VIEW */}
@@ -1350,12 +1358,54 @@ function ContentStudioTab({
   }, [contentTypeId]);
 
   // ── Text / Copy ────────────────────────────────────────────────────────────
-  const [postText, setPostText] = useState("");
+  // MIGL: autosave su localStorage ogni 30s + restore al mount (offre recovery
+  // se l'utente chiude la tab a metà composizione).
+  const AUTOSAVE_KEY = "social-composer-autosave-v1";
+  const [postText, setPostText] = useState(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(AUTOSAVE_KEY) : null;
+      if (!raw) return "";
+      const parsed = JSON.parse(raw) as { postText?: string; savedAt?: string };
+      // Se è recente (<24h), restore. Altrimenti scarta.
+      if (parsed.postText && parsed.savedAt && Date.now() - new Date(parsed.savedAt).getTime() < 86_400_000) {
+        return parsed.postText;
+      }
+    } catch {
+      /* corrupted localStorage, fall back to empty */
+    }
+    return "";
+  });
   const [copyVariants, setCopyVariants] = useState<string[]>([]);
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [hashtagInput, setHashtagInput] = useState("");
   const [firstComment, setFirstComment] = useState("");
   const [showFirstComment, setShowFirstComment] = useState(false);
+
+  // Autosave debouncato a 30s: scrive solo se c'è del testo, altrimenti pulisce.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = window.setTimeout(() => {
+      try {
+        if (postText.trim().length > 0) {
+          window.localStorage.setItem(
+            AUTOSAVE_KEY,
+            JSON.stringify({ postText, hashtags, firstComment, savedAt: new Date().toISOString() }),
+          );
+        } else {
+          window.localStorage.removeItem(AUTOSAVE_KEY);
+        }
+      } catch {
+        /* quota exceeded — silently ignore */
+      }
+    }, 30_000);
+    return () => window.clearTimeout(timer);
+  }, [postText, hashtags, firstComment]);
+
+  // Su salvataggio esplicito (Pubblica/Bozza), pulisce l'autosave.
+  const clearAutosave = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try { window.localStorage.removeItem(AUTOSAVE_KEY); } catch { /* noop */ }
+  }, []);
 
   // ── Cross-platform caption ──────────────────────────────────────────────────
   const [crossPlatformMode, setCrossPlatformMode] = useState(false);
@@ -1597,6 +1647,22 @@ function ContentStudioTab({
     if (!hasText) { toast.error("Scrivi il testo del post"); return; }
     if (selectedPlatforms.length === 0) { toast.error("Seleziona almeno una piattaforma"); return; }
     if (!publishNow && !scheduledDate) { toast.error("Seleziona la data di pubblicazione"); return; }
+    // FIX P1: l'input date ha min=oggi ma l'input time è libero. Se l'utente
+    // sceglie oggi + un orario passato (es. 14:00 quando sono le 15:00), il post
+    // veniva accettato ma non si sarebbe mai pubblicato (lo scheduler lo ignora).
+    if (!publishNow) {
+      const scheduledDt = new Date(`${scheduledDate}T${scheduledTime}`);
+      if (Number.isNaN(scheduledDt.getTime())) {
+        toast.error("Data o ora non valide");
+        return;
+      }
+      if (scheduledDt.getTime() <= Date.now() + 60_000) {
+        toast.error("L'orario di pubblicazione deve essere almeno 1 minuto nel futuro", {
+          description: "Sposta l'orario più avanti oppure usa 'Pubblica ora'.",
+        });
+        return;
+      }
+    }
     if (!draftValidation.canPublishLive) {
       toast.error(draftValidation.errors[0] ?? "Pubblicazione live non ancora attiva.");
       return;
@@ -1957,9 +2023,30 @@ function ContentStudioTab({
                     </CardTitle>
                     <CardDescription className="text-[11px]">
                       {charCount > 0 ? (
-                        <span className={cn(charCount > maxChars ? "font-semibold text-red-600" : "text-slate-400")}>
-                          {charCount}/{maxChars.toLocaleString("it")} car.
-                        </span>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          {selectedPlatforms.length === 0 ? (
+                            <span className="text-slate-400">{charCount} car.</span>
+                          ) : (
+                            selectedPlatforms.map((id) => {
+                              const platform = PLATFORMS.find((p) => p.id === id);
+                              if (!platform) return null;
+                              const over = charCount > platform.maxChars;
+                              const close = charCount > platform.maxChars * 0.9 && !over;
+                              return (
+                                <span
+                                  key={id}
+                                  className={cn(
+                                    "tabular-nums",
+                                    over ? "font-semibold text-red-600" : close ? "font-semibold text-amber-600" : "text-slate-400",
+                                  )}
+                                  title={`${platform.name}: ${charCount}/${platform.maxChars}`}
+                                >
+                                  {platform.name.slice(0, 2)} {charCount}/{platform.maxChars.toLocaleString("it")}
+                                </span>
+                              );
+                            })
+                          )}
+                        </div>
                       ) : "Scrivi o genera con AI"}
                     </CardDescription>
                   </div>
@@ -2068,9 +2155,33 @@ function ContentStudioTab({
                   })}
                 </div>
               ) : (
-                <Textarea value={postText} onChange={(e) => setPostText(e.target.value)}
-                  className={cn("min-h-28 resize-none font-[inherit] text-sm", charCount > maxChars ? "border-red-300 focus-visible:ring-red-400" : "")}
-                  placeholder={isStory ? "Testo breve da sovrapporre alla Story (opzionale)..." : isVideoType ? "Titolo del video — sii specifico, usa keyword nei primi 40 caratteri..." : "Racconta la tua impresa, mostra un progetto completato, condividi un consiglio..."} />
+                <div className="space-y-2">
+                  <Textarea value={postText} onChange={(e) => setPostText(e.target.value)}
+                    className={cn("min-h-28 resize-none font-[inherit] text-sm", charCount > maxChars ? "border-red-300 focus-visible:ring-red-400" : "")}
+                    placeholder={isStory ? "Testo breve da sovrapporre alla Story (opzionale)..." : isVideoType ? "Titolo del video — sii specifico, usa keyword nei primi 40 caratteri..." : "Racconta la tua impresa, mostra un progetto completato, condividi un consiglio..."} />
+                  {/* MIGL: CTA "Chiedi a Silvio" — apre la chat con prompt strutturato */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const platformsLabel = selectedPlatforms.length > 0
+                        ? selectedPlatforms.map((id) => PLATFORMS.find((p) => p.id === id)?.name).filter(Boolean).join(", ")
+                        : "Instagram + Facebook";
+                      const draft =
+                        `Scrivi una caption per un post su ${platformsLabel}.\n` +
+                        `Tipo: ${contentType.name}.\n` +
+                        `Brief: ${brief || postText || "Mostra un progetto edile completato, tono caldo e professionale"}.\n\n` +
+                        `Requisiti: hook nei primi 125 caratteri, tono italiano colloquiale per imprenditore edile, ` +
+                        `${selectedPlatforms.includes("twitter") ? "max 280 caratteri (Twitter)" : "max 2200 caratteri"}, ` +
+                        `${contentType.hashtagsAllowed ? "3-5 hashtag rilevanti edilizia in fondo" : "senza hashtag"}. ` +
+                        `Restituisci 3 varianti distinte.`;
+                      window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
+                    }}
+                    className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-semibold text-orange-700 hover:bg-orange-100"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Chiedi a Silvio una caption
+                  </button>
+                </div>
               )}
 
               {/* Hashtags (hidden for Stories) */}
@@ -2255,7 +2366,15 @@ function ContentStudioTab({
                     </Field>
                     <Field label="Ora">
                       <div className="flex gap-1.5">
-                        <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} className="flex-1" />
+                        <Input
+                          type="time"
+                          value={scheduledTime}
+                          onChange={(e) => setScheduledTime(e.target.value)}
+                          className="flex-1"
+                          {...(scheduledDate === new Date().toISOString().split("T")[0]
+                            ? { min: new Date(Date.now() + 60_000).toTimeString().slice(0, 5) }
+                            : {})}
+                        />
                         {suggestedTime && (
                           <TooltipProvider>
                             <Tooltip>

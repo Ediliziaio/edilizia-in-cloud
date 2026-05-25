@@ -4,7 +4,7 @@
  * click su skill → riempie il draft con un template, l'utente conferma.
  */
 
-export type SilvioSkillCategory = "data" | "doc" | "operations" | "advisor";
+export type SilvioSkillCategory = "data" | "doc" | "operations" | "advisor" | "talent";
 
 export interface SilvioSkill {
   id: string;
@@ -71,6 +71,23 @@ export const SILVIO_SKILLS: SilvioSkill[] = [
   { id: "search_kb",  emoji: "🔍", label: "Cerca in KB",           hint: "Cerca nel cervello aziendale",
     template: "Cerca nella knowledge base: ",
     category: "advisor" },
+
+  // 🎯 Talent Assessment (HR + selezioni)
+  { id: "talent_sintesi", emoji: "📋", label: "Sintetizza candidato", hint: "Riassunto 60 secondi del report",
+    template: "Riassumi il candidato {nome cognome} per il ruolo {ruolo} in 60 secondi: verdetto, 3 punti forti, 2 rischi concreti, 1 raccomandazione operativa. Parla in italiano colloquiale per imprenditore (non psicologico).",
+    category: "talent" },
+  { id: "talent_domande", emoji: "❓", label: "Domande colloquio",   hint: "5 domande critiche personalizzate",
+    template: "Genera 5 domande di colloquio personalizzate per {nome cognome} (ruolo: {ruolo}). Basale sui suoi 3 tratti più sensibili e sulle sindromi attive. Per ogni domanda spiega cosa stai cercando di osservare.",
+    category: "talent" },
+  { id: "talent_confronto", emoji: "⚖️", label: "Confronta candidati", hint: "Chi prendo tra A e B?",
+    template: "Confronta {nome A} e {nome B} per il ruolo {ruolo}. Chi prenderesti e perché? Considera fit %, sindromi RED, compatibilità col team. Output: vincitore + 3 motivi + 1 cautela.",
+    category: "talent" },
+  { id: "talent_email_offerta", emoji: "✉️", label: "Email offerta",  hint: "Bozza email proposta lavoro",
+    template: "Scrivi una email di offerta di lavoro per {nome cognome} per il ruolo {ruolo}. Tono caldo ma professionale, personalizzata sui suoi tratti dominanti. Includi: ruolo, sede, prossimo passo. Lunghezza max 150 parole.",
+    category: "talent" },
+  { id: "talent_email_rifiuto", emoji: "📧", label: "Email rifiuto",  hint: "Bozza email educata di no",
+    template: "Scrivi una email di rifiuto educata e rispettosa per {nome cognome}, candidato per il ruolo {ruolo}. Non dire le ragioni vere (sindromi/fit basso), usa formula tipo 'altri profili più allineati'. Lascia porta aperta per futuro. Max 100 parole.",
+    category: "talent" },
 ];
 
 export const SILVIO_SKILL_CATEGORY_LABELS: Record<SilvioSkillCategory, string> = {
@@ -78,4 +95,5 @@ export const SILVIO_SKILL_CATEGORY_LABELS: Record<SilvioSkillCategory, string> =
   doc: "📄 Documenti",
   operations: "🏗️ Operations",
   advisor: "🧠 Advisor strategico",
+  talent: "🎯 Talent Assessment",
 };

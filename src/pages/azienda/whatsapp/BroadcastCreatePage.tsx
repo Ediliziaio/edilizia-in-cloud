@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, ArrowRight, Info, Loader2, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, Info, Loader2, Send, Sparkles } from "lucide-react";
 import { useWhatsAppNumbers } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { useWAMetaTemplates } from "@/hooks/whatsapp/useWAMetaTemplates";
 import { useCreateBroadcast } from "@/hooks/whatsapp/useWABroadcasts";
@@ -71,7 +71,7 @@ export default function BroadcastCreatePage() {
     return Array.from({ length: n }, (_, i) => String(i + 1));
   }, [selectedTemplate]);
 
-  // Preview count contatti del segmento
+  // Preview count contatti del segmento (TUTTI quelli con telefono)
   const { data: previewCount } = useQuery({
     queryKey: ["wa", "broadcast", "preview", companyId, tipoFilter, statoFilter, excludeOptOut],
     enabled: !!companyId && step >= 3,
@@ -90,6 +90,28 @@ export default function BroadcastCreatePage() {
     },
   });
 
+  // FIX P1: preview count SOLO contatti con telefono in formato E.164 (+39...).
+  // Meta API rifiuta numeri "3331234567" senza prefisso → invio fallisce silenziosamente.
+  // Mostriamo agli utenti la differenza prima del send così sanno quanti sono spendibili.
+  const { data: previewE164Count } = useQuery({
+    queryKey: ["wa", "broadcast", "preview-e164", companyId, tipoFilter, statoFilter, excludeOptOut],
+    enabled: !!companyId && step >= 3,
+    queryFn: async () => {
+      let q = supabase
+        .from("marketing_contacts")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .like("telefono", "+%");
+      if (tipoFilter && tipoFilter !== "all") q = q.eq("tipo", tipoFilter);
+      if (statoFilter) q = q.eq("stato", statoFilter);
+      if (excludeOptOut) q = q.eq("opt_out", false);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const phonesInvalidCount = Math.max(0, (previewCount ?? 0) - (previewE164Count ?? 0));
+
   const canAdvance = (): boolean => {
     if (step === 1) return !!nome.trim() && !!waNumberId;
     if (step === 2) {
@@ -97,7 +119,7 @@ export default function BroadcastCreatePage() {
       const missing = variableIds.some((v) => !variableMapping[v]);
       return !missing;
     }
-    if (step === 3) return (previewCount ?? 0) > 0;
+    if (step === 3) return (previewE164Count ?? 0) > 0;
     if (step === 4) {
       if (scheduleMode === "later" && Number.isNaN(new Date(scheduledDate).getTime())) return false;
       return windowStart < windowEnd;
@@ -281,6 +303,32 @@ export default function BroadcastCreatePage() {
                   ))}
                 </div>
               )}
+
+              {/* MIGL: anteprima messaggio renderizzato + chip variabili mancanti */}
+              {selectedTemplate && (
+                <TemplatePreviewCard template={selectedTemplate} variableMapping={variableMapping} />
+              )}
+
+              {/* MIGL: CTA Silvio per aiuto configurazione */}
+              {selectedTemplate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const draft =
+                      `Aiutami a configurare un broadcast WhatsApp.\n` +
+                      `Template scelto: "${selectedTemplate.template_name}" (categoria ${selectedTemplate.category}, ${selectedTemplate.variables_count ?? 0} variabili).\n` +
+                      (selectedTemplate.components_json ? `Schema: ${JSON.stringify(selectedTemplate.components_json).slice(0, 500)}\n` : "") +
+                      `Segmento: ${tipoFilter === "all" ? "tutti i contatti" : tipoFilter}${statoFilter ? ` con stato ${statoFilter}` : ""}.\n\n` +
+                      `Dimmi: (1) come mappare le variabili sui campi del contatto, ` +
+                      `(2) se il template è adatto al segmento, (3) eventuali rischi GDPR/Meta da considerare.`;
+                    window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
+                  }}
+                  className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Chiedi a Silvio aiuto configurazione
+                </button>
+              )}
             </>
           )}
 
@@ -324,12 +372,22 @@ export default function BroadcastCreatePage() {
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-sm text-muted-foreground mb-1">Anteprima destinatari</p>
                 <p className="text-3xl font-bold">
-                  {previewCount ?? "…"}
-                  <span className="text-sm text-muted-foreground font-normal ml-2">contatti</span>
+                  {previewE164Count ?? "…"}
+                  <span className="text-sm text-muted-foreground font-normal ml-2">contatti contattabili</span>
                 </p>
-                {(previewCount ?? 0) === 0 && (
+                {(previewE164Count ?? 0) === 0 && (previewCount ?? 0) > 0 && (
+                  <p className="text-xs text-red-600 mt-2">
+                    ⚠️ {previewCount} contatti hanno telefono ma <strong>nessuno è in formato internazionale</strong> (es. +39 333 ...). Meta API rifiuta i numeri senza prefisso paese. Sistema il formato dei contatti prima di inviare.
+                  </p>
+                )}
+                {(previewE164Count ?? 0) === 0 && (previewCount ?? 0) === 0 && (
                   <p className="text-xs text-red-600 mt-2">
                     Nessun contatto con questi filtri. Allenta i criteri.
+                  </p>
+                )}
+                {phonesInvalidCount > 0 && (previewE164Count ?? 0) > 0 && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    🟡 <strong>{phonesInvalidCount} contatti esclusi</strong> perché il telefono non è in formato internazionale (+39...). Meta non li accetterà. Correggi i numeri se vuoi includerli.
                   </p>
                 )}
               </div>
@@ -397,7 +455,7 @@ export default function BroadcastCreatePage() {
                     <ul className="list-disc pl-5 space-y-0.5 text-xs">
                       <li>Campagna: {nome}</li>
                       <li>Template: {templateName}</li>
-                      <li>Destinatari: ~{previewCount ?? "—"}</li>
+                      <li>Destinatari: ~{previewE164Count ?? "—"} contattabili{phonesInvalidCount > 0 ? ` (${phonesInvalidCount} esclusi per formato telefono)` : ""}</li>
                       <li>Invio: {scheduleMode === "now" ? "tra 1 minuto" : new Date(scheduledDate).toLocaleString("it-IT")}</li>
                       <li>Finestra oraria: {windowStart}–{windowEnd}</li>
                     </ul>
@@ -441,6 +499,71 @@ export default function BroadcastCreatePage() {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * MIGL: anteprima messaggio renderizzato — estrae il body dal components_json
+ * di Meta e sostituisce le variabili {{1}}, {{2}}, ... con [campo_mappato] o
+ * con un valore di esempio. Aiuta a evitare invii con placeholder grezzi.
+ */
+function TemplatePreviewCard({
+  template,
+  variableMapping,
+}: {
+  template: { components_json: unknown; template_name: string; category: string | null };
+  variableMapping: Record<string, string>;
+}) {
+  const bodyText = useMemo(() => {
+    const json = template.components_json as { components?: Array<{ type?: string; text?: string }> } | null;
+    if (!json?.components) return null;
+    const body = json.components.find((c) => c?.type === "BODY");
+    return body?.text ?? null;
+  }, [template.components_json]);
+
+  const SAMPLE_VALUES: Record<string, string> = {
+    nome: "Mario",
+    cognome: "Rossi",
+    email: "mario.rossi@example.com",
+    telefono: "+39 333 1234567",
+    citta: "Milano",
+    azienda: "Edilrossi S.r.l.",
+  };
+
+  const renderedBody = useMemo(() => {
+    if (!bodyText) return null;
+    return bodyText.replace(/\{\{\s*(\d+)\s*\}\}/g, (_match, idx: string) => {
+      const field = variableMapping[idx];
+      if (!field) return `[{{${idx}}} — non mappato]`;
+      return SAMPLE_VALUES[field] ?? `[${field}]`;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bodyText, variableMapping]);
+
+  const unmappedVars = useMemo(() => {
+    if (!bodyText) return [] as string[];
+    const matches = [...bodyText.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => m[1]);
+    return [...new Set(matches)].filter((v) => !variableMapping[v]);
+  }, [bodyText, variableMapping]);
+
+  if (!bodyText) return null;
+
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-900">
+        <Eye className="h-3.5 w-3.5" />
+        Anteprima messaggio (cliente di esempio: Mario Rossi)
+      </div>
+      <div className="rounded-md bg-white border border-slate-200 p-3 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap font-[system-ui]">
+        {renderedBody}
+      </div>
+      {unmappedVars.length > 0 && (
+        <p className="text-[11px] text-amber-700">
+          ⚠️ {unmappedVars.length} variabile{unmappedVars.length > 1 ? "/i" : ""} non mappata
+          {unmappedVars.length > 1 ? "/e" : ""}: {unmappedVars.map((v) => `{{${v}}}`).join(", ")}. Il messaggio arriverebbe ai destinatari con il placeholder grezzo.
+        </p>
+      )}
     </div>
   );
 }

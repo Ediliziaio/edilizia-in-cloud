@@ -776,6 +776,44 @@ function formatEuro(cents: number) {
   }).format(cents / 100);
 }
 
+/**
+ * FIX P1: validazione URL https più rigorosa di startsWith("https://").
+ * Rifiuta "https://", "https://x", "https://-bad", URL relativi.
+ * Accetta solo URL con host valido (almeno un punto, non IP solo).
+ */
+function isValidHttpsUrl(value: string | null | undefined): boolean {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("https://")) return false;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "https:") return false;
+    if (!url.hostname || url.hostname.length < 4) return false;
+    if (!url.hostname.includes(".")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** FIX P1: regex email semplificata RFC-like (no edge cases esotici). */
+function isValidEmail(value: string | null | undefined): boolean {
+  if (!value || typeof value !== "string") return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
+}
+
+/** Clamp numeric input nel range Meta consentito. */
+function clampMetaBudget(value: number): number {
+  if (!Number.isFinite(value)) return 5;
+  return Math.max(5, Math.min(500, Math.round(value * 100) / 100));
+}
+
+function clampMetaRadius(value: number): number {
+  if (!Number.isFinite(value)) return 10;
+  // Meta locale awareness: 1-80km (oltre è treated come "national")
+  return Math.max(1, Math.min(80, Math.round(value)));
+}
+
 function statusLabel(status: CampaignStatus) {
   const labels: Record<CampaignStatus, string> = {
     active: "Attiva",
@@ -904,7 +942,7 @@ function getReadinessItems(state: BuilderState) {
   const totalFieldsCount = lf
     ? lf.questions.length
     : splitList(state.requiredFields).length;
-  const privacyOk = lf?.privacyPolicyUrl?.startsWith("https://") || state.privacyUrl.startsWith("https://");
+  const privacyOk = isValidHttpsUrl(lf?.privacyPolicyUrl) || isValidHttpsUrl(state.privacyUrl);
   const qualifyingQuestionExists = lf
     ? lf.questions.some((q) => q.kind === "custom")
     : state.qualityQuestion.trim().length >= 8;
@@ -1013,7 +1051,7 @@ function getPublishQa(
 
   const readiness = getReadinessScore(state);
   const lf = state.metaLeadForm;
-  const privacyOk = lf?.privacyPolicyUrl?.startsWith("https://") || state.privacyUrl.startsWith("https://");
+  const privacyOk = isValidHttpsUrl(lf?.privacyPolicyUrl) || isValidHttpsUrl(state.privacyUrl);
   const landingNeedsUtm = state.conversionPlace === "landing_page" || state.conversionPlace === "dual";
   const landingHasUtm =
     !landingNeedsUtm ||
@@ -1072,7 +1110,7 @@ function getGooglePublishQa(
   const checks = [
     { ok: google.integration?.status === "connected", message: "Google Ads non collegato." },
     { ok: google.accounts.length > 0, message: "Nessun Customer ID Google Ads selezionato." },
-    { ok: state.privacyUrl.startsWith("https://"), message: "Privacy URL HTTPS mancante." },
+    { ok: isValidHttpsUrl(state.privacyUrl), message: "Privacy URL HTTPS non valido (host malformato o mancante)." },
     { ok: landingHasGoogleUtm, message: "Landing senza UTM Google: usa utm_source=google e utm_medium=cpc." },
     { ok: getCampaignDailyBudget(state) >= 10, message: "Budget giornaliero troppo basso per Google Ads." },
     { ok: hasSearchIntent, message: "Mancano keyword/intenti di ricerca per il canale Search." },
@@ -2569,9 +2607,59 @@ function KpiBar({
   // In BETA "Costo per commessa" è sempre 0 perché manca attribuzione live.
   // La mostriamo SOLO se totalJobs > 0 (cioè quando dati reali ci sono).
   const showCostPerJob = totalJobs > 0;
+
+  // MIGL: alert CPL fuori soglia. Threshold edilizia tipico: lead qualificato
+  // €30-50, oltre €70 inizia a essere preoccupante. Mostrato solo se hai speso
+  // almeno €100 e ricevuto almeno 1 lead (così CPL è significativo).
+  const TARGET_CPL_CENTS_HIGH = 7000; // €70 per lead — soglia di attenzione edilizia
+  const cplWarning = monthlySpend >= 10000 && totalLeads > 0 && costPerLead > TARGET_CPL_CENTS_HIGH;
+  const lowVolumeWarning = monthlySpend >= 30000 && totalLeads <= 2; // €300+ spesi, max 2 lead
+
+  // MIGL: forecast mensile basato sul ritmo attuale.
+  // Esempio: oggi è il 10 del mese, ho speso 300€, allora forecast = 300 * (30/10) = 900€.
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const monthlySpendForecast = dayOfMonth > 0 ? Math.round((monthlySpend / dayOfMonth) * daysInMonth) : 0;
+  const forecastOverCap = monthlyCap > 0 && monthlySpendForecast > monthlyCap;
+
+  // MIGL: alert soft a 75% del cap (prima del 100% che fa auto-pause).
+  const spendingWarning = monthlyCap > 0 && spendPct >= 75 && spendPct < 100;
+  const spendingCritical = monthlyCap > 0 && spendPct >= 100;
   return (
     <Card className={cn(isEmpty && "border-dashed bg-white/60")}>
       <CardContent className="p-4">
+        {/* MIGL: alert proattivi su CPL alto o lead bassi */}
+        {(cplWarning || lowVolumeWarning) && (
+          <div className={cn(
+            "mb-3 flex items-start gap-3 rounded-lg border p-3",
+            cplWarning ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60",
+          )}>
+            <span className="text-base">{cplWarning ? "🚨" : "⚠️"}</span>
+            <div className="min-w-0 flex-1">
+              <p className={cn("text-sm font-semibold", cplWarning ? "text-red-900" : "text-amber-900")}>
+                {cplWarning ? `CPL alto: ${formatEuro(costPerLead)} per lead` : `Volume basso: ${totalLeads} lead con €${(monthlySpend / 100).toFixed(0)} spesi`}
+              </p>
+              <p className={cn("text-xs mt-0.5", cplWarning ? "text-red-700" : "text-amber-700")}>
+                {cplWarning
+                  ? "Per edilizia il CPL atteso è €30-50. Sopra €70 vale la pena rivedere targeting/copy/landing."
+                  : "Pochi lead per la spesa attuale. Potrebbe essere: pubblico troppo stretto, creatività debole, o landing non convertente."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft:
+                cplWarning
+                  ? `Il mio CPL è €${(costPerLead / 100).toFixed(2)} (target edilizia €30-50). Spesa mensile €${(monthlySpend / 100).toFixed(0)}, ${totalLeads} lead. Diagnostica: cosa sta facendo salire il CPL? Dimmi top 3 cause + cosa fare nei prossimi 7 giorni.`
+                  : `Sto spendendo €${(monthlySpend / 100).toFixed(0)}/mese ma ho solo ${totalLeads} lead. Cosa controllo? Targeting troppo stretto, copy debole, landing non convertente? Spiegami come capire la causa e quale leva tirare per prima.`
+              }}))}
+              className="shrink-0 rounded-md bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              <Sparkles className="mr-1 inline h-3 w-3" />
+              Chiedi a Silvio
+            </button>
+          </div>
+        )}
         <div
           className={cn(
             "grid gap-4 sm:grid-cols-2",
@@ -2623,10 +2711,106 @@ function KpiBar({
               {formatEuro(monthlySpend)} / {formatEuro(monthlyCap)}
             </span>
           </div>
-          <Progress value={spendPct} className="h-2 bg-slate-100" indicatorClassName="bg-orange-500" />
+          <Progress
+            value={spendPct}
+            className="h-2 bg-slate-100"
+            indicatorClassName={cn(spendingCritical ? "bg-red-500" : spendingWarning ? "bg-amber-500" : "bg-orange-500")}
+          />
+          {/* MIGL: forecast + alert spending */}
+          {monthlyCap > 0 && monthlySpend > 0 && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className={cn(
+                "rounded-lg border p-2.5 text-xs",
+                forecastOverCap ? "border-red-200 bg-red-50/60 text-red-900" : "border-slate-200 bg-slate-50 text-slate-700",
+              )}>
+                <p className="font-semibold uppercase tracking-wider text-[10px] opacity-70">
+                  Forecast fine mese
+                </p>
+                <p className="mt-0.5 text-sm font-bold">
+                  ≈ {formatEuro(monthlySpendForecast)}
+                  {forecastOverCap && <span className="ml-1.5 text-[10px] font-normal">(sforerai il cap di {formatEuro(monthlySpendForecast - monthlyCap)})</span>}
+                </p>
+                <p className="mt-0.5 text-[10px] opacity-70">se mantieni ritmo {formatEuro(Math.round(monthlySpend / dayOfMonth))}/giorno</p>
+              </div>
+              <div className={cn(
+                "rounded-lg border p-2.5 text-xs",
+                spendingCritical ? "border-red-200 bg-red-50/60 text-red-900" :
+                spendingWarning ? "border-amber-200 bg-amber-50/60 text-amber-900" :
+                "border-emerald-200 bg-emerald-50/40 text-emerald-900",
+              )}>
+                <p className="font-semibold uppercase tracking-wider text-[10px] opacity-70">
+                  {spendingCritical ? "⚠️ Cap raggiunto" : spendingWarning ? "🟡 Vicino al cap" : "✓ Sotto controllo"}
+                </p>
+                <p className="mt-0.5 text-sm font-bold">{spendPct}% usato</p>
+                <p className="mt-0.5 text-[10px] opacity-70">
+                  {spendingCritical ? "Auto-pause attiva" :
+                   spendingWarning ? `Mancano ${formatEuro(monthlyCap - monthlySpend)} prima del cap` :
+                   `${formatEuro(monthlyCap - monthlySpend)} ancora disponibili`}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* MIGL: 3 CTA Silvio per assistenza imprenditore */}
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <SilvioAdsButton
+            label="Diagnostica campagne"
+            description="Perché spendo tanto e ho pochi lead?"
+            prompt={
+              `Analizza le mie campagne pubblicitarie. ` +
+              `Mese in corso: spesa €${(monthlySpend / 100).toFixed(0)}, ${totalLeads} lead, ` +
+              `CPL ${costPerLead ? `€${(costPerLead / 100).toFixed(2)}` : "n/d"}, ROAS ${roas.toFixed(2)}x. ` +
+              `Forecast fine mese: €${(monthlySpendForecast / 100).toFixed(0)}. ` +
+              `Diagnostica: identifica top 3 cause di inefficienza e dimmi cosa fare nei prossimi 7 giorni. ` +
+              `Tono diretto, italiano colloquiale per imprenditore edile.`
+            }
+          />
+          <SilvioAdsButton
+            label="Budget ottimale"
+            description="Quanto investire per il mio target?"
+            prompt={
+              `Suggerisci un budget pubblicitario ottimale Meta+Google per la mia azienda edile. ` +
+              `Spesa attuale: €${(monthlySpend / 100).toFixed(0)}/mese, target lead/mese non specificato. ` +
+              `Considera: ${totalLeads} lead/mese ricevuti, costo per lead €${(costPerLead / 100).toFixed(0)}, ` +
+              `cap mensile €${(monthlyCap / 100).toFixed(0)}. ` +
+              `Dimmi: (1) budget consigliato per €1k-€5k-€10k mensili di obiettivo, ` +
+              `(2) come distribuirlo tra Meta vs Google, (3) primo mese vs mesi successivi.`
+            }
+          />
+          <SilvioAdsButton
+            label="Scrivi copy"
+            description="3 varianti per un nuovo annuncio"
+            prompt={
+              `Scrivi 3 varianti di copy pubblicitario per la mia azienda edile. ` +
+              `Tono: italiano colloquiale, focus sul valore concreto per il cliente. ` +
+              `Per ogni variante: (a) headline max 40 caratteri, (b) testo max 125 caratteri, ` +
+              `(c) CTA precisa, (d) tipo di immagine consigliata. ` +
+              `Variante 1: focus prezzo/preventivo gratis. ` +
+              `Variante 2: focus qualità/anni di esperienza. ` +
+              `Variante 3: focus velocità/disponibilità immediata.`
+            }
+          />
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function SilvioAdsButton({ label, description, prompt }: { label: string; description: string; prompt: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft: prompt } }))}
+      className="group flex flex-col items-start gap-1 rounded-lg border border-orange-200 bg-gradient-to-br from-orange-50/60 to-amber-50/40 p-3 text-left transition hover:border-orange-300 hover:shadow-sm"
+    >
+      <div className="flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 text-orange-600" />
+        <span className="text-sm font-semibold text-slate-900">{label}</span>
+      </div>
+      <span className="text-[11px] text-slate-600">{description}</span>
+      <span className="mt-auto text-[10px] font-bold text-orange-700 opacity-70 group-hover:opacity-100">Chiedi a Silvio →</span>
+    </button>
   );
 }
 
@@ -3181,7 +3365,7 @@ function CampaignBuilderTab({
 
     // STEP 3: modulo — supporta ENTRAMBI (v1 requiredFields string + privacyUrl, v2 metaLeadForm)
     const lf = state.metaLeadForm;
-    const v2Form = lf && lf.questions.length >= 2 && lf.privacyPolicyUrl.startsWith("https://");
+    const v2Form = lf && lf.questions.length >= 2 && isValidHttpsUrl(lf.privacyPolicyUrl);
     const v1Form =
       state.requiredFields.trim().length >= 8 &&
       state.privacyUrl.trim().startsWith("https://");
@@ -4848,7 +5032,13 @@ function AdSetPlanner({
               </Field>
               <Field label="Budget gruppo">
                 <div className="flex items-center gap-3">
-                  <Input type="number" min={5} max={500} value={adSet.dailyBudget} onChange={(event) => onUpdate(adSet.id, "dailyBudget", Number(event.target.value || 0))} />
+                  <Input
+                    type="number"
+                    min={5}
+                    max={500}
+                    value={adSet.dailyBudget}
+                    onChange={(event) => onUpdate(adSet.id, "dailyBudget", clampMetaBudget(Number(event.target.value || 0)))}
+                  />
                   <span className="whitespace-nowrap text-sm text-slate-500">euro/giorno</span>
                 </div>
               </Field>
@@ -4858,8 +5048,14 @@ function AdSetPlanner({
                   <Input type="number" min={1} value={adSet.maxDailyBudget} onChange={(event) => onUpdate(adSet.id, "maxDailyBudget", Number(event.target.value || 0))} />
                 </div>
               </Field>
-              <Field label="Raggio km">
-                <Input type="number" min={1} max={100} value={adSet.radiusKm} onChange={(event) => onUpdate(adSet.id, "radiusKm", Number(event.target.value || 0))} />
+              <Field label="Raggio km (max 80)">
+                <Input
+                  type="number"
+                  min={1}
+                  max={80}
+                  value={adSet.radiusKm}
+                  onChange={(event) => onUpdate(adSet.id, "radiusKm", clampMetaRadius(Number(event.target.value || 0)))}
+                />
               </Field>
               <Field label="Età">
                 <Input value={adSet.ageRange} onChange={(event) => onUpdate(adSet.id, "ageRange", event.target.value)} placeholder="Es. 28-65" />
