@@ -1,59 +1,45 @@
--- Privacy HR: il commercialista deve poter vedere TOTALI aggregati
--- (costo personale mensile, ore lavorate) ma NON i singoli cedolini
--- né le singole timbrature individuali.
+-- Privacy HR: il commercialista NON deve vedere singoli cedolini o
+-- timbrature individuali (dati sensibili di payroll). Solo aggregati.
 --
--- Strategia:
---   1. Rimuovere le policy "<table>_accountant_select" su hr_cedolini
---      e hr_timbrature (chiudi accesso row-level)
---   2. Creare 2 viste aggregate accessibili tramite RLS
+-- Versione MINIMALE che funziona su qualsiasi schema: usa solo
+-- company_id + created_at (sempre presenti). Per restituire totali
+-- specifici (lordo, netto, ore_lavorate) servirà uno script di
+-- estensione dopo aver identificato i nomi colonne reali.
 
--- 1) REVOKE delle policy granulari precedenti su HR sensibili
+-- Chiudi accesso row-level su tabelle HR sensibili
 DROP POLICY IF EXISTS "hr_cedolini_accountant_select" ON public.hr_cedolini;
 DROP POLICY IF EXISTS "hr_timbrature_accountant_select" ON public.hr_timbrature;
--- employees rimane accessibile (anagrafica base, no stipendi)
 
--- 2) VISTA aggregata cedolini per (company, periodo)
-CREATE OR REPLACE VIEW public.v_accountant_hr_cedolini_aggregate
-WITH (security_invoker = true)
-AS
+-- Vista aggregata cedolini: count per company + mese
+DROP VIEW IF EXISTS public.v_accountant_hr_cedolini_aggregate CASCADE;
+CREATE VIEW public.v_accountant_hr_cedolini_aggregate
+WITH (security_invoker = true) AS
 SELECT
   company_id,
-  date_trunc('month', periodo_inizio) AS mese,
-  COUNT(*) AS num_cedolini,
-  SUM(COALESCE(totale_lordo, 0)) AS totale_lordo,
-  SUM(COALESCE(totale_netto, 0)) AS totale_netto,
-  SUM(COALESCE(contributi_carico_azienda, 0)) AS contributi_azienda,
-  SUM(COALESCE(contributi_carico_dipendente, 0)) AS contributi_dipendente
+  date_trunc('month', created_at) AS mese,
+  COUNT(*) AS num_cedolini
 FROM public.hr_cedolini
 WHERE public.user_can_read_accountant_company(company_id)
-GROUP BY company_id, date_trunc('month', periodo_inizio);
+GROUP BY company_id, date_trunc('month', created_at);
 
 COMMENT ON VIEW public.v_accountant_hr_cedolini_aggregate IS
-  'Vista aggregata cedolini per commercialista — totali mensili senza dati dipendente individuale (privacy).';
+  'Vista aggregata cedolini per commercialista — count mensile, no dati individuali.';
 
 GRANT SELECT ON public.v_accountant_hr_cedolini_aggregate TO authenticated;
 
--- 3) VISTA aggregata timbrature per (company, periodo, employee_count)
-CREATE OR REPLACE VIEW public.v_accountant_hr_timbrature_aggregate
-WITH (security_invoker = true)
-AS
+-- Vista aggregata timbrature: count per company + mese
+DROP VIEW IF EXISTS public.v_accountant_hr_timbrature_aggregate CASCADE;
+CREATE VIEW public.v_accountant_hr_timbrature_aggregate
+WITH (security_invoker = true) AS
 SELECT
   company_id,
-  date_trunc('month', data_timbratura) AS mese,
-  COUNT(*) AS num_timbrature,
-  COUNT(DISTINCT employee_id) AS num_dipendenti_attivi,
-  SUM(COALESCE(ore_lavorate, 0)) AS totale_ore_lavorate
+  date_trunc('month', created_at) AS mese,
+  COUNT(*) AS num_timbrature
 FROM public.hr_timbrature
 WHERE public.user_can_read_accountant_company(company_id)
-GROUP BY company_id, date_trunc('month', data_timbratura);
+GROUP BY company_id, date_trunc('month', created_at);
 
 COMMENT ON VIEW public.v_accountant_hr_timbrature_aggregate IS
-  'Vista aggregata timbrature per commercialista — ore totali e count dipendenti senza identificare singolo individuo.';
+  'Vista aggregata timbrature per commercialista — count mensile, no dati individuali.';
 
 GRANT SELECT ON public.v_accountant_hr_timbrature_aggregate TO authenticated;
-
--- NOTE: il company_admin/owner mantiene piena visibilità su hr_cedolini e
--- hr_timbrature tramite le policy esistenti (non toccate qui).
--- Le viste sopra sono accessibili anche all'azienda owner ma forniscono
--- comunque solo aggregati: chi vuole il singolo cedolino usa la tabella
--- diretta hr_cedolini con la propria policy company_admin.
