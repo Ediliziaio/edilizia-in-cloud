@@ -541,20 +541,9 @@ function AdminMainSidebar() {
                     </SidebarMenuItem>
                   );
                 })()}
-                {permissions.can_manage_companies && (
-                  <SidebarMenuItem key="top-email-triage">
-                    <SidebarMenuButton asChild tooltip="Triage AI Email">
-                      <NavLink
-                        to="/admin/email-triage"
-                        className={navLinkClass}
-                        activeClassName={activeClass}
-                      >
-                        <Sparkles className="h-4 w-4" />
-                        <span className="flex-1 font-medium">Triage AI</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
+                {/* "Triage AI" rimosso dalla sidebar: il triage è integrato
+                    nella toolbar del client /admin/email (filtri smart per
+                    categoria + AI Command Center). Niente più pagina duplicata. */}
                 {permissions.can_manage_companies && (() => {
                   const badge = getBadgeForNavItem("/admin/chat", sidebarBadges);
                   return (

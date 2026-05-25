@@ -54,7 +54,6 @@ const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 // La route /admin/cs-tasks redirige al tab per backward-compat.
 const AdminAttivita = lazy(() => import("@/pages/admin/AdminAttivita"));
 const AdminEmailClientPage = lazy(() => import("@/pages/admin/AdminEmailClientPage"));
-const AdminEmailTriagePage = lazy(() => import("@/pages/admin/AdminEmailTriagePage"));
 const AdminMioProfilo = lazy(() => import("@/pages/admin/impostazioni/AdminMioProfilo"));
 const AdminEmailOAuthCallback = lazy(() => import("@/pages/admin/impostazioni/AdminEmailOAuthCallback"));
 const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
@@ -273,10 +272,13 @@ export default function AdminRoutesContainer() {
             attività"; /admin/cs-tasks redirige al tab per non rompere link
             esistenti (mobile menu, lifecycle, breadcrumb, deep link salvati). */}
         <Route path="attivita" element={<RequireAdminPermission permission="can_manage_companies"><AdminAttivita /></RequireAdminPermission>} />
-        {/* Email client e triage AI: aperti a tutto il team admin (ognuno
-            vede solo le sue caselle via user_id). */}
+        {/* Email client (con AI Command Center + smart category filters
+            integrati nella toolbar) — aperto a tutto il team admin
+            (ognuno vede solo le sue caselle via user_id).
+            La vecchia /email-triage è rimossa: era una vista duplicata,
+            tutto il triage AI è ora dentro il client 3-pane. */}
         <Route path="email" element={<AdminEmailClientPage />} />
-        <Route path="email-triage" element={<AdminEmailTriagePage />} />
+        <Route path="email-triage" element={<Navigate to="/admin/email" replace />} />
         <Route path="cs-tasks" element={<Navigate to="/admin/attivita?tab=tutte" replace />} />
         <Route path="chat" element={<RequireAdminPermission permission="can_manage_companies"><AdminTeamChat /></RequireAdminPermission>} />
         <Route path="gdpr" element={<RequireSuperAdmin><AdminGDPR /></RequireSuperAdmin>} />
