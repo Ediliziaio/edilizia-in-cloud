@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Filter,
   Link2,
+  Loader2,
   Mail,
   MessageCircle,
   MessageSquare,
@@ -553,6 +554,7 @@ export default function ReputationManager() {
   const [events, setEvents] = useState<ReputationEvent[]>(seedEvents);
   const [hydratedStorageKey, setHydratedStorageKey] = useState<string | null>(null);
   const [persistenceMode, setPersistenceMode] = useState<PersistenceMode>("local");
+  const [isHydrating, setIsHydrating] = useState(true);
   const [requestName, setRequestName] = useState("Clienti soddisfatti ultimo mese");
   const [requestSegment, setRequestSegment] = useState("commesse_concluse");
   const [requestChannel, setRequestChannel] = useState<Channel>("whatsapp");
@@ -719,6 +721,8 @@ export default function ReputationManager() {
         console.warn("[reputation] Uso fallback locale per reputazione", error);
       }
       setPersistenceMode("local");
+    } finally {
+      setIsHydrating(false);
     }
   }, [companyId, storageKey]);
 
@@ -1232,6 +1236,12 @@ export default function ReputationManager() {
                 <Badge className="border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
                   Presidio attivo
                 </Badge>
+                {isHydrating && (
+                  <Badge variant="outline" className="gap-1.5 border-blue-200 bg-blue-50 text-blue-700">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Sincronizzazione…
+                  </Badge>
+                )}
               </div>
               <p className="mt-1 text-sm text-slate-600">
                 Recensioni, richieste automatiche e risposte per {companyNameForCopy}.
@@ -1484,7 +1494,31 @@ export default function ReputationManager() {
                 <div className="space-y-2">
                   <Label htmlFor="message-template">Messaggio</Label>
                   <Textarea id="message-template" rows={5} value={messageTemplate} onChange={(event) => setMessageTemplate(event.target.value)} />
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Placeholder disponibili:</span>
+                    <button
+                      type="button"
+                      onClick={() => setMessageTemplate((t) => `${t}${t.endsWith(" ") ? "" : " "}{{nome}}`)}
+                      className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono hover:border-orange-300 hover:bg-orange-50"
+                    >
+                      {`{{nome}}`}
+                    </button>
+                    {!/{\{\s*nome\s*\}\}/i.test(messageTemplate) && (
+                      <span className="text-amber-600">⚠️ Aggiungi {`{{nome}}`} per personalizzare il messaggio</span>
+                    )}
+                  </div>
                 </div>
+                {/* MIGL: anteprima live con nome reale di un cliente in lista */}
+                {(() => {
+                  const sampleName = linkedOrders[0]?.customerName?.split(" ")[0] || "Marco";
+                  const preview = messageTemplate.replace(/\{\{\s*nome\s*\}\}/gi, sampleName);
+                  return (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-blue-700">Anteprima · destinatario "{sampleName}"</p>
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{preview || <span className="text-slate-400 italic">Scrivi un messaggio per vedere l'anteprima…</span>}</p>
+                    </div>
+                  );
+                })()}
                 <Alert>
                   <Sparkles className="h-4 w-4" />
                   <AlertTitle>AI anti-recensione forzata</AlertTitle>
@@ -1632,10 +1666,29 @@ export default function ReputationManager() {
                           </div>
                         )}
                       </div>
-                      <div className="flex shrink-0 gap-2">
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => openReviewSource(review)}>
                           <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                           Apri
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const draft =
+                              `Aiutami a scrivere una risposta a questa recensione su ${review.source}, ` +
+                              `tono ${review.rating <= 3 ? "empatico e che riconosce il disagio" : "caldo e di ringraziamento"}, ` +
+                              `firma "EdiliziaInCloud". Max 4 righe.\n\n` +
+                              `Cliente: ${review.author}${review.customerName ? ` (${review.customerName})` : ""}\n` +
+                              `Voto: ${review.rating}/5\n` +
+                              `Lavoro: ${review.project || "n/d"}\n` +
+                              `Recensione: "${review.text}"`;
+                            window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
+                          }}
+                          className="border-orange-200 bg-orange-50 text-orange-900 hover:bg-orange-100"
+                        >
+                          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                          Risposta con Silvio
                         </Button>
                         {(review.status === "da_rispondere" || review.status === "critica") ? (
                           <Button size="sm" onClick={() => replyToReview(review)}>
