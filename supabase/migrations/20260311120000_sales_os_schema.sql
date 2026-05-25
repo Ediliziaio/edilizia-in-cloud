@@ -143,6 +143,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_targets_global_month_unique
 -- ============================================================
 -- 8. RPC: weighted pipeline con probabilità gerarchica
 -- ============================================================
+DROP FUNCTION IF EXISTS get_weighted_pipeline(UUID);
+
 CREATE OR REPLACE FUNCTION get_weighted_pipeline(p_company_id UUID)
 RETURNS TABLE (
   pipeline_id UUID,
@@ -212,6 +214,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 -- ============================================================
 -- 9. RPC: sales forecast pesato per mese
 -- ============================================================
+DROP FUNCTION IF EXISTS get_sales_forecast(UUID, INTEGER);
+
 CREATE OR REPLACE FUNCTION get_sales_forecast(
   p_company_id UUID,
   p_months_ahead INTEGER DEFAULT 3
@@ -262,6 +266,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 -- ============================================================
 -- 10. RPC: stalled opportunities detection
 -- ============================================================
+DROP FUNCTION IF EXISTS get_stalled_opportunities(UUID);
+
 CREATE OR REPLACE FUNCTION get_stalled_opportunities(p_company_id UUID)
 RETURNS TABLE (
   opportunity_id UUID,
@@ -310,6 +316,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 -- ============================================================
 -- 11. RPC: sales velocity
 -- ============================================================
+DROP FUNCTION IF EXISTS get_sales_velocity(UUID, INTEGER);
+
 CREATE OR REPLACE FUNCTION get_sales_velocity(
   p_company_id UUID,
   p_days_back INTEGER DEFAULT 90
