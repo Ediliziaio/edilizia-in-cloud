@@ -16,6 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSilvioPageContext } from "@/hooks/useSilvioPageContext";
+import { cn } from "@/lib/utils";
 import {
   MessageSquare,
   Brain,
@@ -29,6 +30,7 @@ import {
   Calculator,
   Sparkles,
   Inbox,
+  Network,
   Send,
   UploadCloud,
   Clock3,
@@ -93,6 +95,82 @@ interface Props {
   mode?: "azienda" | "admin";
 }
 
+/**
+ * Configurazione contenuti popover Silvio per ogni modalità.
+ * Permette di mostrare Hub AI / Carica documento / Search / Routes
+ * specifiche al context (azienda vs piattaforma).
+ */
+interface ModeContent {
+  uploadCard: {
+    visible: boolean;
+    title: string;
+    description: string;
+    chips: string[];
+  };
+  hub: Array<{
+    icon: typeof Inbox;
+    title: string;
+    subtitle: string;
+    tone: "amber" | "orange" | "emerald" | "blue";
+    action: string;
+  }>;
+  searchPlaceholder: string;
+  routes: Record<string, string>;
+  chatExpandRoute: string;
+}
+
+const MODE_CONTENT: Record<"azienda" | "admin", ModeContent> = {
+  azienda: {
+    uploadCard: {
+      visible: true,
+      title: "Carica documento",
+      description: "Silvio classifica PDF, foto, computi, fatture, DDT e contratti.",
+      chips: ["Computo", "Foto/voce", "DDT", "Fatture"],
+    },
+    hub: [
+      { icon: Inbox, title: "Azioni AI", subtitle: "Da approvare", tone: "amber", action: "azioni_proposte" },
+      { icon: Sparkles, title: "Personas", subtitle: "18 esperti AI", tone: "orange", action: "personas_18" },
+      { icon: Brain, title: "Memoria", subtitle: "Cosa sa di te", tone: "emerald", action: "ai_memoria" },
+      { icon: Calculator, title: "Computo", subtitle: "Preventivo AI", tone: "blue", action: "import_computo" },
+    ],
+    searchPlaceholder: "Cerca clienti, cantieri, fatture…",
+    routes: {
+      azioni_proposte: "/azienda/azioni-proposte",
+      personas_18: "/azienda/assistente-ai",
+      ai_memoria: "/azienda/ai-memoria",
+      import_computo: "/azienda/marketing/preventivi?action=import-computo",
+      import_foto_preventivo: "/azienda/marketing/preventivi?action=import-foto",
+      search_commesse: "/azienda/cantieri",
+      documenti: "/azienda/documenti",
+    },
+    chatExpandRoute: "/azienda/chat",
+  },
+  admin: {
+    uploadCard: {
+      visible: false,
+      title: "",
+      description: "",
+      chips: [],
+    },
+    hub: [
+      { icon: Inbox, title: "Approvazioni AI", subtitle: "Azioni da rivedere", tone: "amber", action: "azioni_proposte" },
+      { icon: Sparkles, title: "Agenti SA", subtitle: "Personas piattaforma", tone: "orange", action: "personas_18" },
+      { icon: Brain, title: "Memoria SA", subtitle: "Knowledge piattaforma", tone: "emerald", action: "ai_memoria" },
+      { icon: Network, title: "Cross-tenant", subtitle: "Vista N aziende", tone: "blue", action: "cross_tenant" },
+    ],
+    searchPlaceholder: "Cerca aziende, ticket, MRR, clienti…",
+    routes: {
+      azioni_proposte: "/admin/silvio/approvazioni",
+      personas_18: "/admin/silvio",
+      ai_memoria: "/admin/ai-memoria",
+      cross_tenant: "/admin/aziende",
+      search_commesse: "/admin/aziende",
+      documenti: "/admin",
+    },
+    chatExpandRoute: "/admin/chat",
+  },
+};
+
 interface MorningBriefing {
   id: string;
   content: string;
@@ -110,6 +188,8 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
   const [open, setOpen] = useState(false);
   const [quickPrompt, setQuickPrompt] = useState("");
   const [chatPrefill, setChatPrefill] = useState("");
+  // Contenuti popover specifici al mode (azienda vs admin/superadmin)
+  const content = MODE_CONTENT[mode];
 
   // Briefing del giorno generato dal cron silvio-morning-brief.
   // Fetched solo se l'utente apre il FAB (enabled: open) per non sprecare
@@ -203,42 +283,22 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
 
   const handleAction = (action: string) => {
     setOpen(false);
-    switch (action) {
-      case "open_chat":
-        // Apri Sheet inline (richiesta utente: NON navigare alla pagina chat)
-        openChat();
-        break;
-      case "smart_doc":
-        setSmartImportOpen(true);
-        break;
-      case "import_computo":
-        navigate("/azienda/marketing/preventivi?action=import-computo");
-        break;
-      case "import_foto_preventivo":
-        navigate("/azienda/marketing/preventivi?action=import-foto");
-        break;
-      case "search_commesse":
-        navigate("/azienda/cantieri");
-        break;
-      case "documenti":
-        navigate("/azienda/documenti");
-        break;
-      case "azioni_proposte":
-        navigate("/azienda/azioni-proposte");
-        break;
-      case "ai_memoria":
-        navigate("/azienda/ai-memoria");
-        break;
-      case "personas_18":
-        navigate("/azienda/assistente-ai");
-        break;
-      case "command_palette":
-        // Trigger Cmd+K dal CompanyLayout
-        window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
-        break;
-      default:
-        break;
+    // Action speciali (non-routing)
+    if (action === "open_chat") {
+      openChat();
+      return;
     }
+    if (action === "smart_doc") {
+      setSmartImportOpen(true);
+      return;
+    }
+    if (action === "command_palette") {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+      return;
+    }
+    // Actions routing: usa la mappa mode-aware
+    const route = content.routes[action];
+    if (route) navigate(route);
   };
 
   if (hidden) return null;
@@ -408,19 +468,22 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
             <button
               type="button"
               onClick={() => handleAction("smart_doc")}
-              className="w-full rounded-2xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-left transition-colors hover:bg-orange-50"
+              className={cn(
+                "w-full rounded-2xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-left transition-colors hover:bg-orange-50",
+                !content.uploadCard.visible && "hidden",
+              )}
             >
               <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
                   <UploadCloud className="h-4.5 w-4.5" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-black text-slate-900">Carica documento</span>
+                  <span className="block text-sm font-black text-slate-900">{content.uploadCard.title}</span>
                   <span className="mt-0.5 block text-[11px] leading-snug text-slate-600">
-                    Silvio classifica PDF, foto, computi, fatture, DDT e contratti.
+                    {content.uploadCard.description}
                   </span>
                   <span className="mt-2 flex flex-wrap gap-1">
-                    {["Computo", "Foto/voce", "DDT", "Fatture"].map((label) => (
+                    {content.uploadCard.chips.map((label) => (
                       <span key={label} className="rounded-full bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 shadow-sm">
                         {label}
                       </span>
@@ -432,37 +495,19 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
 
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1.5">
-                Hub AI
+                {mode === "admin" ? "Hub AI Superadmin" : "Hub AI"}
               </p>
               <div className="grid grid-cols-2 gap-1.5">
-                <ActionCard
-                  icon={Inbox}
-                  title="Azioni AI"
-                  subtitle="Da approvare"
-                  tone="amber"
-                  onClick={() => handleAction("azioni_proposte")}
-                />
-                <ActionCard
-                  icon={Sparkles}
-                  title="Personas"
-                  subtitle="18 esperti AI"
-                  tone="orange"
-                  onClick={() => handleAction("personas_18")}
-                />
-                <ActionCard
-                  icon={Brain}
-                  title="Memoria"
-                  subtitle="Cosa sa di te"
-                  tone="emerald"
-                  onClick={() => handleAction("ai_memoria")}
-                />
-                <ActionCard
-                  icon={Calculator}
-                  title="Computo"
-                  subtitle="Preventivo AI"
-                  tone="blue"
-                  onClick={() => handleAction("import_computo")}
-                />
+                {content.hub.map((item) => (
+                  <ActionCard
+                    key={item.action}
+                    icon={item.icon}
+                    title={item.title}
+                    subtitle={item.subtitle}
+                    tone={item.tone}
+                    onClick={() => handleAction(item.action)}
+                  />
+                ))}
               </div>
             </div>
 
@@ -472,7 +517,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
             >
               <Search className="h-3.5 w-3.5 text-slate-500" />
-              <span className="text-xs text-slate-700 flex-1">Cerca clienti, cantieri, fatture…</span>
+              <span className="text-xs text-slate-700 flex-1">{content.searchPlaceholder}</span>
               <kbd className="text-[9px] px-1.5 py-0.5 rounded border bg-white font-mono">⌘K</kbd>
             </button>
 
