@@ -2,10 +2,12 @@ import { useMemo } from "react";
 import { TRAIT_LABELS, type TraitCode, type ProfiloTipoV5, type ReliabilityIndex } from "../types";
 import type { SyndromeResult } from "../lib/syndromes";
 import { SYNDROMES_V5_DATA } from "../lib/syndromesV5Data";
+import type { MappaInterioreResult } from "../lib/mappaInteriore";
 import { calculateMappaInteriore } from "../lib/mappaInteriore";
 import { getPersonalizedManagementTips, getPersonalizedClosingText } from "../lib/managementTipsV5";
 import { personalizzaTesto, getFascia, getTraitNarrative } from "../lib/traitNarrativesV5";
 import { PROFILI_TIPO_V5_EXTENDED } from "../lib/profiloTipoV5Extended";
+import type { CachedDerivedReport } from "../lib/reportCache";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, BrainCircuit, Compass, Heart, Lightbulb, ShieldAlert } from "lucide-react";
@@ -34,31 +36,39 @@ type RichReportSectionsProps = {
   syndromes: SyndromeResult[];
   profileType?: string;
   reliability?: ReliabilityIndex;
+  /** Precomputed cache from DB; if present, skip lib recompute. */
+  precomputed?: Partial<CachedDerivedReport> | null;
 };
 
-export function RichReportSections({ candidate, traits, syndromes, profileType }: RichReportSectionsProps) {
+export function RichReportSections({ candidate, traits, syndromes, profileType, precomputed }: RichReportSectionsProps) {
   const traitMap = traits as Record<TraitCode, number>;
 
   const mappaInteriore = useMemo(
-    () => calculateMappaInteriore(traitMap, candidate.nome, candidate.sesso ?? null, syndromes, candidate.eta ?? undefined),
-    [traitMap, candidate.nome, candidate.sesso, candidate.eta, syndromes],
-  );
+    () => precomputed?.mappa_interiore ?? calculateMappaInteriore(traitMap, candidate.nome, candidate.sesso ?? null, syndromes, candidate.eta ?? undefined),
+    [precomputed?.mappa_interiore, traitMap, candidate.nome, candidate.sesso, candidate.eta, syndromes],
+  ) as MappaInterioreResult | null;
 
   const tips = useMemo(() => {
+    if (precomputed?.management_tips && precomputed.management_tips.length > 0) {
+      return precomputed.management_tips.map((t) => ({ testo: t.testo, tip: { isPriorityOne: t.isPriorityOne } }));
+    }
     try {
       return getPersonalizedManagementTips(traitMap, candidate.nome, candidate.sesso ?? null, syndromes.map((s) => s.code));
     } catch {
       return [];
     }
-  }, [traitMap, candidate.nome, candidate.sesso, syndromes]);
+  }, [precomputed?.management_tips, traitMap, candidate.nome, candidate.sesso, syndromes]);
 
   const closing = useMemo(() => {
+    if (typeof precomputed?.management_closing === "string" && precomputed.management_closing.length > 0) {
+      return precomputed.management_closing;
+    }
     try {
       return getPersonalizedClosingText(candidate.nome, candidate.sesso ?? null);
     } catch {
       return "";
     }
-  }, [candidate.nome, candidate.sesso]);
+  }, [precomputed?.management_closing, candidate.nome, candidate.sesso]);
 
   const profileExtended = profileType ? PROFILI_TIPO_V5_EXTENDED[profileType as ProfiloTipoV5] : null;
 
@@ -205,12 +215,17 @@ export function RichReportSections({ candidate, traits, syndromes, profileType }
             .map((code) => {
               const value = Math.max(0, Math.min(100, Math.round(traitMap[code] || 0)));
               let testo = "";
-              try {
-                const fascia = getFascia(value);
-                const narrative = getTraitNarrative(code, fascia);
-                testo = narrative ? personalizzaTesto(narrative, candidate.nome, candidate.sesso ?? null) : "";
-              } catch {
-                testo = "";
+              const cached = precomputed?.trait_narratives?.[code];
+              if (cached?.testo) {
+                testo = cached.testo;
+              } else {
+                try {
+                  const fascia = getFascia(value);
+                  const narrative = getTraitNarrative(code, fascia);
+                  testo = narrative ? personalizzaTesto(narrative, candidate.nome, candidate.sesso ?? null) : "";
+                } catch {
+                  testo = "";
+                }
               }
               if (!testo) return null;
               const tone = value >= 65 ? "border-emerald-200 bg-emerald-50/40" : value >= 40 ? "border-amber-200 bg-amber-50/40" : "border-red-200 bg-red-50/40";

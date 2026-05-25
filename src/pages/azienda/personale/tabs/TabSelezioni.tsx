@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
@@ -8,6 +8,7 @@ import { buildTalentReportDecision, buildTalentReportPayload, buildTalentReportP
 import { PremiumReportButton } from "@/features/talent-profile/components/PremiumReportButton";
 import { RichReportSections } from "@/features/talent-profile/components/RichReportSections";
 import { HeroReportVisual } from "@/features/talent-profile/components/HeroReportVisual";
+import { CACHE_VERSION as REPORT_CACHE_VERSION, computeDerivedReport, type CachedDerivedReport } from "@/features/talent-profile/lib/reportCache";
 import { TRAIT_LABELS, type TraitCode } from "@/features/talent-profile/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,11 @@ type TalentReport = {
   improvements: string[];
   valleys: string[];
   generated_at: string;
+  mappa_interiore?: unknown | null;
+  management_tips?: unknown | null;
+  management_closing?: string | null;
+  trait_narratives?: unknown | null;
+  cache_version?: number | null;
 };
 
 type TalentAnswer = {
@@ -143,7 +149,7 @@ export function TabSelezioni() {
     queryFn: async () => {
       const { data, error } = await talentDb
         .from<TalentReport[]>("hr_talent_reports")
-        .select("id,company_id,candidate_id,assessment_version,reliability_index,control_unexpected_count,profile_type,traits_v5,macro_areas,role_requested,role_match,all_roles,syndromes_detected,strengths,improvements,valleys,generated_at")
+        .select("id,company_id,candidate_id,assessment_version,reliability_index,control_unexpected_count,profile_type,traits_v5,macro_areas,role_requested,role_match,all_roles,syndromes_detected,strengths,improvements,valleys,generated_at,mappa_interiore,management_tips,management_closing,trait_narratives,cache_version")
         .eq("company_id", companyId)
         .order("generated_at", { ascending: false });
 
@@ -720,6 +726,47 @@ function ReportDecisionDialog({
     red: "border-red-200 bg-red-50 text-red-800",
   }[decision.tone];
 
+  const cacheReady = (report.cache_version ?? 0) >= REPORT_CACHE_VERSION;
+  const precomputed: CachedDerivedReport | null = useMemo(() => {
+    if (!cacheReady) return null;
+    return {
+      mappa_interiore: (report.mappa_interiore as CachedDerivedReport["mappa_interiore"]) ?? null,
+      management_tips: ((report.management_tips as CachedDerivedReport["management_tips"]) ?? []) || [],
+      management_closing: typeof report.management_closing === "string" ? report.management_closing : "",
+      trait_narratives: (report.trait_narratives as CachedDerivedReport["trait_narratives"]) ?? {},
+    };
+  }, [cacheReady, report.mappa_interiore, report.management_tips, report.management_closing, report.trait_narratives]);
+
+  const wroteCacheRef = useRef(false);
+  useEffect(() => {
+    if (!open || cacheReady || wroteCacheRef.current) return;
+    wroteCacheRef.current = true;
+    const derived = computeDerivedReport({
+      traits: report.traits_v5,
+      candidateName: candidate.nome,
+      candidateSesso: null,
+      candidateEta: null,
+      syndromes: (report.syndromes_detected || []) as never,
+    });
+    void talentDb
+      .from("hr_talent_reports")
+      .update({
+        mappa_interiore: derived.mappa_interiore,
+        management_tips: derived.management_tips,
+        management_closing: derived.management_closing,
+        trait_narratives: derived.trait_narratives,
+        cache_version: REPORT_CACHE_VERSION,
+      })
+      .eq("id", report.id)
+      .then((res) => {
+        if (res?.error) {
+          // Cache write failure: log silently, lo schema legacy continua a funzionare.
+          console.warn("[talent-cache] write failed", res.error.message);
+          wroteCacheRef.current = false;
+        }
+      });
+  }, [open, cacheReady, report.id, report.traits_v5, report.syndromes_detected, candidate.nome]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] max-w-6xl overflow-y-auto">
@@ -758,6 +805,7 @@ function ReportDecisionDialog({
           reliability={report.reliability_index}
           targetTraits={buildTargetTraitsForRole(report.role_requested || candidate.ruolo_richiesto)}
           targetRoleLabel={report.role_requested || candidate.ruolo_richiesto}
+          precomputedMappa={precomputed?.mappa_interiore ?? null}
         />
 
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -901,6 +949,7 @@ function ReportDecisionDialog({
           syndromes={(report.syndromes_detected || []) as never}
           profileType={report.profile_type}
           reliability={report.reliability_index}
+          precomputed={precomputed}
         />
 
         <Card>

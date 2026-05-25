@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { TRAIT_LABELS, MACRO_AREA_TRAITS, type TraitCode } from "../types";
 import type { SyndromeResult } from "../lib/syndromes";
+import type { MappaInterioreResult } from "../lib/mappaInteriore";
 import { calculateMappaInteriore, getDimensioniChartData } from "../lib/mappaInteriore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,8 @@ type HeroReportVisualProps = {
   // Optional: target trait profile to overlay on radar (from role match)
   targetTraits?: Record<string, number>;
   targetRoleLabel?: string;
+  // Optional: precomputed mappa interiore from cache. If provided skip recompute.
+  precomputedMappa?: MappaInterioreResult | null;
 };
 
 const TRAIT_DISPLAY_ORDER: TraitCode[] = [
@@ -99,6 +102,7 @@ export function HeroReportVisual({
   reliability,
   targetTraits,
   targetRoleLabel,
+  precomputedMappa,
 }: HeroReportVisualProps) {
   const traitMap = traits as Record<TraitCode, number>;
 
@@ -111,10 +115,12 @@ export function HeroReportVisual({
     }));
   }, [traitMap, targetTraits]);
 
-  // 5D radar from Mappa Interiore
+  // 5D radar from Mappa Interiore (uses cache if available)
   const mappa = useMemo(
-    () => calculateMappaInteriore(traitMap, candidate.nome, candidate.sesso ?? null, syndromes, candidate.eta ?? undefined),
-    [traitMap, candidate.nome, candidate.sesso, candidate.eta, syndromes],
+    () =>
+      precomputedMappa ??
+      calculateMappaInteriore(traitMap, candidate.nome, candidate.sesso ?? null, syndromes, candidate.eta ?? undefined),
+    [precomputedMappa, traitMap, candidate.nome, candidate.sesso, candidate.eta, syndromes],
   );
 
   const radar5D = useMemo(() => {
