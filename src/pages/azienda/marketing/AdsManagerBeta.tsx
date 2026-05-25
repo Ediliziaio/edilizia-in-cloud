@@ -2607,6 +2607,18 @@ function KpiBar({
   // In BETA "Costo per commessa" è sempre 0 perché manca attribuzione live.
   // La mostriamo SOLO se totalJobs > 0 (cioè quando dati reali ci sono).
   const showCostPerJob = totalJobs > 0;
+
+  // MIGL: forecast mensile basato sul ritmo attuale.
+  // Esempio: oggi è il 10 del mese, ho speso 300€, allora forecast = 300 * (30/10) = 900€.
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const monthlySpendForecast = dayOfMonth > 0 ? Math.round((monthlySpend / dayOfMonth) * daysInMonth) : 0;
+  const forecastOverCap = monthlyCap > 0 && monthlySpendForecast > monthlyCap;
+
+  // MIGL: alert soft a 75% del cap (prima del 100% che fa auto-pause).
+  const spendingWarning = monthlyCap > 0 && spendPct >= 75 && spendPct < 100;
+  const spendingCritical = monthlyCap > 0 && spendPct >= 100;
   return (
     <Card className={cn(isEmpty && "border-dashed bg-white/60")}>
       <CardContent className="p-4">
@@ -2661,7 +2673,45 @@ function KpiBar({
               {formatEuro(monthlySpend)} / {formatEuro(monthlyCap)}
             </span>
           </div>
-          <Progress value={spendPct} className="h-2 bg-slate-100" indicatorClassName="bg-orange-500" />
+          <Progress
+            value={spendPct}
+            className="h-2 bg-slate-100"
+            indicatorClassName={cn(spendingCritical ? "bg-red-500" : spendingWarning ? "bg-amber-500" : "bg-orange-500")}
+          />
+          {/* MIGL: forecast + alert spending */}
+          {monthlyCap > 0 && monthlySpend > 0 && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className={cn(
+                "rounded-lg border p-2.5 text-xs",
+                forecastOverCap ? "border-red-200 bg-red-50/60 text-red-900" : "border-slate-200 bg-slate-50 text-slate-700",
+              )}>
+                <p className="font-semibold uppercase tracking-wider text-[10px] opacity-70">
+                  Forecast fine mese
+                </p>
+                <p className="mt-0.5 text-sm font-bold">
+                  ≈ {formatEuro(monthlySpendForecast)}
+                  {forecastOverCap && <span className="ml-1.5 text-[10px] font-normal">(sforerai il cap di {formatEuro(monthlySpendForecast - monthlyCap)})</span>}
+                </p>
+                <p className="mt-0.5 text-[10px] opacity-70">se mantieni ritmo {formatEuro(Math.round(monthlySpend / dayOfMonth))}/giorno</p>
+              </div>
+              <div className={cn(
+                "rounded-lg border p-2.5 text-xs",
+                spendingCritical ? "border-red-200 bg-red-50/60 text-red-900" :
+                spendingWarning ? "border-amber-200 bg-amber-50/60 text-amber-900" :
+                "border-emerald-200 bg-emerald-50/40 text-emerald-900",
+              )}>
+                <p className="font-semibold uppercase tracking-wider text-[10px] opacity-70">
+                  {spendingCritical ? "⚠️ Cap raggiunto" : spendingWarning ? "🟡 Vicino al cap" : "✓ Sotto controllo"}
+                </p>
+                <p className="mt-0.5 text-sm font-bold">{spendPct}% usato</p>
+                <p className="mt-0.5 text-[10px] opacity-70">
+                  {spendingCritical ? "Auto-pause attiva" :
+                   spendingWarning ? `Mancano ${formatEuro(monthlyCap - monthlySpend)} prima del cap` :
+                   `${formatEuro(monthlyCap - monthlySpend)} ancora disponibili`}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
