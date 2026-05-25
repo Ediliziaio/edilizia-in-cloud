@@ -195,6 +195,63 @@ const NO_PERMISSIONS: Permissions = {
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
+// Permessi del commercialista quando opera su un'azienda cliente delegata
+// (currentAccessRole === 'accountant'). Coerente con
+// COMMERCIALISTA_ALLOWED_URLS in CompanyLayout: vede cantieri, magazzino,
+// controllo gestione, finanza, persone — non marketing/vendita/automazioni.
+// Edit per default = false (sola lettura). Per access_mode='operational'
+// in futuro si potranno abilitare i canEdit*.
+const COMMERCIALISTA_PERMISSIONS: Permissions = {
+  canViewDashboard: true,
+  canViewCruscotto: true,
+  canViewControlloGestione: true,
+  // Cantieri & Lavori
+  canViewOrders: true, canEditOrders: false,
+  canViewWarehouse: true, canEditWarehouse: false,
+  canViewCalendar: true,
+  canViewCustomers: true, canEditCustomers: false,
+  canViewSubappaltatori: true,
+  canViewSicurezzaCantiere: true,
+  canViewGiornaleLavori: true,
+  canViewInterventi: true,
+  canViewManutenzione: true,
+  canViewTickets: true, canEditTickets: false,
+  // Finanza
+  canViewBilling: true,
+  canViewScadenzario: true,
+  canViewPrimaNota: true,
+  canViewCosts: true,
+  canViewPrevisionale: true,
+  canViewTesoreria: true,
+  canViewForecast: true,
+  // Persone (lettura HR)
+  canViewPersone: true,
+  canViewEmployees: true,
+  // Settings: read-only profile per vedere anagrafica azienda
+  canViewSettingsProfile: true,
+  canViewSettings: true,
+  // ESPLICITAMENTE NO marketing / automazioni / vendita
+  canViewMarketing: false, canEditMarketing: false,
+  canViewMarketingDashboard: false, canViewMarketingContacts: false,
+  canEditMarketingContacts: false, canViewMarketingOpportunities: false,
+  canEditMarketingOpportunities: false, canViewMarketingActivities: false,
+  canViewMarketingAppointments: false, canViewMarketingAutomations: false,
+  canViewMarketingAiAgent: false, canViewMarketingEmail: false,
+  canViewMarketingWhatsapp: false, canViewMarketingReports: false,
+  canViewSmsMarketing: false,
+  canViewSalesOs: false,
+  canViewAutomazioni: false,
+  canViewRenderAi: false,
+  // Settings amministrativi → no
+  canViewUsers: false,
+  canEditSettingsProfile: false,
+  canViewSettingsOrders: false, canEditSettingsOrders: false,
+  canViewSettingsCustomization: false, canEditSettingsCustomization: false,
+  canViewSettingsPeople: false, canEditSettingsPeople: false,
+  canViewSettingsSecurity: false,
+  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: mappa la riga DB `staff_permissions` → oggetto Permissions.
 // Estratto per essere riusato sia per l'utente loggato sia per "Visualizza come"
@@ -447,6 +504,16 @@ export function usePermissions(): Permissions {
   // Super admin and selected-company admin have all permissions.
   if (role === "super_admin" || currentAccessRole === "company_admin") {
     return ALL_PERMISSIONS;
+  }
+
+  // Commercialista: opera su un'azienda cliente delegata via
+  // accountant_company_access → set di permessi limitati ma sufficienti
+  // per le aree concesse (cantieri, finanza, controllo gestione, persone).
+  // currentAccessRole='accountant' viene risolto da resolveSelectedAccessRole
+  // come fallback al globalRole quando access_role della company selezionata
+  // non è in COMPANY_ACCESS_ROLES (caso delle nostre access_role='accountant').
+  if (role === "accountant" || currentAccessRole === "accountant") {
+    return COMMERCIALISTA_PERMISSIONS;
   }
 
   // Utente multi-azienda senza company selezionata: fail-safe durante il fetch,
