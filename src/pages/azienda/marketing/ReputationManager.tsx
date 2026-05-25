@@ -582,7 +582,13 @@ export default function ReputationManager() {
   });
 
   const metaConnected = integrations.some((integration) => integration.provider === "meta" && integration.status === "connected");
-  const googleBusinessProfileReady = false;
+  // FIX P1: era hardcoded a false → mostrava sempre "Setup richiesto" anche dopo
+  // OAuth Google. Ora derivato dalle integrazioni reali (provider "google" o "google_business").
+  const googleBusinessProfileReady = integrations.some(
+    (integration) =>
+      (integration.provider === "google" || integration.provider === "google_business" || integration.provider === "gbp") &&
+      integration.status === "connected",
+  );
 
   const { data: linkedOrders = [] } = useQuery({
     queryKey: ["reputation-linked-orders", companyId],
@@ -677,6 +683,19 @@ export default function ReputationManager() {
           .maybeSingle(),
       ]);
 
+      // FIX P1: prima logghiamo TUTTI gli errori (diagnostica completa), poi se
+      // ALMENO una query non-fallback è fallita lanciamo per attivare il fallback locale.
+      const sourceErrors: Array<[string, unknown]> = [
+        ["reputation_campaigns", campaignResult.error],
+        ["reputation_reviews", reviewResult.error],
+        ["reputation_events", eventResult.error],
+        ["reputation_automation_settings", automationResult.error],
+      ];
+      for (const [source, err] of sourceErrors) {
+        if (err && !isSchemaFallbackError(err)) {
+          console.warn(`[reputation] fonte ${source} errore:`, (err as { message?: string }).message ?? err);
+        }
+      }
       const firstError = campaignResult.error ?? reviewResult.error ?? eventResult.error ?? automationResult.error;
       if (firstError) throw firstError;
 
@@ -944,8 +963,24 @@ export default function ReputationManager() {
       toast.error("Inserisci un nome per la richiesta recensioni.");
       return;
     }
-    if (!messageTemplate.trim()) {
+    const trimmedTemplate = messageTemplate.trim();
+    if (!trimmedTemplate) {
       toast.error("Inserisci un messaggio per la richiesta recensioni.");
+      return;
+    }
+    // FIX P1: template senza {{nome}} = invio impersonale ("Ciao , grazie...") — UX
+    // pessima. Forziamo placeholder o conferma esplicita dell'utente.
+    if (!/\{\{\s*nome\s*\}\}/i.test(trimmedTemplate)) {
+      toast.warning("Manca il placeholder {{nome}}", {
+        description: "Il messaggio NON sarà personalizzato col nome del destinatario. Aggiungi {{nome}} dove vuoi che appaia il nome.",
+        duration: 6000,
+      });
+      return;
+    }
+    if (trimmedTemplate.length < 20) {
+      toast.warning("Messaggio molto corto", {
+        description: "Aggiungi un ringraziamento e il motivo per cui chiedi la recensione (almeno 20 caratteri).",
+      });
       return;
     }
     const targetLabel = selectedTargetOrder
