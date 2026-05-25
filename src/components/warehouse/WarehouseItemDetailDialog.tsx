@@ -61,6 +61,7 @@ interface WarehouseItemDetailDialogProps {
   getSupplierName: (supplierId: string | null) => string | null;
   isUpdating: boolean;
   stockMatch?: { id: string; name: string; quantity: number } | null;
+  readOnly?: boolean;
 }
 
 type WorkflowPhase = "not_started" | "received" | "shipped" | "delivered" | "installed";
@@ -141,6 +142,7 @@ export default function WarehouseItemDetailDialog({
   getSupplierName,
   isUpdating,
   stockMatch,
+  readOnly = false,
 }: WarehouseItemDetailDialogProps) {
   const [editingNotes, setEditingNotes] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -261,29 +263,42 @@ export default function WarehouseItemDetailDialog({
                   </p>
                 )}
               </div>
-              <Select
-                value={item.status}
-                onValueChange={(v) => onStatusChange(item.id, v as OrderItemStatus)}
-                disabled={isUpdating}
-              >
-                <SelectTrigger
+              {readOnly ? (
+                <Badge
+                  variant="outline"
                   className={cn(
-                    "w-32 h-8 text-xs font-medium shrink-0",
+                    "h-8 shrink-0 px-3 text-xs font-medium",
                     (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).bgColor,
-                    (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).color
+                    (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).color,
                   )}
-                  aria-label="Modifica stato articolo"
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                    <SelectItem key={status} value={status}>
-                      {config.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  {(STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).label}
+                </Badge>
+              ) : (
+                <Select
+                  value={item.status}
+                  onValueChange={(v) => onStatusChange(item.id, v as OrderItemStatus)}
+                  disabled={isUpdating}
+                >
+                  <SelectTrigger
+                    className={cn(
+                      "w-32 h-8 text-xs font-medium shrink-0",
+                      (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).bgColor,
+                      (STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare).color
+                    )}
+                    aria-label="Modifica stato articolo"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                      <SelectItem key={status} value={status}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             {/* Urgency banner */}
@@ -411,17 +426,19 @@ export default function WarehouseItemDetailDialog({
                       {receipts.length} moviment{receipts.length === 1 ? "o" : "i"}
                     </Badge>
                   )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setReceiveOpen(true)}
-                    disabled={isUpdating}
-                  >
-                    <FileText className="h-3 w-3 mr-1" />
-                    Carica DDT
-                  </Button>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setReceiveOpen(true)}
+                      disabled={isUpdating}
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      Carica DDT
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -433,17 +450,19 @@ export default function WarehouseItemDetailDialog({
                     Nessun DDT collegato a questo articolo. Carica qui il DDT di arrivo merce,
                     collega il documento all'ordine e registra quantità, magazzino e allegati.
                   </p>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="w-full sm:w-auto"
-                    onClick={() => setReceiveOpen(true)}
-                    disabled={isUpdating}
-                  >
-                    <FileText className="h-4 w-4 mr-2" />
-                    Carica DDT ricezione
-                  </Button>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => setReceiveOpen(true)}
+                      disabled={isUpdating}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Carica DDT ricezione
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -569,7 +588,7 @@ export default function WarehouseItemDetailDialog({
                   <StickyNote className="h-3.5 w-3.5" />
                   Note
                 </span>
-                {!editingNotes && onUpdateNotes && (
+                {!readOnly && !editingNotes && onUpdateNotes && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -620,7 +639,12 @@ export default function WarehouseItemDetailDialog({
 
           {/* Sticky footer CTA */}
           <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70 px-6 py-3 shrink-0">
-            {canReceive && (
+            {readOnly ? (
+              <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium">
+                <FileText className="h-4 w-4 shrink-0" />
+                <span className="text-center">Vista consulente: dati consultabili senza azioni operative.</span>
+              </div>
+            ) : canReceive && (
               <Button
                 className="w-full gap-2 h-10"
                 onClick={() => setReceiveOpen(true)}
@@ -630,7 +654,7 @@ export default function WarehouseItemDetailDialog({
                 Ricevi Merce in Magazzino
               </Button>
             )}
-            {isReceived && (
+            {!readOnly && isReceived && (
               <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-success/10 border border-success/30 text-success text-sm font-medium">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span className="text-center">
@@ -638,7 +662,7 @@ export default function WarehouseItemDetailDialog({
                 </span>
               </div>
             )}
-            {isInTransit && (
+            {!readOnly && isInTransit && (
               <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-warning/10 border border-warning/30 text-warning text-sm font-medium">
                 <Truck className="h-4 w-4 shrink-0" />
                 <span className="text-center">
@@ -646,7 +670,7 @@ export default function WarehouseItemDetailDialog({
                 </span>
               </div>
             )}
-            {canInstall && (
+            {!readOnly && canInstall && (
               <Button
                 className="w-full gap-2 h-10 bg-warning text-warning-foreground hover:bg-warning/90"
                 onClick={() => setInstallOpen(true)}
@@ -656,7 +680,7 @@ export default function WarehouseItemDetailDialog({
                 Registra Installazione (foto prima/dopo)
               </Button>
             )}
-            {isInstalled && (
+            {!readOnly && isInstalled && (
               <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-md bg-success/10 border border-success/30 text-success text-sm font-medium">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span>Installazione completata</span>
@@ -667,18 +691,22 @@ export default function WarehouseItemDetailDialog({
       </Dialog>
 
       {/* Modali workflow */}
-      <ReceiveGoodsModal
-        open={receiveOpen}
-        onOpenChange={setReceiveOpen}
-        orderItemId={item.id}
-        orderItemName={item.name}
-      />
-      <InstallationPhotoCaptureModal
-        open={installOpen}
-        onOpenChange={setInstallOpen}
-        orderItemId={item.id}
-        orderItemName={item.name}
-      />
+      {!readOnly && (
+        <>
+          <ReceiveGoodsModal
+            open={receiveOpen}
+            onOpenChange={setReceiveOpen}
+            orderItemId={item.id}
+            orderItemName={item.name}
+          />
+          <InstallationPhotoCaptureModal
+            open={installOpen}
+            onOpenChange={setInstallOpen}
+            orderItemId={item.id}
+            orderItemName={item.name}
+          />
+        </>
+      )}
     </>
   );
 }

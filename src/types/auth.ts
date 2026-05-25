@@ -10,6 +10,7 @@ export type AppRole =
   | "salesperson"
   | "call_center"
   | "referrer"
+  | "accountant"
   | "platform_manager"
   | "platform_sales"
   | "platform_support"

@@ -43,9 +43,16 @@ interface WarehouseItemRowProps {
   // M9 — dropdown sezione mobile
   sections?: WarehouseSection[];
   onSectionChange?: (itemId: string, sectionId: string | null) => void;
+  readOnly?: boolean;
 }
 
-function ItemNotePopover({ item, onUpdateNotes }: { item: WarehouseItem; onUpdateNotes?: (itemId: string, notes: string | null) => void }) {
+function ItemNotePopover({
+  item,
+  onUpdateNotes,
+}: {
+  item: WarehouseItem;
+  onUpdateNotes?: (itemId: string, notes: string | null) => void;
+}) {
   const [noteText, setNoteText] = useState(item.notes || "");
   const [open, setOpen] = useState(false);
 
@@ -94,6 +101,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
   isSupplierGroup,
   sections = [],
   onSectionChange,
+  readOnly = false,
 }: WarehouseItemRowProps) {
   const statusConfig = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.da_ordinare;
 
@@ -110,11 +118,13 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
       }}
     >
       <div className="flex items-start gap-2 min-w-0 flex-1 sm:items-center sm:gap-3">
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={() => onToggleSelection(item.id)}
-          className="mt-0.5 sm:mt-0"
-        />
+        {!readOnly && (
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => onToggleSelection(item.id)}
+            className="mt-0.5 sm:mt-0"
+          />
+        )}
         <Badge variant="secondary" className="font-mono text-xs shrink-0">
           {item.quantity || 1}x
         </Badge>
@@ -145,7 +155,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
             </p>
           )}
           {/* M9/B7 — dropdown sezione visibile solo su mobile (la mappa è hidden su mobile) */}
-          {onSectionChange && sections.length > 0 && (
+          {!readOnly && onSectionChange && sections.length > 0 && (
             <div className="flex sm:hidden items-center gap-1.5 mt-1" onClick={e => e.stopPropagation()}>
               <MapPin className="h-3 w-3 text-muted-foreground shrink-0" />
               <Select
@@ -168,29 +178,42 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
       </div>
 
       <div className="flex w-full items-center justify-between gap-2 pl-8 sm:w-auto sm:justify-end sm:pl-0 sm:shrink-0" onClick={(e) => e.stopPropagation()}>
-        <ItemNotePopover item={item} onUpdateNotes={onUpdateNotes} />
-        <Select
-          value={item.status}
-          onValueChange={(value) => onStatusChange(item.id, value as OrderItemStatus)}
-          disabled={isUpdating}
-        >
-          <SelectTrigger
+        {!readOnly && <ItemNotePopover item={item} onUpdateNotes={onUpdateNotes} />}
+        {readOnly ? (
+          <Badge
+            variant="outline"
             className={cn(
-              "h-8 min-w-[150px] flex-1 border text-xs font-semibold sm:w-[156px] sm:flex-none [&>span]:line-clamp-1",
+              "min-w-[132px] justify-center border text-xs font-semibold",
               statusConfig.bgColor,
-              statusConfig.color
+              statusConfig.color,
             )}
           >
-            <span className="truncate">{statusConfig.label}</span>
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-              <SelectItem key={status} value={status}>
-                {config.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            {statusConfig.label}
+          </Badge>
+        ) : (
+          <Select
+            value={item.status}
+            onValueChange={(value) => onStatusChange(item.id, value as OrderItemStatus)}
+            disabled={isUpdating}
+          >
+            <SelectTrigger
+              className={cn(
+                "h-8 min-w-[150px] flex-1 border text-xs font-semibold sm:w-[156px] sm:flex-none [&>span]:line-clamp-1",
+                statusConfig.bgColor,
+                statusConfig.color
+              )}
+            >
+              <span className="truncate">{statusConfig.label}</span>
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                <SelectItem key={status} value={status}>
+                  {config.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     </div>
   );

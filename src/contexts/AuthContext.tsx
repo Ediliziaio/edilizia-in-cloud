@@ -505,6 +505,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "platform_marketing",
         "platform_implementation",
         "multi_company_user",
+        "accountant",
         "referrer",
         "salesperson",
         "call_center",

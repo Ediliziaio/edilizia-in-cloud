@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AnalyticsProvider } from "@/contexts/AnalyticsProvider";
 import { Force2FAGuard } from "@/components/auth/Force2FAGuard";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 import { BillingModeProvider } from "@/contexts/BillingModeContext";
@@ -173,6 +174,8 @@ const DiventaPartner   = lazy(() => import("@/pages/DiventaPartner"));
 const PianificaMigrazione = lazy(() => import("@/pages/PianificaMigrazione"));
 const LandingAIImprenditoreEdile = lazy(() => import("@/app/landing/ai-imprenditore-edile/page"));
 const AiEdilizia = lazy(() => import("@/app/ai-edilizia/page"));
+const PartnerPayoutPreview = lazy(() => import("@/pages/partner/PartnerPayoutPreview"));
+const AccountantPortal = lazy(() => import("@/pages/accountant/AccountantPortal"));
 
 // Funzionalità sub-pages
 const GestioneCantieri       = lazy(() => import("@/pages/funzionalita/GestioneCantieri"));
@@ -353,10 +356,10 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
-  /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente)(\/|$)/;
 
 function canTrackMarketingPage(pathname: string) {
   if (typeof window === "undefined") return false;
@@ -543,6 +546,78 @@ const App = () => (
               <Route path="/pianifica-migrazione" element={<PianificaMigrazione />} />
               <Route path="/landing/ai-imprenditore-edile" element={<LandingAIImprenditoreEdile />} />
               <Route path="/ai-edilizia" element={<AiEdilizia />} />
+              <Route
+                path="/dev/partner"
+                element={import.meta.env.DEV ? <PartnerPayoutPreview /> : <NotFound />}
+              />
+              <Route
+                path="/dev/partner/:section"
+                element={import.meta.env.DEV ? <PartnerPayoutPreview /> : <NotFound />}
+              />
+              <Route
+                path="/commercialista"
+                element={
+                  import.meta.env.DEV ? (
+                    <AccountantPortal />
+                  ) : (
+                    <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
+                      <AccountantPortal />
+                    </ProtectedRoute>
+                  )
+                }
+              />
+              <Route
+                path="/commercialista/azienda/:companyId"
+                element={
+                  import.meta.env.DEV ? (
+                    <AccountantPortal />
+                  ) : (
+                    <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
+                      <AccountantPortal />
+                    </ProtectedRoute>
+                  )
+                }
+              />
+              <Route
+                path="/commercialista/azienda/:companyId/:area"
+                element={
+                  import.meta.env.DEV ? (
+                    <AccountantPortal />
+                  ) : (
+                    <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
+                      <AccountantPortal />
+                    </ProtectedRoute>
+                  )
+                }
+              />
+              <Route
+                path="/commercialista/:section"
+                element={
+                  import.meta.env.DEV ? (
+                    <AccountantPortal />
+                  ) : (
+                    <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
+                      <AccountantPortal />
+                    </ProtectedRoute>
+                  )
+                }
+              />
+              <Route
+                path="/dev/commercialista"
+                element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
+              />
+              <Route
+                path="/dev/commercialista/azienda/:companyId"
+                element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
+              />
+              <Route
+                path="/dev/commercialista/azienda/:companyId/:area"
+                element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
+              />
+              <Route
+                path="/dev/commercialista/:section"
+                element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
+              />
 
               {/* Root — subdomain-aware redirect */}
               <Route path="/" element={<SubdomainRedirect />} />

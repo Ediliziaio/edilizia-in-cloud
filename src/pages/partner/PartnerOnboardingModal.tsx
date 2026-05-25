@@ -10,8 +10,26 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
+const partnerSignContract = supabase.rpc as unknown as (
+  fn: "partner_sign_referral_contract",
+  args: {
+    p_signed_name: string;
+    p_ip_address: string;
+    p_user_agent: string;
+    p_contract_version: string;
+  },
+) => ReturnType<typeof supabase.rpc>;
+
+interface PartnerOnboardingReferrer {
+  id: string;
+  name: string;
+  commission_type: string;
+  commission_value: number;
+  payout_details: unknown;
+}
+
 interface Props {
-  referrer: any;
+  referrer: PartnerOnboardingReferrer;
 }
 
 export function PartnerOnboardingModal({ referrer }: Props) {
@@ -34,25 +52,12 @@ export function PartnerOnboardingModal({ referrer }: Props) {
         ip = data.ip;
       } catch { /* storage non disponibile — silenzioso */ }
 
-      const signatureData = {
-        signed_name:      referrer.name,
-        signed_at:        new Date().toISOString(),
-        ip_address:       ip,
-        user_agent:       navigator.userAgent,
-        contract_version: "1.0",
-      };
-
-      const { error } = await supabase
-        .from("referrers")
-        .update({
-          has_accepted_terms: true,
-          terms_accepted_at:  new Date().toISOString(),
-          payout_details: {
-            ...((referrer.payout_details as any) || {}),
-            contract_signature: signatureData,
-          },
-        })
-        .eq("id", referrer.id);
+      const { error } = await partnerSignContract("partner_sign_referral_contract", {
+        p_signed_name: referrer.name,
+        p_ip_address: ip,
+        p_user_agent: navigator.userAgent,
+        p_contract_version: "1.0",
+      });
       if (error) throw error;
 
       // Invia notifica welcome
@@ -64,9 +69,10 @@ export function PartnerOnboardingModal({ referrer }: Props) {
       }).catch(() => {});
 
       queryClient.invalidateQueries({ queryKey: ["my-referrer", user?.id] });
-      toast.success("Contratto firmato! Benvenuto nel Programma Partner.");
-    } catch (err: any) {
-      toast.error("Errore", { description: err.message });
+      queryClient.invalidateQueries({ queryKey: ["my-referrer-full", user?.id] });
+      toast.success("Contratto firmato e inviato per approvazione.");
+    } catch (err) {
+      toast.error("Errore", { description: err instanceof Error ? err.message : "Errore imprevisto" });
     } finally {
       setLoading(false);
     }

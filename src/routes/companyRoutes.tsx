@@ -1,5 +1,5 @@
-import { lazy } from "react";
-import { Route, Navigate, useParams } from "react-router-dom";
+import { lazy, type ReactNode } from "react";
+import { Route, Navigate, useLocation, useParams } from "react-router-dom";
 
 /** Redirect /azienda/interventi/:id → /azienda/assistenza/:id (unificazione) */
 function InterventoDetailRedirect() {
@@ -16,17 +16,86 @@ function InterventoChiusuraRedirect() {
 /** Redirect legacy /azienda/commesse/* → /azienda/ordini/* */
 function LegacyCommessaRedirect() {
   const { id } = useParams();
-  return <Navigate to={id ? `/azienda/ordini/${id}` : "/azienda/ordini"} replace />;
+  const location = useLocation();
+  return <Navigate to={`${id ? `/azienda/ordini/${id}` : "/azienda/ordini"}${location.search}`} replace />;
 }
 
 function LegacyCommessaDiaryRedirect() {
   const { id } = useParams();
-  return <Navigate to={id ? `/azienda/ordini/${id}/diario` : "/azienda/ordini"} replace />;
+  const location = useLocation();
+  return <Navigate to={`${id ? `/azienda/ordini/${id}/diario` : "/azienda/ordini"}${location.search}`} replace />;
 }
 
 function LegacyCommessaEditRedirect() {
   const { id } = useParams();
-  return <Navigate to={id ? `/azienda/ordini/${id}/modifica` : "/azienda/ordini"} replace />;
+  const location = useLocation();
+  return <Navigate to={`${id ? `/azienda/ordini/${id}/modifica` : "/azienda/ordini"}${location.search}`} replace />;
+}
+
+function addSearch(path: string, search: string) {
+  if (!search) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}${search.replace(/^\?/, "")}`;
+}
+
+function CommercialistaWriteGuard({
+  children,
+  fallback,
+}: {
+  children: ReactNode;
+  fallback: string;
+}) {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  if (searchParams.get("commercialistaMode") === "1") {
+    return <Navigate to={addSearch(fallback, location.search)} replace />;
+  }
+  return <>{children}</>;
+}
+
+function CommercialistaPermissionScope({
+  permission,
+  children,
+}: {
+  permission: Parameters<typeof withCompanyPermission>[0];
+  children: ReactNode;
+}) {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  if (searchParams.get("commercialistaMode") === "1") {
+    return <>{children}</>;
+  }
+  return <>{withCompanyPermission(permission, children)}</>;
+}
+
+function withCompanyPermissionOrCommercialista(
+  permission: Parameters<typeof withCompanyPermission>[0],
+  element: ReactNode,
+) {
+  return (
+    <CommercialistaPermissionScope permission={permission}>
+      {element}
+    </CommercialistaPermissionScope>
+  );
+}
+
+function CommercialistaOrderEditGuard({ children }: { children: ReactNode }) {
+  const { id } = useParams();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  if (searchParams.get("commercialistaMode") === "1") {
+    return <Navigate to={addSearch(id ? `/azienda/ordini/${id}` : "/azienda/ordini", location.search)} replace />;
+  }
+  return <>{children}</>;
+}
+
+function CommercialistaDocumentEditorGuard({ children }: { children: ReactNode }) {
+  const { id } = useParams();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  if (searchParams.get("commercialistaMode") === "1") {
+    return <Navigate to={addSearch(id ? `/azienda/documenti/${id}/dettaglio` : "/azienda/documenti", location.search)} replace />;
+  }
+  return <>{children}</>;
 }
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { FeatureRoute } from "@/components/auth/FeatureRoute";
@@ -386,14 +455,14 @@ export default function CompanyRoutesContainer() {
         <Route path="commesse/:id" element={<LegacyCommessaRedirect />} />
         <Route path="commesse/:id/diario" element={<LegacyCommessaDiaryRedirect />} />
         <Route path="commesse/:id/modifica" element={<LegacyCommessaEditRedirect />} />
-        <Route path="ordini" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>)} />
-        <Route path="ordini/nuovo" element={withCompanyPermission("canEditOrders", <ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary>)} />
-        <Route path="ordini/nuovo-lavoro-appaltatore" element={withCompanyPermission("canEditOrders", <FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute>)} />
-        <Route path="ordini/:id" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>)} />
-        <Route path="ordini/:id/diario" element={withCompanyPermission("canViewOrders", <ErrorBoundary title="Errore nel diario commessa"><OrderDiaryPage /></ErrorBoundary>)} />
-        <Route path="ordini/:id/modifica" element={withCompanyPermission("canEditOrders", <EditOrder />)} />
-        <Route path="magazzino" element={withCompanyPermission("canViewWarehouse", <Warehouse />)} />
-        <Route path="magazzino/gestione" element={withCompanyPermission("canEditWarehouse", <WarehouseManager />)} />
+        <Route path="ordini" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel caricamento commesse"><OrdersList /></ErrorBoundary>)} />
+        <Route path="ordini/nuovo" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><ErrorBoundary title="Errore nella creazione commessa"><CreateOrder /></ErrorBoundary></CommercialistaWriteGuard>)} />
+        <Route path="ordini/nuovo-lavoro-appaltatore" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaWriteGuard fallback="/azienda/ordini"><FeatureRoute featureKey="appaltatore_module"><ErrorBoundary title="Errore nella creazione lavoro appaltatore"><CreateLavoroAppaltatore /></ErrorBoundary></FeatureRoute></CommercialistaWriteGuard>)} />
+        <Route path="ordini/:id" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>)} />
+        <Route path="ordini/:id/diario" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel diario commessa"><OrderDiaryPage /></ErrorBoundary>)} />
+        <Route path="ordini/:id/modifica" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaOrderEditGuard><EditOrder /></CommercialistaOrderEditGuard>)} />
+        <Route path="magazzino" element={withCompanyPermissionOrCommercialista("canViewWarehouse", <Warehouse />)} />
+        <Route path="magazzino/gestione" element={withCompanyPermissionOrCommercialista("canEditWarehouse", <CommercialistaWriteGuard fallback="/azienda/magazzino"><WarehouseManager /></CommercialistaWriteGuard>)} />
         <Route path="calendario" element={withCompanyPermission("canViewCalendar", <ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>)} />
         <Route path="clienti" element={withCompanyPermission("canViewCustomers", <CustomersList />)} />
         <Route path="clienti/nuovo" element={withCompanyPermission("canEditCustomers", <CreateCustomer />)} />
@@ -460,21 +529,21 @@ export default function CompanyRoutesContainer() {
         <Route path="scadenzario" element={withCompanyPermission("canViewScadenzario", <ErrorBoundary title="Errore nel caricamento scadenzario"><FeatureRoute featureKey="fatturazione"><BillingModeGuard requiredMode="external"><Scadenzario /></BillingModeGuard></FeatureRoute></ErrorBoundary>)} />
 
         {/* Native billing routes — gated: documenti (core) + billing mode native */}
-        <Route path="documenti" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>)} />
-        <Route path="documenti/nuovo" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/nuovo" element={withCompanyPermissionOrCommercialista("canViewBilling", <CommercialistaWriteGuard fallback="/azienda/documenti"><FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaWriteGuard>)} />
         <Route path="documenti/cassetto-sdi" element={<Navigate to="/azienda/documenti?tab=sdi" replace />} />
-        <Route path="documenti/fatture-ricevute" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/fatture-ricevute" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
         <Route path="documenti/incassi" element={<Navigate to="/azienda/documenti?tab=incassi" replace />} />
-        <Route path="documenti/registro-iva" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/registro-iva" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/anagrafiche" element={<Navigate to="/azienda/documenti?tab=rubrica" replace />} />
-        <Route path="documenti/anagrafiche/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/anagrafiche/:id" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><AnagraficaDetail /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/proforma" element={<Navigate to="/azienda/documenti?tipo=proforma" replace />} />
         <Route path="documenti/preventivi/pipeline" element={<Navigate to="/azienda/documenti?tipo=preventivo" replace />} />
         <Route path="documenti/note-credito" element={<Navigate to="/azienda/documenti?tipo=nota_credito" replace />} />
-        <Route path="documenti/report" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard></FeatureRoute>)} />
-        <Route path="documenti/:id/dettaglio" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard></FeatureRoute>)} />
-        <Route path="documenti/:id" element={withCompanyPermission("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/report" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><ReportFatturazione /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/:id/dettaglio" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentoDetail /></BillingModeGuard></FeatureRoute>)} />
+        <Route path="documenti/:id" element={withCompanyPermissionOrCommercialista("canViewBilling", <CommercialistaDocumentEditorGuard><FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaDocumentEditorGuard>)} />
 
         {/* Prima nota — gated: tesoreria (stesso dominio finanziario) */}
         <Route path="prima-nota" element={withCompanyPermission("canViewPrimaNota", <ErrorBoundary title="Errore nel caricamento prima nota"><FeatureRoute featureKey="tesoreria"><PrimaNota /></FeatureRoute></ErrorBoundary>)} />

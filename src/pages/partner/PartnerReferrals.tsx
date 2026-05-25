@@ -46,7 +46,7 @@ export default function PartnerReferrals() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
 
-  const { data: referrer } = useQuery({
+  const { data: referrer, isLoading: isReferrerLoading } = useQuery({
     queryKey: ["my-referrer-referrals", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
@@ -63,7 +63,7 @@ export default function PartnerReferrals() {
     queryKey: ["partner-referral-conversions", referrer?.id],
     enabled: !!referrer?.id,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("referral_conversions")
         .select("id, company_id, status, revenue, commission_amount, fraud_status, created_at, companies(name,status,subscription_plan_id)")
         .eq("referrer_id", referrer!.id)
@@ -89,6 +89,24 @@ export default function PartnerReferrals() {
     const revenue = referrals.reduce((sum, r) => sum + Number(r.revenue || 0), 0);
     return { paying, pending, revenue };
   }, [referrals]);
+
+  if (isReferrerLoading) {
+    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  if (!referrer) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Users className="h-12 w-12 mx-auto mb-4 opacity-40" />
+            <h1 className="text-xl font-semibold text-foreground">Referenze non disponibili</h1>
+            <p className="mt-2 text-sm">Il tuo account non è ancora associato a un profilo partner attivo.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-6 max-w-6xl mx-auto">

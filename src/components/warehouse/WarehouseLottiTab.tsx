@@ -105,7 +105,11 @@ function ScadenzaBadge({ data }: { data: string | null }) {
   return <Badge variant={variant} className="text-[10px]">{label}</Badge>;
 }
 
-export default function WarehouseLottiTab() {
+interface WarehouseLottiTabProps {
+  readOnly?: boolean;
+}
+
+export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTabProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -218,6 +222,7 @@ export default function WarehouseLottiTab() {
   });
 
   const handleCreate = async () => {
+    if (readOnly) return;
     // Guard interno contro double-submit: prima il button era `disabled={isSaving}`
     // ma tra il primo click e il setIsSaving(true) c'è una micro-finestra in cui
     // un doppio click ravvicinato passa entrambi → crea 2 lotti duplicati.
@@ -308,9 +313,11 @@ export default function WarehouseLottiTab() {
           <h2 className="font-semibold text-lg">Lotti</h2>
           <Badge variant="outline">{lotti.length}</Badge>
         </div>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Nuovo lotto
-        </Button>
+        {!readOnly && (
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" aria-hidden="true" /> Nuovo lotto
+          </Button>
+        )}
       </div>
 
       {/* Expiry alerts */}
@@ -352,9 +359,11 @@ export default function WarehouseLottiTab() {
                 Tieni traccia di numeri lotto, scadenze, fornitori e magazzino per ogni materiale.
               </p>
             </div>
-            <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Crea primo lotto
-            </Button>
+            {!readOnly && (
+              <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" aria-hidden="true" /> Crea primo lotto
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -385,16 +394,18 @@ export default function WarehouseLottiTab() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setAssignLottoId(lotto.id)}
-                          aria-label="Assegna seriali al lotto"
-                          title="Assegna seriali al lotto"
-                        >
-                          <ScanLine className="h-3.5 w-3.5 text-orange-600" />
-                        </Button>
+                        {!readOnly && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setAssignLottoId(lotto.id)}
+                            aria-label="Assegna seriali al lotto"
+                            title="Assegna seriali al lotto"
+                          >
+                            <ScanLine className="h-3.5 w-3.5 text-orange-600" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -405,15 +416,17 @@ export default function WarehouseLottiTab() {
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => setDeleteTarget(lotto)}
-                          aria-label={`Elimina lotto ${lotto.codice_lotto}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
+                        {!readOnly && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setDeleteTarget(lotto)}
+                            aria-label={`Elimina lotto ${lotto.codice_lotto}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -685,7 +698,7 @@ export default function WarehouseLottiTab() {
       />
 
       {/* Assegna nuovi seriali al lotto */}
-      {assignLottoId && (
+      {!readOnly && assignLottoId && (
         <AssignSerialsToLottoDialog
           open={!!assignLottoId}
           onOpenChange={(o) => !o && setAssignLottoId(null)}

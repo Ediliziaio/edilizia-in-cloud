@@ -61,9 +61,10 @@ interface WarehouseStockTabProps {
     type: "receive" | "ship";
     nonce: number;
   } | null;
+  readOnly?: boolean;
 }
 
-export default function WarehouseStockTab({ warehouseFilter = null, actionRequest = null }: WarehouseStockTabProps) {
+export default function WarehouseStockTab({ warehouseFilter = null, actionRequest = null, readOnly = false }: WarehouseStockTabProps) {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
@@ -98,10 +99,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [zonesDialogOpen, setZonesDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (!actionRequest) return;
+    if (!actionRequest || readOnly) return;
     if (actionRequest.type === "receive") setCaricoOpen(true);
     if (actionRequest.type === "ship") setScaricoOpen(true);
-  }, [actionRequest]);
+  }, [actionRequest, readOnly]);
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
   const sensors = useSensors(
@@ -369,13 +370,14 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   );
 
   const toggleSelect = useCallback((id: string) => {
+    if (readOnly) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }, []);
+  }, [readOnly]);
 
   const allSelected = useMemo(
     () => filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id)),
@@ -383,15 +385,16 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   );
 
   const toggleSelectAll = useCallback(() => {
+    if (readOnly) return;
     if (allSelected) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(filtered.map((i) => i.id)));
     }
-  }, [filtered, allSelected]);
+  }, [filtered, allSelected, readOnly]);
 
   const handleBatchMove = () => {
-    if (!batchTargetSection || selectedIds.size === 0) return;
+    if (readOnly || !batchTargetSection || selectedIds.size === 0) return;
     batchMoveMutation.mutate({
       ids: Array.from(selectedIds),
       sectionId: batchTargetSection === "__none__" ? null : batchTargetSection,
@@ -400,15 +403,17 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
   // --- DnD handlers ---
   const handleDragStart = useCallback((event: DragStartEvent) => {
+    if (readOnly) return;
     const itemId = event.active.data.current?.itemId as string | undefined;
     if (itemId) {
       const item = stockItems.find((i) => i.id === itemId) || null;
       setDraggingItem(item);
     }
-  }, [stockItems]);
+  }, [readOnly, stockItems]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDraggingItem(null);
+    if (readOnly) return;
     const { active, over } = event;
     if (!over) return;
 
@@ -426,7 +431,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     const resolvedSectionId = sectionId === "__none__" ? null : sectionId;
 
     batchMoveMutation.mutate({ ids: idsToMove, sectionId: resolvedSectionId });
-  }, [selectedIds, batchMoveMutation]);
+  }, [readOnly, selectedIds, batchMoveMutation]);
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -454,13 +459,17 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                 <Badge variant="secondary" className="h-5">{sections.length} zone</Badge>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Gestisci piantina, aree operative e posizioni senza occupare la vista inventario.
+                {readOnly
+                  ? "Consulta piantina, aree operative e posizioni senza modificare l'inventario."
+                  : "Gestisci piantina, aree operative e posizioni senza occupare la vista inventario."}
               </p>
             </div>
-            <Button type="button" variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={() => setZonesDialogOpen(true)}>
-              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-              Apri zone
-            </Button>
+            {!readOnly && (
+              <Button type="button" variant="outline" size="sm" className="w-full gap-2 sm:w-auto" onClick={() => setZonesDialogOpen(true)}>
+                <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                Apri zone
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -522,7 +531,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
             </Select>
           )}
           <div className="w-full sm:w-auto">
-            <div className="sm:hidden space-y-2">
+            {!readOnly && <div className="sm:hidden space-y-2">
               <Button
                 onClick={() => setQuickScanOpen(true)}
                 aria-label="Cerca articolo via scansione QR/barcode"
@@ -579,9 +588,9 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-            </div>
+            </div>}
 
-            <div className="hidden sm:flex items-center gap-2 flex-wrap">
+            {!readOnly && <div className="hidden sm:flex items-center gap-2 flex-wrap">
               {/* Quick scan — bottone principale, sempre rapido */}
               <Button
                 variant="outline"
@@ -647,12 +656,12 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                 <Plus className="h-4 w-4 sm:mr-2" />
                 <span>Aggiungi articolo</span>
               </Button>
-            </div>
+            </div>}
           </div>
         </div>
 
         {/* Batch action bar */}
-        {selectedIds.size > 0 && (
+        {!readOnly && selectedIds.size > 0 && (
           <Card className="border-primary/30 bg-primary/5">
             <CardContent className="py-3 flex items-center gap-3 flex-wrap">
               <span className="text-sm font-medium">
@@ -750,6 +759,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                         onHistory={() => setHistoryItem(item)}
                         onTask={() => setTaskItem(item)}
                         onAudit={() => setAuditItem(item)}
+                        readOnly={readOnly}
                       />
                     ))}
                   </TableBody>
@@ -774,6 +784,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                   onHistory={() => setHistoryItem(item)}
                   onTask={() => setTaskItem(item)}
                   onAudit={() => setAuditItem(item)}
+                  readOnly={readOnly}
                 />
               ))}
             </div>
@@ -954,15 +965,18 @@ interface DraggableStockRowProps {
   onHistory: () => void;
   onTask: () => void;
   onAudit: () => void;
+  readOnly?: boolean;
 }
 
 const DraggableStockRow = memo(function DraggableStockRow({
   item, isLow, section, isSelected, hasSections, supplierName,
   onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit,
+  readOnly = false,
 }: DraggableStockRowProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `stock-${item.id}`,
     data: { itemId: item.id },
+    disabled: readOnly,
   });
 
   return (
@@ -970,15 +984,17 @@ const DraggableStockRow = memo(function DraggableStockRow({
       ref={setNodeRef}
       className={`${isLow ? "bg-amber-50/50 dark:bg-amber-950/10" : ""} ${isDragging ? "opacity-40" : ""}`}
     >
-      <TableCell className="w-8 cursor-grab active:cursor-grabbing" {...listeners} {...attributes}>
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      <TableCell className="w-8 cursor-grab active:cursor-grabbing" {...(!readOnly ? listeners : {})} {...(!readOnly ? attributes : {})}>
+        {!readOnly && <GripVertical className="h-4 w-4 text-muted-foreground" />}
       </TableCell>
       <TableCell>
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={onToggleSelect}
-          aria-label={`Seleziona ${item.name}`}
-        />
+        {!readOnly && (
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={onToggleSelect}
+            aria-label={`Seleziona ${item.name}`}
+          />
+        )}
       </TableCell>
       <TableCell>
         <div>
@@ -1011,24 +1027,28 @@ const DraggableStockRow = memo(function DraggableStockRow({
       <TableCell className="text-center">{item.min_stock_level || "—"}</TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon" title="Task" onClick={onTask}>
-            <CheckSquare className="h-4 w-4 text-primary" />
-          </Button>
           <Button variant="ghost" size="icon" title="Storico" onClick={onHistory}>
             <History className="h-4 w-4 text-muted-foreground" />
           </Button>
           <Button variant="ghost" size="icon" title="Inventario" onClick={onAudit}>
             <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
           </Button>
-          <Button variant="ghost" size="icon" title="Carico" onClick={onCarico}>
-            <ArrowUpCircle className="h-4 w-4 text-emerald-600" />
-          </Button>
-          <Button variant="ghost" size="icon" title="Scarico" onClick={onScarico} disabled={item.quantity === 0}>
-            <ArrowDownCircle className="h-4 w-4 text-red-500" />
-          </Button>
-          <Button variant="ghost" size="icon" title="Modifica" onClick={onEdit}>
-            <Pencil className="h-4 w-4" />
-          </Button>
+          {!readOnly && (
+            <>
+              <Button variant="ghost" size="icon" title="Task" onClick={onTask}>
+                <CheckSquare className="h-4 w-4 text-primary" />
+              </Button>
+              <Button variant="ghost" size="icon" title="Carico" onClick={onCarico}>
+                <ArrowUpCircle className="h-4 w-4 text-emerald-600" />
+              </Button>
+              <Button variant="ghost" size="icon" title="Scarico" onClick={onScarico} disabled={item.quantity === 0}>
+                <ArrowDownCircle className="h-4 w-4 text-red-500" />
+              </Button>
+              <Button variant="ghost" size="icon" title="Modifica" onClick={onEdit}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </TableCell>
   </TableRow>
@@ -1054,11 +1074,13 @@ interface StockItemMobileCardProps {
   onHistory: () => void;
   onTask: () => void;
   onAudit: () => void;
+  readOnly?: boolean;
 }
 
 const StockItemMobileCard = memo(function StockItemMobileCard({
   item, isLow, section, isSelected, supplierName,
   onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit,
+  readOnly = false,
 }: StockItemMobileCardProps) {
   return (
     <Card
@@ -1066,12 +1088,14 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
     >
       <CardContent className="p-3 space-y-2.5">
         <div className="flex items-start gap-2.5">
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={onToggleSelect}
-            aria-label={`Seleziona ${item.name}`}
-            className="mt-0.5 shrink-0"
-          />
+          {!readOnly && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onToggleSelect}
+              aria-label={`Seleziona ${item.name}`}
+              className="mt-0.5 shrink-0"
+            />
+          )}
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm leading-tight truncate">{item.name}</p>
             {item.description && (
@@ -1103,19 +1127,23 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={onCarico}>
-                <ArrowUpCircle className="h-4 w-4 mr-2 text-emerald-600" />
-                Carico
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onScarico} disabled={item.quantity === 0}>
-                <ArrowDownCircle className="h-4 w-4 mr-2 text-red-500" />
-                Scarico
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onEdit}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Modifica
-              </DropdownMenuItem>
+              {!readOnly && (
+                <>
+                  <DropdownMenuItem onClick={onCarico}>
+                    <ArrowUpCircle className="h-4 w-4 mr-2 text-emerald-600" />
+                    Carico
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onScarico} disabled={item.quantity === 0}>
+                    <ArrowDownCircle className="h-4 w-4 mr-2 text-red-500" />
+                    Scarico
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onEdit}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Modifica
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuItem onClick={onHistory}>
                 <History className="h-4 w-4 mr-2 text-muted-foreground" />
                 Storico
@@ -1124,10 +1152,12 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
                 <ClipboardCheck className="h-4 w-4 mr-2 text-muted-foreground" />
                 Inventario
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onTask}>
-                <CheckSquare className="h-4 w-4 mr-2 text-primary" />
-                Task
-              </DropdownMenuItem>
+              {!readOnly && (
+                <DropdownMenuItem onClick={onTask}>
+                  <CheckSquare className="h-4 w-4 mr-2 text-primary" />
+                  Task
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

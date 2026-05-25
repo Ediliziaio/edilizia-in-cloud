@@ -6,11 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Copy, Check, QrCode, Share2 } from "lucide-react";
+import { Loader2, Copy, Check, QrCode, Share2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { subDays, format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { buildReferralLink } from "@/lib/referral";
+
+type ReferralClickRow = {
+  created_at: string | null;
+  utm_source: string | null;
+};
 
 export default function PartnerLink() {
   const { user } = useAuth();
@@ -33,7 +38,7 @@ export default function PartnerLink() {
     },
   });
 
-  const { data: clicks = [] } = useQuery({
+  const { data: clicks = [] } = useQuery<ReferralClickRow[]>({
     queryKey: ["my-clicks-7d", referrer?.id],
     enabled: !!referrer?.id,
     queryFn: async () => {
@@ -43,7 +48,7 @@ export default function PartnerLink() {
         .select("created_at, utm_source")
         .eq("referrer_id", referrer!.id)
         .gte("created_at", sevenDaysAgo);
-      return data || [];
+      return (data || []) as ReferralClickRow[];
     },
   });
 
@@ -62,14 +67,14 @@ export default function PartnerLink() {
     const dateStr = format(date, "yyyy-MM-dd");
     return {
       date: format(date, "dd/MM"),
-      click: clicks.filter((c: any) => c.created_at?.startsWith(dateStr)).length,
+      click: clicks.filter((c) => c.created_at?.startsWith(dateStr)).length,
     };
   });
 
   // Top sources
   const sources = useMemo(() => {
     const map: Record<string, number> = {};
-    clicks.forEach((c: any) => {
+    clicks.forEach((c) => {
       const src = c.utm_source || "direct";
       map[src] = (map[src] || 0) + 1;
     });
@@ -78,11 +83,17 @@ export default function PartnerLink() {
       .slice(0, 5);
   }, [clicks]);
 
-  const copyToClipboard = (text: string, setCopiedFn: (v: boolean) => void) => {
-    navigator.clipboard.writeText(text);
-    setCopiedFn(true);
-    toast.success("Link copiato!");
-    setTimeout(() => setCopiedFn(false), 2000);
+  const copyToClipboard = async (text: string, setCopiedFn: (v: boolean) => void) => {
+    try {
+      await navigator.clipboard?.writeText(text);
+      setCopiedFn(true);
+      toast.success("Link copiato!");
+      setTimeout(() => setCopiedFn(false), 2000);
+    } catch {
+      toast.error("Non riesco a copiare il link", {
+        description: "Puoi selezionarlo e copiarlo manualmente dal campo.",
+      });
+    }
   };
 
   const shareWhatsApp = () => {
@@ -94,7 +105,19 @@ export default function PartnerLink() {
     return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
   }
 
-  if (!referrer) return null;
+  if (!referrer) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Link2 className="h-12 w-12 mx-auto mb-4 opacity-40" />
+            <h1 className="text-xl font-semibold text-foreground">Link referral non disponibile</h1>
+            <p className="mt-2 text-sm">Il tuo account non è ancora associato a un profilo partner attivo.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Simple QR SVG generation (basic)
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(baseLink)}`;

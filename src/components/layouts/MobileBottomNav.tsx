@@ -23,6 +23,7 @@ import {
   NotebookPen,
   MessagesSquare,
   Package,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -116,6 +117,13 @@ function filterAccessible(items: BottomNavItem[], permissions: Permissions, max:
   return unique;
 }
 
+function appendSearchToAziendaUrl(url: string, search: string) {
+  if (!search || !url.startsWith("/azienda")) return url;
+  const normalizedSearch = search.startsWith("?") ? search.slice(1) : search;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}${normalizedSearch}`;
+}
+
 /* ── Componente ────────────────────────────────────────── */
 export function MobileBottomNav() {
   const location = useLocation();
@@ -124,9 +132,75 @@ export function MobileBottomNav() {
   const { role } = useAuth();
   const isMobile = useIsMobile();
   const [appGridOpen, setAppGridOpen] = useState(false);
+  const commercialistaParams = new URLSearchParams(location.search);
+  const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
+  const commercialistaSearch = isCommercialistaMode
+    ? new URLSearchParams({
+        commercialistaMode: "1",
+        commercialistaCompany: commercialistaParams.get("commercialistaCompany") ?? "",
+        commercialistaCompanyName: commercialistaParams.get("commercialistaCompanyName") ?? "",
+        returnTo: commercialistaParams.get("returnTo") || "/commercialista",
+      }).toString()
+    : "";
 
   // Solo su mobile
   if (!isMobile) return null;
+
+  if (isCommercialistaMode) {
+    const scopedItems: BottomNavItem[] = [
+      { label: "Studio", icon: LayoutDashboard, href: commercialistaParams.get("returnTo") || "/commercialista", exact: true },
+      { label: "Cantieri", icon: ClipboardList, href: appendSearchToAziendaUrl("/azienda/ordini", commercialistaSearch) },
+      { label: "Magazzino", icon: Package, href: appendSearchToAziendaUrl("/azienda/magazzino", commercialistaSearch) },
+      { label: "Controllo", icon: BarChart3, href: appendSearchToAziendaUrl("/azienda/controllo-gestione", commercialistaSearch) },
+      { label: "Finanza", icon: Euro, href: appendSearchToAziendaUrl("/azienda/documenti", commercialistaSearch) },
+    ];
+
+    return (
+      <nav
+        className="shrink-0 bg-background border-t border-border/50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        aria-label="Navigazione commercialista"
+      >
+        <div className="flex items-stretch h-16">
+          {scopedItems.map((item) => {
+            const active = item.exact ? location.pathname === item.href : location.pathname.startsWith(item.href.split("?")[0]);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.label}
+                to={item.href}
+                className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
+                aria-label={item.label}
+                aria-current={active ? "page" : undefined}
+              >
+                <div
+                  className={cn(
+                    "flex items-center justify-center rounded-2xl transition-all duration-200",
+                    active ? "bg-blue-50 w-12 h-8" : "w-10 h-8",
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "h-5 w-5 transition-all duration-200",
+                      active ? "text-blue-600 stroke-[2.5]" : "text-muted-foreground stroke-[1.5]",
+                    )}
+                  />
+                </div>
+                <span
+                  className={cn(
+                    "text-[10px] leading-none transition-all duration-200",
+                    active ? "text-blue-600 font-semibold" : "text-muted-foreground font-medium",
+                  )}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  }
 
   // v8.6.68 — Rimosso il "nascondi nelle impostazioni": l'utente segnalava
   // incoerenza UX. La bottom nav è ora SEMPRE visibile su mobile in modo che

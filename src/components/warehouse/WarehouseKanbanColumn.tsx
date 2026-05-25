@@ -13,6 +13,7 @@ interface WarehouseKanbanColumnProps {
   onSelectItem: (item: WarehouseItem) => void;
   selectedIds?: Set<string>;
   onToggleSelection?: (itemId: string) => void;
+  readOnly?: boolean;
 }
 
 export default function WarehouseKanbanColumn({ 
@@ -22,8 +23,9 @@ export default function WarehouseKanbanColumn({
   onSelectItem,
   selectedIds = new Set(),
   onToggleSelection,
+  readOnly = false,
 }: WarehouseKanbanColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: status });
+  const { setNodeRef, isOver } = useDroppable({ id: status, disabled: readOnly });
   const config = STATUS_CONFIG[status];
   const Icon = config.icon;
   const attentionCount = items.filter((item) => isItemCritical(item) || isItemUrgent(item) || isItemOverdue(item)).length;
@@ -56,7 +58,9 @@ export default function WarehouseKanbanColumn({
             {items.length === 0 ? (
               <div className="flex h-40 flex-col items-center justify-center rounded-md border border-dashed bg-muted/20 px-4 text-center">
                 <p className="text-sm font-medium text-muted-foreground">Nessun articolo</p>
-                <p className="mt-1 text-xs text-muted-foreground">Trascina qui una riga quando cambia stato.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {readOnly ? "Nessun articolo in questo stato." : "Trascina qui una riga quando cambia stato."}
+                </p>
               </div>
             ) : (
               items.map((item) => (
@@ -67,6 +71,7 @@ export default function WarehouseKanbanColumn({
                   onSelect={onSelectItem}
                   isSelected={selectedIds.has(item.id)}
                   onToggleSelection={onToggleSelection}
+                  readOnly={readOnly}
                 />
               ))
             )}

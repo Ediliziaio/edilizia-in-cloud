@@ -28,6 +28,7 @@ const ROLE_LABELS: Record<AppRole, string> = {
   salesperson: "Venditore",
   call_center: "Call Center",
   referrer: "Partner",
+  accountant: "Commercialista",
   platform_manager: "Platform Manager",
   platform_sales: "Platform Sales",
   platform_support: "Platform Support",
@@ -46,6 +47,7 @@ const ROLE_COLORS: Record<AppRole, string> = {
   salesperson: "bg-cyan-100 text-cyan-800",
   call_center: "bg-indigo-100 text-indigo-800",
   referrer: "bg-orange-100 text-orange-800",
+  accountant: "bg-slate-100 text-slate-800",
   platform_manager: "bg-violet-100 text-violet-800",
   platform_sales: "bg-emerald-100 text-emerald-800",
   platform_support: "bg-sky-100 text-sky-800",
@@ -63,6 +65,7 @@ const ROLE_ORDER: AppRole[] = [
   "subcontractor",
   "salesperson",
   "call_center",
+  "accountant",
 ];
 
 const AVATAR_COLORS = [
@@ -89,6 +92,7 @@ const REDIRECT_MAP: Record<AppRole, string> = {
   subcontractor: "/campo",
   salesperson: "/venditore",
   referrer: "/partner",
+  accountant: "/commercialista",
   platform_manager: "/admin",
   platform_sales: "/admin",
   platform_support: "/admin",
@@ -107,6 +111,7 @@ function subdomainForRole(role: AppRole): TargetSubdomain {
   if ((ADMIN_PLATFORM_ROLES as AppRole[]).includes(role)) return "admin";
   if (role === "customer") return "clienti";
   if (role === "employee" || role === "subcontractor") return "lavori";
+  if (role === "accountant") return "commercialista";
   return "app";
 }
 

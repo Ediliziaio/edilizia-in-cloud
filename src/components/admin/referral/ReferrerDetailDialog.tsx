@@ -4,7 +4,21 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDateShort, formatDateTime } from "@/lib/formatters";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import {
+  bankVerificationLabel,
+  contractApprovalLabel,
+  getBankVerificationStatus,
+  getContractApprovalStatus,
+  getReferralPayoutDetails,
+  type BankVerificationStatus,
+  type ContractApprovalStatus,
+} from "@/lib/referralCompliance";
 import type {
   ReferralClick,
   ReferralCompany,
@@ -48,7 +62,67 @@ export function ReferrerDetailDialog({
   ledger,
   fraudLogs,
 }: Props) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const complianceMutation = useMutation({
+    mutationFn: async ({
+      target,
+      status,
+      reason,
+    }: {
+      target: "bank" | "contract";
+      status: BankVerificationStatus | ContractApprovalStatus;
+      reason?: string;
+    }) => {
+      if (!referrer) throw new Error("Partner non disponibile");
+      const details = getReferralPayoutDetails(referrer.payout_details);
+      const now = new Date().toISOString();
+      const payoutDetails = target === "bank"
+        ? {
+          ...details,
+          bank_verification: {
+            ...(details.bank_verification || {}),
+            status,
+            verified_at: status === "verified" ? now : details.bank_verification?.verified_at || null,
+            rejected_at: status === "rejected" ? now : details.bank_verification?.rejected_at || null,
+            reviewed_by: user?.id || null,
+            rejection_reason: status === "rejected" ? reason || "Verifica conto respinta" : null,
+          },
+        }
+        : {
+          ...details,
+          contract: {
+            ...(details.contract || {}),
+            status,
+            approved_at: status === "approved" ? now : details.contract?.approved_at || null,
+            rejected_at: status === "rejected" ? now : details.contract?.rejected_at || null,
+            reviewed_by: user?.id || null,
+            rejection_reason: status === "rejected" ? reason || "Contratto respinto" : null,
+          },
+        };
+
+      const { error } = await supabase
+        .from("referrers")
+        .update({ payout_details: payoutDetails })
+        .eq("id", referrer.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["referrers"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-payouts"] });
+      toast.success("Stato partner aggiornato");
+    },
+    onError: (err) => {
+      toast.error("Errore", { description: err instanceof Error ? err.message : "Errore imprevisto" });
+    },
+  });
+
   if (!referrer) return null;
+
+  const payoutDetails = getReferralPayoutDetails(referrer.payout_details);
+  const bankStatus = getBankVerificationStatus(payoutDetails);
+  const contractStatus = getContractApprovalStatus(payoutDetails, referrer.has_accepted_terms);
 
   const timeline = [
     ...events.map((event) => ({
@@ -109,9 +183,10 @@ export function ReferrerDetailDialog({
         </DialogHeader>
 
         <Tabs defaultValue="companies" className="mt-2">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 md:grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 md:grid-cols-5">
             <TabsTrigger value="companies">Aziende Portate ({referralCompanies.length})</TabsTrigger>
             <TabsTrigger value="payouts">Storico Pagamenti ({payouts.length})</TabsTrigger>
+            <TabsTrigger value="compliance">Compliance</TabsTrigger>
             <TabsTrigger value="timeline">Timeline ({timeline.length})</TabsTrigger>
             <TabsTrigger value="ledger">Commissioni ({ledger.length})</TabsTrigger>
           </TabsList>
@@ -179,6 +254,92 @@ export function ReferrerDetailDialog({
                 </TableBody>
               </Table>
             )}
+          </TabsContent>
+
+          <TabsContent value="compliance">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">Verifica conto corrente</h3>
+                    <p className="text-sm text-muted-foreground">IBAN, intestatario e dati fiscali per payout.</p>
+                  </div>
+                  <Badge variant={bankStatus === "verified" ? "default" : bankStatus === "rejected" ? "destructive" : "secondary"}>
+                    {bankVerificationLabel(bankStatus)}
+                  </Badge>
+                </div>
+                <div className="mt-4 space-y-2 text-sm">
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">IBAN</span><span className="font-mono">{payoutDetails.iban || "—"}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Intestatario</span><span>{payoutDetails.account_holder || "—"}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Banca</span><span>{payoutDetails.bank || "—"}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Codice fiscale</span><span>{payoutDetails.fiscal_code || "—"}</span></div>
+                </div>
+                {payoutDetails.bank_verification?.rejection_reason && (
+                  <p className="mt-3 rounded-md bg-destructive/10 p-2 text-sm text-destructive">{payoutDetails.bank_verification.rejection_reason}</p>
+                )}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => complianceMutation.mutate({ target: "bank", status: "verified" })}
+                    disabled={complianceMutation.isPending || !payoutDetails.iban || !payoutDetails.account_holder}
+                  >
+                    Approva conto
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const reason = window.prompt("Motivo respingimento conto:");
+                      if (reason?.trim()) complianceMutation.mutate({ target: "bank", status: "rejected", reason });
+                    }}
+                    disabled={complianceMutation.isPending}
+                  >
+                    Respingi
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">Contratto partner</h3>
+                    <p className="text-sm text-muted-foreground">Firma digitale e approvazione legale.</p>
+                  </div>
+                  <Badge variant={contractStatus === "approved" ? "default" : contractStatus === "rejected" ? "destructive" : "secondary"}>
+                    {contractApprovalLabel(contractStatus)}
+                  </Badge>
+                </div>
+                <div className="mt-4 space-y-2 text-sm">
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Firmatario</span><span>{payoutDetails.contract?.signed_name || "—"}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Versione</span><span>{payoutDetails.contract?.version || "—"}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Firmato il</span><span>{formatDateTime(payoutDetails.contract?.signed_at || "")}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">IP firma</span><span>{payoutDetails.contract?.ip_address || "—"}</span></div>
+                </div>
+                {payoutDetails.contract?.rejection_reason && (
+                  <p className="mt-3 rounded-md bg-destructive/10 p-2 text-sm text-destructive">{payoutDetails.contract.rejection_reason}</p>
+                )}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => complianceMutation.mutate({ target: "contract", status: "approved" })}
+                    disabled={complianceMutation.isPending || contractStatus === "missing"}
+                  >
+                    Approva contratto
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const reason = window.prompt("Motivo respingimento contratto:");
+                      if (reason?.trim()) complianceMutation.mutate({ target: "contract", status: "rejected", reason });
+                    }}
+                    disabled={complianceMutation.isPending || contractStatus === "missing"}
+                  >
+                    Respingi
+                  </Button>
+                </div>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="timeline">

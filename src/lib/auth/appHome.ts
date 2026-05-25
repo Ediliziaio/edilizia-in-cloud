@@ -15,6 +15,7 @@ const ROLE_HOME_PATHS: Record<AppRole, string> = {
   subcontractor: "/campo",
   salesperson: "/venditore",
   referrer: "/partner",
+  accountant: "/commercialista",
   platform_manager: PLATFORM_HOME,
   platform_sales: PLATFORM_HOME,
   platform_support: PLATFORM_HOME,

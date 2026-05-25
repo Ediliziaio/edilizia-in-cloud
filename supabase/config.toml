@@ -224,6 +224,12 @@ verify_jwt = false
 [functions.send-partner-notification]
 verify_jwt = false
 
+[functions.referral-monthly-cycle]
+verify_jwt = false
+
+[functions.referral-payout-executor]
+verify_jwt = false
+
 [functions.process-internal-automation]
 verify_jwt = false
 

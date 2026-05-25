@@ -13,6 +13,7 @@ interface WarehouseKanbanViewProps {
   isUpdating?: boolean;
   selectedIds?: Set<string>;
   onToggleSelection?: (itemId: string) => void;
+  readOnly?: boolean;
 }
 
 const STATUSES: OrderItemStatus[] = ["da_ordinare", "ordinato", "in_arrivo", "in_magazzino", "prenotato", "installato"];
@@ -25,6 +26,7 @@ export default function WarehouseKanbanView({
   isUpdating = false,
   selectedIds = new Set(),
   onToggleSelection,
+  readOnly = false,
 }: WarehouseKanbanViewProps) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
@@ -104,6 +106,7 @@ export default function WarehouseKanbanView({
                 onSelectItem={handleSelectItem}
                 selectedIds={selectedIds}
                 onToggleSelection={onToggleSelection}
+                readOnly={readOnly}
               />
             ))}
           </div>
@@ -118,6 +121,7 @@ export default function WarehouseKanbanView({
         onUpdateNotes={onUpdateNotes}
         getSupplierName={getSupplierName}
         isUpdating={isUpdating}
+        readOnly={readOnly}
       />
     </>
   );

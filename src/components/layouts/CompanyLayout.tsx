@@ -104,6 +104,7 @@ import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
+import { accountantCompanies } from "@/lib/accountantPortal";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { NotificationsBellPopover } from "@/components/notifications/NotificationsBellPopover";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
@@ -119,10 +120,12 @@ const CompanyBrandHeader = memo(function CompanyBrandHeader({
   isCollapsed,
   logoUrl,
   platformName,
+  homeTo = "/azienda",
 }: {
   isCollapsed: boolean;
   logoUrl?: string | null;
   platformName?: string | null;
+  homeTo?: string;
 }) {
   const logoSrc = logoUrl ?? (isCollapsed ? ediliziaLogoSmall : ediliziaLogo);
   const logoAlt = logoUrl ? (platformName ?? "Logo piattaforma") : "EdiliziaInCloud";
@@ -131,7 +134,7 @@ const CompanyBrandHeader = memo(function CompanyBrandHeader({
     <Tooltip>
       <TooltipTrigger asChild>
         <Link
-          to="/azienda"
+          to={homeTo}
           className={cn(
             "flex min-w-0 items-center rounded-lg text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60",
             isCollapsed ? "h-11 w-11 justify-center p-1.5" : "h-12 w-full justify-start px-1",
@@ -208,6 +211,37 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
   );
 });
 
+const CommercialistaModeBanner = memo(function CommercialistaModeBanner({
+  companyId,
+  companyName,
+  returnTo,
+}: {
+  companyId?: string | null;
+  companyName?: string | null;
+  returnTo: string;
+}) {
+  const resolvedCompanyName =
+    companyName ??
+    accountantCompanies.find((company) => company.id === companyId)?.name ??
+    "azienda selezionata";
+
+  return (
+    <div className="border-b border-blue-200 bg-blue-50 px-3 py-2 text-blue-950">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2">
+          <Shield className="h-4 w-4 shrink-0 text-blue-700" />
+          <span className="truncate text-sm">
+            <strong>Vista commercialista:</strong> {resolvedCompanyName} · menu limitato a cantieri, magazzino, controllo gestione e finanza.
+          </span>
+        </div>
+        <Button asChild size="sm" variant="outline" className="h-8 shrink-0 bg-white">
+          <Link to={returnTo}>Torna allo studio</Link>
+        </Button>
+      </div>
+    </div>
+  );
+});
+
 // Macro-area collapsible section component
 const SCOPRI_LOCKED_ROUTES = [
   "/azienda/fatturazione",
@@ -232,7 +266,47 @@ const SCOPRI_LOCKED_ROUTES = [
 // Fonte di verità preferita: `currentPlan.is_full_plan === true`.
 const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
 
-function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false, isFeaturePreview, isModuleDemo }: {
+const COMMERCIALISTA_ALLOWED_AREA_IDS = new Set([
+  "area_controllo_gestione",
+  "area_cantieri",
+  "area_finanza",
+]);
+
+const COMMERCIALISTA_ALLOWED_URLS = new Set([
+  "/azienda/controllo-gestione",
+  "/azienda/ordini",
+  "/azienda/magazzino",
+  "/azienda/subappaltatori",
+  "/azienda/sicurezza-cantiere",
+  "/azienda/giornale-lavori",
+  "/azienda/documenti",
+  "/azienda/fatturazione",
+  "/azienda/scadenzario",
+  "/azienda/prima-nota",
+  "/azienda/tesoreria",
+  "/azienda/costi",
+  "/azienda/previsionale",
+]);
+
+const COMMERCIALISTA_EXTRA_CANTIERI_ITEMS: NavItem[] = [
+  {
+    title: "Giornale Lavori",
+    url: "/azienda/giornale-lavori",
+    icon: ClipboardList,
+    permissionKey: "canViewGiornaleLavori",
+    featureKey: "cantieri_avanzati",
+    groupLabel: "Controllo",
+  },
+];
+
+function appendSearchToAziendaUrl(url: string, search: string) {
+  if (!search || !url.startsWith("/azienda")) return url;
+  const normalizedSearch = search.startsWith("?") ? search.slice(1) : search;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}${normalizedSearch}`;
+}
+
+function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange, isScopriPlan = false, isFeaturePreview, isModuleDemo, toHref = (url) => url }: {
   area: MacroArea;
   visibleItems: NavItem[];
   pathname: string;
@@ -243,6 +317,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
   isFeaturePreview?: (key: string) => boolean;
   /** v8.6.83 — usato per mostrare badge "Demo" sulle voci moduleKey non incluse. */
   isModuleDemo?: (moduleKey: string) => boolean;
+  toHref?: (url: string) => string;
 }) {
   // Helper: è una voce in modalità DEMO (l'utente la vede ma non può agire)?
   const isDemoItem = (item: NavItem): boolean => {
@@ -304,7 +379,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
                 <NavLink
-                  to={item.url}
+                  to={toHref(item.url)}
                   className={cn(
                     "flex items-center justify-center transition-colors",
                     active ? "bg-sidebar-primary/10 text-sidebar-primary" : "text-sidebar-foreground/60 hover:text-sidebar-foreground/90",
@@ -326,7 +401,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <NavLink
-                to={item.url}
+                to={toHref(item.url)}
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg mx-1.5 px-3 py-2 text-sm transition-colors",
                   active
@@ -396,7 +471,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                       return (
                         <NavLink
                           key={item.url}
-                          to={item.url}
+                          to={toHref(item.url)}
                           className={cn(
                             "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
@@ -484,7 +559,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton asChild>
                         <NavLink
-                          to={item.url}
+                          to={toHref(item.url)}
                           className={cn(
                             "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
@@ -869,6 +944,29 @@ const CompanySidebar = memo(function CompanySidebar() {
   const { mode: billingMode } = useBillingMode();
   const navigate = useNavigate();
   const location = useLocation();
+  const commercialistaParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
+  const commercialistaCompanyId = commercialistaParams.get("commercialistaCompany") ?? "";
+  const commercialistaCompanyName =
+    commercialistaParams.get("commercialistaCompanyName") ??
+    accountantCompanies.find((company) => company.id === commercialistaCompanyId)?.name ??
+    effectiveCompany?.name ??
+    "azienda selezionata";
+  const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
+  const commercialistaSearch = useMemo(() => {
+    if (!isCommercialistaMode) return "";
+    const params = new URLSearchParams({
+      commercialistaMode: "1",
+      commercialistaCompany: commercialistaCompanyId,
+      commercialistaCompanyName,
+      returnTo: commercialistaReturnTo,
+    });
+    return params.toString();
+  }, [commercialistaCompanyId, commercialistaCompanyName, commercialistaReturnTo, isCommercialistaMode]);
+  const withCommercialistaSearch = useCallback(
+    (url: string) => appendSearchToAziendaUrl(url, commercialistaSearch),
+    [commercialistaSearch],
+  );
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
   const { setOpenMobile } = useSidebar();
@@ -880,10 +978,14 @@ const CompanySidebar = memo(function CompanySidebar() {
 
   // Exclusive accordion: only one macro-area open at a time
   const findActiveAreaId = useCallback((path: string): string | null => {
+    if (isCommercialistaMode && path.startsWith("/azienda/giornale-lavori")) {
+      return "area_cantieri";
+    }
     let bestAreaId: string | null = null;
     let bestUrlLength = 0;
     for (const area of macroAreas) {
       if (area.id === "area_cruscotto") continue;
+      if (isCommercialistaMode && !COMMERCIALISTA_ALLOWED_AREA_IDS.has(area.id)) continue;
       for (const item of area.items) {
         if (path === item.url || path.startsWith(item.url + "/")) {
           if (item.url.length > bestUrlLength) {
@@ -894,7 +996,7 @@ const CompanySidebar = memo(function CompanySidebar() {
       }
     }
     return bestAreaId;
-  }, []);
+  }, [isCommercialistaMode]);
 
   const [openAreaId, setOpenAreaId] = useState<string | null>(() => {
     try {
@@ -991,8 +1093,13 @@ const CompanySidebar = memo(function CompanySidebar() {
       return "hidden";
     };
 
+    const applyCommercialistaScope = (visibleItems: NavItem[]) => {
+      if (!isCommercialistaMode) return visibleItems;
+      return visibleItems.filter((item) => COMMERCIALISTA_ALLOWED_URLS.has(item.url));
+    };
+
     if (permissions.isLoading || gatingLoading) {
-      return items.filter((item) => {
+      return applyCommercialistaScope(items.filter((item) => {
         if (item.url === "/azienda/contenuti-multimediali") return true;
         if (item.demoCompanyOnly && !isDemoBaseline) return false;
         if (!item.featureKey) return true;
@@ -1000,9 +1107,9 @@ const CompanySidebar = memo(function CompanySidebar() {
           return passesFeatureGate(item.featureKey) !== "hidden";
         }
         return true;
-      });
+      }));
     }
-    return items.filter((item) => {
+    return applyCommercialistaScope(items.filter((item) => {
       if (item.url === "/azienda/contenuti-multimediali" && !canAccessMediaLibrary(permissions)) {
         return false;
       }
@@ -1037,8 +1144,8 @@ const CompanySidebar = memo(function CompanySidebar() {
         if (state === "hidden") return false;
       }
       return true;
-    });
-  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan]);
+    }));
+  }, [permissions, gatingLoading, isModuleEnabled, billingMode, getFeatureAccessLevel, isLimitedPlan, isDemoBaseline, limitsLoading, currentPlan, isCommercialistaMode]);
 
   useEffect(() => {
     if (!gatingLoading) {
@@ -1070,6 +1177,7 @@ const CompanySidebar = memo(function CompanySidebar() {
           isCollapsed={isCollapsed}
           logoUrl={branding?.logo_url}
           platformName={effectiveBrand.platformName}
+          homeTo={isCommercialistaMode ? withCommercialistaSearch("/azienda/controllo-gestione") : "/azienda"}
         />
         <CompanyContextSwitcher isCollapsed={isCollapsed} />
       </div>
@@ -1082,11 +1190,25 @@ const CompanySidebar = memo(function CompanySidebar() {
           />
         ) : (
           <>
+            {isCommercialistaMode && (
+              <div className="mx-3 mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-950">
+                <Badge variant="outline" className="mb-2 border-blue-200 bg-white text-blue-700">
+                  Vista commercialista
+                </Badge>
+                <p className="text-sm font-semibold leading-tight">{commercialistaCompanyName}</p>
+                <p className="mt-1 text-xs text-blue-800">
+                  Menu limitato a cantieri, magazzino, controllo gestione e finanza.
+                </p>
+                <Button asChild size="sm" variant="outline" className="mt-3 h-8 w-full bg-white">
+                  <Link to={commercialistaReturnTo}>Torna allo studio</Link>
+                </Button>
+              </div>
+            )}
             {/* Cruscotto — standalone items */}
-            <CruscottoNavItems filterNavItems={filterNavItems} />
+            {!isCommercialistaMode && <CruscottoNavItems filterNavItems={filterNavItems} />}
 
             {/* Separator: divide top-level items from collapsible sections */}
-            <div className="mx-4 border-t border-sidebar-border/60" />
+            {!isCommercialistaMode && <div className="mx-4 border-t border-sidebar-border/60" />}
 
             {/* Collapsible macro-areas — exclusive accordion.
                 Durante il loading di plan/feature-flags mostriamo skeleton
@@ -1101,8 +1223,13 @@ const CompanySidebar = memo(function CompanySidebar() {
             ) : (
               macroAreas
                 .filter(a => a.id !== "area_cruscotto")
+                .filter(a => !isCommercialistaMode || COMMERCIALISTA_ALLOWED_AREA_IDS.has(a.id))
                 .map(area => {
-                  const visibleItems = filterNavItems(area.items);
+                  const sourceItems =
+                    isCommercialistaMode && area.id === "area_cantieri"
+                      ? [...area.items, ...COMMERCIALISTA_EXTRA_CANTIERI_ITEMS]
+                      : area.items;
+                  const visibleItems = filterNavItems(sourceItems);
                   if (visibleItems.length === 0) return null;
                   return (
                     <MacroAreaCollapsible
@@ -1114,6 +1241,7 @@ const CompanySidebar = memo(function CompanySidebar() {
                       isScopriPlan={isScopriPlan}
                       isFeaturePreview={isSuperAdminViewer ? undefined : isFeaturePreview}
                       isModuleDemo={isModuleDemo}
+                      toHref={withCommercialistaSearch}
                       onOpenChange={(isOpen) => {
                         const newId = isOpen ? area.id : null;
                         setOpenAreaId(newId);
@@ -1222,6 +1350,13 @@ export function CompanyLayout() {
   const { unreadCount, markAsRead } = useUnreadSupportCount({ enabled: deferredRealtimeReady });
   const { area, areaIcon: AreaIcon, page, pageUrl } = useBreadcrumb();
   const location = useLocation();
+  const commercialistaParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
+  const commercialistaCompanyId = commercialistaParams.get("commercialistaCompany");
+  const commercialistaCompanyName =
+    commercialistaParams.get("commercialistaCompanyName") ??
+    accountantCompanies.find((company) => company.id === commercialistaCompanyId)?.name;
+  const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
   // True only when the current path goes deeper than the matched nav item (sub-page)
   const isSubPage = !!pageUrl && location.pathname !== pageUrl;
 
@@ -1309,6 +1444,13 @@ export function CompanyLayout() {
           <QuickLoginReturnBanner />
           <ImpersonationBanner />
           <ViewAsBanner />
+          {isCommercialistaMode && (
+            <CommercialistaModeBanner
+              companyId={commercialistaCompanyId}
+              companyName={commercialistaCompanyName}
+              returnTo={commercialistaReturnTo}
+            />
+          )}
           <AnnouncementBanner />
           <SubscriptionBanner />
           <header className="h-14 border-b flex items-center px-3 gap-2 md:gap-4 bg-background">

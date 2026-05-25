@@ -15,15 +15,16 @@ interface WarehouseKanbanCardProps {
   onSelect?: (item: WarehouseItem) => void;
   isSelected?: boolean;
   onToggleSelection?: (itemId: string) => void;
+  readOnly?: boolean;
 }
 
-export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSelected = false, onToggleSelection }: WarehouseKanbanCardProps) {
+export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSelected = false, onToggleSelection, readOnly = false }: WarehouseKanbanCardProps) {
   const {
     attributes,
     listeners,
     setNodeRef,
     isDragging,
-  } = useDraggable({ id: item.id });
+  } = useDraggable({ id: item.id, disabled: readOnly });
 
   const daysUntil = getDaysUntilPosa(item);
   const isUrgent = isItemUrgent(item);
@@ -58,7 +59,7 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
     >
       <CardContent className="space-y-2.5 p-3">
         <div className="flex items-start gap-2">
-          {onToggleSelection && (
+          {!readOnly && onToggleSelection && (
             <Checkbox
               checked={isSelected}
               onCheckedChange={() => onToggleSelection(item.id)}
@@ -66,14 +67,16 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
               className="shrink-0"
             />
           )}
-          <div
-            {...attributes}
-            {...listeners}
-            className="mt-0.5 shrink-0 cursor-grab text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <GripVertical className="h-4 w-4" />
-          </div>
+          {!readOnly && (
+            <div
+              {...attributes}
+              {...listeners}
+              className="mt-0.5 shrink-0 cursor-grab text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GripVertical className="h-4 w-4" />
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <p className="line-clamp-2 text-sm font-semibold leading-snug">{item.name}</p>

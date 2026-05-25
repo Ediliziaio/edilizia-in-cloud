@@ -14,22 +14,47 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const MONTHS = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 
+type ReferrerCommissionSummary = {
+  id: string;
+  total_earned: number | null;
+  total_paid: number | null;
+};
+
+type CommissionLedgerRow = {
+  id: string;
+  period_month?: number | null;
+  period_year?: number | null;
+  subscription_plan_name: string | null;
+  plan_mrr: number | null;
+  commission_type: string | null;
+  commission_rate: number | null;
+  tier_multiplier: number | null;
+  commission_amount: number | null;
+  status: string | null;
+};
+
+type MonthlyCommissionRow = {
+  period_month: number | null;
+  period_year: number | null;
+  commission_amount: number | null;
+};
+
 export default function PartnerCommissions() {
   const { user } = useAuth();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
 
-  const { data: referrer } = useQuery({
+  const { data: referrer, isLoading: isReferrerLoading } = useQuery<ReferrerCommissionSummary | null>({
     queryKey: ["my-referrer", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data } = await supabase.from("referrers").select("id, total_earned, total_paid").eq("user_id", user!.id).maybeSingle();
-      return data;
+      return data as ReferrerCommissionSummary | null;
     },
   });
 
-  const { data: ledger = [], isLoading } = useQuery({
+  const { data: ledger = [], isLoading } = useQuery<CommissionLedgerRow[]>({
     queryKey: ["my-ledger", referrer?.id, month, year],
     enabled: !!referrer?.id,
     queryFn: async () => {
@@ -41,11 +66,11 @@ export default function PartnerCommissions() {
         .eq("period_year", year)
         .order("commission_amount", { ascending: false });
       if (error) throw error;
-      return data;
+      return (data || []) as CommissionLedgerRow[];
     },
   });
 
-  const { data: monthlyTotals = [] } = useQuery({
+  const { data: monthlyTotals = [] } = useQuery<Array<{ month: string; total: number }>>({
     queryKey: ["my-monthly-totals", referrer?.id],
     enabled: !!referrer?.id,
     queryFn: async () => {
@@ -56,7 +81,8 @@ export default function PartnerCommissions() {
         .gte("period_year", year - 1);
       if (!data) return [];
       const map: Record<string, number> = {};
-      data.forEach((d: any) => {
+      (data as MonthlyCommissionRow[]).forEach((d) => {
+        if (!d.period_year || !d.period_month) return;
         const key = `${d.period_year}-${String(d.period_month).padStart(2, "0")}`;
         map[key] = (map[key] || 0) + (d.commission_amount || 0);
       });
@@ -70,14 +96,14 @@ export default function PartnerCommissions() {
     },
   });
 
-  const subtotal = ledger.reduce((sum: number, l: any) => sum + (l.commission_amount || 0), 0);
+  const subtotal = ledger.reduce((sum, l) => sum + (l.commission_amount || 0), 0);
 
   const exportCsvCommissions = () => {
     if (ledger.length === 0) { toast.error("Nessuna commissione da esportare"); return; }
     const monthName = MONTHS[month - 1];
     const csv = [
       ["Piano/Azienda", "MRR", "Tipo", "Aliquota", "Moltipl.", "Commissione", "Stato"].join(","),
-      ...ledger.map((l: any) => [
+      ...ledger.map((l) => [
         `"${l.subscription_plan_name || "---"}"`,
         l.plan_mrr?.toFixed(2) || "0",
         l.commission_type || "---",
@@ -106,9 +132,27 @@ export default function PartnerCommissions() {
       case "paid": return <Badge variant="default">Pagato</Badge>;
       case "approved": return <Badge className="bg-blue-500/10 text-blue-700 border-blue-200">Approvato</Badge>;
       case "cancelled": return <Badge variant="destructive">Annullato</Badge>;
-      default: return <Badge variant="secondary">Pending</Badge>;
+      default: return <Badge variant="secondary">In attesa</Badge>;
     }
   };
+
+  if (isReferrerLoading) {
+    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  if (!referrer) {
+    return (
+      <div className="p-6 max-w-2xl mx-auto">
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-40" />
+            <h1 className="text-xl font-semibold text-foreground">Commissioni non disponibili</h1>
+            <p className="mt-2 text-sm">Il tuo account non è ancora associato a un profilo partner attivo.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
@@ -186,7 +230,7 @@ export default function PartnerCommissions() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ledger.map((l: any) => (
+                {ledger.map((l) => (
                   <TableRow key={l.id}>
                     <TableCell className="font-medium">{l.subscription_plan_name || "—"}</TableCell>
                     <TableCell className="text-right">{formatCurrency(l.plan_mrr)}</TableCell>

@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
@@ -71,6 +71,8 @@ function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
   const { isScopriPlan, remainingOrders, currentPlan } = useSubscriptionLimits();
+  const [searchParams] = useSearchParams();
+  const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();
   const [showOrderTypeDialog, setShowOrderTypeDialog] = useState(false);
   const queryClient = useQueryClient();
@@ -1637,16 +1639,26 @@ function OrdersListInner() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onClick={() => setImportOpen(true)}>
-                <Upload className="h-4 w-4 mr-2" /> Importa commesse
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              {!isCommercialistaMode && (
+                <>
+                  <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                    <Upload className="h-4 w-4 mr-2" /> Importa commesse
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onClick={openCustomerSheetsDialog}>
                 <UsersIcon className="h-4 w-4 mr-2" /> Scarica schede clienti
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {appaltatoreEnabled ? (
+          {isCommercialistaMode ? (
+            <Button variant="outline" disabled className="border-blue-200 bg-blue-50 text-blue-700 disabled:opacity-100">
+              <ShieldCheck className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Sola lettura</span>
+              <span className="sm:hidden">Lettura</span>
+            </Button>
+          ) : appaltatoreEnabled ? (
             <Button
               onClick={() => setShowOrderTypeDialog(true)}
               className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/20 hover:from-orange-600 hover:to-amber-500 hover:shadow-md hover:shadow-orange-500/25"
@@ -2098,7 +2110,7 @@ function OrdersListInner() {
                   <Button variant="outline" onClick={() => setControlFocus("all")}>
                     Mostra tutte le commesse
                   </Button>
-                ) : stats.totalOrders === 0 && (
+                ) : stats.totalOrders === 0 && !isCommercialistaMode && (
                   appaltatoreEnabled ? (
                     <Button onClick={() => setShowOrderTypeDialog(true)}>
                       <Plus className="h-4 w-4 mr-2" />

@@ -261,6 +261,7 @@ function DocumentiFiscaliListInner() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTipo = searchParams.get("tipo");
+  const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
   const activeTab = TIPO_TABS.some((tab) => tab.id === requestedTipo) ? requestedTipo! : "fattura";
   const ddtPdf = useShipmentDDTPDF();
 
@@ -588,39 +589,43 @@ function DocumentiFiscaliListInner() {
                 <span className="hidden sm:inline">Report fiscali</span>
               </Link>
             </Button>
-            <Button variant="outline" size="sm" asChild className="gap-1.5">
-              <Link to="/azienda/impostazioni/fatturazione-nativa">
-                <Settings2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Impostazioni</span>
-              </Link>
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-                  <Plus className="h-4 w-4" /> Nuovo documento
+            {!isCommercialistaMode && (
+              <>
+                <Button variant="outline" size="sm" asChild className="gap-1.5">
+                  <Link to="/azienda/impostazioni/fatturazione-nativa">
+                    <Settings2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Impostazioni</span>
+                  </Link>
                 </Button>
-              </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura")}>Fattura (TD01)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_pa")}>Fattura PA</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=parcella")}>Parcella (TD06)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_credito")}>Nota di Credito</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=proforma")}>Pro-Forma</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=ddt")}>DDT</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_accompagnatoria")}>Fattura Accompagnatoria (TD24)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_fattura")}>Acconto su fattura (TD02)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_parcella")}>Acconto su parcella (TD03)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_differita_b")}>Fattura differita lett.b (TD25)</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=reverse_charge_interno")}>Integrazione RC interno (TD16) — Subappalto edile</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autofattura_splafonamento")}>Autofattura splafonamento (TD21)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autoconsumo")}>Autoconsumo (TD27)</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_servizi_estero")}>Autofattura Servizi Estero (TD17)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_ue")}>Integrazione Beni UE (TD18)</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_extra_ue")}>Integrazione Beni Extra-UE (TD19)</DropdownMenuItem>
-          </DropdownMenuContent>
-            </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+                      <Plus className="h-4 w-4" /> Nuovo documento
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura")}>Fattura (TD01)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_pa")}>Fattura PA</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=parcella")}>Parcella (TD06)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=nota_credito")}>Nota di Credito</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=proforma")}>Pro-Forma</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=ddt")}>DDT</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_accompagnatoria")}>Fattura Accompagnatoria (TD24)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_fattura")}>Acconto su fattura (TD02)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=acconto_parcella")}>Acconto su parcella (TD03)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=fattura_differita_b")}>Fattura differita lett.b (TD25)</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=reverse_charge_interno")}>Integrazione RC interno (TD16) — Subappalto edile</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autofattura_splafonamento")}>Autofattura splafonamento (TD21)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=autoconsumo")}>Autoconsumo (TD27)</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_servizi_estero")}>Autofattura Servizi Estero (TD17)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_ue")}>Integrazione Beni UE (TD18)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/azienda/documenti/nuovo?tipo=integrazione_beni_extra_ue")}>Integrazione Beni Extra-UE (TD19)</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
           </div>
         </div>
       </div>

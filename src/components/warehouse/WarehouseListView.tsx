@@ -30,6 +30,7 @@ interface WarehouseListViewProps {
   // M9 — dropdown sezione mobile
   sections?: { id: string; name: string }[];
   onSectionChange?: (itemId: string, sectionId: string | null) => void;
+  readOnly?: boolean;
 }
 
 function getStatusIndicators(items: WarehouseItem[]) {
@@ -53,6 +54,7 @@ function WarehouseListView({
   groupBy,
   sections = [],
   onSectionChange,
+  readOnly = false,
 }: WarehouseListViewProps) {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -148,7 +150,7 @@ function WarehouseListView({
   return (
     <div className="space-y-2">
       {/* Batch actions bar */}
-      {selectedItems.size > 0 && (
+      {!readOnly && selectedItems.size > 0 && (
         <div className="flex items-center justify-between p-3 bg-primary/5 border rounded-lg">
           <span className="text-sm font-medium">
             {selectedItems.size} selezionati
@@ -311,12 +313,13 @@ function WarehouseListView({
                           isSupplierGroup={isSupplierGroup}
                           sections={sections}
                           onSectionChange={onSectionChange}
+                          readOnly={readOnly}
                         />
                       ))}
 
                       {/* Group actions */}
                       <div className="flex items-center justify-between pt-2">
-                        {isSupplierGroup ? (
+                        {!readOnly && isSupplierGroup ? (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -329,7 +332,7 @@ function WarehouseListView({
                           >
                             Segna tutti come Ordinati
                           </Button>
-                        ) : (
+                        ) : !readOnly ? (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -339,6 +342,8 @@ function WarehouseListView({
                           >
                             Segna tutti installati
                           </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Vista consulente in sola lettura</span>
                         )}
                         {!isSupplierGroup && (
                           <Button variant="ghost" size="sm" asChild>
@@ -368,6 +373,7 @@ function WarehouseListView({
         getSupplierName={getSupplierName}
         isUpdating={isUpdating}
         stockMatch={selectedItem && selectedItem.status === "da_ordinare" ? findStockMatch(selectedItem.name) : null}
+        readOnly={readOnly}
       />
     </div>
   );

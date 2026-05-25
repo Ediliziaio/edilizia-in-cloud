@@ -6,12 +6,14 @@
  *   app              → main company app (default)
  *   admin            → super-admin panel
  *   clienti          → customer portal
+ *   lavori           → field/work portal
+ *   commercialista   → accountant/studio portal
  *   <anything else>  → treated like "app" (white-label or unknown)
  */
 
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 
-export type AppSubdomain = "www" | "app" | "admin" | "clienti" | "lavori" | "other";
+export type AppSubdomain = "www" | "app" | "admin" | "clienti" | "lavori" | "commercialista" | "other";
 
 export interface SubdomainConfig {
   subdomain: AppSubdomain;
@@ -47,6 +49,12 @@ const SUBDOMAIN_MAP: Record<string, SubdomainConfig> = {
     defaultPath: "/campo",
     loginPath: "/lavori-login",
     title: "Area Lavori — Edilizia in Cloud",
+  },
+  commercialista: {
+    subdomain: "commercialista",
+    defaultPath: "/commercialista",
+    loginPath: "/login",
+    title: "Portale Commercialista — Edilizia in Cloud",
   },
   app: {
     subdomain: "app",
@@ -119,4 +127,9 @@ export function isWwwSubdomain(): boolean {
 /** True quando il subdomain è l'area lavori (operai/subappaltatori) */
 export function isLavoriSubdomain(): boolean {
   return getCurrentSubdomain() === "lavori";
+}
+
+/** True quando il subdomain è il portale studio commercialista */
+export function isCommercialistaSubdomain(): boolean {
+  return getCurrentSubdomain() === "commercialista";
 }

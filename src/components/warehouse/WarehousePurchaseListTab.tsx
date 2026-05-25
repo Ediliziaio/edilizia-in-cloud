@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -124,6 +124,7 @@ interface WarehousePurchaseListTabProps {
   warehouseFilter?: string | null;
   onStatusChange?: (itemId: string, status: OrderItemStatus) => void;
   onRegisterArrival?: () => void;
+  readOnly?: boolean;
 }
 
 const SOURCE_LABELS: Record<PurchaseRow["source"], string> = {
@@ -232,6 +233,7 @@ export default function WarehousePurchaseListTab({
   warehouseFilter = null,
   onStatusChange,
   onRegisterArrival,
+  readOnly = false,
 }: WarehousePurchaseListTabProps) {
   const { warehouses, defaultWarehouse } = useWarehouses(true);
   const [manualItems, setManualItems] = useState<ManualPurchaseItem[]>([]);
@@ -334,24 +336,25 @@ export default function WarehousePurchaseListTab({
   );
 
   const updateManualItem = (id: string, patch: Partial<ManualPurchaseItem>) => {
+    if (readOnly) return;
     setManualItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   };
 
-  const getPaymentDone = (item: ManualPurchaseItem) =>
+  const getPaymentDone = useCallback((item: ManualPurchaseItem) =>
     item.paymentTerm === "acconto_saldo" || item.paymentTerm === "30_70"
       ? item.depositPaid && item.balancePaid
-      : item.paid;
+      : item.paid, []);
 
-  const getPaymentState = (item: ManualPurchaseItem): PaymentState => {
+  const getPaymentState = useCallback((item: ManualPurchaseItem): PaymentState => {
     if (item.paymentTerm === "acconto_saldo" || item.paymentTerm === "30_70") {
       if (item.depositPaid && item.balancePaid) return "paid";
       if (item.depositPaid || item.balancePaid) return "partial";
       return "unpaid";
     }
     return item.paid ? "paid" : "unpaid";
-  };
+  }, []);
 
-  const getPaymentLabel = (item: ManualPurchaseItem) => {
+  const getPaymentLabel = useCallback((item: ManualPurchaseItem) => {
     if (item.paymentTerm === "acconto_saldo" || item.paymentTerm === "30_70") {
       if (item.depositPaid && item.balancePaid) return "pagato tutto";
       if (item.depositPaid) return "acconto pagato";
@@ -359,9 +362,9 @@ export default function WarehousePurchaseListTab({
       return "pagamento da fare";
     }
     return item.paid ? "pagato" : "da pagare";
-  };
+  }, []);
 
-  const getPaymentDetail = (item: ManualPurchaseItem) => {
+  const getPaymentDetail = useCallback((item: ManualPurchaseItem) => {
     const total = getManualTotal(item);
     if (item.paymentTerm === "acconto_saldo" || item.paymentTerm === "30_70") {
       const deposit = total * getDepositPercent(item.paymentTerm);
@@ -369,7 +372,7 @@ export default function WarehousePurchaseListTab({
       return `Acconto ${formatCurrency(deposit)} ${item.depositPaid ? "pagato" : "da pagare"} · Saldo ${formatCurrency(balance)} ${item.balancePaid ? "pagato" : "da pagare"}`;
     }
     return item.paid ? `Pagato${item.paidDate ? ` il ${item.paidDate}` : ""}` : "Pagamento non registrato";
-  };
+  }, []);
 
   const renderWarehouseArrivalSelect = (
     value: string | null,
@@ -584,6 +587,7 @@ export default function WarehousePurchaseListTab({
   const hasPartialSelection = selectedRowIds.size > 0 && !allFilteredSelected;
 
   const toggleRowSelection = (rowId: string) => {
+    if (readOnly) return;
     setSelectedRowIds((current) => {
       const next = new Set(current);
       if (next.has(rowId)) next.delete(rowId);
@@ -593,6 +597,7 @@ export default function WarehousePurchaseListTab({
   };
 
   const toggleAllFiltered = () => {
+    if (readOnly) return;
     setSelectedRowIds((current) => {
       if (allFilteredSelected) return new Set();
       const next = new Set(current);
@@ -602,17 +607,20 @@ export default function WarehousePurchaseListTab({
   };
 
   const updateSelectedRowsStatus = (status: PurchaseStatus) => {
+    if (readOnly) return;
     selectedRows.forEach((row) => updateRowStatus(row, status, { openArrival: false }));
     setSelectedRowIds(new Set());
     if (status === "in_magazzino") onRegisterArrival?.();
   };
 
   const removeSelectedRows = () => {
+    if (readOnly) return;
     selectedRows.forEach(removePurchaseRow);
     setSelectedRowIds(new Set());
   };
 
   const addManualItem = () => {
+    if (readOnly) return;
     const name = form.name.trim();
     if (!name) return;
     const id = globalThis.crypto?.randomUUID?.() ?? `manual-${Date.now()}`;
@@ -642,6 +650,7 @@ export default function WarehousePurchaseListTab({
   };
 
   const openAddDialog = () => {
+    if (readOnly) return;
     setForm({ ...createEmptyForm(), warehouseId: warehouseFilter ?? defaultWarehouse?.id ?? null });
     setCostInputMode("unit");
     setShowProductSuggestions(false);
@@ -649,6 +658,7 @@ export default function WarehousePurchaseListTab({
   };
 
   const openAddDialogFromRow = (row: PurchaseRow) => {
+    if (readOnly) return;
     setForm({
       ...createEmptyForm(),
       name: row.name,
@@ -670,6 +680,7 @@ export default function WarehousePurchaseListTab({
     status: PurchaseStatus,
     options: { openArrival?: boolean } = {},
   ) => {
+    if (readOnly) return;
     if (row.source === "manual") {
       const currentItem = manualItems.find((item) => item.id === row.id);
       updateManualItem(row.id, {
@@ -714,6 +725,7 @@ export default function WarehousePurchaseListTab({
   };
 
   const completeManualItem = (id: string) => {
+    if (readOnly) return;
     setManualItems((current) => current.map((item) => (
       item.id === id
         ? { ...item, status: "in_magazzino", completed: true, arrivalDate: item.arrivalDate || todayIso() }
@@ -722,10 +734,12 @@ export default function WarehousePurchaseListTab({
   };
 
   const removeManualItem = (id: string) => {
+    if (readOnly) return;
     setManualItems((current) => current.filter((item) => item.id !== id));
   };
 
   const removePurchaseRow = (row: PurchaseRow) => {
+    if (readOnly) return;
     if (row.source === "manual") {
       removeManualItem(row.id);
       return;
@@ -829,13 +843,17 @@ export default function WarehousePurchaseListTab({
           <div>
             <p className="text-sm font-semibold">Lista acquisti operativa</p>
             <p className="text-xs text-muted-foreground">
-              Aggiungi prodotti manuali o usa i suggerimenti da inventario e storico acquisti.
+              {readOnly
+                ? "Vista consulente: acquisti, fabbisogni e scorte sono consultabili senza azioni operative."
+                : "Aggiungi prodotti manuali o usa i suggerimenti da inventario e storico acquisti."}
             </p>
           </div>
-          <Button type="button" onClick={openAddDialog} className="gap-2 sm:w-auto">
-            <PackagePlus className="h-4 w-4" aria-hidden="true" />
-            Aggiungi acquisto
-          </Button>
+          {!readOnly && (
+            <Button type="button" onClick={openAddDialog} className="gap-2 sm:w-auto">
+              <PackagePlus className="h-4 w-4" aria-hidden="true" />
+              Aggiungi acquisto
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -1511,7 +1529,7 @@ export default function WarehousePurchaseListTab({
         </Select>
       </div>
 
-      {selectedRowIds.size > 0 && (
+      {!readOnly && selectedRowIds.size > 0 && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1557,12 +1575,21 @@ export default function WarehousePurchaseListTab({
         </Card>
       ) : (
         <div className="overflow-hidden rounded-lg border bg-background">
-          <div className="hidden border-b bg-muted/50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground xl:grid xl:grid-cols-[36px_minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px_72px] xl:items-center xl:gap-4">
-            <Checkbox
-              checked={allFilteredSelected ? true : hasPartialSelection ? "indeterminate" : false}
-              onCheckedChange={toggleAllFiltered}
-              aria-label="Seleziona tutti gli acquisti visibili"
-            />
+          <div
+            className={cn(
+              "hidden border-b bg-muted/50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground xl:grid xl:items-center xl:gap-4",
+              readOnly
+                ? "xl:grid-cols-[minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px]"
+                : "xl:grid-cols-[36px_minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px_72px]",
+            )}
+          >
+            {!readOnly && (
+              <Checkbox
+                checked={allFilteredSelected ? true : hasPartialSelection ? "indeterminate" : false}
+                onCheckedChange={toggleAllFiltered}
+                aria-label="Seleziona tutti gli acquisti visibili"
+              />
+            )}
             <span>Articolo</span>
             <span>Stato</span>
             <span>Q.tà</span>
@@ -1570,12 +1597,12 @@ export default function WarehousePurchaseListTab({
             <span>Pagamento</span>
             <span>Fornitore / arrivo</span>
             <span>Entro</span>
-            <span className="text-right">Azioni</span>
+            {!readOnly && <span className="text-right">Azioni</span>}
           </div>
           {filteredRows.map((row) => {
             const daysUntil = getDaysUntil(row.dueDate);
             const isOverdue = daysUntil !== null && daysUntil < 0;
-            const canEditRow = row.source === "manual";
+            const canEditRow = !readOnly && row.source === "manual";
             const selected = selectedRowIds.has(row.id);
             return (
               <Card key={row.id} className="rounded-none border-0 border-b shadow-none last:border-b-0">
@@ -1592,18 +1619,23 @@ export default function WarehousePurchaseListTab({
                       }
                     }}
                     className={cn(
-                      "grid gap-4 border-l-4 border-l-slate-200 p-4 transition-colors hover:border-l-blue-500 hover:bg-slate-50/50 xl:grid-cols-[36px_minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px_72px] xl:items-center",
+                      "grid gap-4 border-l-4 border-l-slate-200 p-4 transition-colors hover:border-l-blue-500 hover:bg-slate-50/50 xl:items-center",
+                      readOnly
+                        ? "xl:grid-cols-[minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px]"
+                        : "xl:grid-cols-[36px_minmax(280px,1.45fr)_118px_80px_150px_220px_210px_145px_72px]",
                       canEditRow && "cursor-pointer",
                       selected && "border-l-blue-600 bg-blue-50/60 hover:bg-blue-50",
                     )}
                   >
-                    <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
-                      <Checkbox
-                        checked={selected}
-                        onCheckedChange={() => toggleRowSelection(row.id)}
-                        aria-label={`Seleziona ${row.name}`}
-                      />
-                    </div>
+                    {!readOnly && (
+                      <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={() => toggleRowSelection(row.id)}
+                          aria-label={`Seleziona ${row.name}`}
+                        />
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate text-sm font-semibold" title={row.name}>
@@ -1629,7 +1661,7 @@ export default function WarehousePurchaseListTab({
 
                     <div>
                       <p className="mb-1 text-xs font-medium text-muted-foreground xl:hidden">Stato</p>
-                      {row.source === "stock" ? (
+                      {readOnly || row.source === "stock" ? (
                         <Badge variant="outline" className={cn("text-[11px] leading-none", STATUS_BADGE_STYLES[row.status])}>
                           {STATUS_CONFIG[row.status].label}
                         </Badge>
@@ -1699,7 +1731,8 @@ export default function WarehousePurchaseListTab({
                       )}
                     </div>
 
-                    <div className="flex justify-start xl:justify-end" onClick={(event) => event.stopPropagation()}>
+                    {!readOnly && (
+                      <div className="flex justify-start xl:justify-end" onClick={(event) => event.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -1746,7 +1779,8 @@ export default function WarehousePurchaseListTab({
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -21,6 +21,11 @@ import {
   evaluateReferralPayoutEligibility,
   parseReferralCommissionPolicy,
 } from "@/lib/referralRules";
+import {
+  bankVerificationLabel,
+  contractApprovalLabel,
+  getPartnerPayoutCompliance,
+} from "@/lib/referralCompliance";
 
 export function PayoutApprovalTab() {
   const { user } = useAuth();
@@ -261,14 +266,20 @@ export function PayoutApprovalTab() {
     policy: payoutPolicy,
   });
 
-  const blockedPendingCount = pending.filter((p: any) => !getEligibility(p).eligible).length;
-  const blockedApprovedCount = approved.filter((p: any) => !getEligibility(p).eligible).length;
+  const getCompliance = (payout: any) => getPartnerPayoutCompliance({
+    payoutDetails: payout.referrer?.payout_details,
+    hasAcceptedTerms: payout.referrer?.has_accepted_terms,
+  });
+
+  const blockedPendingCount = pending.filter((p: any) => !getEligibility(p).eligible || !getCompliance(p).ready).length;
+  const blockedApprovedCount = approved.filter((p: any) => !getEligibility(p).eligible || !getCompliance(p).ready).length;
 
   const handleApproveClick = (payout: any) => {
     const eligibility = getEligibility(payout);
-    if (!eligibility.eligible) {
+    const compliance = getCompliance(payout);
+    if (!eligibility.eligible || !compliance.ready) {
       toast.error("Payout bloccato dalla policy", {
-        description: eligibility.blockers.join(" · "),
+        description: [...compliance.blockers, ...eligibility.blockers].join(" · "),
       });
       return;
     }
@@ -332,6 +343,8 @@ export function PayoutApprovalTab() {
                 <TableBody>
                   {pending.map((p: any) => {
                     const eligibility = getEligibility(p);
+                    const compliance = getCompliance(p);
+                    const canApprove = eligibility.eligible && compliance.ready;
                     return (
                       <TableRow key={p.id}>
                         <TableCell>
@@ -346,12 +359,20 @@ export function PayoutApprovalTab() {
                         <TableCell>{statusBadge(p.status)}</TableCell>
                         <TableCell className="max-w-[260px]">
                           <div className="space-y-1">
-                            <Badge variant={eligibility.eligible ? "secondary" : "destructive"}>
-                              {eligibility.eligible ? "Eleggibile" : "Bloccato"}
+                            <Badge variant={canApprove ? "secondary" : "destructive"}>
+                              {canApprove ? "Eleggibile" : "Bloccato"}
                             </Badge>
-                            {(eligibility.blockers.length > 0 || eligibility.warnings.length > 0) && (
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant={compliance.bankStatus === "verified" ? "outline" : "secondary"} className="text-[11px]">
+                                Conto: {bankVerificationLabel(compliance.bankStatus)}
+                              </Badge>
+                              <Badge variant={compliance.contractStatus === "approved" ? "outline" : "secondary"} className="text-[11px]">
+                                Contratto: {contractApprovalLabel(compliance.contractStatus)}
+                              </Badge>
+                            </div>
+                            {(compliance.blockers.length > 0 || eligibility.blockers.length > 0 || eligibility.warnings.length > 0) && (
                               <p className="text-xs text-muted-foreground">
-                                {[...eligibility.blockers, ...eligibility.warnings].join(" · ")}
+                                {[...compliance.blockers, ...eligibility.blockers, ...eligibility.warnings].join(" · ")}
                               </p>
                             )}
                           </div>
@@ -362,7 +383,7 @@ export function PayoutApprovalTab() {
                               size="sm"
                               variant="outline"
                               onClick={() => handleApproveClick(p)}
-                              disabled={approveMutation.isPending || !eligibility.eligible}
+                              disabled={approveMutation.isPending || !canApprove}
                             >
                               <Check className="h-3.5 w-3.5 mr-1" /> Approva
                             </Button>
@@ -401,6 +422,8 @@ export function PayoutApprovalTab() {
                   <TableBody>
                     {approved.map((p: any) => {
                       const eligibility = getEligibility(p);
+                      const compliance = getCompliance(p);
+                      const canPay = eligibility.eligible && compliance.ready;
                       return (
                         <TableRow key={p.id}>
                           <TableCell className="font-medium">{p.referrer?.name}</TableCell>
@@ -408,12 +431,20 @@ export function PayoutApprovalTab() {
                           <TableCell className="text-sm">{p.payment_method}</TableCell>
                           <TableCell className="max-w-[260px]">
                             <div className="space-y-1">
-                              <Badge variant={eligibility.eligible ? "secondary" : "destructive"}>
-                                {eligibility.eligible ? "Eleggibile" : "Bloccato"}
+                              <Badge variant={canPay ? "secondary" : "destructive"}>
+                                {canPay ? "Eleggibile" : "Bloccato"}
                               </Badge>
-                              {(eligibility.blockers.length > 0 || eligibility.warnings.length > 0) && (
+                              <div className="flex flex-wrap gap-1">
+                                <Badge variant={compliance.bankStatus === "verified" ? "outline" : "secondary"} className="text-[11px]">
+                                  Conto: {bankVerificationLabel(compliance.bankStatus)}
+                                </Badge>
+                                <Badge variant={compliance.contractStatus === "approved" ? "outline" : "secondary"} className="text-[11px]">
+                                  Contratto: {contractApprovalLabel(compliance.contractStatus)}
+                                </Badge>
+                              </div>
+                              {(compliance.blockers.length > 0 || eligibility.blockers.length > 0 || eligibility.warnings.length > 0) && (
                                 <p className="text-xs text-muted-foreground">
-                                  {[...eligibility.blockers, ...eligibility.warnings].join(" · ")}
+                                  {[...compliance.blockers, ...eligibility.blockers, ...eligibility.warnings].join(" · ")}
                                 </p>
                               )}
                             </div>
@@ -422,9 +453,9 @@ export function PayoutApprovalTab() {
                             <Button
                               size="sm"
                               onClick={() => {
-                                if (!eligibility.eligible) {
+                                if (!canPay) {
                                   toast.error("Pagamento bloccato dalla policy", {
-                                    description: eligibility.blockers.join(" · "),
+                                    description: [...compliance.blockers, ...eligibility.blockers].join(" · "),
                                   });
                                   return;
                                 }
@@ -435,7 +466,7 @@ export function PayoutApprovalTab() {
                                   toast.error("Riferimento transazione obbligatorio");
                                 }
                               }}
-                              disabled={markPaid.isPending || !eligibility.eligible}
+                              disabled={markPaid.isPending || !canPay}
                             >
                               Segna come Pagato
                             </Button>

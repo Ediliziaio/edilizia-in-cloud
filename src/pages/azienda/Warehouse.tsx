@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { OrderItemStatus } from "@/types/warehouse";
@@ -187,6 +187,8 @@ const INVENTORY_METRIC_LABELS: Record<WarehouseInventoryMetricKey, string> = {
 
 export default function Warehouse() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
   const {
     items,
     filteredItems,
@@ -329,6 +331,7 @@ export default function Warehouse() {
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     setDraggingItem(null);
+    if (isCommercialistaMode) return;
     const { active, over } = event;
     if (!over) return;
 
@@ -354,12 +357,16 @@ export default function Warehouse() {
         handleStatusChange(itemId, newStatus as OrderItemStatus);
       }
     }
-  }, [selectedItemIds, handleBatchSectionChange, filteredItems, handleStatusChange]);
+  }, [isCommercialistaMode, selectedItemIds, handleBatchSectionChange, filteredItems, handleStatusChange]);
 
   // M9 — wrapper single-item per il dropdown sezione mobile
   const handleSingleSectionChange = useCallback((itemId: string, sectionId: string | null) => {
     handleBatchSectionChange([itemId], sectionId);
   }, [handleBatchSectionChange]);
+
+  const readonlyWarehouseAction = useCallback(() => {
+    // Modalita commercialista: il magazzino e' consultabile ma non modificabile.
+  }, []);
 
   if (isScopriPlan) return <UpgradeScopriWall type="magazzino" inline />;
 
@@ -661,14 +668,18 @@ export default function Warehouse() {
                   Predefinito
                 </Badge>
               )}
-              <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)}>
-                <ArrowLeftRight className="h-4 w-4 sm:mr-2" aria-hidden="true" />
-                <span className="hidden sm:inline">Trasferisci</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")}>
-                <SettingsIcon className="h-4 w-4 sm:mr-2" aria-hidden="true" />
-                <span className="hidden sm:inline">Gestisci magazzini</span>
-              </Button>
+              {!isCommercialistaMode && (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)}>
+                    <ArrowLeftRight className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                    <span className="hidden sm:inline">Trasferisci</span>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/azienda/magazzino/gestione")}>
+                    <SettingsIcon className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                    <span className="hidden sm:inline">Gestisci magazzini</span>
+                  </Button>
+                </>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -751,22 +762,30 @@ export default function Warehouse() {
           <div>
             <h2 className="text-base font-semibold">Operazioni magazzino</h2>
             <p className="text-sm text-muted-foreground">
-              Registra arrivi, genera DDT di uscita e controlla inventario senza cambiare flusso mentale.
+              {isCommercialistaMode
+                ? "Vista consulente: controlla materiali, DDT, scorte e fabbisogni senza eseguire movimenti."
+                : "Registra arrivi, genera DDT di uscita e controlla inventario senza cambiare flusso mentale."}
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
-            <Button
-              onClick={() => openStockAction("receive")}
-              className="justify-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
-            >
-              <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
-              Registra arrivo merce
-            </Button>
-            <Button variant="outline" onClick={() => openStockAction("ship")} className="justify-start gap-2">
-              <ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />
-              Uscita merce
-            </Button>
-          </div>
+          {isCommercialistaMode ? (
+            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
+              Sola lettura
+            </Badge>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
+              <Button
+                onClick={() => openStockAction("receive")}
+                className="justify-start gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600"
+              >
+                <ArrowDownToLine className="h-4 w-4" aria-hidden="true" />
+                Registra arrivo merce
+              </Button>
+              <Button variant="outline" onClick={() => openStockAction("ship")} className="justify-start gap-2">
+                <ArrowUpFromLine className="h-4 w-4" aria-hidden="true" />
+                Uscita merce
+              </Button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1292,13 +1311,14 @@ export default function Warehouse() {
           stockItems={stockItems}
           suppliers={suppliers}
           warehouseFilter={warehouseFilter}
-          onStatusChange={handleStatusChange}
-          onRegisterArrival={() => openStockAction("receive")}
+          onStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleStatusChange}
+          onRegisterArrival={isCommercialistaMode ? readonlyWarehouseAction : () => openStockAction("receive")}
+          readOnly={isCommercialistaMode}
         />
       ) : viewMode === "ddt" ? (
-        <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={() => openStockAction("receive")} />
+        <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={isCommercialistaMode ? undefined : () => openStockAction("receive")} />
       ) : viewMode === "lotti" ? (
-        <WarehouseLottiTab />
+        <WarehouseLottiTab readOnly={isCommercialistaMode} />
       ) : viewMode === "valuation" ? (
         <WarehouseValorizzazionePanel warehouseId={warehouseFilter ?? null} />
       ) : viewMode === "scadenze" ? (
@@ -1306,9 +1326,13 @@ export default function Warehouse() {
       ) : viewMode === "stock" ? (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <ArticoliCSVImportDialog warehouseId={warehouseFilter ?? null} />
+            {!isCommercialistaMode && <ArticoliCSVImportDialog warehouseId={warehouseFilter ?? null} />}
           </div>
-          <WarehouseStockTab warehouseFilter={warehouseFilter} actionRequest={stockActionRequest} />
+          <WarehouseStockTab
+            warehouseFilter={warehouseFilter}
+            actionRequest={stockActionRequest}
+            readOnly={isCommercialistaMode}
+          />
         </div>
       ) : isLoading ? (
         <div
@@ -1333,7 +1357,7 @@ export default function Warehouse() {
                   : "Aggiungi articoli dal catalogo per iniziare a gestire il magazzino."}
               </p>
             </div>
-            {!hasActiveFilters && (
+            {!hasActiveFilters && !isCommercialistaMode && (
               <a
                 href="/azienda/impostazioni/catalogo"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
@@ -1351,7 +1375,7 @@ export default function Warehouse() {
           onDragEnd={handleDragEnd}
         >
           {/* Selection bar */}
-          {selectedItemIds.size > 0 && (
+          {!isCommercialistaMode && selectedItemIds.size > 0 && (
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="py-3 flex items-center gap-3">
                 <span className="text-sm font-medium">
@@ -1376,28 +1400,30 @@ export default function Warehouse() {
           {viewMode === "list" && (
             <WarehouseListView
               orderGroups={filteredGroups}
-              onStatusChange={handleStatusChange}
-              onMarkAllInstalled={handleMarkAllInstalled}
-              onBatchStatusChange={handleBatchStatusChange}
+              onStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleStatusChange}
+              onMarkAllInstalled={isCommercialistaMode ? readonlyWarehouseAction : handleMarkAllInstalled}
+              onBatchStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleBatchStatusChange}
               getSupplierName={getSupplierName}
               isUpdating={isUpdating}
               stockItems={stockItems}
-              onUpdateNotes={handleUpdateNotes}
+              onUpdateNotes={isCommercialistaMode ? readonlyWarehouseAction : handleUpdateNotes}
               groupBy={groupBy}
               sections={sections}
-              onSectionChange={handleSingleSectionChange}
+              onSectionChange={isCommercialistaMode ? readonlyWarehouseAction : handleSingleSectionChange}
+              readOnly={isCommercialistaMode}
             />
           )}
 
           {viewMode === "kanban" && (
             <WarehouseKanbanView
               items={filteredItems}
-              onStatusChange={handleStatusChange}
-              onUpdateNotes={handleUpdateNotes}
+              onStatusChange={isCommercialistaMode ? readonlyWarehouseAction : handleStatusChange}
+              onUpdateNotes={isCommercialistaMode ? readonlyWarehouseAction : handleUpdateNotes}
               getSupplierName={getSupplierName}
               isUpdating={isUpdating}
               selectedIds={selectedItemIds}
-              onToggleSelection={toggleItemSelection}
+              onToggleSelection={isCommercialistaMode ? readonlyWarehouseAction : toggleItemSelection}
+              readOnly={isCommercialistaMode}
             />
           )}
 
