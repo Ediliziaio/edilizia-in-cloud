@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertTriangle, BrainCircuit, CheckCircle2, Clock3, Loader2, ShieldCheck } from "lucide-react";
+import { AlertTriangle, BrainCircuit, CheckCircle2, Clock3, Loader2, Save, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type AnswerValue = "A" | "B" | "C" | "D";
@@ -249,17 +250,44 @@ export default function TalentProfilePublic() {
   if (completed) {
     return (
       <PublicShell companyName={session.company?.name || undefined}>
-        <Card className="mx-auto max-w-xl border-emerald-200">
-          <CardContent className="space-y-4 p-8 text-center">
-            <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
-            <div>
-              <h1 className="text-2xl font-bold text-slate-950">Test completato</h1>
-              <p className="mt-2 text-sm text-slate-600">
-                Grazie {session.candidate?.nome}. Le risposte sono state inviate al team HR per il report.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="mx-auto max-w-xl"
+        >
+          <Card className="overflow-hidden border-emerald-200 shadow-xl">
+            <div className="h-2 bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600" />
+            <CardContent className="space-y-5 p-10 text-center">
+              <motion.div
+                initial={{ scale: 0, rotate: -30 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50"
+              >
+                <CheckCircle2 className="h-12 w-12 text-emerald-500" />
+              </motion.div>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-950">Test completato</h1>
+                <p className="mt-3 text-base text-slate-600">
+                  Grazie {session.candidate?.nome}. Le tue risposte sono state inviate al team HR.
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Riceverai aggiornamenti sul processo di selezione direttamente dall'azienda.
+                </p>
+              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="flex items-center justify-center gap-2 text-xs text-slate-500"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-orange-500" />
+                Powered by EdiliziaInCloud Talent Assessment
+              </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </PublicShell>
     );
   }
@@ -267,22 +295,33 @@ export default function TalentProfilePublic() {
   return (
     <PublicShell companyName={session.company?.name || undefined}>
       <div className="mx-auto flex max-w-6xl flex-col gap-5">
-        <Card className="border-orange-200 bg-white/95 shadow-sm">
-          <CardHeader className="space-y-3">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+        <Card className="overflow-hidden border-orange-200 bg-white/95 shadow-md">
+          <div className="h-1 bg-gradient-to-r from-orange-500 via-orange-400 to-amber-500" />
+          <CardHeader className="space-y-4 pt-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-white">
+                <motion.div
+                  initial={{ rotate: -10, scale: 0.8 }}
+                  animate={{ rotate: 0, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                  className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm shadow-orange-200"
+                >
                   <BrainCircuit className="h-6 w-6" />
-                </div>
+                </motion.div>
                 <div>
-                  <CardTitle className="text-2xl">Talent Profile</CardTitle>
+                  <CardTitle className="text-2xl tracking-tight">Talent Profile</CardTitle>
                   <p className="mt-1 text-sm text-slate-600">
-                    {session.candidate?.nome} {session.candidate?.cognome} · ruolo valutato: {session.candidate?.ruolo_richiesto}
+                    {session.candidate?.nome} {session.candidate?.cognome} · ruolo valutato: <span className="font-semibold text-slate-900">{session.candidate?.ruolo_richiesto}</span>
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">{answeredCount}/{questions.length} risposte</Badge>
+                <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 tabular-nums">{answeredCount}/{questions.length} risposte</Badge>
                 {missingAnswersCount > 0 && (
                   <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                     mancano {missingAnswersCount}
@@ -296,11 +335,23 @@ export default function TalentProfilePublic() {
                 )}
               </div>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full bg-orange-500 transition-all" style={{ width: `${progressPct}%` }} />
+            <div className="space-y-1">
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="font-semibold uppercase tracking-wider text-slate-500">Progresso</span>
+                <span className="text-sm font-bold tabular-nums text-orange-700">{progressPct}%</span>
+              </div>
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <motion.div
+                  className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progressPct}%` }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                />
+              </div>
             </div>
           </CardHeader>
         </Card>
+        </motion.div>
 
         {!privacyAccepted ? (
           <Card className="mx-auto max-w-3xl">
@@ -354,57 +405,88 @@ export default function TalentProfilePublic() {
               </div>
             </aside>
 
-            <Card className="overflow-hidden">
-              <CardHeader className="border-b border-slate-100">
+            <Card className="overflow-hidden shadow-md">
+              <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <CardTitle className="text-lg">Blocco {block}</CardTitle>
-                    <p className="text-sm text-slate-500">Scegli la risposta piu naturale, senza pensarci troppo.</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">Sezione {blockIndex + 1} / {blocks.length}</p>
+                    <CardTitle className="text-xl tracking-tight">Blocco {block}</CardTitle>
+                    <p className="mt-1 text-sm text-slate-500">Scegli la risposta più naturale, senza pensarci troppo.</p>
                   </div>
-                  {dirty ? (
-                    <Badge className="w-fit bg-amber-100 text-amber-800 hover:bg-amber-100">modifiche da salvare</Badge>
-                  ) : (
-                    <Badge className="w-fit bg-emerald-100 text-emerald-800 hover:bg-emerald-100">salvato</Badge>
-                  )}
+                  <AnimatePresence mode="wait">
+                    {dirty ? (
+                      <motion.div key="dirty" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+                        <Badge className="w-fit gap-1.5 bg-amber-100 text-amber-800 hover:bg-amber-100">
+                          <Save className="h-3 w-3" />
+                          modifiche da salvare
+                        </Badge>
+                      </motion.div>
+                    ) : (
+                      <motion.div key="saved" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
+                        <Badge className="w-fit gap-1.5 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                          <CheckCircle2 className="h-3 w-3" />
+                          salvato
+                        </Badge>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 p-5">
-                {currentQuestions.map((question) => (
-                  <div key={question.question_id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Domanda {question.question_id}
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-slate-950">{question.question_text}</p>
-                      </div>
-                      <div className="grid min-w-full gap-2 sm:grid-cols-3 xl:min-w-[420px]">
-                        {answerOptions.map((option) => {
-                          const label = question.custom_answers?.[option.value.toLowerCase() as "a" | "b" | "c"] || option.label;
-                          const active = answers[question.question_id] === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => {
-                                setAnswers((prev) => ({ ...prev, [question.question_id]: option.value }));
-                                setDirty(true);
-                              }}
-                              className={`rounded-xl border px-3 py-2 text-left text-xs font-medium transition ${
-                                active
-                                  ? "border-orange-500 bg-orange-50 text-orange-800"
-                                  : "border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/60"
-                              }`}
-                            >
-                              <span className="block text-[11px] font-bold">{option.value}</span>
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={block}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.25 }}
+                    className="space-y-3"
+                  >
+                    {currentQuestions.map((question, qIdx) => (
+                      <motion.div
+                        key={question.question_id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: qIdx * 0.03, duration: 0.25 }}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-orange-200 hover:shadow-sm"
+                      >
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
+                              Domanda {question.question_id}
+                            </p>
+                            <p className="mt-1 text-base font-medium leading-relaxed text-slate-950">{question.question_text}</p>
+                          </div>
+                          <div className="grid min-w-full gap-2 sm:grid-cols-3 xl:min-w-[420px]">
+                            {answerOptions.map((option) => {
+                              const label = question.custom_answers?.[option.value.toLowerCase() as "a" | "b" | "c"] || option.label;
+                              const active = answers[question.question_id] === option.value;
+                              return (
+                                <motion.button
+                                  key={option.value}
+                                  type="button"
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={() => {
+                                    setAnswers((prev) => ({ ...prev, [question.question_id]: option.value }));
+                                    setDirty(true);
+                                  }}
+                                  className={`rounded-xl border px-3 py-2.5 text-left text-xs font-medium transition ${
+                                    active
+                                      ? "border-orange-500 bg-orange-50 text-orange-900 shadow-sm shadow-orange-100"
+                                      : "border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/60"
+                                  }`}
+                                >
+                                  <span className={`block text-[11px] font-bold ${active ? "text-orange-600" : "text-slate-400"}`}>{option.value}</span>
+                                  {label}
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
 
                 <div className="flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <Button variant="outline" disabled={blockIndex <= 0 || saving} onClick={() => void goToBlock(blocks[Math.max(0, blockIndex - 1)])}>

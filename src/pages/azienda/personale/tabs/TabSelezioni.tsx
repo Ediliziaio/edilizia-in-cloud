@@ -5,6 +5,9 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { DOMANDE } from "@/features/talent-profile/data/questionario";
 import { ROLE_PROFILES_V5 } from "@/features/talent-profile/lib/roleMatchingV5";
 import { buildTalentReportDecision, buildTalentReportPayload, buildTalentReportPrintHtml, type TalentReportPayload } from "@/features/talent-profile/lib/reporting";
+import { PremiumReportButton } from "@/features/talent-profile/components/PremiumReportButton";
+import { RichReportSections } from "@/features/talent-profile/components/RichReportSections";
+import { HeroReportVisual } from "@/features/talent-profile/components/HeroReportVisual";
 import { TRAIT_LABELS, type TraitCode } from "@/features/talent-profile/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,8 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertTriangle, BrainCircuit, CheckCircle2, ClipboardCheck, Clock3, Copy, ExternalLink, FileText, Link2, Plus, Printer, RefreshCcw, ShieldCheck, Sparkles, Target, UserRoundSearch } from "lucide-react";
+import { AlertTriangle, BarChart3, BrainCircuit, CheckCircle2, ClipboardCheck, Clock3, Copy, ExternalLink, FileText, Link2, Plus, Printer, RefreshCcw, ShieldCheck, Sparkles, Target, UserRoundSearch } from "lucide-react";
 import { toast } from "sonner";
+import { Bar, BarChart, Cell, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type TalentCandidateStatus = "draft" | "invited" | "in_progress" | "completed" | "archived";
 
@@ -461,6 +465,8 @@ export function TabSelezioni() {
         </div>
       </div>
 
+      <SelezioniAnalytics candidates={candidates} reports={reports} />
+
       {questionnaireCandidate && (
         <TalentQuestionnaireDialog
           candidate={questionnaireCandidate}
@@ -637,6 +643,7 @@ function CandidateRow({
           <FileText className="mr-2 h-4 w-4" />
           Apri report
         </Button>
+        {report && <PremiumReportButton candidate={candidate} report={report} />}
       </div>
     </div>
   );
@@ -721,12 +728,29 @@ function ReportDecisionDialog({
           </div>
         </DialogHeader>
 
+        <HeroReportVisual
+          candidate={{ nome: candidate.nome, cognome: candidate.cognome }}
+          traits={report.traits_v5}
+          syndromes={(report.syndromes_detected || []) as never}
+          macroAreas={{
+            essere: report.macro_areas?.essere_pct ?? 0,
+            fare: report.macro_areas?.fare_pct ?? 0,
+            avere: report.macro_areas?.avere_pct ?? 0,
+          }}
+          fitPct={Number(report.role_match?.compatibilitaPct || 0)}
+          fitVerdict={report.role_match?.verdict}
+          profileLabel={report.profile_type.replace(/_/g, " ")}
+          decisionLabel={decision.label}
+          decisionTone={decision.tone}
+          reliability={report.reliability_index}
+        />
+
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <Card className={`border ${toneClass}`}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <BrainCircuit className="h-4 w-4" />
-                Decisione HR
+                Decisione HR — dettaglio
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -854,6 +878,16 @@ function ReportDecisionDialog({
           </Card>
         </div>
 
+        <ReportTraitsPanel report={report} />
+
+        <RichReportSections
+          candidate={{ nome: candidate.nome, cognome: candidate.cognome }}
+          traits={report.traits_v5}
+          syndromes={(report.syndromes_detected || []) as never}
+          profileType={report.profile_type}
+          reliability={report.reliability_index}
+        />
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Piano 30/60/90</CardTitle>
@@ -883,8 +917,9 @@ function ReportDecisionDialog({
           </Button>
           <Button variant="outline" onClick={() => openTalentReportPrintView(candidate, report)}>
             <Printer className="mr-2 h-4 w-4" />
-            Scarica PDF / stampa
+            Stampa rapida
           </Button>
+          <PremiumReportButton candidate={candidate} report={report} />
           <Button className="bg-orange-600 hover:bg-orange-700" onClick={() => onOpenChange(false)}>
             Chiudi report
           </Button>
@@ -922,6 +957,260 @@ function ReportMacroAreas({ report }: { report: TalentReport }) {
             </div>
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+const TRAIT_ORDER: TraitCode[] = [
+  "ORG", "AUT", "GP", "ADS", "DET", "VEN", "HRM",
+  "LDR", "PRO", "COM", "ESP", "RC", "FIN", "SUC", "PRI",
+];
+
+const TRAIT_MACRO: Record<TraitCode, "ESSERE" | "FARE" | "AVERE" | "INDICATOR" | "CTRL"> = {
+  ORG: "ESSERE", AUT: "ESSERE", GP: "ESSERE",
+  ADS: "FARE", DET: "FARE", VEN: "FARE", HRM: "FARE",
+  LDR: "AVERE", PRO: "AVERE", COM: "AVERE", ESP: "AVERE",
+  RC: "INDICATOR", FIN: "INDICATOR", SUC: "INDICATOR", PRI: "INDICATOR",
+  CTRL: "CTRL",
+};
+
+function ReportTraitsPanel({ report }: { report: TalentReport }) {
+  const traits = (report.traits_v5 || {}) as Record<string, number>;
+  const max = 100;
+  const groups: { label: string; code: "ESSERE" | "FARE" | "AVERE" | "INDICATOR" }[] = [
+    { label: "Essere — concentrazione obiettivi", code: "ESSERE" },
+    { label: "Fare — azione concreta", code: "FARE" },
+    { label: "Avere — relazioni di valore", code: "AVERE" },
+    { label: "Indicatori comportamentali", code: "INDICATOR" },
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">15 tratti psicometrici</CardTitle>
+        <p className="text-sm text-slate-500">Profilo dettagliato del candidato. Verde = punto forte (≥65), ambra = medio (40–64), rosso = leva critica (&lt;40).</p>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {groups.map((group) => {
+          const codes = TRAIT_ORDER.filter((c) => TRAIT_MACRO[c] === group.code);
+          return (
+            <div key={group.code} className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {codes.map((code) => {
+                  const value = clampTalentPercent(traits[code]);
+                  const tone = value >= 65 ? "bg-emerald-500" : value >= 40 ? "bg-amber-500" : "bg-red-500";
+                  return (
+                    <div key={code} className="space-y-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-xs font-medium text-slate-700">{TRAIT_LABELS[code]}</span>
+                        <span className="text-xs font-bold tabular-nums text-slate-900">{value}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className={`h-full rounded-full ${tone}`} style={{ width: `${value}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+const RELIABILITY_COLORS: Record<string, string> = {
+  YES: "#16A34A",
+  CAUTION: "#D97706",
+  NO: "#DC2626",
+  ZERO: "#6B7280",
+  FORCED: "#9333EA",
+};
+
+const RELIABILITY_LABELS: Record<string, string> = {
+  YES: "Attendibile",
+  CAUTION: "Cautela",
+  NO: "Non attendibile",
+  ZERO: "Inutilizzabile",
+  FORCED: "Forzato",
+};
+
+function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandidate[]; reports: TalentReport[] }) {
+  const trendData = useMemo(() => {
+    const days = 30;
+    const now = new Date();
+    const buckets = new Map<string, number>();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      buckets.set(key, 0);
+    }
+    for (const c of candidates) {
+      const key = c.created_at?.slice(0, 10);
+      if (key && buckets.has(key)) buckets.set(key, (buckets.get(key) || 0) + 1);
+    }
+    return Array.from(buckets.entries()).map(([date, value]) => ({
+      date: date.slice(5),
+      value,
+    }));
+  }, [candidates]);
+
+  const fitByRole = useMemo(() => {
+    const grouped = new Map<string, { sum: number; count: number }>();
+    for (const r of reports) {
+      const ruolo = r.role_requested || "Non specificato";
+      const pct = Number(r.role_match?.compatibilitaPct || 0);
+      const cur = grouped.get(ruolo) || { sum: 0, count: 0 };
+      cur.sum += pct;
+      cur.count += 1;
+      grouped.set(ruolo, cur);
+    }
+    return Array.from(grouped.entries())
+      .map(([ruolo, { sum, count }]) => ({
+        ruolo: ruolo.length > 18 ? `${ruolo.slice(0, 18)}…` : ruolo,
+        fit: Math.round(sum / count),
+        count,
+      }))
+      .sort((a, b) => b.fit - a.fit)
+      .slice(0, 8);
+  }, [reports]);
+
+  const reliabilityData = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of reports) counts.set(r.reliability_index, (counts.get(r.reliability_index) || 0) + 1);
+    return Array.from(counts.entries()).map(([key, value]) => ({
+      name: RELIABILITY_LABELS[key] || key,
+      value,
+      color: RELIABILITY_COLORS[key] || "#94A3B8",
+    }));
+  }, [reports]);
+
+  const profileTypeData = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of reports) counts.set(r.profile_type, (counts.get(r.profile_type) || 0) + 1);
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name: name.replace("_", " "), value }));
+  }, [reports]);
+
+  const conversion = useMemo(() => {
+    const total = candidates.length;
+    const completed = candidates.filter((c) => c.status === "completed" || c.status === "reviewed").length;
+    const reliable = reports.filter((r) => r.reliability_index === "YES").length;
+    const completedPct = total === 0 ? 0 : Math.round((completed / total) * 100);
+    const reliablePct = total === 0 ? 0 : Math.round((reliable / total) * 100);
+    return { total, completed, reliable, completedPct, reliablePct };
+  }, [candidates, reports]);
+
+  if (candidates.length === 0) return null;
+
+  const PIE_COLORS = ["#F97316", "#1E3A5F", "#16A34A", "#D97706", "#7C3AED", "#0891B2", "#DB2777", "#65A30D"];
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-orange-600" />
+          <CardTitle className="text-base">Analytics selezioni</CardTitle>
+        </div>
+        <p className="text-sm text-slate-500">
+          Trend candidati, conversion e distribuzione dei report sulle ultime selezioni.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Conversion test</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{conversion.completedPct}%</p>
+            <p className="mt-1 text-xs text-slate-500">{conversion.completed}/{conversion.total} candidati completati</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Tasso attendibilità</p>
+            <p className="mt-1 text-2xl font-bold text-emerald-900">{conversion.reliablePct}%</p>
+            <p className="mt-1 text-xs text-emerald-700">{conversion.reliable} report con indice YES</p>
+          </div>
+          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Report totali</p>
+            <p className="mt-1 text-2xl font-bold text-orange-900">{reports.length}</p>
+            <p className="mt-1 text-xs text-orange-700">su {conversion.total} candidati totali</p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-900">Nuovi candidati ultimi 30 giorni</p>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={trendData}>
+                <XAxis dataKey="date" stroke="#94A3B8" fontSize={10} interval={4} />
+                <YAxis stroke="#94A3B8" fontSize={10} allowDecimals={false} />
+                <Tooltip cursor={{ fill: "rgba(249, 115, 22, 0.1)" }} contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                <Bar dataKey="value" fill="#F97316" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-900">Fit medio per ruolo</p>
+            {fitByRole.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nessun report ancora generato.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={fitByRole} layout="vertical">
+                  <XAxis type="number" stroke="#94A3B8" fontSize={10} domain={[0, 100]} />
+                  <YAxis type="category" dataKey="ruolo" stroke="#94A3B8" fontSize={10} width={110} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0" }} formatter={(v: number) => `${v}%`} />
+                  <Bar dataKey="fit" fill="#1E3A5F" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-900">Attendibilità report</p>
+            {reliabilityData.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nessun report ancora generato.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={reliabilityData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={36} outerRadius={70} paddingAngle={2}>
+                    {reliabilityData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {reliabilityData.map((d) => (
+                <Badge key={d.name} variant="outline" style={{ borderColor: d.color, color: d.color }}>
+                  {d.name} · {d.value}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-900">Distribuzione profili</p>
+            {profileTypeData.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500">Nessun report ancora generato.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={profileTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={(entry: { name: string; percent: number }) => `${entry.name} ${(entry.percent * 100).toFixed(0)}%`}>
+                    {profileTypeData.map((_, index) => (
+                      <Cell key={`pcell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

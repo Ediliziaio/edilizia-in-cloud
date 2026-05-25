@@ -65,6 +65,37 @@ export type ProfiloTipoV5 =
   | "IN_TRANSIZIONE"
   | "CRITICAL";
 
+export type ScalaCode = "SV" | "MO" | "CF" | "EF" | "EC" | "QN" | "QR" | "SP" | "PA" | "SC" | "ST" | "LE";
+
+export const SCALE_LABELS: Record<ScalaCode, string> = {
+  SV: "Stile di Vita",
+  MO: "Motivazione",
+  CF: "Capacità di Fronteggiare",
+  EF: "Efficienza",
+  EC: "Efficacia",
+  QN: "Quantità Responsabilità",
+  QR: "Qualità Responsabilità",
+  SP: "Spazio Vitale",
+  PA: "Partecipazione",
+  SC: "Schematicità",
+  ST: "Stress",
+  LE: "Leadership",
+};
+
+export type ProfiloTipo =
+  | "LEADER_NATURALE"
+  | "ESECUTORE_AFFIDABILE"
+  | "CREATIVO_DESTABILIZZANTE"
+  | "TECNICO_SPECIALISTA"
+  | "COMMERCIALE_NATURALE"
+  | "AMMINISTRATIVO_METODICO"
+  | "COLLABORATORE_CRESCITA"
+  | "PROFESSIONISTA_AUTONOMO"
+  | "SUPPORTO_OPERATIVO"
+  | "IN_TRANSIZIONE";
+
+export type MacroCategoria = "ALTA_PERFORMANCE" | "CRESCITA" | "ATTENZIONE";
+
 export interface TalentProfileQuestion {
   id: number;
   testo: string;
