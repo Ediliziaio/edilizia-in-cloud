@@ -180,7 +180,7 @@ export default function AccountantDashboard() {
                       <p className="text-xs text-muted-foreground">
                         {access.company?.vat_number
                           ? `P.IVA ${access.company.vat_number}`
-                          : access.company?.city || "—"}
+                          : access.company?.legal_city || "—"}
                       </p>
                     </div>
                     <Badge variant="outline" className="font-normal">

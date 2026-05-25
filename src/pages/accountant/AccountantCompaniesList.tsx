@@ -83,7 +83,7 @@ export default function AccountantCompaniesList() {
       if (!q) return true;
       const name = c.company?.name?.toLowerCase() || "";
       const vat = c.company?.vat_number?.toLowerCase() || "";
-      const city = c.company?.city?.toLowerCase() || "";
+      const city = c.company?.legal_city?.toLowerCase() || "";
       return name.includes(q) || vat.includes(q) || city.includes(q);
     });
   }, [companies, search, statusFilter]);
@@ -176,7 +176,7 @@ export default function AccountantCompaniesList() {
                         <CardDescription className="truncate text-xs">
                           {company?.vat_number
                             ? `P.IVA ${company.vat_number}`
-                            : company?.city || "—"}
+                            : company?.legal_city || "—"}
                         </CardDescription>
                       </div>
                     </div>

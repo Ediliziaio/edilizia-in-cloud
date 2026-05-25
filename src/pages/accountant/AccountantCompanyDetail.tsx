@@ -157,7 +157,7 @@ export default function AccountantCompanyDetail() {
                   <CardDescription className="mt-1 flex flex-wrap items-center gap-3 text-xs">
                     {company?.vat_number && <span>P.IVA {company.vat_number}</span>}
                     {company?.fiscal_code && <span>CF {company.fiscal_code}</span>}
-                    {company?.city && <span>{company.city}</span>}
+                    {company?.legal_city && <span>{company.legal_city}</span>}
                   </CardDescription>
                 </div>
               </div>

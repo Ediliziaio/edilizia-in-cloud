@@ -51,7 +51,7 @@ export interface AccountantCompanyAccessRow {
     name: string;
     vat_number: string | null;
     fiscal_code: string | null;
-    city: string | null;
+    legal_city: string | null;
   } | null;
 }
 
@@ -145,7 +145,7 @@ export function useAccountantCompanies() {
           `
           id, firm_id, company_id, status, access_mode, permissions,
           invited_email, invited_at, accepted_at, notes,
-          company:companies!inner(id, name, vat_number, fiscal_code, city)
+          company:companies!inner(id, name, vat_number, fiscal_code, legal_city)
         `,
         )
         .eq("firm_id", firmId)
@@ -180,7 +180,7 @@ export function useAccountantCompanyAccess(companyId: string | undefined) {
           `
           id, firm_id, company_id, status, access_mode, permissions,
           invited_email, invited_at, accepted_at, notes,
-          company:companies!inner(id, name, vat_number, fiscal_code, city)
+          company:companies!inner(id, name, vat_number, fiscal_code, legal_city)
         `,
         )
         .eq("firm_id", firmId)
