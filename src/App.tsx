@@ -187,6 +187,7 @@ const AccountantCompanyDetail = lazy(() => import("@/pages/accountant/Accountant
 const AccountantInbox = lazy(() => import("@/pages/accountant/AccountantInbox"));
 const AccountantTeam = lazy(() => import("@/pages/accountant/AccountantTeam"));
 const AccountantSettings = lazy(() => import("@/pages/accountant/AccountantSettings"));
+const AccountantRequests = lazy(() => import("@/pages/accountant/AccountantRequests"));
 
 // Funzionalità sub-pages
 const GestioneCantieri       = lazy(() => import("@/pages/funzionalita/GestioneCantieri"));
@@ -586,6 +587,7 @@ const App = () => (
                 <Route path="aziende" element={<AccountantCompaniesList />} />
                 <Route path="aziende/:companyId" element={<AccountantCompanyDetail />} />
                 <Route path="inbox" element={<AccountantInbox />} />
+                <Route path="richieste" element={<AccountantRequests />} />
                 <Route path="team" element={<AccountantTeam />} />
                 <Route path="profilo" element={<AccountantSettings />} />
               </Route>

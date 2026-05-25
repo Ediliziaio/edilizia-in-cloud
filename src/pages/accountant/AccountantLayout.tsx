@@ -16,6 +16,7 @@ import {
   Bell,
   Building2,
   LayoutDashboard,
+  ListChecks,
   Loader2,
   LogOut,
   Settings,
@@ -88,6 +89,7 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
     () => [
       { to: "/commercialista", label: "Cruscotto", icon: LayoutDashboard, end: true },
       { to: "/commercialista/inbox", label: "Inbox", icon: Bell, badge: inboxBadge },
+      { to: "/commercialista/richieste", label: "Le mie richieste", icon: ListChecks },
       { to: "/commercialista/team", label: "Team studio", icon: Users },
       { to: "/commercialista/profilo", label: "Profilo studio", icon: Settings },
     ],

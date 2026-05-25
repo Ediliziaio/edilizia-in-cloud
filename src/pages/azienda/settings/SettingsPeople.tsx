@@ -21,6 +21,7 @@ import { SubappaltatoriTab } from "@/components/settings/SubappaltatoriTab";
 import { AccessGovernancePanel } from "@/components/settings/AccessGovernancePanel";
 import { PermissionTemplatesManager } from "@/components/settings/PermissionTemplatesManager";
 import { AccountantAccessTab } from "@/components/settings/AccountantAccessTab";
+import { AccountantChangeRequestsQueue } from "@/components/settings/AccountantChangeRequestsQueue";
 import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -207,7 +208,8 @@ export default function SettingsPeople() {
       )}
 
       {canViewUsers && (
-        <TabsContent value="commercialista">
+        <TabsContent value="commercialista" className="space-y-4">
+          <AccountantChangeRequestsQueue />
           <AccountantAccessTab />
         </TabsContent>
       )}
