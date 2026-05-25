@@ -1,8 +1,11 @@
 -- Audit log dei commercialisti: traccia ogni navigazione/operazione
 -- per compliance fiscale + GDPR.
 --
--- DROP + CREATE per garantire schema pulito anche se la tabella esiste
--- da un tentativo precedente parzialmente fallito.
+-- Versione MINIMALE che funziona su qualsiasi schema:
+-- solo policy commercialista (insert + select dei propri log).
+-- La policy "azienda owner vede log" verrà aggiunta separatamente
+-- dopo aver identificato il nome corretto della colonna owner in
+-- public.companies (varia fra installazioni Supabase).
 
 DROP TABLE IF EXISTS public.accountant_audit_log CASCADE;
 
@@ -37,16 +40,6 @@ CREATE POLICY "audit_log_accountant_insert" ON public.accountant_audit_log
 CREATE POLICY "audit_log_accountant_select_own" ON public.accountant_audit_log
   FOR SELECT TO authenticated
   USING (user_id = auth.uid());
-
-CREATE POLICY "audit_log_company_owner_select" ON public.accountant_audit_log
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.companies c
-      WHERE c.id = accountant_audit_log.company_id
-        AND c.owner_user_id = auth.uid()
-    )
-  );
 
 COMMENT ON TABLE public.accountant_audit_log IS
   'Traccia accessi e operazioni commercialista per compliance fiscale + GDPR.';

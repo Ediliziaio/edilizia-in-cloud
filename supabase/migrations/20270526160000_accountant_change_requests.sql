@@ -1,7 +1,9 @@
 -- Approval workflow per access_mode='approval_required'.
 --
--- DROP + CREATE per garantire schema pulito anche se la tabella esiste
--- da un tentativo precedente parzialmente fallito.
+-- Versione MINIMALE che funziona su qualsiasi schema: solo policy
+-- commercialista (insert + select dei propri). Le policy "azienda
+-- vede + approva/rifiuta" verranno aggiunte separatamente dopo aver
+-- identificato il nome corretto della colonna owner in public.companies.
 
 DROP TABLE IF EXISTS public.accountant_change_requests CASCADE;
 
@@ -39,30 +41,6 @@ CREATE POLICY "change_req_accountant_insert" ON public.accountant_change_request
 CREATE POLICY "change_req_accountant_select_own" ON public.accountant_change_requests
   FOR SELECT TO authenticated
   USING (requested_by = auth.uid());
-
-CREATE POLICY "change_req_company_owner_select" ON public.accountant_change_requests
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.companies c
-      WHERE c.id = accountant_change_requests.company_id
-        AND c.owner_user_id = auth.uid()
-    )
-  );
-
-CREATE POLICY "change_req_company_decide" ON public.accountant_change_requests
-  FOR UPDATE TO authenticated
-  USING (
-    status = 'pending' AND EXISTS (
-      SELECT 1 FROM public.companies c
-      WHERE c.id = accountant_change_requests.company_id
-        AND c.owner_user_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    status IN ('approved', 'rejected')
-    AND decided_by = auth.uid()
-  );
 
 COMMENT ON TABLE public.accountant_change_requests IS
   'Coda di approvazione per modifiche del commercialista quando access_mode=approval_required.';
