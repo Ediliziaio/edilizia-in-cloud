@@ -190,11 +190,15 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
   const label = impersonatedCompany?.name ?? "caricamento azienda…";
 
   return (
-    <div className="bg-warning text-warning-foreground px-3 py-2 flex items-center justify-between gap-2">
+    <div className="sticky top-0 z-50 bg-warning text-warning-foreground px-3 py-2 flex items-center justify-between gap-2 shadow-md">
       <div className="flex items-center gap-2 min-w-0">
-        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
         <span className="font-medium text-sm truncate">
-          <span className="hidden sm:inline">Stai visualizzando come: </span><strong>{label}</strong>
+          <span className="hidden sm:inline">Stai visualizzando come: </span>
+          <strong>{label}</strong>
+          <span className="hidden md:inline ml-2 text-xs opacity-80">
+            (azioni eseguite come questa azienda)
+          </span>
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">

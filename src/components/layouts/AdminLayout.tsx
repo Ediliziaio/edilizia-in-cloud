@@ -8,43 +8,32 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { useAdminSidebarBadges, getBadgeForNavItem } from "@/hooks/useAdminSidebarBadges";
 import { 
-  LayoutDashboard, 
-  Building, 
+  LayoutDashboard,
+  Building,
   LogOut,
   MessageSquare,
   Settings,
-  CreditCard,
   Gift,
   Blocks,
   Search,
   ChevronsUpDown,
-  RefreshCw,
-  LifeBuoy,
   Megaphone,
   ArrowLeft,
   Mail,
   Sparkles,
   Bot,
-  ListChecks,
-  ShieldCheck as ShieldCheckIcon,
   BarChart3,
   Users,
   Target,
   CalendarDays,
   Zap,
   MessageCircle,
-  LineChart,
-  Ticket,
-  FileText,
+  Wallet,
   Settings2,
-  TrendingUp,
-  BookOpen,
-  FileUp,
-  ShieldAlert,
-  AlertTriangle,
+  HeartHandshake,
+  GraduationCap,
   CheckSquare,
   MessagesSquare,
-  Brain,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -75,6 +64,7 @@ import { AdminBreadcrumb } from "@/components/admin/header/AdminBreadcrumb";
 import { AdminNotificationCenter } from "@/components/admin/header/AdminNotificationCenter";
 import { AdminQuickActions } from "@/components/admin/header/AdminQuickActions";
 import { AdminBottomNav } from "@/components/admin/AdminBottomNav";
+import { AdminFirstRunTour } from "@/components/admin/AdminFirstRunTour";
 import { AdminMobileSettingsNav } from "@/components/admin/AdminMobileSettingsNav";
 // AdminSilvioFAB sostituito con SilvioFAB mode="admin" — stesso UX della
 // chat aziendale (audio recording, attachments, markdown, model selector,
@@ -90,21 +80,26 @@ interface AdminNavItem {
   subcategory?: string;
 }
 
-// Subcategorie Navigazione — solo label, niente icona (riduce rumore visivo).
-// Le icone restano sui singoli item dentro la subcategory.
-const adminSubcategories: Array<{ id: string; label: string }> = [
-  { id: "sa_revenue", label: "Fatturato" },
-  { id: "sa_ai", label: "AI" },
-  { id: "sa_customer_success", label: "Customer Success" },
-  { id: "sa_prodotto", label: "Prodotto" },
-  { id: "sa_operazioni", label: "Operazioni" },
-  { id: "sa_growth", label: "Growth" },
+// Subcategorie Navigazione — ordine intenzionale: prima le subcategorie
+// che hanno multiple voci (rendono accordion), poi quelle con un solo item
+// (rendono flat). Visivamente raggruppa i gruppi navigabili in alto e le
+// shortcut in fondo, riducendo il "mix accordion/flat" che confonde.
+const adminSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  // ── 1. Accordion (≥2 voci) ───────────────────────────────────────────
+  { id: "sa_revenue", label: "Fatturato", icon: Wallet },
+  { id: "sa_prodotto", label: "Prodotto", icon: Blocks },
+  // ── 2. Flat (1 voce → render diretto come link) ──────────────────────
+  { id: "sa_ai", label: "AI", icon: Sparkles },
+  { id: "sa_customer_success", label: "Assistenza Clienti", icon: HeartHandshake },
+  { id: "sa_portale", label: "Portale Formazione", icon: GraduationCap },
+  { id: "sa_operazioni", label: "Operazioni", icon: Settings2 },
+  { id: "sa_growth", label: "Growth", icon: Gift },
 ];
 
-const adminMarketingSubcategories: Array<{ id: string; label: string }> = [
-  { id: "sa_mkt_crm", label: "CRM" },
-  { id: "sa_mkt_comunicazione", label: "Comunicazione" },
-  { id: "sa_mkt_automation", label: "Automazione & AI" },
+const adminMarketingSubcategories: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: "sa_mkt_crm", label: "CRM", icon: Users },
+  { id: "sa_mkt_comunicazione", label: "Comunicazione", icon: Mail },
+  { id: "sa_mkt_automation", label: "Automazione & AI", icon: Zap },
 ];
 
 // Smart defaults: aperte le sezioni più usate quotidianamente.
@@ -127,34 +122,29 @@ const allNavItems: AdminNavItem[] = [
   // ─── FATTURATO (sa_revenue) — lista clienti + revenue + piani uniti ───
   // Aziende è l'item primario perché è la lista dei clienti/paganti
   { title: "Aziende", url: "/admin/aziende", icon: Building, permission: "can_manage_companies", subcategory: "sa_revenue" },
-  { title: "Revenue", url: "/admin/revenue", icon: LineChart, permission: "billing_read", subcategory: "sa_revenue" },
-  { title: "Piani", url: "/admin/piani", icon: CreditCard, permission: "can_manage_plans", subcategory: "sa_revenue" },
-  { title: "Fatture", url: "/admin/fatture", icon: FileText, permission: "billing_read", subcategory: "sa_revenue" },
-  { title: "Promo", url: "/admin/promo-codes", icon: Ticket, permission: "billing_write", subcategory: "sa_revenue" },
-  { title: "Dunning", url: "/admin/dunning", icon: Settings2, permission: "billing_write", subcategory: "sa_revenue" },
-  // ─── AI MANAGEMENT (sezione dedicata: scorporo da Fatturato per ridurre rumore) ───
-  // Config: routing modelli, personas, KB, pricing, governance
-  { title: "AI · Config", url: "/admin/ai-config", icon: Settings2, permission: "can_view_platform_stats", subcategory: "sa_ai" },
-  // Monitor: usage, costs, test lab, health
-  { title: "AI · Monitor", url: "/admin/ai-monitor", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_ai" },
-  // Operate: approvals, queue, policies, missions, chief, memory, learning
-  { title: "AI · Operate", url: "/admin/ai-operate", icon: Bot, permission: "can_view_platform_stats", subcategory: "sa_ai" },
-  // Memoria cross-company: vista super_admin di TUTTE le memorie AI persona
-  { title: "AI · Memoria", url: "/admin/ai-memoria", icon: Brain, permission: "can_view_platform_stats", subcategory: "sa_ai" },
-  // ─── CUSTOMER SUCCESS ───────────────────────────────────────────────
-  { title: "CS Dashboard", url: "/admin/cs-dashboard", icon: TrendingUp, permission: "can_impersonate", subcategory: "sa_customer_success" },
-  { title: "Assistenza", url: "/admin/ticket", icon: MessageSquare, permission: "can_manage_tickets", subcategory: "sa_customer_success" },
-  { title: "Lifecycle", url: "/admin/lifecycle", icon: LifeBuoy, permission: "can_manage_companies", subcategory: "sa_customer_success" },
-  // ⚠️ "Task CS" rimosso: la gestione task è ora un tab dentro "Attività" (top sidebar)
-  { title: "Onboarding", url: "/admin/customer-success", icon: ListChecks, permission: "can_manage_companies", subcategory: "sa_customer_success" },
-  { title: "Playbook", url: "/admin/playbooks", icon: BookOpen, permission: "can_manage_companies", subcategory: "sa_customer_success" },
-  { title: "Feature Flags", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
+  // ⚡ Hub Fatturato — 5 tab in alto sostituiscono 5 voci sidebar separate
+  // (Revenue · Piani · Fatture · Promo · Dunning). Pulisce visualmente la
+  // navigazione mantenendo l'accesso a tutti i sotto-strumenti con 1 click.
+  { title: "Fatturato", url: "/admin/fatturato", icon: Wallet, permission: "billing_read", subcategory: "sa_revenue" },
+  // ─── AI MANAGEMENT — Hub unico (Operate · Monitor · Config · Memoria
+  //     in tab in alto). 4 voci → 1. Coerenza con Fatturato/CS/Operazioni. ──
+  { title: "AI", url: "/admin/ai", icon: Sparkles, permission: "can_view_platform_stats", subcategory: "sa_ai" },
+  // ─── CUSTOMER SUCCESS — Hub unico (Dashboard · Assistenza · Lifecycle ·
+  //     Onboarding · Playbook in tab in alto). 5 voci → 1. ────────────────
+  { title: "Assistenza Clienti", url: "/admin/cs", icon: HeartHandshake, permission: "can_manage_companies", subcategory: "sa_customer_success" },
+  // ─── PORTALE FORMAZIONE — voce standalone in sidebar ──────────────
+  // Modello LMS multi-tenant: corsi interni team Superadmin + grants alle
+  // aziende clienti. Sufficientemente importante da meritare voce propria,
+  // non un sotto-elemento di Customer Success.
+  { title: "Portale Formazione", url: "/admin/portale-formazione", icon: GraduationCap, permission: "can_manage_companies", subcategory: "sa_portale" },
+  // ─── PRODOTTO ──────────────────────────────────────────────────────
+  { title: "Funzionalità Azienda", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
-  { title: "Sync Logs", url: "/admin/sync-logs", icon: RefreshCw, permission: "can_view_platform_stats", subcategory: "sa_operazioni" },
-  { title: "Alert Failure", url: "/admin/failure-alerts", icon: AlertTriangle, permission: "can_manage_companies", subcategory: "sa_operazioni" },
-  { title: "Import CSV", url: "/admin/csv-import", icon: FileUp, permission: "can_manage_companies", subcategory: "sa_operazioni" },
-  { title: "Audit Log", url: "/admin/audit-log", icon: ShieldAlert, permission: "can_manage_companies", subcategory: "sa_operazioni" },
-  { title: "GDPR", url: "/admin/gdpr", icon: ShieldCheckIcon, permission: "can_manage_companies", subcategory: "sa_operazioni" },
+  // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
+  //    amministrazione di sistema (sync, alert, import, GDPR, audit) e
+  //    duplicava parzialmente "Registro Attività" già presente in
+  //    Impostazioni → Sistema. Ora vive lì come singola voce.
+  //    L'hub /admin/operazioni resta funzionante per i deep link.
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals", subcategory: "sa_growth" },
 ];
 
@@ -380,11 +370,17 @@ function AdminMainSidebar() {
     navigateToSubdomain("/azienda", "app", navigate);
   };
 
-  const navLinkClass = "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
-  const activeClass = "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-2 border-sidebar-primary";
-  
+  // Sidebar SuperAdmin — palette blu (brand) + accenti arancio (active).
+  // Default: testo neutro muted, hover: tint blu chiaro.
+  // Active: bg blu pallido + testo blu scuro + bordo sinistro arancio = mix
+  // brand piattaforma + accent EdiliziaInCloud per coerenza col resto della UI.
+  const navLinkClass =
+    "flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground/70 transition-all duration-150 hover:bg-blue-50 hover:text-blue-900 dark:hover:bg-sidebar-accent/40 dark:hover:text-sidebar-foreground";
+  const activeClass =
+    "bg-blue-50 text-blue-900 font-semibold border-l-2 border-orange-500 dark:bg-sidebar-primary/15 dark:text-sidebar-primary dark:border-orange-500";
+
   return (
-    <Sidebar className="border-r">
+    <Sidebar className="border-r bg-gradient-to-b from-white via-slate-50/30 to-white dark:from-sidebar dark:via-sidebar dark:to-sidebar">
       <div className="flex flex-col border-b">
         <div className="flex h-14 items-center px-4 justify-between">
           <Link to="/admin" className="flex items-center">
@@ -577,109 +573,176 @@ function AdminMainSidebar() {
           </SidebarGroup>
         )}
 
-        {/* ─── NAVIGAZIONE — niente group title, subcategorie direttamente ───
-           Stile minimal Linear/Vercel: l'utente vede subito le subcategorie
-           senza un livello extra "NAVIGAZIONE" che non aggiunge informazione. */}
+        {/* ─── NAVIGAZIONE — subcategorie collapsabili SOLO se >1 item ───
+           Regola UX: una macrocategoria con sotto una sola voce è rumore
+           visivo (cliccando vai dritto al figlio). Quindi:
+             • Subcategory con 1 item  → render FLAT, l'item appare diretto.
+             • Subcategory con ≥2 item → render con SidebarSubcategory accordion.
+           Stile minimal Linear/Vercel mantenuto. */}
         {filteredNavItems.length > 0 && (
           <SidebarGroup className="pt-1 pb-1">
             <SidebarGroupContent>
-              {adminSubcategories.map((sub) => {
-                const items = filteredNavItems.filter((i) => i.subcategory === sub.id);
-                if (items.length === 0) return null;
-                const aggregateBadge = items.reduce((sum, i) => {
-                  const b = getBadgeForNavItem(i.url, sidebarBadges);
-                  return sum + (b?.count ?? 0);
-                }, 0);
-                return (
-                  <SidebarSubcategory
-                    key={sub.id}
-                    label={sub.label}
-                    badge={aggregateBadge}
-                    isOpen={isOpen(sub.id)}
-                    onToggle={() => toggle(sub.id)}
-                  >
-                    <SidebarMenu>
-                      {items.map((item) => {
-                        const badge = getBadgeForNavItem(item.url, sidebarBadges);
-                        return (
-                          <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild>
-                              <NavLink
-                                to={item.url}
-                                end={item.url === "/admin"}
-                                className={navLinkClass}
-                                activeClassName={activeClass}
-                              >
-                                <item.icon className="h-4 w-4" />
-                                <span className="flex-1">{item.title}</span>
-                                {badge && badge.count != null && badge.count > 0 && (
-                                  <span
-                                    className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
-                                      badge.variant === "destructive"
-                                        ? "bg-destructive text-destructive-foreground"
-                                        : badge.variant === "warning"
-                                        ? "bg-orange-500 text-white dark:bg-orange-600"
-                                        : "bg-sidebar-primary/15 text-sidebar-primary"
-                                    }`}
-                                  >
-                                    {badge.count > 99 ? "99+" : badge.count}
-                                  </span>
-                                )}
-                              </NavLink>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        );
-                      })}
-                    </SidebarMenu>
-                  </SidebarSubcategory>
-                );
-              })}
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* ─── MARKETING & VENDITA — separato da divider sottile ─────────
-           Niente group title verboso: divider + label discreto in alto */}
-        {filteredMarketingItems.length > 0 && (
-          <>
-            <div className="px-3 my-1">
-              <div className="border-t border-border/40" />
-              <div className="pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-                Marketing & Vendita
-              </div>
-            </div>
-            <SidebarGroup className="pt-0 pb-1">
-              <SidebarGroupContent>
-                {adminMarketingSubcategories.map((sub) => {
-                  const items = filteredMarketingItems.filter((i) => i.subcategory === sub.id);
+              <SidebarMenu>
+                {adminSubcategories.map((sub) => {
+                  const items = filteredNavItems.filter((i) => i.subcategory === sub.id);
                   if (items.length === 0) return null;
+
+                  // ── Caso 1: 1 solo item → render flat (no wrapper) ─────
+                  if (items.length === 1) {
+                    const item = items[0];
+                    const badge = getBadgeForNavItem(item.url, sidebarBadges);
+                    return (
+                      <SidebarMenuItem key={`flat-${sub.id}`}>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to={item.url}
+                            end={item.url === "/admin"}
+                            className={navLinkClass}
+                            activeClassName={activeClass}
+                          >
+                            <item.icon className="h-4 w-4" />
+                            <span className="flex-1">{item.title}</span>
+                            {badge && badge.count != null && badge.count > 0 && (
+                              <span
+                                className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
+                                  badge.variant === "destructive"
+                                    ? "bg-destructive text-destructive-foreground"
+                                    : badge.variant === "warning"
+                                    ? "bg-orange-500 text-white dark:bg-orange-600"
+                                    : "bg-sidebar-primary/15 text-sidebar-primary"
+                                }`}
+                              >
+                                {badge.count > 99 ? "99+" : badge.count}
+                              </span>
+                            )}
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  }
+
+                  // ── Caso 2: ≥2 item → accordion subcategory ────────────
+                  const aggregateBadge = items.reduce((sum, i) => {
+                    const b = getBadgeForNavItem(i.url, sidebarBadges);
+                    return sum + (b?.count ?? 0);
+                  }, 0);
                   return (
                     <SidebarSubcategory
                       key={sub.id}
                       label={sub.label}
+                      icon={sub.icon}
+                      badge={aggregateBadge}
                       isOpen={isOpen(sub.id)}
                       onToggle={() => toggle(sub.id)}
                     >
                       <SidebarMenu>
-                        {items.map((item) => (
-                          <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild>
-                              <NavLink
-                                to={item.url}
-                                end={item.url === "/admin/marketing"}
-                                className={navLinkClass}
-                                activeClassName={activeClass}
-                              >
-                                <item.icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                              </NavLink>
-                            </SidebarMenuButton>
-                          </SidebarMenuItem>
-                        ))}
+                        {items.map((item) => {
+                          const badge = getBadgeForNavItem(item.url, sidebarBadges);
+                          return (
+                            <SidebarMenuItem key={item.title}>
+                              <SidebarMenuButton asChild>
+                                <NavLink
+                                  to={item.url}
+                                  end={item.url === "/admin"}
+                                  className={navLinkClass}
+                                  activeClassName={activeClass}
+                                >
+                                  <item.icon className="h-4 w-4" />
+                                  <span className="flex-1">{item.title}</span>
+                                  {badge && badge.count != null && badge.count > 0 && (
+                                    <span
+                                      className={`ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-xs font-bold leading-none ${
+                                        badge.variant === "destructive"
+                                          ? "bg-destructive text-destructive-foreground"
+                                          : badge.variant === "warning"
+                                          ? "bg-orange-500 text-white dark:bg-orange-600"
+                                          : "bg-sidebar-primary/15 text-sidebar-primary"
+                                      }`}
+                                    >
+                                      {badge.count > 99 ? "99+" : badge.count}
+                                    </span>
+                                  )}
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
                       </SidebarMenu>
                     </SidebarSubcategory>
                   );
                 })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* ─── MARKETING & VENDITA — separatore minimale ──────────────
+           Solo hairline + label discreto sentence-case. Senza dot arancio,
+           senza gradient — sembrava un secondo header. */}
+        {filteredMarketingItems.length > 0 && (
+          <>
+            <div className="mx-3 my-3">
+              <div className="h-px bg-slate-200/80 dark:bg-sidebar-border/60" />
+              <p className="mt-3 px-1 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-sidebar-foreground/40">
+                Marketing
+              </p>
+            </div>
+            <SidebarGroup className="pt-0 pb-1">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {adminMarketingSubcategories.map((sub) => {
+                    const items = filteredMarketingItems.filter((i) => i.subcategory === sub.id);
+                    if (items.length === 0) return null;
+
+                    // Stessa regola UX: 1 item → flat, ≥2 → accordion.
+                    if (items.length === 1) {
+                      const item = items[0];
+                      return (
+                        <SidebarMenuItem key={`flat-mkt-${sub.id}`}>
+                          <SidebarMenuButton asChild>
+                            <NavLink
+                              to={item.url}
+                              end={item.url === "/admin/marketing"}
+                              className={navLinkClass}
+                              activeClassName={activeClass}
+                            >
+                              <item.icon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    }
+
+                    return (
+                      <SidebarSubcategory
+                        key={sub.id}
+                        label={sub.label}
+                        icon={sub.icon}
+                        isOpen={isOpen(sub.id)}
+                        onToggle={() => toggle(sub.id)}
+                      >
+                        <SidebarMenu>
+                          {items.map((item) => (
+                            <SidebarMenuItem key={item.title}>
+                              <SidebarMenuButton asChild>
+                                <NavLink
+                                  to={item.url}
+                                  end={item.url === "/admin/marketing"}
+                                  className={navLinkClass}
+                                  activeClassName={activeClass}
+                                >
+                                  <item.icon className="h-4 w-4" />
+                                  <span>{item.title}</span>
+                                </NavLink>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          ))}
+                        </SidebarMenu>
+                      </SidebarSubcategory>
+                    );
+                  })}
+                </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
           </>
@@ -778,6 +841,7 @@ export function AdminLayout() {
           </main>
         </div>
         <SilvioFAB mode="admin" />
+        <AdminFirstRunTour />
       </div>
     </SidebarProvider>
   );

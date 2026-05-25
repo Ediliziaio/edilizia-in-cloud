@@ -1,7 +1,7 @@
 import {
   User, Shield, Users, Server, Mail, Bell,
   ScrollText, Globe, Zap, Plug, Landmark,
-  Webhook, Activity, CalendarDays,
+  Webhook, Activity, CalendarDays, Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -119,6 +119,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
     group: "Sistema",
     items: [
       {
+        id: "operazioni",
+        label: "Operazioni",
+        description: "Sync logs, alert failure, import CSV, audit applicativo, GDPR",
+        icon: Wrench,
+        url: "/admin/operazioni",
+        permission: "can_manage_admins",
+      },
+      {
         id: "audit",
         label: "Registro Attività",
         description: "Log di tutte le azioni degli amministratori",
@@ -136,7 +144,7 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
       },
       {
         id: "feature-flags",
-        label: "Feature Flags",
+        label: "Funzionalità Azienda",
         description: "Abilita/disabilita funzionalità per azienda",
         icon: Zap,
         url: "/admin/feature-flags",

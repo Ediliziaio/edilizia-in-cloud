@@ -38,6 +38,7 @@ import { CompanyActiveFilters } from "@/components/admin/company/CompanyActiveFi
 import { CompanySegmentFilters } from "@/components/admin/company/CompanySegmentFilters";
 import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
 import { getCompanyMonthlyRevenue, isRevenueEligibleCompany, getAdminRevenueState, type AdminRevenueState } from "@/lib/adminRevenue";
+import { AdminHeroHeader } from "@/components/admin/AdminHeroHeader";
 import { toast } from "sonner";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
@@ -1001,18 +1002,25 @@ export default function CompaniesList() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold md:text-2xl">Aziende</h1>
-          <p className="text-muted-foreground">Gestisci le aziende registrate</p>
-        </div>
-        <Button asChild>
-          <Link to="/admin/aziende/nuova">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuova Azienda
-          </Link>
-        </Button>
-      </div>
+      {/* ─── Hero header in stile Commesse (icona arancio + actions a destra) ─ */}
+      <AdminHeroHeader
+        icon={Building2}
+        title="Aziende"
+        subtitle="Lista clienti piattaforma · health score, billing, lifecycle e accesso quick login."
+        inlineBadge={
+          <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+            {allCompaniesSummary.length} aziende
+          </Badge>
+        }
+        actions={
+          <Button asChild className="gap-2 bg-orange-500 hover:bg-orange-600 text-white">
+            <Link to="/admin/aziende/nuova">
+              <Plus className="h-4 w-4" />
+              Nuova Azienda
+            </Link>
+          </Button>
+        }
+      />
 
       {/* KPI Strip — full dataset, click-to-filter */}
       <CompaniesKPIStrip
