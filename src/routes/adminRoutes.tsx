@@ -20,6 +20,8 @@ const AdminSettingsSuperAdmins = lazy(() => import("@/pages/admin/settings/Admin
 const AdminSettingsAuditLog = lazy(() => import("@/pages/admin/settings/AdminSettingsAuditLog"));
 const AdminChangelog = lazy(() => import("@/pages/admin/AdminChangelog"));
 const AdminSettingsEmail = lazy(() => import("@/pages/admin/settings/AdminSettingsEmail"));
+const AdminSettingsEmailPreferences = lazy(() => import("@/pages/admin/settings/AdminSettingsEmailPreferences"));
+const AdminSettingsEmailDomain = lazy(() => import("@/pages/admin/settings/AdminSettingsEmailDomain"));
 const AdminSettingsAI = lazy(() => import("@/pages/admin/settings/AdminSettingsAI"));
 // Silvio Superadmin (co-founder AI per Florin)
 const SilvioAdminPage = lazy(() => import("@/pages/admin/SilvioAdminPage"));
@@ -206,6 +208,8 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni/audit" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />
         <Route path="changelog" element={<RequireSuperAdmin><AdminChangelog /></RequireSuperAdmin>} />
         <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
+        <Route path="impostazioni/preferenze-email" element={<RequireSuperAdmin><AdminSettingsEmailPreferences /></RequireSuperAdmin>} />
+        <Route path="impostazioni/dominio-email" element={<RequireSuperAdmin><AdminSettingsEmailDomain /></RequireSuperAdmin>} />
         {/* ============================================================
             REFACTOR Strategia C — 3 pagine AI consolidate (nuove)
             ============================================================ */}

@@ -153,20 +153,40 @@ export default function SettingsEmailPreferences() {
     },
   });
 
-  // Local form state (synced from server)
+  // Default valori se nessuna riga esiste ancora (es. company appena creata,
+  // platform admin company, ecc.) — evita crash su .toUpperCase()/.test() su null.
+  const defaultPrefs = (cid: string): EmailPreferencesRow => ({
+    company_id: cid,
+    logo_url: null,
+    primary_color: "#1E3A5F",
+    secondary_color: "#F97316",
+    footer_text: null,
+    footer_show_powered_by: true,
+    sender_name: null,
+    sender_prefix: "noreply",
+    reply_to_email: "",
+    transactional_domain_id: null,
+    marketing_domain_id: null,
+    unsubscribe_footer_html: null,
+  });
+
+  // Local form state (synced from server, con fallback ai default)
   const [form, setForm] = useState<EmailPreferencesRow | null>(null);
 
   useEffect(() => {
-    if (prefsQuery.data && !form) {
-      setForm(prefsQuery.data);
+    if (!form && !prefsQuery.isLoading && companyId) {
+      // Se data è null (nessuna riga in DB) usiamo i default
+      setForm(prefsQuery.data ?? defaultPrefs(companyId));
     }
-  }, [prefsQuery.data, form]);
+  }, [prefsQuery.data, prefsQuery.isLoading, form, companyId]);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: EmailPreferencesRow) => {
+      // upsert: crea la riga se non esiste, altrimenti la aggiorna
       const { error } = await supabase
         .from("company_email_preferences")
-        .update({
+        .upsert({
+          company_id: payload.company_id,
           logo_url: payload.logo_url,
           primary_color: payload.primary_color.toUpperCase(),
           secondary_color: payload.secondary_color.toUpperCase(),
@@ -178,8 +198,7 @@ export default function SettingsEmailPreferences() {
           transactional_domain_id: payload.transactional_domain_id,
           marketing_domain_id: payload.marketing_domain_id,
           unsubscribe_footer_html: payload.unsubscribe_footer_html,
-        })
-        .eq("company_id", payload.company_id);
+        }, { onConflict: "company_id" });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -221,11 +240,11 @@ export default function SettingsEmailPreferences() {
     );
   }
 
-  // ── Validation ─────────────────────────────────────────────────────────
-  const primaryValid = HEX_REGEX.test(form.primary_color);
-  const secondaryValid = HEX_REGEX.test(form.secondary_color);
-  const prefixValid = PREFIX_REGEX.test(form.sender_prefix);
-  const replyToValid = EMAIL_REGEX.test(form.reply_to_email);
+  // ── Validation (robusti a null/undefined per company appena inizializzate) ──
+  const primaryValid = HEX_REGEX.test(form.primary_color ?? "");
+  const secondaryValid = HEX_REGEX.test(form.secondary_color ?? "");
+  const prefixValid = PREFIX_REGEX.test(form.sender_prefix ?? "");
+  const replyToValid = EMAIL_REGEX.test(form.reply_to_email ?? "");
   const logoUrlValid = isValidLogoUrl(form.logo_url);
 
   const canSave =

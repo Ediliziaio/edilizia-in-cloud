@@ -15,8 +15,9 @@ export const PREFIX_REGEX = /^[a-z0-9._-]{1,30}$/;
 /** Email con schema minimale (local@domain.tld). */
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Logo: vuoto ammesso (opzionale), oppure URL https://. */
-export function isValidLogoUrl(value: string): boolean {
+/** Logo: vuoto/null ammesso (opzionale), oppure URL https://. */
+export function isValidLogoUrl(value: string | null | undefined): boolean {
+  if (value == null) return true;
   const trimmed = value.trim();
   if (!trimmed) return true;
   return /^https:\/\/.+/i.test(trimmed);
