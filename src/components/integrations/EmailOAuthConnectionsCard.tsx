@@ -19,8 +19,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Loader2, Mail, Plug, Plus, RefreshCw, Server, Settings, Trash2, XCircle,
+  AlertCircle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Inbox, Loader2, Mail, Plug, Plus, RefreshCw, Server, Settings, Sparkles, Trash2, XCircle,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ImapCustomDialog } from "./ImapCustomDialog";
@@ -104,7 +105,14 @@ export function EmailOAuthConnectionsCard() {
         throw new Error("Azienda attiva non disponibile");
       }
       setConnecting(provider);
-      const redirectUri = `${window.location.origin}/azienda/impostazioni/integrazioni/email-callback`;
+      // Callback path dinamico: se siamo in /admin/* usa l'admin callback,
+      // altrimenti quello azienda. Evita "context jumping" del routing dopo
+      // il return da Google/Microsoft.
+      const isAdminContext = window.location.pathname.startsWith("/admin/");
+      const callbackPath = isAdminContext
+        ? "/admin/impostazioni/integrazioni/email-callback"
+        : "/azienda/impostazioni/integrazioni/email-callback";
+      const redirectUri = `${window.location.origin}${callbackPath}`;
       const { data, error } = await supabase.functions.invoke<{ auth_url: string; state: string; error?: string }>(
         "email-oauth-start",
         { body: { provider, redirect_uri: redirectUri, company_id: effectiveCompany.id } },
@@ -182,6 +190,36 @@ export function EmailOAuthConnectionsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Hero AI: cosa fa l'AI con le tue email */}
+        <div className="rounded-lg border border-orange-200 bg-gradient-to-br from-orange-50/60 via-amber-50/40 to-white p-3">
+          <div className="flex items-start gap-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 shadow-sm">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-slate-900">Cosa fa l'AI con le tue email</p>
+              <ul className="mt-1 grid gap-0.5 text-[11px] text-slate-600 sm:grid-cols-2">
+                <li className="flex items-start gap-1">
+                  <span className="text-emerald-600">✓</span>
+                  <span>Triage automatico ticket (priorità + categoria)</span>
+                </li>
+                <li className="flex items-start gap-1">
+                  <span className="text-emerald-600">✓</span>
+                  <span>Bozze risposta intelligenti</span>
+                </li>
+                <li className="flex items-start gap-1">
+                  <span className="text-emerald-600">✓</span>
+                  <span>Riepiloghi thread lunghi</span>
+                </li>
+                <li className="flex items-start gap-1">
+                  <span className="text-emerald-600">✓</span>
+                  <span>Task & azioni operative</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         {/* 🆕 Setup diagnostic — visibile solo SE setup non completo */}
         {diag && !diag.ready && (
           <div className="rounded-lg border border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-900 p-3 space-y-2">
@@ -345,25 +383,42 @@ export function EmailOAuthConnectionsCard() {
             </div>
           );
         })()}
-        <div className="flex flex-wrap gap-2">
-          {connections.length > 0 && (
+        {connections.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/10 dark:border-emerald-900 p-2.5">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <div className="text-xs text-emerald-800 dark:text-emerald-300 flex-1">
+              <strong>{connections.length}</strong> casell{connections.length === 1 ? "a connessa" : "e connesse"} ·{" "}
+              <span className="text-emerald-700 dark:text-emerald-400">l'AI legge le tue email per supporto, triage e bozze</span>
+            </div>
+            <Button
+              asChild
+              size="sm"
+              variant="default"
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <Link to={typeof window !== "undefined" && window.location.pathname.startsWith("/admin/") ? "/admin/email" : "/azienda/email"}>
+                <Inbox className="h-3.5 w-3.5" />
+                Apri inbox
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </Button>
             <Button
               onClick={() => forceSync.mutate()}
               disabled={forceSync.isPending}
               variant="ghost"
               size="sm"
-              className="gap-2 ml-auto"
+              className="gap-1.5"
               title="Forza sync immediato di tutti gli account"
             >
               {forceSync.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-3.5 w-3.5" />
               )}
               Sync ora
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Lista connessioni */}
         {isLoading ? (
@@ -372,10 +427,21 @@ export function EmailOAuthConnectionsCard() {
             <Skeleton className="h-16 w-full" />
           </div>
         ) : connections.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-8 text-center text-muted-foreground">
-            <Plug className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            <p className="text-sm">Nessun account email connesso.</p>
-            <p className="text-xs mt-1">Clicca "Connetti Gmail" o "Connetti Outlook" sopra per iniziare.</p>
+          <div className="rounded-lg border-2 border-dashed border-violet-200 bg-violet-50/30 dark:bg-violet-950/10 dark:border-violet-900 py-6 px-4 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white border border-violet-200 shadow-sm">
+              <Plug className="h-6 w-6 text-violet-600" />
+            </div>
+            <p className="text-sm font-medium text-slate-900">Nessuna casella ancora collegata</p>
+            <p className="text-xs mt-1 text-slate-600 max-w-md mx-auto">
+              Collega Gmail, Outlook o un IMAP custom: <strong>solo tu vedrai le tue email</strong>.
+              L'AI Silvio ti aiuterà a triagiare, rispondere e creare task.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2 justify-center text-[10px] text-slate-500">
+              <span className="rounded-full border border-rose-200 bg-white px-2 py-0.5">📨 Gmail</span>
+              <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5">📨 Outlook</span>
+              <span className="rounded-full border border-violet-200 bg-white px-2 py-0.5">📨 Aruba/Libero/iCloud</span>
+              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">📨 IMAP custom</span>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">

@@ -65,7 +65,10 @@ export default function EmailOAuthCallbackPage() {
 
         sessionStorage.removeItem("oauth_state");
         sessionStorage.removeItem("oauth_provider");
-        const returnTo = sessionStorage.getItem("email_oauth_return_to") || "/azienda/email";
+        // Fallback return_to context-aware: se la callback è in /admin/* torna in admin
+        const isAdminCallback = window.location.pathname.startsWith("/admin/");
+        const fallbackReturn = isAdminCallback ? "/admin/email" : "/azienda/email";
+        const returnTo = sessionStorage.getItem("email_oauth_return_to") || fallbackReturn;
         sessionStorage.removeItem("email_oauth_return_to");
         setStatus("success");
         setEmailAddress(data.email_address ?? null);
@@ -104,7 +107,7 @@ export default function EmailOAuthCallbackPage() {
               <p className="text-xs text-muted-foreground">
                 L'AI inizierà a triagiare le email entro 10 minuti. Verrai rediretto…
               </p>
-              <Button onClick={() => navigate(sessionStorage.getItem("email_oauth_return_to") || "/azienda/email")} className="mt-2">
+              <Button onClick={() => navigate(sessionStorage.getItem("email_oauth_return_to") || (window.location.pathname.startsWith("/admin/") ? "/admin/email" : "/azienda/email"))} className="mt-2">
                 Torna alle email
               </Button>
             </>
@@ -114,7 +117,7 @@ export default function EmailOAuthCallbackPage() {
               <XCircle className="h-12 w-12 mx-auto text-rose-600" />
               <h2 className="text-lg font-semibold">Connessione fallita</h2>
               <p className="text-sm text-muted-foreground">{message}</p>
-              <Button onClick={() => navigate(sessionStorage.getItem("email_oauth_return_to") || "/azienda/email")} variant="outline">
+              <Button onClick={() => navigate(sessionStorage.getItem("email_oauth_return_to") || (window.location.pathname.startsWith("/admin/") ? "/admin/email" : "/azienda/email"))} variant="outline">
                 Torna alle email
               </Button>
             </>

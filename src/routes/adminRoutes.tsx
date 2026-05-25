@@ -56,6 +56,7 @@ const AdminAttivita = lazy(() => import("@/pages/admin/AdminAttivita"));
 const AdminEmailClientPage = lazy(() => import("@/pages/admin/AdminEmailClientPage"));
 const AdminEmailTriagePage = lazy(() => import("@/pages/admin/AdminEmailTriagePage"));
 const AdminMioProfilo = lazy(() => import("@/pages/admin/impostazioni/AdminMioProfilo"));
+const AdminEmailOAuthCallback = lazy(() => import("@/pages/admin/impostazioni/AdminEmailOAuthCallback"));
 const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
@@ -213,6 +214,7 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni/preferenze-email" element={<RequireSuperAdmin><AdminSettingsEmailPreferences /></RequireSuperAdmin>} />
         <Route path="impostazioni/dominio-email" element={<RequireSuperAdmin><AdminSettingsEmailDomain /></RequireSuperAdmin>} />
         <Route path="impostazioni/mio-profilo" element={<RequireSuperAdmin><AdminMioProfilo /></RequireSuperAdmin>} />
+        <Route path="impostazioni/integrazioni/email-callback" element={<RequireSuperAdmin><AdminEmailOAuthCallback /></RequireSuperAdmin>} />
         {/* ============================================================
             REFACTOR Strategia C — 3 pagine AI consolidate (nuove)
             ============================================================ */}
