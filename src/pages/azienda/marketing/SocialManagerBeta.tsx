@@ -1597,6 +1597,22 @@ function ContentStudioTab({
     if (!hasText) { toast.error("Scrivi il testo del post"); return; }
     if (selectedPlatforms.length === 0) { toast.error("Seleziona almeno una piattaforma"); return; }
     if (!publishNow && !scheduledDate) { toast.error("Seleziona la data di pubblicazione"); return; }
+    // FIX P1: l'input date ha min=oggi ma l'input time è libero. Se l'utente
+    // sceglie oggi + un orario passato (es. 14:00 quando sono le 15:00), il post
+    // veniva accettato ma non si sarebbe mai pubblicato (lo scheduler lo ignora).
+    if (!publishNow) {
+      const scheduledDt = new Date(`${scheduledDate}T${scheduledTime}`);
+      if (Number.isNaN(scheduledDt.getTime())) {
+        toast.error("Data o ora non valide");
+        return;
+      }
+      if (scheduledDt.getTime() <= Date.now() + 60_000) {
+        toast.error("L'orario di pubblicazione deve essere almeno 1 minuto nel futuro", {
+          description: "Sposta l'orario più avanti oppure usa 'Pubblica ora'.",
+        });
+        return;
+      }
+    }
     if (!draftValidation.canPublishLive) {
       toast.error(draftValidation.errors[0] ?? "Pubblicazione live non ancora attiva.");
       return;
@@ -2255,7 +2271,15 @@ function ContentStudioTab({
                     </Field>
                     <Field label="Ora">
                       <div className="flex gap-1.5">
-                        <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} className="flex-1" />
+                        <Input
+                          type="time"
+                          value={scheduledTime}
+                          onChange={(e) => setScheduledTime(e.target.value)}
+                          className="flex-1"
+                          {...(scheduledDate === new Date().toISOString().split("T")[0]
+                            ? { min: new Date(Date.now() + 60_000).toTimeString().slice(0, 5) }
+                            : {})}
+                        />
                         {suggestedTime && (
                           <TooltipProvider>
                             <Tooltip>
