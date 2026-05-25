@@ -58,6 +58,15 @@ export interface PortalLearningCourse {
   completion: number;
   modules: PortalLearningModule[];
   assets: PortalLearningAsset[];
+  /**
+   * Origine del corso dal punto di vista dell'azienda che lo sta vedendo.
+   *   - "own"      → corso creato dall'azienda stessa (proprietà piena).
+   *   - "platform" → corso concesso dal Superadmin via grant (READ-ONLY).
+   * Calcolato a runtime confrontando `companyId` query con `course.company_id`.
+   */
+  sourceType?: "own" | "platform";
+  /** company_id reale del corso (utile quando sourceType=platform per signed url storage). */
+  ownerCompanyId?: string;
 }
 
 export type PortalEnrollmentStatus = "assegnato" | "in_corso" | "completato" | "in_ritardo";
@@ -73,6 +82,7 @@ export interface PortalLearningEnrollment {
 
 interface PortalCourseRow {
   id: string;
+  company_id?: string;
   title: string;
   description: string | null;
   area: PortalArea;
@@ -153,7 +163,7 @@ function updatedLabel(value: string | null | undefined) {
   return `Aggiornato ${Math.max(1, Math.round(diff / 86_400_000))} giorni fa`;
 }
 
-function mapCourse(row: PortalCourseRow): PortalLearningCourse {
+function mapCourse(row: PortalCourseRow, viewerCompanyId?: string): PortalLearningCourse {
   const modules = [...(row.portal_course_modules ?? [])]
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     .map((module) => ({
@@ -182,6 +192,15 @@ function mapCourse(row: PortalCourseRow): PortalLearningCourse {
       mimeType: asset.mime_type ?? undefined,
     }));
 
+  // sourceType: se viewerCompanyId è passato e differisce da row.company_id
+  // → il corso è platform (visto via grant), altrimenti "own".
+  const sourceType: "own" | "platform" | undefined =
+    row.company_id && viewerCompanyId
+      ? row.company_id === viewerCompanyId
+        ? "own"
+        : "platform"
+      : undefined;
+
   return {
     id: row.id,
     title: row.title,
@@ -195,21 +214,53 @@ function mapCourse(row: PortalCourseRow): PortalLearningCourse {
     completion: row.completion_percent ?? 0,
     modules,
     assets,
+    sourceType,
+    ownerCompanyId: row.company_id,
   };
 }
 
+/**
+ * Lista corsi disponibili per un'azienda. Restituisce sia:
+ *   - I corsi creati dall'azienda stessa (sourceType="own")
+ *   - I corsi platform a cui l'azienda ha accesso via grant (sourceType="platform")
+ *
+ * Le RLS sui portal_courses ora consentono SELECT cross-company solo se
+ * esiste una riga in portal_course_grants con status='granted'. Quindi non
+ * dobbiamo filtrare nulla a livello applicativo: ci basta leggere TUTTO ciò
+ * che la RLS ci permette di vedere → marchiamo a runtime own vs platform.
+ *
+ * Nota: il companyId passato è quello dell'azienda visualizzatrice (effective
+ * company). Viene usato sia per la detection own/platform sia come fallback
+ * di filtro (legacy compat: se le grants non sono ancora in DB, listiamo
+ * solo i corsi propri).
+ */
 export async function listPortalCourses(companyId: string): Promise<PortalLearningCourse[]> {
-  const { data, error } = await getDb()
+  // 1° tentativo: query "open" (RLS decide). Funziona post-migration grants.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dbAny = supabase as any;
+  let { data, error } = await dbAny
     .from("portal_courses")
     .select(
-      "id,title,description,area,audience,status,owner,enrolled_count,completion_percent,updated_at,portal_course_modules(id,title,description,lessons,duration,completed_rate,sort_order),portal_course_assets(id,title,type,duration,module_id,storage_path,external_url,is_downloadable,content_text,file_name,file_size,mime_type,sort_order)",
+      "id,company_id,title,description,area,audience,status,owner,enrolled_count,completion_percent,updated_at,portal_course_modules(id,title,description,lessons,duration,completed_rate,sort_order),portal_course_assets(id,title,type,duration,module_id,storage_path,external_url,is_downloadable,content_text,file_name,file_size,mime_type,sort_order)",
     )
-    .eq("company_id", companyId)
     .order("sort_order", { ascending: true })
     .order("updated_at", { ascending: false });
 
-  if (error) throw error;
-  return ((data ?? []) as PortalCourseRow[]).map(mapCourse);
+  // Fallback (pre-migration grants): query stretta solo su company_id
+  if (error) {
+    const fallback = await dbAny
+      .from("portal_courses")
+      .select(
+        "id,company_id,title,description,area,audience,status,owner,enrolled_count,completion_percent,updated_at,portal_course_modules(id,title,description,lessons,duration,completed_rate,sort_order),portal_course_assets(id,title,type,duration,module_id,storage_path,external_url,is_downloadable,content_text,file_name,file_size,mime_type,sort_order)",
+      )
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: true })
+      .order("updated_at", { ascending: false });
+    if (fallback.error) throw fallback.error;
+    data = fallback.data;
+  }
+
+  return ((data ?? []) as PortalCourseRow[]).map((row) => mapCourse(row, companyId));
 }
 
 export async function listPortalCourseEnrollments(companyId: string, userId: string): Promise<PortalLearningEnrollment[]> {
@@ -422,6 +473,83 @@ export async function createPortalMaterialSignedUrl(path: string, expiresIn = 60
 
   if (error) throw error;
   return data.signedUrl;
+}
+
+// ─── Portal Course Grants (accesso platform → aziende) ──────────────────
+
+export interface PortalCourseGrant {
+  id: string;
+  courseId: string;
+  targetCompanyId: string;
+  targetCompanyName?: string | null;
+  targetCompanyLogo?: string | null;
+  status: "granted" | "revoked";
+  grantedAt: string;
+  revokedAt?: string | null;
+  notes?: string | null;
+}
+
+/** Lista aziende a cui un corso platform è stato concesso. */
+export async function listPortalCourseGrants(courseId: string): Promise<PortalCourseGrant[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dbAny = supabase as any;
+  const { data, error } = await dbAny
+    .from("portal_course_grants")
+    .select(
+      "id,course_id,target_company_id,status,granted_at,revoked_at,notes,target_company:companies!portal_course_grants_target_company_id_fkey(name,logo_url)",
+    )
+    .eq("course_id", courseId)
+    .order("granted_at", { ascending: false });
+
+  if (error) throw error;
+  return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+    id: row.id as string,
+    courseId: row.course_id as string,
+    targetCompanyId: row.target_company_id as string,
+    targetCompanyName:
+      (row.target_company as { name?: string } | null)?.name ?? null,
+    targetCompanyLogo:
+      (row.target_company as { logo_url?: string } | null)?.logo_url ?? null,
+    status: row.status as "granted" | "revoked",
+    grantedAt: row.granted_at as string,
+    revokedAt: (row.revoked_at as string | null) ?? null,
+    notes: (row.notes as string | null) ?? null,
+  }));
+}
+
+/** Concede accesso a un corso platform a N aziende. Solo super_admin. */
+export async function grantPortalCourseToCompanies(
+  sourceCourseId: string,
+  targetCompanyIds: string[],
+  notes?: string,
+): Promise<{ grantedCount: number; skippedCount: number }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rpcClient = supabase as any;
+  const { data, error } = await rpcClient.rpc("grant_admin_portal_course_to_companies", {
+    p_source_course_id: sourceCourseId,
+    p_target_company_ids: targetCompanyIds,
+    p_notes: notes ?? null,
+  });
+  if (error) throw error;
+  return {
+    grantedCount: (data?.granted_count as number) ?? 0,
+    skippedCount: (data?.skipped_count as number) ?? 0,
+  };
+}
+
+/** Revoca accesso a un corso platform da N aziende. */
+export async function revokePortalCourseFromCompanies(
+  sourceCourseId: string,
+  targetCompanyIds: string[],
+): Promise<{ revokedCount: number }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rpcClient = supabase as any;
+  const { data, error } = await rpcClient.rpc("revoke_admin_portal_course_from_companies", {
+    p_source_course_id: sourceCourseId,
+    p_target_company_ids: targetCompanyIds,
+  });
+  if (error) throw error;
+  return { revokedCount: (data?.revoked_count as number) ?? 0 };
 }
 
 export function isPortalLearningUnavailable(error: unknown) {

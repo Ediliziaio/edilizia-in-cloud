@@ -161,6 +161,17 @@ interface PortalCourse {
   completion: number;
   modules: PortalModule[];
   assets: PortalAsset[];
+  /**
+   * Origine del corso dal punto di vista dell'azienda corrente.
+   *   - "own"      → corso creato dall'azienda stessa (modificabile).
+   *   - "platform" → corso del Superadmin concesso via grant (READ-ONLY:
+   *     niente edit/delete/add module/upload asset; solo enrollment e
+   *     tracking progress dei propri utenti).
+   * Quando undefined, trattiamo come "own" per retrocompatibilità.
+   */
+  sourceType?: "own" | "platform";
+  /** company_id del proprietario originale (utile per signed URL storage cross-company). */
+  ownerCompanyId?: string;
 }
 
 interface PortalTemplate {
@@ -967,11 +978,28 @@ function cloneTemplateCourse(template: PortalTemplate): PortalCourse {
   };
 }
 
-export default function PortalePage() {
+/**
+ * Contesto applicativo del portale:
+ *   - "azienda" (default): use case originale aziende edili. Default seed
+ *     "cantiere", audience operai/capicantiere, templates sicurezza, tab Persone
+ *     con stats edili.
+ *   - "admin": riuso scoped sulla PLATFORM_ADMIN_COMPANY_ID per il team
+ *     Superadmin. Niente seed cantiere, niente audience operai, niente tab
+ *     "Accessi" / "Persone" / "Procedure" (gestiti da AdminPortaleDistributionBar
+ *     a monte). Hero ridondante nascosto.
+ */
+export interface PortalePageProps {
+  portalContext?: "azienda" | "admin";
+}
+
+export default function PortalePage({ portalContext = "azienda" }: PortalePageProps = {}) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
   const userId = user?.id ?? null;
-  const [courses, setCourses] = useState<PortalCourse[]>(() => loadCourses(companyId));
+  const isAdminContext = portalContext === "admin";
+  const [courses, setCourses] = useState<PortalCourse[]>(() =>
+    isAdminContext ? [] : loadCourses(companyId),
+  );
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? "");
   const [remoteEnabled, setRemoteEnabled] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"locale" | "caricamento" | "sincronizzato">("locale");
@@ -1064,17 +1092,24 @@ export default function PortalePage() {
   }, []);
 
   useEffect(() => {
-    setCourses(loadCourses(companyId));
-  }, [companyId]);
+    // In admin context NON ripopoliamo da localStorage al mount (sarebbero
+    // i corsi cantiere defaultCourses) — partiamo vuoti e attendiamo il remote.
+    setCourses(isAdminContext ? [] : loadCourses(companyId));
+  }, [companyId, isAdminContext]);
 
   useEffect(() => {
     if (!companyId) return;
+    // In admin context il single source of truth è il DB Supabase (RLS
+    // scoped sulla PLATFORM_ADMIN_COMPANY_ID). Il backup localStorage è
+    // utile per aziende offline-first ma per il superadmin sarebbe solo
+    // un punto di drift con la realtà.
+    if (isAdminContext) return;
     try {
       window.localStorage.setItem(getPortalStorageKey(companyId), JSON.stringify(courses));
     } catch {
       // La pagina deve restare utilizzabile anche se il browser blocca lo storage locale.
     }
-  }, [companyId, courses]);
+  }, [companyId, courses, isAdminContext]);
 
   useEffect(() => {
     let active = true;
@@ -1103,6 +1138,12 @@ export default function PortalePage() {
           );
           return;
         }
+
+        // ⛔ In admin context NON seediamo i corsi cantiere. Il team Superadmin
+        // crea i propri corsi da zero (onboarding team interno, corsi marketing
+        // per aziende clienti, ecc.). Mostrare "Sicurezza in cantiere" sarebbe
+        // un bug semantico.
+        if (isAdminContext) return;
 
         const seedCourses = loadCourses(companyId).map(normalizePortalCourse);
         if (seedCourses.length === 0) return;
@@ -1156,7 +1197,19 @@ export default function PortalePage() {
 
   const selectedCourse = courses.find((course) => course.id === selectedCourseId) ?? courses[0];
 
+  // ── Read-only enforcement per corsi platform concessi via grant ──────
+  // Un corso con sourceType="platform" è di proprietà del Superadmin: l'azienda
+  // riceve accesso read-only via portal_course_grants. Le RLS DB già bloccano
+  // gli UPDATE/INSERT cross-company, ma vogliamo intercettare a livello UI
+  // per UX pulita (niente bottoni che falliscono al click).
+  const isCourseReadOnly = selectedCourse?.sourceType === "platform";
+
   const persistCourse = (course: PortalCourse) => {
+    // Niente sync remoto per i corsi platform (read-only).
+    // Il PortalePage usa lo stato locale anche per i corsi platform — i grants
+    // gestiscono la SELECT, ma una UPDATE accidentale verrebbe respinta dalla
+    // RLS WITH CHECK. Guardia client per evitare il network roundtrip.
+    if (course.sourceType === "platform") return;
     if (!remoteEnabled || !companyId) return;
     saveStateRef.current.pending = course;
     setSyncStatus("caricamento");
@@ -1541,37 +1594,42 @@ export default function PortalePage() {
 
   return (
     <div className="space-y-6">
+      {/* Hero header — nascosto in admin context perché AdminPortalePage ha
+          già il suo AdminHeroHeader e la barra distribution. Mostriamo solo
+          le action buttons + le stat cards. */}
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="grid gap-6 bg-gradient-to-br from-white via-blue-50/50 to-orange-50/70 p-5 lg:grid-cols-[1.4fr_0.8fr] lg:p-6">
           <div className="flex flex-col justify-between gap-5">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200">
-                <GraduationCap className="h-6 w-6" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold tracking-tight text-slate-950">Portale</h1>
-                  <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">Beta operativa</Badge>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "capitalize",
-                      syncStatus === "sincronizzato"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : syncStatus === "caricamento"
-                          ? "border-blue-200 bg-blue-50 text-blue-700"
-                          : "border-slate-200 bg-slate-50 text-slate-600",
-                    )}
-                  >
-                    {syncStatus === "sincronizzato" ? "Sync Supabase" : syncStatus}
-                  </Badge>
+            {!isAdminContext && (
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-sm shadow-blue-200">
+                  <GraduationCap className="h-6 w-6" />
                 </div>
-                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                  Area formazione e know-how aziendale: corsi interni, procedure, manuali, onboarding, formazione
-                  commerciale e materiali riservati per team e cantieri.
-                </p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-950">Portale</h1>
+                    <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-50">Beta operativa</Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "capitalize",
+                        syncStatus === "sincronizzato"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : syncStatus === "caricamento"
+                            ? "border-blue-200 bg-blue-50 text-blue-700"
+                            : "border-slate-200 bg-slate-50 text-slate-600",
+                      )}
+                    >
+                      {syncStatus === "sincronizzato" ? "Sync Supabase" : syncStatus}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                    Area formazione e know-how aziendale: corsi interni, procedure, manuali, onboarding, formazione
+                    commerciale e materiali riservati per team e cantieri.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <Dialog open={courseDialogOpen} onOpenChange={setCourseDialogOpen}>
@@ -1631,26 +1689,32 @@ export default function PortalePage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700">Accesso</label>
-                        <Select
-                          value={courseDraft.audience}
-                          onValueChange={(value) =>
-                            setCourseDraft((prev) => ({ ...prev, audience: value as PortalAudience }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(audienceLabels).map(([value, label]) => (
-                              <SelectItem key={value} value={value}>
-                                {label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {/* Select Audience nascosta in admin context (operai/
+                          capicantiere non hanno senso per team Superadmin).
+                          courseDraft.audience resta "tutti" come default →
+                          conforme allo schema DB. */}
+                      {!isAdminContext && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Accesso</label>
+                          <Select
+                            value={courseDraft.audience}
+                            onValueChange={(value) =>
+                              setCourseDraft((prev) => ({ ...prev, audience: value as PortalAudience }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(audienceLabels).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <DialogFooter>
@@ -1666,7 +1730,12 @@ export default function PortalePage() {
 
               <Dialog open={assetDialogOpen} onOpenChange={setAssetDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 border-blue-200 bg-white text-blue-700 hover:bg-blue-50">
+                  <Button
+                    variant="outline"
+                    className="h-11 gap-2 border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+                    disabled={isCourseReadOnly}
+                    title={isCourseReadOnly ? "Corso piattaforma · sola lettura" : undefined}
+                  >
                     <UploadCloud className="h-4 w-4" />
                     Carica materiale
                   </Button>
@@ -1870,18 +1939,27 @@ export default function PortalePage() {
             <LayoutTemplate className="h-4 w-4" />
             Builder
           </TabsTrigger>
-          <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
-            <ClipboardCheck className="h-4 w-4" />
-            Procedure
-          </TabsTrigger>
-          <TabsTrigger value="accessi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
-            <LockKeyhole className="h-4 w-4" />
-            Accessi
-          </TabsTrigger>
-          <TabsTrigger value="persone" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
-            <Users className="h-4 w-4" />
-            Persone
-          </TabsTrigger>
+          {/* Tab azienda-edile nascoste in admin context:
+              - Procedure: pensato per checklist sicurezza/operativi cantiere
+              - Accessi: in admin la gestione cross-company avviene in
+                AdminPortaleDistributionBar a monte
+              - Persone: ha fake data hardcoded (operai/capicantiere) */}
+          {!isAdminContext && (
+            <>
+              <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+                <ClipboardCheck className="h-4 w-4" />
+                Procedure
+              </TabsTrigger>
+              <TabsTrigger value="accessi" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+                <LockKeyhole className="h-4 w-4" />
+                Accessi
+              </TabsTrigger>
+              <TabsTrigger value="persone" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+                <Users className="h-4 w-4" />
+                Persone
+              </TabsTrigger>
+            </>
+          )}
           <TabsTrigger value="preview" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
             <UserRoundCheck className="h-4 w-4" />
             Pagina utente
@@ -1956,6 +2034,7 @@ export default function PortalePage() {
               onPublish={togglePublish}
               onDuplicate={duplicateCourse}
               onOpenAccess={() => setAccessDialogOpen(true)}
+              hideAudienceUi={isAdminContext}
             />
           </div>
         </TabsContent>
@@ -2397,6 +2476,15 @@ function CourseCard({ course, active, onSelect }: { course: PortalCourse; active
             <Badge variant="outline" className={statusClasses[course.status]}>
               {course.status}
             </Badge>
+            {course.sourceType === "platform" && (
+              <Badge
+                variant="outline"
+                className="border-orange-200 bg-orange-50 text-orange-700"
+                title="Corso reso disponibile dalla piattaforma EdiliziaInCloud — sola lettura"
+              >
+                ⚡ Piattaforma
+              </Badge>
+            )}
           </div>
           <h3 className="line-clamp-2 text-base font-bold text-slate-950">{course.title}</h3>
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{course.description}</p>
@@ -2428,12 +2516,21 @@ function CourseDetailPanel({
   onPublish,
   onDuplicate,
   onOpenAccess,
+  hideAudienceUi = false,
 }: {
   course?: PortalCourse;
   onPublish: () => void;
   onDuplicate: () => void;
   onOpenAccess: () => void;
+  /**
+   * Quando true (admin context), nasconde "Accesso" tile + bottone "Accessi"
+   * (che apriva il dialog azienda con audience operai/capicantiere — non senso
+   * per superadmin). La gestione access cross-azienda è in
+   * AdminPortaleDistributionBar.
+   */
+  hideAudienceUi?: boolean;
 }) {
+  const isPlatform = course?.sourceType === "platform";
   if (!course) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
@@ -2448,9 +2545,20 @@ function CourseDetailPanel({
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <Badge variant="outline" className={statusClasses[course.status]}>
-              {course.status}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className={statusClasses[course.status]}>
+                {course.status}
+              </Badge>
+              {isPlatform && (
+                <Badge
+                  variant="outline"
+                  className="border-orange-200 bg-orange-50 text-orange-700"
+                  title="Corso fornito dalla piattaforma EdiliziaInCloud — sola lettura"
+                >
+                  ⚡ Piattaforma · sola lettura
+                </Badge>
+              )}
+            </div>
             <h2 className="mt-3 text-xl font-bold text-slate-950">{course.title}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">{course.description}</p>
           </div>
@@ -2459,9 +2567,13 @@ function CourseDetailPanel({
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className={cn("mt-5 grid gap-3", hideAudienceUi ? "grid-cols-3" : "grid-cols-2")}>
           <InfoTile label="Area" value={areaLabels[course.area]} icon={Building2} />
-          <InfoTile label="Accesso" value={audienceLabels[course.audience]} icon={LockKeyhole} />
+          {/* Tile "Accesso" mostra audience azienda-edile (operai/capicantiere)
+              → nascosto in admin context dove non ha senso. */}
+          {!hideAudienceUi && (
+            <InfoTile label="Accesso" value={audienceLabels[course.audience]} icon={LockKeyhole} />
+          )}
           <InfoTile label="Owner" value={course.owner} icon={BriefcaseBusiness} />
           <InfoTile label="Update" value={course.updatedAt} icon={Clock3} />
         </div>
@@ -2475,14 +2587,21 @@ function CourseDetailPanel({
         </div>
 
         <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          <Button onClick={onPublish} className="gap-2 bg-blue-600 hover:bg-blue-700">
+          <Button
+            onClick={onPublish}
+            disabled={isPlatform}
+            className="gap-2 bg-blue-600 hover:bg-blue-700"
+            title={isPlatform ? "Modifiche bloccate: il corso appartiene alla piattaforma" : undefined}
+          >
             <CheckCircle2 className="h-4 w-4" />
             {course.status === "pubblicato" ? "Revisione" : "Pubblica"}
           </Button>
-          <Button variant="outline" onClick={onOpenAccess} className="gap-2">
-            <Settings2 className="h-4 w-4" />
-            Accessi
-          </Button>
+          {!hideAudienceUi && (
+            <Button variant="outline" onClick={onOpenAccess} disabled={isPlatform} className="gap-2">
+              <Settings2 className="h-4 w-4" />
+              Accessi
+            </Button>
+          )}
           <Button variant="outline" onClick={onDuplicate} className="gap-2">
             <Copy className="h-4 w-4" />
             Duplica
@@ -2563,6 +2682,7 @@ function CourseBuilder({
   onOpenAsset: (asset: PortalAsset) => void;
 }) {
   if (!course) return null;
+  const isPlatform = course.sourceType === "platform";
 
   const assetsByType = course.assets.reduce<Record<PortalAssetType, number>>((acc, asset) => {
     acc[asset.type] = (acc[asset.type] ?? 0) + 1;
@@ -2581,20 +2701,44 @@ function CourseBuilder({
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onAddModule} className="gap-2">
+            <Button
+              variant="outline"
+              onClick={onAddModule}
+              disabled={isPlatform}
+              title={isPlatform ? "Corso piattaforma · sola lettura" : undefined}
+              className="gap-2"
+            >
               <Plus className="h-4 w-4" />
               Modulo
             </Button>
-            <Button variant="outline" onClick={onAddAsset} className="gap-2">
+            <Button
+              variant="outline"
+              onClick={onAddAsset}
+              disabled={isPlatform}
+              title={isPlatform ? "Corso piattaforma · sola lettura" : undefined}
+              className="gap-2"
+            >
               <UploadCloud className="h-4 w-4" />
               Materiale
             </Button>
-            <Button onClick={onPublish} className="gap-2 bg-blue-600 hover:bg-blue-700">
+            <Button
+              onClick={onPublish}
+              disabled={isPlatform}
+              title={isPlatform ? "Corso piattaforma · sola lettura" : undefined}
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+            >
               <CheckCircle2 className="h-4 w-4" />
               Pubblica
             </Button>
           </div>
         </div>
+        {isPlatform && (
+          <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-3 text-sm text-orange-900">
+            <span className="font-semibold">⚡ Corso fornito dalla piattaforma EdiliziaInCloud.</span>{" "}
+            Il contenuto è gestito centralmente, non è modificabile dalla tua azienda.
+            Puoi però iscrivere il tuo team e tracciarne il completamento.
+          </div>
+        )}
 
         <div className="grid gap-2 sm:grid-cols-4">
           <BuilderStep icon={ListChecks} label={`${course.modules.length} moduli`} />
@@ -2625,7 +2769,14 @@ function CourseBuilder({
                   <div className="mt-4 rounded-xl border border-white bg-white p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contenuti modulo</p>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-700" onClick={onAddAsset}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-blue-700"
+                        onClick={onAddAsset}
+                        disabled={isPlatform}
+                        title={isPlatform ? "Corso piattaforma · sola lettura" : undefined}
+                      >
                         <Plus className="mr-1 h-3.5 w-3.5" />
                         Aggiungi
                       </Button>
@@ -2689,7 +2840,7 @@ function CourseBuilder({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    disabled={index === 0}
+                    disabled={index === 0 || isPlatform}
                     onClick={() => onMoveModule(module.id, "up")}
                     aria-label="Sposta modulo su"
                   >
@@ -2699,7 +2850,7 @@ function CourseBuilder({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    disabled={index === course.modules.length - 1}
+                    disabled={index === course.modules.length - 1 || isPlatform}
                     onClick={() => onMoveModule(module.id, "down")}
                     aria-label="Sposta modulo giu"
                   >
@@ -2710,6 +2861,7 @@ function CourseBuilder({
                     size="icon"
                     className="h-8 w-8 text-slate-500 hover:text-red-600"
                     onClick={() => onRemoveModule(module.id)}
+                    disabled={isPlatform}
                     aria-label="Rimuovi modulo"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -2792,6 +2944,7 @@ function CourseBuilder({
                     size="icon"
                     className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-600"
                     onClick={() => onRemoveAsset(asset.id)}
+                    disabled={isPlatform}
                     aria-label="Rimuovi materiale"
                   >
                     <Trash2 className="h-4 w-4" />
