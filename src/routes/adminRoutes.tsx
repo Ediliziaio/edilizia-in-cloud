@@ -213,8 +213,11 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
         <Route path="impostazioni/preferenze-email" element={<RequireSuperAdmin><AdminSettingsEmailPreferences /></RequireSuperAdmin>} />
         <Route path="impostazioni/dominio-email" element={<RequireSuperAdmin><AdminSettingsEmailDomain /></RequireSuperAdmin>} />
-        <Route path="impostazioni/mio-profilo" element={<RequireSuperAdmin><AdminMioProfilo /></RequireSuperAdmin>} />
-        <Route path="impostazioni/integrazioni/email-callback" element={<RequireSuperAdmin><AdminEmailOAuthCallback /></RequireSuperAdmin>} />
+        {/* Profilo personale + OAuth callback: aperti a tutti i ruoli admin
+            (platform_manager / support / sales / marketing / implementation) —
+            ognuno collega la sua casella, isolamento via user_id. */}
+        <Route path="impostazioni/mio-profilo" element={<AdminMioProfilo />} />
+        <Route path="impostazioni/integrazioni/email-callback" element={<AdminEmailOAuthCallback />} />
         {/* ============================================================
             REFACTOR Strategia C — 3 pagine AI consolidate (nuove)
             ============================================================ */}
@@ -270,8 +273,10 @@ export default function AdminRoutesContainer() {
             attività"; /admin/cs-tasks redirige al tab per non rompere link
             esistenti (mobile menu, lifecycle, breadcrumb, deep link salvati). */}
         <Route path="attivita" element={<RequireAdminPermission permission="can_manage_companies"><AdminAttivita /></RequireAdminPermission>} />
-        <Route path="email" element={<RequireSuperAdmin><AdminEmailClientPage /></RequireSuperAdmin>} />
-        <Route path="email-triage" element={<RequireSuperAdmin><AdminEmailTriagePage /></RequireSuperAdmin>} />
+        {/* Email client e triage AI: aperti a tutto il team admin (ognuno
+            vede solo le sue caselle via user_id). */}
+        <Route path="email" element={<AdminEmailClientPage />} />
+        <Route path="email-triage" element={<AdminEmailTriagePage />} />
         <Route path="cs-tasks" element={<Navigate to="/admin/attivita?tab=tutte" replace />} />
         <Route path="chat" element={<RequireAdminPermission permission="can_manage_companies"><AdminTeamChat /></RequireAdminPermission>} />
         <Route path="gdpr" element={<RequireSuperAdmin><AdminGDPR /></RequireSuperAdmin>} />
