@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, ArrowRight, Info, Loader2, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, Info, Loader2, Send, Sparkles } from "lucide-react";
 import { useWhatsAppNumbers } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { useWAMetaTemplates } from "@/hooks/whatsapp/useWAMetaTemplates";
 import { useCreateBroadcast } from "@/hooks/whatsapp/useWABroadcasts";
@@ -303,6 +303,32 @@ export default function BroadcastCreatePage() {
                   ))}
                 </div>
               )}
+
+              {/* MIGL: anteprima messaggio renderizzato + chip variabili mancanti */}
+              {selectedTemplate && (
+                <TemplatePreviewCard template={selectedTemplate} variableMapping={variableMapping} />
+              )}
+
+              {/* MIGL: CTA Silvio per aiuto configurazione */}
+              {selectedTemplate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const draft =
+                      `Aiutami a configurare un broadcast WhatsApp.\n` +
+                      `Template scelto: "${selectedTemplate.template_name}" (categoria ${selectedTemplate.category}, ${selectedTemplate.variables_count ?? 0} variabili).\n` +
+                      (selectedTemplate.components_json ? `Schema: ${JSON.stringify(selectedTemplate.components_json).slice(0, 500)}\n` : "") +
+                      `Segmento: ${tipoFilter === "all" ? "tutti i contatti" : tipoFilter}${statoFilter ? ` con stato ${statoFilter}` : ""}.\n\n` +
+                      `Dimmi: (1) come mappare le variabili sui campi del contatto, ` +
+                      `(2) se il template è adatto al segmento, (3) eventuali rischi GDPR/Meta da considerare.`;
+                    window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
+                  }}
+                  className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Chiedi a Silvio aiuto configurazione
+                </button>
+              )}
             </>
           )}
 
@@ -473,6 +499,71 @@ export default function BroadcastCreatePage() {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * MIGL: anteprima messaggio renderizzato — estrae il body dal components_json
+ * di Meta e sostituisce le variabili {{1}}, {{2}}, ... con [campo_mappato] o
+ * con un valore di esempio. Aiuta a evitare invii con placeholder grezzi.
+ */
+function TemplatePreviewCard({
+  template,
+  variableMapping,
+}: {
+  template: { components_json: unknown; template_name: string; category: string | null };
+  variableMapping: Record<string, string>;
+}) {
+  const bodyText = useMemo(() => {
+    const json = template.components_json as { components?: Array<{ type?: string; text?: string }> } | null;
+    if (!json?.components) return null;
+    const body = json.components.find((c) => c?.type === "BODY");
+    return body?.text ?? null;
+  }, [template.components_json]);
+
+  const SAMPLE_VALUES: Record<string, string> = {
+    nome: "Mario",
+    cognome: "Rossi",
+    email: "mario.rossi@example.com",
+    telefono: "+39 333 1234567",
+    citta: "Milano",
+    azienda: "Edilrossi S.r.l.",
+  };
+
+  const renderedBody = useMemo(() => {
+    if (!bodyText) return null;
+    return bodyText.replace(/\{\{\s*(\d+)\s*\}\}/g, (_match, idx: string) => {
+      const field = variableMapping[idx];
+      if (!field) return `[{{${idx}}} — non mappato]`;
+      return SAMPLE_VALUES[field] ?? `[${field}]`;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bodyText, variableMapping]);
+
+  const unmappedVars = useMemo(() => {
+    if (!bodyText) return [] as string[];
+    const matches = [...bodyText.matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => m[1]);
+    return [...new Set(matches)].filter((v) => !variableMapping[v]);
+  }, [bodyText, variableMapping]);
+
+  if (!bodyText) return null;
+
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 space-y-2">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-900">
+        <Eye className="h-3.5 w-3.5" />
+        Anteprima messaggio (cliente di esempio: Mario Rossi)
+      </div>
+      <div className="rounded-md bg-white border border-slate-200 p-3 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap font-[system-ui]">
+        {renderedBody}
+      </div>
+      {unmappedVars.length > 0 && (
+        <p className="text-[11px] text-amber-700">
+          ⚠️ {unmappedVars.length} variabile{unmappedVars.length > 1 ? "/i" : ""} non mappata
+          {unmappedVars.length > 1 ? "/e" : ""}: {unmappedVars.map((v) => `{{${v}}}`).join(", ")}. Il messaggio arriverebbe ai destinatari con il placeholder grezzo.
+        </p>
+      )}
     </div>
   );
 }
