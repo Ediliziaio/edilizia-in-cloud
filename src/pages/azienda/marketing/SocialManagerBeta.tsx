@@ -992,6 +992,14 @@ function CalendarioTab({
       </div>
 
       {/* ── CALENDAR BODY ─────────────────────────────────────────────── */}
+      {/* MIGL: timezone badge — chiarisce in che fuso vengono mostrate le date */}
+      <div className="mb-2 flex items-center justify-end">
+        <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+          <Clock className="h-3 w-3" />
+          Orari in {Intl.DateTimeFormat().resolvedOptions().timeZone ?? "ora locale"}
+        </span>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
 
         {/* MONTH VIEW */}
