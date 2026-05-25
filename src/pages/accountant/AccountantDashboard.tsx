@@ -1,11 +1,15 @@
 /**
- * /commercialista — Cruscotto generale studio.
- * Mostra KPI aggregate su tutte le aziende clienti, ultime notifiche,
- * inviti in attesa e shortcut alle aziende più recenti.
+ * /commercialista — Cruscotto unificato dello studio.
+ *
+ * KPI aggregate in alto + lista aziende clienti filtrabile (era una pagina
+ * separata, ora integrata qui per evitare duplicazione).
+ *
+ * Da ogni card: pulsante "Accedi piattaforma cliente" → entra in
+ * /azienda/cruscotto?commercialistaMode=1&... con sidebar filtrata.
  */
 
-import { useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   ArrowRight,
@@ -13,25 +17,80 @@ import {
   Building2,
   CheckCircle2,
   Clock,
-  TrendingUp,
+  Eye,
+  LogIn,
+  Pause,
+  Search,
+  Shield,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSEO } from "@/hooks/useSEO";
 import {
   useAccountantCompanies,
   useAccountantFirm,
   useAccountantNotifications,
+  type AccountantAccessStatus,
 } from "@/hooks/accountant/useAccountantPortalData";
 import { buildCommercialistaCompanyUrl } from "@/lib/commercialistaImpersonation";
+
+function companyInitials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase())
+      .join("") || "?"
+  );
+}
+
+const STATUS_FILTERS: Array<{ value: "all" | AccountantAccessStatus; label: string }> = [
+  { value: "all", label: "Tutte" },
+  { value: "active", label: "Attive" },
+  { value: "invited", label: "Inviti pending" },
+  { value: "suspended", label: "Sospese" },
+];
+
+function statusBadge(status: AccountantAccessStatus) {
+  switch (status) {
+    case "active":
+      return { variant: "default" as const, label: "Attivo", icon: CheckCircle2 };
+    case "invited":
+      return { variant: "secondary" as const, label: "Invitato", icon: Clock };
+    case "suspended":
+      return { variant: "outline" as const, label: "Sospeso", icon: Pause };
+    default:
+      return { variant: "destructive" as const, label: status, icon: Shield };
+  }
+}
+
+function modeLabel(mode: string) {
+  if (mode === "read_only") return "Sola lettura";
+  if (mode === "operational") return "Operativo";
+  if (mode === "approval_required") return "Con approvazione";
+  return mode;
+}
 
 export default function AccountantDashboard() {
   useSEO({ title: "Cruscotto studio", noindex: true });
 
+  const navigate = useNavigate();
   const { data: firm } = useAccountantFirm();
   const { data: companies = [], isLoading: companiesLoading } = useAccountantCompanies();
   const { data: notifications = [] } = useAccountantNotifications();
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | AccountantAccessStatus>("all");
 
   const stats = useMemo(() => {
     const active = companies.filter((c) => c.status === "active");
@@ -46,27 +105,39 @@ export default function AccountantDashboard() {
   }, [companies]);
 
   const unreadNotifications = useMemo(
-    () => notifications.filter((n) => !n.is_read).slice(0, 5),
+    () => notifications.filter((n) => !n.is_read),
     [notifications],
   );
 
-  const pendingInvites = useMemo(
-    () => companies.filter((c) => c.status === "invited").slice(0, 3),
-    [companies],
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return companies.filter((c) => {
+      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      if (!q) return true;
+      const name = c.company?.name?.toLowerCase() || "";
+      const vat = c.company?.vat_number?.toLowerCase() || "";
+      const city = c.company?.legal_city?.toLowerCase() || "";
+      return name.includes(q) || vat.includes(q) || city.includes(q);
+    });
+  }, [companies, search, statusFilter]);
 
-  const recentActive = useMemo(
-    () => companies.filter((c) => c.status === "active").slice(0, 6),
-    [companies],
-  );
+  function enterCompany(companyId: string, companyName: string) {
+    navigate(
+      buildCommercialistaCompanyUrl({
+        companyId,
+        companyName,
+        returnTo: "/commercialista",
+      }),
+    );
+  }
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Cruscotto studio</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Benvenuto in <span className="font-semibold">{firm?.name}</span>. Qui vedi una
-          panoramica di tutte le aziende che hai in gestione.
+          Benvenuto in <span className="font-semibold">{firm?.name}</span>. Apri il portale
+          di un cliente per operare nella sua piattaforma con vista commercialista.
         </p>
       </header>
 
@@ -126,159 +197,8 @@ export default function AccountantDashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        {/* Aziende recenti */}
-        <Card>
-          <CardHeader className="flex flex-row items-start justify-between space-y-0">
-            <div>
-              <CardTitle className="text-base">Aziende attive</CardTitle>
-              <CardDescription>Apri il cruscotto di un cliente</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" asChild className="gap-2">
-              <Link to="/commercialista/aziende">
-                Tutte
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {companiesLoading && (
-              <div className="p-6 text-center text-sm text-muted-foreground">
-                Caricamento aziende...
-              </div>
-            )}
-            {!companiesLoading && recentActive.length === 0 && (
-              <div className="flex flex-col items-center gap-2 p-8 text-center">
-                <Building2 className="h-10 w-10 text-muted-foreground/50" />
-                <p className="text-sm font-medium">Nessuna azienda attiva</p>
-                <p className="text-xs text-muted-foreground">
-                  {stats.invited > 0
-                    ? "Hai inviti in attesa: accettali dalla sezione Inbox."
-                    : "Le aziende che ti delegheranno l'accesso appariranno qui."}
-                </p>
-              </div>
-            )}
-            {recentActive.length > 0 && (
-              <div className="divide-y">
-                {recentActive.map((access) => (
-                  <Link
-                    key={access.id}
-                    to={buildCommercialistaCompanyUrl({
-                      companyId: access.company_id,
-                      companyName: access.company?.name ?? "Azienda",
-                    })}
-                    className="flex items-center gap-3 p-4 transition-colors hover:bg-slate-50"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-sm font-bold text-blue-700">
-                      {access.company?.name
-                        ?.split(/\s+/)
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .map((p) => p[0]?.toUpperCase())
-                        .join("") || "?"}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {access.company?.name ?? "Azienda"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {access.company?.vat_number
-                          ? `P.IVA ${access.company.vat_number}`
-                          : access.company?.legal_city || "—"}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="font-normal">
-                      {access.access_mode === "read_only"
-                        ? "Sola lettura"
-                        : access.access_mode === "operational"
-                          ? "Operativo"
-                          : "Approvazione"}
-                    </Badge>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Inviti pending + notifiche */}
-        <div className="space-y-4">
-          {pendingInvites.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Clock className="h-4 w-4 text-amber-500" />
-                  Inviti da accettare
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 p-3 pt-0">
-                {pendingInvites.map((invite) => (
-                  <div
-                    key={invite.id}
-                    className="rounded-lg border border-amber-200 bg-amber-50/50 p-3"
-                  >
-                    <p className="text-sm font-medium">{invite.company?.name}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Mode: {invite.access_mode}
-                    </p>
-                    <Button asChild variant="link" size="sm" className="mt-1 h-auto p-0">
-                      <Link to="/commercialista/inbox">Apri inbox →</Link>
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {unreadNotifications.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Bell className="h-4 w-4 text-blue-500" />
-                  Ultime notifiche
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 p-3 pt-0">
-                {unreadNotifications.map((n) => (
-                  <Link
-                    key={n.id}
-                    to={n.action_url || "/commercialista/inbox"}
-                    className="block rounded-lg border bg-white p-3 transition-colors hover:bg-slate-50"
-                  >
-                    <p className="text-sm font-medium">{n.title}</p>
-                    {n.body && (
-                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {n.body}
-                      </p>
-                    )}
-                    <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {new Date(n.created_at).toLocaleDateString("it-IT", {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {pendingInvites.length === 0 && unreadNotifications.length === 0 && (
-            <Card>
-              <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
-                Tutto sotto controllo. Nessuna notifica nuova.
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      {/* Hint */}
-      {stats.total === 0 && (
+      {/* Hint primo accesso */}
+      {!companiesLoading && stats.total === 0 && (
         <Card className="border-blue-200 bg-blue-50/50">
           <CardContent className="flex items-start gap-3 p-4">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
@@ -292,6 +212,143 @@ export default function AccountantDashboard() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Filtri lista aziende */}
+      {stats.total > 0 && (
+        <>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-lg font-semibold">Le tue aziende clienti</h2>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Cerca per nome o P.IVA"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="w-full pl-9 sm:w-64"
+                />
+              </div>
+              <Select
+                value={statusFilter}
+                onValueChange={(value: "all" | AccountantAccessStatus) => setStatusFilter(value)}
+              >
+                <SelectTrigger className="sm:w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_FILTERS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {companiesLoading && (
+            <Card>
+              <CardContent className="p-12 text-center text-sm text-muted-foreground">
+                Caricamento aziende...
+              </CardContent>
+            </Card>
+          )}
+
+          {!companiesLoading && filtered.length === 0 && (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
+                <Building2 className="h-12 w-12 text-muted-foreground/40" />
+                <div>
+                  <p className="text-sm font-medium">Nessuna azienda trovata</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Modifica i filtri o la ricerca.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {!companiesLoading && filtered.length > 0 && (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((access) => {
+                const status = statusBadge(access.status);
+                const StatusIcon = status.icon;
+                const company = access.company;
+                const isActive = access.status === "active";
+                const isInvited = access.status === "invited";
+
+                return (
+                  <Card
+                    key={access.id}
+                    className="overflow-hidden transition-shadow hover:shadow-md"
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-sm font-bold text-blue-700">
+                          {companyInitials(company?.name ?? "")}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <CardTitle className="truncate text-base">
+                            {company?.name ?? "Azienda"}
+                          </CardTitle>
+                          <CardDescription className="truncate text-xs">
+                            {company?.vat_number
+                              ? `P.IVA ${company.vat_number}`
+                              : company?.legal_city || "—"}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant={status.variant} className="gap-1">
+                          <StatusIcon className="h-3 w-3" />
+                          {status.label}
+                        </Badge>
+                        <Badge variant="outline" className="gap-1 font-normal">
+                          <Eye className="h-3 w-3" />
+                          {modeLabel(access.access_mode)}
+                        </Badge>
+                      </div>
+
+                      {isInvited && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                          Invito ricevuto — apri{" "}
+                          <Link to="/commercialista/inbox" className="font-medium underline">
+                            Inbox
+                          </Link>{" "}
+                          per accettare.
+                        </div>
+                      )}
+
+                      {access.status === "suspended" && (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
+                          Accesso temporaneamente sospeso dall'azienda.
+                        </div>
+                      )}
+
+                      {isActive && (
+                        <Button
+                          className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+                          onClick={() =>
+                            enterCompany(access.company_id, company?.name ?? "Azienda")
+                          }
+                        >
+                          <LogIn className="h-4 w-4" />
+                          Accedi piattaforma cliente
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

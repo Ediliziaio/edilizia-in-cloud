@@ -11,11 +11,10 @@
  */
 
 import { ReactNode, useMemo } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
   Building2,
-  ChevronLeft,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -68,7 +67,6 @@ function SidebarItem({ to, label, icon: Icon, end, badge }: SidebarItemDef) {
 
 export default function AccountantLayout({ children }: { children?: ReactNode }) {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, signOut } = useAuth();
   const { data: firm, isLoading: isLoadingFirm } = useAccountantFirm();
   const { data: companies = [] } = useAccountantCompanies();
@@ -84,19 +82,17 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
   );
   const inboxBadge = pendingInvites + unreadNotifications;
 
+  // Sidebar semplificata: rimosso "Aziende clienti" duplicato — la lista è
+  // direttamente nel Cruscotto, da lì si entra nella piattaforma cliente.
   const sidebarItems: SidebarItemDef[] = useMemo(
     () => [
       { to: "/commercialista", label: "Cruscotto", icon: LayoutDashboard, end: true },
-      { to: "/commercialista/aziende", label: "Aziende clienti", icon: Building2 },
       { to: "/commercialista/inbox", label: "Inbox", icon: Bell, badge: inboxBadge },
       { to: "/commercialista/team", label: "Team studio", icon: Users },
       { to: "/commercialista/profilo", label: "Profilo studio", icon: Settings },
     ],
     [inboxBadge],
   );
-
-  // Se siamo in una sub-pagina azienda, mostra link "torna indietro"
-  const isCompanyDetail = /^\/commercialista\/aziende\/[^/]+/.test(location.pathname);
 
   if (isLoadingFirm) {
     return (
@@ -153,15 +149,6 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {isCompanyDetail && (
-            <Link
-              to="/commercialista/aziende"
-              className="mb-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              Torna alle aziende
-            </Link>
-          )}
           {sidebarItems.map((item) => (
             <SidebarItem key={item.to} {...item} />
           ))}
