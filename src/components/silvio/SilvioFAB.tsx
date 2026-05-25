@@ -152,17 +152,26 @@ const MODE_CONTENT: Record<"azienda" | "admin", ModeContent> = {
       description: "",
       chips: [],
     },
+    // Hub AI mappato alle 21 personas già esistenti in DB (tabella
+    // silvio_admin_personas): Beatrice CFO, Marco Vendite, Sofia Marketing,
+    // Tommaso Outbound, Elena CS, Giorgio Support, Chiara Product,
+    // Luca/Davide/Eleonora/Roberta/Vittorio/Antonio/Laura/Alessandro/
+    // Giulia/Ferrari/Matteo/Federico/Valentina/Gabriele.
     hub: [
       { icon: Inbox, title: "Approvazioni AI", subtitle: "Azioni da rivedere", tone: "amber", action: "azioni_proposte" },
-      { icon: Sparkles, title: "Agenti SA", subtitle: "Personas piattaforma", tone: "orange", action: "personas_18" },
+      { icon: Sparkles, title: "21 Personas SA", subtitle: "Beatrice, Marco, Sofia…", tone: "orange", action: "personas_18" },
       { icon: Brain, title: "Memoria SA", subtitle: "Knowledge piattaforma", tone: "emerald", action: "ai_memoria" },
       { icon: Network, title: "Cross-tenant", subtitle: "Vista N aziende", tone: "blue", action: "cross_tenant" },
     ],
     searchPlaceholder: "Cerca aziende, ticket, MRR, clienti…",
     routes: {
-      azioni_proposte: "/admin/silvio/approvazioni",
-      personas_18: "/admin/silvio",
-      ai_memoria: "/admin/ai-memoria",
+      // Tutte le route admin operative vivono in /admin/ai-operate (8 tab:
+      // approvals/queue/policies/agents/chief/personas/memory/learning).
+      // Le 21 personas superadmin (silvio_admin_personas) e le memorie
+      // dedicate (silvio_persona_memory) sono già accessibili via tab.
+      azioni_proposte: "/admin/ai-operate?tab=approvals",
+      personas_18: "/admin/ai-operate?tab=personas",
+      ai_memoria: "/admin/ai-operate?tab=memory",
       cross_tenant: "/admin/aziende",
       search_commesse: "/admin/aziende",
       documenti: "/admin",
