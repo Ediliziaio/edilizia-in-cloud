@@ -51,6 +51,7 @@ const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 // AdminCSTasks non è più importato qui: vive come tab dentro AdminAttivita.
 // La route /admin/cs-tasks redirige al tab per backward-compat.
 const AdminAttivita = lazy(() => import("@/pages/admin/AdminAttivita"));
+const AdminEmailClientPage = lazy(() => import("@/pages/admin/AdminEmailClientPage"));
 const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
@@ -260,6 +261,7 @@ export default function AdminRoutesContainer() {
             attività"; /admin/cs-tasks redirige al tab per non rompere link
             esistenti (mobile menu, lifecycle, breadcrumb, deep link salvati). */}
         <Route path="attivita" element={<RequireAdminPermission permission="can_manage_companies"><AdminAttivita /></RequireAdminPermission>} />
+        <Route path="email" element={<RequireSuperAdmin><AdminEmailClientPage /></RequireSuperAdmin>} />
         <Route path="cs-tasks" element={<Navigate to="/admin/attivita?tab=tutte" replace />} />
         <Route path="chat" element={<RequireAdminPermission permission="can_manage_companies"><AdminTeamChat /></RequireAdminPermission>} />
         <Route path="gdpr" element={<RequireSuperAdmin><AdminGDPR /></RequireSuperAdmin>} />

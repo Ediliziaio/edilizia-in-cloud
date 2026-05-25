@@ -23,6 +23,8 @@ export interface SidebarBadges {
   dueTodayTasks: number;
   /** Unread internal chat messages for the superadmin workspace */
   chatUnread: number;
+  /** Unread internal/system email messages for the superadmin workspace */
+  emailUnread: number;
 }
 
 /** Fetches badge counts for the admin sidebar nav items */
@@ -79,6 +81,13 @@ export function useAdminSidebarBadges() {
           p_company_id: PLATFORM_ADMIN_COMPANY_ID,
           p_user_id: user!.id,
         }),
+        supabase
+          .from("email_inbox")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
+          .eq("is_read", false)
+          .eq("is_trashed", false),
       ]);
 
       type SettledResult<T> = { data: T | null; error: unknown; count: number | null };
@@ -95,6 +104,7 @@ export function useAdminSidebarBadges() {
       const alertsRes = pick<unknown>(4);
       const tasksRes = pick<Array<{ status: string; due_date: string | null }>>(5);
       const chatRes = pick<Array<{ unread_count: number | null }>>(6);
+      const emailUnreadRes = pick<unknown>(7);
 
       const openTasksRows = tasksRes.data ?? [];
       const overdueTasks = openTasksRows.filter(
@@ -114,6 +124,7 @@ export function useAdminSidebarBadges() {
         overdueTasks,
         dueTodayTasks,
         chatUnread: (chatRes.data ?? []).reduce((sum, row) => sum + Number(row.unread_count ?? 0), 0),
+        emailUnread: emailUnreadRes.count || 0,
       };
     },
     enabled: !!user?.id,
@@ -149,6 +160,10 @@ export function getBadgeForNavItem(
 
   if (url === "/admin/chat" && badges.chatUnread > 0) {
     return { count: badges.chatUnread, variant: "default" };
+  }
+
+  if (url === "/admin/email" && badges.emailUnread > 0) {
+    return { count: badges.emailUnread, variant: "default" };
   }
 
   if (url === "/admin/lifecycle" && badges.trialsExpiring > 0) {

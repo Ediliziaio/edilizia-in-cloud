@@ -66,7 +66,9 @@ type SyncResult = {
 
 type EmailConnectionHealthPanelProps = {
   connections?: EmailConnectionHealth[];
+  companyIdOverride?: string | null;
   loadError?: Error | null;
+  settingsPath?: string;
   variant?: "full" | "compact";
 };
 
@@ -129,11 +131,13 @@ function normalizeConnections(rows: unknown): EmailConnectionHealth[] {
 
 export function EmailConnectionHealthPanel({
   connections,
+  companyIdOverride,
   loadError,
+  settingsPath = "/azienda/impostazioni/mio-profilo",
   variant = "full",
 }: EmailConnectionHealthPanelProps) {
   const { effectiveCompany, user } = useAuth();
-  const companyId = effectiveCompany?.id;
+  const companyId = companyIdOverride ?? effectiveCompany?.id;
   const userId = user?.id;
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(variant === "full");
@@ -310,7 +314,7 @@ export function EmailConnectionHealthPanel({
               Diagnostica
             </Button>
             <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 rounded-xl border-blue-200 text-xs">
-              <Link to="/azienda/impostazioni/mio-profilo">
+              <Link to={settingsPath}>
                 <Settings2 className="h-3.5 w-3.5" />
                 Impostazioni
               </Link>

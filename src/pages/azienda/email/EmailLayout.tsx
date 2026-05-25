@@ -74,9 +74,17 @@ export interface EmailConnectionSummary extends EmailConnectionHealth {
 
 interface EmailLayoutProps {
   initialFilter?: FolderFilter;
+  companyIdOverride?: string | null;
+  settingsPath?: string;
+  scopedAccountIds?: string[];
 }
 
-export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
+export function EmailLayout({
+  initialFilter,
+  companyIdOverride,
+  settingsPath = "/azienda/impostazioni/mio-profilo",
+  scopedAccountIds,
+}: EmailLayoutProps = {}) {
   const { user, effectiveCompany } = useAuth();
   const [searchParams] = useSearchParams();
   const queryThreadId = searchParams.get("thread_id");
@@ -103,7 +111,7 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
   }, []);
 
   const userId = user?.id;
-  const companyId = effectiveCompany?.id;
+  const companyId = companyIdOverride ?? effectiveCompany?.id;
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -272,9 +280,12 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
         />
         <EmailConnectionHealthPanel
           connections={connections ?? []}
+          companyIdOverride={companyId}
+          settingsPath={settingsPath}
           variant="compact"
         />
         <EmailAiCommandCenter
+          companyIdOverride={companyId}
           onSelectThread={handleSelectThread}
           onFilterCategory={(category) => applyFilter((current) => ({
             ...current,
@@ -288,6 +299,7 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
         />
         <EmailList
           filter={filter}
+          scopedAccountIds={scopedAccountIds ?? (companyIdOverride ? (connections ?? []).map((connection) => connection.id) : undefined)}
           selectedThreadId={selectedThreadId}
           onSelectThread={handleSelectThread}
         />
@@ -316,6 +328,7 @@ export function EmailLayout({ initialFilter }: EmailLayoutProps = {}) {
         open={composeOpen}
         onOpenChange={setComposeOpen}
         context={composeContext}
+        companyIdOverride={companyId}
       />
     </div>
   );

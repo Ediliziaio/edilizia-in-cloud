@@ -531,6 +531,28 @@ function AdminMainSidebar() {
                   );
                 })()}
                 {permissions.can_manage_companies && (() => {
+                  const badge = getBadgeForNavItem("/admin/email", sidebarBadges);
+                  return (
+                    <SidebarMenuItem key="top-email">
+                      <SidebarMenuButton asChild tooltip="Email">
+                        <NavLink
+                          to="/admin/email"
+                          className={navLinkClass}
+                          activeClassName={activeClass}
+                        >
+                          <Mail className="h-4 w-4" />
+                          <span className="flex-1 font-medium">Email</span>
+                          {badge && badge.count != null && badge.count > 0 && (
+                            <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-sidebar-primary/15 px-1 text-xs font-bold leading-none text-sidebar-primary">
+                              {badge.count > 99 ? "99+" : badge.count}
+                            </span>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })()}
+                {permissions.can_manage_companies && (() => {
                   const badge = getBadgeForNavItem("/admin/chat", sidebarBadges);
                   return (
                     <SidebarMenuItem key="top-chat">

@@ -43,6 +43,7 @@ interface ThreadRow {
 
 interface EmailListProps {
   filter: EmailFilter;
+  scopedAccountIds?: string[];
   selectedThreadId: string | null;
   onSelectThread: (threadId: string) => void;
 }
@@ -262,10 +263,15 @@ function groupRawMessages(data: Array<Record<string, unknown>>, search: EmailFil
   return Array.from(byThread.values());
 }
 
-async function fetchThreadsFallback(filter: EmailFilter, offset: number): Promise<ThreadPage> {
+async function fetchThreadsFallback(filter: EmailFilter, offset: number, scopedAccountIds?: string[]): Promise<ThreadPage> {
   const folderKey = filter.folder.type === "system" ? filter.folder.key : null;
   const search = filter.search;
   const hasSearch = hasEffectiveSearch(search);
+  const hasScopedAccounts = Array.isArray(scopedAccountIds);
+
+  if (!filter.accountId && hasScopedAccounts && scopedAccountIds.length === 0) {
+    return { threads: [], totalCount: 0, hasMore: false, nextOffset: offset, source: "fallback" };
+  }
 
   // Fallback compatibile con Supabase non ancora migrati: pagina messaggi grezzi,
   // poi raggruppa client-side. La RPC server-side resta il percorso production.
@@ -277,7 +283,11 @@ async function fetchThreadsFallback(filter: EmailFilter, offset: number): Promis
     .order("received_at", { ascending: false })
     .range(offset, offset + FALLBACK_RAW_PAGE_SIZE - 1);
 
-  if (filter.accountId) q = q.eq("oauth_connection_id", filter.accountId);
+  if (filter.accountId) {
+    q = q.eq("oauth_connection_id", filter.accountId);
+  } else if (hasScopedAccounts) {
+    q = q.in("oauth_connection_id", scopedAccountIds);
+  }
 
   if (folderKey === "inbox") {
     q = q.eq("mailbox_folder", "inbox").eq("is_archived", false).eq("is_trashed", false);
@@ -329,13 +339,20 @@ async function fetchThreadsFallback(filter: EmailFilter, offset: number): Promis
   };
 }
 
-async function fetchThreadPage(filter: EmailFilter, offset: number): Promise<ThreadPage> {
+async function fetchThreadPage(filter: EmailFilter, offset: number, scopedAccountIds?: string[]): Promise<ThreadPage> {
   const folderKey = filter.folder.type === "system" ? filter.folder.key : "inbox";
   const search = filter.search;
   const pageLimit = filter.category ? 150 : THREAD_PAGE_SIZE;
 
   if (folderKey === "drafts") {
     return { threads: [], totalCount: 0, hasMore: false, nextOffset: offset, source: "rpc" };
+  }
+
+  // Lo scope superadmin usa le stesse viste personali, ma deve restare isolato
+  // alle caselle del workspace interno. La RPC corrente filtra solo account
+  // singolo: per "Tutte le caselle" usiamo il fallback con IN(account_ids).
+  if (!filter.accountId && Array.isArray(scopedAccountIds)) {
+    return fetchThreadsFallback(filter, offset, scopedAccountIds);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -359,7 +376,7 @@ async function fetchThreadPage(filter: EmailFilter, offset: number): Promise<Thr
   });
 
   if (error) {
-    if (isRpcUnavailable(error)) return fetchThreadsFallback(filter, offset);
+    if (isRpcUnavailable(error)) return fetchThreadsFallback(filter, offset, scopedAccountIds);
     throw error;
   }
 
@@ -374,9 +391,10 @@ async function fetchThreadPage(filter: EmailFilter, offset: number): Promise<Thr
   };
 }
 
-export function EmailList({ filter, selectedThreadId, onSelectThread }: EmailListProps) {
+export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelectThread }: EmailListProps) {
   const { user } = useAuth();
   const userId = user?.id;
+  const scopeKey = scopedAccountIds?.join("|") ?? "all";
 
   const {
     data,
@@ -389,13 +407,13 @@ export function EmailList({ filter, selectedThreadId, onSelectThread }: EmailLis
     isFetching,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["email-threads", userId, filter],
+    queryKey: ["email-threads", userId, filter, scopeKey],
     enabled: !!userId,
     initialPageParam: 0,
     staleTime: 20_000,
     gcTime: 5 * 60_000,
     refetchInterval: 60_000,
-    queryFn: ({ pageParam }) => fetchThreadPage(filter, Number(pageParam ?? 0)),
+    queryFn: ({ pageParam }) => fetchThreadPage(filter, Number(pageParam ?? 0), scopedAccountIds),
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextOffset : undefined,
   });
 

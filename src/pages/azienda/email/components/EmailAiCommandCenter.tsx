@@ -48,6 +48,7 @@ type AiQueueItem = {
 };
 
 type EmailAiCommandCenterProps = {
+  companyIdOverride?: string | null;
   onSelectThread: (threadId: string) => void;
   onFilterCategory: (category: EmailSmartCategory | undefined) => void;
 };
@@ -159,12 +160,13 @@ function compactRows(rows: RawEmailRow[]): AiQueueItem[] {
 }
 
 export function EmailAiCommandCenter({
+  companyIdOverride,
   onSelectThread,
   onFilterCategory,
 }: EmailAiCommandCenterProps) {
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
-  const companyId = effectiveCompany?.id;
+  const companyId = companyIdOverride ?? effectiveCompany?.id;
   const queryClient = useQueryClient();
 
   const { data = [], error, isError, isLoading, isFetching, refetch } = useQuery({

@@ -54,6 +54,7 @@ interface EmailComposeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   context: ComposeContext;
+  companyIdOverride?: string | null;
 }
 
 const SUBJECT_PREFIX_RE = /^\s*(re|fwd?|i|aw|wg|sv|tr)\s*[:\-[]\s*/i;
@@ -76,11 +77,11 @@ function buildQuoteText(src: ComposeContext["source"]): string {
   return sep + header + quoted;
 }
 
-export function EmailComposeDialog({ open, onOpenChange, context }: EmailComposeDialogProps) {
+export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride }: EmailComposeDialogProps) {
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
-  const companyId = effectiveCompany?.id;
+  const companyId = companyIdOverride ?? effectiveCompany?.id;
 
   const initial = useMemo(() => {
     const src = context.source;
