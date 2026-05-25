@@ -221,6 +221,11 @@ verify_jwt = false
 [functions.create-referral-partner]
 verify_jwt = false
 
+# Self-signup pubblico per il portale referral (no auth required).
+# Rate-limit + email confirm + cleanup automatico in caso di failure.
+[functions.referral-self-signup]
+verify_jwt = false
+
 [functions.send-partner-notification]
 verify_jwt = false
 
