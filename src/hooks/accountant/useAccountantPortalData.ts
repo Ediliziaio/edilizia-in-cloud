@@ -8,6 +8,7 @@
  *  - useAccountantInbox: inviti pending + richieste aperte
  */
 
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -201,12 +202,38 @@ export function useAccountantCompanyAccess(companyId: string | undefined) {
 export function useAccountantNotifications() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const queryClient = useQueryClient();
+
+  // Subscribe real-time: INSERT/UPDATE su accountant_notifications per
+  // questo user → invalida cache → badge sidebar si aggiorna live.
+  // Polling 60s mantenuto come fallback se WS è giù.
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`accountant-notifications-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "accountant_notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: accountantKeys.notifications(userId) });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, queryClient]);
 
   return useQuery({
     queryKey: accountantKeys.notifications(userId),
     enabled: !!userId,
     staleTime: 15_000,
-    refetchInterval: 60_000, // poll ogni minuto
+    refetchInterval: 60_000, // fallback polling se WS è giù
     queryFn: async (): Promise<AccountantNotificationRow[]> => {
       if (!userId) return [];
       const { data, error } = await supabase

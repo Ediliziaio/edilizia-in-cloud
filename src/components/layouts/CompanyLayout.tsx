@@ -114,6 +114,8 @@ import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
 import { NpsModal } from "@/components/onboarding/NpsModal";
 import { SilvioFAB } from "@/components/silvio/SilvioFAB";
+import { useAuditAccountantPageView } from "@/hooks/accountant/useAccountantAudit";
+import { useAccountantRevocationWatch } from "@/hooks/accountant/useAccountantRevocationWatch";
 
 const CompanyBrandHeader = memo(function CompanyBrandHeader({
   isCollapsed,
@@ -1446,6 +1448,46 @@ export function CompanyLayout() {
     multiCompanyAccesses,
     switchMultiCompany,
   ]);
+
+  // Audit log: traccia page view del commercialista per compliance
+  useAuditAccountantPageView(
+    isCommercialistaMode ? commercialistaCompanyId : null,
+    location.pathname,
+  );
+
+  // Real-time: se l'azienda revoca/sospende l'accesso mentre il
+  // commercialista è dentro, esce immediatamente con toast informativo.
+  useAccountantRevocationWatch(commercialistaCompanyId, isCommercialistaMode);
+
+  // Guard URL non-permessi in commercialistaMode: se l'utente digita
+  // direttamente /azienda/marketing o /azienda/impostazioni (non in
+  // COMMERCIALISTA_ALLOWED_URLS), redirect al cruscotto cliente.
+  useEffect(() => {
+    if (!isCommercialistaMode) return;
+    const path = location.pathname;
+    // Match esatto sull'URL principale (ignora query string + sotto-segmenti
+    // appartenenti alla stessa pagina)
+    const baseUrl = path.split("?")[0];
+    const isAllowed =
+      COMMERCIALISTA_ALLOWED_URLS.has(baseUrl) ||
+      // Sotto-pagine consentite (es. /azienda/ordini/123 → ok perché /azienda/ordini è in lista)
+      Array.from(COMMERCIALISTA_ALLOWED_URLS).some(
+        (allowed) => baseUrl.startsWith(allowed + "/") && allowed !== "/azienda",
+      );
+    if (!isAllowed) {
+      // commercialistaSearch è ricalcolato via useMemo: usiamo il valore
+      // corrente leggendo da location.search direttamente per evitare
+      // false-positive double-fire del useEffect.
+      const currentSearch = location.search.startsWith("?")
+        ? location.search.slice(1)
+        : location.search;
+      navigate(
+        appendSearchToAziendaUrl("/azienda/cruscotto", currentSearch),
+        { replace: true },
+      );
+    }
+  }, [isCommercialistaMode, location.pathname, location.search, navigate]);
+
   // True only when the current path goes deeper than the matched nav item (sub-page)
   const isSubPage = !!pageUrl && location.pathname !== pageUrl;
 
