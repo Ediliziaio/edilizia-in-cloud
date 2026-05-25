@@ -1,10 +1,9 @@
 -- Audit log dei commercialisti: traccia ogni navigazione/operazione
 -- per compliance fiscale + GDPR.
 --
--- Versione SCHEMA-AGNOSTIC: la policy "company owner select" usa solo
--- companies.owner_user_id (sempre presente). Se multi_company_access
--- esiste con colonna user_id, aggiungiamo una policy aggiuntiva per
--- coprire anche admin multi-tenant.
+-- Versione SEMPLICE: usa solo companies.owner_user_id (sempre presente).
+-- Niente dipendenze da company_members o multi_company_access (i loro
+-- nomi di colonna variano fra installazioni Supabase).
 
 DROP POLICY IF EXISTS "audit_log_accountant_insert" ON public.accountant_audit_log;
 DROP POLICY IF EXISTS "audit_log_accountant_select_own" ON public.accountant_audit_log;
@@ -52,32 +51,6 @@ CREATE POLICY "audit_log_company_owner_select" ON public.accountant_audit_log
         AND c.owner_user_id = auth.uid()
     )
   );
-
--- Estensione per multi-company admin se la tabella esiste
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'multi_company_access'
-  ) AND EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'multi_company_access' AND column_name = 'user_id'
-  ) THEN
-    DROP POLICY IF EXISTS "audit_log_multi_company_select" ON public.accountant_audit_log;
-    CREATE POLICY "audit_log_multi_company_select" ON public.accountant_audit_log
-      FOR SELECT TO authenticated
-      USING (
-        EXISTS (
-          SELECT 1 FROM public.multi_company_access mca
-          WHERE mca.company_id = accountant_audit_log.company_id
-            AND mca.user_id = auth.uid()
-        )
-      );
-    RAISE NOTICE '[audit] multi_company_access policy aggiunta';
-  ELSE
-    RAISE NOTICE '[audit] multi_company_access non trovato, solo owner check attivo';
-  END IF;
-END $$;
 
 COMMENT ON TABLE public.accountant_audit_log IS
   'Traccia accessi e operazioni commercialista per compliance fiscale + GDPR.';

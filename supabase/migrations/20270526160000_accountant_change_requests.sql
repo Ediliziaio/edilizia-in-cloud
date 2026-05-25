@@ -1,8 +1,7 @@
 -- Approval workflow per access_mode='approval_required'.
 --
--- Versione SCHEMA-AGNOSTIC: policies usano solo companies.owner_user_id
--- (sempre presente). Se multi_company_access esiste, vengono aggiunte
--- policy supplementari.
+-- Versione SEMPLICE: usa solo companies.owner_user_id (sempre presente).
+-- Niente dipendenze da company_members o multi_company_access.
 
 DROP POLICY IF EXISTS "change_req_accountant_insert" ON public.accountant_change_requests;
 DROP POLICY IF EXISTS "change_req_accountant_select_own" ON public.accountant_change_requests;
@@ -69,46 +68,6 @@ CREATE POLICY "change_req_company_decide" ON public.accountant_change_requests
     status IN ('approved', 'rejected')
     AND decided_by = auth.uid()
   );
-
--- Estensione per multi-company admin se la tabella esiste
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'multi_company_access'
-  ) AND EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'multi_company_access' AND column_name = 'user_id'
-  ) THEN
-    DROP POLICY IF EXISTS "change_req_multi_company_select" ON public.accountant_change_requests;
-    CREATE POLICY "change_req_multi_company_select" ON public.accountant_change_requests
-      FOR SELECT TO authenticated
-      USING (
-        EXISTS (
-          SELECT 1 FROM public.multi_company_access mca
-          WHERE mca.company_id = accountant_change_requests.company_id
-            AND mca.user_id = auth.uid()
-        )
-      );
-    DROP POLICY IF EXISTS "change_req_multi_company_decide" ON public.accountant_change_requests;
-    CREATE POLICY "change_req_multi_company_decide" ON public.accountant_change_requests
-      FOR UPDATE TO authenticated
-      USING (
-        status = 'pending' AND EXISTS (
-          SELECT 1 FROM public.multi_company_access mca
-          WHERE mca.company_id = accountant_change_requests.company_id
-            AND mca.user_id = auth.uid()
-        )
-      )
-      WITH CHECK (
-        status IN ('approved', 'rejected')
-        AND decided_by = auth.uid()
-      );
-    RAISE NOTICE '[change_req] multi_company_access policies aggiunte';
-  ELSE
-    RAISE NOTICE '[change_req] multi_company_access non trovato, solo owner check attivo';
-  END IF;
-END $$;
 
 COMMENT ON TABLE public.accountant_change_requests IS
   'Coda di approvazione per modifiche del commercialista quando access_mode=approval_required.';
