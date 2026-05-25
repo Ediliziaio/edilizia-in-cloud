@@ -235,7 +235,7 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
             title: "Autenticazione a due fattori obbligatoria",
             description: "Il tuo account richiede la configurazione del 2FA per accedere.",
           });
-          window.location.href = "/azienda/impostazioni/sicurezza";
+          window.location.href = "/azienda/impostazioni/mio-profilo?tab=sicurezza";
           return;
         }
       } catch {

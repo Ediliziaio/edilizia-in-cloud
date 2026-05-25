@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
@@ -14,20 +15,6 @@ function getSupabaseAdmin() {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
-}
-
-async function verifyCompanyAccess(userId: string, companyId: string): Promise<boolean> {
-  const admin = getSupabaseAdmin();
-  const [profileRes, rolesRes] = await Promise.all([
-    admin.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
-    admin.from("user_roles").select("role").eq("user_id", userId),
-  ]);
-
-  if ((rolesRes.data ?? []).some((row: { role?: string }) => row.role === "super_admin")) {
-    return true;
-  }
-
-  return profileRes.data?.company_id === companyId;
 }
 
 // encrypt/decrypt/getEncryptionKey imported from _shared/encryption.ts
@@ -426,8 +413,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // P0 Security: utenti aziendali solo sulla propria azienda; superadmin abiliti per il contesto piattaforma.
-    if (!(await verifyCompanyAccess(userId, companyId))) {
+    // P0 Security: validate the active tenant, including multi-company access.
+    const admin = getSupabaseAdmin();
+    if (!(await canAccessCompany(admin, userId, companyId))) {
       return new Response(JSON.stringify({ error: "Company mismatch" }), {
         status: 403,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },

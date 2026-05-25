@@ -534,7 +534,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
           </span>
           <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200 opacity-60 group-hover:opacity-100", open && "rotate-180")} />
         </CollapsibleTrigger>
-        <CollapsibleContent className="overflow-hidden data-[state=open]:animate-sidebar-slide-down data-[state=closed]:animate-sidebar-slide-up">
+        <CollapsibleContent className="overflow-visible data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0">
           <SidebarGroupContent>
             <SidebarMenu>
               {(() => {
@@ -561,7 +561,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                         <NavLink
                           to={toHref(item.url)}
                           className={cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-muted-foreground/90 transition-all duration-150 hover:bg-muted hover:text-foreground border-l-2 border-l-transparent",
+                            "flex items-center gap-3 rounded-md px-3 py-2 text-sidebar-foreground/75 transition-all duration-150 hover:bg-muted hover:text-sidebar-foreground border-l-2 border-l-transparent",
                             active && "bg-sidebar-primary/10 text-sidebar-primary font-semibold border-l-sidebar-primary",
                             isLocked && "opacity-50",
                             isDemo && !active && "opacity-75"
@@ -969,6 +969,8 @@ const CompanySidebar = memo(function CompanySidebar() {
   );
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
+  const showDriveLink = permissions.isLoading || gatingLoading || canAccessMediaLibrary(permissions);
+  const isDriveRoute = location.pathname.startsWith("/azienda/contenuti-multimediali");
   const { setOpenMobile } = useSidebar();
 
   // Close mobile sidebar on every navigation
@@ -1222,7 +1224,7 @@ const CompanySidebar = memo(function CompanySidebar() {
               </div>
             ) : (
               macroAreas
-                .filter(a => a.id !== "area_cruscotto")
+                .filter(a => a.id !== "area_cruscotto" && a.id !== "area_contenuti")
                 .filter(a => !isCommercialistaMode || COMMERCIALISTA_ALLOWED_AREA_IDS.has(a.id))
                 .map(area => {
                   const sourceItems =
@@ -1256,6 +1258,23 @@ const CompanySidebar = memo(function CompanySidebar() {
               <div className={cn("p-3", isCollapsed && "p-2 flex flex-col items-center gap-2")}>
                 {isCollapsed ? (
                   <>
+                    {showDriveLink && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Link
+                            to="/azienda/contenuti-multimediali"
+                            className={cn(
+                              "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
+                              isDriveRoute && "bg-sidebar-accent text-sidebar-primary",
+                            )}
+                            aria-label="EiC Drive"
+                          >
+                            <FileStack className="h-4 w-4" />
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">EiC Drive</TooltipContent>
+                      </Tooltip>
+                    )}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Link to="/azienda/impostazioni/mio-profilo">
@@ -1306,6 +1325,21 @@ const CompanySidebar = memo(function CompanySidebar() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-0.5">
+                      {showDriveLink && (
+                        <Link to="/azienda/contenuti-multimediali">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent",
+                              isDriveRoute && "bg-sidebar-accent text-sidebar-primary",
+                            )}
+                          >
+                            <FileStack className="h-3.5 w-3.5" />
+                            EiC Drive
+                          </Button>
+                        </Link>
+                      )}
                       <Link to="/azienda/impostazioni/mio-profilo">
                         <Button
                           variant="ghost"

@@ -123,8 +123,21 @@ export function CompanySecuritySettings() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-40">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-6 max-w-2xl">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Shield className="h-5 w-5" /> Policy di Sicurezza Aziendale
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configura le regole di sicurezza applicate a tutti gli utenti della tua azienda.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center gap-2 h-40 text-sm text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Caricamento policy...
+          </CardContent>
+        </Card>
       </div>
     );
   }

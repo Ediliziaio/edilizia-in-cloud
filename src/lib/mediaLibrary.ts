@@ -1,4 +1,16 @@
-export type MediaLibrarySource = "ai_analysis" | "computo" | "attachment";
+export type MediaLibrarySource =
+  | "ai_analysis"
+  | "computo"
+  | "attachment"
+  | "email"
+  | "marketing_document"
+  | "site_photo"
+  | "company_photo"
+  | "quote_pdf"
+  | "quote_material"
+  | "render"
+  | "personnel_document"
+  | "chat";
 
 export type MediaLibraryCategory =
   | "tutti"
@@ -62,6 +74,7 @@ export interface BuildMediaLibraryItemInput {
   mimeType?: string | null;
   storageBucket?: string | null;
   storagePath?: string | null;
+  externalUrl?: string | null;
   confidence?: number | null;
   linkedEntityLabel?: string | null;
   linkedEntityTable?: string | null;
@@ -87,6 +100,7 @@ export interface MediaLibraryItem extends Required<Pick<BuildMediaLibraryItemInp
   mimeType: string | null;
   storageBucket: string | null;
   storagePath: string | null;
+  externalUrl: string | null;
   confidence: number | null;
   category: Exclude<MediaLibraryCategory, "tutti" | "inbox_ai">;
   securityLevel: MediaLibrarySecurityLevel;
@@ -132,9 +146,30 @@ export interface MediaLibraryCustomFolderRule {
   matchQuery: string | null;
 }
 
+export type MediaLibraryIntegrationState = "connected" | "missing";
+
+export interface MediaLibraryIntegrationCoverage {
+  key: string;
+  label: string;
+  description: string;
+  sources: MediaLibrarySource[];
+  count: number;
+  state: MediaLibraryIntegrationState;
+  required: boolean;
+}
+
+export type MediaLibraryOpenTarget =
+  | { kind: "storage"; storageBucket: string; storagePath: string }
+  | { kind: "external"; url: string }
+  | { kind: "missing" };
+
 const SENSITIVE_DOC_TYPES = new Set([
   "contratto",
   "documento_identita",
+  "documento_dipendente",
+  "documento_operaio",
+  "documento_subappaltatore",
+  "documento_hr",
   "polizza_assicurativa",
   "verbale_collaudo",
 ]);
@@ -161,15 +196,113 @@ const FINANCING_DOC_TYPES = new Set([
 ]);
 const COMPUTO_DOC_TYPES = new Set(["computo_metrico", "computo", "cme"]);
 const RENDER_DOC_TYPES = new Set(["render", "render_ai", "foto_render", "immagine_render"]);
-const QUOTE_DOC_TYPES = new Set(["preventivo", "offerta", "proposta_commerciale"]);
+const QUOTE_DOC_TYPES = new Set(["preventivo", "preventivo_pdf", "offerta", "proposta_commerciale"]);
 const SITE_DOC_TYPES = new Set(["verbale_cantiere", "rapportino", "sal", "documento_pa"]);
-const CRM_DOC_TYPES = new Set(["biglietto_visita", "lead_form", "documento_cliente"]);
-const MEDIA_DOC_TYPES = new Set(["foto_generale", "render", "immagine", "video", "audio"]);
-const SITE_ENTITY_TABLES = new Set(["orders", "tickets", "giornale_lavori", "sicurezza_cantiere", "subappaltatori"]);
-const QUOTE_ENTITY_TABLES = new Set(["quotes", "quote_items"]);
+const CRM_DOC_TYPES = new Set(["biglietto_visita", "lead_form", "documento_cliente", "email_attachment", "crm_document"]);
+const MEDIA_DOC_TYPES = new Set(["foto_generale", "foto_aziendale", "render", "immagine", "video", "audio"]);
+const SITE_ENTITY_TABLES = new Set([
+  "orders",
+  "order_attachments",
+  "tickets",
+  "ticket_messages",
+  "foto_cantiere",
+  "giornale_lavori",
+  "sicurezza_cantiere",
+  "subappaltatori",
+]);
+const QUOTE_ENTITY_TABLES = new Set(["quotes", "quote_items", "quote_pdf_materials", "quote_pdf_attachments"]);
 const COMPUTO_ENTITY_TABLES = new Set(["computo_uploads", "computo_voci_estratte"]);
-const FISCAL_ENTITY_TABLES = new Set(["invoices", "billing_documents", "purchase_orders", "expenses"]);
-const CRM_ENTITY_TABLES = new Set(["customers", "profiles", "opportunities", "marketing_contacts", "contacts"]);
+const FISCAL_ENTITY_TABLES = new Set(["invoices", "billing_documents", "documenti_fiscali", "purchase_orders", "expenses"]);
+const CRM_ENTITY_TABLES = new Set([
+  "customers",
+  "profiles",
+  "opportunities",
+  "marketing_contacts",
+  "contacts",
+  "email_inbox",
+  "email_outbox",
+  "marketing_documents",
+]);
+
+const INTEGRATION_REGISTRY: Omit<MediaLibraryIntegrationCoverage, "count" | "state">[] = [
+  {
+    key: "ai-inbox",
+    label: "Inbox AI",
+    description: "Import intelligente, classificazione e linking suggerito.",
+    sources: ["ai_analysis"],
+    required: true,
+  },
+  {
+    key: "computi",
+    label: "Computi metrici",
+    description: "Computi/CME usati per preventivi e analisi prezzi.",
+    sources: ["computo"],
+    required: true,
+  },
+  {
+    key: "allegati-operativi",
+    label: "Allegati record",
+    description: "File agganciati a clienti, commesse, ticket, opportunita e ordini.",
+    sources: ["attachment"],
+    required: true,
+  },
+  {
+    key: "email",
+    label: "Email",
+    description: "Allegati email personali collegati alla stessa azienda.",
+    sources: ["email"],
+    required: true,
+  },
+  {
+    key: "crm-documenti",
+    label: "CRM",
+    description: "Documenti caricati su contatti e opportunita.",
+    sources: ["marketing_document"],
+    required: true,
+  },
+  {
+    key: "foto-cantiere",
+    label: "Foto cantiere",
+    description: "Foto, GPS, qualita AI e materiali raccolti da cantiere.",
+    sources: ["site_photo"],
+    required: true,
+  },
+  {
+    key: "render",
+    label: "Render",
+    description: "Render AI, planimetrie, media serramenti e immagini di progetto.",
+    sources: ["render", "company_photo"],
+    required: true,
+  },
+  {
+    key: "preventivi-pdf",
+    label: "PDF preventivi",
+    description: "PDF generati, materiali allegati e offerte inviate.",
+    sources: ["quote_pdf", "quote_material"],
+    required: true,
+  },
+  {
+    key: "firma-preventivi",
+    label: "Firme",
+    description: "Contratti e preventivi firmati digitalmente.",
+    sources: ["quote_pdf"],
+    required: true,
+  },
+  {
+    key: "personale",
+    label: "Personale e subappalti",
+    description: "Documenti dipendenti, operai e subappaltatori con accesso riservato.",
+    sources: ["personnel_document"],
+    required: true,
+  },
+  {
+    key: "chat-silvio",
+    label: "Chat e Silvio",
+    description: "File caricati nelle conversazioni e nei prompt operativi.",
+    sources: ["chat"],
+    required: false,
+  },
+];
 
 function normalizeDocType(docType: string | null | undefined): string {
   return (docType ?? "documento_generico").trim().toLowerCase() || "documento_generico";
@@ -191,6 +324,15 @@ function inferStatusTone(status: string | null | undefined): MediaLibraryStatusT
 function defaultIntegrationLabel(source: MediaLibrarySource): string {
   if (source === "ai_analysis") return "Inbox documenti AI";
   if (source === "computo") return "Preventivi / computo metrico";
+  if (source === "email") return "Email / allegati";
+  if (source === "marketing_document") return "CRM / documenti";
+  if (source === "site_photo") return "Cantieri / foto";
+  if (source === "company_photo") return "Galleria aziendale";
+  if (source === "quote_pdf") return "Preventivi / PDF";
+  if (source === "quote_material") return "Preventivi / materiali";
+  if (source === "render") return "Render AI";
+  if (source === "personnel_document") return "Persone / documenti";
+  if (source === "chat") return "Chat e Silvio";
   return "Allegato operativo";
 }
 
@@ -211,12 +353,24 @@ function defaultActionLabel(source: MediaLibrarySource, tone: MediaLibraryStatus
     return "Computo importato";
   }
 
+  if (source === "email") return "Allegato email acquisito";
+  if (source === "marketing_document") return "Documento CRM caricato";
+  if (source === "site_photo") return "Foto cantiere caricata";
+  if (source === "company_photo") return "Asset aziendale caricato";
+  if (source === "quote_pdf") return "PDF preventivo generato";
+  if (source === "quote_material") return "Materiale preventivo caricato";
+  if (source === "render") return tone === "error" ? "Render fallito" : "Render archiviato";
+  if (source === "personnel_document") return "Documento personale caricato";
+  if (source === "chat") return "Allegato chat caricato";
+
   return "Collegato al record";
 }
 
 function initialTimelineLabel(source: MediaLibrarySource): string {
   if (source === "computo") return "Importato";
   if (source === "attachment") return "Collegato";
+  if (source === "quote_pdf") return "Generato";
+  if (source === "render") return "Creato";
   return "Caricato";
 }
 
@@ -270,7 +424,7 @@ function inferProfile(input: BuildMediaLibraryItemInput): Pick<MediaLibraryItem,
     return {
       category: "riservati",
       securityLevel: "confidential",
-      areaLabel: docType === "tabella_finanziamento" ? "Finanziamenti" : "Legale e firme",
+      areaLabel: docType.startsWith("documento_") ? "Personale e accessi" : "Legale e firme",
     };
   }
 
@@ -290,11 +444,11 @@ function inferProfile(input: BuildMediaLibraryItemInput): Pick<MediaLibraryItem,
     return { category: "computi", securityLevel: "standard", areaLabel: "Computi metrici" };
   }
 
-  if (RENDER_DOC_TYPES.has(docType)) {
+  if (RENDER_DOC_TYPES.has(docType) || input.source === "render") {
     return { category: "render", securityLevel: "standard", areaLabel: "Render" };
   }
 
-  if (QUOTE_DOC_TYPES.has(docType) || input.source === "computo") {
+  if (QUOTE_DOC_TYPES.has(docType) || input.source === "quote_pdf" || input.source === "quote_material" || input.source === "computo") {
     return { category: "preventivi", securityLevel: "standard", areaLabel: "Preventivi" };
   }
 
@@ -306,7 +460,8 @@ function inferProfile(input: BuildMediaLibraryItemInput): Pick<MediaLibraryItem,
     return { category: "cantieri", securityLevel: "standard", areaLabel: "Cantieri" };
   }
 
-  if (CRM_DOC_TYPES.has(docType)) {
+  if (CRM_DOC_TYPES.has(docType) || input.source === "email" || input.source === "marketing_document") {
+    if (input.source === "email") return { category: "crm", securityLevel: "standard", areaLabel: "Email e CRM" };
     return { category: "crm", securityLevel: "standard", areaLabel: "CRM" };
   }
 
@@ -330,7 +485,12 @@ function inferProfile(input: BuildMediaLibraryItemInput): Pick<MediaLibraryItem,
     return { category: "crm", securityLevel: "standard", areaLabel: "CRM" };
   }
 
-  if (MEDIA_DOC_TYPES.has(docType) || (input.mimeType ?? "").startsWith("image/") || (input.mimeType ?? "").startsWith("video/")) {
+  if (
+    MEDIA_DOC_TYPES.has(docType) ||
+    input.source === "company_photo" ||
+    (input.mimeType ?? "").startsWith("image/") ||
+    (input.mimeType ?? "").startsWith("video/")
+  ) {
     return { category: "foto_media", securityLevel: "standard", areaLabel: "Media" };
   }
 
@@ -359,6 +519,7 @@ export function buildMediaLibraryItem(input: BuildMediaLibraryItemInput): MediaL
     mimeType: input.mimeType ?? null,
     storageBucket: input.storageBucket ?? null,
     storagePath: input.storagePath ?? null,
+    externalUrl: input.externalUrl ?? null,
     confidence: input.confidence ?? null,
     category: profile.category,
     securityLevel: profile.securityLevel,
@@ -422,15 +583,15 @@ export function canViewMediaLibraryCategory(
           permissions.canViewSettingsCustomization,
       );
     case "prodotti":
-      return Boolean(permissions.canViewMarketingOpportunities || permissions.canViewOrders || permissions.canViewWarehouse || permissions.canViewSettingsCustomization);
+      return Boolean(permissions.canViewMarketing || permissions.canViewMarketingOpportunities || permissions.canViewOrders || permissions.canViewWarehouse || permissions.canViewSettingsCustomization);
     case "computi":
-      return Boolean(permissions.canViewMarketingOpportunities || permissions.canViewOrders || permissions.canViewCosts || permissions.canViewSettingsCustomization);
+      return Boolean(permissions.canViewMarketing || permissions.canViewMarketingOpportunities || permissions.canViewOrders || permissions.canViewCosts || permissions.canViewSettingsCustomization);
     case "render":
-      return Boolean(permissions.canViewRenderAi || permissions.canViewMarketingDashboard || permissions.canViewOrders);
+      return Boolean(permissions.canViewMarketing || permissions.canViewRenderAi || permissions.canViewMarketingDashboard || permissions.canViewOrders);
     case "fiscale":
       return Boolean(permissions.canViewBilling || permissions.canViewPrimaNota || permissions.canViewTesoreria || permissions.canViewCosts);
     case "preventivi":
-      return Boolean(permissions.canViewMarketingOpportunities || permissions.canViewOrders || permissions.canViewSettingsCustomization);
+      return Boolean(permissions.canViewMarketing || permissions.canViewMarketingOpportunities || permissions.canViewOrders || permissions.canViewSettingsCustomization);
     case "cantieri":
       return Boolean(
         permissions.canViewOrders ||
@@ -440,9 +601,9 @@ export function canViewMediaLibraryCategory(
           permissions.canViewSubappaltatori,
       );
     case "crm":
-      return Boolean(permissions.canViewMarketingContacts || permissions.canViewMarketingOpportunities || permissions.canViewCustomers);
+      return Boolean(permissions.canViewMarketing || permissions.canViewMarketingContacts || permissions.canViewMarketingOpportunities || permissions.canViewCustomers);
     case "foto_media":
-      return Boolean(permissions.canViewRenderAi || permissions.canViewMarketingDashboard || permissions.canViewOrders);
+      return Boolean(permissions.canViewMarketing || permissions.canViewRenderAi || permissions.canViewMarketingDashboard || permissions.canViewOrders);
     case "altro":
       return canAccessMediaLibrary(permissions);
   }
@@ -488,6 +649,7 @@ function buildSearchText(item: MediaLibraryItem): string {
     item.actionLabel,
     item.storageBucket,
     item.storagePath,
+    item.externalUrl,
     ...item.metadataFacts,
   ]
     .filter(Boolean)
@@ -563,6 +725,27 @@ export function combineMediaLibrarySourceBatches(batches: MediaLibrarySourceBatc
     });
 
   return { items, warnings };
+}
+
+export function resolveMediaLibraryOpenTarget(item: MediaLibraryItem): MediaLibraryOpenTarget {
+  if (item.storageBucket && item.storagePath) {
+    return { kind: "storage", storageBucket: item.storageBucket, storagePath: item.storagePath };
+  }
+  if (item.externalUrl) {
+    return { kind: "external", url: item.externalUrl };
+  }
+  return { kind: "missing" };
+}
+
+export function buildMediaLibraryIntegrationCoverage(items: MediaLibraryItem[]): MediaLibraryIntegrationCoverage[] {
+  return INTEGRATION_REGISTRY.map((source) => {
+    const count = items.filter((item) => source.sources.includes(item.source)).length;
+    return {
+      ...source,
+      count,
+      state: count > 0 ? "connected" : "missing",
+    };
+  });
 }
 
 export function pickMediaLibraryDetailItem(items: MediaLibraryItem[], selectedId: string | null): MediaLibraryItem | null {

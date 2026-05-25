@@ -1,7 +1,7 @@
 /**
  * ChangelogDrawer — v8.6.90
  *
- * Bottone "Sparkles" cliccabile nell'header con badge "X" se ci sono entries
+ * Bottone novità cliccabile nell'header con badge "X" se ci sono entries
  * non lette. Apre uno Sheet (drawer da destra) con la lista entries published,
  * pinned in cima. Apertura → markAsSeen → badge sparisce.
  */
@@ -94,7 +94,7 @@ export function ChangelogDrawer() {
           className="relative h-9 w-9 shrink-0"
           aria-label={unreadCount > 0 ? `${unreadCount} aggiornamenti non letti` : "Cosa c'è di nuovo"}
         >
-          <Sparkles className={cn("h-4 w-4", unreadCount > 0 && "text-amber-500")} />
+          <Megaphone className={cn("h-4 w-4", unreadCount > 0 && "text-amber-500")} />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 h-4 min-w-[16px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
               {unreadCount > 9 ? "9+" : unreadCount}

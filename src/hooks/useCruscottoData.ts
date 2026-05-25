@@ -7,6 +7,13 @@ import type { DashboardStats } from "@/hooks/useMarketingDashboard";
 import { getDateRange } from "@/lib/dateRangeUtils";
 import { safeNumber } from "@/lib/numberUtils";
 import { queryKeys } from "@/lib/queryKeys";
+import {
+  calculateCruscottoInvoiceStats,
+  CRUSCOTTO_INVOICE_DOCUMENT_TYPES,
+  EMPTY_CRUSCOTTO_INVOICE_STATS,
+  type CruscottoInvoiceStats,
+  type CruscottoInvoiceStatsRow,
+} from "@/lib/cruscottoInvoiceStats";
 
 // Re-export for backward compatibility with existing consumers
 export { safeNumber } from "@/lib/numberUtils";
@@ -329,17 +336,17 @@ export function useCruscottoData() {
       const { data, error } = await supabase.rpc("get_cruscotto_invoice_stats" as never, {
         p_company_id: companyId!,
       } as never);
-      if (error) throw error;
-      return data as {
-        total_outstanding: number;
-        overdue_count: number;
-        overdue_amount: number;
-        due_this_week_count: number;
-        due_this_week_amount: number;
-        paid_this_month: number;
-        issued_this_month: number;
-        issued_this_month_amount: number;
-      } | null;
+      if (!error) return (data as CruscottoInvoiceStats | null) ?? EMPTY_CRUSCOTTO_INVOICE_STATS;
+
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from("invoices")
+        .select("document_type, status, issue_date, due_date, total, paid_amount, updated_at, deleted_at")
+        .eq("company_id", companyId!)
+        .in("document_type", [...CRUSCOTTO_INVOICE_DOCUMENT_TYPES])
+        .is("deleted_at", null);
+
+      if (fallbackError) throw fallbackError;
+      return calculateCruscottoInvoiceStats((fallbackData ?? []) as CruscottoInvoiceStatsRow[]);
     },
     enabled: !!companyId,
     staleTime: 120_000,

@@ -1,13 +1,14 @@
 /**
  * EmailOAuthConnectionsCard — GAP 7b
  *
- * Card per /azienda/impostazioni/integrazioni che permette al company_admin di:
+ * Card personale per connettere Gmail / Outlook / IMAP:
  *   - Connettere Gmail / Outlook con OAuth (chiama email-oauth-start → redirect)
- *   - Vedere lista connessioni attive (email, status, last_synced_at, errori)
+ *   - Vedere solo le connessioni attive dell'utente corrente
  *   - Disconnettere account (delete row)
  *   - Pollare manualmente (force sync)
  *
- * Multi-account supportato: una company può avere info@ + sales@ + admin@.
+ * Multi-account supportato per utente. Se due utenti collegano la stessa
+ * casella, ognuno vede e gestisce solo la propria connessione.
  */
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -26,7 +27,7 @@ import { ImapCustomDialog } from "./ImapCustomDialog";
 
 interface OAuthConnectionMeta {
   id: string;
-  provider: "gmail" | "outlook";
+  provider: "gmail" | "outlook" | "imap";
   email_address: string;
   status: "active" | "expired" | "revoked" | "error";
   last_synced_at: string | null;
@@ -58,21 +59,10 @@ const STATUS_BADGE: Record<string, { label: string; color: string; icon: typeof 
   error:   { label: "Errore",     color: "bg-rose-100 text-rose-700 border-rose-300", icon: AlertCircle },
 };
 
-interface EmailOAuthConnectionsCardProps {
-  /**
-   * 'company' (default): mostra TUTTE le email connesse dell'azienda — vista
-   * admin in /azienda/impostazioni/integrazioni.
-   * 'user': mostra SOLO le email connesse dall'utente corrente — vista
-   * personale in /azienda/impostazioni/mio-profilo.
-   */
-  scope?: "company" | "user";
-}
-
-export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConnectionsCardProps = {}) {
+export function EmailOAuthConnectionsCard() {
   const qc = useQueryClient();
   const { effectiveCompany, user } = useAuth();
   const userId = user?.id ?? null;
-  const isUserScope = scope === "user";
   const [connecting, setConnecting] = useState<"gmail" | "outlook" | null>(null);
   const [diagOpen, setDiagOpen] = useState(false);
   const [imapDialogOpen, setImapDialogOpen] = useState(false);
@@ -93,17 +83,15 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
   });
 
   const { data: connections = [], isLoading } = useQuery({
-    queryKey: ["email-oauth-connections", effectiveCompany?.id, scope, userId],
-    enabled: !!effectiveCompany?.id && (!isUserScope || !!userId),
+    queryKey: ["email-oauth-connections", effectiveCompany?.id, userId],
+    enabled: !!effectiveCompany?.id && !!userId,
     queryFn: async (): Promise<OAuthConnectionMeta[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q = (supabase as any)
+      const q = (supabase as any)
         .from("v_email_oauth_connections_meta")
         .select("id, provider, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_interval_minutes, expires_at, created_at, user_id")
-        .eq("company_id", effectiveCompany!.id);
-      if (isUserScope && userId) {
-        q = q.eq("user_id", userId);
-      }
+        .eq("company_id", effectiveCompany!.id)
+        .eq("user_id", userId);
       const { data, error } = await q.order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as OAuthConnectionMeta[];
@@ -112,11 +100,14 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
 
   const startOAuth = useMutation({
     mutationFn: async (provider: "gmail" | "outlook") => {
+      if (!effectiveCompany?.id) {
+        throw new Error("Azienda attiva non disponibile");
+      }
       setConnecting(provider);
       const redirectUri = `${window.location.origin}/azienda/impostazioni/integrazioni/email-callback`;
       const { data, error } = await supabase.functions.invoke<{ auth_url: string; state: string; error?: string }>(
         "email-oauth-start",
-        { body: { provider, redirect_uri: redirectUri } },
+        { body: { provider, redirect_uri: redirectUri, company_id: effectiveCompany.id } },
       );
       if (error || !data?.auth_url) {
         throw new Error(data?.error ?? error?.message ?? "Errore nell'avvio OAuth");
@@ -124,6 +115,7 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
       // Salva state in sessionStorage per re-check lato callback
       sessionStorage.setItem("oauth_state", data.state);
       sessionStorage.setItem("oauth_provider", provider);
+      sessionStorage.setItem("email_oauth_return_to", `${window.location.pathname}${window.location.search}`);
       // Redirect a Google/Microsoft
       window.location.href = data.auth_url;
     },
@@ -135,11 +127,16 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
 
   const disconnect = useMutation({
     mutationFn: async (id: string) => {
+      if (!effectiveCompany?.id || !userId) {
+        throw new Error("Sessione utente non disponibile");
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("email_oauth_connections")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("company_id", effectiveCompany!.id)
+        .eq("user_id", userId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -177,12 +174,11 @@ export function EmailOAuthConnectionsCard({ scope = "company" }: EmailOAuthConne
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Mail className="h-4 w-4 text-violet-600" />
-          {isUserScope ? "Le mie email collegate" : "Email Triage AI — Account connessi"}
+          Le mie email collegate
         </CardTitle>
         <CardDescription className="text-xs">
-          {isUserScope
-            ? "Collega il TUO Gmail o Outlook personale: l'AI legge le tue email in arrivo, le classifica per priorità e suggerisce azioni. Polling automatico ogni 10 minuti, sempre filtrato sul tuo account."
-            : "Collega Gmail o Outlook: l'AI legge le email in arrivo, le classifica per priorità (alta/media/bassa) e suggerisce azioni (lead nuovo / fattura / ticket / pratica). Polling automatico ogni 10 minuti."}
+          Collega il tuo Gmail, Outlook o IMAP personale: le connessioni sono visibili solo a te.
+          Se un collega collega la stessa casella, avrà una connessione separata sul suo utente.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

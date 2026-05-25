@@ -811,10 +811,10 @@ export default function CompanyRoutesContainer() {
           <Route path="staff" element={<Navigate to="/azienda/impostazioni/persone?tab=staff" replace />} />
           <Route path="sedi" element={withCompanyPermission("canViewSettingsPeople", <SettingsSedi />)} />
           <Route path="team" element={<Navigate to="/azienda/impostazioni/persone?tab=team" replace />} />
-          {/* IMP4: Sicurezza & Privacy — pagina unica con 4 tab */}
+          {/* IMP4: Sicurezza & Privacy — privacy, dashboard e registro; password/2FA in Mio Profilo */}
           <Route path="sicurezza-privacy" element={withCompanyPermission("canViewSettingsSecurity", <SettingsSecurityHub />)} />
-          {/* Redirect delle 4 route precedenti → pagina unificata con tab corretto */}
-          <Route path="sicurezza" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=password" replace />} />
+          {/* Redirect delle route precedenti → nuova destinazione corretta */}
+          <Route path="sicurezza" element={<Navigate to="/azienda/impostazioni/mio-profilo?tab=sicurezza" replace />} />
           <Route path="security-dashboard" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=dashboard" replace />} />
           <Route path="attivita" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=attivita" replace />} />
           <Route path="integrazioni" element={withCompanyPermission("canViewSettingsSecurity", <SettingsIntegrations />)} />

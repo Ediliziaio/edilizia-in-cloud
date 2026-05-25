@@ -9,7 +9,7 @@ interface SectionMeta {
 }
 
 const SECTION_MAP: Record<string, SectionMeta> = {
-  "mio-profilo":          { title: "Il mio profilo",           description: "Gestisci i tuoi dati, sicurezza, calendari e notifiche" },
+  "mio-profilo":          { title: "Il mio profilo",           description: "Gestisci dati personali, password, 2FA, calendari e notifiche" },
   profilo:                { title: "Profilo aziendale",        description: "Configura le informazioni della tua azienda" },
   sedi:                   { title: "Sedi",                     description: "Gestisci le sedi operative della tua azienda" },
   branding:               { title: "White-Label",              description: "Personalizza il brand e i colori della piattaforma" },
@@ -40,8 +40,8 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   venditori:              { title: "Venditori",                description: "Gestisci l'elenco dei venditori" },
   staff:                  { title: "Staff / Operai",           description: "Gestisci lo staff operativo e gli operai" },
   team:                   { title: "Team",                     description: "Organizza i team di lavoro" },
-  "sicurezza-privacy":    { title: "Sicurezza & Privacy",       description: "Password, privacy GDPR, dashboard sicurezza e registro attività" },
-  sicurezza:              { title: "Cambio password",          description: "Aggiorna le credenziali di accesso" },
+  "sicurezza-privacy":    { title: "Sicurezza & Privacy",       description: "Privacy GDPR, dashboard sicurezza e registro attività" },
+  sicurezza:              { title: "Sicurezza profilo",         description: "Gestisci password e 2FA dal tuo profilo personale" },
   privacy:                { title: "Privacy & GDPR",           description: "Gestisci le preferenze privacy e la conformità GDPR" },
   "security-dashboard":   { title: "Security dashboard",      description: "Monitora gli accessi e gli eventi di sicurezza" },
   attivita:               { title: "Registro attività",        description: "Visualizza il log completo delle attività" },

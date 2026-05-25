@@ -6,16 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, ShieldCheck, ShieldOff, Copy, Loader2, AlertTriangle } from "lucide-react";
+import { Shield, ShieldCheck, ShieldOff, Copy, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const TOTP_TIMEOUT_MS = 15_000;
+
 async function callTotp(action: string, extra: Record<string, string> = {}) {
-  const { data, error } = await supabase.functions.invoke("manage-totp", {
+  const request = supabase.functions.invoke("manage-totp", {
     body: { action, ...extra },
   });
+  const timeout = new Promise<never>((_, reject) => {
+    window.setTimeout(() => {
+      reject(new Error("Servizio 2FA momentaneamente non disponibile. Riprova tra qualche secondo."));
+    }, TOTP_TIMEOUT_MS);
+  });
+  const { data, error } = await Promise.race([request, timeout]);
   if (error) throw new Error(error.message || "Errore TOTP");
   if (data?.error) throw new Error(data.error);
   return data;
@@ -34,9 +42,16 @@ export function TwoFactorSetup() {
   const [disableCode, setDisableCode] = useState("");
   const [showDisableDialog, setShowDisableDialog] = useState(false);
 
-  const { data: status, isLoading: statusLoading } = useQuery({
+  const {
+    data: status,
+    error: statusError,
+    isFetching: statusFetching,
+    isLoading: statusLoading,
+    refetch: refetchStatus,
+  } = useQuery({
     queryKey: ["totp-status"],
     queryFn: () => callTotp("status"),
+    retry: 1,
   });
 
   const setupMutation = useMutation({
@@ -79,8 +94,50 @@ export function TwoFactorSetup() {
   if (statusLoading) {
     return (
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Autenticazione a Due Fattori (2FA)
+          </CardTitle>
+          <CardDescription>
+            Verifico lo stato della protezione TOTP del tuo account.
+          </CardDescription>
+        </CardHeader>
         <CardContent className="py-8 text-center">
           <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (statusError) {
+    const message = statusError instanceof Error
+      ? statusError.message
+      : "Impossibile leggere lo stato 2FA in questo momento.";
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Autenticazione a Due Fattori (2FA)
+          </CardTitle>
+          <CardDescription>
+            Proteggi il tuo account con un codice TOTP da Google Authenticator o app simile.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {message}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetchStatus()} disabled={statusFetching}>
+            {statusFetching ? (
+              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3 mr-2" />
+            )}
+            Riprova controllo 2FA
+          </Button>
         </CardContent>
       </Card>
     );

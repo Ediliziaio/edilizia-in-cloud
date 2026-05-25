@@ -95,14 +95,12 @@ export const PERSONE_SECTIONS: PermissionSectionDef[] = [
   { label: "Gestione Dipendenti",             viewKey: "can_view_employees",         editKey: null },
   { label: "Utenti & Team",                   viewKey: "can_view_users",             editKey: null },
   { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: null },
-  { label: "Messaggi Esterni",                viewKey: "can_view_messaggi_esterni",  editKey: null },
 ];
 
 export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard Marketing",     viewKey: "can_view_marketing_dashboard",      editKey: null },
   { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: "can_edit_marketing_contacts" },
   { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: "can_edit_marketing_opportunities" },
-  { label: "Preventivi CRM",          viewKey: "can_view_marketing_opportunities",  editKey: null },
   { label: "Attività",                viewKey: "can_view_marketing_activities",     editKey: null },
   { label: "Appuntamenti",            viewKey: "can_view_marketing_appointments",   editKey: null },
   { label: "Email Marketing",         viewKey: "can_view_marketing_email",          editKey: null },
@@ -229,8 +227,8 @@ export function syncLegacySettingsFlags(perms: StaffPermissions): StaffPermissio
     perms.can_edit_settings_customization || perms.can_edit_settings_people;
   return {
     ...perms,
-    can_view_settings: hasAnyView || perms.can_view_settings,
-    can_edit_settings: hasAnyEdit || perms.can_edit_settings,
+    can_view_settings: hasAnyView,
+    can_edit_settings: hasAnyEdit,
   };
 }
 
@@ -247,7 +245,7 @@ export function syncLegacyMarketingFlags(perms: StaffPermissions): StaffPermissi
   const hasAnyEdit = perms.can_edit_marketing_contacts || perms.can_edit_marketing_opportunities;
   return {
     ...perms,
-    can_view_marketing: hasAnyView || perms.can_view_marketing,
-    can_edit_marketing: hasAnyEdit || perms.can_edit_marketing,
+    can_view_marketing: hasAnyView,
+    can_edit_marketing: hasAnyEdit,
   };
 }

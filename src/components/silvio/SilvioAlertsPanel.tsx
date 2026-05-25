@@ -87,9 +87,9 @@ function resolveCtaNavigation(action: string | null, payload: Record<string, unk
 
 function alertColorClasses(severity: string) {
   switch (severity) {
-    case "critical": return { ring: "ring-rose-200 bg-rose-50", text: "text-rose-700", border: "border-rose-200" };
-    case "warning": return { ring: "ring-amber-200 bg-amber-50", text: "text-amber-700", border: "border-amber-200" };
-    default: return { ring: "ring-sky-200 bg-sky-50", text: "text-sky-700", border: "border-sky-200" };
+    case "critical": return { ring: "ring-rose-200 bg-rose-50", text: "text-rose-700", border: "border-rose-200", rail: "bg-rose-500", surface: "bg-rose-50/45" };
+    case "warning": return { ring: "ring-amber-200 bg-amber-50", text: "text-amber-700", border: "border-amber-200", rail: "bg-amber-500", surface: "bg-amber-50/45" };
+    default: return { ring: "ring-sky-200 bg-sky-50", text: "text-sky-700", border: "border-sky-200", rail: "bg-sky-500", surface: "bg-sky-50/45" };
   }
 }
 
@@ -250,28 +250,60 @@ export function SilvioAlertsPanel({
     );
   }
 
+  const content = (
+    <CardContent className={cn("space-y-2 pt-0", isCompact && "px-3 pb-3")}>
+      {(["critical", "warning", "info"] as const).map(sev => {
+        const list = grouped[sev];
+        if (list.length === 0) return null;
+        return (
+          <div key={sev} className="space-y-2">
+            {!isCompact && (
+              <div className={cn("text-[10px] uppercase tracking-wider font-semibold",
+                sev === "critical" && "text-rose-700",
+                sev === "warning" && "text-amber-700",
+                sev === "info" && "text-sky-700"
+              )}>
+                {sev === "critical" ? "🔴 Critici" : sev === "warning" ? "🟡 Importanti" : "🔵 Info"}
+              </div>
+            )}
+            {list.map(alert => (
+              <AlertRow
+                key={alert.id}
+                alert={alert}
+                onCtaClick={handleCtaClick}
+                onDismiss={() => dismissMut.mutate(alert.id)}
+                isDismissing={dismissMut.isPending}
+                compact={isCompact}
+              />
+            ))}
+          </div>
+        );
+      })}
+    </CardContent>
+  );
+
   return (
-    <Card>
-      <CardHeader className={cn("pb-3", isCompact && "py-3")}>
+    <Card className={cn(isCompact && "overflow-hidden border-slate-200 shadow-none")}>
+      <CardHeader className={cn("pb-3", isCompact && "px-3 py-3")}>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Bell className="h-4 w-4 text-violet-600" /> Cose da sapere
+            <CardTitle className={cn("flex items-center gap-2", isCompact ? "text-sm" : "text-base")}>
+              <Bell className="h-4 w-4 text-orange-500" /> Cose da sapere
             </CardTitle>
             {/* NB: <div> e non CardDescription (che renderizza <p>): Badge è un
                 <div>, mettere <div> in <p> viola HTML5 e causa hydration warning
                 (validateDOMNesting). Stesso styling muted+text-xs di CardDescription. */}
-            <div className="text-xs text-muted-foreground mt-0.5">
+            <div className="mt-1 flex flex-wrap gap-1 text-xs text-muted-foreground">
               {(stats?.critical ?? 0) > 0 && (
-                <Badge variant="destructive" className="mr-1.5">{stats!.critical} critici</Badge>
+                <Badge variant="destructive" className="h-5 rounded-full px-2 text-[11px]">{stats!.critical} critici</Badge>
               )}
               {(stats?.warning ?? 0) > 0 && (
-                <Badge variant="secondary" className="mr-1.5 bg-amber-100 text-amber-800">
+                <Badge variant="secondary" className="h-5 rounded-full bg-amber-100 px-2 text-[11px] text-amber-800">
                   {stats!.warning} avvisi
                 </Badge>
               )}
               {(stats?.info ?? 0) > 0 && (
-                <Badge variant="outline" className="mr-1.5">{stats!.info} info</Badge>
+                <Badge variant="outline" className="h-5 rounded-full px-2 text-[11px]">{stats!.info} info</Badge>
               )}
               {totalOpen === 0 && "Nessun problema"}
             </div>
@@ -288,37 +320,7 @@ export function SilvioAlertsPanel({
         </div>
       </CardHeader>
 
-      <ScrollArea className={isCompact ? "h-72" : "h-[480px]"}>
-        <CardContent className="space-y-3 pt-0">
-          {(["critical", "warning", "info"] as const).map(sev => {
-            const list = grouped[sev];
-            if (list.length === 0) return null;
-            return (
-              <div key={sev} className="space-y-1.5">
-                {!isCompact && (
-                  <div className={cn("text-[10px] uppercase tracking-wider font-semibold",
-                    sev === "critical" && "text-rose-700",
-                    sev === "warning" && "text-amber-700",
-                    sev === "info" && "text-sky-700"
-                  )}>
-                    {sev === "critical" ? "🔴 Critici" : sev === "warning" ? "🟡 Importanti" : "🔵 Info"}
-                  </div>
-                )}
-                {list.map(alert => (
-                  <AlertRow
-                    key={alert.id}
-                    alert={alert}
-                    onCtaClick={handleCtaClick}
-                    onDismiss={() => dismissMut.mutate(alert.id)}
-                    isDismissing={dismissMut.isPending}
-                    compact={isCompact}
-                  />
-                ))}
-              </div>
-            );
-          })}
-        </CardContent>
-      </ScrollArea>
+      {isCompact ? content : <ScrollArea className="h-[480px]">{content}</ScrollArea>}
     </Card>
   );
 }
@@ -339,20 +341,26 @@ function AlertRow({
 
   return (
     <div className={cn(
-      "rounded-lg border p-2.5 group transition-colors",
+      "group relative overflow-hidden rounded-lg border transition-colors",
       colors.border,
+      colors.surface,
+      compact ? "p-2.5" : "p-3",
     )}>
-      <div className="flex items-start gap-2.5">
+      <span className={cn("absolute inset-y-0 left-0 w-1", colors.rail)} />
+      <div className="flex items-start gap-2.5 pl-1">
         <div className={cn("rounded-md ring-1 p-1.5 shrink-0", colors.ring)}>
           <TypeIcon className={cn("h-3.5 w-3.5", colors.text)} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div className="text-sm font-medium leading-tight">{alert.title}</div>
+            <div className="text-sm font-medium leading-tight text-slate-950">{alert.title}</div>
             <button
               onClick={onDismiss}
               disabled={isDismissing}
-              className="opacity-0 group-hover:opacity-100 transition text-muted-foreground hover:text-foreground"
+              className={cn(
+                "rounded-sm text-muted-foreground transition hover:bg-background/70 hover:text-foreground",
+                compact ? "opacity-70" : "opacity-0 group-hover:opacity-100",
+              )}
               title="Ignora"
             >
               <X className="h-3.5 w-3.5" />
@@ -364,7 +372,7 @@ function AlertRow({
           {alert.cta_label && onCtaClick && (
             <Button
               size="sm" variant="ghost"
-              className={cn("mt-1.5 h-7 px-2 text-xs gap-1", colors.text)}
+              className={cn("mt-1 h-7 px-0 text-xs font-semibold gap-1 hover:bg-transparent", colors.text)}
               onClick={() => onCtaClick(alert)}
             >
               {alert.cta_label}

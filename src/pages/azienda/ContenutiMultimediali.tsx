@@ -60,6 +60,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import {
   buildMediaLibraryItem,
   buildDefaultFolderMatchQuery,
+  buildMediaLibraryIntegrationCoverage,
   canAccessMediaLibrary,
   combineMediaLibrarySourceBatches,
   createMediaLibraryFolderSlug,
@@ -68,8 +69,10 @@ import {
   mediaLibraryItemMatchesSearch,
   mediaLibraryItemMatchesTab,
   pickMediaLibraryDetailItem,
+  resolveMediaLibraryOpenTarget,
   summarizeMediaLibraryItems,
   type MediaLibraryCustomFolderRule,
+  type MediaLibraryIntegrationCoverage,
   type MediaLibraryItem,
   type MediaLibraryLoadResult,
   type MediaLibraryStatusTone,
@@ -156,6 +159,109 @@ type MediaLibraryFolderRow = Pick<
   | "created_at"
   | "created_by"
 >;
+
+type EmailAttachmentRow = Pick<
+  Database["public"]["Tables"]["email_attachments"]["Row"],
+  "id" | "filename" | "size_bytes" | "mime_type" | "storage_path" | "user_id" | "created_at" | "inbox_id" | "outbox_id"
+>;
+
+type MarketingDocumentRow = Pick<
+  Database["public"]["Tables"]["marketing_documents"]["Row"],
+  "id" | "contact_id" | "opportunity_id" | "file_name" | "file_size" | "file_type" | "file_url" | "created_at" | "uploaded_by"
+>;
+
+type FotoCantiereRow = Pick<
+  Database["public"]["Tables"]["foto_cantiere"]["Row"],
+  | "id"
+  | "order_id"
+  | "storage_path"
+  | "thumbnail_path"
+  | "descrizione"
+  | "tags"
+  | "created_at"
+  | "taken_at"
+  | "uploaded_by"
+  | "ai_qualita_score"
+  | "ai_riassunto"
+>;
+
+type CompanyPhotoRow = Pick<
+  Database["public"]["Tables"]["company_photo_library"]["Row"],
+  | "id"
+  | "nome"
+  | "descrizione"
+  | "image_url"
+  | "storage_path"
+  | "tags"
+  | "vertical_slug"
+  | "categoria_slug"
+  | "tipologia"
+  | "created_at"
+  | "updated_at"
+  | "created_by"
+>;
+
+type QuotePdfRow = Pick<
+  Database["public"]["Tables"]["quotes"]["Row"],
+  | "id"
+  | "quote_number"
+  | "title"
+  | "client_name"
+  | "status"
+  | "total"
+  | "pdf_storage_path"
+  | "pdf_generated_at"
+  | "created_at"
+  | "updated_at"
+  | "created_by"
+  | "opportunity_id"
+  | "contact_id"
+  | "signed_at"
+>;
+
+type QuoteMaterialRow = Pick<
+  Database["public"]["Tables"]["quote_pdf_materials"]["Row"],
+  "id" | "name" | "category" | "storage_path" | "file_size_bytes" | "created_at" | "updated_at" | "created_by"
+>;
+
+type RenderSessionRow = Pick<
+  Database["public"]["Tables"]["render_sessions"]["Row"],
+  | "id"
+  | "vertical"
+  | "status"
+  | "original_photo_url"
+  | "result_urls"
+  | "created_at"
+  | "processing_completed_at"
+  | "created_by"
+  | "contact_id"
+  | "opportunity_id"
+  | "error_message"
+>;
+
+type SerramentiMediaRow = Pick<
+  Database["public"]["Tables"]["sr_progetti_media"]["Row"],
+  "id" | "kind" | "caption" | "storage_path" | "url" | "created_at" | "progetto_id" | "serramento_id"
+>;
+
+type DocumentoDipendenteRow = Pick<
+  Database["public"]["Tables"]["documenti_dipendenti"]["Row"],
+  "id" | "user_id" | "tipo" | "nome_file" | "url" | "data_scadenza" | "created_at" | "note"
+>;
+
+type DocumentoSubappaltatoreRow = Pick<
+  Database["public"]["Tables"]["documenti_subappaltatore"]["Row"],
+  "id" | "subappaltatore_id" | "tipo" | "nome_file" | "url" | "data_scadenza" | "created_at" | "note"
+>;
+
+type DocumentoOperaioRow = Pick<
+  Database["public"]["Tables"]["documenti_operai"]["Row"],
+  "id" | "operaio_id" | "nome_file" | "file_path" | "data_scadenza" | "stato" | "created_at" | "caricato_da" | "note"
+>;
+
+interface MediaLibraryLoadOptions {
+  userId?: string | null;
+}
 
 type DriveTab = MediaLibraryView;
 
@@ -279,11 +385,24 @@ function entityLabel(table: string | null | undefined): string | null {
     purchase_orders: "Ordine acquisto",
     suppliers: "Fornitore",
     opportunities: "Opportunita",
+    marketing_opportunities: "Opportunita",
+    marketing_contacts: "Contatto marketing",
+    marketing_documents: "Documento CRM",
+    email_inbox: "Email ricevuta",
+    email_outbox: "Email inviata",
     invoices: "Fattura",
+    documenti_fiscali: "Documento fiscale",
     computo_uploads: "Computo metrico",
     computo_voci_estratte: "Voce computo",
     products: "Prodotto",
     article_families: "Linea prodotto",
+    quote_pdf_materials: "Materiale preventivo",
+    render_sessions: "Render",
+    sr_progetti: "Progetto serramenti",
+    company_photo_library: "Foto aziendale",
+    documenti_dipendenti: "Documento dipendente",
+    documenti_operai: "Documento operaio",
+    documenti_subappaltatore: "Documento subappaltatore",
   };
   return labels[table] ?? table.replace(/_/g, " ");
 }
@@ -314,6 +433,34 @@ function formatDuration(ms: number | null): string | null {
 
 function compactFacts(values: Array<string | null | undefined>): string[] {
   return values.filter((value): value is string => Boolean(value?.trim()));
+}
+
+function pathFileName(path: string | null | undefined, fallback = "Documento"): string {
+  if (!path) return fallback;
+  const clean = path.split("?")[0] ?? path;
+  const rawName = clean.split("/").filter(Boolean).pop() ?? fallback;
+  try {
+    return decodeURIComponent(rawName);
+  } catch {
+    return rawName;
+  }
+}
+
+function isExternalUrl(value: string | null | undefined): value is string {
+  return Boolean(value && /^https?:\/\//i.test(value));
+}
+
+function storagePathFromMaybeUrl(value: string | null | undefined, bucket: string): string | null {
+  if (!value) return null;
+  if (!isExternalUrl(value)) return value;
+  const marker = `/${bucket}/`;
+  const markerIndex = value.indexOf(marker);
+  if (markerIndex < 0) return null;
+  return decodeURIComponent(value.slice(markerIndex + marker.length).split("?")[0] ?? "");
+}
+
+function firstExternalUrl(values: string[] | null | undefined): string | null {
+  return values?.find((value) => isExternalUrl(value)) ?? null;
 }
 
 function profileLabel(profile: ProfileRow): string {
@@ -374,8 +521,33 @@ function iconForItem(item: MediaLibraryItem) {
   return FileText;
 }
 
-async function loadMediaItems(companyId: string): Promise<MediaLibraryLoadResult> {
-  const [analysisResult, computoResult, attachmentResult] = await Promise.all([
+async function loadMediaItems(companyId: string, options: MediaLibraryLoadOptions = {}): Promise<MediaLibraryLoadResult> {
+  const emailQuery = options.userId
+    ? supabase
+        .from("email_attachments")
+        .select("id,filename,size_bytes,mime_type,storage_path,user_id,created_at,inbox_id,outbox_id")
+        .eq("company_id", companyId)
+        .eq("user_id", options.userId)
+        .order("created_at", { ascending: false })
+        .limit(80)
+    : Promise.resolve({ data: [], error: null });
+
+  const [
+    analysisResult,
+    computoResult,
+    attachmentResult,
+    emailResult,
+    marketingDocumentResult,
+    sitePhotoResult,
+    companyPhotoResult,
+    quotePdfResult,
+    quoteMaterialResult,
+    renderSessionResult,
+    serramentiMediaResult,
+    employeeDocumentResult,
+    subcontractorDocumentResult,
+    workerDocumentResult,
+  ] = await Promise.all([
     supabase
       .from("document_analysis_results")
       .select(
@@ -401,17 +573,100 @@ async function loadMediaItems(companyId: string): Promise<MediaLibraryLoadResult
       .is("deleted_at", null)
       .order("attached_at", { ascending: false })
       .limit(120),
+    emailQuery,
+    supabase
+      .from("marketing_documents")
+      .select("id,contact_id,opportunity_id,file_name,file_size,file_type,file_url,created_at,uploaded_by")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("foto_cantiere")
+      .select("id,order_id,storage_path,thumbnail_path,descrizione,tags,created_at,taken_at,uploaded_by,ai_qualita_score,ai_riassunto")
+      .eq("company_id", companyId)
+      .order("taken_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("company_photo_library")
+      .select("id,nome,descrizione,image_url,storage_path,tags,vertical_slug,categoria_slug,tipologia,created_at,updated_at,created_by")
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .order("updated_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("quotes")
+      .select("id,quote_number,title,client_name,status,total,pdf_storage_path,pdf_generated_at,created_at,updated_at,created_by,opportunity_id,contact_id,signed_at")
+      .eq("company_id", companyId)
+      .not("pdf_storage_path", "is", null)
+      .order("pdf_generated_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("quote_pdf_materials")
+      .select("id,name,category,storage_path,file_size_bytes,created_at,updated_at,created_by")
+      .eq("company_id", companyId)
+      .order("updated_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("render_sessions")
+      .select("id,vertical,status,original_photo_url,result_urls,created_at,processing_completed_at,created_by,contact_id,opportunity_id,error_message")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(60),
+    supabase
+      .from("sr_progetti_media")
+      .select("id,kind,caption,storage_path,url,created_at,progetto_id,serramento_id")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("documenti_dipendenti")
+      .select("id,user_id,tipo,nome_file,url,data_scadenza,created_at,note")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("documenti_subappaltatore")
+      .select("id,subappaltatore_id,tipo,nome_file,url,data_scadenza,created_at,note")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(80),
+    supabase
+      .from("documenti_operai")
+      .select("id,operaio_id,nome_file,file_path,data_scadenza,stato,created_at,caricato_da,note")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(80),
   ]);
 
   const analysisRows = analysisResult.error ? [] : ((analysisResult.data ?? []) as DocumentAnalysisRow[]);
   const computoRows = computoResult.error ? [] : ((computoResult.data ?? []) as ComputoUploadRow[]);
   const attachmentRows = attachmentResult.error ? [] : ((attachmentResult.data ?? []) as EntityAttachmentRow[]);
+  const emailRows = emailResult.error ? [] : ((emailResult.data ?? []) as EmailAttachmentRow[]);
+  const marketingDocumentRows = marketingDocumentResult.error ? [] : ((marketingDocumentResult.data ?? []) as MarketingDocumentRow[]);
+  const sitePhotoRows = sitePhotoResult.error ? [] : ((sitePhotoResult.data ?? []) as FotoCantiereRow[]);
+  const companyPhotoRows = companyPhotoResult.error ? [] : ((companyPhotoResult.data ?? []) as CompanyPhotoRow[]);
+  const quotePdfRows = quotePdfResult.error ? [] : ((quotePdfResult.data ?? []) as QuotePdfRow[]);
+  const quoteMaterialRows = quoteMaterialResult.error ? [] : ((quoteMaterialResult.data ?? []) as QuoteMaterialRow[]);
+  const renderSessionRows = renderSessionResult.error ? [] : ((renderSessionResult.data ?? []) as RenderSessionRow[]);
+  const serramentiMediaRows = serramentiMediaResult.error ? [] : ((serramentiMediaResult.data ?? []) as SerramentiMediaRow[]);
+  const employeeDocumentRows = employeeDocumentResult.error ? [] : ((employeeDocumentResult.data ?? []) as DocumentoDipendenteRow[]);
+  const subcontractorDocumentRows = subcontractorDocumentResult.error ? [] : ((subcontractorDocumentResult.data ?? []) as DocumentoSubappaltatoreRow[]);
+  const workerDocumentRows = workerDocumentResult.error ? [] : ((workerDocumentResult.data ?? []) as DocumentoOperaioRow[]);
   const actorIds = Array.from(
     new Set(
       [
         ...analysisRows.map((row) => row.uploaded_by),
         ...computoRows.map((row) => row.uploaded_by),
         ...attachmentRows.map((row) => row.attached_by),
+        ...emailRows.map((row) => row.user_id),
+        ...marketingDocumentRows.map((row) => row.uploaded_by),
+        ...sitePhotoRows.map((row) => row.uploaded_by),
+        ...companyPhotoRows.map((row) => row.created_by),
+        ...quotePdfRows.map((row) => row.created_by),
+        ...quoteMaterialRows.map((row) => row.created_by),
+        ...renderSessionRows.map((row) => row.created_by),
+        ...employeeDocumentRows.map((row) => row.user_id),
+        ...workerDocumentRows.map((row) => row.caricato_da),
       ].filter((id): id is string => Boolean(id)),
     ),
   );
@@ -496,6 +751,283 @@ async function loadMediaItems(companyId: string): Promise<MediaLibraryLoadResult
     }),
   );
 
+  const emailItems = emailRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `email:${row.id}`,
+      source: "email",
+      fileName: row.filename,
+      docType: "email_attachment",
+      status: "ready",
+      createdAt: row.created_at,
+      fileSize: row.size_bytes,
+      mimeType: row.mime_type,
+      storageBucket: "email-attachments",
+      storagePath: row.storage_path,
+      actorId: row.user_id,
+      actorLabel: actorLabel(actorLabels, row.user_id),
+      linkedEntityLabel: row.inbox_id ? "Email ricevuta" : row.outbox_id ? "Email inviata" : null,
+      linkedEntityTable: row.inbox_id ? "email_inbox" : row.outbox_id ? "email_outbox" : null,
+      linkedEntityId: row.inbox_id ?? row.outbox_id,
+      metadataFacts: compactFacts([
+        row.inbox_id ? "Origine: posta ricevuta" : null,
+        row.outbox_id ? "Origine: posta inviata" : null,
+        "Visibilita: solo account email collegato",
+      ]),
+    }),
+  );
+
+  const marketingDocumentItems = marketingDocumentRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `marketing-document:${row.id}`,
+      source: "marketing_document",
+      fileName: row.file_name,
+      docType: "crm_document",
+      status: "ready",
+      createdAt: row.created_at,
+      fileSize: row.file_size,
+      mimeType: row.file_type,
+      storageBucket: "marketing-attachments",
+      storagePath: storagePathFromMaybeUrl(row.file_url, "marketing-attachments") ?? row.file_url,
+      actorId: row.uploaded_by,
+      actorLabel: actorLabel(actorLabels, row.uploaded_by),
+      linkedEntityLabel: row.opportunity_id ? "Opportunita" : "Contatto marketing",
+      linkedEntityTable: row.opportunity_id ? "marketing_opportunities" : "marketing_contacts",
+      linkedEntityId: row.opportunity_id ?? row.contact_id,
+      metadataFacts: compactFacts([row.opportunity_id ? "Associato a opportunita" : "Associato a contatto"]),
+    }),
+  );
+
+  const sitePhotoItems = sitePhotoRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `foto-cantiere:${row.id}`,
+      source: "site_photo",
+      fileName: row.descrizione || pathFileName(row.storage_path, "Foto cantiere"),
+      docType: "foto_cantiere",
+      status: "ready",
+      createdAt: row.created_at ?? row.taken_at,
+      updatedAt: row.taken_at,
+      fileSize: null,
+      mimeType: "image/*",
+      storageBucket: "foto-cantiere",
+      storagePath: row.storage_path,
+      confidence: row.ai_qualita_score,
+      actorId: row.uploaded_by,
+      actorLabel: actorLabel(actorLabels, row.uploaded_by),
+      linkedEntityLabel: row.order_id ? "Commessa" : null,
+      linkedEntityTable: row.order_id ? "orders" : null,
+      linkedEntityId: row.order_id,
+      metadataFacts: compactFacts([
+        row.tags?.length ? `Tag: ${row.tags.join(", ")}` : null,
+        row.ai_riassunto ? `AI: ${row.ai_riassunto}` : null,
+        row.thumbnail_path ? "Thumbnail disponibile" : null,
+      ]),
+    }),
+  );
+
+  const companyPhotoItems = companyPhotoRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `company-photo:${row.id}`,
+      source: "company_photo",
+      fileName: row.nome,
+      docType: "foto_aziendale",
+      status: "ready",
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      fileSize: null,
+      mimeType: "image/*",
+      storageBucket: row.storage_path ? "company-photo-library" : null,
+      storagePath: row.storage_path,
+      externalUrl: row.image_url,
+      actorId: row.created_by,
+      actorLabel: actorLabel(actorLabels, row.created_by),
+      linkedEntityLabel: "Galleria aziendale",
+      linkedEntityTable: "company_photo_library",
+      linkedEntityId: row.id,
+      metadataFacts: compactFacts([
+        row.vertical_slug ? `Verticale: ${row.vertical_slug}` : null,
+        row.categoria_slug ? `Categoria: ${row.categoria_slug}` : null,
+        row.tipologia ? `Tipo: ${row.tipologia}` : null,
+        row.descrizione,
+        row.tags?.length ? `Tag: ${row.tags.join(", ")}` : null,
+      ]),
+    }),
+  );
+
+  const quotePdfItems = quotePdfRows
+    .filter((row) => Boolean(row.pdf_storage_path))
+    .map((row) =>
+      buildMediaLibraryItem({
+        id: `quote-pdf:${row.id}`,
+        source: "quote_pdf",
+        fileName: `${row.quote_number || "Preventivo"}.pdf`,
+        docType: "preventivo_pdf",
+        status: "ready",
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        completedAt: row.signed_at ?? row.pdf_generated_at,
+        fileSize: null,
+        mimeType: "application/pdf",
+        storageBucket: "quote-pdfs",
+        storagePath: row.pdf_storage_path,
+        actorId: row.created_by,
+        actorLabel: actorLabel(actorLabels, row.created_by),
+        actionLabel: row.signed_at ? "Preventivo firmato" : "PDF preventivo generato",
+        linkedEntityLabel: row.client_name ? `${row.quote_number} · ${row.client_name}` : row.quote_number,
+        linkedEntityTable: "quotes",
+        linkedEntityId: row.id,
+        metadataFacts: compactFacts([
+          row.title ? `Titolo: ${row.title}` : null,
+          typeof row.total === "number" ? `Totale: ${row.total.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}` : null,
+          row.opportunity_id ? `Opportunita: ${row.opportunity_id}` : null,
+          row.contact_id ? `Contatto: ${row.contact_id}` : null,
+          row.status ? `Stato preventivo: ${row.status}` : null,
+        ]),
+      }),
+    );
+
+  const quoteMaterialItems = quoteMaterialRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `quote-material:${row.id}`,
+      source: "quote_material",
+      fileName: row.name,
+      docType: "quote_material",
+      status: "ready",
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      fileSize: row.file_size_bytes,
+      mimeType: "application/pdf",
+      storageBucket: "quote-materials",
+      storagePath: row.storage_path,
+      actorId: row.created_by,
+      actorLabel: actorLabel(actorLabels, row.created_by),
+      linkedEntityLabel: row.category ? `Categoria ${row.category}` : "Materiale preventivo",
+      linkedEntityTable: "quote_pdf_materials",
+      linkedEntityId: row.id,
+      metadataFacts: compactFacts([row.category ? `Categoria: ${row.category}` : null]),
+    }),
+  );
+
+  const renderSessionItems = renderSessionRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `render-session:${row.id}`,
+      source: "render",
+      fileName: `Render ${row.vertical ?? "AI"} ${row.id.slice(0, 8)}`,
+      docType: "render",
+      status: row.status,
+      createdAt: row.created_at,
+      completedAt: row.processing_completed_at,
+      fileSize: null,
+      mimeType: "image/*",
+      storageBucket: row.original_photo_url && !isExternalUrl(row.original_photo_url) ? "render-originals" : null,
+      storagePath: row.original_photo_url && !isExternalUrl(row.original_photo_url) ? row.original_photo_url : null,
+      externalUrl: firstExternalUrl(row.result_urls) ?? (isExternalUrl(row.original_photo_url) ? row.original_photo_url : null),
+      actorId: row.created_by,
+      actorLabel: actorLabel(actorLabels, row.created_by),
+      linkedEntityLabel: row.opportunity_id ? "Opportunita" : row.contact_id ? "Contatto marketing" : null,
+      linkedEntityTable: row.opportunity_id ? "marketing_opportunities" : row.contact_id ? "marketing_contacts" : null,
+      linkedEntityId: row.opportunity_id ?? row.contact_id,
+      metadataFacts: compactFacts([
+        row.vertical ? `Verticale: ${row.vertical}` : null,
+        row.result_urls?.length ? `Output generati: ${row.result_urls.length}` : null,
+      ]),
+      errorMessage: row.error_message,
+    }),
+  );
+
+  const serramentiMediaItems = serramentiMediaRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `sr-media:${row.id}`,
+      source: "render",
+      fileName: row.caption || pathFileName(row.storage_path, `Media serramenti ${row.kind}`),
+      docType: row.kind === "render" ? "render" : "foto_generale",
+      status: "ready",
+      createdAt: row.created_at,
+      fileSize: null,
+      mimeType: "image/*",
+      storageBucket: row.storage_path.startsWith("render-session:") ? null : "sr-progetti",
+      storagePath: row.storage_path.startsWith("render-session:") ? null : row.storage_path,
+      externalUrl: isExternalUrl(row.url) ? row.url : null,
+      linkedEntityLabel: "Progetto serramenti",
+      linkedEntityTable: "sr_progetti",
+      linkedEntityId: row.progetto_id,
+      metadataFacts: compactFacts([
+        `Tipo media: ${row.kind}`,
+        row.serramento_id ? `Serramento: ${row.serramento_id}` : null,
+      ]),
+    }),
+  );
+
+  const employeeDocumentItems = employeeDocumentRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `employee-doc:${row.id}`,
+      source: "personnel_document",
+      fileName: row.nome_file || pathFileName(row.url, "Documento dipendente"),
+      docType: "documento_dipendente",
+      docSubtype: row.tipo,
+      status: "ready",
+      createdAt: row.created_at,
+      fileSize: null,
+      storageBucket: "documenti-dipendenti",
+      storagePath: row.url,
+      actorId: row.user_id,
+      actorLabel: actorLabel(actorLabels, row.user_id),
+      linkedEntityLabel: "Dipendente",
+      linkedEntityTable: "documenti_dipendenti",
+      linkedEntityId: row.user_id,
+      metadataFacts: compactFacts([
+        `Tipo: ${row.tipo}`,
+        row.data_scadenza ? `Scadenza: ${row.data_scadenza}` : null,
+        row.note,
+      ]),
+    }),
+  );
+
+  const subcontractorDocumentItems = subcontractorDocumentRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `subcontractor-doc:${row.id}`,
+      source: "personnel_document",
+      fileName: row.nome_file || pathFileName(row.url, "Documento subappaltatore"),
+      docType: "documento_subappaltatore",
+      docSubtype: row.tipo,
+      status: "ready",
+      createdAt: row.created_at,
+      fileSize: null,
+      storageBucket: "subappaltatori-documenti",
+      storagePath: row.url,
+      linkedEntityLabel: "Subappaltatore",
+      linkedEntityTable: "documenti_subappaltatore",
+      linkedEntityId: row.subappaltatore_id,
+      metadataFacts: compactFacts([
+        `Tipo: ${row.tipo}`,
+        row.data_scadenza ? `Scadenza: ${row.data_scadenza}` : null,
+        row.note,
+      ]),
+    }),
+  );
+
+  const workerDocumentItems = workerDocumentRows.map((row) =>
+    buildMediaLibraryItem({
+      id: `worker-doc:${row.id}`,
+      source: "personnel_document",
+      fileName: row.nome_file || pathFileName(row.file_path, "Documento operaio"),
+      docType: "documento_operaio",
+      status: row.stato,
+      createdAt: row.created_at,
+      fileSize: null,
+      storageBucket: "documenti-operai",
+      storagePath: row.file_path,
+      actorId: row.caricato_da,
+      actorLabel: actorLabel(actorLabels, row.caricato_da),
+      linkedEntityLabel: "Operaio",
+      linkedEntityTable: "documenti_operai",
+      linkedEntityId: row.operaio_id,
+      metadataFacts: compactFacts([
+        row.data_scadenza ? `Scadenza: ${row.data_scadenza}` : null,
+        row.note,
+      ]),
+    }),
+  );
+
   const attachmentItems = attachmentRows.map((row) =>
     buildMediaLibraryItem({
       id: `attachment:${row.id}`,
@@ -530,6 +1062,17 @@ async function loadMediaItems(companyId: string): Promise<MediaLibraryLoadResult
     { label: "Analisi AI", items: analysisItems, errorMessage: analysisResult.error?.message },
     { label: "Computi", items: computoItems, errorMessage: computoResult.error?.message },
     { label: "Allegati", items: attachmentItems, errorMessage: attachmentResult.error?.message },
+    { label: "Email", items: emailItems, errorMessage: emailResult.error?.message },
+    { label: "CRM documenti", items: marketingDocumentItems, errorMessage: marketingDocumentResult.error?.message },
+    { label: "Foto cantiere", items: sitePhotoItems, errorMessage: sitePhotoResult.error?.message },
+    { label: "Galleria aziendale", items: companyPhotoItems, errorMessage: companyPhotoResult.error?.message },
+    { label: "PDF preventivi", items: quotePdfItems, errorMessage: quotePdfResult.error?.message },
+    { label: "Materiali preventivi", items: quoteMaterialItems, errorMessage: quoteMaterialResult.error?.message },
+    { label: "Render AI", items: renderSessionItems, errorMessage: renderSessionResult.error?.message },
+    { label: "Media serramenti", items: serramentiMediaItems, errorMessage: serramentiMediaResult.error?.message },
+    { label: "Documenti dipendenti", items: employeeDocumentItems, errorMessage: employeeDocumentResult.error?.message },
+    { label: "Documenti subappaltatori", items: subcontractorDocumentItems, errorMessage: subcontractorDocumentResult.error?.message },
+    { label: "Documenti operai", items: workerDocumentItems, errorMessage: workerDocumentResult.error?.message },
   ]);
 
   return {
@@ -564,10 +1107,10 @@ export default function ContenutiMultimediali() {
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ["contenuti-multimediali", companyId],
+    queryKey: ["contenuti-multimediali", companyId, user?.id ?? null],
     enabled: !!companyId && hasAccess && !permissions.isLoading,
     staleTime: 20_000,
-    queryFn: () => loadMediaItems(companyId!),
+    queryFn: () => loadMediaItems(companyId!, { userId: user?.id ?? null }),
   });
 
   const {
@@ -594,6 +1137,7 @@ export default function ContenutiMultimediali() {
   });
 
   const rawItems = mediaLoadResult.items;
+  const isInitialMediaLoading = isLoading && rawItems.length === 0;
   const sourceWarnings = foldersError
     ? [...mediaLoadResult.warnings, `Cartelle personalizzate: ${foldersError.message}`]
     : mediaLoadResult.warnings;
@@ -604,6 +1148,7 @@ export default function ContenutiMultimediali() {
   );
 
   const summary = useMemo(() => summarizeMediaLibraryItems(visibleItems), [visibleItems]);
+  const integrationCoverage = useMemo(() => buildMediaLibraryIntegrationCoverage(visibleItems), [visibleItems]);
   const activeCustomFolder = useMemo(
     () => customFolders.find((folder) => folder.id === activeCustomFolderId) ?? null,
     [activeCustomFolderId, customFolders],
@@ -721,7 +1266,13 @@ export default function ContenutiMultimediali() {
   };
 
   const openSignedDocument = async (item: MediaLibraryItem) => {
-    if (!item.storageBucket || !item.storagePath) {
+    const target = resolveMediaLibraryOpenTarget(item);
+    if (target.kind === "external") {
+      window.open(target.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (target.kind === "missing") {
       toast.error("File non disponibile", {
         description: "Questo record non ha ancora un riferimento storage apribile.",
       });
@@ -731,8 +1282,8 @@ export default function ContenutiMultimediali() {
     setOpeningId(item.id);
     try {
       const { data, error: signedError } = await supabase.storage
-        .from(item.storageBucket)
-        .createSignedUrl(item.storagePath, 3600);
+        .from(target.storageBucket)
+        .createSignedUrl(target.storagePath, 3600);
 
       if (signedError || !data?.signedUrl) {
         throw new Error(signedError?.message ?? "URL firmato non generato");
@@ -766,7 +1317,7 @@ export default function ContenutiMultimediali() {
       <EmptyState
         icon={Lock}
         title="Area documentale non disponibile"
-        description="Il tuo ruolo non ha accesso ai contenuti multimediali aziendali. Chiedi a un amministratore di aggiornare i permessi."
+        description="Il tuo ruolo non ha accesso a EiC Drive. Chiedi a un amministratore di aggiornare i permessi."
       />
     );
   }
@@ -780,7 +1331,7 @@ export default function ContenutiMultimediali() {
               <FolderOpen className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Contenuti Multimediali</h1>
+              <h1 className="text-2xl font-bold tracking-tight">EiC Drive</h1>
               <p className="text-sm text-muted-foreground">
                 Drive aziendale per documenti, foto, computi, allegati e import AI.
               </p>
@@ -805,12 +1356,14 @@ export default function ContenutiMultimediali() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">
-        <MetricCard label="Documenti" value={summary.total} icon={Archive} />
-        <MetricCard label="Inbox AI" value={summary.aiInbox} icon={Brain} />
-        <MetricCard label="Da verificare" value={summary.reviewRequired} icon={AlertTriangle} tone="warning" />
-        <MetricCard label="Collegati" value={summary.linked} icon={Link2} tone="success" />
-        <MetricCard label="Riservati" value={summary.reserved} icon={ShieldCheck} tone="restricted" />
+        <MetricCard label="Documenti" value={summary.total} icon={Archive} loading={isInitialMediaLoading} />
+        <MetricCard label="Inbox AI" value={summary.aiInbox} icon={Brain} loading={isInitialMediaLoading} />
+        <MetricCard label="Da verificare" value={summary.reviewRequired} icon={AlertTriangle} tone="warning" loading={isInitialMediaLoading} />
+        <MetricCard label="Collegati" value={summary.linked} icon={Link2} tone="success" loading={isInitialMediaLoading} />
+        <MetricCard label="Riservati" value={summary.reserved} icon={ShieldCheck} tone="restricted" loading={isInitialMediaLoading} />
       </div>
+
+      <IntegrationCoveragePanel coverage={integrationCoverage} loading={isInitialMediaLoading} />
 
       {sourceWarnings.length > 0 ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -1096,11 +1649,13 @@ function MetricCard({
   value,
   icon: Icon,
   tone = "neutral",
+  loading = false,
 }: {
   label: string;
   value: number;
   icon: LucideIcon;
   tone?: "neutral" | "success" | "warning" | "restricted";
+  loading?: boolean;
 }) {
   return (
     <Card>
@@ -1117,9 +1672,109 @@ function MetricCard({
           <Icon className="h-5 w-5" />
         </div>
         <div>
-          <div className="text-xl font-semibold leading-tight">{value}</div>
+          <div className="text-xl font-semibold leading-tight">
+            {loading ? <Skeleton className="h-6 w-12" /> : value}
+          </div>
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function IntegrationCoveragePanel({
+  coverage,
+  loading = false,
+}: {
+  coverage: MediaLibraryIntegrationCoverage[];
+  loading?: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const connected = coverage.filter((source) => source.state === "connected").length;
+  const missingRequired = coverage.filter((source) => source.required && source.state === "missing").length;
+  const connectedCount = coverage.reduce((total, source) => total + source.count, 0);
+  const badgeClass = loading
+    ? "border-slate-200 bg-muted text-muted-foreground"
+    : missingRequired === 0
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-amber-200 bg-amber-50 text-amber-700";
+  const badgeLabel = loading ? "Verifica in corso" : missingRequired === 0 ? "Copertura completa" : `${missingRequired} da collegare`;
+
+  return (
+    <Card className="border-dashed bg-muted/20 shadow-none">
+      <CardContent className="space-y-3 p-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <div
+              className={cn(
+                "h-2.5 w-2.5 shrink-0 rounded-full",
+                loading ? "bg-slate-300" : missingRequired === 0 ? "bg-emerald-500" : "bg-amber-500",
+              )}
+            />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium">Copertura Drive</span>
+                <Badge variant="outline" className={cn("h-5 text-[10px]", badgeClass)}>
+                  {badgeLabel}
+                </Badge>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {loading
+                  ? "Sto verificando fonti, permessi e documenti collegati."
+                  : `${connected} fonti attive · ${connectedCount} documenti mappati nelle fonti monitorate.`}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 shrink-0"
+            onClick={() => setIsExpanded((value) => !value)}
+            disabled={loading}
+          >
+            {isExpanded ? "Nascondi dettagli" : "Mostra dettagli"}
+          </Button>
+        </div>
+
+        {isExpanded ? (
+          <div className="grid gap-2 border-t pt-3 md:grid-cols-2 xl:grid-cols-5">
+            {coverage.map((source) => {
+                const isConnected = source.state === "connected";
+                return (
+                  <div
+                    key={source.key}
+                    className={cn(
+                      "rounded-md border p-3 text-sm",
+                      isConnected ? "border-emerald-100 bg-emerald-50/60" : "border-slate-200 bg-muted/20",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{source.label}</div>
+                        <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                          {source.description}
+                        </p>
+                      </div>
+                      {isConnected ? (
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs">
+                      <span className={isConnected ? "text-emerald-700" : "text-muted-foreground"}>
+                        {isConnected ? "Collegato" : "Nessun file"}
+                      </span>
+                      <Badge variant="secondary" className="h-5 min-w-6 justify-center text-[10px]">
+                        {source.count}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -1141,6 +1796,7 @@ function MediaRow({
   const Icon = iconForItem(item);
   const StatusIcon = statusIcon(item.statusTone);
   const activityLabel = item.actorLabel ? `${item.actionLabel} da ${item.actorLabel}` : item.actionLabel;
+  const canOpen = resolveMediaLibraryOpenTarget(item).kind !== "missing";
 
   return (
     <div
@@ -1187,7 +1843,7 @@ function MediaRow({
           <Eye className="mr-2 h-4 w-4" />
           Dettagli
         </Button>
-        <Button type="button" size="sm" onClick={onOpen} disabled={opening || !item.storageBucket || !item.storagePath}>
+        <Button type="button" size="sm" onClick={onOpen} disabled={opening || !canOpen}>
           {opening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
           Apri
         </Button>
@@ -1226,6 +1882,7 @@ function MediaDetailPanel({
   }
 
   const Icon = iconForItem(item);
+  const canOpen = resolveMediaLibraryOpenTarget(item).kind !== "missing";
   const quickFacts =
     item.metadataFacts.length > 0
       ? item.metadataFacts
@@ -1234,6 +1891,7 @@ function MediaDetailPanel({
           `Origine: ${item.integrationLabel}`,
           `Sicurezza: ${item.securityLevel === "confidential" ? "riservato" : item.securityLevel === "restricted" ? "limitato" : "standard"}`,
           item.storageBucket ? `Bucket: ${item.storageBucket}` : null,
+          item.externalUrl ? "URL esterno disponibile" : null,
         ]);
 
   return (
@@ -1334,7 +1992,7 @@ function MediaDetailPanel({
         ) : null}
 
         <div className="flex flex-col gap-2">
-          <Button onClick={onOpen} disabled={opening || !item.storageBucket || !item.storagePath}>
+          <Button onClick={onOpen} disabled={opening || !canOpen}>
             {opening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
             Apri file
           </Button>

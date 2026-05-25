@@ -209,8 +209,8 @@ export function PermissionsDialog({
   const handleSelectAll = () => {
     const allTrue: Partial<StaffPermissions> = {};
     ALL_PERMISSION_SECTIONS.forEach(s => {
-      (allTrue as any)[s.viewKey] = true;
-      if (s.editKey) (allTrue as any)[s.editKey] = true;
+      allTrue[s.viewKey] = true;
+      if (s.editKey) allTrue[s.editKey] = true;
     });
     setPermissions(prev => ({ ...prev, ...allTrue, can_view_marketing: true, can_edit_marketing: true }));
   };
@@ -218,10 +218,17 @@ export function PermissionsDialog({
   const handleDeselectAll = () => {
     const allFalse: Partial<StaffPermissions> = {};
     ALL_PERMISSION_SECTIONS.forEach(s => {
-      (allFalse as any)[s.viewKey] = false;
-      if (s.editKey) (allFalse as any)[s.editKey] = false;
+      allFalse[s.viewKey] = false;
+      if (s.editKey) allFalse[s.editKey] = false;
     });
-    setPermissions(prev => ({ ...prev, ...allFalse, can_view_marketing: false, can_edit_marketing: false }));
+    setPermissions(prev => ({
+      ...prev,
+      ...allFalse,
+      can_view_marketing: false,
+      can_edit_marketing: false,
+      can_view_settings: false,
+      can_edit_settings: false,
+    }));
   };
 
   const handleResetPreset = () => {

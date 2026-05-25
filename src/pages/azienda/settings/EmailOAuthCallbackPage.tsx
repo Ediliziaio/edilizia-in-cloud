@@ -3,7 +3,7 @@
  *
  * Riceve il redirect OAuth (Google/Microsoft) con `code` + `state` nella URL,
  * chiama email-oauth-callback per scambiare i tokens, mostra esito e
- * redirige a /azienda/impostazioni/integrazioni.
+ * redirige alla pagina da cui l'utente ha avviato la connessione.
  *
  * Mounted on /azienda/impostazioni/integrazioni/email-callback
  */
@@ -65,13 +65,15 @@ export default function EmailOAuthCallbackPage() {
 
         sessionStorage.removeItem("oauth_state");
         sessionStorage.removeItem("oauth_provider");
+        const returnTo = sessionStorage.getItem("email_oauth_return_to") || "/azienda/email";
+        sessionStorage.removeItem("email_oauth_return_to");
         setStatus("success");
         setEmailAddress(data.email_address ?? null);
-        setMessage(`${data.email_address} collegato. Puoi tornare alla pagina integrazioni.`);
+        setMessage(`${data.email_address} collegato. Puoi tornare alla tua area email.`);
 
         // Redirect automatico dopo 3s
         setTimeout(() => {
-          navigate("/azienda/impostazioni/integrazioni");
+          navigate(returnTo);
         }, 3000);
       } catch (e) {
         setStatus("error");
@@ -102,8 +104,8 @@ export default function EmailOAuthCallbackPage() {
               <p className="text-xs text-muted-foreground">
                 L'AI inizierà a triagiare le email entro 10 minuti. Verrai rediretto…
               </p>
-              <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2">
-                Torna alle integrazioni
+              <Button onClick={() => navigate(sessionStorage.getItem("email_oauth_return_to") || "/azienda/email")} className="mt-2">
+                Torna alle email
               </Button>
             </>
           )}
@@ -112,8 +114,8 @@ export default function EmailOAuthCallbackPage() {
               <XCircle className="h-12 w-12 mx-auto text-rose-600" />
               <h2 className="text-lg font-semibold">Connessione fallita</h2>
               <p className="text-sm text-muted-foreground">{message}</p>
-              <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} variant="outline">
-                Torna alle integrazioni
+              <Button onClick={() => navigate(sessionStorage.getItem("email_oauth_return_to") || "/azienda/email")} variant="outline">
+                Torna alle email
               </Button>
             </>
           )}

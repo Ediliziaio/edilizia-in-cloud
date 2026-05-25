@@ -1,25 +1,24 @@
 /**
  * IMP4 — Pagina unificata "Sicurezza & Privacy"
  *
- * Riunisce Cambio password, Privacy & GDPR, Security dashboard e
- * Registro attività in un'unica pagina con 4 tab.
- * Il tab attivo è mantenuto nel query param ?tab=password|privacy|dashboard|attivita.
+ * Riunisce Privacy & GDPR, Security dashboard e Registro attività.
+ * Password e 2FA personale vivono in /azienda/impostazioni/mio-profilo?tab=sicurezza.
+ * Il tab attivo è mantenuto nel query param ?tab=privacy|dashboard|attivita.
  *
  * Le 4 route precedenti reindirizzano qui via <Navigate> in companyRoutes.tsx.
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Key, Shield, Activity, ScrollText, Loader2 } from "lucide-react";
+import { Shield, Activity, ScrollText, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
-import SettingsSecurity from "@/pages/azienda/settings/SettingsSecurity";
 import SettingsPrivacy from "@/pages/azienda/settings/SettingsPrivacy";
 import SettingsSecurityDashboard from "@/pages/azienda/settings/SettingsSecurityDashboard";
 import SettingsActivityLog from "@/pages/azienda/settings/SettingsActivityLog";
 
-type SecurityTab = "password" | "privacy" | "dashboard" | "attivita";
-const VALID_TABS: SecurityTab[] = ["password", "privacy", "dashboard", "attivita"];
+type SecurityTab = "privacy" | "dashboard" | "attivita";
+const VALID_TABS: SecurityTab[] = ["privacy", "dashboard", "attivita"];
 
 function isValidTab(tab: string | null): tab is SecurityTab {
   return VALID_TABS.includes(tab as SecurityTab);
@@ -44,8 +43,11 @@ export default function SettingsSecurityHub() {
 
   const tabParam = searchParams.get("tab");
   const resolveDefaultTab = (): SecurityTab => {
-    if (isValidTab(tabParam)) return tabParam;
-    return "password"; // sempre accessibile
+    if (isValidTab(tabParam)) {
+      if ((tabParam === "dashboard" || tabParam === "attivita") && !isAdmin) return "privacy";
+      return tabParam;
+    }
+    return "privacy";
   };
 
   const activeTab = resolveDefaultTab();
@@ -57,14 +59,9 @@ export default function SettingsSecurityHub() {
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
       {/* v8.6.71 — mobile: scroll orizzontale invece di compressione (4 tab
-          con label lunghe sovrapponevano: Password / Privacy & GDPR /
+          con label lunghe sovrapponevano: Privacy & GDPR /
           Security dashboard / Registro attività). */}
       <TabsList className="mb-6 w-full sm:w-auto h-auto flex-wrap justify-start gap-1 overflow-x-auto sm:overflow-visible sm:flex-nowrap">
-        <TabsTrigger value="password" className="flex items-center gap-2">
-          <Key className="h-4 w-4" />
-          <span>Password</span>
-        </TabsTrigger>
-
         {canViewPrivacy && (
           <TabsTrigger value="privacy" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
@@ -86,10 +83,6 @@ export default function SettingsSecurityHub() {
           </TabsTrigger>
         )}
       </TabsList>
-
-      <TabsContent value="password">
-        <SettingsSecurity />
-      </TabsContent>
 
       {canViewPrivacy && (
         <TabsContent value="privacy">

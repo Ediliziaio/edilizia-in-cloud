@@ -9,12 +9,13 @@
  *
  * Pattern: Popover ancorato al bottone, animazioni leggere via framer-motion.
  */
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState, lazy, Suspense, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSilvioPageContext } from "@/hooks/useSilvioPageContext";
 import {
   MessageSquare,
   Brain,
@@ -25,10 +26,14 @@ import {
   ArrowRight,
   AlertTriangle,
   // 🆕 Icon set espansa
-  Camera,
   Calculator,
   Sparkles,
   Inbox,
+  Send,
+  UploadCloud,
+  Clock3,
+  Route,
+  FileText,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 // Lazy load: il SmartDocumentImportModal e il SilvioChatSheet sono pesanti
@@ -97,8 +102,12 @@ interface MorningBriefing {
 
 export function SilvioFAB({ hidden = false }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const pageContext = useSilvioPageContext();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [quickPrompt, setQuickPrompt] = useState("");
+  const [chatPrefill, setChatPrefill] = useState("");
 
   // Briefing del giorno generato dal cron silvio-morning-brief.
   // Fetched solo se l'utente apre il FAB (enabled: open) per non sprecare
@@ -150,12 +159,52 @@ export function SilvioFAB({ hidden = false }: Props) {
 
   const currentTip = useMemo(() => KNOW_HOW_TIPS[tipIdx], [tipIdx]);
 
+  const pageContextLabel = useMemo(() => {
+    if (pageContext?.route_label) return pageContext.route_label;
+    if (location.pathname.includes("/cruscotto")) return "Cruscotto aziendale";
+    if (location.pathname.includes("/contenuti-multimediali")) return "EiC Drive";
+    if (location.pathname.includes("/impostazioni")) return "Impostazioni";
+    if (location.pathname === "/azienda" || location.pathname === "/azienda/") return "Home azienda";
+    return "Pagina corrente";
+  }, [location.pathname, pageContext?.route_label]);
+
+  const operationalPriorities = useMemo(() => {
+    const fromBriefing = morningBrief?.key_points?.slice(0, 3).map((point) => ({
+      text: point.text,
+      severity: point.severity ?? "info",
+      action: point.action_hint ?? "Apri dettaglio",
+    })) ?? [];
+    if (fromBriefing.length > 0) return fromBriefing;
+    return [
+      { text: "Controlla le cose da sapere prima di cambiare pagina", severity: "attention", action: "Vedi priorita" },
+      { text: `Chiedi a Silvio cosa conta ora in ${pageContextLabel}`, severity: "info", action: "Apri chat" },
+      { text: "Carica documenti, foto o computi senza scegliere il modulo", severity: "info", action: "Importa file" },
+    ];
+  }, [morningBrief?.key_points, pageContextLabel]);
+
+  const pendingActionsCount = operationalPriorities.length + (morningBrief && !morningBrief.read_at ? 1 : 0);
+
+  const openChat = (prefill?: string) => {
+    const cleanPrefill = prefill?.trim() ?? "";
+    setOpen(false);
+    if (cleanPrefill) {
+      setChatPrefill(`${Date.now()}::${cleanPrefill}`);
+      setQuickPrompt("");
+    }
+    setChatOpen(true);
+  };
+
+  const handleQuickPrompt = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    openChat(quickPrompt || `Analizza ${pageContextLabel} e dimmi cosa fare ora.`);
+  };
+
   const handleAction = (action: string) => {
     setOpen(false);
     switch (action) {
       case "open_chat":
         // Apri Sheet inline (richiesta utente: NON navigare alla pagina chat)
-        setChatOpen(true);
+        openChat();
         break;
       case "smart_doc":
         setSmartImportOpen(true);
@@ -172,7 +221,6 @@ export function SilvioFAB({ hidden = false }: Props) {
       case "documenti":
         navigate("/azienda/documenti");
         break;
-      // 🆕 Shortcuts ai 3 hub AI
       case "azioni_proposte":
         navigate("/azienda/azioni-proposte");
         break;
@@ -252,35 +300,63 @@ export function SilvioFAB({ hidden = false }: Props) {
              in bottom-nav). Era w-[340px] fisso = overflow su iPhone SE. */
           className="w-[min(340px,calc(100vw-1.5rem))] sm:w-[380px] max-h-[calc(100vh-120px)] p-0 border-orange-100 shadow-2xl rounded-2xl overflow-hidden flex flex-col"
         >
-          {/* Header (sticky) */}
-          <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-4 py-3 text-white shrink-0">
-            <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold leading-tight">Silvio · Assistente AI</p>
-                <p className="text-[11px] opacity-90 leading-tight">Cosa vuoi fare?</p>
+          <div className="shrink-0 border-b border-orange-100 bg-gradient-to-br from-orange-50 via-white to-amber-50 px-4 py-3">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-200">
+                <Brain className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-black leading-tight text-slate-950">Regia Silvio</p>
+                  <span className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10px] font-bold text-orange-700">
+                    {pendingActionsCount} priorita
+                  </span>
+                </div>
+                <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-600">
+                  Contesto pagina: {pageContextLabel}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Body scrollable */}
-          <div className="p-3 space-y-3 overflow-y-auto flex-1">
-            {/* Morning brief proattivo — visibile solo se generato oggi dal
-                cron e l'utente non l'ha ancora marcato come letto. Banner
-                colorato in base a severity (urgent rosso, attention ambra,
-                info violet). */}
+          <div className="flex-1 space-y-3 overflow-y-auto bg-white p-3">
+            <form
+              onSubmit={handleQuickPrompt}
+              className="rounded-2xl border border-orange-200 bg-white p-2 shadow-sm"
+            >
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-orange-500" />
+                <input
+                  value={quickPrompt}
+                  onChange={(event) => setQuickPrompt(event.target.value)}
+                  placeholder="Scrivi a Silvio..."
+                  className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
+                <button
+                  type="submit"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-500 text-white transition-colors hover:bg-orange-600"
+                  aria-label="Apri chat con Silvio"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="mt-1.5 px-6 text-[10px] leading-tight text-slate-500">
+                Scrivi una domanda o apri la chat con il contesto gia pronto.
+              </p>
+            </form>
+
             {morningBrief && !morningBrief.read_at && (
               <div className={`rounded-lg border-l-4 p-3 ${
                 morningBrief.severity === "urgent"
                   ? "border-l-rose-500 bg-rose-50"
                   : morningBrief.severity === "attention"
                     ? "border-l-amber-500 bg-amber-50"
-                    : "border-l-violet-500 bg-violet-50"
+                    : "border-l-sky-500 bg-sky-50"
               }`}>
                 <div className="flex items-start gap-2 mb-1.5">
                   {morningBrief.severity === "urgent"
                     ? <AlertTriangle className="h-3.5 w-3.5 text-rose-600 mt-0.5 shrink-0" />
-                    : <Sparkles className="h-3.5 w-3.5 text-violet-600 mt-0.5 shrink-0" />
+                    : <Sparkles className="h-3.5 w-3.5 text-sky-600 mt-0.5 shrink-0" />
                   }
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-700">
                     Briefing del giorno · {new Date(morningBrief.brief_date).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
@@ -296,73 +372,79 @@ export function SilvioFAB({ hidden = false }: Props) {
               </div>
             )}
 
-            {/* Sezione 1: chat principale (CTA primario, full width) */}
+            <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-wide text-slate-600">Priorita operative</p>
+                <span className="text-[10px] font-semibold text-orange-600">{operationalPriorities.length} da vedere</span>
+              </div>
+              <div className="space-y-1.5">
+                {operationalPriorities.map((priority, index) => (
+                  <button
+                    key={`${priority.text}-${index}`}
+                    type="button"
+                    onClick={() => openChat(priority.text)}
+                    className="group flex w-full items-start gap-2 rounded-xl border border-white bg-white px-2.5 py-2 text-left shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50/50"
+                  >
+                    <span className={`mt-0.5 h-2 w-2 rounded-full ${
+                      priority.severity === "urgent"
+                        ? "bg-rose-500"
+                        : priority.severity === "attention"
+                          ? "bg-amber-500"
+                          : "bg-sky-500"
+                    }`} />
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-1 text-[12px] font-semibold text-slate-800">{priority.text}</span>
+                      <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-orange-600">
+                        {priority.action} <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <button
               type="button"
-              onClick={() => handleAction("open_chat")}
-              className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-lg p-3 flex items-center gap-3 transition-all shadow-sm hover:shadow-md text-left"
+              onClick={() => handleAction("smart_doc")}
+              className="w-full rounded-2xl border border-dashed border-orange-300 bg-orange-50/60 p-3 text-left transition-colors hover:bg-orange-50"
             >
-              <MessageSquare className="h-5 w-5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">Chiedi a Silvio</p>
-                <p className="text-[11px] opacity-90">Chat live · multimodal · 18 personas</p>
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
+                  <UploadCloud className="h-4.5 w-4.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-black text-slate-900">Carica documento</span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-slate-600">
+                    Silvio classifica PDF, foto, computi, fatture, DDT e contratti.
+                  </span>
+                  <span className="mt-2 flex flex-wrap gap-1">
+                    {["Computo", "Foto/voce", "DDT", "Fatture"].map((label) => (
+                      <span key={label} className="rounded-full bg-white px-2 py-0.5 text-[9px] font-bold text-slate-600 shadow-sm">
+                        {label}
+                      </span>
+                    ))}
+                  </span>
+                </span>
               </div>
-              <ArrowRight className="h-4 w-4 shrink-0" />
             </button>
 
-            {/* Sezione 2: import documenti */}
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1.5">
-                Importa documenti
-              </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                <ActionCard
-                  icon={Brain}
-                  title="Smart"
-                  subtitle="AI smista"
-                  tone="purple"
-                  compact
-                  onClick={() => handleAction("smart_doc")}
-                />
-                <ActionCard
-                  icon={Calculator}
-                  title="Computo"
-                  subtitle="→ Preventivo"
-                  tone="blue"
-                  compact
-                  onClick={() => handleAction("import_computo")}
-                />
-                <ActionCard
-                  icon={Camera}
-                  title="Foto/voce"
-                  subtitle="→ Preventivo"
-                  tone="rose"
-                  compact
-                  onClick={() => handleAction("import_foto_preventivo")}
-                />
-              </div>
-            </div>
-
-            {/* Sezione 3: hub AI principali */}
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1.5">
                 Hub AI
               </p>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 <ActionCard
                   icon={Inbox}
                   title="Azioni AI"
                   subtitle="Da approvare"
                   tone="amber"
-                  compact
                   onClick={() => handleAction("azioni_proposte")}
                 />
                 <ActionCard
                   icon={Sparkles}
                   title="Personas"
                   subtitle="18 esperti AI"
-                  tone="violet"
-                  compact
+                  tone="orange"
                   onClick={() => handleAction("personas_18")}
                 />
                 <ActionCard
@@ -370,13 +452,18 @@ export function SilvioFAB({ hidden = false }: Props) {
                   title="Memoria"
                   subtitle="Cosa sa di te"
                   tone="emerald"
-                  compact
                   onClick={() => handleAction("ai_memoria")}
+                />
+                <ActionCard
+                  icon={Calculator}
+                  title="Computo"
+                  subtitle="Preventivo AI"
+                  tone="blue"
+                  onClick={() => handleAction("import_computo")}
                 />
               </div>
             </div>
 
-            {/* Sezione 4: shortcut search */}
             <button
               type="button"
               onClick={() => handleAction("command_palette")}
@@ -387,7 +474,11 @@ export function SilvioFAB({ hidden = false }: Props) {
               <kbd className="text-[9px] px-1.5 py-0.5 rounded border bg-white font-mono">⌘K</kbd>
             </button>
 
-            {/* Cose da sapere — accordion collassabile (default chiuso) */}
+            <div className="grid grid-cols-2 gap-1.5">
+              <InfoTile icon={Route} label="Contesto pagina" value={pageContextLabel} />
+              <InfoTile icon={Clock3} label="Ultime attivita" value="Memoria e azioni pronte" />
+            </div>
+
             <div className="mt-3 border-t pt-2">
               <button
                 type="button"
@@ -489,7 +580,7 @@ export function SilvioFAB({ hidden = false }: Props) {
           e poi resta montata (chatHasMounted) per non ricaricarsi ogni volta */}
       {chatHasMounted && (
         <Suspense fallback={null}>
-          <SilvioChatSheet open={chatOpen} onOpenChange={setChatOpen} />
+          <SilvioChatSheet open={chatOpen} onOpenChange={setChatOpen} prefillDraft={chatPrefill} />
         </Suspense>
       )}
     </>
@@ -501,12 +592,10 @@ export function SilvioFAB({ hidden = false }: Props) {
 // ─────────────────────────────────────────────────────────────────────────
 const TONE_STYLES: Record<string, string> = {
   orange:  "from-orange-50  to-orange-100  border-orange-200  hover:border-orange-300  text-orange-700",
-  purple:  "from-purple-50  to-purple-100  border-purple-200  hover:border-purple-300  text-purple-700",
   blue:    "from-blue-50    to-blue-100    border-blue-200    hover:border-blue-300    text-blue-700",
   green:   "from-green-50   to-green-100   border-green-200   hover:border-green-300   text-green-700",
   rose:    "from-rose-50    to-rose-100    border-rose-200    hover:border-rose-300    text-rose-700",
   amber:   "from-amber-50   to-amber-100   border-amber-200   hover:border-amber-300   text-amber-700",
-  violet:  "from-violet-50  to-violet-100  border-violet-200  hover:border-violet-300  text-violet-700",
   emerald: "from-emerald-50 to-emerald-100 border-emerald-200 hover:border-emerald-300 text-emerald-700",
 };
 
@@ -539,5 +628,25 @@ function ActionCard({
       </p>
       <p className="text-[9px] text-slate-500 leading-tight">{subtitle}</p>
     </motion.button>
+  );
+}
+
+function InfoTile({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof FileText;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+        <Icon className="h-3 w-3 text-orange-500" />
+        {label}
+      </div>
+      <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-800">{value}</p>
+    </div>
   );
 }

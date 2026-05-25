@@ -208,15 +208,15 @@ export const macroAreas: MacroArea[] = [
     ],
   },
 
-  // 7. Centro documentale — accesso unico a file, foto, computi e inbox AI.
+  // 7. EiC Drive — accesso unico a file, foto, computi e inbox AI.
   // La visibilita' fine e' calcolata in CompanyLayout/MobileAppGrid con
   // canAccessMediaLibrary, perche' dipende da piu permessi OR.
   {
     id: "area_contenuti",
-    title: "Contenuti",
+    title: "EiC Drive",
     icon: FileStack,
     items: [
-      { title: "Contenuti Multimediali", url: "/azienda/contenuti-multimediali", icon: FileStack },
+      { title: "EiC Drive", url: "/azienda/contenuti-multimediali", icon: FileStack },
     ],
   },
 ];

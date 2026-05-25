@@ -108,13 +108,13 @@ export default function SettingsUserDetail() {
   const permissions = usePermissions();
   const queryClient = useQueryClient();
 
-  const isAdmin = permissions.isAdmin;
+  const canManagePeople = permissions.isAdmin || permissions.canEditSettingsPeople;
 
   // Wait for auth to resolve before checking permissions — prevents "Accesso negato"
   // flash on first render when role is still null (loading state).
   useEffect(() => {
     if (authLoading || permissions.isLoading) return;
-    if (!isAdmin) {
+    if (!canManagePeople) {
       toast({
         title: "Accesso negato",
         description: "Non hai i permessi per gestire gli utenti.",
@@ -122,7 +122,7 @@ export default function SettingsUserDetail() {
       });
       navigate("/azienda/impostazioni/profilo", { replace: true });
     }
-  }, [authLoading, permissions.isLoading, isAdmin, navigate, toast]);
+  }, [authLoading, permissions.isLoading, canManagePeople, navigate, toast]);
 
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     const tabParam = searchParams.get("tab");
@@ -539,7 +539,7 @@ export default function SettingsUserDetail() {
     );
   }
 
-  if (!isAdmin) return null;
+  if (!canManagePeople) return null;
 
   if (isLoading) {
     return (
@@ -690,7 +690,7 @@ export default function SettingsUserDetail() {
                 blocked_at: userData.blocked_at,
                 block_reason: userData.block_reason,
               }}
-              isAdmin={isAdmin}
+              isAdmin={canManagePeople}
               isCurrentUser={userId === currentUser?.id}
               isTargetAdmin={userData.role === "company_admin"}
             />

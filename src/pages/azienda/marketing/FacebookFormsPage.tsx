@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,19 +10,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw, AlertTriangle, Copy, Check, ShieldCheck, ExternalLink, Activity, CheckCircle2, XCircle, Clock, Loader2, Inbox, Facebook } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { useState } from "react";
 import { queryKeys } from "@/lib/queryKeys";
+import { MetaIntegrationWizard } from "@/components/integrations/MetaIntegrationWizard";
+import type { Integration } from "@/types/integrations";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function FacebookFormsPage() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
-  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const canManageMeta = role === "company_admin" || role === "super_admin";
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [metaConfigMissing, setMetaConfigMissing] = useState(false);
   const [backfillingFormId, setBackfillingFormId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // M10 — App Review checklist
@@ -35,21 +39,55 @@ export default function FacebookFormsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const checkMetaCredentials = async (): Promise<boolean> => {
+    try {
+      const { data } = await supabase
+        .from("platform_settings")
+        .select("key, value")
+        .eq("key", "meta_app_id")
+        .maybeSingle();
+      if (!data?.value) {
+        setMetaConfigMissing(true);
+        toast.error("L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma.");
+        return false;
+      }
+      setMetaConfigMissing(false);
+      return true;
+    } catch {
+      return true;
+    }
+  };
+
+  const handleMetaConnect = async () => {
+    if (!canManageMeta) {
+      toast.error("Solo un amministratore aziendale può gestire Meta Lead Ads.");
+      return;
+    }
+    const ok = await checkMetaCredentials();
+    if (ok) setWizardOpen(true);
+  };
+
   // Get integration
-  const { data: integration } = useQuery({
+  const { data: integration, refetch: refetchIntegration } = useQuery({
     queryKey: queryKeys.metaForms.integration(companyId),
     queryFn: async () => {
       if (!companyId) return null;
       const { data } = await supabase
         .from("integrations")
-        .select("id, status")
+        .select("*")
         .eq("company_id", companyId)
         .eq("provider", "meta")
         .maybeSingle();
-      return data;
+      return (data || null) as Integration | null;
     },
     enabled: !!companyId,
   });
+
+  const handleWizardComplete = () => {
+    refetchIntegration();
+    queryClient.invalidateQueries({ queryKey: queryKeys.metaForms.all });
+    setWizardOpen(false);
+  };
 
   // Get forms
   const { data: forms = [], isLoading } = useQuery({
@@ -209,13 +247,28 @@ export default function FacebookFormsPage() {
             <h3 className="text-lg font-semibold mb-1">Integrazione Meta non connessa</h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
               Per iniziare a ricevere lead dai moduli Facebook/Instagram devi prima
-              collegare il tuo account Meta dalle Impostazioni.
+              collegare il tuo account Meta da questa pagina.
             </p>
-            <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")}>
-              Vai alle integrazioni
+            <Button onClick={handleMetaConnect}>
+              Configura Meta
             </Button>
           </CardContent>
         </Card>
+        {metaConfigMissing && (
+          <Alert variant="destructive" className="max-w-xl">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Configurazione Meta mancante</AlertTitle>
+            <AlertDescription>
+              L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma. Contatta il supporto per abilitare App ID e credenziali.
+            </AlertDescription>
+          </Alert>
+        )}
+        <MetaIntegrationWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          integration={null}
+          onComplete={handleWizardComplete}
+        />
       </div>
     );
   }
@@ -405,7 +458,7 @@ export default function FacebookFormsPage() {
                 variant="outline"
                 size="sm"
                 className="mt-4"
-                onClick={() => navigate("/azienda/impostazioni/integrazioni")}
+                onClick={handleMetaConnect}
               >
                 Configura integrazione Meta
               </Button>
@@ -489,6 +542,21 @@ export default function FacebookFormsPage() {
           )}
         </CardContent>
       </Card>
+      {metaConfigMissing && (
+        <Alert variant="destructive" className="max-w-xl">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Configurazione Meta mancante</AlertTitle>
+          <AlertDescription>
+            L'integrazione Meta non è ancora configurata dall'amministratore della piattaforma. Contatta il supporto per abilitare App ID e credenziali.
+          </AlertDescription>
+        </Alert>
+      )}
+      <MetaIntegrationWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        integration={integration || null}
+        onComplete={handleWizardComplete}
+      />
     </div>
   );
 }

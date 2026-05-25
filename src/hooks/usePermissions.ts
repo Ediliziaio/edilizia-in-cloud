@@ -234,7 +234,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
       g("can_view_marketing") || g("can_view_marketing_dashboard") || g("can_view_marketing_contacts") ||
       g("can_view_marketing_opportunities") || g("can_view_marketing_activities") || g("can_view_marketing_appointments") ||
       g("can_view_marketing_automations") || g("can_view_marketing_ai_agent") || g("can_view_marketing_email") ||
-      g("can_view_marketing_whatsapp") || g("can_view_marketing_reports"),
+      g("can_view_sms_marketing") || g("can_view_marketing_whatsapp") || g("can_view_marketing_reports") ||
+      g("can_view_sales_os"),
     canEditMarketing:
       g("can_edit_marketing") || g("can_edit_marketing_contacts") || g("can_edit_marketing_opportunities"),
     canViewCruscotto:   g("can_view_cruscotto"),
@@ -380,6 +381,30 @@ export function usePermissions(): Permissions {
         "postgres_changes",
         {
           event: "UPDATE",
+          schema: "public",
+          table: "staff_permissions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "staff_permissions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
           schema: "public",
           table: "staff_permissions",
           filter: `user_id=eq.${user.id}`,

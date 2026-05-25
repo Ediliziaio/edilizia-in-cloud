@@ -119,7 +119,6 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "employees",          label: "Gestione Dipendenti",             description: "Anagrafica e dati dipendenti",                     viewKey: "can_view_employees" },
       { id: "users",              label: "Utenti & Team",                   description: "Gestisci utenti e team aziendali",                 viewKey: "can_view_users" },
       { id: "giornale-lavori",    label: "Giornale Lavori",                 description: "Visualizza le registrazioni giornaliere di cantiere", viewKey: "can_view_giornale_lavori" },
-      { id: "messaggi-esterni",   label: "Messaggi Esterni",                description: "Accesso alla messaggistica esterna",               viewKey: "can_view_messaggi_esterni" },
     ],
   },
   {

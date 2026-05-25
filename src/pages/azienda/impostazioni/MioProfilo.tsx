@@ -4,6 +4,7 @@
  * Accessibile a TUTTI i ruoli
  */
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,6 +26,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
+import { TwoFactorSetup } from "@/components/auth/TwoFactorSetup";
+import { CompanySecuritySettings } from "@/components/settings/CompanySecuritySettings";
 // v8.6.39 H1 — hook persistenza preferenze notifiche (tabella user_notification_preferences)
 import {
   useUserNotifPrefs,
@@ -44,6 +47,13 @@ const ROLE_LABELS: Record<string, string> = {
   subcontractor: "Subappaltatore", salesperson: "Venditore",
   call_center: "Call Center", referrer: "Segnalatore",
 };
+
+type ProfileTab = "profilo" | "sicurezza" | "calendari" | "email" | "notifiche";
+const PROFILE_TABS: ProfileTab[] = ["profilo", "sicurezza", "calendari", "email", "notifiche"];
+
+function isProfileTab(tab: string | null): tab is ProfileTab {
+  return PROFILE_TABS.includes(tab as ProfileTab);
+}
 
 // ── Calendar Icons ──
 function GoogleIcon({ className }: { className?: string }) {
@@ -75,15 +85,34 @@ function AppleIcon({ className }: { className?: string }) {
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function MioProfilo() {
-  const { user, role, refreshAuth, effectiveCompany } = useAuth();
+  const { user, role, refreshAuth, effectiveCompany, profile: authProfile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
+  const canManageCompanySecurity = role === "company_admin" || role === "super_admin";
+  const tabParam = searchParams.get("tab");
+  const activeTab: ProfileTab = isProfileTab(tabParam) ? tabParam : "profilo";
+  const handleTabChange = (tab: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", tab);
+    setSearchParams(next, { replace: true });
+  };
   // v8.6.36 — surveysEnabled rimosso (la tab Sopralluoghi non era nel posto giusto).
 
   // ── Profile data ──
   const { data: profile, isLoading } = useQuery({
     queryKey: ["my-profile", user?.id],
     enabled: !!user?.id,
+    initialData: authProfile ? {
+      first_name: authProfile.first_name ?? "",
+      last_name: authProfile.last_name ?? "",
+      avatar_url: authProfile.avatar_url,
+      phone: authProfile.phone,
+      email: authProfile.email,
+      created_at: authProfile.created_at,
+      last_login_at: authProfile.last_login_at,
+    } : undefined,
+    staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
@@ -536,7 +565,7 @@ export default function MioProfilo() {
       </div>
 
       {/* ── Tabs ── */}
-      <Tabs defaultValue="profilo" className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         {/* v8.6.75 — Mobile-friendly scrolling tabs con fade gradient a destra
             che indica "scroll possibile". Padding ridotto px-2 sm:px-3 +
             gap-0.5 sm:gap-1 per far stare più tab a vista su 375px. */}
@@ -727,6 +756,8 @@ export default function MioProfilo() {
             </CardContent>
           </Card>
 
+          <TwoFactorSetup />
+
           {/* v8.6.36 — Card "Privacy" pulita: rimosso duplicato date
               account (già nella tab Profilo). Focus su GDPR + sicurezza. */}
           <Card>
@@ -747,6 +778,11 @@ export default function MioProfilo() {
               </div>
             </CardContent>
           </Card>
+          {canManageCompanySecurity && (
+            <div className="lg:col-span-2">
+              <CompanySecuritySettings />
+            </div>
+          )}
           </div>
         </TabsContent>
 
@@ -927,7 +963,7 @@ export default function MioProfilo() {
               le email di altri membri del team non sono visibili.
             </span>
           </div>
-          <EmailOAuthConnectionsCard scope="user" />
+          <EmailOAuthConnectionsCard />
         </TabsContent>
 
         {/* v8.6.36 — tab Sopralluoghi rimossa (era una lista operativa,

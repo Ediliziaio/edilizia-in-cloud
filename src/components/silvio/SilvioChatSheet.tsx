@@ -197,6 +197,7 @@ function useTypewriter(text: string, enabled: boolean, cps = 50) {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  prefillDraft?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -252,7 +253,7 @@ function fmtBytes(n: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────
 
-export function SilvioChatSheet({ open, onOpenChange }: Props) {
+export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
   const navigate = useNavigate();
   // Context pagina corrente: passato a silvio-chat come HINT (non filtro).
   // Vedi useSilvioPageContext per le route mappate.
@@ -267,6 +268,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   const [draft, setDraft] = useState("");
   // Textarea auto-grow stile WhatsApp: 1 → 5 righe, poi scroll interno
   const draftTextareaRef = useAutoSizeTextarea(draft, { maxRows: 5 });
+  const appliedPrefillRef = useRef<string | null>(null);
   // AI Test Lab — selettore modello (visibile solo per Demo Azienda + utente demo)
   const aiSelector = useAIModelSelector('silvio_chat', 'text');
   const [sending, setSending] = useState(false);
@@ -290,6 +292,16 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
   // msg storici) NON vogliamo animarli. Solo i messaggi che arrivano DOPO il
   // mount via realtime devono attivare il typewriter.
   const hasHydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (!open || !prefillDraft) return;
+    const [, ...messageParts] = prefillDraft.split("::");
+    const clean = (messageParts.length > 0 ? messageParts.join("::") : prefillDraft).trim();
+    if (!clean || appliedPrefillRef.current === prefillDraft) return;
+    appliedPrefillRef.current = prefillDraft;
+    setDraft((prev) => (prev.trim() ? `${prev.trim()}\n${clean}` : clean));
+    requestAnimationFrame(() => draftTextareaRef.current?.focus());
+  }, [draftTextareaRef, open, prefillDraft]);
   // mountTimeRef: cutoff per distinguere messaggi storici (created_at <)
   // da messaggi davvero "live" (created_at >=). Resettato sul cambio canale.
   const mountTimeRef = useRef<string>(new Date().toISOString());
@@ -1073,7 +1085,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem onClick={() => navigate("/azienda/azioni-proposte")}>
-                  <Sparkles className="h-3.5 w-3.5 mr-2 text-violet-600" />
+                  <Sparkles className="h-3.5 w-3.5 mr-2 text-orange-600" />
                   Azioni proposte AI
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/azienda/ai-memoria")}>
@@ -1132,7 +1144,7 @@ export function SilvioChatSheet({ open, onOpenChange }: Props) {
           <SilvioQuickAction
             icon={TrendingUp}
             label="Pipeline"
-            color="text-violet-700 bg-violet-50 border-violet-200 hover:bg-violet-100"
+            color="text-sky-700 bg-sky-50 border-sky-200 hover:bg-sky-100"
             onClick={() => setDraft("Forecast pipeline trimestre + opportunità a rischio.")}
           />
           <SilvioQuickAction

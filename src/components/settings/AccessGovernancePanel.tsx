@@ -69,8 +69,13 @@ type GovernancePermissionRow = {
   can_edit_settings_profile?: boolean | null;
   can_view_settings_people?: boolean | null;
   can_edit_settings_people?: boolean | null;
+  can_view_settings_security?: boolean | null;
+  can_view_users?: boolean | null;
   can_view_billing?: boolean | null;
   can_view_costs?: boolean | null;
+  can_view_tesoreria?: boolean | null;
+  can_manage_payments?: boolean | null;
+  can_manage_suppliers?: boolean | null;
   can_view_marketing?: boolean | null;
   can_edit_marketing?: boolean | null;
   only_assigned?: boolean | null;
@@ -135,8 +140,13 @@ function hasCriticalPermissions(roles: string[], permissions: GovernancePermissi
     permissions?.can_edit_settings_profile ||
     permissions?.can_view_settings_people ||
     permissions?.can_edit_settings_people ||
+    permissions?.can_view_settings_security ||
+    permissions?.can_view_users ||
     permissions?.can_view_billing ||
     permissions?.can_view_costs ||
+    permissions?.can_view_tesoreria ||
+    permissions?.can_manage_payments ||
+    permissions?.can_manage_suppliers ||
     permissions?.can_edit_marketing,
   );
 }
@@ -189,7 +199,7 @@ function KpiCard({
 async function readOptionalRows<T>(
   task: PromiseLike<{ data: unknown; error: unknown }>,
   label: string,
-  timeoutMs = 6_000,
+  timeoutMs = 12_000,
 ): Promise<{ rows: T[]; warning?: string }> {
   try {
     const response = await withClientTimeout(task, label, timeoutMs);
@@ -234,6 +244,7 @@ async function fetchGovernanceUsers(
     readOptionalRows<RpcCompanyPerson>(
       rpc.call(supabase, "get_internal_chat_profiles", { p_company_id: companyId }),
       "Profili accessi RPC",
+      3_000,
     ),
     readOptionalRows<GovernanceProfile>(
       supabase
@@ -252,7 +263,11 @@ async function fetchGovernanceUsers(
       "Accessi multi-azienda",
     ),
   ]);
-  warnings.push(...[rpcProfilesResult.warning, directProfilesResult.warning, accessResult.warning]
+  warnings.push(...[
+    directProfilesResult.warning,
+    accessResult.warning,
+    directProfilesResult.rows.length === 0 ? rpcProfilesResult.warning : undefined,
+  ]
     .filter((warning): warning is string => Boolean(warning)));
   const accessRows = accessResult.rows;
   const companyProfiles = [
@@ -295,7 +310,7 @@ async function fetchGovernanceUsers(
       .limit(3000), "Sessioni attive"),
     readOptionalRows<GovernancePermissionRow>(supabase
       .from("staff_permissions")
-      .select("user_id, can_view_settings, can_edit_settings_profile, can_view_settings_people, can_edit_settings_people, can_view_billing, can_view_costs, can_view_marketing, can_edit_marketing, only_assigned, visible_areas")
+      .select("user_id, can_view_settings, can_edit_settings_profile, can_view_settings_people, can_edit_settings_people, can_view_settings_security, can_view_users, can_view_billing, can_view_costs, can_view_tesoreria, can_manage_payments, can_manage_suppliers, can_view_marketing, can_edit_marketing, only_assigned, visible_areas")
       .eq("company_id", companyId)
       .limit(3000), "Permessi granulari"),
   ]);

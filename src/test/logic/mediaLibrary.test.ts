@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMediaLibraryItem,
   buildDefaultFolderMatchQuery,
+  buildMediaLibraryIntegrationCoverage,
   canAccessMediaLibrary,
   combineMediaLibrarySourceBatches,
   createMediaLibraryFolderSlug,
@@ -10,6 +11,7 @@ import {
   mediaLibraryItemMatchesTab,
   mediaLibraryItemMatchesSearch,
   pickMediaLibraryDetailItem,
+  resolveMediaLibraryOpenTarget,
   summarizeMediaLibraryItems,
 } from "@/lib/mediaLibrary";
 
@@ -128,6 +130,53 @@ describe("media library rules", () => {
     ).toMatchObject({ category: "render", areaLabel: "Render" });
   });
 
+  it("routes email, CRM, quote PDFs, site photos and HR documents into the right drive areas", () => {
+    expect(
+      buildMediaLibraryItem({
+        id: "email-attachment",
+        source: "email",
+        fileName: "richiesta-cliente.pdf",
+        docType: "email_attachment",
+        status: "ready",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+    ).toMatchObject({ category: "crm", areaLabel: "Email e CRM", securityLevel: "standard" });
+
+    expect(
+      buildMediaLibraryItem({
+        id: "quote-pdf",
+        source: "quote_pdf",
+        fileName: "PREV-2026-001.pdf",
+        docType: "preventivo_pdf",
+        status: "ready",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+    ).toMatchObject({ category: "preventivi", areaLabel: "Preventivi" });
+
+    expect(
+      buildMediaLibraryItem({
+        id: "site-photo",
+        source: "site_photo",
+        fileName: "foto posa.jpg",
+        docType: "foto_cantiere",
+        mimeType: "image/jpeg",
+        status: "ready",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+    ).toMatchObject({ category: "foto_media", areaLabel: "Cantieri" });
+
+    expect(
+      buildMediaLibraryItem({
+        id: "hr-doc",
+        source: "personnel_document",
+        fileName: "durc subappaltatore.pdf",
+        docType: "documento_subappaltatore",
+        status: "ready",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+    ).toMatchObject({ category: "riservati", areaLabel: "Personale e accessi", securityLevel: "confidential" });
+  });
+
   it("adds smart drive metadata for author, integration and document history", () => {
     const item = buildMediaLibraryItem({
       id: "analysis-1",
@@ -205,6 +254,13 @@ describe("media library rules", () => {
       filterMediaLibraryItemsForPermissions(items, {
         ...BASE_PERMISSIONS,
         canViewMarketingOpportunities: true,
+      }).map((item) => item.id),
+    ).toEqual(["crm"]);
+
+    expect(
+      filterMediaLibraryItemsForPermissions(items, {
+        ...BASE_PERMISSIONS,
+        canViewMarketing: true,
       }).map((item) => item.id),
     ).toEqual(["crm"]);
 
@@ -332,15 +388,85 @@ describe("media library rules", () => {
     expect(result.warnings).toEqual(["Analisi AI: permission denied"]);
   });
 
-  it("selects details only from the currently filtered view", () => {
-    const quote = buildMediaLibraryItem({
-      id: "quote",
-      source: "computo",
-      fileName: "computo.pdf",
-      docType: "computo_metrico",
+  it("summarizes integration coverage so EiC Drive exposes missing upload pipelines", () => {
+    const items = [
+      buildMediaLibraryItem({
+        id: "ai",
+        source: "ai_analysis",
+        fileName: "documento.pdf",
+        docType: "documento_generico",
+        status: "success",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+      buildMediaLibraryItem({
+        id: "email",
+        source: "email",
+        fileName: "allegato email.pdf",
+        docType: "email_attachment",
+        status: "ready",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+      buildMediaLibraryItem({
+        id: "render",
+        source: "render",
+        fileName: "render bagno.png",
+        docType: "render",
+        status: "completed",
+        createdAt: "2026-05-24T08:00:00Z",
+      }),
+    ];
+
+    const coverage = buildMediaLibraryIntegrationCoverage(items);
+    const byKey = new Map(coverage.map((source) => [source.key, source]));
+
+    expect(byKey.get("ai-inbox")).toMatchObject({ state: "connected", count: 1 });
+    expect(byKey.get("email")).toMatchObject({ state: "connected", count: 1 });
+    expect(byKey.get("render")).toMatchObject({ state: "connected", count: 1 });
+    expect(byKey.get("firma-preventivi")).toMatchObject({ state: "missing", count: 0 });
+  });
+
+  it("knows whether a drive document opens from storage, external URL or still needs recovery", () => {
+    const storageItem = buildMediaLibraryItem({
+      id: "storage",
+      source: "attachment",
+      fileName: "contratto.pdf",
+      docType: "contratto",
+      status: "attached",
+      createdAt: "2026-05-24T08:00:00Z",
+      storageBucket: "documenti-smart",
+      storagePath: "company/contratto.pdf",
+    });
+    const externalItem = buildMediaLibraryItem({
+      id: "external",
+      source: "render",
+      fileName: "render finale.png",
+      docType: "render",
       status: "completed",
       createdAt: "2026-05-24T08:00:00Z",
+      externalUrl: "https://cdn.example.com/render.png",
     });
+    const missingItem = buildMediaLibraryItem({
+      id: "missing",
+      source: "attachment",
+      fileName: "orfano.pdf",
+      docType: "documento_generico",
+      status: "ready",
+      createdAt: "2026-05-24T08:00:00Z",
+    });
+
+    expect(resolveMediaLibraryOpenTarget(storageItem)).toEqual({
+      kind: "storage",
+      storageBucket: "documenti-smart",
+      storagePath: "company/contratto.pdf",
+    });
+    expect(resolveMediaLibraryOpenTarget(externalItem)).toEqual({
+      kind: "external",
+      url: "https://cdn.example.com/render.png",
+    });
+    expect(resolveMediaLibraryOpenTarget(missingItem)).toEqual({ kind: "missing" });
+  });
+
+  it("selects details only from the currently filtered view", () => {
     const invoice = buildMediaLibraryItem({
       id: "invoice",
       source: "ai_analysis",

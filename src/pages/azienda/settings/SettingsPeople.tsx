@@ -11,19 +11,20 @@
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Shield, ShieldCheck, TrendingUp, Users, UsersRound, Loader2, Building2, Info } from "lucide-react";
+import { Shield, ShieldCheck, TrendingUp, Users, UsersRound, Loader2, Building2, Info, FileText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
 import { SubappaltatoriTab } from "@/components/settings/SubappaltatoriTab";
 import { AccessGovernancePanel } from "@/components/settings/AccessGovernancePanel";
+import { PermissionTemplatesManager } from "@/components/settings/PermissionTemplatesManager";
 import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
 import { usePermissions } from "@/hooks/usePermissions";
 
-type PeopleTab = "utenti" | "sicurezza-accessi" | "dipendenti" | "subappaltatori" | "venditori" | "team";
+type PeopleTab = "utenti" | "sicurezza-accessi" | "template-permessi" | "dipendenti" | "subappaltatori" | "venditori" | "team";
 
-const VALID_TABS: PeopleTab[] = ["utenti", "sicurezza-accessi", "dipendenti", "subappaltatori", "venditori", "team"];
+const VALID_TABS: PeopleTab[] = ["utenti", "sicurezza-accessi", "template-permessi", "dipendenti", "subappaltatori", "venditori", "team"];
 
 function isValidTab(tab: string | null): tab is PeopleTab {
   return VALID_TABS.includes(tab as PeopleTab);
@@ -36,6 +37,8 @@ export default function SettingsPeople() {
   const isAdmin = permissions.isAdmin;
   const canViewUsers = isAdmin || permissions.canViewUsers;
   const canViewPeople = isAdmin || permissions.canViewSettingsPeople;
+  const canViewAccessSecurity = canViewUsers || permissions.canViewSettingsSecurity;
+  const canManagePermissionTemplates = isAdmin || permissions.canEditSettingsPeople;
 
   if (permissions.isLoading) {
     return (
@@ -46,7 +49,7 @@ export default function SettingsPeople() {
     );
   }
 
-  if (!canViewUsers && !canViewPeople) {
+  if (!canViewUsers && !canViewPeople && !canViewAccessSecurity) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3 text-center">
         <p className="text-sm text-muted-foreground">Non hai accesso a questa sezione.</p>
@@ -56,13 +59,30 @@ export default function SettingsPeople() {
 
   // Retrocompatibilità: mappa vecchi nomi tab ai nuovi
   const tabParam = searchParams.get("tab");
+  const fallbackTab = (): PeopleTab => {
+    if (canViewUsers) return "utenti";
+    if (canViewAccessSecurity) return "sicurezza-accessi";
+    if (canManagePermissionTemplates) return "template-permessi";
+    if (canViewPeople) return "dipendenti";
+    return "dipendenti";
+  };
+
   const resolveDefaultTab = (): PeopleTab => {
     if (tabParam === "staff" || tabParam === "operai") return "dipendenti";
     if (tabParam === "sicurezza" || tabParam === "accessi") return "sicurezza-accessi";
-    if (isValidTab(tabParam)) return tabParam;
-    if (canViewUsers) return "utenti";
-    if (canViewPeople) return "dipendenti";
-    return "dipendenti";
+    if (tabParam === "templates" || tabParam === "template") return canManagePermissionTemplates ? "template-permessi" : fallbackTab();
+    if (isValidTab(tabParam)) {
+      if ((tabParam === "utenti" && canViewUsers) || (tabParam === "sicurezza-accessi" && canViewAccessSecurity)) {
+        return tabParam;
+      }
+      if (tabParam === "template-permessi" && canManagePermissionTemplates) {
+        return tabParam;
+      }
+      if (["dipendenti", "subappaltatori", "venditori", "team"].includes(tabParam) && canViewPeople) {
+        return tabParam;
+      }
+    }
+    return fallbackTab();
   };
 
   const activeTab = resolveDefaultTab();
@@ -80,10 +100,16 @@ export default function SettingsPeople() {
             Utenti & Accessi
           </TabsTrigger>
         )}
-        {canViewUsers && (
+        {canViewAccessSecurity && (
           <TabsTrigger value="sicurezza-accessi" className="gap-1.5 shrink-0">
             <ShieldCheck className="h-4 w-4" />
             Sicurezza accessi
+          </TabsTrigger>
+        )}
+        {canManagePermissionTemplates && (
+          <TabsTrigger value="template-permessi" className="gap-1.5 shrink-0">
+            <FileText className="h-4 w-4" />
+            Template permessi
           </TabsTrigger>
         )}
         {canViewPeople && (
@@ -135,9 +161,15 @@ export default function SettingsPeople() {
         </TabsContent>
       )}
 
-      {canViewUsers && (
+      {canViewAccessSecurity && (
         <TabsContent value="sicurezza-accessi">
           <AccessGovernancePanel />
+        </TabsContent>
+      )}
+
+      {canManagePermissionTemplates && (
+        <TabsContent value="template-permessi">
+          <PermissionTemplatesManager />
         </TabsContent>
       )}
 

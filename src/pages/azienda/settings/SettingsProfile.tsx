@@ -1,10 +1,9 @@
 import { Link } from "react-router-dom";
-import { Building2, Users, User as UserIcon, Image as ImageIcon } from "lucide-react";
+import { Building2, Users, Image as ImageIcon } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LogoUploader } from "@/components/settings/LogoUploader";
 import { CompanyProfileForm } from "@/components/settings/CompanyProfileForm";
-import { PersonalProfileForm } from "@/components/settings/PersonalProfileForm";
 import { CustomerPortalToggle } from "@/components/settings/CustomerPortalToggle";
 
 export default function SettingsProfile() {
@@ -30,20 +29,6 @@ export default function SettingsProfile() {
           </div>
         </div>
       </div>
-
-      {/* Profilo personale — con wrapper Card per coerenza con le altre sezioni */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <UserIcon className="h-4 w-4 text-muted-foreground" />
-            Il tuo profilo
-          </CardTitle>
-          <CardDescription>Dati personali, email e preferenze</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PersonalProfileForm />
-        </CardContent>
-      </Card>
 
       {/* Profilo azienda - solo per admin */}
       {isAdmin && (

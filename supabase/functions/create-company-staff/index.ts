@@ -51,19 +51,6 @@ Deno.serve(async (req) => {
     const callerId = callerUser.id;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: callerRoles } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId);
-
-    const callerRole = callerRoles?.find(
-      (r) => r.role === "company_admin" || r.role === "super_admin"
-    ) ?? null;
-
-    if (!callerRole || (callerRole.role !== "company_admin" && callerRole.role !== "super_admin")) {
-      return errorResponse("Only company admins can create staff users", 403);
-    }
-
     const { data: callerProfile } = await supabaseAdmin
       .from("profiles")
       .select("company_id")
@@ -72,12 +59,35 @@ Deno.serve(async (req) => {
 
     const { first_name, last_name, email, company_id, role_type, password, phone } = await req.json();
 
-    const targetCompanyId = callerRole.role === "super_admin" && company_id
-      ? company_id
-      : callerProfile?.company_id;
+    const { data: callerRoles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId);
+
+    const requestedCompanyId = typeof company_id === "string" && company_id.trim()
+      ? company_id.trim()
+      : null;
+    const targetCompanyId = requestedCompanyId ?? callerProfile?.company_id;
 
     if (!targetCompanyId) {
       return errorResponse("Company ID is required");
+    }
+
+    const isSuperAdmin = callerRoles?.some((r) => r.role === "super_admin") ?? false;
+    const isOwnCompanyAdmin = (callerRoles?.some((r) => r.role === "company_admin") ?? false)
+      && callerProfile?.company_id === targetCompanyId;
+
+    const { data: selectedCompanyAccess } = await supabaseAdmin
+      .from("multi_company_access")
+      .select("access_role")
+      .eq("user_id", callerId)
+      .eq("company_id", targetCompanyId)
+      .maybeSingle();
+
+    const isGrantedCompanyAdmin = selectedCompanyAccess?.access_role === "company_admin";
+
+    if (!isSuperAdmin && !isOwnCompanyAdmin && !isGrantedCompanyAdmin) {
+      return errorResponse("Only company admins can create staff users", 403);
     }
 
     if (!first_name || !last_name || !email) {

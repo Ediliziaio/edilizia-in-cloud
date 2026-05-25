@@ -222,17 +222,17 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
 
   return (
     <>
-      <Card className="border-violet-200 bg-violet-50/30">
-        <CardHeader className={cn("pb-3", compact && "py-3")}>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-600" />
+      <Card className={cn("border-orange-200 bg-orange-50/35", compact && "shadow-none")}>
+        <CardHeader className={cn("pb-3", compact && "px-3 py-3")}>
+          <CardTitle className={cn("flex items-center gap-2", compact ? "text-sm" : "text-base")}>
+            <Sparkles className="h-4 w-4 text-orange-500" />
             Azioni proposte da Silvio
           </CardTitle>
           <CardDescription className="text-xs">
             {proposals.length} {proposals.length === 1 ? "bozza" : "bozze"} in attesa di conferma. Verifica e applica.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className={cn("space-y-2", compact && "px-3 pb-3")}>
           {proposals.map(p => (
             <ProposalRow
               key={p.id}
@@ -248,6 +248,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
               onDismiss={() => dismissMut.mutate(p.id)}
               isApplying={executeMut.isPending && executeMut.variables?.proposalId === p.id}
               isDismissing={dismissMut.isPending && dismissMut.variables === p.id}
+              compact={compact}
             />
           ))}
         </CardContent>
@@ -284,7 +285,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
 // ════════════════════════════════════════════════════════════════════════════
 
 function ProposalRow({
-  proposal, onConfirm, onEdit, onDismiss, isApplying, isDismissing,
+  proposal, onConfirm, onEdit, onDismiss, isApplying, isDismissing, compact,
 }: {
   proposal: Proposal;
   onConfirm: () => void;
@@ -292,6 +293,7 @@ function ProposalRow({
   onDismiss: () => void;
   isApplying: boolean;
   isDismissing: boolean;
+  compact: boolean;
 }) {
   const Icon = ACTION_ICON[proposal.action_type] ?? Send;
   const label = ACTION_LABEL[proposal.action_type] ?? proposal.action_type;
@@ -306,17 +308,17 @@ function ProposalRow({
     (actionPayload as { to?: string }).to;
 
   return (
-    <div className="rounded-lg border border-violet-200 bg-white p-3 space-y-2">
+    <div className={cn("rounded-lg border border-orange-200 bg-white shadow-sm", compact ? "p-2.5 space-y-2" : "p-3 space-y-2")}>
       <div className="flex items-start gap-2.5">
-        <div className="rounded-md ring-1 ring-violet-200 bg-violet-50 p-1.5 shrink-0">
-          <Icon className="h-3.5 w-3.5 text-violet-700" />
+        <div className="rounded-md ring-1 ring-orange-200 bg-orange-50 p-1.5 shrink-0">
+          <Icon className="h-3.5 w-3.5 text-orange-600" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="text-sm font-medium leading-tight">{label}</div>
             {isHighRisk && <Badge variant="destructive" className="text-[10px]">RISCHIO ALTO</Badge>}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{proposal.summary}</p>
+          <p className={cn("text-xs text-muted-foreground mt-0.5", compact ? "line-clamp-1" : "line-clamp-2")}>{proposal.summary}</p>
           {needsStrongConfirmation && (
             <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">
               Richiede conferma forte prima dell'esecuzione.
@@ -332,9 +334,9 @@ function ProposalRow({
           </p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5 pt-1">
+      <div className={cn("gap-1.5 pt-1", compact ? "grid grid-cols-[1fr_auto_auto]" : "flex flex-wrap")}>
         <Button
-          size="sm" className="h-7 px-2 text-xs gap-1"
+          size="sm" className={cn("h-7 px-2 text-xs gap-1", compact && "min-w-0")}
           onClick={onConfirm}
           disabled={isApplying || isDismissing}
         >
@@ -344,18 +346,18 @@ function ProposalRow({
           }
         </Button>
         <Button
-          size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
+          size="sm" variant={compact ? "ghost" : "outline"} className="h-7 px-2 text-xs gap-1"
           onClick={onEdit}
           disabled={isApplying || isDismissing}
         >
-          <Pencil className="h-3 w-3" /> Modifica
+          <Pencil className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>Modifica</span>
         </Button>
         <Button
           size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1 text-rose-600 hover:bg-rose-50"
           onClick={onDismiss}
           disabled={isApplying || isDismissing}
         >
-          <X className="h-3 w-3" /> Annulla
+          <X className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>Annulla</span>
         </Button>
       </div>
     </div>

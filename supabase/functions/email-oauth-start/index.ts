@@ -19,10 +19,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 interface StartBody {
   provider: "gmail" | "outlook";
   redirect_uri: string;
+  company_id?: string;
 }
 
 const GMAIL_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -97,21 +99,34 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Estrai company_id dal profilo; il collegamento è personale, non serve essere admin.
+  const body = (await req.json().catch(() => ({}))) as StartBody;
+
+  // Usa l'azienda attiva del frontend quando presente. Il collegamento resta
+  // personale (user_id = auth.uid()), ma il tenant deve essere quello scelto.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: profile } = await (supa as any)
-    .from("profiles")
-    .select("company_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  const companyId = profile?.company_id as string | undefined;
+  let companyId = typeof body.company_id === "string" && body.company_id.trim()
+    ? body.company_id.trim()
+    : undefined;
+  if (!companyId) {
+    const { data: profile } = await (supa as any)
+      .from("profiles")
+      .select("company_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    companyId = profile?.company_id as string | undefined;
+  }
   if (!companyId) {
     return new Response(JSON.stringify({ error: "company_profile_required" }), {
       status: 403, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
 
-  const body = (await req.json().catch(() => ({}))) as StartBody;
+  if (!(await canAccessCompany(supa, user.id, companyId))) {
+    return new Response(JSON.stringify({ error: "company_access_denied" }), {
+      status: 403, headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
+
   if (!body.provider || (body.provider !== "gmail" && body.provider !== "outlook")) {
     return new Response(JSON.stringify({ error: "invalid_provider" }), {
       status: 400, headers: { ...cors, "Content-Type": "application/json" },

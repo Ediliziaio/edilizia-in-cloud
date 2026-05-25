@@ -68,6 +68,8 @@ interface SettingsItem {
 }
 
 const SETTINGS_ITEMS: SettingsItem[] = [
+  { label: "Il mio profilo",             path: "/azienda/impostazioni/mio-profilo" },
+  { label: "Sicurezza profilo",          path: "/azienda/impostazioni/mio-profilo?tab=sicurezza" },
   { label: "Profilo aziendale",         path: "/azienda/impostazioni/profilo" },
   { label: "Sedi",                       path: "/azienda/impostazioni/sedi" },
   { label: "White-Label",                path: "/azienda/impostazioni/branding" },
@@ -90,11 +92,12 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "Lead Facebook",              path: "/azienda/impostazioni/lead-forms" },
   { label: "Persone & Accessi",          path: "/azienda/impostazioni/persone" },
   { label: "Utenti",                     path: "/azienda/impostazioni/persone?tab=utenti" },
+  { label: "Template permessi",          path: "/azienda/impostazioni/persone?tab=template-permessi" },
   { label: "Venditori",                  path: "/azienda/impostazioni/persone?tab=venditori" },
   { label: "Staff / Operai",             path: "/azienda/impostazioni/persone?tab=staff" },
   { label: "Team",                       path: "/azienda/impostazioni/persone?tab=team" },
   { label: "Sicurezza & Privacy",        path: "/azienda/impostazioni/sicurezza-privacy" },
-  { label: "Cambio password",            path: "/azienda/impostazioni/sicurezza-privacy?tab=password" },
+  { label: "Cambio password",            path: "/azienda/impostazioni/mio-profilo?tab=sicurezza" },
   { label: "Privacy & GDPR",             path: "/azienda/impostazioni/sicurezza-privacy?tab=privacy" },
   { label: "Security dashboard",         path: "/azienda/impostazioni/sicurezza-privacy?tab=dashboard" },
   { label: "Registro attività",          path: "/azienda/impostazioni/sicurezza-privacy?tab=attivita" },

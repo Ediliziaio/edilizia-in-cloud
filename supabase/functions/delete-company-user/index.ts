@@ -2,6 +2,204 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+type SupabaseAdminClient = any;
+
+type ProfileRow = {
+  company_id: string | null;
+  email: string | null;
+};
+
+type RoleRow = {
+  role: string;
+};
+
+type AffectedRecords = {
+  salespeople: number;
+  employees: number;
+  subappaltatori: number;
+};
+
+const EMPTY_UUID = "00000000-0000-0000-0000-000000000000";
+
+function jsonResponse(req: Request, body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+  });
+}
+
+async function hasCompanyAdminAccess(
+  adminClient: SupabaseAdminClient,
+  userId: string,
+  profileCompanyId: string | null | undefined,
+  roles: RoleRow[] | null | undefined,
+  companyId: string,
+) {
+  const isSuperAdmin = roles?.some((r) => r.role === "super_admin") ?? false;
+  if (isSuperAdmin) return true;
+
+  const isOwnCompanyAdmin = (roles?.some((r) => r.role === "company_admin") ?? false)
+    && profileCompanyId === companyId;
+  if (isOwnCompanyAdmin) return true;
+
+  const { data: access } = await adminClient
+    .from("multi_company_access")
+    .select("access_role")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  return access?.access_role === "company_admin";
+}
+
+async function userBelongsToCompany(
+  adminClient: SupabaseAdminClient,
+  userId: string,
+  profileCompanyId: string | null | undefined,
+  companyId: string,
+) {
+  if (profileCompanyId === companyId) return true;
+
+  const { data: access } = await adminClient
+    .from("multi_company_access")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  return !!access?.id;
+}
+
+async function userIsAdminInCompany(
+  adminClient: SupabaseAdminClient,
+  userId: string,
+  profileCompanyId: string | null | undefined,
+  roles: RoleRow[] | null | undefined,
+  companyId: string,
+) {
+  if (profileCompanyId === companyId && roles?.some((r) => r.role === "company_admin")) {
+    return true;
+  }
+
+  const { data: access } = await adminClient
+    .from("multi_company_access")
+    .select("access_role")
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  return access?.access_role === "company_admin";
+}
+
+async function countCompanyAdmins(adminClient: SupabaseAdminClient, companyId: string) {
+  const adminIds = new Set<string>();
+
+  const { data: globalAdminRoles, error: rolesError } = await adminClient
+    .from("user_roles")
+    .select("user_id")
+    .eq("role", "company_admin");
+  if (rolesError) throw rolesError;
+
+  const roleAdminIds = (globalAdminRoles ?? [])
+    .map((row: { user_id?: string | null }) => row.user_id)
+    .filter((id: unknown): id is string => typeof id === "string" && id.length > 0);
+
+  if (roleAdminIds.length > 0) {
+    const { data: primaryAdmins, error: primaryError } = await adminClient
+      .from("profiles")
+      .select("id")
+      .eq("company_id", companyId)
+      .in("id", roleAdminIds.length > 0 ? roleAdminIds : [EMPTY_UUID]);
+    if (primaryError) throw primaryError;
+    for (const row of primaryAdmins ?? []) {
+      if (row.id) adminIds.add(row.id);
+    }
+  }
+
+  const { data: grantedAdmins, error: grantedError } = await adminClient
+    .from("multi_company_access")
+    .select("user_id")
+    .eq("company_id", companyId)
+    .eq("access_role", "company_admin");
+  if (grantedError) throw grantedError;
+
+  for (const row of grantedAdmins ?? []) {
+    if (row.user_id) adminIds.add(row.user_id);
+  }
+
+  return adminIds.size;
+}
+
+async function validateReassignTarget(
+  adminClient: SupabaseAdminClient,
+  reassignToUserId: string | null | undefined,
+  currentUserId: string,
+  companyId: string,
+) {
+  if (!reassignToUserId) return;
+  if (reassignToUserId === currentUserId) {
+    throw new Error("Il destinatario non può essere lo stesso utente");
+  }
+
+  const { data: reassignProfile } = await adminClient
+    .from("profiles")
+    .select("company_id")
+    .eq("id", reassignToUserId)
+    .maybeSingle();
+
+  if (reassignProfile?.company_id === companyId) return;
+
+  const { data: reassignAccess } = await adminClient
+    .from("multi_company_access")
+    .select("id")
+    .eq("user_id", reassignToUserId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (!reassignAccess?.id) {
+    throw new Error("Il destinatario del reassign deve avere accesso alla stessa azienda");
+  }
+}
+
+async function reassignOrUnlinkRecords(
+  adminClient: SupabaseAdminClient,
+  userId: string,
+  companyId: string,
+  reassignToUserId?: string | null,
+): Promise<AffectedRecords> {
+  const nextUserId = reassignToUserId ?? null;
+  const affected: AffectedRecords = { salespeople: 0, employees: 0, subappaltatori: 0 };
+
+  const { data: spData, error: spError } = await adminClient
+    .from("salespeople")
+    .update({ user_id: nextUserId })
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .select("id");
+  if (spError) console.error("Error updating salespeople:", spError);
+  affected.salespeople = spData?.length ?? 0;
+
+  const { data: empData, error: empError } = await adminClient
+    .from("employees")
+    .update({ user_id: nextUserId })
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .select("id");
+  if (empError) console.error("Error updating employees:", empError);
+  affected.employees = empData?.length ?? 0;
+
+  const { data: subData, error: subError } = await adminClient
+    .from("subappaltatori")
+    .update({ user_id: nextUserId })
+    .eq("user_id", userId)
+    .eq("company_id", companyId)
+    .select("id");
+  if (subError) console.error("Error updating subappaltatori:", subError);
+  affected.subappaltatori = subData?.length ?? 0;
+
+  return affected;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -10,225 +208,152 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "Non autorizzato" }, 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify caller is authenticated
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user: caller }, error: authError } = await userClient.auth.getUser();
     if (authError || !caller) {
-      return new Response(JSON.stringify({ error: "Non autorizzato" }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "Non autorizzato" }, 401);
     }
 
-    const { userId, reassignToUserId } = await req.json();
+    const { userId, reassignToUserId, company_id } = await req.json();
     if (!userId) {
-      return new Response(JSON.stringify({ error: "userId richiesto" }), {
-        status: 400,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "userId richiesto" }, 400);
     }
 
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+    const requestedCompanyId = typeof company_id === "string" && company_id.trim()
+      ? company_id.trim()
+      : null;
 
-    // Verify caller is admin of the same company
+    const adminClient: SupabaseAdminClient = createClient(supabaseUrl, supabaseServiceKey);
+
     const { data: callerProfile } = await adminClient
       .from("profiles")
       .select("company_id")
       .eq("id", caller.id)
-      .single();
+      .maybeSingle();
 
-    const { data: targetProfile } = await adminClient
+    const { data: targetProfileRaw } = await adminClient
       .from("profiles")
       .select("company_id, email")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
+    const targetProfile = targetProfileRaw as ProfileRow | null;
 
     if (!targetProfile) {
-      return new Response(JSON.stringify({ error: "Utente non trovato" }), {
-        status: 404,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "Utente non trovato" }, 404);
     }
 
-    // Verify caller has admin role
+    const targetCompanyId = requestedCompanyId ?? targetProfile.company_id;
+    if (!targetCompanyId) {
+      return jsonResponse(req, { error: "Azienda non selezionata" }, 400);
+    }
+
     const { data: callerRoles } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", caller.id);
 
-    const isSuperAdmin = callerRoles?.some(r => r.role === "super_admin");
-    const isCompanyAdmin = callerRoles?.some(r => r.role === "company_admin");
-
-    if (!isSuperAdmin && !isCompanyAdmin) {
-      return new Response(JSON.stringify({ error: "Solo gli amministratori possono eliminare utenti" }), {
-        status: 403,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+    const isAuthorized = await hasCompanyAdminAccess(
+      adminClient,
+      caller.id,
+      callerProfile?.company_id,
+      callerRoles,
+      targetCompanyId,
+    );
+    if (!isAuthorized) {
+      return jsonResponse(req, { error: "Solo gli amministratori possono eliminare utenti" }, 403);
     }
 
-    // Super admin can delete any user; company admin must be in the same company
-    if (!isSuperAdmin) {
-      if (!callerProfile || !targetProfile || callerProfile.company_id !== targetProfile.company_id) {
-        return new Response(JSON.stringify({ error: "Non autorizzato: azienda diversa" }), {
-          status: 403,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
+    const targetBelongsToCompany = await userBelongsToCompany(
+      adminClient,
+      userId,
+      targetProfile.company_id,
+      targetCompanyId,
+    );
+    if (!targetBelongsToCompany) {
+      return jsonResponse(req, { error: "L'utente non appartiene all'azienda selezionata" }, 403);
     }
 
-    // Prevent self-deletion
     if (userId === caller.id) {
-      return new Response(JSON.stringify({ error: "Non puoi eliminare te stesso" }), {
-        status: 400,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "Non puoi eliminare te stesso" }, 400);
     }
+
+    await validateReassignTarget(adminClient, reassignToUserId, userId, targetCompanyId);
 
     const { data: targetRoles, error: targetRolesError } = await adminClient
       .from("user_roles")
       .select("role")
       .eq("user_id", userId);
     if (targetRolesError) {
-      return new Response(JSON.stringify({ error: "Impossibile verificare i ruoli dell'utente" }), {
-        status: 500,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "Impossibile verificare i ruoli dell'utente" }, 500);
     }
 
-    const targetIsCompanyAdmin = targetRoles?.some((r) => r.role === "company_admin");
-    const targetCompanyId = targetProfile.company_id;
-    if (targetIsCompanyAdmin && targetCompanyId) {
-      const { data: adminRoles, error: adminRolesError } = await adminClient
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "company_admin");
-      if (adminRolesError) {
-        return new Response(JSON.stringify({ error: "Impossibile verificare gli amministratori aziendali" }), {
-          status: 500,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-
-      const adminIds = [...new Set((adminRoles ?? []).map((r) => r.user_id).filter(Boolean))];
-      const { count: adminCount, error: adminCountError } = await adminClient
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", targetCompanyId)
-        .in("id", adminIds.length > 0 ? adminIds : ["00000000-0000-0000-0000-000000000000"]);
-      if (adminCountError) {
-        return new Response(JSON.stringify({ error: "Impossibile verificare il numero di amministratori" }), {
-          status: 500,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-      if ((adminCount ?? 0) <= 1) {
-        return new Response(JSON.stringify({ error: "Impossibile eliminare l'ultimo amministratore aziendale" }), {
-          status: 400,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
+    const targetIsCompanyAdmin = await userIsAdminInCompany(
+      adminClient,
+      userId,
+      targetProfile.company_id,
+      targetRoles,
+      targetCompanyId,
+    );
+    if (targetIsCompanyAdmin) {
+      const adminCount = await countCompanyAdmins(adminClient, targetCompanyId);
+      if (adminCount <= 1) {
+        return jsonResponse(req, { error: "Impossibile eliminare l'ultimo amministratore aziendale" }, 400);
       }
     }
+
+    const secondaryAccessOnly = targetProfile.company_id !== targetCompanyId;
+
+    const affected = await reassignOrUnlinkRecords(adminClient, userId, targetCompanyId, reassignToUserId);
 
     await adminClient.from("user_audit_log").insert({
       company_id: targetCompanyId,
       actor_id: caller.id,
       target_user_id: userId,
-      action: "user_deleted",
+      action: secondaryAccessOnly ? "company_access_revoked" : "user_deleted",
       details: {
         target_email: targetProfile.email,
         reassign_to_user_id: reassignToUserId ?? null,
-        roles: targetRoles?.map((r) => r.role) ?? [],
+        roles: targetRoles?.map((r: RoleRow) => r.role) ?? [],
+        secondary_access_only: secondaryAccessOnly,
       },
     });
 
-    // --- Reassign or unlink related records in salespeople, employees, subappaltatori ---
-    const affected = { salespeople: 0, employees: 0, subappaltatori: 0 };
+    if (secondaryAccessOnly) {
+      await adminClient
+        .from("user_sessions")
+        .delete()
+        .eq("user_id", userId)
+        .eq("company_id", targetCompanyId);
 
-    if (reassignToUserId) {
-      // SECURITY FIX: valida che il destinatario del reassign sia nella stessa
-      // azienda del target. Senza questo check, un admin poteva riassegnare
-      // record (es. salespeople, employees) a un utente di un'altra company,
-      // bypassando l'isolamento dei dati tenant.
-      if (reassignToUserId === userId) {
-        return new Response(JSON.stringify({ error: "Il destinatario non può essere lo stesso utente" }), {
-          status: 400,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-      const { data: reassignProfile } = await adminClient
-        .from("profiles")
-        .select("company_id")
-        .eq("id", reassignToUserId)
-        .single();
-      if (!reassignProfile || reassignProfile.company_id !== targetProfile?.company_id) {
-        return new Response(JSON.stringify({ error: "Il destinatario del reassign deve appartenere alla stessa azienda" }), {
-          status: 403,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-      // Reassign records to the new user
-      const { data: spData, error: spError } = await adminClient
-        .from("salespeople")
-        .update({ user_id: reassignToUserId })
+      await adminClient
+        .from("team_members")
+        .delete()
         .eq("user_id", userId)
-        .select("id");
-      if (spError) console.error("Error reassigning salespeople:", spError);
-      affected.salespeople = spData?.length ?? 0;
+        .eq("company_id", targetCompanyId);
 
-      const { data: empData, error: empError } = await adminClient
-        .from("employees")
-        .update({ user_id: reassignToUserId })
+      await adminClient
+        .from("staff_permissions")
+        .delete()
         .eq("user_id", userId)
-        .select("id");
-      if (empError) console.error("Error reassigning employees:", empError);
-      affected.employees = empData?.length ?? 0;
+        .eq("company_id", targetCompanyId);
 
-      const { data: subData, error: subError } = await adminClient
-        .from("subappaltatori")
-        .update({ user_id: reassignToUserId })
+      await adminClient
+        .from("multi_company_access")
+        .delete()
         .eq("user_id", userId)
-        .select("id");
-      if (subError) console.error("Error reassigning subappaltatori:", subError);
-      affected.subappaltatori = subData?.length ?? 0;
-    } else {
-      // Unlink records (set user_id to null)
-      const { data: spData, error: spError } = await adminClient
-        .from("salespeople")
-        .update({ user_id: null })
-        .eq("user_id", userId)
-        .select("id");
-      if (spError) console.error("Error unlinking salespeople:", spError);
-      affected.salespeople = spData?.length ?? 0;
+        .eq("company_id", targetCompanyId);
 
-      const { data: empData, error: empError } = await adminClient
-        .from("employees")
-        .update({ user_id: null })
-        .eq("user_id", userId)
-        .select("id");
-      if (empError) console.error("Error unlinking employees:", empError);
-      affected.employees = empData?.length ?? 0;
-
-      const { data: subData, error: subError } = await adminClient
-        .from("subappaltatori")
-        .update({ user_id: null })
-        .eq("user_id", userId)
-        .select("id");
-      if (subError) console.error("Error unlinking subappaltatori:", subError);
-      affected.subappaltatori = subData?.length ?? 0;
+      return jsonResponse(req, { success: true, revoked_access_only: true, affected });
     }
 
-    // --- Clean up auxiliary tables ---
     const { error: sessionsError } = await adminClient
       .from("user_sessions")
       .delete()
@@ -241,54 +366,39 @@ Deno.serve(async (req) => {
       .eq("user_id", userId);
     if (teamError) console.error("Error deleting team_members:", teamError);
 
-    // --- Delete in order: staff_permissions, user_roles, profiles, then auth user ---
     const { error: permDeleteError } = await adminClient
       .from("staff_permissions")
       .delete()
       .eq("user_id", userId)
-      .eq("company_id", targetCompanyId ?? "");
-    if (permDeleteError) {
-      console.error("Error deleting staff_permissions:", permDeleteError);
-    }
+      .eq("company_id", targetCompanyId);
+    if (permDeleteError) console.error("Error deleting staff_permissions:", permDeleteError);
 
     const { error: rolesDeleteError } = await adminClient
       .from("user_roles")
       .delete()
       .eq("user_id", userId);
-    if (rolesDeleteError) {
-      console.error("Error deleting user_roles:", rolesDeleteError);
-    }
+    if (rolesDeleteError) console.error("Error deleting user_roles:", rolesDeleteError);
 
     const { error: profileDeleteError } = await adminClient
       .from("profiles")
       .delete()
       .eq("id", userId)
-      .eq("company_id", targetCompanyId ?? "");
+      .eq("company_id", targetCompanyId);
     if (profileDeleteError) {
       console.error("Error deleting profile:", profileDeleteError);
-      return new Response(JSON.stringify({ error: "Errore eliminazione profilo: " + profileDeleteError.message }), {
-        status: 500,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "Errore eliminazione profilo: " + profileDeleteError.message }, 500);
     }
 
     const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteAuthError) {
       console.error("Error deleting auth user:", deleteAuthError);
-      return new Response(JSON.stringify({ error: "Errore eliminazione account: " + deleteAuthError.message }), {
-        status: 500,
-        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-      });
+      return jsonResponse(req, { error: "Errore eliminazione account: " + deleteAuthError.message }, 500);
     }
 
-    return new Response(JSON.stringify({ success: true, affected }), {
-      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-    });
-  } catch (error: any) {
+    return jsonResponse(req, { success: true, affected });
+  } catch (error: unknown) {
     console.error("delete-company-user error:", error);
-    return new Response(JSON.stringify({ error: error.message || "Errore interno" }), {
-      status: 500,
-      headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-    });
+    const message = error instanceof Error ? error.message : "Errore interno";
+    return jsonResponse(req, { error: message }, 500);
   }
 });

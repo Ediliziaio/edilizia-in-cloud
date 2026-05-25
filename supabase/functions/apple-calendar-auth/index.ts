@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getEncryptionKey, encrypt, decrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 function json(data: unknown, status = 200, req?: Request) {
   return new Response(JSON.stringify(data), {
@@ -305,13 +306,8 @@ Deno.serve(async (req: Request) => {
     const companyId = body.companyId;
     if (!companyId) return json({ error: "companyId richiesto" }, 400, req);
 
-    // Security: validate companyId matches user
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .single();
-    if (!profile || profile.company_id !== companyId) {
+    // Security: validate the active tenant, including multi-company access.
+    if (!(await canAccessCompany(admin, userId, companyId))) {
       return json({ error: "Company mismatch" }, 403, req);
     }
 

@@ -35,7 +35,8 @@ interface SettingsIndexEntry {
 // Index delle 49 voci settings — keyword facilitano i sinonimi italiani.
 const SETTINGS_INDEX: SettingsIndexEntry[] = [
   // ── Account / Azienda ──
-  { group: "Account", title: "Il mio profilo", url: "/azienda/impostazioni/mio-profilo", keywords: ["profilo", "personale", "account", "email", "calendari", "notifiche"] },
+  { group: "Account", title: "Il mio profilo", url: "/azienda/impostazioni/mio-profilo", keywords: ["profilo", "personale", "account", "email", "calendari", "notifiche", "password", "2fa", "sicurezza"] },
+  { group: "Account", title: "Sicurezza profilo", url: "/azienda/impostazioni/mio-profilo?tab=sicurezza", keywords: ["password", "cambio password", "2fa", "autenticazione", "account"] },
   { group: "Account", title: "Profilo aziendale", url: "/azienda/impostazioni/profilo", keywords: ["azienda", "ragione sociale", "p.iva", "partita iva", "sede legale"] },
   { group: "Account", title: "Sedi operative", url: "/azienda/impostazioni/sedi", keywords: ["sede", "filiale", "negozio", "ufficio"] },
   { group: "Account", title: "Piano abbonamento", url: "/azienda/impostazioni/abbonamento", keywords: ["piano", "abbonamento", "subscription", "fattura abbonamento", "pagamento"] },
@@ -76,9 +77,10 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
 
   // ── People ──
   { group: "Persone", title: "Persone & Accessi", url: "/azienda/impostazioni/persone", keywords: ["utenti", "venditori", "staff", "operai", "team", "ruoli", "permessi"] },
+  { group: "Persone", title: "Template permessi", url: "/azienda/impostazioni/persone?tab=template-permessi", keywords: ["template", "permessi", "ruoli", "accessi", "utenti"] },
 
   // ── Sicurezza ──
-  { group: "Sicurezza", title: "Sicurezza & Privacy", url: "/azienda/impostazioni/sicurezza-privacy", keywords: ["password", "privacy", "gdpr", "log", "registro attivita", "2fa", "sicurezza"] },
+  { group: "Sicurezza", title: "Sicurezza & Privacy", url: "/azienda/impostazioni/sicurezza-privacy", keywords: ["privacy", "gdpr", "log", "registro attivita", "dashboard sicurezza", "sicurezza"] },
   { group: "Sicurezza", title: "Integrazioni", url: "/azienda/impostazioni/integrazioni", keywords: ["integrazione", "api esterna", "stripe", "gocardless", "google"] },
   { group: "Sicurezza", title: "API Platform", url: "/azienda/impostazioni/api", keywords: ["api", "chiavi api", "token", "developer"] },
   { group: "Sicurezza", title: "Webhook", url: "/azienda/impostazioni/webhook", keywords: ["webhook", "eventi", "callback"] },

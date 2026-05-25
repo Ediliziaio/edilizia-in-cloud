@@ -13,6 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 interface CallbackBody {
   code: string;
@@ -164,6 +165,12 @@ Deno.serve(async (req) => {
   if (Date.now() - stateDecoded.iat > 10 * 60 * 1000) {
     return new Response(JSON.stringify({ error: "state_expired" }), {
       status: 400, headers: { ...cors, "Content-Type": "application/json" },
+    });
+  }
+
+  if (!(await canAccessCompany(supa, user.id, stateDecoded.company_id))) {
+    return new Response(JSON.stringify({ error: "company_access_denied" }), {
+      status: 403, headers: { ...cors, "Content-Type": "application/json" },
     });
   }
 

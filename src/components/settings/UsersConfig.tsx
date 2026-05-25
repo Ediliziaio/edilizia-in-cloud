@@ -32,11 +32,15 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { CreateUserWizard, type WizardUserFormData } from "@/components/users/CreateUserWizard";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
+import { syncLegacyMarketingFlags, syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
 import { usePermissions } from "@/hooks/usePermissions";
 import { withClientTimeout } from "@/lib/query-timeout";
 
@@ -66,6 +70,33 @@ interface CompanyUser {
   active_sessions: number;
   is_blocked: boolean;
 }
+
+type CompanyUserProfileRow = Pick<CompanyUser,
+  "id" | "first_name" | "last_name" | "email" | "phone" | "last_login_at" | "locked_until" | "failed_login_count"
+> & {
+  company_id?: string | null;
+  is_blocked?: boolean | null;
+  roles?: string[] | null;
+};
+
+type MultiCompanyAccessRow = {
+  user_id: string;
+  company_id: string;
+  access_role: string | null;
+};
+
+type RpcCompanyPerson = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email?: string | null;
+  roles?: string[] | null;
+};
+
+type CompanyUsersQueryResult = {
+  users: CompanyUser[];
+  warnings: string[];
+};
 
 // ─── Role Config ──────────────────────────────────────────────────────
 const ROLE_CONFIG: Record<EffectiveRole, { label: string; icon: React.ElementType; color: string }> = {
@@ -181,17 +212,42 @@ function determineEffectiveRole(roles: string[]): EffectiveRole {
   return "company_staff";
 }
 
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function normalizeAccessRole(role: string | null | undefined): EffectiveRole | null {
+  if (role === "worker") return "employee";
+  if (
+    role === "company_admin" ||
+    role === "company_staff" ||
+    role === "salesperson" ||
+    role === "call_center" ||
+    role === "employee" ||
+    role === "subcontractor"
+  ) {
+    return role;
+  }
+  return null;
+}
+
 async function readUsersOptionalRows<T>(
   task: PromiseLike<{ data: unknown; error: unknown }>,
   label: string,
   timeoutMs = 6_000,
-): Promise<T[]> {
+): Promise<{ rows: T[]; warning?: string }> {
   try {
     const response = await withClientTimeout(task, label, timeoutMs);
-    if (response.error) return [];
-    return (response.data ?? []) as T[];
-  } catch {
-    return [];
+    if (response.error) {
+      const message = response.error instanceof Error ? response.error.message : "lettura non disponibile";
+      return { rows: [], warning: `${label}: ${message}` };
+    }
+    return { rows: (response.data ?? []) as T[] };
+  } catch (error) {
+    return {
+      rows: [],
+      warning: error instanceof Error ? error.message : `${label}: lettura non disponibile`,
+    };
   }
 }
 
@@ -297,7 +353,7 @@ function DeleteUserDialog({
 export function UsersConfig() {
   const { user, effectiveCompany, profile, role } = useAuth();
   const permissions = usePermissions();
-  const canManageUsers = permissions.isAdmin;
+  const canManageUsers = permissions.isAdmin || permissions.canEditSettingsPeople;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const effectiveCompanyId = effectiveCompany?.id;
@@ -310,6 +366,7 @@ export function UsersConfig() {
   const [teamFilter, setTeamFilter] = useState<string>("all");
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CompanyUser | null>(null);
 
   // ── Teams ───────────────────────────────────────────────────────────
@@ -357,106 +414,188 @@ export function UsersConfig() {
   });
 
   // ── Company Users Query ─────────────────────────────────────────────
-  const { data: companyUsers = [], isLoading } = useQuery({
+  const { data: companyUsersResult = { users: [], warnings: [] }, isLoading } = useQuery<CompanyUsersQueryResult>({
     queryKey: ["company-users", effectiveCompanyId, profile?.id, role],
     queryFn: async () => {
-      const dbProfiles = await readUsersOptionalRows<Pick<CompanyUser,
-        "id" | "first_name" | "last_name" | "email" | "phone" | "last_login_at" | "locked_until" | "failed_login_count"
-      >>(
-        supabase
-          .from("profiles")
-          .select("id, first_name, last_name, email, phone, last_login_at, locked_until, failed_login_count")
-          .eq("company_id", effectiveCompanyId!),
-        "Caricamento utenti",
-      );
-      const seedProfiles = profile?.id && effectiveCompanyId
+      const warnings: string[] = [];
+      const rpc = supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, string>,
+      ) => Promise<{ data: unknown; error: unknown }>;
+
+      const [rpcProfilesResult, dbProfilesResult, accessRowsResult] = await Promise.all([
+        readUsersOptionalRows<RpcCompanyPerson>(
+          rpc.call(supabase, "get_internal_chat_profiles", { p_company_id: effectiveCompanyId! }),
+          "Directory utenti RPC",
+          15_000,
+        ),
+        readUsersOptionalRows<CompanyUserProfileRow>(
+          supabase
+            .from("profiles")
+            .select("id, first_name, last_name, email, phone, company_id, last_login_at, locked_until, failed_login_count, is_blocked")
+            .eq("company_id", effectiveCompanyId!)
+            .limit(3000),
+          "Caricamento utenti",
+          15_000,
+        ),
+        readUsersOptionalRows<MultiCompanyAccessRow>(
+          supabase
+            .from("multi_company_access")
+            .select("user_id, company_id, access_role")
+            .eq("company_id", effectiveCompanyId!)
+            .limit(3000),
+          "Accessi multi-azienda",
+          15_000,
+        ),
+      ]);
+      if (dbProfilesResult.warning) warnings.push(dbProfilesResult.warning);
+      if (accessRowsResult.warning) warnings.push(accessRowsResult.warning);
+      if (dbProfilesResult.rows.length === 0 && rpcProfilesResult.warning) warnings.push(rpcProfilesResult.warning);
+
+      const seedProfiles: CompanyUserProfileRow[] = profile?.id && effectiveCompanyId
         ? [{
           id: profile.id,
           first_name: profile.first_name ?? "",
           last_name: profile.last_name ?? "",
           email: profile.email ?? user?.email ?? "",
           phone: profile.phone ?? null,
+          company_id: effectiveCompanyId,
           last_login_at: profile.last_login_at ?? null,
           locked_until: profile.locked_until ?? null,
           failed_login_count: profile.failed_login_count ?? 0,
+          is_blocked: false,
         }]
         : [];
-      const profiles = [...seedProfiles, ...dbProfiles].reduce<typeof dbProfiles>((acc, current) => {
-        if (!acc.some((item) => item.id === current.id)) acc.push(current);
-        return acc;
-      }, []);
 
-      const userIds = profiles.map((p) => p.id);
-      if (userIds.length === 0) return [];
+      const rpcProfiles: CompanyUserProfileRow[] = rpcProfilesResult.rows.map((person) => ({
+        id: person.id,
+        first_name: person.first_name ?? "",
+        last_name: person.last_name ?? "",
+        email: person.email ?? "",
+        phone: null,
+        company_id: effectiveCompanyId,
+        last_login_at: null,
+        locked_until: null,
+        failed_login_count: 0,
+        roles: Array.isArray(person.roles) ? person.roles : null,
+      }));
+
+      const profilesById = new Map<string, CompanyUserProfileRow>();
+      [...rpcProfiles, ...seedProfiles, ...dbProfilesResult.rows].forEach((current) => {
+        const previous = profilesById.get(current.id);
+        profilesById.set(current.id, {
+          ...previous,
+          ...current,
+          roles: uniqueValues([
+            ...(previous?.roles ?? []),
+            ...(current.roles ?? []),
+          ]),
+        });
+      });
+
+      const accessRows = accessRowsResult.rows;
+      const accessIds = uniqueValues(accessRows.map((row) => row.user_id));
+      const missingAccessProfileIds = accessIds.filter((id) => !profilesById.has(id));
+      if (missingAccessProfileIds.length > 0) {
+        const accessProfilesResult = await readUsersOptionalRows<CompanyUserProfileRow>(
+          supabase
+            .from("profiles")
+            .select("id, first_name, last_name, email, phone, company_id, last_login_at, locked_until, failed_login_count, is_blocked")
+            .in("id", missingAccessProfileIds)
+            .limit(3000),
+          "Profili accessi collegati",
+          15_000,
+        );
+        if (accessProfilesResult.warning) warnings.push(accessProfilesResult.warning);
+        accessProfilesResult.rows.forEach((current) => {
+          if (!profilesById.has(current.id)) profilesById.set(current.id, current);
+        });
+      }
+
+      const userIds = uniqueValues([
+        ...Array.from(profilesById.keys()),
+        ...accessIds,
+      ]);
+      if (userIds.length === 0) return { users: [], warnings };
 
       // Bound paranoici su queries multi-utente: anche se userIds è già
       // limitato dalla query profiles a monte, esplicitare i limit evita
       // payload runaway su company molto grandi (3000+ utenti).
-      const [rolesRows, sessionsRows, permsRows, blockedRows] = await Promise.all([
-        readUsersOptionalRows<{ user_id: string; role: string }>(supabase
-          .from("user_roles")
-          .select("user_id, role")
-          .in("user_id", userIds)
-          .limit(5000), "Ruoli utenti"),
+      const shouldFetchRoles = rpcProfiles.length === 0;
+      const [rolesResult, sessionsResult] = await Promise.all([
+        shouldFetchRoles
+          ? readUsersOptionalRows<{ user_id: string; role: string }>(supabase
+            .from("user_roles")
+            .select("user_id, role")
+            .in("user_id", userIds)
+            .limit(5000), "Ruoli utenti", 15_000)
+          : Promise.resolve({ rows: [] as { user_id: string; role: string }[] }),
         readUsersOptionalRows<{ user_id: string }>(supabase
           .from("user_sessions")
           .select("user_id")
           .eq("company_id", effectiveCompanyId!)
           .eq("is_active", true)
-          .limit(2000), "Sessioni utenti"),
-        // staff_permissions ha schema molto largo (30+ permission booleans);
-        // qui carichiamo "*" perché la UI mostra il pannello permessi completo
-        // su click. Bound numerico evita full-table fetch su DB drift.
-        readUsersOptionalRows<StaffPermissions & { user_id: string }>(supabase
-          .from("staff_permissions")
-          .select("*")
-          .in("user_id", userIds)
-          .limit(2000), "Permessi utenti"),
-        readUsersOptionalRows<{ id: string; is_blocked: boolean | null }>(supabase
-          .from("profiles")
-          .select("id, is_blocked")
-          .in("id", userIds)
-          .limit(2000), "Stato blocco utenti"),
+          .limit(2000), "Sessioni utenti", 10_000),
       ]);
+      [rolesResult, sessionsResult].forEach((result) => {
+        if (result.warning) warnings.push(result.warning);
+      });
 
       const rolesByUser: Record<string, string[]> = {};
       if (profile?.id && role) rolesByUser[profile.id] = [role];
-      rolesRows.forEach((r) => {
+      profilesById.forEach((companyProfile) => {
+        if (companyProfile.roles?.length) {
+          rolesByUser[companyProfile.id] = uniqueValues([
+            ...(rolesByUser[companyProfile.id] ?? []),
+            ...companyProfile.roles,
+          ]);
+        }
+      });
+      rolesResult.rows.forEach((r) => {
         if (!rolesByUser[r.user_id]) rolesByUser[r.user_id] = [];
         rolesByUser[r.user_id].push(r.role);
       });
 
+      const accessRoleByUser: Record<string, EffectiveRole> = {};
+      accessRows.forEach((row) => {
+        const accessRole = normalizeAccessRole(row.access_role);
+        if (accessRole) accessRoleByUser[row.user_id] = accessRole;
+      });
+
       const sessionsByUser: Record<string, number> = {};
-      sessionsRows.forEach((s) => {
+      sessionsResult.rows.forEach((s) => {
         sessionsByUser[s.user_id] = (sessionsByUser[s.user_id] || 0) + 1;
       });
 
-      const permissionsMap: Record<string, StaffPermissions> = {};
-      permsRows.forEach((p) => { permissionsMap[p.user_id] = p; });
       const blockedByUser: Record<string, boolean> = {};
-      blockedRows.forEach((row) => { blockedByUser[row.id] = row.is_blocked === true; });
+      profilesById.forEach((row) => { blockedByUser[row.id] = row.is_blocked === true; });
 
-      const companyRoles = ["company_admin", "company_staff", "salesperson", "call_center", "employee", "worker", "subcontractor"];
-      const companyUserIdsFromRoles = Object.entries(rolesByUser)
-        .filter(([, userRoles]) => userRoles.some((r) => companyRoles.includes(r)))
-        .map(([uid]) => uid);
-      const companyUserIds = companyUserIdsFromRoles.length > 0 ? companyUserIdsFromRoles : userIds;
-
-      if (companyUserIds.length === 0) return [];
-
-      return companyUserIds.flatMap((uid) => {
-        const profile = profiles.find((p) => p.id === uid);
-        if (!profile) return [];
-        const userRoles = rolesByUser[uid] || [];
+      const users = userIds.map((uid) => {
+        const profile = profilesById.get(uid);
+        const accessRole = accessRoleByUser[uid];
+        const userRoles = uniqueValues([
+          ...(accessRole ? [accessRole] : []),
+          ...(rolesByUser[uid] || []),
+        ]);
+        const safeRoles = userRoles.length > 0 ? userRoles : ["company_staff"];
         return [{
-          ...profile,
-          effectiveRole: determineEffectiveRole(userRoles),
-          allRoles: userRoles,
-          permissions: permissionsMap[uid] || null,
+          id: uid,
+          first_name: profile?.first_name ?? "Utente",
+          last_name: profile?.last_name ?? "collegato",
+          email: profile?.email ?? "Profilo non leggibile",
+          phone: profile?.phone ?? null,
+          last_login_at: profile?.last_login_at ?? null,
+          locked_until: profile?.locked_until ?? null,
+          failed_login_count: profile?.failed_login_count ?? 0,
+          effectiveRole: determineEffectiveRole(safeRoles),
+          allRoles: safeRoles,
+          permissions: null,
           active_sessions: sessionsByUser[uid] || 0,
           is_blocked: blockedByUser[uid] ?? false,
         }];
-      }) as CompanyUser[];
+      }).flat() as CompanyUser[];
+
+      return { users, warnings };
     },
     enabled: !!effectiveCompanyId,
     staleTime: 5 * 60 * 1000,
@@ -481,6 +620,8 @@ export function UsersConfig() {
       is_blocked: false,
     }];
   }, [profile, role, user]);
+  const companyUsers = companyUsersResult.users;
+  const companyUsersWarnings = companyUsersResult.warnings;
   const visibleCompanyUsers = companyUsers.length > 0 ? companyUsers : authFallbackUsers;
 
   // ── KPI ─────────────────────────────────────────────────────────────
@@ -564,16 +705,8 @@ export function UsersConfig() {
       // Update permissions
       const rolesWithPermissions = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
       if (rolesWithPermissions.includes(data.role_type) && data.permissions && response.data?.user_id) {
-        const synced = syncLegacySettingsFlags(data.permissions);
+        const synced = syncLegacySettingsFlags(syncLegacyMarketingFlags(data.permissions));
         const { only_assigned, ...permFields } = synced;
-        const hasAnyMarketingView = permFields.can_view_marketing_dashboard || permFields.can_view_marketing_contacts ||
-          permFields.can_view_marketing_opportunities || permFields.can_view_marketing_activities ||
-          permFields.can_view_marketing_appointments || permFields.can_view_marketing_automations ||
-          permFields.can_view_marketing_ai_agent || permFields.can_view_marketing_email ||
-          permFields.can_view_marketing_whatsapp || permFields.can_view_marketing_reports;
-        const hasAnyMarketingEdit = permFields.can_edit_marketing_contacts || permFields.can_edit_marketing_opportunities;
-        permFields.can_view_marketing = hasAnyMarketingView || permFields.can_view_marketing;
-        permFields.can_edit_marketing = hasAnyMarketingEdit || permFields.can_edit_marketing;
         const { error: permUpdateError } = await supabase
           .from("staff_permissions")
           .update({ ...permFields, only_assigned: only_assigned || false })
@@ -585,14 +718,31 @@ export function UsersConfig() {
         }
       }
 
-      // Create salespeople record for salesperson role
+      // Ensure the salesperson record created by the Edge Function carries the UI commission values.
       if (data.role_type === "salesperson" && response.data?.user_id && effectiveCompanyId) {
-        const { error: spError } = await supabase.from("salespeople").insert({
-          company_id: effectiveCompanyId, user_id: response.data.user_id,
-          first_name: data.first_name, last_name: data.last_name,
-          email: normalizedEmail, commission_type: "percentage_sold",
+        const salespersonPayload = {
+          first_name: data.first_name,
+          last_name: data.last_name,
+          email: normalizedEmail,
+          commission_type: "percentage_sold",
           commission_value: data.commission_percentage ?? 0,
-        });
+          is_active: true,
+        };
+        const { data: existingSalesperson, error: spLookupError } = await supabase
+          .from("salespeople")
+          .select("id")
+          .eq("company_id", effectiveCompanyId)
+          .eq("user_id", response.data.user_id)
+          .maybeSingle();
+        if (spLookupError) throw spLookupError;
+
+        const { error: spError } = existingSalesperson?.id
+          ? await supabase.from("salespeople").update(salespersonPayload).eq("id", existingSalesperson.id)
+          : await supabase.from("salespeople").insert({
+            ...salespersonPayload,
+            company_id: effectiveCompanyId,
+            user_id: response.data.user_id,
+          });
         if (spError) {
           logger.error("Failed to create salespeople record:", spError);
           toast.warning("Utente creato, ma il profilo venditore non è stato creato");
@@ -636,7 +786,7 @@ export function UsersConfig() {
   const deleteUserMutation = useMutation({
     mutationFn: async ({ userId, reassignToUserId }: { userId: string; reassignToUserId?: string }) => {
       const { data, error: fnError } = await supabase.functions.invoke("delete-company-user", {
-        body: { userId, reassignToUserId },
+        body: { userId, reassignToUserId, company_id: effectiveCompanyId },
       });
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
@@ -800,7 +950,9 @@ export function UsersConfig() {
     return matchesSearch && matchesRole && matchesStatus && matchesTeam;
   });
 
-  const selectableFilteredUsers = filteredUsers.filter(u => !isCurrentUser(u.id) && u.effectiveRole !== COMPANY_ADMIN_ROLE);
+  const selectableFilteredUsers = canManageUsers
+    ? filteredUsers.filter(u => !isCurrentUser(u.id) && u.effectiveRole !== COMPANY_ADMIN_ROLE)
+    : [];
   const hasActiveFilters = searchQuery.trim() !== "" || roleFilter !== "all" || statusFilter !== "all" || teamFilter !== "all";
 
   // ── Bulk Actions ────────────────────────────────────────────────────
@@ -822,6 +974,7 @@ export function UsersConfig() {
   };
 
   const handleBulkDelete = async () => {
+    setBulkDeleteOpen(false);
     const selected = Array.from(selectedUsers);
     const blocked = selected.filter((uid) => {
       const selectedUser = visibleCompanyUsers.find((u) => u.id === uid);
@@ -839,7 +992,9 @@ export function UsersConfig() {
     try {
       for (const uid of deletable) {
         try {
-          const { data, error } = await supabase.functions.invoke("delete-company-user", { body: { userId: uid } });
+          const { data, error } = await supabase.functions.invoke("delete-company-user", {
+            body: { userId: uid, company_id: effectiveCompanyId },
+          });
           if (!error && !data?.error) deleted++;
         } catch { /* skip row; backend still enforces authorization */ }
       }
@@ -1004,6 +1159,19 @@ export function UsersConfig() {
         ) : null}
       </div>
 
+      {companyUsersWarnings.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Lista accessi caricata parzialmente</p>
+            <p className="mt-0.5 text-xs text-amber-700">
+              Alcune fonti non hanno risposto: {companyUsersWarnings.slice(0, 2).join(" · ")}
+              {companyUsersWarnings.length > 2 ? ` · +${companyUsersWarnings.length - 2}` : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Main Card ─────────────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
@@ -1075,21 +1243,25 @@ export function UsersConfig() {
             </div>
 
             <div className="flex items-center gap-2 ml-auto">
-              <Button onClick={() => setCreateDialogOpen(true)} size="sm">
-                <Plus className="h-4 w-4 mr-1.5" />
-                Nuovo Utente
-              </Button>
+              {canManageUsers && (
+                <Button onClick={() => setCreateDialogOpen(true)} size="sm">
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Nuovo Utente
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={handleExportCSV} title="Esporta CSV">
                 <Download className="h-4 w-4" />
               </Button>
-              <div className="relative">
-                <input type="file" accept=".csv"
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  onChange={handleImportCSV} />
-                <Button variant="outline" size="sm" title="Importa CSV">
-                  <Upload className="h-4 w-4" />
-                </Button>
-              </div>
+              {canManageUsers && (
+                <div className="relative">
+                  <input type="file" accept=".csv"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    onChange={handleImportCSV} />
+                  <Button variant="outline" size="sm" title="Importa CSV">
+                    <Upload className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1105,7 +1277,7 @@ export function UsersConfig() {
               </div>
               <div className="flex items-center gap-1.5 ml-auto">
                 {canManageUsers && (
-                  <Button size="sm" variant="destructive" disabled={bulkActionLoading} onClick={handleBulkDelete}>
+                  <Button size="sm" variant="destructive" disabled={bulkActionLoading} onClick={() => setBulkDeleteOpen(true)}>
                     {bulkActionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
                     Elimina
                   </Button>
@@ -1134,7 +1306,7 @@ export function UsersConfig() {
                   ? "Crea il primo utente per iniziare."
                   : "Prova a modificare i filtri."}
               </p>
-              {visibleCompanyUsers.length === 0 && (
+              {canManageUsers && visibleCompanyUsers.length === 0 && (
                 <Button variant="outline" size="sm" className="mt-3" onClick={() => setCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-1.5" /> Crea utente
                 </Button>
@@ -1145,12 +1317,14 @@ export function UsersConfig() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10 pl-4">
-                    <Checkbox
-                      checked={selectableFilteredUsers.length > 0 &&
-                        selectedUsers.size === selectableFilteredUsers.length}
-                      onCheckedChange={toggleSelectAll}
-                      disabled={selectableFilteredUsers.length === 0}
-                    />
+                    {canManageUsers && (
+                      <Checkbox
+                        checked={selectableFilteredUsers.length > 0 &&
+                          selectedUsers.size === selectableFilteredUsers.length}
+                        onCheckedChange={toggleSelectAll}
+                        disabled={selectableFilteredUsers.length === 0}
+                      />
+                    )}
                   </TableHead>
                   <TableHead className="min-w-[200px]">Utente</TableHead>
                   <TableHead className="w-[140px]">Ruolo</TableHead>
@@ -1162,11 +1336,11 @@ export function UsersConfig() {
                 {filteredUsers.map((u) => (
                   <TableRow
                     key={u.id}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => !isCurrentUser(u.id) && navigate(`/azienda/impostazioni/utenti/${u.id}`)}
+                    className={canManageUsers && !isCurrentUser(u.id) ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}
+                    onClick={() => canManageUsers && !isCurrentUser(u.id) && navigate(`/azienda/impostazioni/utenti/${u.id}`)}
                   >
                     <TableCell className="pl-4" onClick={e => e.stopPropagation()}>
-                      {!isCurrentUser(u.id) && u.effectiveRole !== COMPANY_ADMIN_ROLE && (
+                      {canManageUsers && !isCurrentUser(u.id) && u.effectiveRole !== COMPANY_ADMIN_ROLE && (
                         <Checkbox
                           checked={selectedUsers.has(u.id)}
                           onCheckedChange={() => toggleSelectUser(u.id)}
@@ -1200,7 +1374,7 @@ export function UsersConfig() {
                       <UserStatus u={u} />
                     </TableCell>
                     <TableCell className="text-right pr-4" onClick={(e) => e.stopPropagation()}>
-                      {!isCurrentUser(u.id) && (
+                      {canManageUsers && !isCurrentUser(u.id) && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -1344,6 +1518,39 @@ export function UsersConfig() {
         }}
         isDeleting={deleteUserMutation.isPending}
       />
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Eliminare {selectedUsers.size} utente/i?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              L'eliminazione massiva revoca gli accessi selezionati e scollega eventuali record collegati.
+              Admin e utente corrente restano esclusi. Questa azione viene registrata nel log audit.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkActionLoading}>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={bulkActionLoading}
+              onClick={(event) => {
+                event.preventDefault();
+                handleBulkDelete();
+              }}
+            >
+              {bulkActionLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Elimina selezionati
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
