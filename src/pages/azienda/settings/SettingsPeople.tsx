@@ -1,30 +1,33 @@
 /**
  * Pagina unificata "Persone & Accessi"
  *
- * 6 tab:
+ * 7 tab:
  *  1. Utenti & Accessi  — gestione accessi, ruoli, permessi, sicurezza
  *  2. Sicurezza accessi — governance, rischi, 2FA, multi-azienda
- *  3. Dipendenti        — operai + staff interno, stipendi, rapportini, ferie
- *  4. Subappaltatori    — squadre esterne + accesso campo
- *  5. Venditori         — gestione venditori con provvigioni
- *  6. Team              — team con drag-and-drop
+ *  3. Template permessi — template assegnabili
+ *  4. Dipendenti        — operai + staff interno, stipendi, rapportini, ferie
+ *  5. Subappaltatori    — squadre esterne + accesso campo
+ *  6. Venditori         — gestione venditori con provvigioni
+ *  7. Team              — team con drag-and-drop
+ *  8. Commercialista    — invito + deleghe accesso studio
  */
 
 import { useSearchParams } from "react-router-dom";
-import { Shield, ShieldCheck, TrendingUp, Users, UsersRound, Loader2, Building2, Info, FileText } from "lucide-react";
+import { Shield, ShieldCheck, TrendingUp, Users, UsersRound, Loader2, Building2, Info, FileText, Landmark } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UsersConfig } from "@/components/settings/UsersConfig";
 import { SalespeopleConfig } from "@/components/settings/SalespeopleConfig";
 import { SubappaltatoriTab } from "@/components/settings/SubappaltatoriTab";
 import { AccessGovernancePanel } from "@/components/settings/AccessGovernancePanel";
 import { PermissionTemplatesManager } from "@/components/settings/PermissionTemplatesManager";
+import { AccountantAccessTab } from "@/components/settings/AccountantAccessTab";
 import Employees from "@/pages/azienda/Employees";
 import SettingsTeams from "@/pages/azienda/settings/SettingsTeams";
 import { usePermissions } from "@/hooks/usePermissions";
 
-type PeopleTab = "utenti" | "sicurezza-accessi" | "template-permessi" | "dipendenti" | "subappaltatori" | "venditori" | "team";
+type PeopleTab = "utenti" | "sicurezza-accessi" | "template-permessi" | "dipendenti" | "subappaltatori" | "venditori" | "team" | "commercialista";
 
-const VALID_TABS: PeopleTab[] = ["utenti", "sicurezza-accessi", "template-permessi", "dipendenti", "subappaltatori", "venditori", "team"];
+const VALID_TABS: PeopleTab[] = ["utenti", "sicurezza-accessi", "template-permessi", "dipendenti", "subappaltatori", "venditori", "team", "commercialista"];
 
 function isValidTab(tab: string | null): tab is PeopleTab {
   return VALID_TABS.includes(tab as PeopleTab);
@@ -136,6 +139,12 @@ export default function SettingsPeople() {
             Team
           </TabsTrigger>
         )}
+        {canViewUsers && (
+          <TabsTrigger value="commercialista" className="gap-1.5 shrink-0">
+            <Landmark className="h-4 w-4" />
+            Commercialista
+          </TabsTrigger>
+        )}
       </TabsList>
 
       {canViewUsers && (
@@ -194,6 +203,12 @@ export default function SettingsPeople() {
       {canViewPeople && (
         <TabsContent value="team">
           <SettingsTeams />
+        </TabsContent>
+      )}
+
+      {canViewUsers && (
+        <TabsContent value="commercialista">
+          <AccountantAccessTab />
         </TabsContent>
       )}
     </Tabs>

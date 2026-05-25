@@ -231,6 +231,14 @@ verify_jwt = false
 [functions.accountant-self-signup]
 verify_jwt = false
 
+# Azienda invita il proprio commercialista (richiede auth admin/owner azienda).
+[functions.invite-accountant-to-company]
+verify_jwt = true
+
+# Azienda revoca/sospende/modifica delega del proprio commercialista.
+[functions.update-accountant-company-access]
+verify_jwt = true
+
 [functions.send-partner-notification]
 verify_jwt = false
 
