@@ -69,6 +69,8 @@ interface Props {
   onComputoReady?: (computoUploadId: string) => void;
   /** Bucket dove caricare. Default "documenti-smart"; fallback "computi". */
   storageBucket?: string;
+  /** File pre-selezionato (es. da drag&drop esterno). Verrà caricato automaticamente sullo step 1. */
+  initialFile?: File | null;
 }
 
 const ACCEPTED_EXT = [...SMART_ACCEPTED_EXT];
@@ -249,6 +251,7 @@ export function SmartDocumentImportModal({
   onOpenChange,
   onComputoReady,
   storageBucket = "documenti-smart",
+  initialFile,
 }: Props) {
   const navigate = useNavigate();
   const { effectiveCompany, user } = useAuth();
@@ -256,6 +259,15 @@ export function SmartDocumentImportModal({
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [file, setFile] = useState<File | null>(null);
+
+  // Quando apriamo il modal con un file pre-selezionato (es. da drag&drop esterno),
+  // lo carichiamo automaticamente al primo render del modal aperto.
+  useEffect(() => {
+    if (open && initialFile && !file) {
+      setFile(initialFile);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialFile]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [classifyStatus, setClassifyStatus] =
