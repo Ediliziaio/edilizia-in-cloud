@@ -76,7 +76,10 @@ import { AdminNotificationCenter } from "@/components/admin/header/AdminNotifica
 import { AdminQuickActions } from "@/components/admin/header/AdminQuickActions";
 import { AdminBottomNav } from "@/components/admin/AdminBottomNav";
 import { AdminMobileSettingsNav } from "@/components/admin/AdminMobileSettingsNav";
-import { AdminSilvioFAB } from "@/components/silvio/AdminSilvioFAB";
+// AdminSilvioFAB sostituito con SilvioFAB mode="admin" — stesso UX della
+// chat aziendale (audio recording, attachments, markdown, model selector,
+// action proposals) ma scoped al backend superadmin (silvio-admin-chat).
+import { SilvioFAB } from "@/components/silvio/SilvioFAB";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AdminNavItem {
@@ -774,7 +777,7 @@ export function AdminLayout() {
             </ErrorBoundary>
           </main>
         </div>
-        <AdminSilvioFAB />
+        <SilvioFAB mode="admin" />
       </div>
     </SidebarProvider>
   );

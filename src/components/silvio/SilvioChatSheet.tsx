@@ -69,7 +69,49 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 
-const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
+const SILVIO_SENDER_ID_AZIENDA = "00000000-0000-0000-0000-000000000002";
+const SILVIO_SENDER_ID_ADMIN = "00000000-0000-0000-0000-000000000003";
+
+/**
+ * Configurazione backend per modalità chat.
+ * "azienda" → Silvio aziendale (context impresa edile, persone CFO/PM/HR)
+ * "admin"   → Silvio Superadmin (context piattaforma, agenti cross-tenant)
+ */
+export type SilvioChatMode = "azienda" | "admin";
+
+interface SilvioModeConfig {
+  senderId: string;
+  rpcEnsureChannel: string;
+  edgeFunction: string;
+  realtimePrefix: string;
+  headerTitle: string;
+  headerBadge: string;
+  contextHintLabel: string;
+}
+
+const MODE_CONFIG: Record<SilvioChatMode, SilvioModeConfig> = {
+  azienda: {
+    senderId: SILVIO_SENDER_ID_AZIENDA,
+    rpcEnsureChannel: "ensure_user_silvio_channel",
+    edgeFunction: "silvio-chat",
+    realtimePrefix: "silvio-chat-rt",
+    headerTitle: "Silvio",
+    headerBadge: "AI",
+    contextHintLabel: "Area Azienda",
+  },
+  admin: {
+    senderId: SILVIO_SENDER_ID_ADMIN,
+    rpcEnsureChannel: "ensure_user_silvio_admin_channel",
+    edgeFunction: "silvio-admin-chat",
+    realtimePrefix: "silvio-admin-chat-rt",
+    headerTitle: "Silvio Superadmin",
+    headerBadge: "Superadmin",
+    contextHintLabel: "Area Superadmin",
+  },
+};
+
+// Back-compat alias (riferimenti esistenti nel file)
+const SILVIO_SENDER_ID = SILVIO_SENDER_ID_AZIENDA;
 const MAX_ATTACHMENTS = 5;
 
 // Skill shortcuts riusabili (pattern slash command)
@@ -198,6 +240,15 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   prefillDraft?: string;
+  /**
+   * Modalità chat: switcha tutti i punti di interazione col backend +
+   * branding header. Default "azienda" (back-compat).
+   *   • "azienda" → silvio-chat + ensure_user_silvio_channel + Silvio
+   *   • "admin"   → silvio-admin-chat + ensure_user_silvio_admin_channel +
+   *                 Silvio Superadmin (per gestione platform, agenti
+   *                 cross-tenant, ecc.)
+   */
+  mode?: SilvioChatMode;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -253,7 +304,9 @@ function fmtBytes(n: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────
 
-export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
+export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azienda" }: Props) {
+  const modeCfg = MODE_CONFIG[mode];
+  const silvioSenderId = modeCfg.senderId;
   const navigate = useNavigate();
   // Context pagina corrente: passato a silvio-chat come HINT (non filtro).
   // Vedi useSilvioPageContext per le route mappate.
@@ -348,7 +401,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
       if (!companyId || !userId) return null;
       // RPC restituisce uuid del channel — cast tipizzato senza `any`.
       const { data, error } = await supabase.rpc(
-        "ensure_user_silvio_channel" as never,
+        modeCfg.rpcEnsureChannel as never,
       );
       if (error) {
         toast.error("Non riesco ad aprire la chat Silvio", {
@@ -467,7 +520,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
     if (!channelId || !open) return;
     const queryKey = ["internal-chat-messages", channelId];
     const channel = supabase
-      .channel(`silvio-chat-rt-${channelId}`)
+      .channel(`${modeCfg.realtimePrefix}-${channelId}`)
       .on(
         "postgres_changes",
         {
@@ -600,7 +653,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
       if (!seenMessageIdsRef.current.has(m.id)) {
         if (
           !isFirstHydration &&
-          m.sender_id === SILVIO_SENDER_ID &&
+          m.sender_id === silvioSenderId &&
           m.content &&
           m.content.trim().length > 0 &&
           m.created_at >= mountTimeRef.current
@@ -946,7 +999,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
       const ac = new AbortController();
       sendAbortRef.current = ac;
       // Invoke Silvio with full attachments list
-      const res = await supabase.functions.invoke("silvio-chat", {
+      const res = await supabase.functions.invoke(modeCfg.edgeFunction, {
         body: {
           channel_id: channelId,
           message: trimmed || "",
@@ -1050,13 +1103,22 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
               <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
             </div>
             <div className="flex-1 text-left min-w-0">
-              <p className="text-sm font-semibold text-slate-800 truncate">Chat con Silvio</p>
+              <p className="text-sm font-semibold text-slate-800 truncate flex items-center gap-1.5">
+                Chat con {modeCfg.headerTitle}
+                {mode === "admin" && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-700">
+                    {modeCfg.headerBadge}
+                  </span>
+                )}
+              </p>
               <p className="text-[11px] text-slate-500 font-normal truncate">
                 {pageContext
                   ? `Sai che sto guardando: ${pageContext.route_label}`
                   : messages.length > 0
                     ? `${messages.length} messaggi · live · multimodal`
-                    : "Analizza testi, foto, PDF, DDT e vocali"}
+                    : mode === "admin"
+                      ? "Gestione piattaforma + agenti cross-tenant"
+                      : "Analizza testi, foto, PDF, DDT e vocali"}
               </p>
             </div>
             {/* 🆕 Bottoni azione header */}
@@ -1067,7 +1129,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
               title="Espandi in pagina dedicata"
               onClick={() => {
                 onOpenChange(false);
-                navigate("/azienda/chat");
+                navigate(mode === "admin" ? "/admin/chat" : "/azienda/chat");
               }}
             >
               <Maximize2 className="h-4 w-4" />
@@ -1222,6 +1284,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft }: Props) {
                   isMe={m.sender_id === userId}
                   streaming={streamingMessageIds.has(m.id)}
                   onAskFollowup={(q) => setDraft(q)}
+                  silvioSenderId={silvioSenderId}
                 />
               ))}
             </AnimatePresence>
@@ -1700,13 +1763,15 @@ function MessageBubble({
   isMe,
   streaming,
   onAskFollowup,
+  silvioSenderId = SILVIO_SENDER_ID,
 }: {
   message: SilvioMessage;
   isMe: boolean;
   streaming: boolean;
   onAskFollowup?: (query: string) => void;
+  silvioSenderId?: string;
 }) {
-  const isSilvio = message.sender_id === SILVIO_SENDER_ID;
+  const isSilvio = message.sender_id === silvioSenderId;
   const isImage = message.message_type === "image" && message.attachment_url;
   const isAudio = message.message_type === "audio" && message.attachment_url;
   const isFile = message.message_type === "file" && message.attachment_url;

@@ -89,6 +89,8 @@ const KNOW_HOW_TIPS: Array<{
 interface Props {
   /** Se true, nasconde il FAB (es. dentro modali). Default false. */
   hidden?: boolean;
+  /** Modalità chat: "azienda" (default) o "admin" (Silvio Superadmin) */
+  mode?: "azienda" | "admin";
 }
 
 interface MorningBriefing {
@@ -100,7 +102,7 @@ interface MorningBriefing {
   read_at: string | null;
 }
 
-export function SilvioFAB({ hidden = false }: Props) {
+export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const pageContext = useSilvioPageContext();
@@ -580,7 +582,7 @@ export function SilvioFAB({ hidden = false }: Props) {
           e poi resta montata (chatHasMounted) per non ricaricarsi ogni volta */}
       {chatHasMounted && (
         <Suspense fallback={null}>
-          <SilvioChatSheet open={chatOpen} onOpenChange={setChatOpen} prefillDraft={chatPrefill} />
+          <SilvioChatSheet open={chatOpen} onOpenChange={setChatOpen} prefillDraft={chatPrefill} mode={mode} />
         </Suspense>
       )}
     </>
