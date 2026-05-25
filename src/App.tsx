@@ -181,6 +181,13 @@ const LandingAIImprenditoreEdile = lazy(() => import("@/app/landing/ai-imprendit
 const AiEdilizia = lazy(() => import("@/app/ai-edilizia/page"));
 const PartnerPayoutPreview = lazy(() => import("@/pages/partner/PartnerPayoutPreview"));
 const AccountantPortal = lazy(() => import("@/pages/accountant/AccountantPortal"));
+const AccountantLayout = lazy(() => import("@/pages/accountant/AccountantLayout"));
+const AccountantDashboard = lazy(() => import("@/pages/accountant/AccountantDashboard"));
+const AccountantCompaniesList = lazy(() => import("@/pages/accountant/AccountantCompaniesList"));
+const AccountantCompanyDetail = lazy(() => import("@/pages/accountant/AccountantCompanyDetail"));
+const AccountantInbox = lazy(() => import("@/pages/accountant/AccountantInbox"));
+const AccountantTeam = lazy(() => import("@/pages/accountant/AccountantTeam"));
+const AccountantSettings = lazy(() => import("@/pages/accountant/AccountantSettings"));
 
 // Funzionalità sub-pages
 const GestioneCantieri       = lazy(() => import("@/pages/funzionalita/GestioneCantieri"));
@@ -562,54 +569,33 @@ const App = () => (
                 path="/dev/partner/:section"
                 element={import.meta.env.DEV ? <PartnerPayoutPreview /> : <NotFound />}
               />
+              {/* Portale commercialista — layout + nested routes.
+                  Ogni azienda ha la sua pagina dedicata /commercialista/aziende/:companyId. */}
               <Route
                 path="/commercialista"
                 element={
                   import.meta.env.DEV ? (
-                    <AccountantPortal />
+                    <AccountantLayout />
                   ) : (
                     <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
-                      <AccountantPortal />
+                      <AccountantLayout />
                     </ProtectedRoute>
                   )
                 }
-              />
+              >
+                <Route index element={<AccountantDashboard />} />
+                <Route path="aziende" element={<AccountantCompaniesList />} />
+                <Route path="aziende/:companyId" element={<AccountantCompanyDetail />} />
+                <Route path="inbox" element={<AccountantInbox />} />
+                <Route path="team" element={<AccountantTeam />} />
+                <Route path="profilo" element={<AccountantSettings />} />
+              </Route>
+              {/* Legacy redirect: vecchie URL /commercialista/azienda/:id */}
               <Route
                 path="/commercialista/azienda/:companyId"
-                element={
-                  import.meta.env.DEV ? (
-                    <AccountantPortal />
-                  ) : (
-                    <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
-                      <AccountantPortal />
-                    </ProtectedRoute>
-                  )
-                }
+                element={<Navigate to="../aziende/:companyId" replace />}
               />
-              <Route
-                path="/commercialista/azienda/:companyId/:area"
-                element={
-                  import.meta.env.DEV ? (
-                    <AccountantPortal />
-                  ) : (
-                    <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
-                      <AccountantPortal />
-                    </ProtectedRoute>
-                  )
-                }
-              />
-              <Route
-                path="/commercialista/:section"
-                element={
-                  import.meta.env.DEV ? (
-                    <AccountantPortal />
-                  ) : (
-                    <ProtectedRoute allowedRoles={["accountant", "super_admin"]}>
-                      <AccountantPortal />
-                    </ProtectedRoute>
-                  )
-                }
-              />
+              {/* Dev preview standalone (vecchia versione monolitica) */}
               <Route
                 path="/dev/commercialista"
                 element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
