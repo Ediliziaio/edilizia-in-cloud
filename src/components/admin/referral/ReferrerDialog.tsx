@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { getReferralLoginUrl } from "@/lib/referral";
 import type { Referrer } from "@/pages/admin/ReferralDashboard";
 
 const schema = z.object({
@@ -185,7 +186,7 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
           if (inserted?.id) {
             await (supabase as any).rpc("ensure_referral_link", {
               p_referrer_id: inserted.id,
-              p_base_url: `${window.location.origin}/login`,
+              p_base_url: getReferralLoginUrl(),
             });
           }
         }

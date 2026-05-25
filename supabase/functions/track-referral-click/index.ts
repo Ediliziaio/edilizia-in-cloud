@@ -20,8 +20,21 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const body = await req.json();
-    const { referral_code, utm_source, utm_medium, utm_campaign, landing_page } = body;
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
+    const referral_code = String(body.referral_code || "").trim().toUpperCase();
+    const utm_source = String(body.utm_source || "").trim().slice(0, 120) || null;
+    const utm_medium = String(body.utm_medium || "").trim().slice(0, 120) || null;
+    const utm_campaign = String(body.utm_campaign || "").trim().slice(0, 160) || null;
+    const landing_page = String(body.landing_page || "/").trim();
 
     if (!referral_code) {
       return new Response(JSON.stringify({ error: "referral_code required" }), {
@@ -51,7 +64,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const normalizedLanding = String(landing_page || "/").slice(0, 500);
+    const normalizedLanding = (landing_page || "/").slice(0, 500);
     const device_hash = await sha256(`${ip_address || ""}|${user_agent || ""}`);
     const dedupe_key = await sha256(`${referrer.id}|${device_hash}|${new Date().toISOString().slice(0, 10)}|${normalizedLanding}`);
     const dedupeSince = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();

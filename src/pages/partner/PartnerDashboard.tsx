@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { PartnerOnboardingModal } from "./PartnerOnboardingModal";
 import { PartnerLeaderboard } from "@/components/partner/PartnerLeaderboard";
+import { buildReferralLink } from "@/lib/referral";
 
 export default function PartnerDashboard() {
   const { user } = useAuth();
@@ -76,17 +77,22 @@ export default function PartnerDashboard() {
         .eq("referrer_id", referrer!.id)
         .order("referred_at", { ascending: false });
       if (error) throw error;
-      if (data.length === 0) return [];
-      const companyIds = data.map((rc: any) => rc.company_id);
-      const { data: companies } = await supabase
-        .from("companies")
-        .select("id, name, status, subscription_plan_id")
-        .in("id", companyIds);
+      const rows = data ?? [];
+      if (rows.length === 0) return [];
+      const companyIds = rows.map((rc: any) => rc.company_id).filter(Boolean);
+      const { data: companies, error: companiesError } = companyIds.length > 0
+        ? await supabase
+          .from("companies")
+          .select("id, name, status, subscription_plan_id")
+          .in("id", companyIds)
+        : { data: [] as any[], error: null };
+      if (companiesError) throw companiesError;
       const planIds = [...new Set((companies || []).filter((c: any) => c.subscription_plan_id).map((c: any) => c.subscription_plan_id!))];
-      const { data: plans } = planIds.length > 0
+      const { data: plans, error: plansError } = planIds.length > 0
         ? await supabase.from("subscription_plans").select("id, name, price_monthly").in("id", planIds)
-        : { data: [] as any[] };
-      return data.map((rc: any) => {
+        : { data: [] as any[], error: null };
+      if (plansError) throw plansError;
+      return rows.map((rc: any) => {
         const company = companies?.find((c: any) => c.id === rc.company_id);
         const plan = company?.subscription_plan_id ? plans?.find((p: any) => p.id === company.subscription_plan_id) : null;
         return { ...rc, company, plan };
@@ -162,11 +168,12 @@ export default function PartnerDashboard() {
   }
 
   const tier = referrer.referral_tiers;
-  const activeCompanies = referredCompanies.filter((rc: any) => rc.is_active).length;
+  const activeCompanies = referredCompanies.filter((rc: any) => rc.is_active && rc.company?.status === "active").length;
   const totalEarned = referrer.total_earned || 0;
   const totalPaid = referrer.total_paid || 0;
   const balance = totalEarned - totalPaid;
   const monthlyCommission = ledger.reduce((sum: number, l: any) => sum + (l.commission_amount || 0), 0);
+  const referralLink = buildReferralLink(referrer.referral_code);
 
   const tierProgress = nextTier
     ? Math.min(100, (activeCompanies / nextTier.min_active_companies) * 100)
@@ -185,8 +192,7 @@ export default function PartnerDashboard() {
   });
 
   const copyLink = () => {
-    const link = `${window.location.origin}/login?ref=${referrer.referral_code}`;
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(referralLink);
     setCopied(true);
     toast.success("Link copiato!");
     setTimeout(() => setCopied(false), 2000);
@@ -293,7 +299,7 @@ export default function PartnerDashboard() {
           <div className="flex items-center gap-3">
             <ExternalLink className="h-5 w-5 text-muted-foreground shrink-0" />
             <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono truncate">
-              {window.location.origin}/login?ref={referrer.referral_code}
+              {referralLink}
             </code>
             <Button variant="outline" size="sm" onClick={copyLink}>
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -346,8 +352,8 @@ export default function PartnerDashboard() {
                       <TableCell className="font-medium">{rc.company?.name || "—"}</TableCell>
                       <TableCell className="text-sm">{rc.plan?.name || "—"}</TableCell>
                       <TableCell>
-                        <Badge variant={rc.is_active ? "default" : "secondary"}>
-                          {rc.is_active ? "Attiva" : "Inattiva"}
+                        <Badge variant={rc.is_active && rc.company?.status === "active" ? "default" : "secondary"}>
+                          {rc.is_active && rc.company?.status === "active" ? "Attiva" : "Inattiva"}
                         </Badge>
                       </TableCell>
                     </TableRow>

@@ -6,6 +6,7 @@ import { TrendingUp, BarChart3, Target, DollarSign, RefreshCw, Download, Trophy 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { exportToCSV } from "@/lib/csvExport";
 import type { Referrer, ReferralCompany, ReferralPayout } from "@/pages/admin/ReferralDashboard";
 
 interface Props {
@@ -34,6 +35,7 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
       const monthlyCommission = getMonthlyCommission(r);
 
       return {
+        id: r.id,
         name: r.name,
         tier: r.referral_tiers,
         totalCompanies: companies.length,
@@ -85,20 +87,31 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
   };
 
   const exportCSV = () => {
-    const csv = [
-      ["Referrer", "Tier", "Aziende Portate", "Attive", "Conv %", "MRR Generato", "Comm./mese", "Pagato", "ROI"].join(","),
-      ...analytics.referrerStats.map((r) =>
-        [r.name, r.tier?.name || "—", r.totalCompanies, r.activeCompanies, r.conversionRate + "%",
-          r.totalMrr, r.monthlyCommission, r.totalPaid, r.roi + "x"].join(",")
-      ),
-    ].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "referral-analytics.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    exportToCSV(
+      analytics.referrerStats.map((r) => ({
+        referrer: r.name,
+        tier: r.tier?.name || "-",
+        totalCompanies: String(r.totalCompanies),
+        activeCompanies: String(r.activeCompanies),
+        conversionRate: `${r.conversionRate}%`,
+        totalMrr: String(r.totalMrr),
+        monthlyCommission: String(r.monthlyCommission),
+        totalPaid: String(r.totalPaid),
+        roi: `${r.roi}x`,
+      })),
+      [
+        { key: "referrer", label: "Referrer" },
+        { key: "tier", label: "Tier" },
+        { key: "totalCompanies", label: "Aziende Portate" },
+        { key: "activeCompanies", label: "Attive" },
+        { key: "conversionRate", label: "Conv %" },
+        { key: "totalMrr", label: "MRR Generato" },
+        { key: "monthlyCommission", label: "Comm./mese" },
+        { key: "totalPaid", label: "Pagato" },
+        { key: "roi", label: "ROI" },
+      ],
+      "referral-analytics.csv",
+    );
   };
 
   const leaderboard = analytics.referrerStats.slice(0, 5);
@@ -107,6 +120,7 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
   const conversionChartData = analytics.referrerStats
     .filter((r) => r.totalCompanies > 0)
     .map((r) => ({
+      id: r.id,
       name: r.name.length > 12 ? r.name.substring(0, 12) + "…" : r.name,
       rate: r.conversionRate,
     }));
@@ -178,7 +192,7 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
           ) : (
             <div className="space-y-3">
               {leaderboard.map((r, i) => (
-                <div key={r.name} className="flex items-center gap-3">
+                <div key={r.id} className="flex items-center gap-3">
                   <span className="text-sm font-bold w-6 text-muted-foreground">#{i + 1}</span>
                   {r.tier && (
                     <span title={r.tier.name}>{r.tier.icon}</span>
@@ -219,8 +233,8 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
                     contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
                   />
                   <Bar dataKey="rate" radius={[0, 4, 4, 0]}>
-                    {conversionChartData.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    {conversionChartData.map((entry, i) => (
+                      <Cell key={entry.id} fill={COLORS[i % COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -248,7 +262,7 @@ export function ReferralAnalytics({ referrers, referralCompanies, payouts: _payo
                 </thead>
                 <tbody>
                   {analytics.referrerStats.map((r) => (
-                    <tr key={r.name} className="border-b last:border-0">
+                    <tr key={r.id} className="border-b last:border-0">
                       <td className="py-2 font-medium">{r.name}</td>
                       <td className="text-center py-2">{r.totalClicks}</td>
                       <td className="text-center py-2">{r.activeCompanies}</td>

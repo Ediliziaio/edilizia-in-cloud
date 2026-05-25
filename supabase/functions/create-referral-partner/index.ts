@@ -24,6 +24,25 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+function isSuperAdminEmailAllowed(email: string | null | undefined) {
+  const normalizedEmail = normalizeEmail(email || "");
+  const configuredAllowlist = Deno.env.get("SUPER_ADMIN_EMAIL_ALLOWLIST") || "flo.andriciuc@gmail.com";
+  return configuredAllowlist
+    .split(",")
+    .map((item) => normalizeEmail(item))
+    .filter(Boolean)
+    .includes(normalizedEmail);
+}
+
+function getAppUrl(path: string) {
+  const baseUrl = Deno.env.get("PUBLIC_APP_URL") || Deno.env.get("APP_URL") || "https://app.ediliziaincloud.com";
+  const url = new URL(baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`);
+  url.pathname = path;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -58,11 +77,16 @@ Deno.serve(async (req) => {
       .eq("role", "super_admin")
       .maybeSingle();
 
-    if (!callerRole) {
+    if (!callerRole || !isSuperAdminEmailAllowed(callerData.user.email)) {
       return json(req, { error: "Forbidden: only super admins can create referral partners" }, 403);
     }
 
-    const body = (await req.json()) as Body;
+    let body: Body;
+    try {
+      body = (await req.json()) as Body;
+    } catch {
+      return json(req, { error: "Invalid JSON body" }, 400);
+    }
     const name = String(body.name || "").trim();
     const email = normalizeEmail(String(body.email || ""));
     const phone = body.phone?.trim() || null;
@@ -104,7 +128,7 @@ Deno.serve(async (req) => {
           full_name: name,
           partner_type: partnerType,
         },
-        redirectTo: "https://app.ediliziaincloud.com/partner",
+        redirectTo: getAppUrl("/partner"),
       });
 
       if (inviteError || !inviteData.user?.id) {
@@ -166,7 +190,7 @@ Deno.serve(async (req) => {
 
     const { data: referralLink, error: linkError } = await admin.rpc("ensure_referral_link", {
       p_referrer_id: referrer.id,
-      p_base_url: "https://app.ediliziaincloud.com/login",
+      p_base_url: getAppUrl("/login"),
     });
     if (linkError) throw linkError;
 

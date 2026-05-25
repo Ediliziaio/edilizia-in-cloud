@@ -1,16 +1,15 @@
 import { Users, Building2, TrendingUp, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/formatters";
-import type { Referrer, ReferralCompany, ReferralPayout } from "@/pages/admin/ReferralDashboard";
+import type { Referrer, ReferralCompany } from "@/pages/admin/ReferralDashboard";
 
 interface Props {
   referrers: Referrer[];
   referralCompanies: ReferralCompany[];
-  payouts: ReferralPayout[];
   getMonthlyCommission: (r: Referrer) => number;
 }
 
-export function ReferralStatCards({ referrers, referralCompanies, payouts: _payouts, getMonthlyCommission }: Props) {
+export function ReferralStatCards({ referrers, referralCompanies, getMonthlyCommission }: Props) {
   const activeReferrers = referrers.filter((r) => r.is_active).length;
   const totalCompanies = referralCompanies.length;
   const monthlyTotal = referrers.filter(r => r.is_active).reduce((sum, r) => sum + getMonthlyCommission(r), 0);

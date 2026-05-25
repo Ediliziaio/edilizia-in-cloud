@@ -10,6 +10,7 @@ import { Loader2, Copy, Check, QrCode, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { subDays, format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { buildReferralLink } from "@/lib/referral";
 
 export default function PartnerLink() {
   const { user } = useAuth();
@@ -46,16 +47,15 @@ export default function PartnerLink() {
     },
   });
 
-  const baseLink = referrer ? `${window.location.origin}/login?ref=${referrer.referral_code}` : "";
+  const baseLink = referrer ? buildReferralLink(referrer.referral_code) : "";
 
   const utmLink = useMemo(() => {
-    if (!baseLink) return "";
-    const params = new URLSearchParams();
-    if (utmSource) params.set("utm_source", utmSource);
-    if (utmCampaign) params.set("utm_campaign", utmCampaign);
-    const extra = params.toString();
-    return extra ? `${baseLink}&${extra}` : baseLink;
-  }, [baseLink, utmSource, utmCampaign]);
+    if (!referrer?.referral_code) return "";
+    return buildReferralLink(referrer.referral_code, {
+      utm_source: utmSource,
+      utm_campaign: utmCampaign,
+    });
+  }, [referrer?.referral_code, utmSource, utmCampaign]);
 
   const chartData = Array.from({ length: 7 }, (_, i) => {
     const date = subDays(new Date(), 6 - i);

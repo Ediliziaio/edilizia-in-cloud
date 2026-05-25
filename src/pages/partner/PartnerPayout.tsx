@@ -15,6 +15,12 @@ import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import {
+  DEFAULT_REFERRAL_COMMISSION_POLICY,
+  REFERRAL_COMMISSION_POLICY_KEY,
+  evaluateReferralPayoutEligibility,
+  parseReferralCommissionPolicy,
+} from "@/lib/referralRules";
 
 export default function PartnerPayout() {
   const { user } = useAuth();
@@ -26,9 +32,27 @@ export default function PartnerPayout() {
     queryKey: queryKeys.partnerPayouts.referrer(user?.id),
     enabled: !!user?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("referrers").select("id, total_earned, total_paid, payout_method, payout_details").eq("user_id", user!.id).maybeSingle();
+      const { data } = await supabase
+        .from("referrers")
+        .select("id, total_earned, total_paid, payout_method, payout_details, has_accepted_terms")
+        .eq("user_id", user!.id)
+        .maybeSingle();
       return data;
     },
+  });
+
+  const { data: payoutPolicy = DEFAULT_REFERRAL_COMMISSION_POLICY } = useQuery({
+    queryKey: ["platform_settings", REFERRAL_COMMISSION_POLICY_KEY, "partner"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("value")
+        .eq("key", REFERRAL_COMMISSION_POLICY_KEY)
+        .maybeSingle();
+      if (error) return DEFAULT_REFERRAL_COMMISSION_POLICY;
+      return parseReferralCommissionPolicy(data?.value);
+    },
+    staleTime: 60000,
   });
 
   const { data: payouts = [], isLoading } = useQuery({
@@ -46,6 +70,13 @@ export default function PartnerPayout() {
   });
 
   const balance = (referrer?.total_earned || 0) - (referrer?.total_paid || 0);
+  const requestedAmount = parseFloat(amount);
+  const payoutEligibility = evaluateReferralPayoutEligibility({
+    amount: Number.isFinite(requestedAmount) ? requestedAmount : balance,
+    referrer,
+    fraudLogCount: 0,
+    policy: payoutPolicy,
+  });
 
   // ── Calcola prossimo pagamento automatico (il 12 del mese) ───
   const getNextPaymentInfo = () => {
@@ -69,6 +100,13 @@ export default function PartnerPayout() {
     mutationFn: async () => {
       const amt = parseFloat(amount);
       if (isNaN(amt) || amt <= 0 || amt > balance) throw new Error("Importo non valido");
+      const eligibility = evaluateReferralPayoutEligibility({
+        amount: amt,
+        referrer,
+        fraudLogCount: 0,
+        policy: payoutPolicy,
+      });
+      if (!eligibility.eligible) throw new Error(eligibility.blockers.join(" · "));
 
       const now = new Date();
       const { error } = await supabase.from("referral_payouts").insert({
@@ -172,9 +210,14 @@ export default function PartnerPayout() {
               <Label>Note (opzionale)</Label>
               <Textarea placeholder="Note aggiuntive..." value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
+            {(payoutEligibility.blockers.length > 0 || payoutEligibility.warnings.length > 0) && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                {[...payoutEligibility.blockers, ...payoutEligibility.warnings].join(" · ")}
+              </div>
+            )}
             <Button
               onClick={() => requestPayout.mutate()}
-              disabled={requestPayout.isPending || !amount || parseFloat(amount) > balance}
+              disabled={requestPayout.isPending || !amount || parseFloat(amount) > balance || !payoutEligibility.eligible}
             >
               {requestPayout.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               🏦 Richiedi Pagamento

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatCurrency } from "@/lib/formatters";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { buildReferralLink } from "@/lib/referral";
 import { toast as sonnerToast } from "sonner";
 import type { Referrer } from "@/pages/admin/ReferralDashboard";
 
@@ -24,13 +25,14 @@ interface Props {
   onDetail: (r: Referrer) => void;
   onPayout: (r: Referrer) => void;
   onToggleActive: (id: string, active: boolean) => void;
+  onTierRecalculated?: () => void;
 }
 
 const PAGE_SIZE = 10;
 
 export function ReferralTable({
   referrers, isLoading, isToggling, getCompanyCount, getMonthlyCommission,
-  onEdit, onDetail, onPayout, onToggleActive,
+  onEdit, onDetail, onPayout, onToggleActive, onTierRecalculated,
 }: Props) {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -39,7 +41,7 @@ export function ReferralTable({
   const [page, setPage] = useState(1);
 
   const copyLink = async (code: string) => {
-    const url = `${window.location.origin}/login?ref=${code}`;
+    const url = buildReferralLink(code);
     try {
       await navigator.clipboard.writeText(url);
       toast({ title: "Link copiato!", description: url });
@@ -50,7 +52,9 @@ export function ReferralTable({
 
   const recalcTier = async (referrerId: string) => {
     try {
-      await supabase.rpc("update_referrer_tier", { p_referrer_id: referrerId });
+      const { error } = await supabase.rpc("update_referrer_tier", { p_referrer_id: referrerId });
+      if (error) throw error;
+      onTierRecalculated?.();
       sonnerToast.success("Tier ricalcolato");
     } catch {
       sonnerToast.error("Errore nel ricalcolo tier");
@@ -185,74 +189,75 @@ export function ReferralTable({
           </div>
         ) : (
           <div className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Referrer</TableHead>
-                  <TableHead>Tier</TableHead>
-                  <TableHead>Codice</TableHead>
-                  <TableHead>Commissione</TableHead>
-                  <TableHead className="text-center">Aziende</TableHead>
-                  <TableHead className="text-center">Click</TableHead>
-                  <TableHead className="text-center">Conv. %</TableHead>
-                  <TableHead className="text-right">Maturato/mese</TableHead>
-                  <TableHead className="text-right">Da pagare</TableHead>
-                  <TableHead>Stato</TableHead>
-                  <TableHead className="text-right">Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pageRows.map((r) => {
-                  const monthly = getMonthlyCommission(r);
-                  const toPay = Math.max(0, (r.total_earned || 0) - (r.total_paid || 0));
-                  const tier = r.referral_tiers;
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{r.name}</div>
-                          <div className="text-xs text-muted-foreground">{r.email}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {tier ? (
-                          <Badge
-                            variant="outline"
-                            className="text-xs"
-                            style={{ borderColor: tier.color, color: tier.color }}
-                          >
-                            {tier.icon} {tier.name}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Referrer</TableHead>
+                    <TableHead>Tier</TableHead>
+                    <TableHead>Codice</TableHead>
+                    <TableHead>Commissione</TableHead>
+                    <TableHead className="text-center">Aziende</TableHead>
+                    <TableHead className="text-center">Click</TableHead>
+                    <TableHead className="text-center">Conv. %</TableHead>
+                    <TableHead className="text-right">Maturato/mese</TableHead>
+                    <TableHead className="text-right">Da pagare</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pageRows.map((r) => {
+                    const monthly = getMonthlyCommission(r);
+                    const toPay = Math.max(0, (r.total_earned || 0) - (r.total_paid || 0));
+                    const tier = r.referral_tiers;
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{r.name}</div>
+                            <div className="text-xs text-muted-foreground">{r.email}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {tier ? (
+                            <Badge
+                              variant="outline"
+                              className="text-xs"
+                              style={{ borderColor: tier.color, color: tier.color }}
+                            >
+                              {tier.icon} {tier.name}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs bg-muted px-2 py-1 rounded">{r.referral_code}</code>
+                        </TableCell>
+                        <TableCell>
+                          {r.commission_type === "percentage"
+                            ? `${r.commission_value}%`
+                            : formatCurrency(r.commission_value)}
+                        </TableCell>
+                        <TableCell className="text-center">{getCompanyCount(r.id)}</TableCell>
+                        <TableCell className="text-center">{r.total_clicks || 0}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={(r.conversion_rate || 0) >= 10 ? "default" : "secondary"}>
+                            {(r.conversion_rate || 0).toFixed(1)}%
                           </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">{r.referral_code}</code>
-                      </TableCell>
-                      <TableCell>
-                        {r.commission_type === "percentage"
-                          ? `${r.commission_value}%`
-                          : formatCurrency(r.commission_value)}
-                      </TableCell>
-                      <TableCell className="text-center">{getCompanyCount(r.id)}</TableCell>
-                      <TableCell className="text-center">{r.total_clicks || 0}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={(r.conversion_rate || 0) >= 10 ? "default" : "secondary"}>
-                          {(r.conversion_rate || 0).toFixed(1)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(monthly)}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(toPay)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={r.is_active ? "default" : "secondary"}>
-                          {r.is_active ? "Attivo" : "Inattivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-1">
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(monthly)}</TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(toPay)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={r.is_active ? "default" : "secondary"}>
+                            {r.is_active ? "Attivo" : "Inattivo"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button variant="ghost" size="icon" onClick={() => copyLink(r.referral_code)}>
@@ -311,8 +316,9 @@ export function ReferralTable({
                     </TableRow>
                   );
                 })}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            </div>
             {pageCount > 1 && (
               <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
