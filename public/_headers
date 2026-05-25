@@ -71,6 +71,9 @@
 /assets-v4/*
   Cache-Control: public, max-age=0, must-revalidate
 
+/assets-cb1/*
+  Cache-Control: public, max-age=0, must-revalidate
+
 # Never cache index.html — ensure fresh deploys load immediately
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate

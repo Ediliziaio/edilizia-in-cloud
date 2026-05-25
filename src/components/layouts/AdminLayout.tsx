@@ -309,10 +309,6 @@ function AdminMainSidebar() {
   const [companySearch, setCompanySearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [popoverOpen, setPopoverOpen] = useState(false);
-  // Search globale che filtra tutte le voci del menu — quando attiva forza
-  // tutte le subcategorie aperte per mostrare i match
-  const [navSearch, setNavSearch] = useState("");
-
   const allAdminNavItems = [...allNavItems, ...adminMarketingNavItems];
   const { toggle, isOpen } = useSidebarSections({
     navItems: allAdminNavItems,
@@ -327,20 +323,13 @@ function AdminMainSidebar() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
   };
 
-  const matchesSearch = (title: string) => {
-    if (!navSearch) return true;
-    return title.toLowerCase().includes(navSearch.toLowerCase());
-  };
-
   const filteredNavItems = allNavItems.filter(
-    (item) => permissions[item.permission] && matchesSearch(item.title)
+    (item) => permissions[item.permission]
   );
 
   const filteredMarketingItems = adminMarketingNavItems.filter(
-    (item) => permissions[item.permission] && matchesSearch(item.title)
+    (item) => permissions[item.permission]
   );
-
-  const isSearching = navSearch.trim().length > 0;
 
   const { data: companies = [] } = useQuery({
     queryKey: ["admin-sidebar-companies", debouncedSearch],
@@ -474,8 +463,7 @@ function AdminMainSidebar() {
            Dashboard / Attività / Chat sempre visibili in cima.
            Dashboard prima → "home" mentale dell'utente
            Attività → task CS gestione clienti (badge urgenza)
-           Chat     → conversazioni team interno
-           Search bar globale sotto per saltare a qualsiasi pagina */}
+           Chat     → conversazioni team interno */}
         {(permissions.can_manage_companies || permissions.can_manage_tickets) && (
           <SidebarGroup className="pt-3 pb-2">
             <SidebarGroupContent>
@@ -582,23 +570,6 @@ function AdminMainSidebar() {
           </SidebarGroup>
         )}
 
-        {/* ─── Search globale sidebar — stile minimal coerente ───────────
-           Filtra le voci di tutto il menu per nome. Stile borderless con
-           background trasparente per integrarsi con la sidebar. */}
-        <div className="px-3 py-1">
-          <div className="relative flex items-center">
-            <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
-            <input
-              type="text"
-              placeholder=""
-              aria-label="Cerca nel menu"
-              value={navSearch}
-              onChange={(e) => setNavSearch(e.target.value)}
-              className="w-full h-7 pl-7 pr-2 text-xs bg-transparent border-0 outline-none focus:bg-muted/30 rounded-md transition-colors"
-            />
-          </div>
-        </div>
-
         {/* ─── NAVIGAZIONE — niente group title, subcategorie direttamente ───
            Stile minimal Linear/Vercel: l'utente vede subito le subcategorie
            senza un livello extra "NAVIGAZIONE" che non aggiunge informazione. */}
@@ -617,7 +588,7 @@ function AdminMainSidebar() {
                     key={sub.id}
                     label={sub.label}
                     badge={aggregateBadge}
-                    isOpen={isSearching || isOpen(sub.id)}
+                    isOpen={isOpen(sub.id)}
                     onToggle={() => toggle(sub.id)}
                   >
                     <SidebarMenu>
@@ -679,7 +650,7 @@ function AdminMainSidebar() {
                     <SidebarSubcategory
                       key={sub.id}
                       label={sub.label}
-                      isOpen={isSearching || isOpen(sub.id)}
+                      isOpen={isOpen(sub.id)}
                       onToggle={() => toggle(sub.id)}
                     >
                       <SidebarMenu>
@@ -705,22 +676,6 @@ function AdminMainSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
           </>
-        )}
-
-        {/* Empty search state */}
-        {isSearching && filteredNavItems.length === 0 && filteredMarketingItems.length === 0 && (
-          <div className="px-4 py-6 text-center">
-            <p className="text-xs text-muted-foreground">
-              Nessuna voce trovata per <span className="font-medium">"{navSearch}"</span>
-            </p>
-            <button
-              type="button"
-              onClick={() => setNavSearch("")}
-              className="text-xs text-sidebar-primary hover:underline mt-1"
-            >
-              Cancella ricerca
-            </button>
-          </div>
         )}
 
         <div className="mt-auto border-t">
