@@ -2608,6 +2608,13 @@ function KpiBar({
   // La mostriamo SOLO se totalJobs > 0 (cioè quando dati reali ci sono).
   const showCostPerJob = totalJobs > 0;
 
+  // MIGL: alert CPL fuori soglia. Threshold edilizia tipico: lead qualificato
+  // €30-50, oltre €70 inizia a essere preoccupante. Mostrato solo se hai speso
+  // almeno €100 e ricevuto almeno 1 lead (così CPL è significativo).
+  const TARGET_CPL_CENTS_HIGH = 7000; // €70 per lead — soglia di attenzione edilizia
+  const cplWarning = monthlySpend >= 10000 && totalLeads > 0 && costPerLead > TARGET_CPL_CENTS_HIGH;
+  const lowVolumeWarning = monthlySpend >= 30000 && totalLeads <= 2; // €300+ spesi, max 2 lead
+
   // MIGL: forecast mensile basato sul ritmo attuale.
   // Esempio: oggi è il 10 del mese, ho speso 300€, allora forecast = 300 * (30/10) = 900€.
   const now = new Date();
@@ -2622,6 +2629,37 @@ function KpiBar({
   return (
     <Card className={cn(isEmpty && "border-dashed bg-white/60")}>
       <CardContent className="p-4">
+        {/* MIGL: alert proattivi su CPL alto o lead bassi */}
+        {(cplWarning || lowVolumeWarning) && (
+          <div className={cn(
+            "mb-3 flex items-start gap-3 rounded-lg border p-3",
+            cplWarning ? "border-red-200 bg-red-50/60" : "border-amber-200 bg-amber-50/60",
+          )}>
+            <span className="text-base">{cplWarning ? "🚨" : "⚠️"}</span>
+            <div className="min-w-0 flex-1">
+              <p className={cn("text-sm font-semibold", cplWarning ? "text-red-900" : "text-amber-900")}>
+                {cplWarning ? `CPL alto: ${formatEuro(costPerLead)} per lead` : `Volume basso: ${totalLeads} lead con €${(monthlySpend / 100).toFixed(0)} spesi`}
+              </p>
+              <p className={cn("text-xs mt-0.5", cplWarning ? "text-red-700" : "text-amber-700")}>
+                {cplWarning
+                  ? "Per edilizia il CPL atteso è €30-50. Sopra €70 vale la pena rivedere targeting/copy/landing."
+                  : "Pochi lead per la spesa attuale. Potrebbe essere: pubblico troppo stretto, creatività debole, o landing non convertente."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft:
+                cplWarning
+                  ? `Il mio CPL è €${(costPerLead / 100).toFixed(2)} (target edilizia €30-50). Spesa mensile €${(monthlySpend / 100).toFixed(0)}, ${totalLeads} lead. Diagnostica: cosa sta facendo salire il CPL? Dimmi top 3 cause + cosa fare nei prossimi 7 giorni.`
+                  : `Sto spendendo €${(monthlySpend / 100).toFixed(0)}/mese ma ho solo ${totalLeads} lead. Cosa controllo? Targeting troppo stretto, copy debole, landing non convertente? Spiegami come capire la causa e quale leva tirare per prima.`
+              }}))}
+              className="shrink-0 rounded-md bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            >
+              <Sparkles className="mr-1 inline h-3 w-3" />
+              Chiedi a Silvio
+            </button>
+          </div>
+        )}
         <div
           className={cn(
             "grid gap-4 sm:grid-cols-2",
