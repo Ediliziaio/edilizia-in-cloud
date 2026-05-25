@@ -71,26 +71,31 @@ export default function TalentProfilePublic() {
   const [session, setSession] = useState<PublicSession | null>(null);
   const [answers, setAnswers] = useState<Record<number, AnswerValue>>({});
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [block, setBlock] = useState(1);
+  const [pageIndex, setPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [completed, setCompleted] = useState(false);
   const loadedRef = useRef(false);
 
+  const PAGE_SIZE = 10;
   const questions = useMemo(() => session?.questions || [], [session?.questions]);
-  const blocks = useMemo(
-    () => Array.from(new Set(questions.map((question) => question.theme_block))).sort((a, b) => a - b),
-    [questions],
-  );
-  const currentQuestions = useMemo(
-    () => questions.filter((question) => question.theme_block === block),
-    [block, questions],
-  );
-  const blockIndex = Math.max(0, blocks.indexOf(block));
+  const pages = useMemo(() => {
+    const result: typeof questions[] = [];
+    for (let i = 0; i < questions.length; i += PAGE_SIZE) {
+      result.push(questions.slice(i, i + PAGE_SIZE));
+    }
+    return result;
+  }, [questions]);
+  const totalPages = pages.length;
+  const currentPage = pages[pageIndex] || [];
+  const currentPageStartNum = pageIndex * PAGE_SIZE + 1;
+  const currentPageEndNum = Math.min(questions.length, (pageIndex + 1) * PAGE_SIZE);
+  const isLastPage = pageIndex >= totalPages - 1;
   const answeredCount = Object.keys(answers).length;
   const missingAnswersCount = Math.max(0, questions.length - answeredCount);
   const progressPct = questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
+  const currentPageAnsweredCount = currentPage.filter((q) => answers[q.question_id]).length;
 
   const loadSession = useCallback(async () => {
     if (!token) {
@@ -118,8 +123,11 @@ export default function TalentProfilePublic() {
         setAnswers(nextAnswers);
         setPrivacyAccepted(Boolean(nextSession.privacy_accepted));
         setCompleted(nextSession.candidate?.status === "completed");
-        const firstBlock = nextSession.questions?.[0]?.theme_block;
-        if (firstBlock) setBlock(firstBlock);
+        const allQuestions = nextSession.questions || [];
+        const firstUnansweredIndex = allQuestions.findIndex((q) => !nextAnswers[q.question_id]);
+        if (firstUnansweredIndex >= 0) {
+          setPageIndex(Math.floor(firstUnansweredIndex / PAGE_SIZE));
+        }
       }
 
       loadedRef.current = true;
@@ -197,14 +205,7 @@ export default function TalentProfilePublic() {
     return () => window.clearTimeout(timeout);
   }, [completed, dirty, persistAnswers, privacyAccepted]);
 
-  const goNext = async () => {
-    await persistAnswers({ silent: false });
-    setBlock(blocks[Math.min(blocks.length - 1, blockIndex + 1)]);
-  };
-
-  const goToBlock = async (nextBlock: number) => {
-    if (nextBlock === block || saving) return;
-
+  const goNextPage = async () => {
     if (dirty) {
       try {
         await persistAnswers({ silent: true });
@@ -213,8 +214,21 @@ export default function TalentProfilePublic() {
         return;
       }
     }
+    setPageIndex((p) => Math.min(totalPages - 1, p + 1));
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
-    setBlock(nextBlock);
+  const goPrevPage = async () => {
+    if (dirty) {
+      try {
+        await persistAnswers({ silent: true });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Non sono riuscito a salvare le risposte");
+        return;
+      }
+    }
+    setPageIndex((p) => Math.max(0, p - 1));
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const acceptPrivacyAndStart = async () => {
@@ -292,227 +306,250 @@ export default function TalentProfilePublic() {
     );
   }
 
-  return (
-    <PublicShell companyName={session.company?.name || undefined}>
-      <div className="mx-auto flex max-w-6xl flex-col gap-5">
+  if (!privacyAccepted) {
+    return (
+      <PublicShell companyName={session.company?.name || undefined}>
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
+          className="mx-auto max-w-2xl"
         >
-        <Card className="overflow-hidden border-orange-200 bg-white/95 shadow-md">
-          <div className="h-1 bg-gradient-to-r from-orange-500 via-orange-400 to-amber-500" />
-          <CardHeader className="space-y-4 pt-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-start gap-3">
+          <Card className="overflow-hidden border-0 shadow-2xl">
+            <div className="h-2 bg-gradient-to-r from-orange-500 via-orange-400 to-amber-500" />
+            <CardContent className="space-y-6 p-10">
+              <div className="text-center">
                 <motion.div
-                  initial={{ rotate: -10, scale: 0.8 }}
-                  animate={{ rotate: 0, scale: 1 }}
-                  transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
-                  className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-sm shadow-orange-200"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.1, type: "spring", stiffness: 180 }}
+                  className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-200"
                 >
-                  <BrainCircuit className="h-6 w-6" />
+                  <BrainCircuit className="h-8 w-8" />
                 </motion.div>
-                <div>
-                  <CardTitle className="text-2xl tracking-tight">Talent Assessment</CardTitle>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {session.candidate?.nome} {session.candidate?.cognome} · ruolo valutato: <span className="font-semibold text-slate-900">{session.candidate?.ruolo_richiesto}</span>
-                  </p>
-                </div>
+                <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950">Ciao {session.candidate?.nome}</h1>
+                <p className="mt-2 text-base text-slate-600">
+                  Stai per iniziare il <span className="font-semibold text-orange-700">Talent Assessment</span> per il ruolo di {session.candidate?.ruolo_richiesto}.
+                </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 tabular-nums">{answeredCount}/{questions.length} risposte</Badge>
-                {missingAnswersCount > 0 && (
-                  <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                    mancano {missingAnswersCount}
-                  </Badge>
-                )}
-                {session.expires_at && (
-                  <Badge variant="outline" className="gap-1">
-                    <Clock3 className="h-3 w-3" />
-                    scade {new Date(session.expires_at).toLocaleDateString("it-IT")}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-baseline justify-between text-xs">
-                <span className="font-semibold uppercase tracking-wider text-slate-500">Progresso</span>
-                <span className="text-sm font-bold tabular-nums text-orange-700">{progressPct}%</span>
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                <motion.div
-                  className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progressPct}%` }}
-                  transition={{ duration: 0.6, ease: "easeOut" }}
-                />
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-        </motion.div>
 
-        {!privacyAccepted ? (
-          <Card className="mx-auto max-w-3xl">
-            <CardContent className="space-y-5 p-6">
-              <div className="flex gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                  <ShieldCheck className="h-5 w-5" />
+              <div className="space-y-3 rounded-2xl bg-slate-50 p-5">
+                <div className="flex items-start gap-3">
+                  <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-orange-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Circa 25-35 minuti</p>
+                    <p className="text-xs text-slate-600">{questions.length} domande divise in {totalPages} schermate da {PAGE_SIZE}.</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="font-semibold text-slate-950">Prima di iniziare</h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Le risposte sono usate solo per la selezione e saranno visibili al team autorizzato dell'azienda.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <Save className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Salvataggio automatico</p>
+                    <p className="text-xs text-slate-600">Puoi chiudere e riprendere dallo stesso punto in qualsiasi momento.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Risposte riservate</p>
+                    <p className="text-xs text-slate-600">Vengono lette solo dal team HR autorizzato. Mai condivise con terzi.</p>
+                  </div>
                 </div>
               </div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4">
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-slate-200 p-4 transition hover:border-orange-300 hover:bg-orange-50/40">
                 <Checkbox
                   checked={privacyAccepted}
                   onCheckedChange={(checked) => setPrivacyAccepted(checked === true)}
                 />
-                <span className="text-sm text-slate-700">
+                <span className="text-sm leading-relaxed text-slate-700">
                   Confermo di aver letto l'informativa privacy e acconsento al trattamento dei dati per il processo di selezione.
                 </span>
               </label>
-              <Button className="bg-orange-600 hover:bg-orange-700" disabled={!privacyAccepted || saving} onClick={acceptPrivacyAndStart}>
-                {saving ? "Salvataggio..." : "Accetto e inizio"}
+
+              <Button
+                size="lg"
+                className="h-12 w-full bg-gradient-to-r from-orange-600 to-amber-500 text-base font-semibold hover:from-orange-700 hover:to-amber-600"
+                disabled={!privacyAccepted || saving}
+                onClick={acceptPrivacyAndStart}
+              >
+                {saving ? "Salvataggio..." : "Inizia il test →"}
               </Button>
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
-            <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="space-y-1">
-                {blocks.map((item) => {
-                  const blockQuestions = questions.filter((question) => question.theme_block === item);
-                  const answered = blockQuestions.filter((question) => answers[question.question_id]).length;
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => void goToBlock(item)}
-                      className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm ${
-                        block === item ? "bg-orange-100 text-orange-800" : "text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span>Blocco {item}</span>
-                      <span className="text-xs">{answered}/{blockQuestions.length}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </aside>
+        </motion.div>
+      </PublicShell>
+    );
+  }
 
-            <Card className="overflow-hidden shadow-md">
-              <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">Sezione {blockIndex + 1} / {blocks.length}</p>
-                    <CardTitle className="text-xl tracking-tight">Blocco {block}</CardTitle>
-                    <p className="mt-1 text-sm text-slate-500">Scegli la risposta più naturale, senza pensarci troppo.</p>
-                  </div>
-                  <AnimatePresence mode="wait">
-                    {dirty ? (
-                      <motion.div key="dirty" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
-                        <Badge className="w-fit gap-1.5 bg-amber-100 text-amber-800 hover:bg-amber-100">
-                          <Save className="h-3 w-3" />
-                          modifiche da salvare
-                        </Badge>
-                      </motion.div>
-                    ) : (
-                      <motion.div key="saved" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
-                        <Badge className="w-fit gap-1.5 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-                          <CheckCircle2 className="h-3 w-3" />
-                          salvato
-                        </Badge>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3 p-5">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={block}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.25 }}
-                    className="space-y-3"
-                  >
-                    {currentQuestions.map((question, qIdx) => (
-                      <motion.div
-                        key={question.question_id}
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: qIdx * 0.03, duration: 0.25 }}
-                        className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-orange-200 hover:shadow-sm"
-                      >
-                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-orange-600">
-                              Domanda {question.question_id}
-                            </p>
-                            <p className="mt-1 text-base font-medium leading-relaxed text-slate-950">{question.question_text}</p>
-                          </div>
-                          <div className="grid min-w-full gap-2 sm:grid-cols-3 xl:min-w-[420px]">
-                            {answerOptions.map((option) => {
-                              const label = question.custom_answers?.[option.value.toLowerCase() as "a" | "b" | "c"] || option.label;
-                              const active = answers[question.question_id] === option.value;
-                              return (
-                                <motion.button
-                                  key={option.value}
-                                  type="button"
-                                  whileTap={{ scale: 0.97 }}
-                                  onClick={() => {
-                                    setAnswers((prev) => ({ ...prev, [question.question_id]: option.value }));
-                                    setDirty(true);
-                                  }}
-                                  className={`rounded-xl border px-3 py-2.5 text-left text-xs font-medium transition ${
-                                    active
-                                      ? "border-orange-500 bg-orange-50 text-orange-900 shadow-sm shadow-orange-100"
-                                      : "border-slate-200 bg-white text-slate-600 hover:border-orange-200 hover:bg-orange-50/60"
-                                  }`}
-                                >
-                                  <span className={`block text-[11px] font-bold ${active ? "text-orange-600" : "text-slate-400"}`}>{option.value}</span>
-                                  {label}
-                                </motion.button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                </AnimatePresence>
-
-                <div className="flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <Button variant="outline" disabled={blockIndex <= 0 || saving} onClick={() => void goToBlock(blocks[Math.max(0, blockIndex - 1)])}>
-                    Indietro
-                  </Button>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button variant="outline" disabled={saving} onClick={() => persistAnswers()}>
-                      {saving ? "Salvataggio..." : "Salva bozza"}
-                    </Button>
-                    {blockIndex < blocks.length - 1 ? (
-                      <Button disabled={saving} onClick={goNext}>
-                        Salva e continua
-                      </Button>
-                    ) : (
-                      <Button className="bg-orange-600 hover:bg-orange-700" disabled={saving || missingAnswersCount > 0} onClick={() => persistAnswers({ complete: true })}>
-                        {missingAnswersCount > 0 ? `Mancano ${missingAnswersCount} risposte` : "Completa test"}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50/40">
+      {/* Top progress bar */}
+      <div className="fixed inset-x-0 top-0 z-20 h-1 bg-slate-100">
+        <motion.div
+          className="h-full bg-gradient-to-r from-orange-500 to-amber-500"
+          initial={{ width: 0 }}
+          animate={{ width: `${progressPct}%` }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
       </div>
-    </PublicShell>
+
+      {/* Compact header */}
+      <header className="sticky top-0 z-10 border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500 text-white">
+              <BrainCircuit className="h-4 w-4" />
+            </div>
+            <div className="leading-tight">
+              <p className="text-sm font-bold text-slate-900">Talent Assessment</p>
+              <p className="text-xs text-slate-500">EdiliziaInCloud · {session.candidate?.ruolo_richiesto}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <AnimatePresence mode="wait">
+              {dirty ? (
+                <motion.div key="dirty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hidden items-center gap-1.5 text-xs text-amber-600 sm:flex">
+                  <Save className="h-3 w-3 animate-pulse" />
+                  <span>salvataggio...</span>
+                </motion.div>
+              ) : (
+                <motion.div key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hidden items-center gap-1.5 text-xs text-emerald-600 sm:flex">
+                  <CheckCircle2 className="h-3 w-3" />
+                  <span>salvato</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <Badge variant="outline" className="border-slate-200 bg-white tabular-nums">
+              {answeredCount}/{questions.length}
+            </Badge>
+          </div>
+        </div>
+      </header>
+
+      {/* Page content */}
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
+        <div className="mb-8 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-orange-600">
+            Domande {currentPageStartNum} – {currentPageEndNum} di {questions.length}
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+            Schermata {pageIndex + 1} di {totalPages}
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Scegli la risposta più naturale per ognuna. Non c'è una risposta giusta o sbagliata.
+          </p>
+        </div>
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={pageIndex}
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="space-y-5"
+          >
+            {currentPage.map((question, qIdx) => (
+              <motion.div
+                key={question.question_id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: qIdx * 0.04, duration: 0.3 }}
+                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-orange-200 hover:shadow-md"
+              >
+                <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3">
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-xs font-bold tabular-nums text-orange-600">
+                      #{question.question_id}
+                    </span>
+                    <p className="text-base font-semibold leading-snug text-slate-950 sm:text-lg">
+                      {question.question_text}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-2 p-3 sm:grid-cols-3">
+                  {answerOptions.map((option) => {
+                    const label = question.custom_answers?.[option.value.toLowerCase() as "a" | "b" | "c"] || option.label;
+                    const active = answers[question.question_id] === option.value;
+                    return (
+                      <motion.button
+                        key={option.value}
+                        type="button"
+                        whileTap={{ scale: 0.96 }}
+                        whileHover={{ y: -2 }}
+                        onClick={() => {
+                          setAnswers((prev) => ({ ...prev, [question.question_id]: option.value }));
+                          setDirty(true);
+                        }}
+                        className={`group flex items-center gap-3 rounded-xl border-2 p-3 text-left transition ${
+                          active
+                            ? "border-orange-500 bg-orange-50 shadow-sm shadow-orange-100"
+                            : "border-slate-200 bg-white hover:border-orange-200"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold transition ${
+                            active
+                              ? "bg-orange-600 text-white"
+                              : "bg-slate-100 text-slate-500 group-hover:bg-orange-100 group-hover:text-orange-700"
+                          }`}
+                        >
+                          {option.value}
+                        </span>
+                        <span className={`text-sm font-medium ${active ? "text-orange-900" : "text-slate-700"}`}>
+                          {label}
+                        </span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Bottom navigation */}
+        <div className="mt-10 flex flex-col items-center gap-4">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className="tabular-nums">{currentPageAnsweredCount}/{currentPage.length} risposte in questa schermata</span>
+          </div>
+          <div className="flex w-full max-w-md items-center gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={pageIndex <= 0 || saving}
+              onClick={goPrevPage}
+              className="flex-1"
+            >
+              ← Indietro
+            </Button>
+            {!isLastPage ? (
+              <Button
+                size="lg"
+                disabled={saving}
+                onClick={goNextPage}
+                className="flex-[2] bg-gradient-to-r from-orange-600 to-amber-500 font-semibold hover:from-orange-700 hover:to-amber-600"
+              >
+                Avanti →
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                disabled={saving || missingAnswersCount > 0}
+                onClick={() => persistAnswers({ complete: true }).catch((e) => toast.error(e instanceof Error ? e.message : "Errore"))}
+                className="flex-[2] bg-gradient-to-r from-emerald-600 to-emerald-500 font-semibold hover:from-emerald-700 hover:to-emerald-600"
+              >
+                {missingAnswersCount > 0 ? `Mancano ${missingAnswersCount} risposte` : "✓ Completa test"}
+              </Button>
+            )}
+          </div>
+          <p className="text-center text-[11px] text-slate-400">
+            Le tue risposte vengono salvate automaticamente. Puoi chiudere e riprendere in qualsiasi momento.
+          </p>
+        </div>
+      </div>
+    </main>
   );
 }
 
