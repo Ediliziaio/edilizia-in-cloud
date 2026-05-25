@@ -205,6 +205,24 @@ export default function TalentProfilePublic() {
     return () => window.clearTimeout(timeout);
   }, [completed, dirty, persistAnswers, privacyAccepted]);
 
+  useEffect(() => {
+    if (!privacyAccepted || completed) return;
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (e.key === "ArrowRight" && pageIndex < totalPages - 1) {
+        e.preventDefault();
+        void goNextPage();
+      } else if (e.key === "ArrowLeft" && pageIndex > 0) {
+        e.preventDefault();
+        void goPrevPage();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [privacyAccepted, completed, pageIndex, totalPages, dirty]);
+
   const goNextPage = async () => {
     if (dirty) {
       try {
@@ -479,6 +497,7 @@ export default function TalentProfilePublic() {
                         whileTap={{ scale: 0.96 }}
                         whileHover={{ y: -2 }}
                         onClick={() => {
+                          if (answers[question.question_id] === option.value) return;
                           setAnswers((prev) => ({ ...prev, [question.question_id]: option.value }));
                           setDirty(true);
                         }}
@@ -533,19 +552,37 @@ export default function TalentProfilePublic() {
               >
                 Avanti →
               </Button>
+            ) : missingAnswersCount > 0 ? (
+              <Button
+                size="lg"
+                disabled={saving}
+                onClick={() => {
+                  const firstMissingIdx = questions.findIndex((q) => !answers[q.question_id]);
+                  if (firstMissingIdx >= 0) {
+                    setPageIndex(Math.floor(firstMissingIdx / PAGE_SIZE));
+                    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
+                }}
+                className="flex-[2] bg-gradient-to-r from-amber-500 to-orange-500 font-semibold hover:from-amber-600 hover:to-orange-600"
+              >
+                Vai alle {missingAnswersCount} risposte mancanti →
+              </Button>
             ) : (
               <Button
                 size="lg"
-                disabled={saving || missingAnswersCount > 0}
+                disabled={saving}
                 onClick={() => persistAnswers({ complete: true }).catch((e) => toast.error(e instanceof Error ? e.message : "Errore"))}
                 className="flex-[2] bg-gradient-to-r from-emerald-600 to-emerald-500 font-semibold hover:from-emerald-700 hover:to-emerald-600"
               >
-                {missingAnswersCount > 0 ? `Mancano ${missingAnswersCount} risposte` : "✓ Completa test"}
+                ✓ Completa test
               </Button>
             )}
           </div>
           <p className="text-center text-[11px] text-slate-400">
             Le tue risposte vengono salvate automaticamente. Puoi chiudere e riprendere in qualsiasi momento.
+          </p>
+          <p className="hidden text-center text-[10px] text-slate-400 sm:block">
+            Suggerimento: usa i tasti <kbd className="rounded border border-slate-200 bg-white px-1 py-0.5 font-mono text-[10px]">←</kbd> <kbd className="rounded border border-slate-200 bg-white px-1 py-0.5 font-mono text-[10px]">→</kbd> per navigare tra le schermate
           </p>
         </div>
       </div>
