@@ -226,6 +226,11 @@ verify_jwt = false
 [functions.referral-self-signup]
 verify_jwt = false
 
+# Self-signup pubblico per il portale commercialista (no auth required).
+# Crea studio + owner + ruolo accountant. Rate-limit + email confirm.
+[functions.accountant-self-signup]
+verify_jwt = false
+
 [functions.send-partner-notification]
 verify_jwt = false
 
