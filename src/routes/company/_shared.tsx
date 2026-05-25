@@ -20,6 +20,10 @@ export const COMPANY_ROLES = [
   "salesperson",
   "call_center",
   "multi_company_user",
+  // 'accountant': il commercialista entra nell'area /azienda con
+  // commercialistaMode=1 per operare sulle aziende clienti delegate.
+  // La filtraggio sidebar (no Marketing/Vendita) avviene in CompanyLayout.
+  "accountant",
 ] as const;
 
 export type CompanyRole = (typeof COMPANY_ROLES)[number];
