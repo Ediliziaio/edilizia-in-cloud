@@ -336,7 +336,7 @@ const BroadcastListPage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastL
 const BroadcastCreatePage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastCreatePage"));
 const BroadcastDetailPage = lazy(() => import("@/pages/azienda/whatsapp/BroadcastDetailPage"));
 const WANumberDetailPage = lazy(() => import("@/pages/azienda/whatsapp/WANumberDetailPage"));
-const SmsMarketingPage = lazy(() => import("@/pages/azienda/sms-marketing/index"));
+// MP-CLN 2026-05-25: SMS unificato. /sms-marketing redirige a /sms?tab=...
 const SmsPage = lazy(() => import("@/pages/azienda/sms/index"));
 const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
 const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
@@ -677,17 +677,17 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/reputazione" element={withCompanyPermission("canViewMarketingDashboard", <ReputationManager />)} />
         <Route path="marketing/ads" element={<Navigate to="/azienda/marketing/pubblicita" replace />} />
         <Route path="marketing/meta-ads" element={<Navigate to="/azienda/marketing/pubblicita" replace />} />
-        <Route path="marketing/sms" element={<Navigate to="/azienda/sms-marketing" replace />} />
-        {/* Portale SMS Marketing — route principale con sub-path (gated: sms_marketing) */}
-        <Route path="sms-marketing" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage /></FeatureRoute>)} />
-        <Route path="sms-marketing/campagne" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="campagne" /></FeatureRoute>)} />
-        <Route path="sms-marketing/contatti" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="contatti" /></FeatureRoute>)} />
-        <Route path="sms-marketing/template" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsMarketingPage defaultTab="template" /></FeatureRoute>)} />
-        {/* SMS Transazionale — messaggi individuali + automazioni */}
-        <Route path="sms" element={withCompanyPermission("canViewSmsMarketing", <SmsPage />)} />
-        <Route path="sms/invio" element={withCompanyPermission("canViewSmsMarketing", <SmsPage defaultTab="invio" />)} />
-        <Route path="sms/storico" element={withCompanyPermission("canViewSmsMarketing", <SmsPage defaultTab="storico" />)} />
-        <Route path="sms/automazioni" element={withCompanyPermission("canViewSmsMarketing", <SmsPage defaultTab="automazioni" />)} />
+        <Route path="marketing/sms" element={<Navigate to="/azienda/sms" replace />} />
+        {/* SMS — hub unificato (campagne + invii singoli + automazioni + storico).
+            Le route legacy /sms-marketing redirigono qui con tab opportuna. */}
+        <Route path="sms" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsPage /></FeatureRoute>)} />
+        <Route path="sms/invio" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsPage defaultTab="invia" /></FeatureRoute>)} />
+        <Route path="sms/storico" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsPage defaultTab="storico" /></FeatureRoute>)} />
+        <Route path="sms/automazioni" element={withCompanyPermission("canViewSmsMarketing", <FeatureRoute featureKey="sms_marketing"><SmsPage defaultTab="automazioni" /></FeatureRoute>)} />
+        <Route path="sms-marketing" element={<Navigate to="/azienda/sms?tab=panoramica" replace />} />
+        <Route path="sms-marketing/campagne" element={<Navigate to="/azienda/sms?tab=campagne" replace />} />
+        <Route path="sms-marketing/contatti" element={<Navigate to="/azienda/sms?tab=contatti" replace />} />
+        <Route path="sms-marketing/template" element={<Navigate to="/azienda/sms?tab=template" replace />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <FeatureRoute featureKey="sales_os"><SalesOSDashboard /></FeatureRoute>)} />
         {/* Modulo Fotovoltaico — gated da feature flag modulo_fotovoltaico_attivo */}

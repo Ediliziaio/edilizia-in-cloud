@@ -198,9 +198,8 @@ export const macroAreas: MacroArea[] = [
       { title: "Automazioni", url: "/azienda/automazioni", icon: Workflow, permissionKey: "canViewAutomazioni" },
       // ─── Canali comunicazione (subcategory collassabile) ───
       { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", featureKey: "email_marketing", groupLabel: "Comunicazione" },
-      // MP-CLN-001: rinominati per chiarezza utente (SMS Marketing → "Campagne", SMS Transazionale → "Singolo")
-      { title: "SMS Campagne", url: "/azienda/sms-marketing", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
-      { title: "SMS Singolo", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
+      // MP-CLN 2026-05-25: unificato in un solo hub /sms con tab Campagne/Singolo/Automazioni.
+      { title: "SMS", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", featureKey: "sms_marketing" },
       { title: "WhatsApp", url: "/azienda/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", featureKey: "whatsapp" },
       // ─── Altri tool AI ───
       { title: "Agenti AI", url: "/azienda/agenti-ai", icon: Bot, permissionKey: "canViewMarketingAiAgent", featureKey: "ai_agents", groupLabel: "Altri tool AI" },
@@ -255,8 +254,7 @@ export const marketingNavItems: NavItem[] = [
   { title: "Appuntamenti", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", category: "marketing", subcategory: "mkt_crm" },
 
   { title: "Email Marketing", url: "/azienda/marketing/email", icon: Mail, permissionKey: "canViewMarketingEmail", category: "marketing", subcategory: "mkt_comunicazione" },
-  { title: "SMS Campagne", url: "/azienda/marketing/sms", icon: MessageSquare, permissionKey: "canViewMarketingEmail", category: "marketing", subcategory: "mkt_comunicazione" },
-  { title: "SMS Singolo", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", category: "marketing", subcategory: "mkt_comunicazione" },
+  { title: "SMS", url: "/azienda/sms", icon: MessageSquare, permissionKey: "canViewSmsMarketing", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "WhatsApp", url: "/azienda/whatsapp", icon: MessageCircle, permissionKey: "canViewMarketingWhatsapp", category: "marketing", subcategory: "mkt_comunicazione" },
   { title: "Automazioni", url: "/azienda/automazioni?tab=marketing", icon: Zap, permissionKey: "canViewMarketingAutomations", category: "marketing", subcategory: "mkt_automation" },
   { title: "Agenti AI", url: "/azienda/agenti-ai?tipo=custom", icon: Bot, permissionKey: "canViewMarketingAiAgent", category: "marketing", subcategory: "mkt_automation" },
