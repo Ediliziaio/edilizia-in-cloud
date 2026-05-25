@@ -2713,8 +2713,66 @@ function KpiBar({
             </div>
           )}
         </div>
+
+        {/* MIGL: 3 CTA Silvio per assistenza imprenditore */}
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <SilvioAdsButton
+            label="Diagnostica campagne"
+            description="Perché spendo tanto e ho pochi lead?"
+            prompt={
+              `Analizza le mie campagne pubblicitarie. ` +
+              `Mese in corso: spesa €${(monthlySpend / 100).toFixed(0)}, ${totalLeads} lead, ` +
+              `CPL ${costPerLead ? `€${(costPerLead / 100).toFixed(2)}` : "n/d"}, ROAS ${roas.toFixed(2)}x. ` +
+              `Forecast fine mese: €${(monthlySpendForecast / 100).toFixed(0)}. ` +
+              `Diagnostica: identifica top 3 cause di inefficienza e dimmi cosa fare nei prossimi 7 giorni. ` +
+              `Tono diretto, italiano colloquiale per imprenditore edile.`
+            }
+          />
+          <SilvioAdsButton
+            label="Budget ottimale"
+            description="Quanto investire per il mio target?"
+            prompt={
+              `Suggerisci un budget pubblicitario ottimale Meta+Google per la mia azienda edile. ` +
+              `Spesa attuale: €${(monthlySpend / 100).toFixed(0)}/mese, target lead/mese non specificato. ` +
+              `Considera: ${totalLeads} lead/mese ricevuti, costo per lead €${(costPerLead / 100).toFixed(0)}, ` +
+              `cap mensile €${(monthlyCap / 100).toFixed(0)}. ` +
+              `Dimmi: (1) budget consigliato per €1k-€5k-€10k mensili di obiettivo, ` +
+              `(2) come distribuirlo tra Meta vs Google, (3) primo mese vs mesi successivi.`
+            }
+          />
+          <SilvioAdsButton
+            label="Scrivi copy"
+            description="3 varianti per un nuovo annuncio"
+            prompt={
+              `Scrivi 3 varianti di copy pubblicitario per la mia azienda edile. ` +
+              `Tono: italiano colloquiale, focus sul valore concreto per il cliente. ` +
+              `Per ogni variante: (a) headline max 40 caratteri, (b) testo max 125 caratteri, ` +
+              `(c) CTA precisa, (d) tipo di immagine consigliata. ` +
+              `Variante 1: focus prezzo/preventivo gratis. ` +
+              `Variante 2: focus qualità/anni di esperienza. ` +
+              `Variante 3: focus velocità/disponibilità immediata.`
+            }
+          />
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function SilvioAdsButton({ label, description, prompt }: { label: string; description: string; prompt: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft: prompt } }))}
+      className="group flex flex-col items-start gap-1 rounded-lg border border-orange-200 bg-gradient-to-br from-orange-50/60 to-amber-50/40 p-3 text-left transition hover:border-orange-300 hover:shadow-sm"
+    >
+      <div className="flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 text-orange-600" />
+        <span className="text-sm font-semibold text-slate-900">{label}</span>
+      </div>
+      <span className="text-[11px] text-slate-600">{description}</span>
+      <span className="mt-auto text-[10px] font-bold text-orange-700 opacity-70 group-hover:opacity-100">Chiedi a Silvio →</span>
+    </button>
   );
 }
 
