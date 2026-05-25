@@ -5,7 +5,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, FileSignature, Mail, Phone, ShieldCheck } from "lucide-react";
+import { Building2, FileSignature, Loader2, Mail, Phone, ShieldCheck } from "lucide-react";
 import { useSEO } from "@/hooks/useSEO";
 import { useAccountantFirm } from "@/hooks/accountant/useAccountantPortalData";
 
@@ -23,9 +23,32 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function AccountantSettings() {
   useSEO({ title: "Profilo studio", noindex: true });
-  const { data: firm } = useAccountantFirm();
+  const { data: firm, isLoading } = useAccountantFirm();
 
-  if (!firm) return null;
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!firm) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
+          <Building2 className="h-12 w-12 text-muted-foreground/40" />
+          <div>
+            <h2 className="text-base font-semibold">Studio non trovato</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Non risulta uno studio associato al tuo account. Ricarica la pagina o
+              contatta l'amministratore.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-5">

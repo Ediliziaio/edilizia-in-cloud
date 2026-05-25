@@ -104,7 +104,6 @@ import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
-import { accountantCompanies } from "@/lib/accountantPortal";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { NotificationsBellPopover } from "@/components/notifications/NotificationsBellPopover";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
@@ -212,18 +211,13 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
 });
 
 const CommercialistaModeBanner = memo(function CommercialistaModeBanner({
-  companyId,
   companyName,
   returnTo,
 }: {
-  companyId?: string | null;
   companyName?: string | null;
   returnTo: string;
 }) {
-  const resolvedCompanyName =
-    companyName ??
-    accountantCompanies.find((company) => company.id === companyId)?.name ??
-    "azienda selezionata";
+  const resolvedCompanyName = companyName ?? "azienda selezionata";
 
   return (
     <div className="border-b-2 border-blue-300 bg-gradient-to-r from-blue-100 to-blue-50 px-3 py-3 text-blue-950">
@@ -975,7 +969,6 @@ const CompanySidebar = memo(function CompanySidebar() {
   const commercialistaCompanyId = commercialistaParams.get("commercialistaCompany") ?? "";
   const commercialistaCompanyName =
     commercialistaParams.get("commercialistaCompanyName") ??
-    accountantCompanies.find((company) => company.id === commercialistaCompanyId)?.name ??
     effectiveCompany?.name ??
     "azienda selezionata";
   const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
@@ -1432,8 +1425,7 @@ export function CompanyLayout() {
   const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
   const commercialistaCompanyId = commercialistaParams.get("commercialistaCompany");
   const commercialistaCompanyName =
-    commercialistaParams.get("commercialistaCompanyName") ??
-    accountantCompanies.find((company) => company.id === commercialistaCompanyId)?.name;
+    commercialistaParams.get("commercialistaCompanyName") ?? null;
   const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
 
   // AUTO-SWITCH: se l'URL contiene commercialistaMode=1 + commercialistaCompany=X,
@@ -1543,7 +1535,6 @@ export function CompanyLayout() {
           <ViewAsBanner />
           {isCommercialistaMode && (
             <CommercialistaModeBanner
-              companyId={commercialistaCompanyId}
               companyName={commercialistaCompanyName}
               returnTo={commercialistaReturnTo}
             />

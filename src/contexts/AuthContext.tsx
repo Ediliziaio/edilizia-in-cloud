@@ -1482,12 +1482,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       //  (a) firm_ids dove l'utente è member attivo
       //  (b) accountant_company_access WHERE firm_id IN (firm_ids) AND status='active'
       //  (c) companies via select inline su access (visibili via RLS dedicata)
+      // Narrowing locale: capturiamo state.user in const per evitare null-access
+      // se lo stato cambia tra il primo check e il map.
       let accountantClientAccesses: MultiCompanyAccess[] = [];
+      const currentUser = state.user;
       try {
         const { data: memberRows, error: memberError } = await supabase
           .from("accountant_firm_members")
           .select("firm_id")
-          .eq("user_id", state.user.id)
+          .eq("user_id", currentUser.id)
           .eq("status", "active")
           .abortSignal(controller.signal);
 
@@ -1517,7 +1520,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 companies: Company | null;
               }>).map((row) => ({
                 id: `accountant-${row.id}`,
-                user_id: state.user.id,
+                user_id: currentUser.id,
                 company_id: row.company_id,
                 access_role: "accountant",
                 granted_by: null,

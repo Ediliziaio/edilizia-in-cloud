@@ -180,7 +180,6 @@ const PianificaMigrazione = lazy(() => import("@/pages/PianificaMigrazione"));
 const LandingAIImprenditoreEdile = lazy(() => import("@/app/landing/ai-imprenditore-edile/page"));
 const AiEdilizia = lazy(() => import("@/app/ai-edilizia/page"));
 const PartnerPayoutPreview = lazy(() => import("@/pages/partner/PartnerPayoutPreview"));
-const AccountantPortal = lazy(() => import("@/pages/accountant/AccountantPortal"));
 const AccountantLayout = lazy(() => import("@/pages/accountant/AccountantLayout"));
 const AccountantDashboard = lazy(() => import("@/pages/accountant/AccountantDashboard"));
 const AccountantCompaniesList = lazy(() => import("@/pages/accountant/AccountantCompaniesList"));
@@ -595,24 +594,6 @@ const App = () => (
                 path="/commercialista/azienda/:companyId"
                 element={<Navigate to="../aziende/:companyId" replace />}
               />
-              {/* Dev preview standalone (vecchia versione monolitica) */}
-              <Route
-                path="/dev/commercialista"
-                element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
-              />
-              <Route
-                path="/dev/commercialista/azienda/:companyId"
-                element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
-              />
-              <Route
-                path="/dev/commercialista/azienda/:companyId/:area"
-                element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
-              />
-              <Route
-                path="/dev/commercialista/:section"
-                element={import.meta.env.DEV ? <AccountantPortal /> : <NotFound />}
-              />
-
               {/* Root — subdomain-aware redirect */}
               <Route path="/" element={<SubdomainRedirect />} />
 
