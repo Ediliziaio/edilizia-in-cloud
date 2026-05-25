@@ -1,202 +1,98 @@
 -- RLS: accountant può SELECT sulle tabelle dati delle aziende clienti delegate.
 --
--- Prerequisite: la funzione user_can_read_accountant_company(uuid) deve esistere
--- (creata da 20270525200000_accountant_can_read_delegated_companies.sql +
--- normalizzata da 20270526100000_accountant_fix_recursion_and_helpers.sql).
+-- Prerequisite: user_can_read_accountant_company(uuid) deve esistere
+-- (vedi 20270525200000 + 20270526100000).
 --
--- Pattern uniforme: ogni tabella riceve una nuova policy
--- "<table>_accountant_select" che aggiunge l'accesso accountant ALLE policy
--- esistenti (non le sostituisce — sono OR di policy multiple).
---
--- Idempotente: DROP IF EXISTS + CREATE.
+-- ROBUSTNESS: ogni policy è creata via DO block + introspection in
+-- information_schema. Se una tabella manca o usa una colonna diversa
+-- (tenant_id, azienda_id) il block skippa silenziosamente invece di
+-- abortire la migration intera.
 
--- ──────────────────────────────────────────────────────────────────
--- AREA CANTIERI: orders + dipendenti
--- ──────────────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "orders_accountant_select" ON public.orders;
-CREATE POLICY "orders_accountant_select" ON public.orders
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
+CREATE OR REPLACE FUNCTION public._tmp_create_accountant_select_policy(
+  p_table text,
+  p_company_col text DEFAULT 'company_id'
+) RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_policy_name text := p_table || '_accountant_select';
+  v_table_exists boolean;
+  v_column_exists boolean;
+BEGIN
+  -- 1. tabella public.<p_table> esiste?
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = p_table
+  ) INTO v_table_exists;
+  IF NOT v_table_exists THEN
+    RAISE NOTICE '[accountant-rls] skip: tabella public.% non esiste', p_table;
+    RETURN;
+  END IF;
 
-DROP POLICY IF EXISTS "order_items_accountant_select" ON public.order_items;
-CREATE POLICY "order_items_accountant_select" ON public.order_items
-  FOR SELECT TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.orders o
-      WHERE o.id = order_items.order_id
-        AND public.user_can_read_accountant_company(o.company_id)
-    )
+  -- 2. colonna company_id (o equivalente) esiste?
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = p_table AND column_name = p_company_col
+  ) INTO v_column_exists;
+  IF NOT v_column_exists THEN
+    RAISE NOTICE '[accountant-rls] skip: colonna %.% non esiste', p_table, p_company_col;
+    RETURN;
+  END IF;
+
+  -- 3. drop + create policy
+  EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', v_policy_name, p_table);
+  EXECUTE format(
+    'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (public.user_can_read_accountant_company(%I))',
+    v_policy_name, p_table, p_company_col
   );
+  RAISE NOTICE '[accountant-rls] ok: % policy creata', p_table;
+END $$;
 
-DROP POLICY IF EXISTS "work_logs_accountant_select" ON public.work_logs;
-CREATE POLICY "work_logs_accountant_select" ON public.work_logs
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
+-- Applica a tutte le 28 tabelle candidate. Le mancanti vengono skippate.
+DO $$
+DECLARE
+  t text;
+  tables text[] := ARRAY[
+    -- CANTIERI
+    'orders', 'work_logs', 'giornale_lavori', 'foto_cantiere',
+    -- MAGAZZINO
+    'warehouses', 'warehouse_stock', 'warehouse_movements', 'warehouse_transfers',
+    -- SUBAPPALTATORI + SICUREZZA
+    'subappaltatori', 'contratti_subappalto', 'duvri_documents', 'durc_documents',
+    'cantiere_segnalazioni',
+    -- ASSISTENZA + MANUTENZIONE
+    'tickets', 'piani_manutenzione', 'contratti_manutenzione', 'esecuzioni_manutenzione',
+    -- FINANZA
+    'fatture_ricevute', 'fattura_ordine', 'purchase_orders', 'scadenze',
+    'prima_nota_entries', 'company_costs', 'cost_categories', 'cost_budgets',
+    'bank_transactions', 'cashflow_forecast_snapshots', 'documenti_fiscali',
+    -- PERSONE HR
+    'employees', 'hr_cedolini', 'hr_timbrature'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    PERFORM public._tmp_create_accountant_select_policy(t, 'company_id');
+  END LOOP;
+END $$;
 
-DROP POLICY IF EXISTS "giornale_lavori_accountant_select" ON public.giornale_lavori;
-CREATE POLICY "giornale_lavori_accountant_select" ON public.giornale_lavori
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
+-- order_items: company filtering via JOIN su orders (no colonna company_id diretta)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='order_items')
+     AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='orders') THEN
+    DROP POLICY IF EXISTS "order_items_accountant_select" ON public.order_items;
+    CREATE POLICY "order_items_accountant_select" ON public.order_items
+      FOR SELECT TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.orders o
+          WHERE o.id = order_items.order_id
+            AND public.user_can_read_accountant_company(o.company_id)
+        )
+      );
+    RAISE NOTICE '[accountant-rls] ok: order_items policy creata (via JOIN)';
+  END IF;
+END $$;
 
-DROP POLICY IF EXISTS "foto_cantiere_accountant_select" ON public.foto_cantiere;
-CREATE POLICY "foto_cantiere_accountant_select" ON public.foto_cantiere
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
--- ──────────────────────────────────────────────────────────────────
--- AREA MAGAZZINO
--- ──────────────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "warehouses_accountant_select" ON public.warehouses;
-CREATE POLICY "warehouses_accountant_select" ON public.warehouses
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "warehouse_stock_accountant_select" ON public.warehouse_stock;
-CREATE POLICY "warehouse_stock_accountant_select" ON public.warehouse_stock
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "warehouse_movements_accountant_select" ON public.warehouse_movements;
-CREATE POLICY "warehouse_movements_accountant_select" ON public.warehouse_movements
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "warehouse_transfers_accountant_select" ON public.warehouse_transfers;
-CREATE POLICY "warehouse_transfers_accountant_select" ON public.warehouse_transfers
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
--- ──────────────────────────────────────────────────────────────────
--- AREA SUBAPPALTATORI + SICUREZZA
--- ──────────────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "subappaltatori_accountant_select" ON public.subappaltatori;
-CREATE POLICY "subappaltatori_accountant_select" ON public.subappaltatori
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "contratti_subappalto_accountant_select" ON public.contratti_subappalto;
-CREATE POLICY "contratti_subappalto_accountant_select" ON public.contratti_subappalto
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "duvri_documents_accountant_select" ON public.duvri_documents;
-CREATE POLICY "duvri_documents_accountant_select" ON public.duvri_documents
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "durc_documents_accountant_select" ON public.durc_documents;
-CREATE POLICY "durc_documents_accountant_select" ON public.durc_documents
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "cantiere_segnalazioni_accountant_select" ON public.cantiere_segnalazioni;
-CREATE POLICY "cantiere_segnalazioni_accountant_select" ON public.cantiere_segnalazioni
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
--- ──────────────────────────────────────────────────────────────────
--- AREA ASSISTENZA + MANUTENZIONE
--- ──────────────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "tickets_accountant_select" ON public.tickets;
-CREATE POLICY "tickets_accountant_select" ON public.tickets
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "piani_manutenzione_accountant_select" ON public.piani_manutenzione;
-CREATE POLICY "piani_manutenzione_accountant_select" ON public.piani_manutenzione
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "contratti_manutenzione_accountant_select" ON public.contratti_manutenzione;
-CREATE POLICY "contratti_manutenzione_accountant_select" ON public.contratti_manutenzione
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "esecuzioni_manutenzione_accountant_select" ON public.esecuzioni_manutenzione;
-CREATE POLICY "esecuzioni_manutenzione_accountant_select" ON public.esecuzioni_manutenzione
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
--- ──────────────────────────────────────────────────────────────────
--- AREA FINANZA: fatturazione, scadenzario, prima nota, costi, tesoreria
--- ──────────────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "fatture_ricevute_accountant_select" ON public.fatture_ricevute;
-CREATE POLICY "fatture_ricevute_accountant_select" ON public.fatture_ricevute
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "fattura_ordine_accountant_select" ON public.fattura_ordine;
-CREATE POLICY "fattura_ordine_accountant_select" ON public.fattura_ordine
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "purchase_orders_accountant_select" ON public.purchase_orders;
-CREATE POLICY "purchase_orders_accountant_select" ON public.purchase_orders
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "scadenze_accountant_select" ON public.scadenze;
-CREATE POLICY "scadenze_accountant_select" ON public.scadenze
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "prima_nota_entries_accountant_select" ON public.prima_nota_entries;
-CREATE POLICY "prima_nota_entries_accountant_select" ON public.prima_nota_entries
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "company_costs_accountant_select" ON public.company_costs;
-CREATE POLICY "company_costs_accountant_select" ON public.company_costs
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "cost_categories_accountant_select" ON public.cost_categories;
-CREATE POLICY "cost_categories_accountant_select" ON public.cost_categories
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "cost_budgets_accountant_select" ON public.cost_budgets;
-CREATE POLICY "cost_budgets_accountant_select" ON public.cost_budgets
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "bank_transactions_accountant_select" ON public.bank_transactions;
-CREATE POLICY "bank_transactions_accountant_select" ON public.bank_transactions
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "cashflow_forecast_snapshots_accountant_select" ON public.cashflow_forecast_snapshots;
-CREATE POLICY "cashflow_forecast_snapshots_accountant_select" ON public.cashflow_forecast_snapshots
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "documenti_fiscali_accountant_select" ON public.documenti_fiscali;
-CREATE POLICY "documenti_fiscali_accountant_select" ON public.documenti_fiscali
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
--- ──────────────────────────────────────────────────────────────────
--- AREA PERSONE & HR
--- ──────────────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "employees_accountant_select" ON public.employees;
-CREATE POLICY "employees_accountant_select" ON public.employees
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "hr_cedolini_accountant_select" ON public.hr_cedolini;
-CREATE POLICY "hr_cedolini_accountant_select" ON public.hr_cedolini
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
-DROP POLICY IF EXISTS "hr_timbrature_accountant_select" ON public.hr_timbrature;
-CREATE POLICY "hr_timbrature_accountant_select" ON public.hr_timbrature
-  FOR SELECT TO authenticated
-  USING (public.user_can_read_accountant_company(company_id));
-
--- ──────────────────────────────────────────────────────────────────
--- NOTA: alcune tabelle (es. order_status_history, order_employees,
--- order_salespeople) sono filtrate via JOIN su orders, quindi sono
--- automaticamente accessibili se orders è leggibile. Se in futuro
--- emergono blocchi specifici, aggiungere policy granulari simili a
--- order_items_accountant_select.
+-- Cleanup: rimuovi il helper temporaneo
+DROP FUNCTION IF EXISTS public._tmp_create_accountant_select_policy(text, text);
