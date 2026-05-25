@@ -1478,42 +1478,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch ANCHE le aziende delegate al commercialista (accountant_company_access)
       // così appaiono nel company switcher e effectiveCompany può essere settato a una di esse.
-      // Senza questa fetch il cruscotto del commercialista mostra i dati sbagliati.
+      // Approccio 2-step per evitare nested filter syntax fragile:
+      //  (a) firm_ids dove l'utente è member attivo
+      //  (b) accountant_company_access WHERE firm_id IN (firm_ids) AND status='active'
+      //  (c) companies via select inline su access (visibili via RLS dedicata)
       let accountantClientAccesses: MultiCompanyAccess[] = [];
       try {
-        const { data: accData, error: accError } = await supabase
-          .from("accountant_company_access")
-          .select(`
-            id, company_id, status, access_mode, created_at,
-            firm:accountant_firms!inner(
-              id,
-              members:accountant_firm_members!inner(user_id, status)
-            ),
-            companies:company_id(*)
-          `)
+        const { data: memberRows, error: memberError } = await supabase
+          .from("accountant_firm_members")
+          .select("firm_id")
+          .eq("user_id", state.user.id)
           .eq("status", "active")
-          .eq("firm.members.user_id", state.user.id)
-          .eq("firm.members.status", "active")
           .abortSignal(controller.signal);
 
         if (cancelled) return;
-        if (accError && !isAbortLikeError(accError)) {
-          logger.warn("Error fetching accountant client accesses:", accError);
-        } else if (accData) {
-          accountantClientAccesses = (accData as Array<{
-            id: string;
-            company_id: string;
-            created_at: string;
-            companies: Company | null;
-          }>).map((row) => ({
-            id: `accountant-${row.id}`,
-            user_id: state.user.id,
-            company_id: row.company_id,
-            access_role: "accountant",
-            granted_by: null,
-            created_at: row.created_at,
-            company: row.companies ?? undefined,
-          }));
+        if (memberError && !isAbortLikeError(memberError)) {
+          logger.warn("Error fetching accountant firm memberships:", memberError);
+        } else if (memberRows && memberRows.length > 0) {
+          const firmIds = memberRows
+            .map((r: { firm_id: string | null }) => r.firm_id)
+            .filter((id): id is string => !!id);
+          if (firmIds.length > 0) {
+            const { data: accData, error: accError } = await supabase
+              .from("accountant_company_access")
+              .select(`id, company_id, status, access_mode, created_at, companies:company_id(*)`)
+              .in("firm_id", firmIds)
+              .eq("status", "active")
+              .abortSignal(controller.signal);
+
+            if (cancelled) return;
+            if (accError && !isAbortLikeError(accError)) {
+              logger.warn("Error fetching accountant client accesses:", accError);
+            } else if (accData) {
+              accountantClientAccesses = (accData as Array<{
+                id: string;
+                company_id: string;
+                created_at: string;
+                companies: Company | null;
+              }>).map((row) => ({
+                id: `accountant-${row.id}`,
+                user_id: state.user.id,
+                company_id: row.company_id,
+                access_role: "accountant",
+                granted_by: null,
+                created_at: row.created_at,
+                company: row.companies ?? undefined,
+              }));
+            }
+          }
         }
       } catch (e) {
         if (!isAbortLikeError(e)) logger.warn("accountant_company_access fetch failed:", e);
