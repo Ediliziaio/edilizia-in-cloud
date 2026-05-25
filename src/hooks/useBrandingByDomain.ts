@@ -24,7 +24,7 @@ export interface DomainBranding {
 
 const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 const PLATFORM_ROOT_DOMAINS = ["ediliziaincloud.com", "ediliziaincloud.it"];
-const RESERVED_PLATFORM_SUBDOMAINS = new Set(["www", "app", "admin", "clienti", "lavori"]);
+const RESERVED_PLATFORM_SUBDOMAINS = new Set(["www", "app", "admin", "clienti", "lavori", "commercialista", "referral"]);
 const BLOCKED_CUSTOM_DOMAIN_ROOTS = ["ediliziaincloud.com", "ediliziaincloud.it", "supabase.co", "supabase.com"];
 const DOMAIN_LABEL_REGEX = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 

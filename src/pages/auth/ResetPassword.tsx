@@ -8,6 +8,14 @@ import { Loader2, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
+function getLoginPathForCurrentDomain() {
+  const hostname = window.location.hostname;
+  if (hostname.startsWith("admin.")) return "/admin-login";
+  if (hostname.startsWith("commercialista.")) return "/commercialista-login";
+  if (hostname.startsWith("referral.")) return "/referral-login";
+  return "/login";
+}
+
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -76,9 +84,7 @@ export default function ResetPassword() {
         });
       } else {
         setIsSuccess(true);
-        // Detect if we're on the admin subdomain and redirect accordingly
-        const isAdminDomain = window.location.hostname.startsWith("admin.");
-        const redirectPath = isAdminDomain ? "/admin-login" : "/login";
+        const redirectPath = getLoginPathForCurrentDomain();
         redirectTimerRef.current = setTimeout(() => navigate(redirectPath, { replace: true }), 3000);
       }
     } catch {
@@ -109,7 +115,7 @@ export default function ResetPassword() {
           <p className="text-muted-foreground text-sm">
             Il link di reset è scaduto o non è valido. Richiedi un nuovo link dalla pagina di login.
           </p>
-          <Button onClick={() => navigate(window.location.hostname.startsWith("admin.") ? "/admin-login" : "/login")} className="mt-4">
+          <Button onClick={() => navigate(getLoginPathForCurrentDomain())} className="mt-4">
             Torna al login
           </Button>
         </div>

@@ -110,6 +110,8 @@ const Login = lazy(() => import("@/pages/Login"));
 const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const ClientiLogin = lazy(() => import("@/pages/ClientiLogin"));
 const LavoriLogin = lazy(() => import("@/pages/LavoriLogin"));
+const ReferralLogin = lazy(() => import("@/pages/ReferralLogin"));
+const CommercialistaLogin = lazy(() => import("@/pages/CommercialistaLogin"));
 
 /**
  * LoginRouter — renders the correct login page based on the current subdomain.
@@ -120,6 +122,8 @@ function LoginRouter() {
   if (sub === "admin") return <AdminLogin />;
   if (sub === "clienti") return <ClientiLogin />;
   if (sub === "lavori") return <LavoriLogin />;
+  if (sub === "commercialista") return <Navigate to="/commercialista-login" replace />;
+  if (sub === "referral") return <Navigate to="/referral-login" replace />;
   return <Login />;
 }
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -357,7 +361,7 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
   /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|talent-profile)(\/|$)/;
@@ -524,6 +528,8 @@ const App = () => (
               <Route path="/admin-login" element={<AdminLogin />} />
               <Route path="/clienti-login" element={<ClientiLogin />} />
               <Route path="/lavori-login" element={<LavoriLogin />} />
+              <Route path="/referral-login" element={<ReferralLogin />} />
+              <Route path="/commercialista-login" element={<CommercialistaLogin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/prenota/:slug" element={<PublicBooking />} />

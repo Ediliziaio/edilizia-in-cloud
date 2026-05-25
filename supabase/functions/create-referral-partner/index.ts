@@ -34,8 +34,11 @@ function isSuperAdminEmailAllowed(email: string | null | undefined) {
     .includes(normalizedEmail);
 }
 
-function getAppUrl(path: string) {
-  const baseUrl = Deno.env.get("PUBLIC_APP_URL") || Deno.env.get("APP_URL") || "https://app.ediliziaincloud.com";
+function getReferralPortalUrl(path: string) {
+  const baseUrl =
+    Deno.env.get("PUBLIC_REFERRAL_URL") ||
+    Deno.env.get("REFERRAL_APP_URL") ||
+    "https://referral.ediliziaincloud.com";
   const url = new URL(baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`);
   url.pathname = path;
   url.search = "";
@@ -128,7 +131,7 @@ Deno.serve(async (req) => {
           full_name: name,
           partner_type: partnerType,
         },
-        redirectTo: getAppUrl("/partner"),
+        redirectTo: getReferralPortalUrl("/referral-login"),
       });
 
       if (inviteError || !inviteData.user?.id) {
@@ -190,7 +193,7 @@ Deno.serve(async (req) => {
 
     const { data: referralLink, error: linkError } = await admin.rpc("ensure_referral_link", {
       p_referrer_id: referrer.id,
-      p_base_url: getAppUrl("/login"),
+      p_base_url: getReferralPortalUrl("/referral-login"),
     });
     if (linkError) throw linkError;
 

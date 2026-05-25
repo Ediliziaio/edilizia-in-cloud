@@ -63,6 +63,71 @@ export interface AccountantDocumentQueue {
   cta: string;
 }
 
+export interface AccountantPriorityItem {
+  id: string;
+  companyId: string;
+  title: string;
+  reason: string;
+  severity: AccountantRisk;
+  area: string;
+  due: string;
+  action: string;
+  score: number;
+}
+
+export interface AccountantAiSuggestion {
+  id: string;
+  label: string;
+  prompt: string;
+  response: string;
+}
+
+export interface AccountantDeadline {
+  id: string;
+  companyId: string;
+  title: string;
+  type: "fiscale" | "operativa" | "documentale";
+  due: string;
+  owner: string;
+  status: "da_fare" | "in_corso" | "pronta";
+}
+
+export interface AccountantReport {
+  id: string;
+  companyId: string;
+  title: string;
+  period: string;
+  status: "pronto" | "bozza" | "da_generare";
+  highlights: string[];
+}
+
+export interface AccountantDelegation {
+  id: string;
+  companyId: string;
+  title: string;
+  status: "attiva" | "in_scadenza" | "mancante";
+  expiresAt: string;
+  scope: string[];
+}
+
+export interface AccountantTeamMember {
+  id: string;
+  name: string;
+  role: string;
+  clients: number;
+  openTasks: number;
+  focus: string;
+}
+
+export interface AccountantAuditEvent {
+  id: string;
+  companyId: string;
+  actor: string;
+  action: string;
+  target: string;
+  when: string;
+}
+
 export const accountantCompanies: AccountantCompany[] = [
   {
     id: "rossi-restauri",
@@ -263,6 +328,237 @@ export const accountantDocumentQueues: AccountantDocumentQueue[] = [
     count: 1,
     severity: "ok",
     cta: "Scarica export",
+  },
+];
+
+export const accountantPriorityItems: AccountantPriorityItem[] = [
+  {
+    id: "prio-1",
+    companyId: "rossi-restauri",
+    title: "Cassa negativa e fatture passive non agganciate",
+    reason: "Cassa sotto soglia, 7 fatture senza commessa e margine Viale Monza in calo.",
+    severity: "critical",
+    area: "Controllo gestione",
+    due: "oggi",
+    action: "Apri controllo Rossi",
+    score: 96,
+  },
+  {
+    id: "prio-2",
+    companyId: "verdi-edilizia",
+    title: "IVA agevolata e reverse charge da validare",
+    reason: "Documenti IVA incompleti prima dell'export e 1 commessa pubblica da bloccare.",
+    severity: "warning",
+    area: "Fiscale",
+    due: "oggi",
+    action: "Apri documenti Verdi",
+    score: 82,
+  },
+  {
+    id: "prio-3",
+    companyId: "edil-nova",
+    title: "SAL da fatturare e DURC aggiornato",
+    reason: "Manca conferma SAL su Condominio Via Roma e richiesta DURC aperta.",
+    severity: "warning",
+    area: "Cantieri",
+    due: "48h",
+    action: "Apri cantieri Edil Nova",
+    score: 71,
+  },
+  {
+    id: "prio-4",
+    companyId: "bianchi-impianti",
+    title: "Export prima nota pronto",
+    reason: "Aprile chiuso, export contabile disponibile e una ricevuta da archiviare.",
+    severity: "ok",
+    area: "Documenti",
+    due: "questa settimana",
+    action: "Scarica export",
+    score: 34,
+  },
+];
+
+export const accountantAiSuggestions: AccountantAiSuggestion[] = [
+  {
+    id: "ai-1",
+    label: "Clienti da chiamare oggi",
+    prompt: "Dimmi quali clienti devo chiamare oggi e perche.",
+    response: "Priorita: Rossi Restauri per cassa negativa e fatture senza commessa; Verdi Edilizia per IVA/reverse charge prima dell'export; Edil Nova per SAL e DURC.",
+  },
+  {
+    id: "ai-2",
+    label: "Richieste documenti",
+    prompt: "Prepara le richieste documenti mancanti da inviare alle aziende.",
+    response: "Bozza: chiedere DDT Viale Monza a Rossi, documenti IVA agevolata a Verdi, DURC aggiornato a Edil Nova e ricevuta incasso a Bianchi.",
+  },
+  {
+    id: "ai-3",
+    label: "Rischio margini",
+    prompt: "Quali aziende stanno perdendo margine sulle commesse?",
+    response: "Rossi Restauri e Verdi Edilizia hanno margine in calo. La causa principale e costo non allocato, SAL non fatturati e documenti mancanti.",
+  },
+];
+
+export const accountantDeadlines: AccountantDeadline[] = [
+  {
+    id: "dead-1",
+    companyId: "rossi-restauri",
+    title: "Chiusura aprile con fatture passive",
+    type: "fiscale",
+    due: "oggi",
+    owner: "Laura Studio",
+    status: "in_corso",
+  },
+  {
+    id: "dead-2",
+    companyId: "verdi-edilizia",
+    title: "Verifica reverse charge subappalto",
+    type: "fiscale",
+    due: "domani",
+    owner: "Marco Studio",
+    status: "da_fare",
+  },
+  {
+    id: "dead-3",
+    companyId: "edil-nova",
+    title: "SAL Condominio Via Roma",
+    type: "operativa",
+    due: "27 mag",
+    owner: "Giulia Neri",
+    status: "da_fare",
+  },
+  {
+    id: "dead-4",
+    companyId: "bianchi-impianti",
+    title: "Export prima nota aprile",
+    type: "documentale",
+    due: "questa settimana",
+    owner: "Studio",
+    status: "pronta",
+  },
+];
+
+export const accountantReports: AccountantReport[] = [
+  {
+    id: "rep-1",
+    companyId: "rossi-restauri",
+    title: "Report consulenza mensile",
+    period: "Aprile 2026",
+    status: "bozza",
+    highlights: ["Cassa -34.200,00 €", "Margine medio 14.8%", "9 documenti mancanti"],
+  },
+  {
+    id: "rep-2",
+    companyId: "edil-nova",
+    title: "Report cantiere e finanza",
+    period: "Aprile 2026",
+    status: "pronto",
+    highlights: ["Cassa positiva", "SAL da fatturare", "DURC richiesto"],
+  },
+  {
+    id: "rep-3",
+    companyId: "verdi-edilizia",
+    title: "Report anomalie IVA",
+    period: "Aprile 2026",
+    status: "da_generare",
+    highlights: ["IVA agevolata", "Reverse charge", "Export bloccato"],
+  },
+];
+
+export const accountantDelegations: AccountantDelegation[] = [
+  {
+    id: "del-1",
+    companyId: "rossi-restauri",
+    title: "Mandato consulenza gestionale",
+    status: "attiva",
+    expiresAt: "31 dic 2026",
+    scope: ["Documenti", "Controllo gestione", "Cantieri", "Export"],
+  },
+  {
+    id: "del-2",
+    companyId: "edil-nova",
+    title: "Delega lettura finanza",
+    status: "in_scadenza",
+    expiresAt: "30 giu 2026",
+    scope: ["Documenti", "Tesoreria", "Prima nota"],
+  },
+  {
+    id: "del-3",
+    companyId: "bianchi-impianti",
+    title: "Consenso export contabile",
+    status: "attiva",
+    expiresAt: "31 dic 2026",
+    scope: ["Documenti", "Export"],
+  },
+  {
+    id: "del-4",
+    companyId: "verdi-edilizia",
+    title: "Mandato revisione IVA",
+    status: "mancante",
+    expiresAt: "Da firmare",
+    scope: ["Fiscale", "Documenti", "Report"],
+  },
+];
+
+export const accountantTeamMembers: AccountantTeamMember[] = [
+  {
+    id: "tm-1",
+    name: "Laura Studio",
+    role: "Responsabile contabile",
+    clients: 2,
+    openTasks: 8,
+    focus: "Rossi Restauri",
+  },
+  {
+    id: "tm-2",
+    name: "Marco Studio",
+    role: "Revisione fiscale",
+    clients: 2,
+    openTasks: 5,
+    focus: "Verdi Edilizia",
+  },
+  {
+    id: "tm-3",
+    name: "Silvia Studio",
+    role: "Documenti e richieste",
+    clients: 4,
+    openTasks: 11,
+    focus: "Inbox documentale",
+  },
+];
+
+export const accountantAuditEvents: AccountantAuditEvent[] = [
+  {
+    id: "aud-1",
+    companyId: "rossi-restauri",
+    actor: "Laura Studio",
+    action: "ha aperto una richiesta documenti",
+    target: "DDT Viale Monza",
+    when: "oggi 10:18",
+  },
+  {
+    id: "aud-2",
+    companyId: "verdi-edilizia",
+    actor: "Marco Studio",
+    action: "ha bloccato l'export",
+    target: "IVA agevolata da validare",
+    when: "oggi 09:55",
+  },
+  {
+    id: "aud-3",
+    companyId: "edil-nova",
+    actor: "Silvia Studio",
+    action: "ha inviato una richiesta",
+    target: "DURC aggiornato",
+    when: "ieri 17:35",
+  },
+  {
+    id: "aud-4",
+    companyId: "bianchi-impianti",
+    actor: "Sistema",
+    action: "ha generato l'export",
+    target: "Prima nota aprile",
+    when: "ieri 18:20",
   },
 ];
 

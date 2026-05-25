@@ -29,7 +29,7 @@ function setCookie(name: string, value: string, days: number) {
   const expires = new Date(Date.now() + days * 86400 * 1000).toUTCString();
   // Use root domain (.eic.app) per condividere cookie across subdomain
   const host = window.location.hostname;
-  const isPrivateHost = /^(app|admin|clienti|lavori)\./.test(host);
+  const isPrivateHost = /^(app|admin|clienti|lavori|commercialista|referral)\./.test(host);
   const cookieDomain = isPrivateHost ? `; domain=.${host.split(".").slice(-2).join(".")}` : "";
   document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax${cookieDomain}`;
 }

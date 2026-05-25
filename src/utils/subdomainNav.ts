@@ -4,7 +4,7 @@ import { safeRedirect } from "@/utils/safeRedirect";
  * Builds a full URL for a given path on a specific subdomain.
  * In local development (localhost), returns just the path (no subdomain switching).
  */
-export type TargetSubdomain = "app" | "admin" | "clienti" | "lavori" | "commercialista";
+export type TargetSubdomain = "app" | "admin" | "clienti" | "lavori" | "commercialista" | "referral";
 
 export function getSubdomainUrl(path: string, subdomain: TargetSubdomain): string {
   if (typeof window === "undefined") return path;

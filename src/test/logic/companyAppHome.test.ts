@@ -18,5 +18,6 @@ describe("company app home redirects", () => {
     expect(getRoleHomePath("subcontractor")).toBe("/campo");
     expect(getRoleHomePath("salesperson")).toBe("/venditore");
     expect(getRoleHomePath("referrer")).toBe("/partner");
+    expect(getRoleHomePath("accountant")).toBe("/commercialista");
   });
 });

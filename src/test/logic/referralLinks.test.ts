@@ -9,7 +9,7 @@ describe("referral links", () => {
   it("uses the configured app domain instead of the current admin origin", () => {
     vi.stubEnv("VITE_REFERRAL_APP_URL", "https://app.example.com");
 
-    expect(buildReferralLink("ABC123")).toBe("https://app.example.com/login?ref=ABC123");
+    expect(buildReferralLink("ABC123")).toBe("https://app.example.com/referral-login?ref=ABC123");
   });
 
   it("keeps custom landing paths and trims optional UTM values", () => {

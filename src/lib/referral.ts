@@ -1,4 +1,4 @@
-const DEFAULT_REFERRAL_LOGIN_URL = "https://app.ediliziaincloud.com/login";
+const DEFAULT_REFERRAL_LOGIN_URL = "https://referral.ediliziaincloud.com/referral-login";
 
 type ReferralLinkParams = Record<string, string | number | null | undefined>;
 
@@ -11,7 +11,7 @@ function normalizeReferralLoginUrl(rawUrl: string | null | undefined): string {
   try {
     const url = new URL(withProtocol);
     const cleanPath = url.pathname.replace(/\/+$/, "");
-    url.pathname = !cleanPath || cleanPath === "/" ? "/login" : cleanPath;
+    url.pathname = !cleanPath || cleanPath === "/" ? "/referral-login" : cleanPath;
     url.search = "";
     url.hash = "";
     return url.toString();

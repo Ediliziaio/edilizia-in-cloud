@@ -95,6 +95,12 @@ export function RoleBasedRedirect() {
     if (subdomain === "lavori") {
       return <Navigate to="/lavori-login" replace />;
     }
+    if (subdomain === "commercialista") {
+      return <Navigate to="/commercialista-login" replace />;
+    }
+    if (subdomain === "referral") {
+      return <Navigate to="/referral-login" replace />;
+    }
     return <Navigate to="/login" replace />;
   }
 

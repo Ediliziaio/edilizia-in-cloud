@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -6,7 +7,18 @@ import { supabase } from "@/integrations/supabase/client";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, User, Link2, DollarSign, Wallet, FolderDown, LayoutDashboard, Users, BarChart3 } from "lucide-react";
+import {
+  BarChart3,
+  DollarSign,
+  FolderDown,
+  LayoutDashboard,
+  Link2,
+  Loader2,
+  LogOut,
+  User,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
@@ -20,6 +32,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { NavLink } from "@/components/NavLink";
+import { navigateToSubdomain } from "@/utils/subdomainNav";
 
 const MENU_ITEMS = [
   { to: "/partner", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -32,10 +45,32 @@ const MENU_ITEMS = [
   { to: "/partner/profilo", label: "Profilo", icon: User },
 ];
 
+type PartnerSidebarReferrer = {
+  name: string | null;
+  referral_tiers: {
+    name: string | null;
+    icon: string | null;
+    color: string | null;
+  } | null;
+};
+
+function shouldRedirectToReferralSubdomain() {
+  if (typeof window === "undefined") return false;
+  const hostname = window.location.hostname;
+  if (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.includes("192.168.")
+  ) {
+    return false;
+  }
+  return !hostname.startsWith("referral.");
+}
+
 function PartnerSidebar() {
   const { signOut, profile, user } = useAuth();
 
-  const { data: referrer } = useQuery({
+  const { data: referrer } = useQuery<PartnerSidebarReferrer | null>({
     queryKey: ["my-referrer-sidebar", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
@@ -44,13 +79,13 @@ function PartnerSidebar() {
         .select("name, referral_tiers(name, icon, color)")
         .eq("user_id", user!.id)
         .maybeSingle();
-      return data;
+      return data as PartnerSidebarReferrer | null;
     },
     staleTime: 5 * 60 * 1000,
   });
 
   const initials = `${profile?.first_name?.[0] || ""}${profile?.last_name?.[0] || ""}`.toUpperCase() || "P";
-  const tier = (referrer as any)?.referral_tiers;
+  const tier = referrer?.referral_tiers;
 
   return (
     <Sidebar className="border-r">
@@ -111,6 +146,26 @@ function PartnerSidebar() {
 }
 
 export function PartnerLayout() {
+  const [redirecting, setRedirecting] = useState(false);
+
+  useEffect(() => {
+    if (!shouldRedirectToReferralSubdomain()) return;
+    setRedirecting(true);
+    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    navigateToSubdomain(currentPath, "referral");
+  }, []);
+
+  if (redirecting || shouldRedirectToReferralSubdomain()) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Apro il portale referral...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">

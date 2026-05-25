@@ -123,6 +123,10 @@ const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
         return <Navigate to="/campo" replace />;
       case "salesperson":
         return <Navigate to="/venditore" replace />;
+      case "referrer":
+        return <Navigate to="/partner" replace />;
+      case "accountant":
+        return <Navigate to="/commercialista" replace />;
       case "call_center":
         return <Navigate to="/azienda" replace />;
       default:
