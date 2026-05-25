@@ -30,6 +30,7 @@ import {
   useAccountantCompanies,
   type AccountantAccessStatus,
 } from "@/hooks/accountant/useAccountantPortalData";
+import { buildCommercialistaCompanyUrl } from "@/lib/commercialistaImpersonation";
 
 function companyInitials(name: string) {
   return (
@@ -161,9 +162,18 @@ export default function AccountantCompaniesList() {
             const status = statusBadge(access.status);
             const StatusIcon = status.icon;
             const company = access.company;
+            // Se l'accesso è attivo, click → entra DIRETTAMENTE nell'area azienda
+            // in modalità commercialista (sidebar filtrata). Altrimenti hub statico.
+            const targetUrl =
+              access.status === "active"
+                ? buildCommercialistaCompanyUrl({
+                    companyId: access.company_id,
+                    companyName: company?.name ?? "Azienda",
+                  })
+                : `/commercialista/aziende/${access.company_id}`;
             return (
               <Card key={access.id} className="overflow-hidden transition-shadow hover:shadow-md">
-                <Link to={`/commercialista/aziende/${access.company_id}`} className="block">
+                <Link to={targetUrl} className="block">
                   <CardHeader className="pb-3">
                     <div className="flex items-start gap-3">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-sm font-bold text-blue-700">

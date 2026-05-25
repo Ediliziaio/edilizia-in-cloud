@@ -24,6 +24,7 @@ import {
   useAccountantFirm,
   useAccountantNotifications,
 } from "@/hooks/accountant/useAccountantPortalData";
+import { buildCommercialistaCompanyUrl } from "@/lib/commercialistaImpersonation";
 
 export default function AccountantDashboard() {
   useSEO({ title: "Cruscotto studio", noindex: true });
@@ -162,7 +163,10 @@ export default function AccountantDashboard() {
                 {recentActive.map((access) => (
                   <Link
                     key={access.id}
-                    to={`/commercialista/aziende/${access.company_id}`}
+                    to={buildCommercialistaCompanyUrl({
+                      companyId: access.company_id,
+                      companyName: access.company?.name ?? "Azienda",
+                    })}
                     className="flex items-center gap-3 p-4 transition-colors hover:bg-slate-50"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-sm font-bold text-blue-700">
