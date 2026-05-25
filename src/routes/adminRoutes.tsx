@@ -55,6 +55,7 @@ const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const AdminAttivita = lazy(() => import("@/pages/admin/AdminAttivita"));
 const AdminEmailClientPage = lazy(() => import("@/pages/admin/AdminEmailClientPage"));
 const AdminEmailTriagePage = lazy(() => import("@/pages/admin/AdminEmailTriagePage"));
+const AdminMioProfilo = lazy(() => import("@/pages/admin/impostazioni/AdminMioProfilo"));
 const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
 const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
@@ -201,7 +202,7 @@ export default function AdminRoutesContainer() {
         <Route path="aziende/nuova" element={<RequireSuperAdmin><CreateCompany /></RequireSuperAdmin>} />
         <Route path="aziende/:id" element={<RequireSuperAdmin><CompanyDetail /></RequireSuperAdmin>} />
         <Route path="ticket" element={<RequireAdminPermission permission="can_manage_tickets"><GlobalTickets /></RequireAdminPermission>} />
-        <Route path="impostazioni" element={<Navigate to="/admin/impostazioni/profilo" replace />} />
+        <Route path="impostazioni" element={<Navigate to="/admin/impostazioni/mio-profilo" replace />} />
         <Route path="impostazioni/profilo" element={<AdminSettingsProfile />} />
         <Route path="impostazioni/piattaforma" element={<RequireSuperAdmin><AdminSettingsPlatform /></RequireSuperAdmin>} />
         <Route path="impostazioni/notifiche" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsNotifications /></RequireAdminPermission>} />
@@ -211,6 +212,7 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni/email" element={<RequireSuperAdmin><AdminSettingsEmail /></RequireSuperAdmin>} />
         <Route path="impostazioni/preferenze-email" element={<RequireSuperAdmin><AdminSettingsEmailPreferences /></RequireSuperAdmin>} />
         <Route path="impostazioni/dominio-email" element={<RequireSuperAdmin><AdminSettingsEmailDomain /></RequireSuperAdmin>} />
+        <Route path="impostazioni/mio-profilo" element={<RequireSuperAdmin><AdminMioProfilo /></RequireSuperAdmin>} />
         {/* ============================================================
             REFACTOR Strategia C — 3 pagine AI consolidate (nuove)
             ============================================================ */}

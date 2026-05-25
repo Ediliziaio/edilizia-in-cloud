@@ -23,6 +23,7 @@ import {
   Megaphone,
   ArrowLeft,
   Mail,
+  Sparkles,
   Bot,
   ListChecks,
   ShieldCheck as ShieldCheckIcon,
@@ -540,6 +541,20 @@ function AdminMainSidebar() {
                     </SidebarMenuItem>
                   );
                 })()}
+                {permissions.can_manage_companies && (
+                  <SidebarMenuItem key="top-email-triage">
+                    <SidebarMenuButton asChild tooltip="Triage AI Email">
+                      <NavLink
+                        to="/admin/email-triage"
+                        className={navLinkClass}
+                        activeClassName={activeClass}
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        <span className="flex-1 font-medium">Triage AI</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 {permissions.can_manage_companies && (() => {
                   const badge = getBadgeForNavItem("/admin/chat", sidebarBadges);
                   return (

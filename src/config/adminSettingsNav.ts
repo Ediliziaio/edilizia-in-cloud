@@ -25,18 +25,11 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
     group: "Account",
     items: [
       {
-        id: "profilo",
-        label: "Profilo",
-        description: "Nome, email e informazioni personali",
+        id: "mio-profilo",
+        label: "Il mio profilo",
+        description: "Dati personali, sicurezza, calendari, email OAuth, notifiche",
         icon: User,
-        url: "/admin/impostazioni/profilo",
-      },
-      {
-        id: "sicurezza",
-        label: "Sicurezza",
-        description: "Password, sessioni attive e accesso",
-        icon: Shield,
-        url: "/admin/impostazioni/sicurezza",
+        url: "/admin/impostazioni/mio-profilo",
       },
     ],
   },

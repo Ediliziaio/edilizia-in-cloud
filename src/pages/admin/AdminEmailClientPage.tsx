@@ -1,14 +1,17 @@
 /**
- * AdminEmailClientPage — client email per superadmin (lato piattaforma).
+ * AdminEmailClientPage — client email PERSONALE per membri team superadmin.
  *
- * Riusa interamente EmailClientPage (con onboarding, empty/loading/error
- * states, 3-pane Gmail-style, AI Command Center, ricerca, compose, ...)
- * ma sotto un PlatformCompanyProvider che fa override di effectiveCompany
- * → tutte le query interne lavorano sulla Platform Admin Company
- * (00000000-0000-0000-0000-000000000001).
+ * Ogni utente del team EdiliziaInCloud (Florin + collaboratori) collega
+ * la SUA casella OAuth (Gmail/Outlook/IMAP) dal proprio profilo
+ * (/admin/impostazioni/mio-profilo → tab Email) e qui vede SOLO le sue
+ * email (scoped via user_id, mai mescolato con quelle di altri colleghi).
  *
- * Settings path è personalizzato per portare al backend admin
- * (/admin/impostazioni/email) invece che al profilo utente azienda.
+ * Sotto PlatformCompanyProvider tutte le query usano:
+ *   - company_id = PLATFORM_ADMIN_COMPANY_ID (per RLS)
+ *   - user_id    = utente loggato (per isolamento personale)
+ *
+ * Le settings link puntano al profilo personale admin → tab email →
+ * card OAuth con CTA "Collega Gmail/Outlook".
  */
 import { lazy, Suspense } from "react";
 import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvider";
@@ -25,7 +28,10 @@ export default function AdminEmailClientPage() {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         }>
-          <EmailClientPage settingsPath="/admin/impostazioni/email" />
+          <EmailClientPage
+            settingsPath="/admin/impostazioni/mio-profilo?tab=email"
+            emptyStateSettingsPath="/admin/impostazioni/mio-profilo?tab=email"
+          />
         </Suspense>
       </div>
     </PlatformCompanyProvider>
