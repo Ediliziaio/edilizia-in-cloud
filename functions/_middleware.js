@@ -2196,7 +2196,10 @@ function resolveRoute(pathname) {
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 // ─── Private subdomains — block all bots/crawlers ───────────────────────────
-const PRIVATE_SUBDOMAINS = ["app", "lavori", "clienti", "admin"];
+// Subdomain privati dell'app: ricevono X-Robots-Tag noindex + 403 ai bot.
+// Aggiornato 2026-05-25: aggiunti commercialista + referral (portali dedicati
+// introdotti dal commit 359972c97 senza aggiornamento del middleware).
+const PRIVATE_SUBDOMAINS = ["app", "lavori", "clienti", "admin", "commercialista", "referral"];
 const ASSET_EXT_RE = /\.(js|css|png|jpg|jpeg|webp|avif|gif|svg|ico|woff2?|ttf|eot|map|json|xml|txt|pdf|webmanifest)$/i;
 const PUBLIC_NOINDEX_PATTERNS = [
   /^\/(admin|azienda|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|app)(\/|$)/,
