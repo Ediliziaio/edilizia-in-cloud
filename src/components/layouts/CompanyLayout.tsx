@@ -226,16 +226,23 @@ const CommercialistaModeBanner = memo(function CommercialistaModeBanner({
     "azienda selezionata";
 
   return (
-    <div className="border-b border-blue-200 bg-blue-50 px-3 py-2 text-blue-950">
+    <div className="border-b-2 border-blue-300 bg-gradient-to-r from-blue-100 to-blue-50 px-3 py-3 text-blue-950">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-2">
-          <Shield className="h-4 w-4 shrink-0 text-blue-700" />
-          <span className="truncate text-sm">
-            <strong>Vista commercialista:</strong> {resolvedCompanyName} · menu limitato a cantieri, magazzino, controllo gestione e finanza.
-          </span>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <Shield className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-700">
+              Modalità Commercialista — stai operando per
+            </p>
+            <p className="truncate text-sm font-bold text-blue-950">
+              {resolvedCompanyName}
+            </p>
+          </div>
         </div>
-        <Button asChild size="sm" variant="outline" className="h-8 shrink-0 bg-white">
-          <Link to={returnTo}>Torna allo studio</Link>
+        <Button asChild size="sm" variant="outline" className="h-9 shrink-0 border-blue-300 bg-white font-medium hover:bg-blue-50">
+          <Link to={returnTo}>← Torna allo studio</Link>
         </Button>
       </div>
     </div>
@@ -1391,7 +1398,13 @@ const CompanySidebar = memo(function CompanySidebar() {
 });
 
 export function CompanyLayout() {
-  const { effectiveCompany, isImpersonating } = useAuth();
+  const {
+    effectiveCompany,
+    isImpersonating,
+    multiCompanyAccesses,
+    selectedMultiCompanyId,
+    switchMultiCompany,
+  } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits({ includeUsageCounts: false });
   useCustomCSS();
@@ -1410,6 +1423,25 @@ export function CompanyLayout() {
     commercialistaParams.get("commercialistaCompanyName") ??
     accountantCompanies.find((company) => company.id === commercialistaCompanyId)?.name;
   const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
+
+  // AUTO-SWITCH: se l'URL contiene commercialistaMode=1 + commercialistaCompany=X,
+  // assicuriamoci che effectiveCompany sia X (non l'azienda di sessione del commercialista).
+  // Senza questo, il cruscotto mostra i dati sbagliati.
+  useEffect(() => {
+    if (!isCommercialistaMode || !commercialistaCompanyId) return;
+    if (selectedMultiCompanyId === commercialistaCompanyId) return;
+    const hasAccess = multiCompanyAccesses.some(
+      (a) => a.company_id === commercialistaCompanyId,
+    );
+    if (!hasAccess) return; // azienda non ancora caricata in accessi (loading)
+    switchMultiCompany(commercialistaCompanyId);
+  }, [
+    isCommercialistaMode,
+    commercialistaCompanyId,
+    selectedMultiCompanyId,
+    multiCompanyAccesses,
+    switchMultiCompany,
+  ]);
   // True only when the current path goes deeper than the matched nav item (sub-page)
   const isSubPage = !!pageUrl && location.pathname !== pageUrl;
 
