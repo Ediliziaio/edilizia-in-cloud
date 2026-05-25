@@ -87,7 +87,7 @@ const LastAccessBadge = ({ lastAccess }: { lastAccess: string | null }) => {
   );
 };
 
-type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial" | "users" | "lastAccess";
+type SortKey = "name" | "sector" | "plan" | "mrr" | "status" | "orders" | "trial" | "users" | "customers" | "lastAccess";
 type SortDir = "asc" | "desc";
 type HealthFilter = "all" | "healthy" | "at_risk" | "critical";
 /**
@@ -110,6 +110,7 @@ const REVENUE_LABELS_MAP: Record<RevenueFilter, string> = {
 };
 type ColKey = "sector" | "plan" | "mrr" | "users" | "customers" | "orders" | "lastAccess" | "trial" | "health" | "tags";
 type SavedView = { name: string; params: string };
+type CompanyHealthMap = Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean }>;
 
 const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "sector", label: "Settore" },
@@ -124,7 +125,7 @@ const ALL_COLUMNS: { key: ColKey; label: string }[] = [
   { key: "tags", label: "Tag" },
 ];
 const DEFAULT_COLS: ColKey[] = ["sector", "plan", "mrr", "users", "orders", "lastAccess", "trial", "health", "tags"];
-const VALID_COLS = new Set<ColKey>(DEFAULT_COLS);
+const VALID_COLS = new Set<ColKey>(ALL_COLUMNS.map((column) => column.key));
 const NO_PAYMENT_METHODS = new Set([
   "",
   "none",
@@ -363,6 +364,41 @@ export default function CompaniesList() {
       .map((c) => c.id);
   }, [revenueFilter, allCompaniesSummary]);
 
+  const { data: rawHealthRows = [], isLoading: isHealthRowsLoading, isError: isHealthRowsError } = useQuery({
+    queryKey: queryKeys.admin.companiesHealth,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_company_health_data");
+      if (error) throw error;
+      return (data ?? []) as CompanyHealthData[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const healthData: CompanyHealthMap = useMemo(() => {
+    const map: CompanyHealthMap = {};
+    rawHealthRows.forEach((h) => {
+      const input = {
+        order_count: Number(h.order_count) || 0,
+        user_count: Number(h.user_count) || 0,
+        has_customers: !!h.has_customers,
+        has_staff: !!h.has_staff,
+        orders_last_30d: h.orders_last_30d,
+        last_order_date: h.last_order_date,
+      };
+      const { score, health } = calculateHealthScore(input);
+      map[h.company_id] = { score, health, lastOrderDate: h.last_order_date, ...input };
+    });
+    return map;
+  }, [rawHealthRows]);
+
+  const healthFilterIds = useMemo<string[] | null>(() => {
+    if (healthFilter === "all") return null;
+    return Object.entries(healthData)
+      .filter(([, health]) => health.health === healthFilter)
+      .map(([companyId]) => companyId);
+  }, [healthFilter, healthData]);
+  const healthFilterIdsKey = healthFilterIds?.join(",") ?? "all";
+
   const { data: pagedResult, isLoading, isError, refetch } = useQuery({
     queryKey: [
       ...queryKeys.admin.companiesFull,
@@ -373,6 +409,7 @@ export default function CompaniesList() {
       sectorFilter,
       planFilter,
       healthFilter,
+      healthFilterIdsKey,
       noPaymentFilter,
       revenueFilter,
       revenueFilterIds?.length ?? -1,
@@ -421,23 +458,9 @@ export default function CompaniesList() {
       }
 
       if (healthFilter !== "all") {
-        const { data: healthRows, error: healthErr } = await supabase.rpc("get_company_health_data");
-        if (healthErr) throw healthErr;
-        const matchingIds = ((healthRows || []) as CompanyHealthData[])
-          .filter((h) => {
-            const input = {
-              order_count: Number(h.order_count) || 0,
-              user_count: Number(h.user_count) || 0,
-              has_customers: !!h.has_customers,
-              has_staff: !!h.has_staff,
-              orders_last_30d: h.orders_last_30d,
-              last_order_date: h.last_order_date,
-            };
-            return calculateHealthScore(input).health === healthFilter;
-          })
-          .map((h) => h.company_id);
-        if (matchingIds.length === 0) return { data: [], totalCount: 0 };
-        query = query.in("id", matchingIds);
+        if (isHealthRowsError) throw new Error("Impossibile calcolare la salute delle aziende.");
+        if (healthFilterIds === null || healthFilterIds.length === 0) return { data: [], totalCount: 0 };
+        query = query.in("id", healthFilterIds);
       }
 
       // Segment filters (Feature 6)
@@ -465,6 +488,7 @@ export default function CompaniesList() {
     },
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
+    enabled: healthFilter === "all" || !isHealthRowsLoading,
   });
 
   const allCompanies = pagedResult?.data ?? [];
@@ -537,29 +561,6 @@ export default function CompaniesList() {
   const customerCounts = (userCountsData && typeof userCountsData === "object" && "customers" in userCountsData)
     ? userCountsData.customers
     : {};
-
-  const { data: healthData = {} } = useQuery({
-    queryKey: queryKeys.admin.companiesHealth,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_company_health_data");
-      if (error) throw error;
-      const map: Record<string, { score: number; health: string; lastOrderDate: string | null; order_count: number; user_count: number; has_customers: boolean; has_staff: boolean }> = {};
-      ((data || []) as CompanyHealthData[]).forEach((h) => {
-        const input = {
-          order_count: Number(h.order_count) || 0,
-          user_count: Number(h.user_count) || 0,
-          has_customers: !!h.has_customers,
-          has_staff: !!h.has_staff,
-          orders_last_30d: h.orders_last_30d,
-          last_order_date: h.last_order_date,
-        };
-        const { score, health } = calculateHealthScore(input);
-        map[h.company_id] = { score, health, lastOrderDate: h.last_order_date, ...input };
-      });
-      return map;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
 
   // Last access per company
   const { data: lastAccessData = {} } = useQuery({
@@ -801,6 +802,11 @@ export default function CompaniesList() {
     ];
   }, [allCompaniesSummary, healthData, lastAccessData, setInputSearch, setSearchParams]);
 
+  const priorityPresets = useMemo(
+    () => filterPresets.filter((preset) => ["at_risk", "no_payment", "stripe_issue", "inactive"].includes(preset.key)),
+    [filterPresets]
+  );
+
   const clearAllFilters = useCallback(() => {
     setInputSearch("");
     setSearchParams(new URLSearchParams(), { replace: true });
@@ -877,7 +883,7 @@ export default function CompaniesList() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImpersonate = async (e: React.MouseEvent, companyId: string) => {
+  const handleImpersonate = async (e: React.MouseEvent, companyId: string, companyName = "questa azienda") => {
     e.stopPropagation();
     if (!permissions.impersonation) {
       toast.error("Permesso negato", {
@@ -891,6 +897,8 @@ export default function CompaniesList() {
       });
       return;
     }
+    const confirmed = window.confirm(`Stai per accedere come ${companyName}. Continua solo se devi fare assistenza o verifica operativa.`);
+    if (!confirmed) return;
     const impToken = await impersonateCompany(companyId, permissions);
     if (impToken) {
       // Use the module-level cached tokens — they are kept up-to-date by
@@ -972,8 +980,8 @@ export default function CompaniesList() {
   if (isError) {
     return (
       <div className="space-y-4 md:space-y-6">
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold">Aziende</h1>
+        <div>
+          <h1 className="text-xl font-bold md:text-2xl">Aziende</h1>
           <p className="text-muted-foreground">Gestisci le aziende registrate</p>
         </div>
         <Alert variant="destructive">
@@ -994,8 +1002,8 @@ export default function CompaniesList() {
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="hidden md:block">
-          <h1 className="text-2xl font-bold">Aziende</h1>
+        <div>
+          <h1 className="text-xl font-bold md:text-2xl">Aziende</h1>
           <p className="text-muted-foreground">Gestisci le aziende registrate</p>
         </div>
         <Button asChild>
@@ -1048,6 +1056,46 @@ export default function CompaniesList() {
           }
         }}
       />
+
+      <Card className="border-primary/15 bg-gradient-to-r from-primary/5 via-background to-orange-50/60">
+        <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="border-primary/25 bg-background text-primary">
+                Centro operativo
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {allCompaniesSummary.length} aziende monitorate
+              </span>
+            </div>
+            <h2 className="mt-2 text-base font-semibold">Priorità da controllare ora</h2>
+            <p className="text-sm text-muted-foreground">
+              Apri subito i segmenti più delicati: billing, rischio utilizzo e aziende ferme.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+            {priorityPresets.map((preset) => {
+              const Icon = preset.icon;
+              return (
+                <Button
+                  key={preset.key}
+                  variant={activePreset === preset.key ? "default" : "outline"}
+                  className="h-auto justify-start gap-2 px-3 py-2 text-left"
+                  onClick={preset.apply}
+                  disabled={preset.count === 0}
+                  title={preset.description}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-semibold">{preset.label}</span>
+                    <span className="block text-xs opacity-75">{preset.count} aziende</span>
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Bulk Actions Bar */}
       <BulkActionsBar
@@ -1171,8 +1219,11 @@ export default function CompaniesList() {
           onFiltersChange={(f) => { setSegmentFilters(f); setCurrentPage(1); }}
           activeCount={segmentActiveCount}
         />
-        <Button variant="outline" size="icon" onClick={handleExportCSV} title="Esporta CSV">
+        <Button variant="outline" className="gap-2" onClick={handleExportCSV} title="Esporta CSV">
           <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">
+            {selectedIds.size > 0 ? `Esporta ${selectedIds.size}` : "Esporta pagina"}
+          </span>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1202,6 +1253,19 @@ export default function CompaniesList() {
             <Kanban className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          {isLoading
+            ? "Caricamento aziende..."
+            : `Mostro ${Math.min((currentPage - 1) * SERVER_PAGE_SIZE + 1, serverTotalCount)}-${Math.min(currentPage * SERVER_PAGE_SIZE, serverTotalCount)} di ${serverTotalCount} aziende`}
+        </span>
+        {selectedIds.size > 0 && (
+          <Badge variant="secondary" className="w-fit">
+            {selectedIds.size} selezionate nella pagina
+          </Badge>
+        )}
       </div>
 
       {/* Active Filter Chips */}
@@ -1468,8 +1532,9 @@ export default function CompaniesList() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={(e) => handleImpersonate(e, company.id)}
+                              onClick={(e) => handleImpersonate(e, company.id, company.name)}
                               disabled={!permissions.impersonation}
+                              title="Accedi come azienda con conferma di sicurezza"
                             >
                               <LogIn className="h-4 w-4 mr-1" />Accedi
                             </Button>
