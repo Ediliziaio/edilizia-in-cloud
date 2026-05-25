@@ -14,45 +14,108 @@
  */
 
 import { useMemo } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUpRight,
   Banknote,
-  Building2,
   Calculator,
   Clock,
   Construction,
   Download,
+  ExternalLink,
   Eye,
   FileText,
-  Inbox,
   Loader2,
   Mail,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSEO } from "@/hooks/useSEO";
 import { useAccountantCompanyAccess } from "@/hooks/accountant/useAccountantPortalData";
-import { cn } from "@/lib/utils";
 
-const AREA_TABS: Array<{
+// Shortcut alle aree dell'azienda. Ogni shortcut apre il modulo aziendale
+// reale (CompanyLayout) in modalità "commercialistaMode=1", con sidebar
+// limitata + banner "Vista commercialista".
+const COMPANY_SHORTCUTS: Array<{
   key: string;
-  permission: string;
+  permission: keyof AccountantPermissions | "always";
   label: string;
+  description: string;
   icon: typeof FileText;
+  url: string;
 }> = [
-  { key: "cruscotto", permission: "", label: "Cruscotto", icon: Eye },
-  { key: "finanza", permission: "finance", label: "Finanza", icon: Banknote },
-  { key: "documenti", permission: "documents", label: "Documenti", icon: FileText },
-  { key: "cantieri", permission: "jobs", label: "Cantieri", icon: Construction },
-  { key: "controllo", permission: "management_control", label: "Controllo gestione", icon: Calculator },
-  { key: "richieste", permission: "requests", label: "Richieste", icon: Inbox },
-  { key: "export", permission: "exports", label: "Esportazioni", icon: Download },
+  {
+    key: "cruscotto",
+    permission: "always",
+    label: "Cruscotto",
+    description: "Panoramica generale dell'azienda",
+    icon: Eye,
+    url: "/azienda/controllo-gestione",
+  },
+  {
+    key: "controllo",
+    permission: "management_control",
+    label: "Controllo di gestione",
+    description: "Margini cantiere, KPI, scostamenti",
+    icon: Calculator,
+    url: "/azienda/controllo-gestione",
+  },
+  {
+    key: "cantieri",
+    permission: "jobs",
+    label: "Cantieri & commesse",
+    description: "Commesse aperte, magazzino, subappalti",
+    icon: Construction,
+    url: "/azienda/ordini",
+  },
+  {
+    key: "documenti",
+    permission: "documents",
+    label: "Fatture & documenti",
+    description: "Fatture, scadenzario, prima nota",
+    icon: FileText,
+    url: "/azienda/documenti",
+  },
+  {
+    key: "tesoreria",
+    permission: "finance",
+    label: "Tesoreria & finanza",
+    description: "Cassa, banche, previsionale",
+    icon: Banknote,
+    url: "/azienda/tesoreria",
+  },
+  {
+    key: "costi",
+    permission: "finance",
+    label: "Costi",
+    description: "Costi fissi e variabili, fornitori",
+    icon: Download,
+    url: "/azienda/costi",
+  },
+  {
+    key: "personale",
+    permission: "jobs",
+    label: "Personale & HR",
+    description: "Dipendenti, presenze, stipendi",
+    icon: Users,
+    url: "/azienda/personale",
+  },
 ];
+
+interface AccountantPermissions {
+  finance?: boolean;
+  documents?: boolean;
+  management_control?: boolean;
+  jobs?: boolean;
+  requests?: boolean;
+  exports?: boolean;
+  write_actions?: boolean;
+}
 
 function modeLabel(mode: string) {
   if (mode === "read_only") return "Sola lettura";
@@ -86,15 +149,23 @@ export default function AccountantCompanyDetail() {
     noindex: true,
   });
 
-  const activeTab = searchParams.get("tab") || "cruscotto";
-
-  const allowedTabs = useMemo(() => {
-    if (!access) return AREA_TABS.filter((t) => !t.permission);
-    return AREA_TABS.filter((t) => !t.permission || access.permissions?.[t.permission]);
+  const allowedShortcuts = useMemo(() => {
+    if (!access) return COMPANY_SHORTCUTS.filter((s) => s.permission === "always");
+    return COMPANY_SHORTCUTS.filter((s) => {
+      if (s.permission === "always") return true;
+      return !!access.permissions?.[s.permission];
+    });
   }, [access]);
 
-  function handleTabChange(value: string) {
-    setSearchParams({ tab: value }, { replace: true });
+  function openCompanyArea(url: string) {
+    if (!access?.company) return;
+    const params = new URLSearchParams({
+      commercialistaMode: "1",
+      commercialistaCompany: access.company_id,
+      commercialistaCompanyName: access.company.name,
+      returnTo: `/commercialista/aziende/${access.company_id}`,
+    });
+    navigate(`${url}?${params.toString()}`);
   }
 
   if (isLoading) {
@@ -235,109 +306,76 @@ export default function AccountantCompanyDetail() {
         </Card>
       )}
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 p-1 sm:w-auto">
-          {allowedTabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger key={tab.key} value={tab.key} className="gap-1.5 text-xs sm:text-sm">
-                <Icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+      {/* Bottone primario — apre l'area aziendale completa */}
+      {access.status === "active" && (
+        <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-white">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-slate-950">
+                Apri l'area di {company?.name}
+              </h3>
+              <p className="mt-1 text-sm text-slate-600">
+                Entra direttamente nell'area aziendale con sidebar limitata (no marketing,
+                no automazioni) e banner "Vista commercialista" sempre visibile.
+              </p>
+            </div>
+            <Button
+              size="lg"
+              onClick={() => openCompanyArea("/azienda/controllo-gestione")}
+              className="gap-2 bg-blue-700 text-white hover:bg-blue-800"
+            >
+              Apri area aziendale
+              <ArrowUpRight className="h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Cruscotto */}
-        <TabsContent value="cruscotto" className="mt-4 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Cruscotto azienda</CardTitle>
-              <CardDescription>
-                Panoramica rapida dei dati principali di {company?.name}.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {allowedTabs
-                  .filter((t) => t.key !== "cruscotto")
-                  .map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        onClick={() => handleTabChange(tab.key)}
-                        className="group flex flex-col items-start gap-2 rounded-lg border bg-white p-4 text-left transition-all hover:border-blue-300 hover:shadow-sm"
-                      >
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700 group-hover:bg-blue-100">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold">{tab.label}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Apri sezione
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Placeholder per le altre tabs — verranno integrati con i moduli esistenti */}
-        {allowedTabs
-          .filter((t) => t.key !== "cruscotto")
-          .map((tab) => (
-            <TabsContent key={tab.key} value={tab.key} className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <tab.icon className="h-4 w-4 text-blue-700" />
-                    {tab.label}
-                  </CardTitle>
-                  <CardDescription>
-                    Stai operando su <span className="font-semibold">{company?.name}</span>{" "}
-                    in modalità <span className="font-semibold">{modeLabel(access.access_mode)}</span>.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ComingSoonPlaceholder area={tab.label} accessMode={access.access_mode} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
-      </Tabs>
-    </div>
-  );
-}
-
-function ComingSoonPlaceholder({
-  area,
-  accessMode,
-}: {
-  area: string;
-  accessMode: string;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-slate-50/50 p-8 text-center">
-      <div className={cn(
-        "flex h-12 w-12 items-center justify-center rounded-full",
-        "bg-blue-100 text-blue-700",
-      )}>
-        <Building2 className="h-6 w-6" />
-      </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Sezione {area} in arrivo</p>
-        <p className="max-w-md text-xs text-muted-foreground">
-          Qui verrà integrata la vista live della sezione "{area}" dell'azienda
-          (mode: {modeLabel(accessMode)}), con dati reali sincronizzati dal modulo
-          aziendale corrispondente.
-        </p>
-      </div>
+      {/* Grid shortcut alle singole aree (rispetta permissions) */}
+      {access.status === "active" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Accesso rapido alle sezioni</CardTitle>
+            <CardDescription>
+              Apri direttamente la sezione di cui hai bisogno. Tutte le aree si aprono
+              in vista commercialista (Marketing e Vendita esclusi).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {allowedShortcuts.map((shortcut) => {
+                const Icon = shortcut.icon;
+                return (
+                  <button
+                    key={shortcut.key}
+                    type="button"
+                    onClick={() => openCompanyArea(shortcut.url)}
+                    className="group flex items-start gap-3 rounded-lg border bg-white p-4 text-left transition-all hover:border-blue-300 hover:shadow-sm"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 group-hover:bg-blue-100">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold">{shortcut.label}</p>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-blue-700" />
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                        {shortcut.description}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-xs text-amber-900">
+              <span className="font-semibold">Nota:</span> i permessi sono stati definiti
+              dall'azienda nell'invito ({modeLabel(access.access_mode)}). Aree non
+              disponibili non appaiono in elenco.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

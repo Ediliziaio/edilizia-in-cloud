@@ -266,19 +266,35 @@ const SCOPRI_LOCKED_ROUTES = [
 // Fonte di verità preferita: `currentPlan.is_full_plan === true`.
 const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
 
+// Aree permesse in vista commercialista: tutto tranne Marketing, Automazioni
+// e Contenuti (richiesta utente — il commercialista vede ciò che serve allo
+// studio per consulenza/controllo, non gli strumenti di vendita).
 const COMMERCIALISTA_ALLOWED_AREA_IDS = new Set([
+  "area_cruscotto",
   "area_controllo_gestione",
   "area_cantieri",
   "area_finanza",
+  "area_persone",
 ]);
 
 const COMMERCIALISTA_ALLOWED_URLS = new Set([
+  // Cruscotto
+  "/azienda",
+  "/azienda/cruscotto",
+  // Controllo gestione
   "/azienda/controllo-gestione",
+  // Cantieri & Lavori
   "/azienda/ordini",
   "/azienda/magazzino",
+  "/azienda/clienti",
   "/azienda/subappaltatori",
+  "/azienda/firma-elettronica",
+  "/azienda/assistenza",
+  "/azienda/manutenzione",
+  "/azienda/calendario",
   "/azienda/sicurezza-cantiere",
   "/azienda/giornale-lavori",
+  // Finanza
   "/azienda/documenti",
   "/azienda/fatturazione",
   "/azienda/scadenzario",
@@ -286,6 +302,9 @@ const COMMERCIALISTA_ALLOWED_URLS = new Set([
   "/azienda/tesoreria",
   "/azienda/costi",
   "/azienda/previsionale",
+  // Persone & HR
+  "/azienda/personale",
+  "/azienda/personale/portale",
 ]);
 
 const COMMERCIALISTA_EXTRA_CANTIERI_ITEMS: NavItem[] = [
