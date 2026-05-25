@@ -1,16 +1,11 @@
 -- Approval workflow per access_mode='approval_required'.
 --
--- Versione SEMPLICE: usa solo companies.owner_user_id (sempre presente).
--- Niente dipendenze da company_members o multi_company_access.
+-- DROP + CREATE per garantire schema pulito anche se la tabella esiste
+-- da un tentativo precedente parzialmente fallito.
 
-DROP POLICY IF EXISTS "change_req_accountant_insert" ON public.accountant_change_requests;
-DROP POLICY IF EXISTS "change_req_accountant_select_own" ON public.accountant_change_requests;
-DROP POLICY IF EXISTS "change_req_company_owner_select" ON public.accountant_change_requests;
-DROP POLICY IF EXISTS "change_req_company_decide" ON public.accountant_change_requests;
-DROP POLICY IF EXISTS "change_req_multi_company_select" ON public.accountant_change_requests;
-DROP POLICY IF EXISTS "change_req_multi_company_decide" ON public.accountant_change_requests;
+DROP TABLE IF EXISTS public.accountant_change_requests CASCADE;
 
-CREATE TABLE IF NOT EXISTS public.accountant_change_requests (
+CREATE TABLE public.accountant_change_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   requested_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -27,9 +22,9 @@ CREATE TABLE IF NOT EXISTS public.accountant_change_requests (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS accountant_change_requests_company_status_idx
+CREATE INDEX accountant_change_requests_company_status_idx
   ON public.accountant_change_requests (company_id, status, created_at DESC);
-CREATE INDEX IF NOT EXISTS accountant_change_requests_requested_by_idx
+CREATE INDEX accountant_change_requests_requested_by_idx
   ON public.accountant_change_requests (requested_by, created_at DESC);
 
 ALTER TABLE public.accountant_change_requests ENABLE ROW LEVEL SECURITY;

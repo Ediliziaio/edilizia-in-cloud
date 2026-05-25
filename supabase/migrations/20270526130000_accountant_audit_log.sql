@@ -1,16 +1,12 @@
 -- Audit log dei commercialisti: traccia ogni navigazione/operazione
 -- per compliance fiscale + GDPR.
 --
--- Versione SEMPLICE: usa solo companies.owner_user_id (sempre presente).
--- Niente dipendenze da company_members o multi_company_access (i loro
--- nomi di colonna variano fra installazioni Supabase).
+-- DROP + CREATE per garantire schema pulito anche se la tabella esiste
+-- da un tentativo precedente parzialmente fallito.
 
-DROP POLICY IF EXISTS "audit_log_accountant_insert" ON public.accountant_audit_log;
-DROP POLICY IF EXISTS "audit_log_accountant_select_own" ON public.accountant_audit_log;
-DROP POLICY IF EXISTS "audit_log_company_owner_select" ON public.accountant_audit_log;
-DROP POLICY IF EXISTS "audit_log_multi_company_select" ON public.accountant_audit_log;
+DROP TABLE IF EXISTS public.accountant_audit_log CASCADE;
 
-CREATE TABLE IF NOT EXISTS public.accountant_audit_log (
+CREATE TABLE public.accountant_audit_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   firm_id uuid REFERENCES public.accountant_firms(id) ON DELETE SET NULL,
@@ -22,11 +18,11 @@ CREATE TABLE IF NOT EXISTS public.accountant_audit_log (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS accountant_audit_log_company_at_idx
+CREATE INDEX accountant_audit_log_company_at_idx
   ON public.accountant_audit_log (company_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS accountant_audit_log_user_at_idx
+CREATE INDEX accountant_audit_log_user_at_idx
   ON public.accountant_audit_log (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS accountant_audit_log_action_idx
+CREATE INDEX accountant_audit_log_action_idx
   ON public.accountant_audit_log (action, created_at DESC);
 
 ALTER TABLE public.accountant_audit_log ENABLE ROW LEVEL SECURITY;
