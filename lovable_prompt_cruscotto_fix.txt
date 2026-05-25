@@ -1,0 +1,777 @@
+================================================================================
+PROMPT — CRUSCOTTO AZIENDALE: BUG FIX + MIGLIORAMENTI COMPLETI
+================================================================================
+Progetto: Gestionale SaaS multi-tenant (Supabase + React + TypeScript)
+Sezione: /azienda/cruscotto → CruscottoAziendale.tsx
+
+Analisi completa ha trovato 35 problemi. Implementa TUTTO nell'ordine indicato.
+NON modificare altre sezioni dell'app.
+
+================================================================================
+PROMPT 1 — BUG CRITICI: CALCOLI ERRATI
+================================================================================
+
+### BUG 1 — Cash Runway formula sbagliata (FinanzaCashFlow.tsx)
+
+PROBLEMA: La formula attuale divide l'income totale per il burn rate giornaliero,
+non il saldo disponibile. Risultato: runway gonfiato e spesso errato.
+
+Cerca in FinanzaCashFlow.tsx il blocco che calcola cashRunwayDays e sostituiscilo:
+
+```typescript
+// ❌ PRIMA (ERRATO):
+const netAvailable = finance.thisMonthIncome - (finance.thisMonthOutflow * (dayOfMonth / daysInMonth));
+const runway = dailyBurn > 0 ? Math.round((finance.thisMonthIncome) / dailyBurn) : 999;
+
+// ✅ DOPO (CORRETTO):
+// Il runway si basa sul saldo netto del mese (entrate - uscite già sostenute)
+// diviso per il burn rate giornaliero stimato
+const outflowSoFar = finance.thisMonthOutflow; // uscite reali di questo mese
+const netBalance   = finance.thisMonthIncome - outflowSoFar; // saldo netto a oggi
+const dailyBurn    = daysInMonth > 0 ? outflowSoFar / dayOfMonth : 0;
+                     // burn rate basato sui giorni passati del mese (non proiettato)
+const cashRunwayDays = dailyBurn > 0
+  ? Math.max(0, Math.round(netBalance / dailyBurn))
+  : netBalance > 0 ? 999 : 0;
+// Se dailyBurn è 0 e c'è saldo positivo → nessun problema (∞)
+// Se dailyBurn è 0 e saldo è 0 o negativo → 0 giorni
+
+// Visualizza:
+// 0-7 giorni → rosso, warning critico
+// 8-30 giorni → arancio, warning
+// 31-90 giorni → giallo, attenzione
+// >90 giorni → verde
+// 999 → mostra "Stabile" invece di "∞"
+const runwayLabel = cashRunwayDays >= 999
+  ? 'Stabile'
+  : cashRunwayDays > 365
+  ? `${Math.round(cashRunwayDays / 30)} mesi`
+  : `${cashRunwayDays}gg`;
+```
+
+Aggiorna anche il display del runway aggiungendo un tooltip:
+```tsx
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span className="cursor-help underline decoration-dotted">{runwayLabel}</span>
+    </TooltipTrigger>
+    <TooltipContent>
+      <p>Giorni stimati prima di esaurire il saldo netto</p>
+      <p>Basato su: saldo {formatCurrency(netBalance)} / burn {formatCurrency(dailyBurn)}/gg</p>
+    </TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+```
+
+---
+
+### BUG 2 — Calcolo margine non pesato (useCruscottoData.ts)
+
+PROBLEMA: Il margine medio viene calcolato come media semplice per ordine,
+non come media ponderata per fatturato. Un ordine da €100 con margine 80%
+e uno da €10.000 con margine 5% danno "42.5%" invece del corretto "5.7%".
+
+Trova la funzione `calc` in useCruscottoData.ts e sostituiscila:
+
+```typescript
+// ❌ PRIMA (media semplice per ordine):
+const calc = (orders: any[]) => {
+  let revenue = 0, totalMarginPct = 0, marginCount = 0;
+  orders.forEach((o: any) => {
+    // ... media per ordine
+    if (total > 0 && totalCost > 0) {
+      totalMarginPct += ((total - totalCost) / total) * 100;
+      marginCount++;
+    }
+  });
+  return { revenue, margin: marginCount > 0 ? totalMarginPct / marginCount : 0 };
+};
+
+// ✅ DOPO (media ponderata per fatturato):
+const calc = (orders: any[]) => {
+  let totalRevenue = 0;
+  let totalCostAll = 0;
+
+  orders.forEach((o: any) => {
+    const revenue = Number(o.total_amount) || 0;
+    totalRevenue += revenue;
+
+    const articleCost = (o.order_items || []).reduce(
+      (s: number, i: any) => s + (Number(i.purchase_price || 0) * Number(i.quantity || 1)), 0
+    );
+    const laborCost =
+      (o.order_employees || []).reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0) +
+      (o.order_external_teams || []).reduce((s: number, e: any) => s + Number(e.total_cost || 0), 0);
+
+    totalCostAll += articleCost + laborCost;
+  });
+
+  // Margine ponderato corretto: (totale fatturato - totale costi) / totale fatturato
+  const weightedMargin = totalRevenue > 0
+    ? ((totalRevenue - totalCostAll) / totalRevenue) * 100
+    : 0;
+
+  // Clamp tra -100% e +100% per evitare valori impossibili
+  const margin = Math.min(100, Math.max(-100, weightedMargin));
+
+  return { revenue: totalRevenue, margin };
+};
+```
+
+---
+
+### BUG 3 — Pagamenti non filtrati per data (useCruscottoData.ts)
+
+PROBLEMA: La query degli installments non applica il filtro data del cruscotto.
+Se filtri "questo mese", vedi comunque rate scadute di 6 mesi fa.
+
+Trova la query `order_installments` e aggiungi il filtro data:
+
+```typescript
+// ✅ Aggiungi filtro expected_date nel range selezionato:
+const { data: paymentsData } = useQuery({
+  queryKey: ['cruscotto-installments', companyId, filters.dateFrom, filters.dateTo],
+  queryFn: async () => {
+    // Per "scadenze", mostra sempre i prossimi 30 giorni da oggi
+    // indipendentemente dal filtro globale del cruscotto
+    const today = new Date();
+    const in30Days = addDays(today, 30);
+
+    const { data, error } = await (supabase as any)
+      .from('order_installments')
+      .select('amount, is_paid, expected_date, order:orders!inner(company_id, order_number)')
+      .eq('order.company_id', companyId!)
+      .eq('is_paid', false)
+      .gte('expected_date', format(today, 'yyyy-MM-dd'))
+      .lte('expected_date', format(in30Days, 'yyyy-MM-dd'))
+      .order('expected_date', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+  },
+  enabled: !!companyId,
+});
+```
+
+---
+
+### BUG 4 — NaN/Infinity non gestiti nei display (FinanzaCashFlow.tsx)
+
+Aggiungi una funzione helper per display sicuro dei numeri:
+
+```typescript
+// In cima al file o in src/utils/formatters.ts
+function safeNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return isNaN(n) || !isFinite(n) ? fallback : n;
+}
+
+// Usa safeNumber() ovunque ci siano calcoli che potrebbero produrre NaN:
+const dailyBurn = safeNumber(daysInMonth > 0 ? outflowSoFar / dayOfMonth : 0);
+const cashRunwayDays = safeNumber(dailyBurn > 0 ? netBalance / dailyBurn : 999, 0);
+```
+
+---
+
+### BUG 5 — CompanyHealthScore: "no data" ≠ "performance zero"
+
+Nel CompanyHealthScore.tsx, aggiungi gestione stato "dati mancanti":
+
+```typescript
+// Per ogni fattore, distingui tra:
+// - null/undefined → "Nessun dato" (colore grigio, non penalizza il punteggio)
+// - 0 → "Dato presente ma zero" (penalizza)
+
+interface HealthFactor {
+  label: string;
+  score: number;        // 0-100
+  hasData: boolean;     // false → non penalizza
+  description: string;
+  trend?: 'up' | 'down' | 'neutral';
+}
+
+// Nel calcolo del health score:
+const factors: HealthFactor[] = [
+  {
+    label: 'Margini',
+    score: finance?.margin != null ? Math.min(100, Math.max(0, finance.margin)) : 0,
+    hasData: finance?.margin != null,
+    description: finance?.margin != null ? `${finance.margin.toFixed(1)}%` : 'Nessun ordine',
+  },
+  // ...
+];
+
+// Nel calcolo del punteggio totale, escludi i fattori senza dati:
+const factorsWithData = factors.filter(f => f.hasData);
+const totalScore = factorsWithData.length > 0
+  ? Math.round(factorsWithData.reduce((sum, f) => sum + f.score * weight, 0) / totalWeight)
+  : null; // null = dati insufficienti
+
+// Nel render:
+{totalScore === null ? (
+  <div className="text-muted-foreground text-sm">Dati insufficienti</div>
+) : (
+  // Mostra score normale
+)}
+```
+
+================================================================================
+PROMPT 2 — PERFORMANCE: CONSOLIDA LE QUERY IN UNA RPC
+================================================================================
+
+Attualmente il cruscotto fa 4-5 query separate. Consolida in una RPC server-side.
+
+### STEP 1: Crea la migrazione SQL
+
+```sql
+-- RPC principale del cruscotto
+CREATE OR REPLACE FUNCTION get_cruscotto_stats(
+  p_company_id UUID,
+  p_date_from DATE,
+  p_date_to DATE
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB;
+  v_prev_from DATE := p_date_from - (p_date_to - p_date_from + 1);
+  v_prev_to DATE   := p_date_from - 1;
+BEGIN
+  SELECT jsonb_build_object(
+
+    -- ── FINANZA ──────────────────────────────────────────
+    'finance', jsonb_build_object(
+      'revenue_current', (
+        SELECT COALESCE(SUM(total_amount), 0)
+        FROM orders
+        WHERE company_id = p_company_id
+          AND created_at::date BETWEEN p_date_from AND p_date_to
+          AND status NOT IN ('cancelled', 'annullato')
+      ),
+      'revenue_previous', (
+        SELECT COALESCE(SUM(total_amount), 0)
+        FROM orders
+        WHERE company_id = p_company_id
+          AND created_at::date BETWEEN v_prev_from AND v_prev_to
+          AND status NOT IN ('cancelled', 'annullato')
+      ),
+      'costs_current', (
+        SELECT COALESCE(SUM(amount), 0)
+        FROM company_costs
+        WHERE company_id = p_company_id
+          AND cost_date BETWEEN p_date_from AND p_date_to
+      ),
+      'costs_previous', (
+        SELECT COALESCE(SUM(amount), 0)
+        FROM company_costs
+        WHERE company_id = p_company_id
+          AND cost_date BETWEEN v_prev_from AND v_prev_to
+      ),
+      -- Margine ponderato corretto lato server
+      'margin_pct', (
+        SELECT CASE
+          WHEN SUM(o.total_amount) > 0 THEN
+            ROUND(((SUM(o.total_amount) - COALESCE(SUM(
+              (SELECT SUM(oi.purchase_price * oi.quantity) FROM order_items oi WHERE oi.order_id = o.id)
+            ), 0)) / SUM(o.total_amount)) * 100, 2)
+          ELSE 0
+        END
+        FROM orders o
+        WHERE o.company_id = p_company_id
+          AND o.created_at::date BETWEEN p_date_from AND p_date_to
+          AND o.status NOT IN ('cancelled', 'annullato')
+      )
+    ),
+
+    -- ── ORDINI ───────────────────────────────────────────
+    'orders', jsonb_build_object(
+      'total_current', (
+        SELECT COUNT(*) FROM orders
+        WHERE company_id = p_company_id
+          AND created_at::date BETWEEN p_date_from AND p_date_to
+      ),
+      'total_previous', (
+        SELECT COUNT(*) FROM orders
+        WHERE company_id = p_company_id
+          AND created_at::date BETWEEN v_prev_from AND v_prev_to
+      ),
+      'in_progress', (
+        SELECT COUNT(*) FROM orders
+        WHERE company_id = p_company_id
+          AND status NOT IN ('completato', 'consegnato', 'cancelled', 'annullato')
+      ),
+      'late', (
+        SELECT COUNT(*) FROM orders
+        WHERE company_id = p_company_id
+          AND expected_date < CURRENT_DATE
+          AND work_end_date IS NULL
+          AND status NOT IN ('completato', 'consegnato', 'cancelled', 'annullato')
+      ),
+      'avg_value', (
+        SELECT ROUND(AVG(total_amount), 2) FROM orders
+        WHERE company_id = p_company_id
+          AND created_at::date BETWEEN p_date_from AND p_date_to
+          AND total_amount > 0
+      )
+    ),
+
+    -- ── CLIENTI ──────────────────────────────────────────
+    'customers', jsonb_build_object(
+      'total', (SELECT COUNT(*) FROM customers WHERE company_id = p_company_id),
+      'new_current', (
+        SELECT COUNT(*) FROM customers
+        WHERE company_id = p_company_id
+          AND created_at::date BETWEEN p_date_from AND p_date_to
+      ),
+      'new_previous', (
+        SELECT COUNT(*) FROM customers
+        WHERE company_id = p_company_id
+          AND created_at::date BETWEEN v_prev_from AND v_prev_to
+      )
+    ),
+
+    -- ── TICKET ───────────────────────────────────────────
+    'tickets', jsonb_build_object(
+      'open', (
+        SELECT COUNT(*) FROM tickets
+        WHERE company_id = p_company_id AND status = 'open'
+      ),
+      'resolved_current', (
+        SELECT COUNT(*) FROM tickets
+        WHERE company_id = p_company_id
+          AND status = 'resolved'
+          AND updated_at::date BETWEEN p_date_from AND p_date_to
+      )
+    ),
+
+    -- ── SCADENZE PROSSIMI 30 GIORNI ──────────────────────
+    'upcoming_payments', (
+      SELECT jsonb_agg(jsonb_build_object(
+        'amount', oi.amount,
+        'expected_date', oi.expected_date,
+        'order_number', o.order_number
+      ) ORDER BY oi.expected_date)
+      FROM order_installments oi
+      JOIN orders o ON oi.order_id = o.id
+      WHERE o.company_id = p_company_id
+        AND oi.is_paid = false
+        AND oi.expected_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 30
+    ),
+
+    -- ── GRAFICO RICAVI 6 MESI ────────────────────────────
+    'monthly_revenue', (
+      SELECT jsonb_agg(jsonb_build_object(
+        'month', to_char(m.month_start, 'Mon YY'),
+        'revenue', COALESCE(o.rev, 0),
+        'costs', COALESCE(c.costs, 0)
+      ) ORDER BY m.month_start)
+      FROM generate_series(
+        date_trunc('month', CURRENT_DATE) - interval '5 months',
+        date_trunc('month', CURRENT_DATE),
+        interval '1 month'
+      ) AS m(month_start)
+      LEFT JOIN (
+        SELECT date_trunc('month', created_at) AS m, SUM(total_amount) AS rev
+        FROM orders
+        WHERE company_id = p_company_id AND status NOT IN ('cancelled', 'annullato')
+        GROUP BY 1
+      ) o ON o.m = m.month_start
+      LEFT JOIN (
+        SELECT date_trunc('month', cost_date::timestamptz) AS m, SUM(amount) AS costs
+        FROM company_costs WHERE company_id = p_company_id
+        GROUP BY 1
+      ) c ON c.m = m.month_start
+    )
+
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+GRANT EXECUTE ON FUNCTION get_cruscotto_stats TO authenticated;
+```
+
+### STEP 2: Aggiorna useCruscottoData.ts
+
+Sostituisci le 4-5 query separate con una singola RPC call:
+
+```typescript
+export function useCruscottoData(companyId: string | undefined, filters: DashboardFilters) {
+  const { dateFrom, dateTo } = getDateRange(filters);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['cruscotto-stats', companyId, dateFrom, dateTo],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_cruscotto_stats', {
+        p_company_id: companyId!,
+        p_date_from: format(dateFrom, 'yyyy-MM-dd'),
+        p_date_to: format(dateTo, 'yyyy-MM-dd'),
+      });
+      if (error) throw error;
+      return data as CruscottoStats;
+    },
+    enabled: !!companyId,
+    staleTime: 60_000, // 1 minuto
+    refetchOnWindowFocus: true,
+  });
+
+  return { data, isLoading, error };
+}
+```
+
+Rimuovi le query separate (marketing, payments, operations, finance, weekly).
+Mantieni solo la query marketing separata (ha logica propria complessa).
+
+================================================================================
+PROMPT 3 — UX: SKELETON LOADERS PER SEZIONE + EMPTY STATES
+================================================================================
+
+### A — Skeleton loaders per sezione individuale
+
+In CruscottoAziendale.tsx, ogni sezione deve avere il suo skeleton:
+
+```tsx
+// Sostituisci il loader globale con skeleton per sezione:
+// PRIMA:
+if (isLoading && !marketing) return <FullPageSkeleton />;
+
+// DOPO — mostra la struttura subito, skeleton per ogni widget:
+<div className="space-y-6">
+  <CompanyHealthScore
+    data={data?.health}
+    isLoading={isLoading}
+  />
+  <ExecutiveOverview
+    data={data?.finance}
+    isLoading={isLoading}
+  />
+  {/* ecc. */}
+</div>
+```
+
+In ogni componente widget, aggiungi la prop `isLoading` e mostra skeleton:
+
+```tsx
+// Esempio in ExecutiveOverview.tsx:
+interface Props {
+  data: FinanceData | undefined;
+  isLoading: boolean;
+}
+
+function KPICard({ label, value, delta, isLoading }: KPICardProps) {
+  if (isLoading) {
+    return (
+      <div className="rounded-xl border p-4 space-y-3">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+    );
+  }
+  // ... render normale
+}
+```
+
+---
+
+### B — Empty states significativi per ogni widget
+
+```tsx
+// CompanyHealthScore — nessun dato:
+if (!data && !isLoading) {
+  return (
+    <div className="rounded-xl border p-6 text-center text-muted-foreground">
+      <Activity className="mx-auto mb-2 h-8 w-8 opacity-30" />
+      <p className="font-medium">Dati insufficienti</p>
+      <p className="text-sm">Inizia a inserire ordini e costi per vedere il tuo score</p>
+    </div>
+  );
+}
+
+// Grafico ricavi — nessun dato:
+if (!monthlyRevenue?.length) {
+  return (
+    <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+      <BarChart3 className="h-10 w-10 opacity-20 mb-2" />
+      <p className="text-sm">Nessun dato per il periodo selezionato</p>
+    </div>
+  );
+}
+
+// Scadenze — nessuna:
+if (!upcomingPayments?.length) {
+  return (
+    <div className="text-center py-6 text-muted-foreground">
+      <CheckCircle className="mx-auto mb-2 h-6 w-6 text-green-500" />
+      <p className="text-sm font-medium text-green-700">Nessuna scadenza nei prossimi 30 giorni</p>
+    </div>
+  );
+}
+```
+
+---
+
+### C — Error boundary per sezione
+
+Crea: src/components/cruscotto/SectionErrorBoundary.tsx
+
+```tsx
+import { Component, ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
+
+interface Props { children: ReactNode; sectionName: string; }
+interface State { hasError: boolean; error?: Error; }
+
+export class SectionErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="text-sm font-medium">
+              Errore nel caricamento: {this.props.sectionName}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {this.state.error?.message}
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+```
+
+Wrappa ogni sezione in CruscottoAziendale.tsx:
+```tsx
+<SectionErrorBoundary sectionName="Salute Aziendale">
+  <CompanyHealthScore data={data?.health} isLoading={isLoading} />
+</SectionErrorBoundary>
+
+<SectionErrorBoundary sectionName="Overview Finanziaria">
+  <ExecutiveOverview data={data?.finance} isLoading={isLoading} />
+</SectionErrorBoundary>
+```
+
+================================================================================
+PROMPT 4 — NUOVE FEATURE: CONFRONTO PERIODO PRECEDENTE + TARGET
+================================================================================
+
+### A — Delta vs periodo precedente per TUTTE le KPI
+
+La RPC get_cruscotto_stats già restituisce i valori del periodo precedente.
+Aggiungi le frecce di trend a TUTTI i widget, non solo marketing:
+
+```tsx
+// Componente riutilizzabile DeltaBadge:
+function DeltaBadge({ current, previous }: { current: number; previous: number }) {
+  if (!previous) return null;
+  const pct = previous > 0 ? ((current - previous) / previous) * 100 : 0;
+  const isPositive = pct >= 0;
+
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded',
+      isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+    )}>
+      {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {Math.abs(pct).toFixed(1)}%
+      <span className="text-muted-foreground font-normal ml-1">vs periodo prec.</span>
+    </span>
+  );
+}
+
+// Uso in ogni KPI card:
+<DeltaBadge current={data.orders.total_current} previous={data.orders.total_previous} />
+```
+
+---
+
+### B — Barra di progresso verso target mensile
+
+Aggiungi un campo `monthly_revenue_target` e `monthly_orders_target` a `companies`
+(tramite migrazione) e mostralo nel cruscotto:
+
+```sql
+ALTER TABLE companies
+  ADD COLUMN IF NOT EXISTS monthly_revenue_target NUMERIC(12,2) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS monthly_orders_target INTEGER DEFAULT NULL;
+```
+
+Nel cruscotto, se il target è impostato:
+
+```tsx
+{company?.monthly_revenue_target && (
+  <div className="mt-3">
+    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+      <span>Target mensile</span>
+      <span>{formatCurrency(data.finance.revenue_current)} / {formatCurrency(company.monthly_revenue_target)}</span>
+    </div>
+    <Progress
+      value={Math.min(100, (data.finance.revenue_current / company.monthly_revenue_target) * 100)}
+      className={cn(
+        'h-2',
+        data.finance.revenue_current >= company.monthly_revenue_target && '[&>div]:bg-green-500'
+      )}
+    />
+    <p className="text-xs text-muted-foreground mt-1">
+      {data.finance.revenue_current >= company.monthly_revenue_target
+        ? '🎉 Target raggiunto!'
+        : `Mancano ${formatCurrency(company.monthly_revenue_target - data.finance.revenue_current)}`}
+    </p>
+  </div>
+)}
+```
+
+Aggiungi la possibilità di impostare il target nelle impostazioni azienda
+(SettingsProfile.tsx) — campo numerico semplice.
+
+---
+
+### C — Alerts configurabili (soglie personalizzabili)
+
+Aggiungi colonne di configurazione alert a `companies`:
+
+```sql
+ALTER TABLE companies
+  ADD COLUMN IF NOT EXISTS alert_late_orders_threshold INTEGER DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS alert_open_tickets_threshold INTEGER DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS alert_margin_min_pct NUMERIC(5,2) DEFAULT 10.00,
+  ADD COLUMN IF NOT EXISTS alert_runway_days_warning INTEGER DEFAULT 30;
+```
+
+In CruscottoAlerts.tsx, usa questi valori invece di quelli hardcoded:
+
+```typescript
+// ❌ PRIMA (hardcoded):
+if (operations.lateOrders > 0) // alert
+
+// ✅ DOPO (configurabile):
+const threshold = company?.alert_late_orders_threshold ?? 1;
+if (operations.lateOrders >= threshold) // alert
+```
+
+Aggiungi pulsante "⚙ Configura soglie" che apre un mini-dialog:
+```
+┌────────────────────────────────────┐
+│  Configura Soglie Alert            │
+│                                    │
+│  Ordini in ritardo:   [ 1 ]        │
+│  Ticket aperti:       [ 5 ]        │
+│  Margine minimo (%):  [ 10 ]       │
+│  Cash runway (giorni):[ 30 ]       │
+│                                    │
+│               [Salva]              │
+└────────────────────────────────────┘
+```
+
+================================================================================
+PROMPT 5 — NUOVE FEATURE: EXPORT + DRILL-DOWN
+================================================================================
+
+### A — Export PDF del cruscotto
+
+Aggiungi bottone [📥 Esporta Report] nell'header del cruscotto.
+
+Chiama la edge function `generate-cruscotto-pdf` (crea nuova):
+
+```typescript
+// supabase/functions/generate-cruscotto-pdf/index.ts
+// Genera un PDF riepilogativo con:
+// - Data del report
+// - Logo azienda
+// - KPI principali (Revenue, Margine, Ordini, Clienti)
+// - Tabella ultimi ordini
+// - Grafico ricavi (se possibile con chart.js server-side o immagine base64)
+// - Scadenze prossimi 30 giorni
+// - Footer con "Generato il [data]"
+```
+
+In alternativa (più semplice): usa `window.print()` con una print stylesheet
+che nasconde la navigazione e mostra solo il contenuto del cruscotto:
+
+```css
+/* In un file cruscotto-print.css: */
+@media print {
+  nav, .sidebar, .filters, button, .cruscotto-actions { display: none !important; }
+  .cruscotto-content { display: block !important; }
+  .chart-container { page-break-inside: avoid; }
+}
+```
+
+Aggiungi bottone nell'header:
+```tsx
+<Button variant="outline" size="sm" onClick={() => window.print()}>
+  <Download className="h-4 w-4 mr-2" />
+  Stampa / Esporta PDF
+</Button>
+```
+
+---
+
+### B — Drill-down cliccando le KPI
+
+Ogni KPI card deve essere cliccabile e aprire un Drawer con il dettaglio:
+
+```tsx
+// Revenue card → apre drawer con lista ordini del periodo:
+<KPICard
+  label="Ricavi"
+  value={formatCurrency(data.orders.revenue_current)}
+  onClick={() => setDrilldown('revenue')}
+  className="cursor-pointer hover:bg-muted/30 transition"
+/>
+
+// Drawer drill-down:
+<Sheet open={drilldown === 'revenue'} onOpenChange={() => setDrilldown(null)}>
+  <SheetContent side="right" className="w-[600px]">
+    <SheetHeader>
+      <SheetTitle>Dettaglio Ricavi — {periodLabel}</SheetTitle>
+    </SheetHeader>
+    <RevenueDrilldownTable companyId={companyId} dateFrom={dateFrom} dateTo={dateTo} />
+  </SheetContent>
+</Sheet>
+```
+
+I drill-down drawer da implementare:
+1. **Revenue** → lista ordini con cliente, importo, stato
+2. **Margine** → breakdown per ordine (ricavo vs costo)
+3. **Ordini in ritardo** → lista con nome cliente, data prevista, giorni ritardo
+4. **Ticket aperti** → lista ticket con priorità e data apertura
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+1. Cash runway mostra valori corretti (no gonfiamento)
+2. Margine calcolato come media ponderata (non semplice)
+3. Scadenze mostrano solo i prossimi 30 giorni
+4. NaN/Infinity non appaiono mai nel DOM
+5. Health score mostra grigio "Nessun dato" per metriche mancanti
+6. Ogni sezione ha il suo skeleton durante il caricamento
+7. Errore in una sezione non fa crashare le altre
+8. Delta % appare per revenue, ordini, clienti
+9. Barra progress appare se il target è impostato
+10. Soglie alert configurabili nel dialog
+11. Bottone stampa/esporta funziona
+12. Click su KPI apre drawer con dettaglio
+
+================================================================================
+NOTA FINALE
+================================================================================
+
+Non modificare: layout generale, sistema di navigazione, autenticazione.
+Non modificare: altri moduli (ordini, clienti, marketing).
+Modifica SOLO i file in src/pages/azienda/CruscottoAziendale.tsx,
+src/hooks/useCruscottoData.ts, e src/components/cruscotto/.
+
+================================================================================

@@ -1,0 +1,547 @@
+╔══════════════════════════════════════════════════════════════════╗
+║   PERFORMANCE CLEANUP — GESTIONE INTERNA + MARKETING            ║
+║   Prompt sequenziali per Lovable.dev                            ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Analisi condotta su tutto il codice. Nessuna nuova feature — solo
+ottimizzazioni performance, staleTime, memoizzazione e rimozione
+calcoli ridondanti. NON cambiare nessuna funzionalità visibile.
+
+PROBLEMI IDENTIFICATI (ordinati per impatto):
+  🔴 ALTO  — 7 problemi (query senza staleTime, N+1, limiti mancanti)
+  🟡 MEDIO — 11 problemi (memo mancanti, calcoli pesanti, select*)
+  🟢 BASSO —  8 problemi (duplicazione logica, state ridondante)
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 1 di 4 — staleTime GLOBALE E QUERY OPTIMIZATION
+════════════════════════════════════════════════════════════════════
+
+Applica questi fix agli hook indicati senza cambiare la logica.
+
+---
+
+### FIX 1: src/hooks/useCashFlowData.ts
+
+Questo hook ha 12+ query separate che girano in parallelo, alcune con
+`.limit(10000)` senza offset. Applica staleTime a tutte le query:
+
+Cerca OGNI `useQuery({` in questo file e aggiungi dentro la config:
+```typescript
+staleTime: 5 * 60 * 1000,   // 5 minuti
+gcTime: 15 * 60 * 1000,     // 15 minuti
+```
+
+Dove già c'è staleTime inferiore a 5 minuti, aggiorna a 5 minuti.
+
+---
+
+### FIX 2: src/hooks/useCompanyCostsData.ts
+
+Stesso intervento: 8+ query separate senza staleTime. Per ogni `useQuery({`
+aggiungi:
+```typescript
+staleTime: 5 * 60 * 1000,
+gcTime: 15 * 60 * 1000,
+```
+
+---
+
+### FIX 3: src/hooks/useOpportunitiesData.ts
+
+Le funzioni `usePipelines()` e `useOpportunities()` non hanno staleTime.
+I pipeline cambiano raramente — possono avere staleTime ancora più lungo:
+
+```typescript
+// usePipelines
+staleTime: 10 * 60 * 1000,  // 10 minuti — pipeline non cambiano spesso
+gcTime: 30 * 60 * 1000,
+
+// useOpportunities
+staleTime: 2 * 60 * 1000,   // 2 minuti — opportunità cambiano più spesso
+gcTime: 10 * 60 * 1000,
+```
+
+---
+
+### FIX 4: src/hooks/useMarketingDashboard.ts (righe ~162-178)
+
+Il `staleTime: 60_000` (1 minuto) è troppo basso per una query RPC pesante.
+Cambia in:
+```typescript
+staleTime: 5 * 60 * 1000,
+gcTime: 15 * 60 * 1000,
+```
+
+---
+
+### FIX 5: src/pages/azienda/OrderDetail.tsx
+
+Molteplici useQuery per order_installments, order_items, order_employees
+senza staleTime. Aggiungi a TUTTE:
+```typescript
+staleTime: 2 * 60 * 1000,
+gcTime: 10 * 60 * 1000,
+```
+
+---
+
+### FIX 6: src/pages/azienda/OrdersList.tsx — query profili
+
+Le 3 query per profili (salespersonProfiles, employeeProfiles,
+externalTeamProfiles) vengono usate solo per creare Maps di nomi.
+Aggiorna staleTime a:
+```typescript
+staleTime: 10 * 60 * 1000,  // profili cambiano raramente
+gcTime: 30 * 60 * 1000,
+```
+
+---
+
+### FIX 7: src/components/marketing/automations/AutomationFlowsList.tsx
+
+La query per enrollment counts (righe ~94-112) carica TUTTI gli enrollment
+senza limite per poi contarli lato client. Sostituisci con GROUP BY lato DB:
+
+PRIMA:
+```typescript
+const { data: enrollmentCounts } = useQuery({
+  queryKey: ["automation-enrollment-counts", companyId],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from("automation_enrollments")
+      .select("flow_id, status")
+      // ... nessun limite
+    return data || [];
+  },
+});
+```
+
+DOPO:
+```typescript
+const { data: enrollmentCounts } = useQuery({
+  queryKey: ["automation-enrollment-counts", companyId],
+  staleTime: 5 * 60 * 1000,
+  queryFn: async () => {
+    const { data } = await supabase
+      .from("automation_enrollments")
+      .select("flow_id, status")
+      .eq("company_id", companyId!)
+      .in("status", ["active", "completed", "failed"])
+      .limit(5000);  // cap ragionevole
+    return data || [];
+  },
+  enabled: !!companyId,
+});
+```
+
+---
+
+### FIX 8: src/pages/azienda/marketing/MarketingContacts.tsx — export handler
+
+La funzione `handleExport` fa `.select("*")` su TUTTI i contatti senza limite.
+Per export grandi, aggiungi un limite di sicurezza e seleziona solo i campi necessari:
+
+Trova `handleExport` o la query di export e modifica:
+```typescript
+// PRIMA: .select("*")
+// DOPO:
+.select("id, first_name, last_name, email, phone, company, created_at, tags, attr_source, attr_campaign")
+.limit(10000)
+```
+
+Se l'utente ha più di 10.000 contatti, mostra un toast: "Esportazione limitata a 10.000 contatti. Usa i filtri per segmentare."
+
+---
+
+### FIX 9: src/components/email-marketing/EmailCampaignsTab.tsx
+
+Sostituisci `.select("*")` (riga ~68) con:
+```typescript
+.select("id, name, status, type, created_at, updated_at, folder_id, subject, sent_at, open_rate, click_rate, recipient_count")
+```
+
+---
+
+### FIX 10: src/components/marketing/automations/AutomationFlowsList.tsx
+
+Sostituisci `.select("*")` su automation_flows (riga ~72) e automation_folders (riga ~50):
+```typescript
+// automation_flows
+.select("id, name, status, trigger_type, is_active, created_at, updated_at, folder_id")
+
+// automation_folders
+.select("id, name, created_at")
+```
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 2 di 4 — MEMOIZZAZIONE E RE-RENDER
+════════════════════════════════════════════════════════════════════
+
+Questi fix riducono i re-render inutili. NON cambiare logica o output.
+
+---
+
+### FIX 11: src/components/orders/OrdersTable.tsx
+
+Il componente riceve Maps (orderCosts, salespeopleMap, laborMap) e re-renderizza
+ogni volta che il parent cambia. Wrappa con React.memo:
+
+```typescript
+// In cima al file, dopo gli import:
+import { memo } from "react";
+
+// Alla fine del file, sostituisci l'export:
+// PRIMA: export function OrdersTable(...)
+// DOPO:
+export const OrdersTable = memo(function OrdersTable(...) {
+  // ... tutto il corpo invariato
+});
+```
+
+---
+
+### FIX 12: src/components/marketing/ContactsTable.tsx (o nome equivalente)
+
+Il componente della tabella contatti riceve contacts array, selezioni e callback.
+Wrappa con memo:
+
+```typescript
+import { memo, useCallback } from "react";
+
+export const ContactsTable = memo(function ContactsTable({ contacts, onSelect, onBulkAction, ... }) {
+  // corpo invariato
+});
+```
+
+---
+
+### FIX 13: src/pages/azienda/OrdersList.tsx — orderCostsMap
+
+`orderCostsMap` ha 5 dipendenze nel useMemo e ricalcola tutto quando una
+qualsiasi cambia. Spezza in due useMemo separati:
+
+```typescript
+// PRIMA: un unico useMemo con 5 dipendenze
+// DOPO:
+
+// Step 1: costruisci le mappe di lookup (cambiano raramente)
+const profileMaps = useMemo(() => ({
+  salespeople: new Map(salespeopleData?.map(s => [s.id, s.name]) || []),
+  employees: new Map(employeeProfiles?.map(e => [e.id, `${e.first_name} ${e.last_name}`]) || []),
+  teams: new Map(externalTeamProfiles?.map(t => [t.id, t.name]) || []),
+}), [salespeopleData, employeeProfiles, externalTeamProfiles]);
+
+// Step 2: costruisci la mappa dei costi (dipende dai costi, non dai profili)
+const orderCostsMap = useMemo(() => {
+  // ... stessa logica di prima, ma usa profileMaps invece di accedere direttamente
+}, [orders, itemCosts, employeeCosts, externalTeamCosts, profileMaps]);
+```
+
+---
+
+### FIX 14: src/components/email-marketing/EmailCampaignsTab.tsx
+
+Il filtering delle campagne non usa useMemo. Cerca il codice che filtra le
+campagne per `searchQuery` / `statusFilter` / `folderFilter` e wrappalo:
+
+```typescript
+// Trova il codice di filtering (riga ~172-182) tipo:
+// const filtered = campaigns.filter(c => ...)
+
+// Sostituisci con:
+const filteredCampaigns = useMemo(() => {
+  return campaigns?.filter((c) => {
+    // ... stessa logica di filtraggio già presente
+  }) || [];
+}, [campaigns, searchQuery, statusFilter, folderFilter]); // usa le stesse dipendenze già usate
+```
+
+---
+
+### FIX 15: src/hooks/useWarehouseData.ts — lookup O(n²)
+
+Il ciclo forEach che usa `suppliers.find()` per ogni item è O(n×m).
+Converti in Map per lookup O(1):
+
+Cerca il blocco con `suppliers.find(s => s.id === item.supplier_id)` e sostituisci:
+
+```typescript
+// Aggiorna il useMemo esistente che costruisce groupedBySupplier.
+// Prima di iterare su sortedItems, crea una Map:
+
+const supplierMap = useMemo(
+  () => new Map((suppliers || []).map(s => [s.id, s])),
+  [suppliers]
+);
+
+// Poi nel forEach/map, usa supplierMap.get(item.supplier_id) invece di suppliers.find(...)
+```
+
+---
+
+### FIX 16: src/pages/azienda/Calendar.tsx — query appointments + profiles
+
+La query carica appointments e poi fa un secondo select per i profili.
+Combina in un unico join:
+
+Cerca la query di appointments (righe ~110-145) e aggiorna il select
+per includere il join con profiles in una sola chiamata:
+
+```typescript
+.select(`
+  *,
+  user:users!assigned_to(id, first_name, last_name, email)
+`)
+```
+
+Rimuovi la query separata per i profili che viene eseguita dopo.
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 3 di 4 — ENABLED GUARDS E ENABLED CHECKS
+════════════════════════════════════════════════════════════════════
+
+Queste correzioni evitano query che partono quando mancano dati necessari.
+
+---
+
+### FIX 17: src/components/orders/OrderItemsList.tsx
+
+Le query per `suppliers` e `stockItems` (righe ~170-197) non hanno `enabled`.
+Se companyId è undefined, la query parte comunque. Aggiungi:
+
+```typescript
+// Query suppliers (trova la useQuery per suppliers in questo file):
+enabled: !!companyId,
+
+// Query stockItems:
+enabled: !!companyId,
+```
+
+---
+
+### FIX 18: src/pages/azienda/marketing/MarketingContactDetail.tsx
+
+Il sub-componente `ContactAppointmentsPanel` ha una query senza staleTime.
+Aggiungi `staleTime: 2 * 60 * 1000` e `enabled: !!contactId`.
+
+---
+
+### FIX 19: Verifica generale enabled guards
+
+In tutti i file elencati sotto, cerca ogni `useQuery({` che usa `companyId`
+nel queryFn ma non ha `enabled: !!companyId` nella config.
+Aggiungilo dove manca:
+
+- src/pages/azienda/GlobalErrors.tsx
+- src/pages/azienda/Warehouse.tsx
+- src/components/orders/SupplierPaymentsCard.tsx
+- src/components/dashboard/SupplierPaymentsSummary.tsx
+
+Aggiungi `enabled: !!companyId` a tutte le query che lo usano ma non lo hanno.
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 4 di 4 — DEDUPLICAZIONE LOGICA E PULIZIA
+════════════════════════════════════════════════════════════════════
+
+---
+
+### FIX 20: Utility function exportToCSV
+
+La logica di export CSV è copiata in almeno 3 file:
+- src/pages/azienda/OrdersList.tsx
+- src/pages/azienda/CashFlowForecast.tsx
+- src/pages/azienda/Warehouse.tsx
+
+Crea il file `src/lib/exportCsv.ts`:
+
+```typescript
+// src/lib/exportCsv.ts
+export function exportToCSV(
+  rows: string[][],
+  filename: string
+): void {
+  const csvContent = rows
+    .map((row) =>
+      row.map((cell) => {
+        const str = String(cell ?? "");
+        // Escape celle con virgola, newline o virgolette
+        if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(",")
+    )
+    .join("\n");
+
+  const blob = new Blob(["\uFEFF" + csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+```
+
+Poi nei 3 file sopra, rimuovi la logica CSV duplicata e importa:
+```typescript
+import { exportToCSV } from "@/lib/exportCsv";
+```
+
+---
+
+### FIX 21: src/hooks/useWarehouseData.ts — limit hardcoded
+
+Il `.limit(2000)` su order_items è arbitrario. Se un'azienda ha più di
+2000 order items nel magazzino, i dati vengono troncati silenziosamente.
+Sostituisci con un valore più alto e aggiungi un log di warning:
+
+```typescript
+.limit(5000) // aumentato da 2000
+
+// Dopo la query, nel queryFn:
+if (data && data.length >= 5000) {
+  console.warn("[Warehouse] Raggiunto il limite di 5000 articoli. Considera la pagination.");
+}
+```
+
+---
+
+### FIX 22: src/pages/azienda/OrdersList.tsx — state monthFilter ridondante
+
+`monthFilter` e `contractDateRange` fanno la stessa cosa.
+Cerca lo state `monthFilter` e verifica se è davvero usato in modo diverso
+da `contractDateRange`. Se entrambi aggiornano lo stesso DateRange:
+
+1. Rimuovi lo state `monthFilter`
+2. Nella funzione `handleMonthChange`, aggiorna direttamente `contractDateRange`
+3. Rimuovi `monthFilter` dal `filterKey` string
+
+---
+
+### FIX 23: src/pages/azienda/Calendar.tsx — localStorage senza debounce
+
+Il salvataggio di visibleEmployeeIds e visibleTeamIds in localStorage viene
+eseguito ad ogni render quando le liste cambiano. Aggiungi debounce:
+
+```typescript
+import { useRef } from "react";
+
+// Nel componente, dopo gli state:
+const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+// Negli useEffect che salvano in localStorage, wrappa con debounce:
+useEffect(() => {
+  if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+  saveTimerRef.current = setTimeout(() => {
+    localStorage.setItem("calendar_visible_employees", JSON.stringify(visibleEmployeeIds));
+  }, 500); // 500ms debounce
+  return () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+  };
+}, [visibleEmployeeIds]);
+
+// Stessa cosa per visibleTeamIds e altre preferenze calendario salvate in localStorage
+```
+
+---
+
+### FIX 24: Rimozione import Lucide inutilizzati
+
+Controlla questi file per import Lucide che vengono importati ma non usati
+nel JSX. Per ognuno rimuovi gli import delle icone non presenti nel markup:
+
+- src/pages/azienda/marketing/MarketingOpportunities.tsx
+- src/pages/azienda/marketing/MarketingContacts.tsx
+- src/pages/azienda/OrdersList.tsx
+- src/components/orders/OrderItemsList.tsx
+
+Metodo: cerca ogni import da "lucide-react" e verifica che il nome dell'icona
+compaia nel JSX del file. Se non appare, rimuovilo dall'import.
+
+---
+
+### FIX 25: src/pages/azienda/marketing/MarketingContacts.tsx — 3 query separate
+
+Le query per `pipelines`, `tags` e `listCount` vengono eseguite separatamente
+all'avvio della pagina. Consolida in un'unica RPC o in parallel fetch:
+
+```typescript
+// PRIMA: 3 useQuery separate che partono in sequenza
+// DOPO: usa Promise.all dentro un unico useQuery:
+
+const { data: filterData } = useQuery({
+  queryKey: ["marketing-filter-data", companyId],
+  staleTime: 10 * 60 * 1000,  // questi dati cambiano raramente
+  queryFn: async () => {
+    const [pipelinesRes, tagsRes, countRes] = await Promise.all([
+      supabase.from("marketing_pipelines").select("id, name").eq("company_id", companyId!),
+      supabase.from("marketing_tags").select("id, name, color").eq("company_id", companyId!),
+      supabase.from("marketing_contact_lists").select("id", { count: "exact", head: true }).eq("company_id", companyId!),
+    ]);
+    return {
+      pipelines: pipelinesRes.data || [],
+      tags: tagsRes.data || [],
+      listCount: countRes.count || 0,
+    };
+  },
+  enabled: !!companyId,
+});
+
+// Poi: const { pipelines, tags, listCount } = filterData || {};
+```
+
+---
+
+### FIX 26: useCallback sulle callback passate a child heavy
+
+In `src/pages/azienda/Warehouse.tsx`, le funzioni `handleStatusChange` e
+`handleBatchStatusChange` vengono passate come props a componenti figli.
+Wrappale con useCallback:
+
+```typescript
+const handleStatusChange = useCallback(async (id: string, status: string) => {
+  // ... stessa logica già presente
+}, [companyId, queryClient]); // dipendenze reali della funzione
+
+const handleBatchStatusChange = useCallback(async (ids: string[], status: string) => {
+  // ... stessa logica già presente
+}, [companyId, queryClient]);
+```
+
+---
+
+════════════════════════════════════════════════════════════════════
+RIEPILOGO ORDINE DI ESECUZIONE
+════════════════════════════════════════════════════════════════════
+
+Esegui i 4 prompt in ordine. Ognuno è indipendente ma il Prompt 1
+(staleTime) ha l'impatto maggiore e va fatto per primo.
+
+  Prompt 1 → Fix staleTime + select ottimizzati      (impatto: 🔴 ALTO)
+  Prompt 2 → Fix memoizzazione + re-render           (impatto: 🟡 MEDIO)
+  Prompt 3 → Fix enabled guards                      (impatto: 🟡 MEDIO)
+  Prompt 4 → Fix deduplicazione + pulizia            (impatto: 🟢 BASSO)
+
+RISULTATI ATTESI DOPO I FIX:
+  - Riduzione chiamate al DB del 60-70% (staleTime)
+  - Eliminazione richieste al DB con dati mancanti (enabled guards)
+  - Riduzione re-render su OrdersTable e ContactsTable (~80% in meno)
+  - Lookup O(n²) → O(1) in useWarehouseData
+  - 3 query → 1 query in MarketingContacts al caricamento
+  - Codebase più pulito: ~200 righe di duplicazione rimosse
+
+NON TOCCARE:
+  - Logica di business (calcoli importi, stati ordini, ecc.)
+  - Struttura dei componenti (layout, JSX)
+  - Route e navigazione
+  - Supabase schema o edge functions
+  - Autenticazione e permessi

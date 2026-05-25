@@ -1,0 +1,1183 @@
+====================================================================
+PROMPT LOVABLE — WHITE-LABEL COMPLETO (stile GHL)
+Feature a pagamento: logo, colori, dominio custom, login brandizzato
+====================================================================
+
+CONTESTO TECNICO
+- Stack: React 18 + TypeScript + Vite + Supabase + TanStack React Query v5
+- UI: Shadcn/ui + Radix UI + Tailwind CSS
+- Pattern auth: useAuth() → effectiveCompany?.id
+- Logo upload già funzionante: LogoUploader.tsx → Supabase Storage "company-logos"
+- Logo già visibile in: CompanyLayout, CustomerLayout, AdminLayout
+- Login page: src/components/auth/LoginForm.tsx — mostra logo "Edilizia in Cloud" hardcodato
+- Subscription plans in DB: tabella subscription_plans (già presente)
+- OBIETTIVO: White-label completo stile GHL — logo, colori primari, nome piattaforma,
+  dominio custom (prima subdomain, poi custom domain), login page brandizzata
+
+LEGGI PRIMA DI INIZIARE:
+- src/components/auth/LoginForm.tsx (logo hardcodato da sostituire)
+- src/components/layouts/CompanyLayout.tsx (logo già dinamico, da estendere con colori)
+- src/components/layouts/CustomerLayout.tsx (stesso)
+- src/components/settings/LogoUploader.tsx (già funzionante, riutilizza)
+- src/types/auth.ts (interfaccia Company da estendere)
+- src/pages/azienda/settings/SettingsProfile.tsx (aggiungere sezione White-Label)
+- src/pages/admin/CompanyDetail.tsx (aggiungere toggle white-label)
+- src/pages/admin/SubscriptionPlans.tsx (aggiungere campo includes_whitelabel)
+
+================================================================
+STEP 1 — MIGRAZIONE DATABASE
+================================================================
+
+Crea: supabase/migrations/20260322000000_white_label.sql
+
+```sql
+-- 1. Aggiunge flag white-label ai piani di abbonamento
+ALTER TABLE subscription_plans
+  ADD COLUMN IF NOT EXISTS includes_whitelabel boolean NOT NULL DEFAULT false;
+
+-- 2. Branding avanzato per azienda (separato da companies per non gonfiare la tabella)
+CREATE TABLE IF NOT EXISTS company_branding (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id          uuid NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Identità visiva
+  platform_name       text,                    -- Es. "Il Mio CRM" (sostituisce "Edilizia in Cloud")
+  primary_color       text DEFAULT '#2563eb',  -- HEX, es. "#e63946"
+  logo_url            text,                    -- Stesso logo di companies.logo_url (sincronizzato)
+  favicon_url         text,                    -- URL favicon .ico / .png 32x32
+  login_bg_color      text DEFAULT '#1e3a5f',  -- Colore sfondo login page
+
+  -- Dominio custom
+  subdomain           text UNIQUE,             -- Es. "rossi" → rossi.platform.com
+  custom_domain       text UNIQUE,             -- Es. "crm.rossisrl.it"
+  custom_domain_verified boolean NOT NULL DEFAULT false,
+  custom_domain_cname text,                    -- CNAME target generato per verifica
+  custom_domain_verified_at timestamptz,
+
+  -- Email branding
+  email_from_name     text,                    -- "Rossi Srl" nel From:
+  email_reply_to      text,                    -- es. "info@rossisrl.it"
+
+  -- Status
+  is_active           boolean NOT NULL DEFAULT false,  -- Attivo solo se il piano lo include
+  created_at          timestamptz DEFAULT now(),
+  updated_at          timestamptz DEFAULT now()
+);
+
+CREATE INDEX idx_company_branding_company   ON company_branding(company_id);
+CREATE INDEX idx_company_branding_subdomain ON company_branding(subdomain);
+CREATE INDEX idx_company_branding_domain    ON company_branding(custom_domain);
+
+ALTER TABLE company_branding ENABLE ROW LEVEL SECURITY;
+
+-- L'azienda può leggere e scrivere il proprio branding
+CREATE POLICY "own_company_branding" ON company_branding
+  FOR ALL USING (
+    company_id IN (SELECT company_id FROM profiles WHERE id = auth.uid())
+  );
+
+-- Lettura pubblica del branding (necessaria per la login page non autenticata)
+CREATE POLICY "public_read_branding" ON company_branding
+  FOR SELECT USING (is_active = true);
+
+-- Super admin può fare tutto
+CREATE POLICY "super_admin_branding" ON company_branding
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'super_admin')
+  );
+```
+
+================================================================
+STEP 2 — TIPI: src/types/branding.ts (nuovo file)
+================================================================
+
+```typescript
+export interface CompanyBranding {
+  id: string;
+  company_id: string;
+  platform_name: string | null;
+  primary_color: string;
+  logo_url: string | null;
+  favicon_url: string | null;
+  login_bg_color: string;
+  subdomain: string | null;
+  custom_domain: string | null;
+  custom_domain_verified: boolean;
+  custom_domain_cname: string | null;
+  custom_domain_verified_at: string | null;
+  email_from_name: string | null;
+  email_reply_to: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BrandingTheme {
+  primaryColor: string;
+  platformName: string;
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  loginBgColor: string;
+  emailFromName: string | null;
+}
+
+export const DEFAULT_BRANDING: BrandingTheme = {
+  primaryColor: '#2563eb',
+  platformName: 'Edilizia in Cloud',
+  logoUrl: null,
+  faviconUrl: null,
+  loginBgColor: '#1e3a5f',
+  emailFromName: 'Edilizia in Cloud',
+};
+```
+
+================================================================
+STEP 3 — HOOK: src/hooks/useCompanyBranding.ts (nuovo file)
+================================================================
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { CompanyBranding } from "@/types/branding";
+
+/** Carica il branding dell'azienda corrente (per company admin) */
+export function useCompanyBranding(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ["company-branding", companyId],
+    queryFn: async () => {
+      if (!companyId) return null;
+      const { data, error } = await supabase
+        .from("company_branding")
+        .select("*")
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as CompanyBranding | null;
+    },
+    enabled: !!companyId,
+  });
+}
+
+/** Carica il branding dal subdomain o custom domain (per login page pubblica) */
+export function useBrandingByDomain(domain: string | null) {
+  return useQuery({
+    queryKey: ["branding-by-domain", domain],
+    queryFn: async () => {
+      if (!domain) return null;
+      // Prima cerca su custom_domain verificato
+      const { data: byCustom } = await supabase
+        .from("company_branding")
+        .select("*")
+        .eq("custom_domain", domain)
+        .eq("custom_domain_verified", true)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (byCustom) return byCustom as CompanyBranding;
+
+      // Poi cerca su subdomain (es. "rossi" dal hostname "rossi.platform.com")
+      const subdomain = domain.split(".")[0];
+      const { data: bySub } = await supabase
+        .from("company_branding")
+        .select("*")
+        .eq("subdomain", subdomain)
+        .eq("is_active", true)
+        .maybeSingle();
+      return (bySub as CompanyBranding) || null;
+    },
+    enabled: !!domain,
+  });
+}
+
+export function useSaveCompanyBranding(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Partial<CompanyBranding>) => {
+      if (!companyId) throw new Error("companyId richiesto");
+      const { error } = await supabase
+        .from("company_branding")
+        .upsert(
+          { company_id: companyId, ...data, updated_at: new Date().toISOString() },
+          { onConflict: "company_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["company-branding", companyId] });
+    },
+  });
+}
+
+export function useRequestDomainVerification(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (customDomain: string) => {
+      if (!companyId) throw new Error("companyId richiesto");
+      // Genera un CNAME target univoco per la verifica
+      const cnameTarget = `verify-${companyId.slice(0, 8)}.platform-verify.com`;
+      const { error } = await supabase
+        .from("company_branding")
+        .upsert({
+          company_id: companyId,
+          custom_domain: customDomain,
+          custom_domain_cname: cnameTarget,
+          custom_domain_verified: false,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "company_id" });
+      if (error) throw error;
+      return cnameTarget;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["company-branding", companyId] }),
+  });
+}
+
+export function useVerifyCustomDomain(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      // Chiama Edge Function che verifica il CNAME DNS
+      const { data, error } = await supabase.functions.invoke("verify-custom-domain", {
+        body: { company_id: companyId },
+      });
+      if (error) throw error;
+      return data as { verified: boolean; error?: string };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["company-branding", companyId] }),
+  });
+}
+```
+
+================================================================
+STEP 4 — CONTEXT: src/contexts/BrandingContext.tsx (nuovo file)
+================================================================
+
+Questo context applica i colori CSS e il favicon/title dinamicamente.
+
+```typescript
+import React, { createContext, useContext, useEffect } from "react";
+import type { BrandingTheme } from "@/types/branding";
+import { DEFAULT_BRANDING } from "@/types/branding";
+
+interface BrandingContextType {
+  theme: BrandingTheme;
+  isWhiteLabel: boolean;
+}
+
+const BrandingContext = createContext<BrandingContextType>({
+  theme: DEFAULT_BRANDING,
+  isWhiteLabel: false,
+});
+
+export function BrandingProvider({
+  children,
+  branding,
+}: {
+  children: React.ReactNode;
+  branding?: BrandingTheme | null;
+}) {
+  const theme = branding || DEFAULT_BRANDING;
+  const isWhiteLabel = !!branding && branding.platformName !== DEFAULT_BRANDING.platformName;
+
+  // Applica CSS custom properties per il colore primario
+  useEffect(() => {
+    if (!branding?.primaryColor) return;
+    const hex = branding.primaryColor.replace("#", "");
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
+    // Converti in HSL per Shadcn/Tailwind
+    const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255;
+    const max = Math.max(rNorm, gNorm, bNorm);
+    const min = Math.min(rNorm, gNorm, bNorm);
+    let h = 0, s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case rNorm: h = ((gNorm - bNorm) / d + (gNorm < bNorm ? 6 : 0)) / 6; break;
+        case gNorm: h = ((bNorm - rNorm) / d + 2) / 6; break;
+        case bNorm: h = ((rNorm - gNorm) / d + 4) / 6; break;
+      }
+    }
+    const hslStr = `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+
+    // Applica al :root per sovrascrivere il tema Shadcn
+    document.documentElement.style.setProperty("--primary", hslStr);
+    document.documentElement.style.setProperty("--ring", hslStr);
+
+    return () => {
+      // Ripristina i colori originali all'unmount
+      document.documentElement.style.removeProperty("--primary");
+      document.documentElement.style.removeProperty("--ring");
+    };
+  }, [branding?.primaryColor]);
+
+  // Imposta favicon dinamico
+  useEffect(() => {
+    if (!branding?.faviconUrl) return;
+    const link = document.querySelector("link[rel='icon']") as HTMLLinkElement
+      || document.createElement("link");
+    link.rel = "icon";
+    link.href = branding.faviconUrl;
+    document.head.appendChild(link);
+    return () => { link.href = "/favicon.ico"; };
+  }, [branding?.faviconUrl]);
+
+  // Imposta document title
+  useEffect(() => {
+    if (branding?.platformName) {
+      document.title = branding.platformName;
+    }
+    return () => { document.title = "Edilizia in Cloud"; };
+  }, [branding?.platformName]);
+
+  return (
+    <BrandingContext.Provider value={{ theme, isWhiteLabel }}>
+      {children}
+    </BrandingContext.Provider>
+  );
+}
+
+export const useBranding = () => useContext(BrandingContext);
+```
+
+================================================================
+STEP 5 — LOGIN PAGE DINAMICA
+================================================================
+
+FILE DA MODIFICARE: src/components/auth/LoginForm.tsx
+
+La login page deve rilevare il dominio corrente e caricare il branding
+dell'azienda corrispondente (se white-label attivo).
+
+```typescript
+import { useEffect, useState } from "react";
+import { useBrandingByDomain } from "@/hooks/useCompanyBranding";
+import type { CompanyBranding } from "@/types/branding";
+import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.png";
+
+// All'inizio del componente LoginForm, aggiungi:
+const currentHostname = typeof window !== "undefined" ? window.location.hostname : "";
+// Rileva se siamo su un subdomain o custom domain (non localhost, non il dominio principale)
+const isCustomDomain =
+  currentHostname !== "localhost" &&
+  currentHostname !== "tuodominio.com" &&   // ← metti il tuo dominio principale
+  currentHostname !== "www.tuodominio.com";
+
+const { data: brandingData } = useBrandingByDomain(isCustomDomain ? currentHostname : null);
+
+const platformName = brandingData?.platform_name || "Edilizia in Cloud";
+const logoUrl = brandingData?.logo_url || null;
+const loginBgColor = brandingData?.login_bg_color || "#1e3a5f";
+const primaryColor = brandingData?.primary_color || "#2563eb";
+
+// NEL JSX — sostituisci la sezione sinistra fissa con:
+return (
+  <div className="min-h-screen flex">
+    {/* Left panel — branding dinamico */}
+    <div
+      className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12 text-white"
+      style={{ backgroundColor: loginBgColor }}
+    >
+      {logoUrl ? (
+        <img src={logoUrl} alt={platformName} className="h-16 mb-6 object-contain" />
+      ) : (
+        <img src={ediliziaLogo} alt="Edilizia in Cloud" className="h-14 mb-6 brightness-0 invert" />
+      )}
+      <h1 className="text-3xl font-bold text-center">{platformName}</h1>
+      {!brandingData && (
+        <p className="mt-3 text-white/70 text-center max-w-xs">
+          La piattaforma per l'edilizia moderna
+        </p>
+      )}
+    </div>
+
+    {/* Right panel — form login (invariato) */}
+    <div className="flex-1 flex items-center justify-center p-8">
+      {/* ... form esistente ... */}
+    </div>
+  </div>
+);
+```
+
+================================================================
+STEP 6 — WHITE-LABEL SETTINGS: nuova sezione in SettingsProfile
+================================================================
+
+FILE DA MODIFICARE: src/pages/azienda/settings/SettingsProfile.tsx
+
+Aggiungi il componente WhiteLabelSettings SOLO se l'azienda ha il piano
+che include il white-label.
+
+```typescript
+import { WhiteLabelSettings } from "@/components/settings/WhiteLabelSettings";
+import { useCompanyBranding } from "@/hooks/useCompanyBranding";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+// In SettingsProfile — aggiungi dopo le card esistenti:
+const companyId = (effectiveCompany as any)?.id;
+
+// Verifica se il piano include white-label
+const { data: planData } = useQuery({
+  queryKey: ["plan-whitelabel", effectiveCompany?.subscription_plan_id],
+  queryFn: async () => {
+    if (!effectiveCompany?.subscription_plan_id) return null;
+    const { data } = await supabase
+      .from("subscription_plans")
+      .select("includes_whitelabel, name")
+      .eq("id", effectiveCompany.subscription_plan_id)
+      .single();
+    return data;
+  },
+  enabled: !!effectiveCompany?.subscription_plan_id,
+});
+
+const hasWhiteLabel = planData?.includes_whitelabel === true;
+
+// NEL JSX:
+{isAdmin && (
+  <>
+    {/* ... card Logo e Anagrafica esistenti ... */}
+
+    {/* White-label section */}
+    {hasWhiteLabel ? (
+      <WhiteLabelSettings companyId={companyId} />
+    ) : (
+      <Card className="border-dashed opacity-75">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Palette className="h-4 w-4 text-muted-foreground" />
+              <CardTitle>White-Label</CardTitle>
+            </div>
+            <Badge variant="secondary">Non incluso nel tuo piano</Badge>
+          </div>
+          <CardDescription>
+            Personalizza il nome della piattaforma, i colori, il dominio e la
+            pagina di accesso con il tuo brand. Disponibile dal piano Premium in su.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => {/* link a upgrade */}}>
+            Aggiorna il piano
+          </Button>
+        </CardContent>
+      </Card>
+    )}
+  </>
+)}
+```
+
+================================================================
+STEP 7 — COMPONENTE: src/components/settings/WhiteLabelSettings.tsx
+================================================================
+
+Crea file nuovo:
+
+```typescript
+import { useState, useEffect } from "react";
+import { useCompanyBranding, useSaveCompanyBranding, useRequestDomainVerification, useVerifyCustomDomain } from "@/hooks/useCompanyBranding";
+import { useToast } from "@/hooks/use-toast";
+import { LogoUploader } from "@/components/settings/LogoUploader";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Palette, Globe, Mail, Loader2, CheckCircle2, XCircle,
+  Copy, ExternalLink, RefreshCw, Brush, Monitor
+} from "lucide-react";
+
+const PRESET_COLORS = [
+  "#2563eb", "#7c3aed", "#dc2626", "#16a34a", "#d97706",
+  "#0891b2", "#be185d", "#1f2937", "#065f46", "#9333ea",
+];
+
+export function WhiteLabelSettings({ companyId }: { companyId: string }) {
+  const { effectiveCompany, refreshAuth } = useAuth();
+  const { toast } = useToast();
+  const { data: branding, isLoading } = useCompanyBranding(companyId);
+  const saveMutation = useSaveCompanyBranding(companyId);
+  const domainVerifMutation = useRequestDomainVerification(companyId);
+  const verifyMutation = useVerifyCustomDomain(companyId);
+
+  const [platformName, setPlatformName] = useState("");
+  const [primaryColor, setPrimaryColor] = useState("#2563eb");
+  const [loginBgColor, setLoginBgColor] = useState("#1e3a5f");
+  const [subdomain, setSubdomain] = useState("");
+  const [customDomain, setCustomDomain] = useState("");
+  const [emailFromName, setEmailFromName] = useState("");
+  const [emailReplyTo, setEmailReplyTo] = useState("");
+
+  useEffect(() => {
+    if (branding) {
+      setPlatformName(branding.platform_name || "");
+      setPrimaryColor(branding.primary_color || "#2563eb");
+      setLoginBgColor(branding.login_bg_color || "#1e3a5f");
+      setSubdomain(branding.subdomain || "");
+      setCustomDomain(branding.custom_domain || "");
+      setEmailFromName(branding.email_from_name || "");
+      setEmailReplyTo(branding.email_reply_to || "");
+    }
+  }, [branding]);
+
+  const handleSave = async () => {
+    try {
+      await saveMutation.mutateAsync({
+        platform_name: platformName || null,
+        primary_color: primaryColor,
+        login_bg_color: loginBgColor,
+        email_from_name: emailFromName || null,
+        email_reply_to: emailReplyTo || null,
+        is_active: true,
+      });
+      toast({ title: "Branding salvato", description: "Le modifiche sono state applicate." });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile salvare il branding.", variant: "destructive" });
+    }
+  };
+
+  const handleSubdomainSave = async () => {
+    if (!subdomain.match(/^[a-z0-9-]+$/)) {
+      toast({ title: "Subdomain non valido", description: "Usa solo lettere minuscole, numeri e trattini.", variant: "destructive" });
+      return;
+    }
+    try {
+      await saveMutation.mutateAsync({ subdomain: subdomain.toLowerCase() || null });
+      toast({ title: "Subdomain salvato", description: `Accessibile su ${subdomain}.platform.com` });
+    } catch {
+      toast({ title: "Errore", description: "Subdomain già in uso o non valido.", variant: "destructive" });
+    }
+  };
+
+  const handleRequestVerification = async () => {
+    if (!customDomain) return;
+    try {
+      const cname = await domainVerifMutation.mutateAsync(customDomain);
+      toast({
+        title: "Richiesta inviata",
+        description: `Aggiungi il record CNAME al tuo DNS e poi clicca "Verifica".`,
+      });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile avviare la verifica.", variant: "destructive" });
+    }
+  };
+
+  const handleVerifyDomain = async () => {
+    try {
+      const result = await verifyMutation.mutateAsync();
+      if (result.verified) {
+        toast({ title: "Dominio verificato! ✓", description: `${customDomain} è ora attivo.` });
+      } else {
+        toast({ title: "Verifica fallita", description: "Il record CNAME non è ancora propagato. Attendi qualche ora e riprova.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Errore verifica", variant: "destructive" });
+    }
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
+  }
+
+  const PLATFORM_DOMAIN = "tuapiattaforma.com"; // ← sostituisci con il dominio reale
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Brush className="h-5 w-5 text-primary" />
+        <div>
+          <h2 className="text-lg font-semibold">White-Label</h2>
+          <p className="text-sm text-muted-foreground">
+            Personalizza la piattaforma con il tuo brand. Le modifiche saranno visibili ai tuoi utenti.
+          </p>
+        </div>
+      </div>
+
+      {/* 1. Nome piattaforma e colori */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Palette className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Identità Visiva</CardTitle>
+          </div>
+          <CardDescription>Imposta nome, colori e aspetto della tua piattaforma.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Logo — riutilizza LogoUploader esistente */}
+          <div className="space-y-1.5">
+            <Label>Logo</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Sostituisce il logo predefinito ovunque nell'applicazione.
+            </p>
+            <LogoUploader company={effectiveCompany} onLogoUpdated={refreshAuth} />
+          </div>
+
+          <Separator />
+
+          {/* Platform name */}
+          <div className="space-y-1.5">
+            <Label>Nome piattaforma</Label>
+            <Input
+              placeholder="Es. Gestionale Rossi"
+              value={platformName}
+              onChange={(e) => setPlatformName(e.target.value)}
+              maxLength={60}
+            />
+            <p className="text-xs text-muted-foreground">
+              Appare nel titolo del browser, nella login page e nelle email.
+            </p>
+          </div>
+
+          {/* Primary color */}
+          <div className="space-y-2">
+            <Label>Colore primario</Label>
+            <div className="flex items-center gap-3 flex-wrap">
+              {PRESET_COLORS.map((color) => (
+                <button
+                  key={color}
+                  onClick={() => setPrimaryColor(color)}
+                  className={`h-8 w-8 rounded-full border-2 transition-transform hover:scale-110 ${
+                    primaryColor === color ? "border-foreground scale-110" : "border-transparent"
+                  }`}
+                  style={{ backgroundColor: color }}
+                  title={color}
+                />
+              ))}
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="h-8 w-8 rounded cursor-pointer border-0"
+                  title="Colore personalizzato"
+                />
+                <Input
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="w-28 font-mono text-sm"
+                  maxLength={7}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Login background color */}
+          <div className="space-y-2">
+            <Label>Colore sfondo login</Label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={loginBgColor}
+                onChange={(e) => setLoginBgColor(e.target.value)}
+                className="h-8 w-8 rounded cursor-pointer border-0"
+              />
+              <Input
+                value={loginBgColor}
+                onChange={(e) => setLoginBgColor(e.target.value)}
+                className="w-28 font-mono text-sm"
+                maxLength={7}
+              />
+              {/* Mini preview login */}
+              <div
+                className="flex-1 max-w-32 h-16 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: loginBgColor }}
+              >
+                <Monitor className="h-6 w-6 text-white/60" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handleSave} disabled={saveMutation.isPending}>
+              {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salva branding
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 2. Subdomain */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Subdomain</CardTitle>
+          </div>
+          <CardDescription>
+            Accedi alla piattaforma dal tuo subdomain personalizzato.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Il tuo subdomain</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="nomeazienda"
+                value={subdomain}
+                onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                className="max-w-48"
+              />
+              <span className="text-muted-foreground text-sm shrink-0">.{PLATFORM_DOMAIN}</span>
+            </div>
+            {subdomain && (
+              <p className="text-xs text-green-600 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                Accessibile su: <strong>{subdomain}.{PLATFORM_DOMAIN}</strong>
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Solo lettere minuscole, numeri e trattini. Es. "rossi-srl".
+            </p>
+          </div>
+          <Button variant="outline" onClick={handleSubdomainSave} disabled={saveMutation.isPending}>
+            Salva subdomain
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* 3. Custom domain */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Dominio Personalizzato</CardTitle>
+          </div>
+          <CardDescription>
+            Usa il tuo dominio (es. crm.tuaazienda.it). Richiede configurazione DNS.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {branding?.custom_domain_verified ? (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                <strong>{branding.custom_domain}</strong> è verificato e attivo.
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="text-green-700 h-auto p-0 ml-2"
+                  onClick={() => window.open(`https://${branding.custom_domain}`, "_blank")}
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Apri
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label>Dominio</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="crm.tuaazienda.it"
+                    value={customDomain}
+                    onChange={(e) => setCustomDomain(e.target.value.toLowerCase())}
+                    className="max-w-64"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={handleRequestVerification}
+                    disabled={!customDomain || domainVerifMutation.isPending}
+                  >
+                    {domainVerifMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : "Configura"}
+                  </Button>
+                </div>
+              </div>
+
+              {branding?.custom_domain_cname && !branding.custom_domain_verified && (
+                <Alert>
+                  <AlertDescription>
+                    <p className="font-medium mb-2">Aggiungi questo record CNAME al tuo DNS:</p>
+                    <div className="space-y-1 bg-muted rounded p-3 font-mono text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground w-16">Tipo:</span>
+                        <span>CNAME</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground w-16">Nome:</span>
+                        <span>{customDomain}</span>
+                        <button onClick={() => { navigator.clipboard.writeText(customDomain); }}>
+                          <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground w-16">Valore:</span>
+                        <span className="break-all">{branding.custom_domain_cname}</span>
+                        <button onClick={() => { navigator.clipboard.writeText(branding.custom_domain_cname!); }}>
+                          <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      La propagazione DNS può richiedere da 5 minuti a 48 ore.
+                    </p>
+                    <Button
+                      className="mt-3"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleVerifyDomain}
+                      disabled={verifyMutation.isPending}
+                    >
+                      {verifyMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                      )}
+                      Verifica ora
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 4. Email branding */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Mail className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Branding Email</CardTitle>
+          </div>
+          <CardDescription>Personalizza il mittente e reply-to delle email inviate dalla piattaforma.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Nome mittente</Label>
+              <Input
+                placeholder="Rossi Srl"
+                value={emailFromName}
+                onChange={(e) => setEmailFromName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Appare nel campo "Da:" delle email.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Reply-to</Label>
+              <Input
+                placeholder="info@tuaazienda.it"
+                type="email"
+                value={emailReplyTo}
+                onChange={(e) => setEmailReplyTo(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Indirizzo a cui rispondono i clienti.</p>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={handleSave} disabled={saveMutation.isPending} variant="outline">
+              {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salva email branding
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+```
+
+================================================================
+STEP 8 — ADMIN: toggle white-label per azienda in CompanyDetail
+================================================================
+
+FILE DA MODIFICARE: src/pages/admin/CompanyDetail.tsx
+oppure: src/components/admin/company/CompanySaaSTab.tsx
+
+Aggiungi la sezione White-Label nella tab SaaS/Feature dell'azienda:
+
+```typescript
+import { useCompanyBranding, useSaveCompanyBranding } from "@/hooks/useCompanyBranding";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+// Nel componente CompanySaaSTab (o dove gestisci le feature del piano):
+const { data: branding } = useCompanyBranding(companyId);
+const saveBrandingMutation = useSaveCompanyBranding(companyId);
+
+// Carica il piano per sapere se white-label è incluso
+const { data: planIncludes } = useQuery({
+  queryKey: ["plan-includes-wl", company?.subscription_plan_id],
+  queryFn: async () => {
+    if (!company?.subscription_plan_id) return false;
+    const { data } = await supabase
+      .from("subscription_plans")
+      .select("includes_whitelabel")
+      .eq("id", company.subscription_plan_id)
+      .single();
+    return data?.includes_whitelabel || false;
+  },
+  enabled: !!company?.subscription_plan_id,
+});
+
+const handleToggleWhiteLabel = async (enabled: boolean) => {
+  await saveBrandingMutation.mutateAsync({ is_active: enabled });
+  toast({ title: enabled ? "White-label attivato" : "White-label disattivato" });
+};
+
+// NEL JSX — sezione White-Label:
+<div className="space-y-3">
+  <div className="flex items-center justify-between p-4 rounded-lg border">
+    <div className="flex items-center gap-3">
+      <div className={`p-2 rounded-md ${branding?.is_active ? "bg-primary/10" : "bg-muted"}`}>
+        <Palette className={`h-4 w-4 ${branding?.is_active ? "text-primary" : "text-muted-foreground"}`} />
+      </div>
+      <div>
+        <p className="font-medium text-sm">White-Label</p>
+        <p className="text-xs text-muted-foreground">
+          {branding?.is_active
+            ? `Attivo · ${branding.platform_name || "Branding personalizzato"}`
+            : planIncludes
+              ? "Disponibile — non ancora attivato dall'azienda"
+              : "Non incluso nel piano corrente"}
+        </p>
+      </div>
+    </div>
+    <div className="flex items-center gap-2">
+      {!planIncludes && (
+        <Badge variant="secondary" className="text-xs">Piano non include WL</Badge>
+      )}
+      <Switch
+        checked={branding?.is_active || false}
+        onCheckedChange={handleToggleWhiteLabel}
+        disabled={!planIncludes || saveBrandingMutation.isPending}
+      />
+    </div>
+  </div>
+
+  {branding?.custom_domain && (
+    <div className="flex items-center gap-2 text-sm px-4">
+      <Globe className="h-4 w-4 text-muted-foreground" />
+      <span className="text-muted-foreground">Dominio:</span>
+      <Badge variant={branding.custom_domain_verified ? "default" : "secondary"}>
+        {branding.custom_domain_verified ? "✓ Verificato" : "In attesa"}
+      </Badge>
+      <span className="font-mono text-sm">{branding.custom_domain}</span>
+    </div>
+  )}
+</div>
+```
+
+================================================================
+STEP 9 — SUBSCRIPTION PLANS: campo includes_whitelabel nella UI
+================================================================
+
+FILE DA MODIFICARE: src/pages/admin/SubscriptionPlans.tsx
+
+Nel form di creazione/modifica piano, aggiungi il toggle white-label:
+
+```typescript
+// Nell'interfaccia del piano (già presente):
+// Aggiunge nel form dialog, nella sezione "Moduli e Funzionalità":
+
+<div className="flex items-center justify-between p-3 rounded-lg border">
+  <div className="flex items-center gap-3">
+    <Palette className="h-4 w-4 text-muted-foreground" />
+    <div>
+      <p className="text-sm font-medium">White-Label</p>
+      <p className="text-xs text-muted-foreground">
+        Logo custom, colori, nome piattaforma e dominio personalizzato.
+      </p>
+    </div>
+  </div>
+  <Switch
+    checked={formData.includes_whitelabel || false}
+    onCheckedChange={(v) => setFormData(prev => ({ ...prev, includes_whitelabel: v }))}
+  />
+</div>
+```
+
+E nella card del piano nella lista, mostra il badge:
+```typescript
+{plan.includes_whitelabel && (
+  <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-xs">
+    <Palette className="h-3 w-3 mr-1" />
+    White-Label
+  </Badge>
+)}
+```
+
+================================================================
+STEP 10 — EDGE FUNCTION: verifica CNAME DNS
+================================================================
+
+Crea: supabase/functions/verify-custom-domain/index.ts
+
+```typescript
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+Deno.serve(async (req) => {
+  const { company_id } = await req.json();
+
+  // Carica il branding dell'azienda
+  const { data: branding, error } = await supabase
+    .from("company_branding")
+    .select("custom_domain, custom_domain_cname")
+    .eq("company_id", company_id)
+    .single();
+
+  if (error || !branding?.custom_domain || !branding?.custom_domain_cname) {
+    return Response.json({ verified: false, error: "Nessun dominio configurato" });
+  }
+
+  try {
+    // Verifica il CNAME via DNS over HTTPS (Cloudflare)
+    const dnsUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(branding.custom_domain)}&type=CNAME`;
+    const dnsResp = await fetch(dnsUrl, {
+      headers: { Accept: "application/dns-json" },
+    });
+    const dnsData = await dnsResp.json();
+
+    const cnameAnswer = dnsData.Answer?.find((a: any) => a.type === 5); // 5 = CNAME
+    const pointsToExpected = cnameAnswer?.data?.replace(/\.$/, "") === branding.custom_domain_cname;
+
+    if (pointsToExpected) {
+      // Segna come verificato
+      await supabase.from("company_branding")
+        .update({
+          custom_domain_verified: true,
+          custom_domain_verified_at: new Date().toISOString(),
+        })
+        .eq("company_id", company_id);
+
+      return Response.json({ verified: true });
+    } else {
+      return Response.json({
+        verified: false,
+        error: `CNAME trovato: ${cnameAnswer?.data || "nessuno"} — atteso: ${branding.custom_domain_cname}`,
+      });
+    }
+  } catch (err) {
+    return Response.json({ verified: false, error: "Errore DNS: " + String(err) });
+  }
+});
+```
+
+================================================================
+STEP 11 — COLLEGARE BrandingContext a App.tsx
+================================================================
+
+FILE DA MODIFICARE: src/App.tsx
+
+Avvolgi l'app con il BrandingProvider che carica il branding
+dell'azienda corrente dopo il login:
+
+```typescript
+import { BrandingProvider } from "@/contexts/BrandingContext";
+import { useCompanyBranding } from "@/hooks/useCompanyBranding";
+import type { BrandingTheme } from "@/types/branding";
+
+// Componente wrapper per inserire il branding dopo il login:
+function AppWithBranding({ children }: { children: React.ReactNode }) {
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id;
+  const { data: branding } = useCompanyBranding(companyId);
+
+  const theme: BrandingTheme | null = branding?.is_active ? {
+    primaryColor: branding.primary_color || "#2563eb",
+    platformName: branding.platform_name || "Edilizia in Cloud",
+    logoUrl: branding.logo_url,
+    faviconUrl: branding.favicon_url,
+    loginBgColor: branding.login_bg_color || "#1e3a5f",
+    emailFromName: branding.email_from_name,
+  } : null;
+
+  return (
+    <BrandingProvider branding={theme}>
+      {children}
+    </BrandingProvider>
+  );
+}
+
+// In App.tsx, il provider va DENTRO AuthProvider:
+function App() {
+  return (
+    <AuthProvider>
+      <AppWithBranding>
+        {/* ... router e routes esistenti ... */}
+      </AppWithBranding>
+    </AuthProvider>
+  );
+}
+```
+
+================================================================
+STEP 12 — CompanyLayout e CustomerLayout: usa il branding context
+================================================================
+
+FILE DA MODIFICARE: src/components/layouts/CompanyLayout.tsx
+
+```typescript
+import { useBranding } from "@/contexts/BrandingContext";
+
+// In CompanySidebar:
+const { theme, isWhiteLabel } = useBranding();
+
+// Nel JSX — sostituisci il logo con:
+{(theme.logoUrl || effectiveCompany?.logo_url) ? (
+  <img
+    src={theme.logoUrl || effectiveCompany?.logo_url}
+    alt={theme.platformName}
+    className="h-8 max-h-8 object-contain"
+  />
+) : (
+  <img src={ediliziaLogo} alt="Edilizia in Cloud" className="h-8" />
+)}
+```
+
+================================================================
+CHECKLIST IMPLEMENTAZIONE
+================================================================
+
+[ ] STEP 1: Esegui migrazione SQL (tabella company_branding + campo subscription_plans.includes_whitelabel)
+[ ] STEP 2: Crea src/types/branding.ts
+[ ] STEP 3: Crea src/hooks/useCompanyBranding.ts
+[ ] STEP 4: Crea src/contexts/BrandingContext.tsx
+[ ] STEP 5: Modifica src/components/auth/LoginForm.tsx — login page dinamica
+[ ] STEP 6: Modifica src/pages/azienda/settings/SettingsProfile.tsx — aggiunge sezione WL
+[ ] STEP 7: Crea src/components/settings/WhiteLabelSettings.tsx
+[ ] STEP 8: Modifica CompanySaaSTab.tsx — toggle WL per azienda
+[ ] STEP 9: Modifica SubscriptionPlans.tsx — campo includes_whitelabel
+[ ] STEP 10: Crea supabase/functions/verify-custom-domain/index.ts
+[ ] STEP 11: Modifica App.tsx — BrandingProvider wrapper
+[ ] STEP 12: Modifica CompanyLayout.tsx e CustomerLayout.tsx — usa BrandingContext
+[ ] Testa: crea piano con WL → assegna ad azienda → configura branding → verifica applicazione colori
+[ ] Testa: subdomain funziona
+[ ] Testa: login page mostra branding corretto per azienda white-label
+[ ] Testa: utenti dell'azienda vedono i colori custom
+[ ] Testa: cliente (CustomerLayout) vede il logo custom
+
+================================================================
+NOTA SUL CUSTOM DOMAIN — ROUTING INFRASTRUTTURALE
+================================================================
+
+La verifica CNAME funziona lato codice. Per far SÌ che il dominio custom
+punta effettivamente alla tua app Vite (ospitata su Vercel/Netlify/altro),
+devi configurare il tuo hosting per accettare wildcard custom domains:
+
+- VERCEL: Settings → Domains → aggiungi il dominio. Ogni dominio custom
+  verificato va aggiunto manualmente nel pannello Vercel.
+- NETLIFY: Site settings → Domain management → custom domains.
+- Per automazione: usa l'API Vercel/Netlify per aggiungere il dominio
+  automaticamente quando viene verificato (aggiungerlo all'Edge Function
+  verify-custom-domain dopo la verifica CNAME).
+
+Il frontend già gestisce la detection del dominio: useBrandingByDomain()
+rileva l'hostname e carica il branding corretto — tutto funziona senza
+modifiche al routing Vite.

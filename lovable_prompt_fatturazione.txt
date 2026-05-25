@@ -1,0 +1,1201 @@
+============================================================
+NOTE PRELIMINARI — SCELTA DELL'INTEGRAZIONE
+============================================================
+
+Dopo analisi delle opzioni disponibili per il mercato italiano, la scelta
+consigliata per l'integrazione fatturazione è:
+
+  ★ FATTURE IN CLOUD (FIC) — https://developers.fattureincloud.it
+    - Leader di mercato italiano (500.000+ aziende)
+    - REST API v2 + OAuth2 + Webhooks + SDK ufficiali
+    - I tuoi clienti probabilmente lo usano GIÀ
+    - Gestisce automaticamente SDI, FatturaPA XML, firma digitale p7m
+    - Piano Free per sviluppatori, sandbox disponibile
+
+  ALTERNATIVA: Invoicetronic — https://invoicetronic.com
+    - 100% API-first, open-source SDK, più flessibile
+    - Ottimo se vuoi un layer neutro tra il tuo gestionale e qualsiasi
+      software di fatturazione del cliente (FIC, Fattura24, Aruba, ecc.)
+    - Webhook nativi, validazione preflight, firma p7m inclusa
+
+  ALTERNATIVA 2: A-Cube API — https://www.acubeapi.com/en
+    - Stessa logica di Invoicetronic ma con in più Open Banking/AISP
+    - Interessante se in futuro vuoi collegare anche il conto bancario
+      (riconciliazione pagamenti automatica)
+
+  RACCOMANDAZIONE FINALE:
+  Usa Fatture in Cloud come integrazione principale (è già usato dai
+  clienti), con architettura "adapter" che permette di aggiungere in futuro
+  altri provider (Invoicetronic, Fattura24) senza cambiare il codice core.
+
+============================================================
+PROMPT 1 di 5 — DATABASE SCHEMA: MODULO FATTURAZIONE
+============================================================
+
+Crea il modulo Fatturazione nel gestionale. Il sistema gestisce le fatture
+internamente (bozze, stati, righe) e le invia/sincronizza con il software
+di fatturazione esterno già in uso dal cliente (es. Fatture in Cloud).
+
+L'integrazione esterna è OPZIONALE: le aziende che non hanno un software
+esterno possono usare il modulo standalone; quelle che ce l'hanno ottengono
+la sincronizzazione automatica.
+
+Crea questa migrazione Supabase:
+
+```sql
+-- ============================================================
+-- MODULO FATTURAZIONE
+-- ============================================================
+
+-- Configurazione integrazione per company
+CREATE TABLE IF NOT EXISTS billing_integrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL, -- 'fattureincloud' | 'invoicetronic' | 'fattura24' | 'manual'
+  is_active BOOLEAN DEFAULT true,
+  -- Credenziali cifrate (mai in chiaro)
+  access_token TEXT,              -- OAuth2 access token (FIC)
+  refresh_token TEXT,             -- OAuth2 refresh token (FIC)
+  token_expires_at TIMESTAMPTZ,   -- scadenza token
+  api_key TEXT,                   -- API key (Invoicetronic, Fattura24)
+  company_external_id TEXT,       -- ID azienda sul provider esterno
+  -- Sync settings
+  auto_sync BOOLEAN DEFAULT true, -- sincronizzazione automatica
+  sync_direction TEXT DEFAULT 'both', -- 'push' | 'pull' | 'both'
+  last_sync_at TIMESTAMPTZ,
+  last_sync_status TEXT,          -- 'success' | 'error'
+  last_sync_error TEXT,
+  -- Metadata
+  provider_company_name TEXT,     -- nome azienda letto dal provider
+  provider_vat_number TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(company_id, provider)
+);
+
+-- Fatture
+CREATE TABLE IF NOT EXISTS invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  -- Numerazione
+  invoice_number TEXT,            -- es. "FT-2025-0042" (generato server-side)
+  invoice_year INTEGER DEFAULT EXTRACT(YEAR FROM NOW()),
+  progressive_number INTEGER,     -- numero progressivo nell'anno
+  -- Tipo documento
+  document_type TEXT NOT NULL DEFAULT 'invoice',
+  -- 'invoice'       = Fattura
+  -- 'credit_note'   = Nota di credito
+  -- 'proforma'      = Proforma (non fiscale)
+  -- 'receipt'       = Ricevuta
+  -- Stato
+  status TEXT NOT NULL DEFAULT 'draft',
+  -- 'draft'     = Bozza (modificabile)
+  -- 'issued'    = Emessa (non modificabile, pronta per invio SDI)
+  -- 'sent'      = Inviata all'SDI / al provider
+  -- 'delivered' = Consegnata (confermata dal SDI)
+  -- 'paid'      = Pagata
+  -- 'overdue'   = Scaduta non pagata
+  -- 'cancelled' = Annullata / Nota di credito emessa
+  -- Cliente
+  client_id UUID REFERENCES contacts(id),   -- collega a contatto esistente
+  client_company_name TEXT NOT NULL,
+  client_vat_number TEXT,                   -- P.IVA
+  client_fiscal_code TEXT,                  -- Codice Fiscale
+  client_address TEXT,
+  client_city TEXT,
+  client_zip TEXT,
+  client_country TEXT DEFAULT 'IT',
+  client_pec TEXT,                          -- PEC per ricezione fattura elettronica
+  client_sdi_code TEXT,                     -- Codice Destinatario SDI (7 caratteri)
+  client_email TEXT,
+  -- Date
+  issue_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  due_date DATE,
+  payment_date DATE,                        -- data effettivo pagamento
+  -- Importi (calcolati dai line items, salvati per query veloci)
+  subtotal NUMERIC(12,2) DEFAULT 0,
+  tax_amount NUMERIC(12,2) DEFAULT 0,
+  total NUMERIC(12,2) DEFAULT 0,
+  paid_amount NUMERIC(12,2) DEFAULT 0,      -- quanto già pagato (acconti)
+  -- Condizioni pagamento
+  payment_method TEXT,                      -- 'bank_transfer' | 'cash' | 'check' | 'credit_card'
+  payment_terms TEXT,                       -- es. "30 giorni data fattura"
+  payment_days INTEGER,                     -- es. 30
+  bank_iban TEXT,                           -- IBAN per pagamento
+  -- Collegamento ad altri documenti
+  order_id UUID REFERENCES orders(id),      -- ordine di origine
+  quote_id UUID,                            -- preventivo di origine
+  -- Collegamento a nota di credito
+  credited_invoice_id UUID REFERENCES invoices(id),
+  -- Contenuto
+  notes TEXT,                               -- note private
+  footer_text TEXT,                         -- testo piè di pagina (visibile sulla fattura)
+  -- Integrazione esterna
+  external_id TEXT,                         -- ID nel sistema esterno (FIC, ecc.)
+  external_provider TEXT,                   -- quale provider
+  external_sync_at TIMESTAMPTZ,
+  external_status TEXT,                     -- stato riportato dal provider esterno
+  external_sdi_id TEXT,                     -- ID SDI assegnato dal SdI
+  external_xml_url TEXT,                    -- URL XML FatturaPA (firmato p7m)
+  -- Metadata
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Righe fattura (line items)
+CREATE TABLE IF NOT EXISTS invoice_lines (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  sort_order INTEGER DEFAULT 0,
+  -- Prodotto/servizio
+  description TEXT NOT NULL,
+  product_code TEXT,                   -- codice articolo (opzionale)
+  unit TEXT DEFAULT 'pz',              -- unità di misura: pz, h, kg, m², ecc.
+  -- Quantità e prezzi
+  quantity NUMERIC(10,3) NOT NULL DEFAULT 1,
+  unit_price NUMERIC(12,4) NOT NULL DEFAULT 0,
+  discount_percent NUMERIC(5,2) DEFAULT 0,
+  -- IVA
+  tax_rate NUMERIC(5,2) NOT NULL DEFAULT 22, -- aliquota IVA (22, 10, 4, 0)
+  tax_nature TEXT,                     -- natura esenzione: N1..N7 (se IVA 0%)
+  -- Totali riga (calcolati)
+  line_total NUMERIC(12,2) NOT NULL DEFAULT 0,  -- senza IVA, senza sconto
+  line_discount NUMERIC(12,2) DEFAULT 0,
+  line_net NUMERIC(12,2) NOT NULL DEFAULT 0,    -- dopo sconto, senza IVA
+  line_tax NUMERIC(12,2) NOT NULL DEFAULT 0,    -- importo IVA
+  line_gross NUMERIC(12,2) NOT NULL DEFAULT 0,  -- totale riga con IVA
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Pagamenti collegati (acconti, pagamenti parziali)
+CREATE TABLE IF NOT EXISTS invoice_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id),
+  amount NUMERIC(12,2) NOT NULL,
+  payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  payment_method TEXT,
+  reference TEXT,                -- numero assegno, bonifico, ecc.
+  notes TEXT,
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Log sincronizzazione
+CREATE TABLE IF NOT EXISTS billing_sync_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id),
+  invoice_id UUID REFERENCES invoices(id),
+  provider TEXT NOT NULL,
+  direction TEXT NOT NULL,           -- 'push' | 'pull'
+  action TEXT NOT NULL,              -- 'create' | 'update' | 'send_sdi' | 'fetch_status' | 'webhook'
+  status TEXT NOT NULL,              -- 'success' | 'error'
+  request_payload JSONB,
+  response_payload JSONB,
+  error_message TEXT,
+  executed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- FUNZIONE: Genera numero fattura (evita duplicati concorrenti)
+-- ============================================================
+CREATE OR REPLACE FUNCTION generate_invoice_number(
+  p_company_id UUID,
+  p_year INTEGER DEFAULT EXTRACT(YEAR FROM NOW())::INTEGER
+)
+RETURNS TABLE(invoice_number TEXT, progressive_number INTEGER) AS $$
+DECLARE
+  v_next_progressive INTEGER;
+  v_prefix TEXT;
+BEGIN
+  -- Lock sulla company per evitare race conditions
+  PERFORM pg_advisory_xact_lock(hashtext(p_company_id::TEXT || p_year::TEXT));
+
+  SELECT COALESCE(MAX(i.progressive_number), 0) + 1
+  INTO v_next_progressive
+  FROM invoices i
+  WHERE i.company_id = p_company_id
+    AND i.invoice_year = p_year
+    AND i.document_type = 'invoice';
+
+  v_prefix := 'FT-' || p_year || '-';
+
+  RETURN QUERY SELECT
+    (v_prefix || LPAD(v_next_progressive::TEXT, 4, '0'))::TEXT,
+    v_next_progressive;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- FUNZIONE: Ricalcola totali fattura dai line items
+-- ============================================================
+CREATE OR REPLACE FUNCTION recalculate_invoice_totals(p_invoice_id UUID)
+RETURNS VOID AS $$
+DECLARE
+  v_subtotal NUMERIC(12,2);
+  v_tax_amount NUMERIC(12,2);
+  v_total NUMERIC(12,2);
+BEGIN
+  SELECT
+    COALESCE(SUM(line_net), 0),
+    COALESCE(SUM(line_tax), 0),
+    COALESCE(SUM(line_gross), 0)
+  INTO v_subtotal, v_tax_amount, v_total
+  FROM invoice_lines
+  WHERE invoice_id = p_invoice_id;
+
+  UPDATE invoices
+  SET
+    subtotal = v_subtotal,
+    tax_amount = v_tax_amount,
+    total = v_total,
+    updated_at = NOW()
+  WHERE id = p_invoice_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger: ricalcola totali quando le righe cambiano
+CREATE OR REPLACE FUNCTION trg_recalculate_invoice()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM recalculate_invoice_totals(
+    COALESCE(NEW.invoice_id, OLD.invoice_id)
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_invoice_lines_totals
+  AFTER INSERT OR UPDATE OR DELETE ON invoice_lines
+  FOR EACH ROW EXECUTE FUNCTION trg_recalculate_invoice();
+
+-- Trigger: aggiorna paid_amount quando arrivano pagamenti
+CREATE OR REPLACE FUNCTION trg_update_paid_amount()
+RETURNS TRIGGER AS $$
+DECLARE v_invoice_id UUID;
+BEGIN
+  v_invoice_id := COALESCE(NEW.invoice_id, OLD.invoice_id);
+
+  UPDATE invoices SET
+    paid_amount = (
+      SELECT COALESCE(SUM(amount), 0) FROM invoice_payments
+      WHERE invoice_id = v_invoice_id
+    ),
+    status = CASE
+      WHEN (SELECT COALESCE(SUM(amount), 0) FROM invoice_payments WHERE invoice_id = v_invoice_id)
+           >= (SELECT total FROM invoices WHERE id = v_invoice_id)
+      THEN 'paid'
+      ELSE status
+    END,
+    updated_at = NOW()
+  WHERE id = v_invoice_id;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_invoice_payments_update
+  AFTER INSERT OR UPDATE OR DELETE ON invoice_payments
+  FOR EACH ROW EXECUTE FUNCTION trg_update_paid_amount();
+
+-- ============================================================
+-- RLS POLICIES
+-- ============================================================
+ALTER TABLE billing_integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_lines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE billing_sync_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_billing_integrations" ON billing_integrations
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_invoices" ON invoices
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_invoice_lines" ON invoice_lines
+  FOR ALL USING (
+    invoice_id IN (SELECT id FROM invoices WHERE company_id = get_user_company_id(auth.uid()))
+  );
+
+CREATE POLICY "company_invoice_payments" ON invoice_payments
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_billing_sync_log" ON billing_sync_log
+  FOR SELECT USING (company_id = get_user_company_id(auth.uid()));
+
+-- Indici
+CREATE INDEX idx_invoices_company ON invoices(company_id);
+CREATE INDEX idx_invoices_status ON invoices(company_id, status);
+CREATE INDEX idx_invoices_client ON invoices(company_id, client_id);
+CREATE INDEX idx_invoices_due_date ON invoices(company_id, due_date) WHERE due_date IS NOT NULL;
+CREATE INDEX idx_invoices_year ON invoices(company_id, invoice_year, progressive_number);
+CREATE INDEX idx_invoice_lines_invoice ON invoice_lines(invoice_id);
+CREATE INDEX idx_invoice_payments_invoice ON invoice_payments(invoice_id);
+```
+
+============================================================
+PROMPT 2 di 5 — EDGE FUNCTIONS: INTEGRAZIONE FATTURE IN CLOUD
+============================================================
+
+Crea le seguenti Supabase Edge Functions per gestire la comunicazione con
+Fatture in Cloud (provider principale) e Invoicetronic (provider alternativo).
+
+---
+
+**FUNZIONE 1: `billing-connect`** — OAuth2 e configurazione provider
+
+```typescript
+// supabase/functions/billing-connect/index.ts
+// Gestisce: OAuth2 callback FIC, salvataggio credenziali cifrate,
+// test connessione, fetch info azienda dal provider
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+const FIC_CLIENT_ID = Deno.env.get("FIC_CLIENT_ID")!;
+const FIC_CLIENT_SECRET = Deno.env.get("FIC_CLIENT_SECRET")!;
+const FIC_REDIRECT_URI = Deno.env.get("FIC_REDIRECT_URI")!;
+
+Deno.serve(async (req) => {
+  const url = new URL(req.url);
+  const action = url.searchParams.get("action");
+
+  // CORS
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, GET",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type",
+      },
+    });
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) return new Response("Unauthorized", { status: 401 });
+
+  const token = authHeader.replace("Bearer ", "");
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !user) return new Response("Unauthorized", { status: 401 });
+
+  // Recupera company_id dell'utente
+  const { data: profile } = await supabase
+    .from("company_users")
+    .select("company_id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!profile?.company_id) return new Response("Company not found", { status: 404 });
+  const companyId = profile.company_id;
+
+  // ACTION: Ottieni URL autorizzazione OAuth2 FIC
+  if (action === "get_auth_url") {
+    const state = btoa(JSON.stringify({ company_id: companyId, timestamp: Date.now() }));
+    const authUrl = `https://api.fattureincloud.it/v2/oauth/authorize?` +
+      `client_id=${FIC_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(FIC_REDIRECT_URI)}` +
+      `&response_type=code` +
+      `&scope=issued_documents:r+issued_documents:w+clients:r+clients:w+products:r+info:r` +
+      `&state=${state}`;
+
+    return new Response(JSON.stringify({ auth_url: authUrl }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // ACTION: Scambia codice OAuth2 con token
+  if (action === "oauth_callback" && req.method === "POST") {
+    const { code } = await req.json();
+
+    const tokenRes = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: FIC_CLIENT_ID,
+        client_secret: FIC_CLIENT_SECRET,
+        redirect_uri: FIC_REDIRECT_URI,
+        code,
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      return new Response(JSON.stringify({ error: "Token exchange failed" }), { status: 400 });
+    }
+
+    const tokenData = await tokenRes.json();
+    const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
+
+    // Recupera info azienda da FIC
+    const infoRes = await fetch("https://api.fattureincloud.it/v2/user/info", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const infoData = infoRes.ok ? await infoRes.json() : null;
+
+    // Lista aziende collegate all'account FIC
+    const companiesRes = await fetch("https://api.fattureincloud.it/v2/user/companies", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const companiesData = companiesRes.ok ? await companiesRes.json() : null;
+    const ficCompany = companiesData?.data?.companies?.[0];
+
+    // Salva l'integrazione
+    const { error: upsertError } = await supabase
+      .from("billing_integrations")
+      .upsert({
+        company_id: companyId,
+        provider: "fattureincloud",
+        is_active: true,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+        token_expires_at: expiresAt,
+        company_external_id: ficCompany?.id?.toString(),
+        provider_company_name: ficCompany?.name,
+        provider_vat_number: ficCompany?.vat_number,
+        auto_sync: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "company_id,provider" });
+
+    if (upsertError) {
+      return new Response(JSON.stringify({ error: upsertError.message }), { status: 500 });
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      company_name: ficCompany?.name,
+      vat_number: ficCompany?.vat_number,
+    }), { headers: { "Content-Type": "application/json" } });
+  }
+
+  // ACTION: Configura provider manuale (Invoicetronic / Fattura24)
+  if (action === "configure_manual" && req.method === "POST") {
+    const { provider, api_key } = await req.json();
+
+    // Test API key
+    let testOk = false;
+    if (provider === "invoicetronic") {
+      const res = await fetch("https://api.invoicetronic.com/invoice/v1/company", {
+        headers: { "x-api-key": api_key },
+      });
+      testOk = res.ok;
+    }
+
+    if (!testOk) {
+      return new Response(JSON.stringify({ error: "API key non valida o provider non raggiungibile" }), {
+        status: 400, headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    await supabase.from("billing_integrations").upsert({
+      company_id: companyId,
+      provider,
+      is_active: true,
+      api_key,
+      auto_sync: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // ACTION: Disconnetti provider
+  if (action === "disconnect" && req.method === "POST") {
+    const { provider } = await req.json();
+    await supabase.from("billing_integrations")
+      .update({ is_active: false, access_token: null, refresh_token: null, api_key: null })
+      .eq("company_id", companyId)
+      .eq("provider", provider);
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  return new Response("Not found", { status: 404 });
+});
+```
+
+---
+
+**FUNZIONE 2: `billing-sync`** — Sincronizzazione fatture con il provider esterno
+
+```typescript
+// supabase/functions/billing-sync/index.ts
+// Gestisce: push fattura verso FIC, pull stato SDI, refresh token OAuth2
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+Deno.serve(async (req) => {
+  const body = await req.json();
+  const { invoice_id, action, company_id } = body;
+
+  // ACTION: push_to_provider — invia fattura a FIC
+  if (action === "push_to_provider") {
+    const { data: invoice } = await supabase
+      .from("invoices")
+      .select("*, invoice_lines(*)")
+      .eq("id", invoice_id)
+      .single();
+
+    if (!invoice) return new Response(JSON.stringify({ error: "Invoice not found" }), { status: 404 });
+
+    const { data: integration } = await supabase
+      .from("billing_integrations")
+      .select("*")
+      .eq("company_id", invoice.company_id)
+      .eq("is_active", true)
+      .limit(1)
+      .single();
+
+    if (!integration) {
+      return new Response(JSON.stringify({ error: "No active billing integration" }), { status: 400 });
+    }
+
+    let token = integration.access_token;
+
+    // Refresh token se scaduto (FIC OAuth2)
+    if (integration.provider === "fattureincloud" && integration.token_expires_at) {
+      const expiresAt = new Date(integration.token_expires_at);
+      if (expiresAt < new Date(Date.now() + 5 * 60 * 1000)) {
+        const refreshed = await refreshFICToken(integration);
+        if (refreshed) {
+          token = refreshed.access_token;
+          await supabase.from("billing_integrations").update({
+            access_token: refreshed.access_token,
+            token_expires_at: new Date(Date.now() + refreshed.expires_in * 1000).toISOString(),
+          }).eq("id", integration.id);
+        }
+      }
+    }
+
+    if (integration.provider === "fattureincloud") {
+      return await pushToFIC(invoice, integration, token);
+    } else if (integration.provider === "invoicetronic") {
+      return await pushToInvoicetronic(invoice, integration);
+    }
+  }
+
+  // ACTION: fetch_status — recupera stato SDI dal provider
+  if (action === "fetch_status") {
+    // Implementa fetch stato da provider esterno
+    const { data: invoice } = await supabase
+      .from("invoices")
+      .select("external_id, external_provider, company_id")
+      .eq("id", invoice_id)
+      .single();
+
+    if (!invoice?.external_id) {
+      return new Response(JSON.stringify({ error: "Invoice not synced yet" }), { status: 400 });
+    }
+
+    const { data: integration } = await supabase
+      .from("billing_integrations")
+      .select("*")
+      .eq("company_id", invoice.company_id)
+      .eq("provider", invoice.external_provider)
+      .single();
+
+    if (integration?.provider === "fattureincloud") {
+      const res = await fetch(
+        `https://api.fattureincloud.it/v2/c/${integration.company_external_id}/issued_documents/${invoice.external_id}`,
+        { headers: { Authorization: `Bearer ${integration.access_token}` } }
+      );
+      const data = await res.json();
+      const ficStatus = data?.data?.status;
+
+      // Mappa status FIC → status interno
+      const statusMap: Record<string, string> = {
+        "ok": "delivered",
+        "not_sent": "issued",
+        "sending": "sent",
+        "error": "issued",
+      };
+
+      if (ficStatus && statusMap[ficStatus]) {
+        await supabase.from("invoices").update({
+          external_status: ficStatus,
+          status: statusMap[ficStatus],
+        }).eq("id", invoice_id);
+      }
+
+      return new Response(JSON.stringify({ status: ficStatus }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400 });
+});
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+async function refreshFICToken(integration: Record<string, unknown>) {
+  const FIC_CLIENT_ID = Deno.env.get("FIC_CLIENT_ID")!;
+  const FIC_CLIENT_SECRET = Deno.env.get("FIC_CLIENT_SECRET")!;
+
+  const res = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: FIC_CLIENT_ID,
+      client_secret: FIC_CLIENT_SECRET,
+      refresh_token: integration.refresh_token as string,
+    }),
+  });
+  return res.ok ? res.json() : null;
+}
+
+async function pushToFIC(
+  invoice: Record<string, unknown>,
+  integration: Record<string, unknown>,
+  token: string
+) {
+  const lines = invoice.invoice_lines as Array<Record<string, unknown>>;
+
+  // Costruisci payload FIC
+  const ficPayload = {
+    data: {
+      type: invoice.document_type === "credit_note" ? "credit_note" : "invoice",
+      number: invoice.progressive_number,
+      date: invoice.issue_date,
+      client: {
+        name: invoice.client_company_name,
+        vat_number: invoice.client_vat_number || undefined,
+        fiscal_code: invoice.client_fiscal_code || undefined,
+        address_street: invoice.client_address || undefined,
+        address_city: invoice.client_city || undefined,
+        address_postal_code: invoice.client_zip || undefined,
+        address_country: invoice.client_country || "IT",
+        e_invoice: !!(invoice.client_pec || invoice.client_sdi_code),
+        ei_code: invoice.client_sdi_code || undefined,
+        certified_email: invoice.client_pec || undefined,
+      },
+      items_list: lines.map((line) => ({
+        product_id: null,
+        name: line.description,
+        qty: line.quantity,
+        measure: line.unit,
+        net_price: line.unit_price,
+        discount: line.discount_percent || 0,
+        vat: { value: line.tax_rate },
+      })),
+      payment_method: {
+        name: invoice.payment_method || "Bonifico",
+      },
+      notes: invoice.notes || undefined,
+    },
+  };
+
+  const ficCompanyId = integration.company_external_id;
+  const res = await fetch(
+    `https://api.fattureincloud.it/v2/c/${ficCompanyId}/issued_documents`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(ficPayload),
+    }
+  );
+
+  const responseData = await res.json();
+
+  // Log
+  await supabase.from("billing_sync_log").insert({
+    company_id: invoice.company_id,
+    invoice_id: invoice.id,
+    provider: "fattureincloud",
+    direction: "push",
+    action: "create",
+    status: res.ok ? "success" : "error",
+    request_payload: ficPayload,
+    response_payload: responseData,
+    error_message: res.ok ? null : JSON.stringify(responseData),
+  });
+
+  if (!res.ok) {
+    return new Response(JSON.stringify({ error: responseData }), { status: 400 });
+  }
+
+  // Aggiorna fattura con ID esterno
+  await supabase.from("invoices").update({
+    external_id: responseData.data.id?.toString(),
+    external_provider: "fattureincloud",
+    external_sync_at: new Date().toISOString(),
+    status: "sent",
+  }).eq("id", invoice.id);
+
+  return new Response(JSON.stringify({ success: true, external_id: responseData.data.id }), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+async function pushToInvoicetronic(
+  invoice: Record<string, unknown>,
+  integration: Record<string, unknown>
+) {
+  // Adattamento per Invoicetronic API
+  const apiKey = integration.api_key as string;
+  const lines = invoice.invoice_lines as Array<Record<string, unknown>>;
+
+  const payload = {
+    cessionario_committente: {
+      denominazione: invoice.client_company_name,
+      partita_iva: invoice.client_vat_number,
+      codice_fiscale: invoice.client_fiscal_code,
+      indirizzo: invoice.client_address,
+      cap: invoice.client_zip,
+      comune: invoice.client_city,
+      nazione: invoice.client_country || "IT",
+    },
+    dati_generali_documento: {
+      tipo_documento: "TD01",
+      data: invoice.issue_date,
+      numero: invoice.invoice_number,
+    },
+    dettaglio_linee: lines.map((line, i) => ({
+      numero_linea: i + 1,
+      descrizione: line.description,
+      quantita: line.quantity,
+      unita_misura: line.unit,
+      prezzo_unitario: line.unit_price,
+      aliquota_iva: line.tax_rate,
+    })),
+    codice_destinatario: invoice.client_sdi_code || "0000000",
+    pec_destinatario: invoice.client_pec || undefined,
+  };
+
+  const res = await fetch("https://api.invoicetronic.com/invoice/v1/send", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const responseData = await res.json();
+
+  await supabase.from("billing_sync_log").insert({
+    company_id: invoice.company_id,
+    invoice_id: invoice.id,
+    provider: "invoicetronic",
+    direction: "push",
+    action: "create",
+    status: res.ok ? "success" : "error",
+    response_payload: responseData,
+  });
+
+  if (!res.ok) {
+    return new Response(JSON.stringify({ error: responseData }), { status: 400 });
+  }
+
+  await supabase.from("invoices").update({
+    external_id: responseData.id?.toString(),
+    external_provider: "invoicetronic",
+    external_sync_at: new Date().toISOString(),
+    status: "sent",
+  }).eq("id", invoice.id);
+
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { "Content-Type": "application/json" },
+  });
+}
+```
+
+**FUNZIONE 3: `billing-webhook`** — Riceve notifiche push dai provider esterni
+
+```typescript
+// supabase/functions/billing-webhook/index.ts
+// Riceve webhook da FIC e Invoicetronic per aggiornamenti stato SDI
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+Deno.serve(async (req) => {
+  const provider = new URL(req.url).searchParams.get("provider") || "fattureincloud";
+  const body = await req.json();
+
+  // Fatture in Cloud webhook
+  if (provider === "fattureincloud") {
+    const { data: invoiceRef } = body;
+    if (!invoiceRef?.id) return new Response("ok");
+
+    // Trova la fattura interna tramite external_id
+    const { data: invoice } = await supabase
+      .from("invoices")
+      .select("id, company_id")
+      .eq("external_id", invoiceRef.id.toString())
+      .eq("external_provider", "fattureincloud")
+      .single();
+
+    if (invoice) {
+      const statusMap: Record<string, string> = {
+        "ok": "delivered",
+        "error": "issued",
+        "sending": "sent",
+        "not_sent": "issued",
+      };
+
+      await supabase.from("invoices").update({
+        external_status: invoiceRef.status,
+        status: statusMap[invoiceRef.status] || "sent",
+        external_sdi_id: invoiceRef.ei_data?.sdi_id?.toString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", invoice.id);
+
+      // Log
+      await supabase.from("billing_sync_log").insert({
+        company_id: invoice.company_id,
+        invoice_id: invoice.id,
+        provider: "fattureincloud",
+        direction: "pull",
+        action: "webhook",
+        status: "success",
+        response_payload: body,
+      });
+    }
+  }
+
+  return new Response("ok", { status: 200 });
+});
+```
+
+Aggiungi queste variabili d'ambiente ai secrets di Supabase:
+```
+FIC_CLIENT_ID=<ottenuto da developers.fattureincloud.it>
+FIC_CLIENT_SECRET=<ottenuto da developers.fattureincloud.it>
+FIC_REDIRECT_URI=https://<tuo-dominio>/billing/oauth/callback
+```
+
+============================================================
+PROMPT 3 di 5 — PAGINA FATTURAZIONE: LISTA E GESTIONE
+============================================================
+
+Crea la sezione Fatturazione in Gestione Interna.
+Percorso: `/azienda/fatturazione`
+Aggiungila alla sidebar di Gestione Interna sotto la sotto-categoria "Finanza",
+dopo "Costi".
+
+La sezione ha queste sotto-pagine/tab:
+- `/azienda/fatturazione` → Lista fatture (default)
+- `/azienda/fatturazione/nuova` → Crea nuova fattura
+- `/azienda/fatturazione/:id` → Dettaglio/modifica fattura
+- `/azienda/fatturazione/impostazioni` → Configura integrazione esterna
+
+---
+
+**VISTA LISTA FATTURE:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 🧾 Fatturazione                              [+ Nuova Fattura]  │
+├─────────────────────────────────────────────────────────────────┤
+│ KPI Cards (4 in fila):                                          │
+│ [Da incassare: €12.400] [Scadute: €3.200] [Pagate mese: €8.900]│
+│ [Emesse mese: 14]                                               │
+├─────────────────────────────────────────────────────────────────┤
+│ [Tutte] [Bozze] [Emesse] [Inviate SDI] [Pagate] [Scadute]      │
+│ Cerca cliente...   Mese: [Marzo 2025 ▼]   [Esporta CSV]        │
+├──────────┬─────────────────┬────────┬──────────┬───────────────┤
+│ Numero   │ Cliente         │ Data   │ Importo  │ Stato         │
+├──────────┼─────────────────┼────────┼──────────┼───────────────┤
+│ FT-2025- │ Mario Rossi Srl │ 15/03  │ €1.220   │ ✅ Pagata     │
+│ FT-2025- │ Bianchi SpA     │ 10/03  │ €4.800   │ 📨 Inviata SDI│
+│ FT-2025- │ Verdi & Co      │ 01/03  │ €650     │ ⏰ Scaduta    │
+│ FT-2025- │ Tech Innovate   │ 28/02  │ €2.100   │ 📝 Bozza      │
+├──────────┴─────────────────┴────────┴──────────┴───────────────┤
+│                                          Totale: €8.770 (4/14) │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+Badge stati con colori:
+- 📝 Bozza → grigio
+- 📤 Emessa → blue
+- 📨 Inviata SDI → orange
+- ✅ Consegnata → teal
+- 💰 Pagata → green
+- ⏰ Scaduta → red
+
+Ogni riga ha menu azioni (⋮):
+- Modifica (solo se Bozza)
+- Duplica
+- Segna come pagata
+- Invia/Risincronizza con [Provider]
+- Scarica PDF
+- Emetti nota di credito
+- Elimina (solo se Bozza)
+
+---
+
+**EDITOR FATTURA (nuova / modifica):**
+
+Layout a 2 colonne su desktop (form a sinistra, anteprima a destra):
+
+**Sezione 1 — Intestazione:**
+- Tipo documento (Fattura / Proforma / Nota credito) → Select
+- Data emissione → DatePicker (default: oggi)
+- Scadenza pagamento → DatePicker con shortcuts: +30gg, +60gg, +90gg
+- Numero progressivo → auto-generato, modificabile
+
+**Sezione 2 — Cliente:**
+- Ricerca cliente dal database Contatti → Autocomplete
+  (pre-compila tutti i campi automaticamente)
+- Se cliente non trovato → form inline per inserimento rapido
+- Campi: Ragione Sociale, P.IVA, Codice Fiscale, Indirizzo, Città, CAP, Paese
+- Campi e-fattura: Codice SDI (7 caratteri) / PEC destinatario
+- Avviso visivo se Codice SDI / PEC mancanti (necessari per fattura elettronica)
+
+**Sezione 3 — Righe:**
+- Tabella con colonne: Descrizione | Q.tà | U.M. | Prezzo Unit. | Sconto% | IVA% | Totale
+- [+ Aggiungi riga] in fondo alla tabella
+- Ogni riga ha un bottone × per eliminarla
+- Ricerca prodotti/servizi dal catalogo (se implementato) con Autocomplete
+- Totali calcolati in tempo reale in fondo: Imponibile | IVA | Totale
+
+**Sezione 4 — Pagamento:**
+- Metodo pagamento → Select (Bonifico, Contanti, Assegno, Carta)
+- IBAN → Text input (pre-compilato dalle impostazioni azienda)
+- Note → Textarea
+- Note piè di pagina → Textarea
+
+**Pulsanti azione:**
+- [Salva Bozza] → salva in stato draft
+- [Emetti Fattura] → blocca la fattura (non più modificabile), genera numero definitivo
+- [Emetti e Invia a FIC] → emette + push automatico al provider esterno
+
+---
+
+**IMPOSTAZIONI INTEGRAZIONE (/azienda/fatturazione/impostazioni):**
+
+Tab con due opzioni di connessione:
+
+**Tab 1 — Fatture in Cloud (consigliato):**
+```
+┌─────────────────────────────────────────────────────────┐
+│ 🔗 Connetti Fatture in Cloud                            │
+│                                                         │
+│ Fatture in Cloud è il software di fatturazione più      │
+│ usato in Italia. Connettendolo, le fatture emesse qui   │
+│ verranno sincronizzate automaticamente e inviate        │
+│ all'Agenzia delle Entrate tramite SDI.                  │
+│                                                         │
+│ [Connetti con Fatture in Cloud →]  ← bottone OAuth2    │
+│                                                         │
+│ ℹ️  Non hai Fatture in Cloud? Puoi usare il modulo     │
+│    standalone (PDF only, senza invio SDI).              │
+└─────────────────────────────────────────────────────────┘
+```
+
+Se già connesso:
+```
+┌─────────────────────────────────────────────────────────┐
+│ ✅ Connesso a Fatture in Cloud                          │
+│ Azienda: Mario Rossi Srl  |  P.IVA: 12345678901        │
+│ Ultima sincronizzazione: 2 ore fa — ✅ Successo        │
+│                                                         │
+│ [Sincronizza ora]  [Disconnetti]                        │
+│                                                         │
+│ ⚙️ Auto-sincronizzazione: [ON/OFF toggle]              │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Tab 2 — Altri provider:**
+- Invoicetronic: campo API Key + bottone "Testa connessione"
+- Fattura24: campo API Key + bottone "Testa connessione"
+- Solo PDF (nessuna integrazione): opzione standalone
+
+============================================================
+PROMPT 4 di 5 — ANTEPRIMA PDF E SCADENZARIO
+============================================================
+
+**PARTE A: Generazione PDF fattura**
+
+Crea una Supabase Edge Function `generate-invoice-pdf` che genera il PDF della fattura.
+
+Usa `pdf-lib` (già installata nel progetto se il modulo preventivi è attivo).
+
+Il PDF deve includere:
+- Header: logo azienda (da `companies.logo_url`) + ragione sociale + P.IVA + indirizzo
+- Numero fattura, data emissione, data scadenza
+- Box cliente con tutti i dati
+- Tabella righe: descrizione, q.tà, u.m., prezzo unit., sconto, IVA, totale riga
+- Totali: imponibile, IVA per aliquota (22%, 10%, ecc.), totale fattura
+- Dati pagamento: metodo, IBAN, scadenza
+- Note e footer
+- Watermark "BOZZA" in diagonale se status = 'draft'
+- Watermark "ANNULLATA" se status = 'cancelled'
+
+Salva il PDF generato su Supabase Storage:
+- Bucket: `invoices-pdf` (privato)
+- Path: `{company_id}/{invoice_year}/{invoice_number}.pdf`
+
+Aggiungi una colonna alla tabella invoices:
+```sql
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_url TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_generated_at TIMESTAMPTZ;
+```
+
+---
+
+**PARTE B: Scadenzario**
+
+Nella sidebar di Gestione Interna, sotto "Finanza", aggiungi la voce "Scadenzario"
+che porta a `/azienda/scadenzario`.
+
+Questa pagina mostra un calendario/lista di tutte le scadenze finanziarie:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 📅 Scadenzario                                              │
+├─────────────────────────────────────────────────────────────┤
+│ Vista: [Lista] [Calendario]          Mese: [Aprile 2025 ▼]  │
+├─────────────────────────────────────────────────────────────┤
+│ SCADUTO (3)                                                  │
+│ ❌ FT-2025-0008 — Bianchi SpA — €2.400 — scad. 01/03       │
+│ ❌ FT-2025-0005 — Verdi Srl — €890 — scad. 15/02           │
+│                                                              │
+│ QUESTA SETTIMANA (2)                                         │
+│ ⚠️  FT-2025-0015 — Tech Innovate — €1.100 — scad. 12/04   │
+│ ⚠️  FT-2025-0016 — Rossi SpA — €3.200 — scad. 14/04       │
+│                                                              │
+│ PROSSIMI 30 GIORNI (5)                                       │
+│ 🔵 FT-2025-0017 — ...                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Implementa la query RPC `get_scadenzario`:
+```sql
+CREATE OR REPLACE FUNCTION get_scadenzario(
+  p_company_id UUID,
+  p_from_date DATE DEFAULT CURRENT_DATE - INTERVAL '30 days',
+  p_to_date DATE DEFAULT CURRENT_DATE + INTERVAL '90 days'
+)
+RETURNS TABLE (
+  invoice_id UUID,
+  invoice_number TEXT,
+  client_name TEXT,
+  due_date DATE,
+  total NUMERIC,
+  paid_amount NUMERIC,
+  remaining NUMERIC,
+  status TEXT,
+  days_until_due INTEGER,
+  urgency TEXT  -- 'overdue' | 'critical' (<7gg) | 'warning' (<30gg) | 'ok'
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    i.id,
+    i.invoice_number,
+    i.client_company_name,
+    i.due_date,
+    i.total,
+    i.paid_amount,
+    (i.total - i.paid_amount) AS remaining,
+    i.status,
+    (i.due_date - CURRENT_DATE)::INTEGER AS days_until_due,
+    CASE
+      WHEN i.due_date < CURRENT_DATE THEN 'overdue'
+      WHEN i.due_date <= CURRENT_DATE + 7 THEN 'critical'
+      WHEN i.due_date <= CURRENT_DATE + 30 THEN 'warning'
+      ELSE 'ok'
+    END AS urgency
+  FROM invoices i
+  WHERE i.company_id = p_company_id
+    AND i.status NOT IN ('paid', 'cancelled', 'draft')
+    AND i.due_date BETWEEN p_from_date AND p_to_date
+  ORDER BY i.due_date ASC;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+Aggiungi anche un alert automatico nel Cruscotto Aziendale:
+- Se ci sono fatture scadute → banner rosso in cima alla dashboard
+- Se ci sono fatture in scadenza entro 7 giorni → banner arancione
+
+============================================================
+PROMPT 5 di 5 — INTEGRAZIONE CON MODULI ESISTENTI
+============================================================
+
+Collega il modulo Fatturazione con i moduli già esistenti nel gestionale.
+
+**A. Da Ordini → Fattura:**
+
+Nella pagina dettaglio ordine (`/azienda/ordini/:id`), quando lo stato dell'ordine
+è "completed", aggiungi un pulsante:
+
+```
+[🧾 Genera Fattura da questo Ordine]
+```
+
+Al click:
+1. Pre-compila automaticamente una nuova fattura con:
+   - Cliente dall'ordine
+   - Righe dall'ordine (prodotti/servizi + prezzi)
+   - Note dall'ordine
+2. Apre `/azienda/fatturazione/nuova?from_order={order_id}` con i dati pre-compilati
+3. Dopo emissione fattura, aggiorna l'ordine con `invoice_id` collegato
+4. Nella lista ordini, mostra un badge "Fatturato" sugli ordini che hanno una fattura emessa
+
+**B. Da Preventivi → Fattura:**
+
+Nella pagina dettaglio preventivo, quando lo stato è "accepted", aggiungi:
+
+```
+[🧾 Converti in Fattura]
+```
+
+Stesso meccanismo degli ordini: pre-compilazione e collegamento.
+
+**C. Da Contatti → Storico fatture:**
+
+Nella pagina dettaglio contatto/cliente, aggiungi un tab "Fatture" che mostra
+tutte le fatture emesse per quel cliente con totali, stati e link diretto.
+
+**D. Nel Cruscotto Aziendale:**
+
+Aggiorna il componente `FinanzaCashFlow` per includere dati reali dalla tabella `invoices`:
+- "Crediti da incassare" = SUM(total - paid_amount) WHERE status IN ('issued','sent','delivered','overdue')
+- "Incassato questo mese" = SUM(paid_amount) WHERE payment_date IN questo mese
+- "Fatture scadute" = conteggio WHERE status = 'overdue'
+
+Usa la RPC `get_scadenzario` già creata al Prompt 4.
+
+**E. Variabili Ambiente da configurare su Supabase:**
+
+```
+FIC_CLIENT_ID          = (da https://developers.fattureincloud.it → registra app OAuth2)
+FIC_CLIENT_SECRET      = (stesso)
+FIC_REDIRECT_URI       = https://TUO-DOMINIO.lovable.app/billing/oauth/callback
+INVOICETRONIC_API_URL  = https://api.invoicetronic.com/invoice/v1
+```
+
+**NOTE FINALI IMPORTANTI:**
+- Il modulo funziona ANCHE senza integrazione esterna (PDF standalone)
+- La sincronizzazione esterna è sempre opt-in, non obbligatoria
+- Non memorizzare mai credenziali in chiaro nel frontend
+- Il numero fattura viene sempre generato server-side (RPC) per evitare buchi di numerazione
+- Le fatture in stato "issued", "sent", "delivered", "paid" NON sono modificabili dal frontend
+  (solo i campi: note interne, data pagamento, importo pagato)

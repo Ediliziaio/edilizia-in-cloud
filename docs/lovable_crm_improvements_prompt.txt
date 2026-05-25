@@ -1,0 +1,776 @@
+================================================================================
+PROMPT LOVABLE — MIGLIORAMENTI CRM E AREA COMMERCIALE
+Visione strategica da: CRM Expert + Sales Manager + Data Analyst
+================================================================================
+Implementa le funzionalità in FASI, una alla volta.
+Non cambiare la struttura esistente — aggiungi e migliora.
+================================================================================
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  CONTESTO: COSA C'È GIÀ (non toccare)                                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+L'app ha già:
+✓ Pipeline Kanban con stage
+✓ Lead scoring (0-100) + ICP tier (A/B/C/D)
+✓ Sales velocity (€/giorno)
+✓ Weighted pipeline per stage
+✓ Stalled opportunities detection
+✓ Dashboard KPI (leads, appointments, close rate, revenue, ecc.)
+✓ Sales targets per venditore
+✓ Conversion by source
+✓ Forecast 3 mesi (semplice)
+✓ Seller performance comparison
+✓ Call center metrics
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C1 — DEAL HEALTH SCORE (opportunità, non lead)                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: Il lead score misura la qualità del LEAD. Ma non esiste un punteggio
+che misura la SALUTE di una trattativa aperta. Un deal può essere un lead A+
+ma essere in stallo da 30 giorni senza attività.
+
+COSA IMPLEMENTARE:
+
+1. Crea `src/lib/dealHealthScore.ts`:
+
+```typescript
+export interface DealHealthInput {
+  daysSinceLastActivity: number | null  // gg dall'ultima nota/chiamata/email
+  daysSinceStageChange: number          // gg nell'attuale stage
+  hasNextActionSet: boolean             // campo next_action compilato
+  hasExpectedCloseDate: boolean         // data chiusura prevista settata
+  closeDate: Date | null                // se è passata (deal scaduto?)
+  probabilityPercent: number            // 0-100
+  numberOfActivities: number            // note + appuntamenti totali
+  hasDecisionMaker: boolean            // contatto è decision maker?
+  avgStageDays: number                  // media storica giorni in questo stage
+}
+
+export interface DealHealth {
+  score: number           // 0-100
+  status: 'healthy' | 'at_risk' | 'critical' | 'dead'
+  badge: string           // testo breve da mostrare in UI
+  color: string           // classe CSS tailwind
+  reasons: string[]       // lista di motivazioni leggibili
+}
+
+export function calculateDealHealth(input: DealHealthInput): DealHealth {
+  let score = 100
+  const reasons: string[] = []
+
+  // Attività recente (-30 se nessuna attività negli ultimi 7gg)
+  if (input.daysSinceLastActivity === null || input.daysSinceLastActivity > 14) {
+    score -= 30
+    reasons.push('Nessuna attività recente')
+  } else if (input.daysSinceLastActivity > 7) {
+    score -= 15
+    reasons.push('Attività scarsa (ultima > 7gg)')
+  }
+
+  // Stage stagnante (confronta con media storica)
+  if (input.avgStageDays > 0 && input.daysSinceStageChange > input.avgStageDays * 1.5) {
+    score -= 20
+    reasons.push(`Bloccato in stage ${Math.round(input.daysSinceStageChange)}gg (media: ${Math.round(input.avgStageDays)}gg)`)
+  }
+
+  // Nessuna prossima azione settata
+  if (!input.hasNextActionSet) {
+    score -= 15
+    reasons.push('Nessuna azione pianificata')
+  }
+
+  // Nessuna data di chiusura
+  if (!input.hasExpectedCloseDate) {
+    score -= 10
+    reasons.push('Data chiusura non settata')
+  }
+
+  // Close date passata
+  if (input.closeDate && input.closeDate < new Date()) {
+    score -= 20
+    reasons.push('Data chiusura scaduta!')
+  }
+
+  // Poche attività totali (deal non lavorato)
+  if (input.numberOfActivities < 2) {
+    score -= 10
+    reasons.push('Meno di 2 contatti registrati')
+  }
+
+  score = Math.max(0, score)
+
+  const status = score >= 70 ? 'healthy'
+    : score >= 40 ? 'at_risk'
+    : score >= 20 ? 'critical'
+    : 'dead'
+
+  const badge = status === 'healthy' ? 'In buona salute'
+    : status === 'at_risk' ? 'A rischio'
+    : status === 'critical' ? 'Critico'
+    : 'Da recuperare'
+
+  const color = status === 'healthy' ? 'text-emerald-600 bg-emerald-50'
+    : status === 'at_risk' ? 'text-amber-600 bg-amber-50'
+    : 'text-red-600 bg-red-50'
+
+  return { score, status, badge, color, reasons }
+}
+```
+
+2. Mostra il Deal Health Badge nella kanban card di ogni opportunità:
+   - Un piccolo indicatore colorato (punto o badge) nell'angolo della card
+   - Tooltip con il punteggio e le reasons al hover
+   - Nella OpportunityListView, aggiungi una colonna "Salute"
+
+3. Nel SalesOSDashboard, aggiungi una sezione "Deal Health Overview":
+   - 4 contatori: Healthy / At Risk / Critical / Dead
+   - Filtro rapido per vedere solo i critical/dead
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C2 — WIN/LOSS ANALYSIS (perché si vince e perché si perde)           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: L'app traccia se un deal è vinto o perso e il motivo di perdita,
+ma non analizza questi dati. Sapere PERCHÉ si perde è oro puro per un
+sales manager: permette coaching, prodotto migliorato, pricing corretto.
+
+COSA IMPLEMENTARE:
+
+1. Aggiungi un nuovo tab "Win/Loss" nel SalesOSDashboard con il componente
+   `WinLossAnalysis.tsx` in `src/components/opportunities/`:
+
+```typescript
+// src/components/opportunities/WinLossAnalysis.tsx
+// Query da aggiungere in useSalesOS.ts:
+
+export function useWinLossAnalysis() {
+  const { effectiveCompany } = useAuth()
+  const companyId = effectiveCompany?.id || null
+
+  return useQuery({
+    queryKey: ['win-loss-analysis', companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('marketing_opportunities')
+        .select('status, value, lost_reason, source, created_at, updated_at')
+        .eq('company_id', companyId!)
+        .in('status', ['won', 'lost'])
+        .order('updated_at', { ascending: false })
+      if (error) throw error
+      return data
+    },
+    enabled: !!companyId,
+    staleTime: 10 * 60 * 1000,
+  })
+}
+```
+
+2. Il componente `WinLossAnalysis.tsx` mostra 4 sezioni:
+
+   SEZIONE A — KPI Comparativi:
+   - Win Rate globale (won / (won + lost)) con trend mensile
+   - Avg deal size vinti vs persi (se i vinti hanno valore medio più alto = buon segno)
+   - Avg cycle days vinti vs persi (se i vinti chiudono più in fretta = buon segno)
+   - Lost Revenue (SUM valore dei deal persi) — "quanto hai lasciato sul tavolo"
+
+   SEZIONE B — Motivi di Perdita (Pareto chart):
+   - Grafico a barre orizzontali con i motivi di perdita ordinati per frequenza
+   - % sul totale dei deal persi accanto a ogni motivo
+   - Valore perso per ogni motivo
+   - Evidenzia il motivo principale con: "Il {X}% delle perdite è dovuto a: [motivo]"
+
+   SEZIONE C — Win Rate per Fonte:
+   - Tabella: Fonte | Totale Opportunità | Vinte | Perse | Win Rate | Valore Medio
+   - Evidenzia la fonte con win rate più alto (la migliore)
+   - Evidenzia la fonte con win rate più basso (da ottimizzare o tagliare)
+
+   SEZIONE D — Trend Mensile Win/Loss:
+   - Grafico a linee: won_count e lost_count per mese (ultimi 12 mesi)
+   - Seconda linea: win_rate% per mese
+   - Permette di vedere se sta migliorando o peggiorando nel tempo
+
+3. Nel OpportunityDetailDialog, quando si marca un'opportunità come "Persa",
+   il campo lost_reason diventa OBBLIGATORIO (validazione con messaggio d'errore
+   se vuoto). Aggiungi anche un campo "Persa a favore di chi?" (concorrente):
+   ```
+   Campo: lost_to_competitor (text opzionale)
+   Placeholder: "Es: Concorrente X, Cliente non ha proceduto, Budget tagliato..."
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C3 — PIPELINE HEALTH CHECK (la pipeline è abbastanza piena?)         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA CRITICO PER IL SALES MANAGER: Sapere se la pipeline attuale è
+sufficiente a raggiungere il target del mese/trimestre.
+Formula: Per raggiungere target di €X con win rate del Y%, devi avere
+almeno €(X / Y * 100) in pipeline. Se ne hai meno, sei in deficit.
+
+COSA IMPLEMENTARE:
+
+1. Crea il componente `PipelineHealthCheck.tsx` in `src/components/opportunities/`
+   e aggiungilo nel SalesOSDashboard (sopra tutto, come alert prioritario):
+
+```typescript
+interface PipelineHealthCheckProps {
+  currentPipelineValue: number      // totale valore deal aperti
+  weightedPipelineValue: number     // pipeline pesata per probabilità
+  monthlyTarget: number             // target del mese corrente
+  currentMonthRevenue: number       // revenue già chiusa questo mese
+  winRate: number                   // win rate storico (0-100)
+  avgCycleDays: number              // media giorni per chiudere
+}
+
+// Calcoli interni:
+// Pipeline necessaria = (target - revenue già chiusa) / (winRate / 100)
+// Coverage ratio = currentPipelineValue / pipelineNecessaria
+// Se coverage < 1: DEFICIT — "Ti mancano €X in pipeline"
+// Se coverage 1-2: OK ma al limite
+// Se coverage > 2: BUONA copertura
+// Se coverage > 3: OTTIMA copertura
+```
+
+2. Il componente mostra una card con:
+   - Una barra di progresso colorata (rosso/giallo/verde) con il coverage ratio
+   - In rosso se < 100%: "⚠ Pipeline INSUFFICIENTE — mancano €X per raggiungere il target"
+   - In giallo se 100-150%: "Pipeline al limite — copertura {X}x il target"
+   - In verde se > 150%: "Pipeline sana — copertura {X}x il target"
+   - Nota: "Con il tuo win rate del {Y}% e {Z} deal aperti, la previsione è €W"
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C4 — ATTIVITÀ CADENCE TRACKER (il venditore lavora o no?)            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: Il dashboard mostra risultati (won, revenue) ma non l'ATTIVITÀ
+quotidiana che genera quei risultati. Un buon sales manager vuole sapere:
+"Quante chiamate ha fatto oggi Luca? Quante email ha mandato?"
+L'activity-based selling dice: se fai le attività giuste, i risultati arrivano.
+
+COSA IMPLEMENTARE:
+
+1. Nel tab "Team" del SalesOSDashboard, aggiungi una sezione
+   "Attività Questa Settimana" con il componente `ActivityLeaderboard.tsx`:
+
+   Per ogni venditore, mostra:
+   - Note create (= contatti/chiamate registrate)
+   - Appuntamenti fissati
+   - Appuntamenti completati
+   - Stage changes (= deal avanzati nella pipeline)
+   - Rispetto target attività (se configurato)
+
+   Query da aggiungere in useSalesOS.ts:
+   ```typescript
+   export function useTeamActivity(weekStart: Date) {
+     const { effectiveCompany } = useAuth()
+     const companyId = effectiveCompany?.id || null
+
+     return useQuery({
+       queryKey: ['team-activity', companyId, weekStart.toISOString()],
+       queryFn: async () => {
+         const weekEnd = addDays(weekStart, 7)
+
+         const [notes, appointments] = await Promise.all([
+           supabase
+             .from('marketing_contact_notes')
+             .select('created_by, created_at')
+             .eq('company_id', companyId!)
+             .gte('created_at', weekStart.toISOString())
+             .lt('created_at', weekEnd.toISOString()),
+           supabase
+             .from('appointments')
+             .select('assigned_to, status, appointment_date')
+             .eq('company_id', companyId!)
+             .gte('appointment_date', weekStart.toISOString())
+             .lt('appointment_date', weekEnd.toISOString()),
+         ])
+
+         return { notes: notes.data ?? [], appointments: appointments.data ?? [] }
+       },
+       enabled: !!companyId,
+     })
+   }
+   ```
+
+2. Aggiungi un mini "spark line" (7 punti = 7 giorni) per ogni venditore
+   che mostra il trend di attività della settimana (alto/basso per giorno).
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C5 — LEAD TEMPERATURE (caldo/tiepido/freddo in tempo reale)          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: Il lead score è statico e viene calcolato manualmente.
+Ma un lead che ieri ha risposto a una email è HOT ora, anche se il suo
+score base è basso. La temperatura deve decadere nel tempo automaticamente.
+
+COSA IMPLEMENTARE:
+
+1. Aggiungi la funzione `getLeadTemperature()` in `src/lib/leadScoring.ts`:
+
+```typescript
+export type LeadTemperature = 'hot' | 'warm' | 'cold' | 'frozen'
+
+export interface LeadTemperatureResult {
+  temperature: LeadTemperature
+  label: string              // "Caldo 🔥" / "Tiepido" / "Freddo" / "Inattivo ❄️"
+  colorClass: string         // classe Tailwind
+  decayDays: number          // giorni dall'ultima attività
+  reason: string             // motivazione breve
+}
+
+export function getLeadTemperature(
+  lastActivityDate: Date | null,
+  lastContactedDate: Date | null,
+  hasOpenOpportunity: boolean,
+  recentAppointment: boolean      // appuntamento nelle ultime 48h
+): LeadTemperatureResult {
+  const now = new Date()
+
+  // Se c'è un appuntamento recente o attività in 48h → CALDO
+  if (recentAppointment) {
+    return { temperature: 'hot', label: 'Caldo 🔥', colorClass: 'text-red-600 bg-red-50', decayDays: 0, reason: 'Appuntamento recente' }
+  }
+
+  const daysSinceActivity = lastActivityDate
+    ? differenceInDays(now, lastActivityDate)
+    : 999
+
+  if (daysSinceActivity <= 3) {
+    return { temperature: 'hot', label: 'Caldo 🔥', colorClass: 'text-red-600 bg-red-50', decayDays: daysSinceActivity, reason: `Attivo ${daysSinceActivity}gg fa` }
+  }
+  if (daysSinceActivity <= 14) {
+    return { temperature: 'warm', label: 'Tiepido', colorClass: 'text-amber-600 bg-amber-50', decayDays: daysSinceActivity, reason: `Attivo ${daysSinceActivity}gg fa` }
+  }
+  if (daysSinceActivity <= 30) {
+    return { temperature: 'cold', label: 'Freddo', colorClass: 'text-blue-600 bg-blue-50', decayDays: daysSinceActivity, reason: `Inattivo da ${daysSinceActivity}gg` }
+  }
+  return { temperature: 'frozen', label: 'Inattivo ❄️', colorClass: 'text-slate-500 bg-slate-100', decayDays: daysSinceActivity, reason: `Fermo da ${daysSinceActivity}gg` }
+}
+```
+
+2. Mostra l'indicatore di temperatura:
+   - Come piccola emoji/badge accanto al nome del contatto in ContactsTable
+   - Come filtro rapido in MarketingContacts: "Solo caldi", "Solo freddi"
+   - Nel kanban, i deal freddi hanno la card leggermente satura/grigia
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C6 — RFM ANALYSIS SUI CLIENTI ESISTENTI                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: L'app gestisce i clienti esistenti (orders) ma non li segmenta
+per valore. Chi sono i tuoi clienti migliori? Chi sta diventando inattivo?
+Il modello RFM (Recency, Frequency, Monetary) è il gold standard.
+
+COSA IMPLEMENTARE:
+
+1. Crea `src/hooks/useRfmAnalysis.ts`:
+
+```typescript
+export interface CustomerRfm {
+  customerId: string
+  customerName: string
+  recencyDays: number         // giorni dall'ultimo ordine
+  frequencyCount: number      // numero ordini totali
+  monetaryValue: number       // valore totale ordini
+  recencyScore: number        // 1-5 (5 = recente)
+  frequencyScore: number      // 1-5 (5 = frequente)
+  monetaryScore: number       // 1-5 (5 = alto valore)
+  rfmScore: number            // media 1-15
+  segment: CustomerSegment    // segmento derivato
+}
+
+export type CustomerSegment =
+  | 'champions'        // R5 F5 M5 — i migliori, comprano spesso e tanto
+  | 'loyal'            // R4-5 F4-5 — fedeli, buona frequenza
+  | 'potential_loyal'  // R4-5 F2-3 — hanno potenziale, pochi ordini ancora
+  | 'at_risk'          // R2-3 F4-5 — erano buoni ma non comprano da un po'
+  | 'hibernating'      // R1-2 F2-3 — quasi persi
+  | 'lost'             // R1 F1-2  — da recuperare o abbandonare
+
+export function useRfmAnalysis() {
+  const { effectiveCompany } = useAuth()
+  const companyId = effectiveCompany?.id || null
+
+  return useQuery({
+    queryKey: ['rfm-analysis', companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('customer_id, total_amount, created_at, customer:profiles!orders_customer_id_fkey(first_name, last_name)')
+        .eq('company_id', companyId!)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return computeRfm(data ?? [])
+    },
+    enabled: !!companyId,
+    staleTime: 30 * 60 * 1000, // 30 min: non cambia spesso
+  })
+}
+```
+
+2. Crea la pagina `src/pages/azienda/RfmAnalysis.tsx` con:
+   - Route: `/azienda/clienti/rfm`
+   - Link dal CustomersList (tab o bottone "Analisi RFM")
+
+   LAYOUT IN 3 SEZIONI:
+
+   SEZIONE A — Matrice RFM (visual):
+   Una griglia 5x5 (Recency su X, Frequency su Y) dove ogni cella
+   mostra il numero di clienti in quel quadrante, colorata per valore
+   monetario medio (da bianco a verde scuro = più valore).
+
+   SEZIONE B — Segmenti (card per segmento):
+   6 card colorate, una per segmento:
+   - Champions (verde): "X clienti — €Y valore totale"
+   - Loyal (blu): ...
+   - At Risk (arancio): "⚠ X clienti fedeli che non comprano da >90gg"
+   - Lost (rosso): "X clienti persi — €Y valore da recuperare"
+
+   SEZIONE C — Lista clienti filtrata:
+   Tabella con tutti i clienti, colonne: Nome | Ultimo Ordine | N.Ordini | Valore Tot. | Segmento
+   Filtro per segmento (click sulla card del segmento B filtra la tabella C)
+
+3. Nel CustomersList esistente, aggiungi una colonna "Segmento RFM"
+   con il badge colorato (Champions/Loyal/At Risk/ecc.)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C7 — SALES FORECAST AVANZATO (da lineare a probabilistico)           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: Il forecast attuale usa la media degli ultimi mesi.
+Un forecast migliore usa la pipeline ponderata + trend stagionale
++ velocità attuale per dare 3 scenari: pessimista, base, ottimista.
+
+COSA IMPLEMENTARE:
+
+1. In `useSalesOS.ts`, sostituisci `useSalesForecast()` con una versione
+   a 3 scenari:
+
+```typescript
+export interface ForecastScenario {
+  month: string             // "Aprile 2026"
+  pessimistic: number       // win rate -20%, pipeline attuale
+  base: number              // win rate storico, pipeline attuale
+  optimistic: number        // win rate +20%, pipeline + deal in pipeline
+  pipelineContribution: number  // da deal già aperti questo mese
+  newDealsContribution: number  // da nuovi deal stimati
+}
+
+// Formula:
+// base = (weighted_pipeline_value_this_month * historical_win_rate)
+//      + (estimated_new_deals * historical_win_rate)
+// pessimistic = base * 0.7
+// optimistic = base * 1.3
+```
+
+2. Sostituisci il grafico lineare esistente con un grafico a area
+   che mostra le 3 bande (pessimista in rosso trasparente,
+   base in blu, ottimista in verde trasparente):
+
+```typescript
+// In DashboardForecast.tsx / SalesForecastChart.tsx:
+<AreaChart data={forecastData}>
+  <Area dataKey="optimistic" fill="hsl(var(--primary)/0.1)" stroke="hsl(var(--primary)/0.3)" />
+  <Area dataKey="base" fill="hsl(var(--primary)/0.2)" stroke="hsl(var(--primary))" />
+  <Area dataKey="pessimistic" fill="hsl(var(--destructive)/0.1)" stroke="hsl(var(--destructive)/0.3)" />
+  <ReferenceLine y={monthlyTarget} stroke="hsl(var(--destructive))" strokeDasharray="4 2" label="Target" />
+</AreaChart>
+```
+
+3. Sotto il grafico, mostra una tabella riepilogativa:
+   | Mese | Pessimista | Base | Ottimista | Target | Gap (Base-Target) |
+   La colonna "Gap" è rossa se negativa, verde se positiva.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C8 — NEXT BEST ACTION (cosa fare dopo su ogni deal)                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: Il venditore apre un'opportunità e non sa cosa fare dopo.
+Deve scegliere lui l'azione. Un CRM maturo suggerisce l'azione successiva
+ottimale basandosi sullo stage, sul tempo trascorso e sullo storico.
+
+COSA IMPLEMENTARE:
+
+1. Crea `src/lib/nextBestAction.ts`:
+
+```typescript
+export interface NextBestActionSuggestion {
+  action: string          // testo dell'azione suggerita
+  urgency: 'today' | 'this_week' | 'optional'
+  icon: string            // emoji o nome icona
+  reason: string          // perché questa azione
+}
+
+export function suggestNextAction(
+  stageName: string,
+  daysSinceLastActivity: number | null,
+  hasScheduledAppointment: boolean,
+  daysSinceCreated: number,
+  lostDealsCount: number,           // quante volte si è perso in questo stage
+  previousActions: string[]         // ultime azioni fatte
+): NextBestActionSuggestion {
+  const days = daysSinceLastActivity ?? 99
+
+  // Logica per stage "Nuovo Lead" o primo contatto
+  if (stageName.toLowerCase().includes('nuovo') || daysSinceCreated < 2) {
+    if (days > 1) return {
+      action: 'Chiama entro oggi — i lead freschi si raffreddano in 24h',
+      urgency: 'today',
+      icon: '📞',
+      reason: 'Il tasso di risposta cala del 70% dopo 24h dal primo contatto'
+    }
+  }
+
+  // Nessun appuntamento schedulato
+  if (!hasScheduledAppointment && days > 3) {
+    return {
+      action: 'Proponi un appuntamento di 20 minuti',
+      urgency: days > 7 ? 'today' : 'this_week',
+      icon: '📅',
+      reason: 'Senza appuntamento fissato le probabilità di chiusura sono basse'
+    }
+  }
+
+  // Deal fermo da troppo
+  if (days > 14) {
+    return {
+      action: 'Contatto di rottura — offri qualcosa di nuovo o chiudi il deal',
+      urgency: 'today',
+      icon: '⚡',
+      reason: `Fermo da ${days} giorni: o si sblocca o si qualifica come perso`
+    }
+  }
+
+  // Default: follow-up
+  return {
+    action: 'Follow-up: aggiorna sullo stato della trattativa',
+    urgency: 'this_week',
+    icon: '💬',
+    reason: 'Mantieni vivo il contatto'
+  }
+}
+```
+
+2. Mostra il Next Best Action:
+   - Dentro `OpportunityDetailDialog`, in cima alla sezione attività,
+     mostra un box azzurro/viola con il suggerimento:
+     ```
+     ⚡ Azione suggerita: [testo]
+     Perché: [reason]
+     [Segna come fatto] [Pianifica ora]
+     ```
+   - Nella vista lista delle opportunità, aggiungi una colonna "Prossima azione"
+     con l'icona del suggerimento come tooltip
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C9 — AVERAGE STAGE TIME ANALYSIS (dove si perde il tempo?)           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: Il funnel mostra la conversione tra stage ma non QUANTO TEMPO
+le opportunità passano in ogni stage. Se il 40% del tempo di vendita
+viene speso nello stage "Preventivo inviato" è lì che va ottimizzato.
+
+COSA IMPLEMENTARE:
+
+1. Aggiungi query in `useSalesOS.ts`:
+
+```typescript
+export function useStageTimeAnalysis() {
+  const { effectiveCompany } = useAuth()
+  const companyId = effectiveCompany?.id || null
+
+  return useQuery({
+    queryKey: ['stage-time-analysis', companyId],
+    queryFn: async () => {
+      // Usa marketing_opportunity_activities o un campo stage_changed_at
+      // per calcolare il tempo medio in ogni stage
+      const { data, error } = await supabase
+        .from('marketing_opportunities')
+        .select(`
+          id, status, value,
+          pipeline:marketing_pipelines!inner(name),
+          stage:marketing_pipeline_stages!inner(name, position),
+          created_at, updated_at
+        `)
+        .eq('company_id', companyId!)
+        .in('status', ['won', 'lost'])
+      if (error) throw error
+      return data
+    },
+    enabled: !!companyId,
+    staleTime: 15 * 60 * 1000,
+  })
+}
+```
+
+2. Crea il componente `StageTimeChart.tsx` da aggiungere nel tab "Analisi"
+   del SalesOSDashboard:
+
+   - Grafico a barre orizzontali: ogni stage = una barra
+   - Lunghezza barra = giorni medi in quello stage
+   - Colore: verde se sotto media storica, rosso se sopra
+   - Evidenzia il "collo di bottiglia" (stage con più giorni medi)
+   - Box di insight: "I deal trascorrono in media {X} giorni in '{Stage Name}'.
+     È lo stage più lento. Considera: [suggerimento specifico per il nome stage]"
+
+3. Suggerimenti automatici per stage lento:
+   ```typescript
+   const STAGE_SUGGESTIONS: Record<string, string> = {
+     'preventivo': 'Invia reminder automatico dopo 3gg. Offri una call di chiarimento.',
+     'trattativa': 'Definisci una deadline. Usa BATNA (Best Alternative).',
+     'decisione': 'Coinvolgi il decision maker diretto. Riduci il rischio percepito.',
+     // aggiungi i nomi degli stage del tuo settore
+   }
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C10 — DASHBOARD VENDITORE POTENZIATA                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: La dashboard del venditore (`/venditore/dashboard`) mostra solo
+4 KPI statici sulle commissioni. Un venditore motivato vuole vedere:
+il suo ranking, i suoi obiettivi, il suo "termometro" del mese.
+
+COSA IMPLEMENTARE in `src/pages/venditore/SalespersonDashboard.tsx`:
+
+1. Sostituisci le 4 card con un layout a 2 colonne:
+
+   COLONNA SINISTRA — Il Mio Mese:
+   - Termometro obiettivo: barra verticale con target mensile e valore attuale
+     (es. "€12.500 / €20.000 target — 62% completato")
+   - Giorni lavorativi rimanenti nel mese
+   - "Per raggiungere il target devi chiudere ancora €X"
+   - "Al tuo ritmo attuale chiuderai il mese a €Y"
+
+   COLONNA DESTRA — Le Mie Opportunità:
+   - Lista degli ultimi 5 deal aperti con deal health (da Fase C1)
+   - Clic porta all'opportunità
+   - "Hai {X} deal che non tocchi da >7gg"
+
+2. Aggiungi una sezione "Questa Settimana":
+   - Chiamate/note registrate questa settimana
+   - Appuntamenti completati
+   - Deal avanzati in pipeline
+   - Deal chiusi (won)
+
+3. Aggiungi "La Mia Classifica" (solo se ci sono più venditori):
+   - Mostra la posizione del venditore nel team
+   - "Sei {N°} su {Tot} venditori questo mese"
+   - Non mostrare i nomi degli altri (privacy), solo "1° | 2° | Tu (3°) | 4°"
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C11 — IMPROVEMENTS UI NEL KANBAN E LISTA OPPORTUNITÀ                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+MIGLIORIE RAPIDE da applicare subito senza nuovi hook:
+
+1. KANBAN CARD — mostra più informazioni:
+   Ogni card nell'OpportunityKanbanView deve mostrare:
+   - Nome contatto + icona lead temperature (da Fase C5)
+   - Valore deal (€)
+   - Venditore assegnato (avatar piccolo)
+   - Giorni nello stage corrente (es. "7gg")
+   - Prossima azione o "⚠ Nessuna azione pianificata"
+   - Deal Health badge colorato (da Fase C1)
+
+2. LISTA OPPORTUNITÀ — colonne ottimizzate:
+   Nell'OpportunityListView, le colonne default devono essere:
+   Nome | Contatto | Valore | Stage | Giorni in Stage | Health | Ultimo Contatto | Venditore | Prossima Azione
+
+3. HEADER PIPELINE — statistiche live:
+   Sopra ogni colonna del kanban, oltre al nome dello stage, mostra:
+   - Count deal in quello stage
+   - Valore totale in quello stage
+   - Valore medio per deal (aiuta a capire se si ha troppi deal piccoli)
+   Esempio: "Preventivo Inviato | 4 deal | €18.500 tot | €4.625 avg"
+
+4. QUICK ACTIONS sulla card (hover):
+   Al hover su una card kanban, mostra una mini toolbar:
+   - 📞 Registra chiamata (apre mini form nota)
+   - 📅 Fissa appuntamento
+   - ➡ Avanza stage (muove al prossimo stage)
+   - ✗ Marca come Perso
+
+5. FILTRO "I MIEI DEAL" per venditore:
+   Un toggle rapido in cima al kanban: "Tutti i deal / Solo i miei"
+   (filtra per `assigned_to === currentUser.id`)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE C12 — LEAD SOURCE ATTRIBUTION (attribuzione multi-touch)             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: Attualmente ogni lead ha UNA fonte (Facebook, Google, Passaparola).
+Ma nella realtà un cliente può essere arrivato da Facebook ma poi aver
+trovato il sito su Google e poi aver chiamato per il passaparola.
+Non servono 3 fonti, ma sapere QUAL È la più impattante.
+
+IMPLEMENTAZIONE SEMPLICE (senza cambiare schema):
+
+1. Nel form di creazione opportunità, aggiungi un secondo campo:
+   - `source` (già presente): Prima fonte (come ha saputo di voi)
+   - `closing_source` (nuovo campo opzionale): Fonte decisiva (cosa lo ha convinto)
+
+   SQL migration (commenta come TODO):
+   ```sql
+   -- TODO: SQL MIGRATION NEEDED:
+   -- ALTER TABLE marketing_opportunities ADD COLUMN closing_source TEXT;
+   ```
+
+2. Nel DashboardSourcesTable, aggiungi una sub-tabella:
+   "Fonte Decisiva" (basata su `closing_source` dei deal vinti):
+   Fonte | Deal chiusi | Revenue
+   Questo mostra COSA CHIUDE, non solo cosa genera lead.
+
+3. Aggiungi insight automatico:
+   Se la fonte con più lead ha una win rate < fonte con meno lead:
+   "Il passaparola genera meno lead ma chiude al {X}% vs Facebook che chiude al {Y}%.
+    Considera di investire di più in attività di referral."
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  RIEPILOGO PRIORITÀ DI IMPLEMENTAZIONE                                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+IMPATTO ALTO / SFORZO BASSO (fai subito):
+  ★★★  C1  — Deal Health Score (card migliorata, filtro immediate)
+  ★★★  C5  — Lead Temperature (decay automatico, filtri rapidi)
+  ★★★  C11 — UI Kanban migliorata (info density, quick actions)
+
+IMPATTO ALTO / SFORZO MEDIO (fase successiva):
+  ★★★  C2  — Win/Loss Analysis (capire perché si perde)
+  ★★★  C3  — Pipeline Health Check (abbastanza pipeline per il target?)
+  ★★   C7  — Forecast a 3 scenari (pessimista/base/ottimista)
+  ★★   C10 — Dashboard Venditore potenziata (motivazione e ownership)
+
+IMPATTO MEDIO / SFORZO ALTO (quando hai tempo):
+  ★★   C6  — RFM Analysis clienti esistenti (upsell/churn detection)
+  ★★   C8  — Next Best Action (riduce errori dei venditori junior)
+  ★★   C9  — Stage Time Analysis (ottimizzazione processo vendita)
+  ★    C4  — Activity Cadence Tracker (gestione venditori)
+  ★    C12 — Attribution multi-touch (ottimizzazione marketing spend)
+
+================================================================================
+NOTE PER LOVABLE
+================================================================================
+- NON modificare le RPC Supabase esistenti (get_marketing_dashboard_stats, ecc.)
+- I nuovi hook usano SEMPRE `effectiveCompany?.id` (mai `company?.id`)
+- Tutte le query usano `first_name` + `last_name` (mai `full_name`)
+- I nuovi componenti vanno in src/components/opportunities/ o src/components/crm/
+- I nuovi hook vanno in src/hooks/
+- I nuovi tipi vanno in src/lib/ (non in src/utils/ che non esiste)
+- Per i campi nuovi nel DB, aggiungi solo commenti // TODO: SQL MIGRATION NEEDED
+================================================================================

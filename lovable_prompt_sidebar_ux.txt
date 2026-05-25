@@ -1,0 +1,566 @@
+============================================================
+PROMPT — SIDEBAR UX: MIGLIORAMENTO VISIVO + SUB-CATEGORIE
+============================================================
+
+Questo prompt modifica il file `src/components/layouts/CompanyLayout.tsx`
+che usa Shadcn UI Sidebar + Radix Collapsible.
+
+OBIETTIVO:
+  1. Voce attiva: bordo sinistro colorato (primary) + sfondo primary/10 + testo bold
+  2. Sub-categorie collassabili dentro Gestione Interna e Marketing e Vendita
+  3. Persistenza stato accordion in localStorage
+  4. Auto-espansione della sub-categoria che contiene la route attiva
+
+============================================================
+PARTE 1 — STILE VOCE ATTIVA (bordo sinistro)
+============================================================
+
+In TUTTO il file CompanyLayout.tsx, ovunque trovi questa classe attiva:
+  activeClassName="bg-muted text-foreground font-medium"
+
+Sostituiscila con:
+  activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+
+E modifica la className base dei NavLink da:
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+
+a:
+  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground pl-3"
+
+Il bordo sinistro ha bisogno che il padding sinistro sia consistente.
+Quando la voce è attiva, il `border-l-2` occupa 2px a sinistra quindi
+il contenuto resta allineato grazie al padding pl-3 già presente.
+
+ATTENZIONE: il NavLink del Cruscotto ha già `activeClassName="bg-primary/10 text-primary font-semibold"`,
+aggiungi solo `border-l-2 border-primary` anche lì per coerenza.
+
+============================================================
+PARTE 2 — SUB-CATEGORIE IN GESTIONE INTERNA E MARKETING
+============================================================
+
+Crea il file `src/lib/sidebarSubCategories.ts` che definisce la struttura
+delle sub-categorie basandosi sulle voci già presenti in `sidebarConfig.ts`.
+
+```typescript
+// src/lib/sidebarSubCategories.ts
+
+// Mapping voce (url) → ID della sub-categoria
+// Usato per auto-espandere la sub-categoria corretta sulla route attiva
+export const URL_TO_SUBCATEGORY: Record<string, string> = {
+  // Gestione Interna - Operazioni
+  "/azienda": "gi_operazioni",
+  "/azienda/ordini": "gi_operazioni",
+  "/azienda/magazzino": "gi_operazioni",
+  "/azienda/calendario": "gi_operazioni",
+  // Gestione Interna - Clienti & Supporto
+  "/azienda/clienti": "gi_supporto",
+  "/azienda/ticket": "gi_supporto",
+  // Gestione Interna - Finanza
+  "/azienda/previsionale": "gi_finanza",
+  "/azienda/costi": "gi_finanza",
+  // Gestione Interna - Team
+  "/azienda/dipendenti": "gi_team",
+  "/azienda/errori": "gi_team",
+  "/azienda/messaggistica": "gi_team",
+  "/azienda/chat-interna": "gi_team",
+  // Gestione Interna - Automazione & AI
+  "/azienda/automazioni": "gi_automation",
+  "/azienda/agenti-ai": "gi_automation",
+  // Marketing - CRM
+  "/azienda/marketing": "mkt_crm",
+  "/azienda/marketing/contatti": "mkt_crm",
+  "/azienda/marketing/opportunita": "mkt_crm",
+  "/azienda/marketing/preventivi": "mkt_crm",
+  "/azienda/marketing/tasks": "mkt_crm",
+  // Marketing - Comunicazione
+  "/azienda/marketing/email": "mkt_comunicazione",
+  "/azienda/marketing/whatsapp": "mkt_comunicazione",
+  // Marketing - Automazione & AI
+  "/azienda/marketing/automazioni": "mkt_automation",
+  "/azienda/marketing/agente-ai": "mkt_automation",
+  // Marketing - Analisi
+  "/azienda/marketing/reportistica": "mkt_analisi",
+};
+
+// Stato di default (tutte aperte al primo accesso)
+export const DEFAULT_SUBCATEGORY_STATE: Record<string, boolean> = {
+  gi_operazioni: true,
+  gi_supporto: true,
+  gi_finanza: true,
+  gi_team: true,
+  gi_automation: true,
+  mkt_crm: true,
+  mkt_comunicazione: true,
+  mkt_automation: true,
+  mkt_analisi: true,
+};
+
+// IMPORTANTE: adatta gli URL alle route reali del tuo progetto.
+// Controlla sidebarConfig.ts per i path esatti di ogni voce.
+```
+
+Crea il hook `src/hooks/useSidebarSubCategories.ts`:
+
+```typescript
+// src/hooks/useSidebarSubCategories.ts
+import { useState, useCallback, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import {
+  URL_TO_SUBCATEGORY,
+  DEFAULT_SUBCATEGORY_STATE,
+} from "@/lib/sidebarSubCategories";
+
+const STORAGE_KEY = "sidebar_subcategories_state";
+
+function loadState(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return { ...DEFAULT_SUBCATEGORY_STATE, ...JSON.parse(stored) };
+  } catch {}
+  return { ...DEFAULT_SUBCATEGORY_STATE };
+}
+
+function saveState(state: Record<string, boolean>) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+export function useSidebarSubCategories() {
+  const location = useLocation();
+
+  const [state, setState] = useState<Record<string, boolean>>(() => {
+    const s = loadState();
+    // Auto-espandi la sub-categoria della route corrente al primo render
+    const active = getActiveSubcategory(location.pathname);
+    if (active) s[active] = true;
+    return s;
+  });
+
+  // Auto-espandi quando cambia la route
+  useEffect(() => {
+    const active = getActiveSubcategory(location.pathname);
+    if (active && !state[active]) {
+      setState((prev) => {
+        const next = { ...prev, [active]: true };
+        saveState(next);
+        return next;
+      });
+    }
+  }, [location.pathname]);
+
+  const toggle = useCallback((id: string) => {
+    setState((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      saveState(next);
+      return next;
+    });
+  }, []);
+
+  const isOpen = useCallback(
+    (id: string) => state[id] ?? true,
+    [state]
+  );
+
+  return { toggle, isOpen };
+}
+
+function getActiveSubcategory(pathname: string): string | null {
+  // Cerca prima match esatto, poi match per prefisso (più specifico prima)
+  const sorted = Object.entries(URL_TO_SUBCATEGORY).sort(
+    (a, b) => b[0].length - a[0].length
+  );
+  for (const [url, section] of sorted) {
+    if (pathname === url || pathname.startsWith(url + "/")) {
+      return section;
+    }
+  }
+  return null;
+}
+```
+
+============================================================
+PARTE 3 — COMPONENTE SubCategorySection
+============================================================
+
+Crea il file `src/components/layouts/SubCategorySection.tsx`:
+
+```typescript
+// src/components/layouts/SubCategorySection.tsx
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+interface SubCategorySectionProps {
+  label: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+export function SubCategorySection({
+  label,
+  isOpen,
+  onToggle,
+  children,
+}: SubCategorySectionProps) {
+  return (
+    <div className="mb-0.5">
+      {/* Header sub-categoria */}
+      <button
+        onClick={onToggle}
+        className={cn(
+          "w-full flex items-center justify-between",
+          "px-3 py-1.5",
+          "text-[10px] font-semibold uppercase tracking-[0.08em]",
+          "text-muted-foreground/70 hover:text-muted-foreground",
+          "transition-colors duration-150 cursor-pointer select-none",
+          "rounded-md hover:bg-muted/40"
+        )}
+      >
+        <span>{label}</span>
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 transition-transform duration-200 shrink-0",
+            isOpen ? "rotate-0" : "-rotate-90"
+          )}
+        />
+      </button>
+
+      {/* Voci animate */}
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-200 ease-in-out",
+          isOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+```
+
+PERCHÉ QUESTO STILE:
+- Label 10px uppercase muted: funge da etichetta discreta, non compete con le voci
+- Nessuno sfondo sulla sub-categoria stessa → il bordo sinistro sulla voce attiva
+  è il punto focale, non il contenitore
+- ChevronDown che ruota a -90° quando chiuso (invece di scomparire)
+- Hover sottile: bg-muted/40 arrotondato
+
+============================================================
+PARTE 4 — AGGIORNAMENTO CompanyLayout.tsx
+============================================================
+
+Nel file `src/components/layouts/CompanyLayout.tsx`:
+
+1. Aggiungi gli import in cima:
+```typescript
+import { useSidebarSubCategories } from "@/hooks/useSidebarSubCategories";
+import { SubCategorySection } from "@/components/layouts/SubCategorySection";
+```
+
+2. Nel componente `CompanySidebar()`, aggiungi dopo le variabili esistenti:
+```typescript
+const { toggle, isOpen } = useSidebarSubCategories();
+```
+
+3. Sostituisci il blocco "Gestione Interna" (dalla riga del Collapsible fino a
+   </Collapsible>) con questo codice aggiornato:
+
+```tsx
+{/* Gestione Interna */}
+<Collapsible defaultOpen={!isMarketingRoute && !isCruscottoRoute}>
+  <SidebarGroup>
+    <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+      <span className="flex items-center gap-2">
+        <Briefcase className="h-3.5 w-3.5" />
+        Gestione Interna
+      </span>
+      <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+    </CollapsibleTrigger>
+    <CollapsibleContent>
+      <SidebarGroupContent>
+        <SidebarMenu>
+
+          {/* SUB: Operazioni */}
+          <SubCategorySection
+            label="Operazioni"
+            isOpen={isOpen("gi_operazioni")}
+            onToggle={() => toggle("gi_operazioni")}
+          >
+            {visibleInternalItems
+              .filter((item) => ["gi_operazioni"].includes(
+                URL_TO_SUBCATEGORY[item.url] || ""
+              ))
+              .map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end={item.url === "/azienda"}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+          </SubCategorySection>
+
+          {/* SUB: Clienti & Supporto */}
+          <SubCategorySection
+            label="Clienti & Supporto"
+            isOpen={isOpen("gi_supporto")}
+            onToggle={() => toggle("gi_supporto")}
+          >
+            {visibleInternalItems
+              .filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "gi_supporto")
+              .map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+          </SubCategorySection>
+
+          {/* SUB: Finanza */}
+          <SubCategorySection
+            label="Finanza"
+            isOpen={isOpen("gi_finanza")}
+            onToggle={() => toggle("gi_finanza")}
+          >
+            {visibleInternalItems
+              .filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "gi_finanza")
+              .map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+          </SubCategorySection>
+
+          {/* SUB: Team */}
+          <SubCategorySection
+            label="Team"
+            isOpen={isOpen("gi_team")}
+            onToggle={() => toggle("gi_team")}
+          >
+            {visibleInternalItems
+              .filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "gi_team")
+              .map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                      {item.isBeta && (
+                        <Badge variant="outline" className="ml-auto h-4 text-[9px] px-1 bg-accent text-accent-foreground border-border">BETA</Badge>
+                      )}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+          </SubCategorySection>
+
+          {/* SUB: Automazione & AI */}
+          <SubCategorySection
+            label="Automazione & AI"
+            isOpen={isOpen("gi_automation")}
+            onToggle={() => toggle("gi_automation")}
+          >
+            {visibleInternalItems
+              .filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "gi_automation")
+              .map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+          </SubCategorySection>
+
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </CollapsibleContent>
+  </SidebarGroup>
+</Collapsible>
+```
+
+4. Sostituisci il blocco "Marketing e Vendita" con questo:
+
+```tsx
+{/* Marketing e Vendita */}
+{visibleMarketingItems.length > 0 && (
+  <Collapsible defaultOpen={isMarketingRoute}>
+    <SidebarGroup className="pt-0">
+      <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group">
+        <span className="flex items-center gap-2">
+          <Megaphone className="h-3.5 w-3.5" />
+          Marketing e Vendita
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <SidebarGroupContent>
+          <SidebarMenu>
+
+            {/* SUB: CRM */}
+            <SubCategorySection
+              label="CRM"
+              isOpen={isOpen("mkt_crm")}
+              onToggle={() => toggle("mkt_crm")}
+            >
+              {visibleMarketingItems
+                .filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "mkt_crm")
+                .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end={item.url === "/azienda/marketing"}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+            </SubCategorySection>
+
+            {/* SUB: Comunicazione */}
+            <SubCategorySection
+              label="Comunicazione"
+              isOpen={isOpen("mkt_comunicazione")}
+              onToggle={() => toggle("mkt_comunicazione")}
+            >
+              {visibleMarketingItems
+                .filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "mkt_comunicazione")
+                .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+            </SubCategorySection>
+
+            {/* SUB: Automazione & AI */}
+            <SubCategorySection
+              label="Automazione & AI"
+              isOpen={isOpen("mkt_automation")}
+              onToggle={() => toggle("mkt_automation")}
+            >
+              {visibleMarketingItems
+                .filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "mkt_automation")
+                .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+            </SubCategorySection>
+
+            {/* SUB: Analisi */}
+            <SubCategorySection
+              label="Analisi"
+              isOpen={isOpen("mkt_analisi")}
+              onToggle={() => toggle("mkt_analisi")}
+            >
+              {visibleMarketingItems
+                .filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "mkt_analisi")
+                .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        activeClassName="bg-primary/10 text-primary font-semibold border-l-2 border-primary"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+            </SubCategorySection>
+
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </CollapsibleContent>
+    </SidebarGroup>
+  </Collapsible>
+)}
+```
+
+5. Aggiungi l'import di URL_TO_SUBCATEGORY in cima al file:
+```typescript
+import { URL_TO_SUBCATEGORY } from "@/lib/sidebarSubCategories";
+```
+
+============================================================
+NOTE IMPORTANTI
+============================================================
+
+- Il filtro `.filter((item) => (URL_TO_SUBCATEGORY[item.url] || "") === "gi_operazioni")`
+  usa il mapping da sidebarSubCategories.ts. Se una voce non ha mapping,
+  NON appare in nessuna sub-categoria — non scompare, ma va aggiunto il mapping.
+
+- DOPO l'implementazione: controlla che ogni voce di visibleInternalItems e
+  visibleMarketingItems sia mappata in URL_TO_SUBCATEGORY. Le voci non mappate
+  non saranno visibili. Adatta i path alle URL reali in sidebarConfig.ts.
+
+- La voce Cruscotto rimane standalone sopra Gestione Interna, NON dentro una sub-categoria.
+
+- Il Collapsible esterno (Gestione Interna / Marketing) rimane invariato —
+  collassa tutto il blocco. Le SubCategorySection sono un secondo livello dentro di esso.
+
+- I badge BETA e i permission check (filterNavItems) continuano a funzionare
+  perché i filtri operano su visibleInternalItems/visibleMarketingItems già filtrati.
+
+- NON modificare sidebarConfig.ts, NavLink.tsx, né le route esistenti.

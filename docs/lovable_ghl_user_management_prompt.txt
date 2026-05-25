@@ -1,0 +1,1043 @@
+================================================================================
+PROMPT LOVABLE — GESTIONE UTENTI STILE GHL (GoHighLevel)
+Sistema a 2 livelli: Utenti Piattaforma + Utenti Multi-Azienda
+================================================================================
+
+CONTESTO — COSA C'È GIÀ (non toccare):
+  - Edge Function `manage-super-admins` con actions: list, create, delete,
+    reset-password, get-permissions, update-permissions
+  - Tabella `super_admin_permissions` con permessi on/off
+  - Tabella `user_roles` con campo `role: AppRole`
+  - Tabella `profiles` con company_id nullable
+  - AppRole: "super_admin" | "company_admin" | "company_staff" | ...
+  - SuperAdminUsersTab.tsx, CreateSuperAdminDialog.tsx,
+    SuperAdminPermissionsDialog.tsx già esistenti
+
+OBIETTIVO:
+  Implementare 2 nuovi livelli utenti ispirandosi a GoHighLevel:
+
+  LIVELLO 1 — UTENTI PIATTAFORMA:
+    Staff interno della piattaforma con ruoli predefiniti (non super_admin full).
+    Accedono all'area /admin ma con viste e permessi diversi per ruolo.
+
+  LIVELLO 2 — UTENTI MULTI-AZIENDA:
+    Utenti (consulenti, partner, agenzie) che accedono a PIÙ aziende specifiche
+    ma NON all'area /admin. Si trovano nell'area /azienda ma possono
+    SWITCHARE tra le aziende a cui sono assegnati.
+
+================================================================================
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 1 — DATABASE: NUOVI TIPI E TABELLE                                   ║
+║  (Aggiungi SQL migration comments — NON eseguire il SQL)                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+In cima a `src/types/auth.ts`, aggiungi i commenti con le migration SQL
+e aggiorna i tipi TypeScript:
+
+```typescript
+// ─── SQL MIGRATIONS NEEDED ────────────────────────────────────────────────
+//
+// 1. Nuovi ruoli piattaforma nell'enum (se AppRole è un DB enum):
+// ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'platform_manager';
+// ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'platform_sales';
+// ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'platform_support';
+// ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'platform_marketing';
+// ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'platform_implementation';
+// ALTER TYPE app_role ADD VALUE IF NOT EXISTS 'multi_company_user';
+//
+// 2. Tabella per accesso multi-azienda:
+// CREATE TABLE public.multi_company_access (
+//   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+//   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+//   company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+//   access_role TEXT NOT NULL DEFAULT 'company_staff', -- 'company_admin' | 'company_staff'
+//   granted_by UUID REFERENCES profiles(id),
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   UNIQUE(user_id, company_id)
+// );
+// ALTER TABLE multi_company_access ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "super_admin can manage" ON multi_company_access
+//   FOR ALL USING (
+//     EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'super_admin')
+//   );
+//
+// 3. Campo platform_role nella tabella super_admin_permissions:
+// ALTER TABLE super_admin_permissions
+//   ADD COLUMN IF NOT EXISTS platform_role TEXT DEFAULT 'custom',
+//   ADD COLUMN IF NOT EXISTS job_title TEXT,
+//   ADD COLUMN IF NOT EXISTS department TEXT;
+// ─────────────────────────────────────────────────────────────────────────
+
+// ─── Ruoli piattaforma (staff interno) ───────────────────────────────────
+export type PlatformRole =
+  | 'platform_manager'       // Gestione totale — come super_admin ma senza gestire altri admin
+  | 'platform_sales'         // Vendite — vede aziende, crea trials, gestisce abbonamenti
+  | 'platform_support'       // Customer service — gestisce ticket, può impersonare per supporto
+  | 'platform_marketing'     // Marketing manager — analytics globali, campagne, referral
+  | 'platform_implementation' // Onboarding — implementazioni, feature flags, lifecycle
+  | 'custom'                 // Permessi custom manuali
+
+// Aggiorna AppRole includendo i nuovi:
+export type AppRole =
+  | 'super_admin'
+  | 'platform_manager'
+  | 'platform_sales'
+  | 'platform_support'
+  | 'platform_marketing'
+  | 'platform_implementation'
+  | 'multi_company_user'     // Utente con accesso a più aziende (non area admin)
+  | 'company_admin'
+  | 'company_staff'
+  | 'customer'
+  | 'employee'
+  | 'salesperson'
+  | 'call_center'
+
+// ─── Preset permessi per ogni ruolo piattaforma ──────────────────────────
+export const PLATFORM_ROLE_PRESETS: Record<PlatformRole, SuperAdminPermissions> = {
+  platform_manager: {
+    can_manage_companies: true,
+    can_manage_plans: true,
+    can_manage_tickets: true,
+    can_manage_referrals: true,
+    can_manage_admins: false,      // non può creare/eliminare altri admin
+    can_view_platform_stats: true,
+    allowed_company_ids: null,
+  },
+  platform_sales: {
+    can_manage_companies: true,    // può creare aziende, gestire abbonamenti
+    can_manage_plans: true,        // vede e propone piani
+    can_manage_tickets: false,
+    can_manage_referrals: true,    // gestisce referral e agenti
+    can_manage_admins: false,
+    can_view_platform_stats: true, // vede revenue e KPI
+    allowed_company_ids: null,
+  },
+  platform_support: {
+    can_manage_companies: true,    // può accedere ad aziende per supporto
+    can_manage_plans: false,
+    can_manage_tickets: true,      // gestione totale ticket
+    can_manage_referrals: false,
+    can_manage_admins: false,
+    can_view_platform_stats: false,
+    allowed_company_ids: null,
+  },
+  platform_marketing: {
+    can_manage_companies: false,
+    can_manage_plans: false,
+    can_manage_tickets: false,
+    can_manage_referrals: true,    // programma referral e affiliati
+    can_manage_admins: false,
+    can_view_platform_stats: true, // analytics globali
+    allowed_company_ids: null,
+  },
+  platform_implementation: {
+    can_manage_companies: true,    // lifecycle, feature flags
+    can_manage_plans: false,
+    can_manage_tickets: true,      // vede ticket per onboarding
+    can_manage_referrals: false,
+    can_manage_admins: false,
+    can_view_platform_stats: false,
+    allowed_company_ids: null,
+  },
+  custom: {
+    can_manage_companies: false,
+    can_manage_plans: false,
+    can_manage_tickets: false,
+    can_manage_referrals: false,
+    can_manage_admins: false,
+    can_view_platform_stats: false,
+    allowed_company_ids: null,
+  },
+}
+
+// ─── Descrizioni ruoli piattaforma (per UI) ───────────────────────────────
+export const PLATFORM_ROLE_DESCRIPTIONS: Record<PlatformRole, {
+  label: string
+  description: string
+  icon: string     // nome icona Lucide
+  color: string    // classe Tailwind per badge
+}> = {
+  platform_manager: {
+    label: 'Responsabile Piattaforma',
+    description: 'Accesso completo eccetto la gestione di altri admin. Adatto al responsabile operativo.',
+    icon: 'Shield',
+    color: 'bg-purple-100 text-purple-700 border-purple-200',
+  },
+  platform_sales: {
+    label: 'Sales Manager',
+    description: 'Gestisce aziende, abbonamenti e referral. Vede tutte le metriche revenue.',
+    icon: 'TrendingUp',
+    color: 'bg-green-100 text-green-700 border-green-200',
+  },
+  platform_support: {
+    label: 'Customer Service',
+    description: 'Gestisce ticket e può impersonare aziende per supporto tecnico.',
+    icon: 'Headphones',
+    color: 'bg-blue-100 text-blue-700 border-blue-200',
+  },
+  platform_marketing: {
+    label: 'Marketing Manager',
+    description: 'Accesso ad analytics globali, programma referral e statistiche campagne.',
+    icon: 'Megaphone',
+    color: 'bg-orange-100 text-orange-700 border-orange-200',
+  },
+  platform_implementation: {
+    label: 'Implementation Manager',
+    description: 'Onboarding aziende, gestione lifecycle e feature flags.',
+    icon: 'Workflow',
+    color: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  },
+  custom: {
+    label: 'Permessi Custom',
+    description: 'Configura manualmente i permessi per questo utente.',
+    icon: 'Settings2',
+    color: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
+}
+
+// ─── Accesso multi-azienda ────────────────────────────────────────────────
+export interface MultiCompanyAccess {
+  id: string
+  user_id: string
+  company_id: string
+  access_role: 'company_admin' | 'company_staff'
+  granted_by: string | null
+  created_at: string
+  company?: { id: string; name: string; logo_url: string | null; status: string }
+}
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 2 — REFACTOR: AdminSettingsSuperAdmins.tsx                           ║
+║  Da "gestione super admin" a "gestione team piattaforma"                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Sostituisci completamente `src/pages/admin/settings/AdminSettingsSuperAdmins.tsx`
+con una pagina a 2 TAB:
+
+```typescript
+// src/pages/admin/settings/AdminSettingsSuperAdmins.tsx
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Shield, Users } from "lucide-react"
+import { PlatformTeamTab } from "@/components/admin/settings/PlatformTeamTab"
+import { MultiCompanyUsersTab } from "@/components/admin/settings/MultiCompanyUsersTab"
+
+export default function AdminSettingsSuperAdmins() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Gestione Team</h1>
+        <p className="text-sm text-muted-foreground">
+          Gestisci il team della piattaforma e gli utenti con accesso multi-azienda.
+        </p>
+      </div>
+
+      <Tabs defaultValue="platform-team" className="w-full">
+        <TabsList>
+          <TabsTrigger value="platform-team" className="gap-1.5">
+            <Shield className="h-4 w-4" />
+            Team Piattaforma
+          </TabsTrigger>
+          <TabsTrigger value="multi-company" className="gap-1.5">
+            <Users className="h-4 w-4" />
+            Utenti Multi-Azienda
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="platform-team">
+          <PlatformTeamTab />
+        </TabsContent>
+
+        <TabsContent value="multi-company">
+          <MultiCompanyUsersTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 3 — NUOVO: PlatformTeamTab.tsx                                       ║
+║  Sostituisce SuperAdminUsersTab con ruoli e template                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Crea `src/components/admin/settings/PlatformTeamTab.tsx`:
+
+```typescript
+import { useState } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { supabase } from "@/integrations/supabase/client"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+} from "@/components/ui/table"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Shield, MoreVertical, Plus, KeyRound, Trash2,
+  Settings2, UserCheck } from "lucide-react"
+import { toast } from "sonner"
+import { CreatePlatformUserDialog } from "./CreatePlatformUserDialog"
+import { PlatformPermissionsDialog } from "./PlatformPermissionsDialog"
+import { ResetPasswordDialog } from "./ResetPasswordDialog"
+import { PLATFORM_ROLE_DESCRIPTIONS } from "@/types/auth"
+import { formatDate } from "@/lib/formatters"
+
+// Fetch team piattaforma (super_admin + platform_* roles)
+async function fetchPlatformTeam() {
+  const result = await supabase.functions.invoke("manage-platform-users", {
+    body: { action: "list" }
+  })
+  if (result.error) throw result.error
+  return result.data.users ?? []
+}
+
+export function PlatformTeamTab() {
+  const queryClient = useQueryClient()
+  const [createOpen, setCreateOpen] = useState(false)
+  const [permissionsUser, setPermissionsUser] = useState<any>(null)
+  const [resetUser, setResetUser] = useState<any>(null)
+  const [deleteUser, setDeleteUser] = useState<any>(null)
+
+  const { data: users = [], isLoading } = useQuery({
+    queryKey: ["platform-team"],
+    queryFn: fetchPlatformTeam,
+    staleTime: 2 * 60 * 1000,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const result = await supabase.functions.invoke("manage-platform-users", {
+        body: { action: "delete", userId }
+      })
+      if (result.error) throw result.error
+    },
+    onSuccess: () => {
+      toast.success("Utente rimosso dal team")
+      queryClient.invalidateQueries({ queryKey: ["platform-team"] })
+      setDeleteUser(null)
+    },
+    onError: (e: any) => toast.error(e.message ?? "Errore nella rimozione"),
+  })
+
+  const getPlatformRoleInfo = (role: string) => {
+    return PLATFORM_ROLE_DESCRIPTIONS[role as keyof typeof PLATFORM_ROLE_DESCRIPTIONS]
+      ?? PLATFORM_ROLE_DESCRIPTIONS.custom
+  }
+
+  if (isLoading) {
+    return <div className="py-8 text-center text-muted-foreground">Caricamento team...</div>
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header con stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {Object.entries(PLATFORM_ROLE_DESCRIPTIONS)
+          .filter(([key]) => key !== 'custom')
+          .map(([role, info]) => {
+            const count = users.filter((u: any) => u.platform_role === role).length
+            return (
+              <Card key={role} className="border">
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-xs text-muted-foreground">{info.label}</p>
+                  <p className="text-2xl font-bold">{count}</p>
+                </CardContent>
+              </Card>
+            )
+          })}
+      </div>
+
+      {/* Bottone Aggiungi + Tabella */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-sm font-medium text-muted-foreground">
+          {users.length} member{users.length !== 1 ? 'i' : 'o'} del team
+        </h2>
+        <Button onClick={() => setCreateOpen(true)} size="sm" className="gap-1.5">
+          <Plus className="h-4 w-4" />
+          Aggiungi Membro
+        </Button>
+      </div>
+
+      <div className="rounded-lg border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Membro</TableHead>
+              <TableHead>Ruolo</TableHead>
+              <TableHead>Permessi</TableHead>
+              <TableHead>Aggiunto il</TableHead>
+              <TableHead className="w-12" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Nessun membro del team. Aggiungi il primo membro.
+                </TableCell>
+              </TableRow>
+            ) : (
+              users.map((user: any) => {
+                const roleInfo = getPlatformRoleInfo(user.platform_role ?? 'custom')
+                const isSuperAdmin = user.platform_role === 'super_admin'
+                return (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">
+                            {user.first_name?.[0]}{user.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-sm">
+                            {user.first_name} {user.last_name}
+                            {isSuperAdmin && (
+                              <Shield className="h-3.5 w-3.5 inline ml-1 text-violet-600" />
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{user.email}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${roleInfo.color}`}
+                      >
+                        {roleInfo.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1 max-w-[280px]">
+                        {user.permissions && Object.entries(user.permissions)
+                          .filter(([k, v]) => v === true && k.startsWith('can_'))
+                          .map(([key]) => (
+                            <Badge key={key} variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {key.replace('can_manage_', '').replace('can_view_', '📊 ')}
+                            </Badge>
+                          ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(user.created_at)}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setPermissionsUser(user)}>
+                            <Settings2 className="h-4 w-4 mr-2" />
+                            Modifica permessi
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setResetUser(user)}>
+                            <KeyRound className="h-4 w-4 mr-2" />
+                            Reset password
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => setDeleteUser(user)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Rimuovi dal team
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Dialogs */}
+      <CreatePlatformUserDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ["platform-team"] })}
+      />
+
+      {permissionsUser && (
+        <PlatformPermissionsDialog
+          user={permissionsUser}
+          open={!!permissionsUser}
+          onOpenChange={(o) => !o && setPermissionsUser(null)}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["platform-team"] })}
+        />
+      )}
+
+      {resetUser && (
+        <ResetPasswordDialog
+          user={resetUser}
+          open={!!resetUser}
+          onOpenChange={(o) => !o && setResetUser(null)}
+        />
+      )}
+
+      {deleteUser && (
+        <AlertDialog open={!!deleteUser} onOpenChange={(o) => !o && setDeleteUser(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Rimuovi membro dal team</AlertDialogTitle>
+              <AlertDialogDescription>
+                Stai per rimuovere <strong>{deleteUser.first_name} {deleteUser.last_name}</strong>
+                {' '}({deleteUser.email}) dal team della piattaforma.
+                Non potrà più accedere all'area admin.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground"
+                onClick={() => deleteMutation.mutate(deleteUser.id)}
+              >
+                Rimuovi
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
+  )
+}
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 4 — NUOVO: CreatePlatformUserDialog.tsx                              ║
+║  Form a 3 step per creare utenti piattaforma con ruolo template            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Crea `src/components/admin/settings/CreatePlatformUserDialog.tsx`:
+
+Il dialog ha 3 step in sequenza:
+
+STEP 1 — Scegli Ruolo (card selezionabili):
+  Mostra 5 card cliccabili, una per ogni PlatformRole (escluso custom e super_admin):
+  Ogni card mostra: [icona] [nome ruolo] [descrizione breve] [lista permessi che include]
+
+  Card "Responsabile Piattaforma" (platform_manager):
+    ✓ Gestione aziende   ✓ Gestione piani   ✓ Ticket   ✓ Referral   ✓ Statistiche
+    ✗ Gestione admin
+
+  Card "Sales Manager" (platform_sales):
+    ✓ Gestione aziende   ✓ Gestione piani   ✓ Referral   ✓ Statistiche
+
+  Card "Customer Service" (platform_support):
+    ✓ Gestione aziende   ✓ Ticket
+
+  Card "Marketing Manager" (platform_marketing):
+    ✓ Referral   ✓ Statistiche
+
+  Card "Implementation Manager" (platform_implementation):
+    ✓ Gestione aziende   ✓ Ticket
+
+  Pulsante "Permessi Custom" — salta alla griglia permessi manuale
+
+STEP 2 — Dati Personali:
+  - Nome (required)
+  - Cognome (required)
+  - Email (required)
+  - Password (required, min 8, con strength meter riutilizzando la logica di ResetPasswordDialog)
+  - Titolo/Ruolo professionale (opzionale) — es. "Sales Manager Italia"
+
+  In cima al form: riepilogo del ruolo scelto nello step 1 con un badge colorato
+
+STEP 3 — Riepilogo e Conferma:
+  Card di riepilogo con:
+  - Avatar placeholder con iniziali
+  - Nome completo
+  - Email
+  - Ruolo con badge
+  - Lista permessi che avrà (✓ / ✗)
+  Bottone "Crea Membro" che esegue la mutation
+
+Mutation:
+```typescript
+await supabase.functions.invoke("manage-platform-users", {
+  body: {
+    action: "create",
+    email,
+    password,
+    firstName,
+    lastName,
+    jobTitle,
+    platformRole,      // es. "platform_sales"
+    permissions: PLATFORM_ROLE_PRESETS[platformRole]
+  }
+})
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 5 — NUOVO: PlatformPermissionsDialog.tsx                             ║
+║  Come SuperAdminPermissionsDialog ma con cambio ruolo template             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Crea `src/components/admin/settings/PlatformPermissionsDialog.tsx`:
+
+Il dialog ha 2 sezioni:
+
+SEZIONE A — Cambio Ruolo (in cima):
+  Row con label "Ruolo corrente:" + Select con tutti i PlatformRole
+  Quando si cambia il ruolo dal Select:
+  → I toggle nella sezione B si aggiornano automaticamente con il preset
+  → Mostra toast: "Permessi aggiornati al preset [NomeRuolo]. Puoi personalizzarli."
+
+SEZIONE B — Permessi Granulari (identica all'attuale SuperAdminPermissionsDialog):
+  Toggle per ogni permesso con label e descrizione
+  Lista aziende (se allowed_company_ids non è null)
+
+SEZIONE C — Aziende Accessibili:
+  Toggle "Tutte le aziende" (default on)
+  Se off: lista checkboxes delle aziende
+  (identico all'attuale SuperAdminPermissionsDialog)
+
+Auto-detection del ruolo corrente:
+  Quando si apre il dialog, confronta i permessi attuali con i preset
+  e seleziona il ruolo corrispondente (o "custom" se non matchano).
+
+Mutation:
+```typescript
+await supabase.functions.invoke("manage-platform-users", {
+  body: {
+    action: "update-permissions",
+    userId,
+    platformRole,
+    permissions
+  }
+})
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 6 — NUOVO: MultiCompanyUsersTab.tsx                                  ║
+║  Utenti con accesso a PIÙ aziende (no area admin)                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Crea `src/components/admin/settings/MultiCompanyUsersTab.tsx`:
+
+```typescript
+// Fetch utenti con multi_company_user role + i loro accessi
+async function fetchMultiCompanyUsers() {
+  const result = await supabase.functions.invoke("manage-platform-users", {
+    body: { action: "list-multi-company" }
+  })
+  if (result.error) throw result.error
+  return result.data.users ?? []
+}
+```
+
+UI — Layout a 2 colonne su desktop, 1 su mobile:
+
+COLONNA SINISTRA — Lista utenti multi-azienda:
+  Card per ogni utente con:
+  - Avatar + Nome + Email
+  - Badge "Accesso a N aziende"
+  - Pulsanti: [Modifica accessi] [Reset pw] [Elimina]
+
+  Clic su un utente lo seleziona e mostra i dettagli nella colonna destra
+
+COLONNA DESTRA — Dettaglio utente selezionato:
+  Se nessun utente selezionato: placeholder "Seleziona un utente per vedere i suoi accessi"
+
+  Se utente selezionato:
+  - Header con nome, email, data creazione
+  - Sezione "Aziende accessibili":
+    Lista delle aziende con:
+    - Logo + Nome azienda
+    - Badge ruolo ("Admin azienda" / "Staff azienda")
+    - Pulsante [Rimuovi accesso]
+  - Pulsante "+ Aggiungi Azienda" che apre un popover con:
+    - Campo search aziende (combobox)
+    - Select ruolo: "Admin azienda" / "Staff azienda"
+    - Bottone "Aggiungi"
+
+HEADER TAB con pulsante "Crea Utente Multi-Azienda":
+  Apre CreateMultiCompanyUserDialog
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 7 — NUOVO: CreateMultiCompanyUserDialog.tsx                          ║
+║  Form per creare utenti con accesso multi-azienda                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Crea `src/components/admin/settings/CreateMultiCompanyUserDialog.tsx`:
+
+Il dialog ha 2 step:
+
+STEP 1 — Dati Utente:
+  - Nome (required)
+  - Cognome (required)
+  - Email (required)
+  - Password (required, min 8, strength meter)
+  - Nota: "Questo utente avrà accesso SOLO alle aziende che selezioni.
+           Non potrà accedere all'area amministrativa della piattaforma."
+
+STEP 2 — Seleziona Aziende:
+  - Search aziende in tempo reale (debounce 300ms)
+  - Lista aziende con checkbox
+  - Per ogni azienda selezionata: Select inline con ruolo ("Admin" / "Staff")
+  - Riepilogo selezione: "{N} aziende selezionate"
+
+  Validazione: almeno 1 azienda deve essere selezionata
+
+Mutation:
+```typescript
+await supabase.functions.invoke("manage-platform-users", {
+  body: {
+    action: "create-multi-company",
+    email,
+    password,
+    firstName,
+    lastName,
+    companyAccesses: [
+      { companyId: "uuid1", role: "company_admin" },
+      { companyId: "uuid2", role: "company_staff" },
+    ]
+  }
+})
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 8 — EDGE FUNCTION: manage-platform-users                             ║
+║  Nuova Edge Function che estende manage-super-admins                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Crea `supabase/functions/manage-platform-users/index.ts`.
+Struttura identica a manage-super-admins ma con queste actions aggiuntive:
+
+ACTION "list" (estesa):
+```typescript
+// Fetch users con user_roles IN ['super_admin', 'platform_manager', 'platform_sales', ...]
+// JOIN con super_admin_permissions per permessi
+// JOIN con profiles per dati anagrafici
+// Return: AdminUser[] con campo platform_role aggiunto
+```
+
+ACTION "create" (estesa):
+```typescript
+Body: {
+  email, password, firstName, lastName,
+  jobTitle?: string,
+  platformRole: PlatformRole,  // es. "platform_sales"
+  permissions: SuperAdminPermissions
+}
+
+Steps:
+1. auth.admin.createUser(...)
+2. INSERT INTO profiles (id, email, first_name, last_name, company_id: null)
+3. INSERT INTO user_roles (user_id, role: platformRole)
+4. INSERT INTO super_admin_permissions (user_id, platform_role: platformRole, ...permissions)
+5. logAudit(...)
+```
+
+ACTION "list-multi-company":
+```typescript
+// Fetch users con user_roles.role = 'multi_company_user'
+// JOIN con multi_company_access per lista aziende
+// JOIN con companies per dettagli aziende
+// Return: MultiCompanyUser[] con campo company_accesses[]
+```
+
+ACTION "create-multi-company":
+```typescript
+Body: {
+  email, password, firstName, lastName,
+  companyAccesses: { companyId: string; role: string }[]
+}
+
+Steps:
+1. auth.admin.createUser(...)
+2. INSERT INTO profiles (id, email, first_name, last_name, company_id: null)
+3. INSERT INTO user_roles (user_id, role: "multi_company_user")
+4. INSERT INTO multi_company_access per ogni company in companyAccesses
+5. logAudit(...)
+```
+
+ACTION "update-company-access":
+```typescript
+Body: { userId, companyId, role?, remove?: boolean }
+// Se remove: DELETE FROM multi_company_access WHERE user_id = userId AND company_id = companyId
+// Altrimenti: UPSERT INTO multi_company_access
+```
+
+ACTION "update-permissions" (estesa):
+```typescript
+Body: { userId, platformRole, permissions }
+// UPSERT super_admin_permissions con platform_role aggiunto
+// UPDATE user_roles SET role = platformRole WHERE user_id = userId
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 9 — AuthContext: Supporto Multi-Azienda                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+In `src/contexts/AuthContext.tsx`, aggiungi il supporto per gli utenti
+multi_company_user:
+
+1. Dopo il fetch del profile, se `role === 'multi_company_user'`:
+   ```typescript
+   // Fetch le aziende a cui ha accesso
+   const { data: accessList } = await supabase
+     .from('multi_company_access')
+     .select('company_id, access_role, company:companies(id, name, logo_url, status)')
+     .eq('user_id', user.id)
+
+   setMultiCompanyAccesses(accessList ?? [])
+
+   // Se nessuna azienda corrente è settata in sessionStorage, usa la prima
+   const savedCompanyId = sessionStorage.getItem('multi_company_selected_id')
+   const firstCompany = accessList?.[0]?.company
+   const selectedCompany = accessList?.find(a => a.company_id === savedCompanyId)?.company
+     ?? firstCompany
+   setSelectedMultiCompany(selectedCompany ?? null)
+   ```
+
+2. Aggiungi al context:
+   ```typescript
+   multiCompanyAccesses: MultiCompanyAccess[]   // lista aziende accessibili
+   selectedMultiCompany: Company | null          // azienda attualmente selezionata
+   switchMultiCompany: (companyId: string) => void  // switch azienda
+   ```
+
+3. La funzione `switchMultiCompany`:
+   ```typescript
+   const switchMultiCompany = (companyId: string) => {
+     const access = multiCompanyAccesses.find(a => a.company_id === companyId)
+     if (!access) return
+     setSelectedMultiCompany(access.company ?? null)
+     sessionStorage.setItem('multi_company_selected_id', companyId)
+   }
+   ```
+
+4. Aggiorna `effectiveCompany`:
+   ```typescript
+   // Per multi_company_user: usa selectedMultiCompany
+   // Per super_admin in impersonation: usa impersonatedCompany
+   // Altrimenti: usa company del profilo
+   const effectiveCompany = isImpersonating
+     ? impersonatedCompany
+     : role === 'multi_company_user'
+     ? selectedMultiCompany
+     : company
+   ```
+
+5. Il ruolo effettivo dell'utente multi_company nelle aziende:
+   ```typescript
+   const effectiveRoleInCompany = role === 'multi_company_user'
+     ? (multiCompanyAccesses.find(a => a.company_id === selectedMultiCompany?.id)?.access_role ?? 'company_staff')
+     : role
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 10 — CompanyLayout: Company Switcher per Multi-Azienda               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+In `src/components/layouts/CompanyLayout.tsx`, aggiungi un **Company Switcher**
+visibile solo agli utenti con `role === 'multi_company_user'`:
+
+```typescript
+// Componente da inserire nell'header o nella sidebar del CompanyLayout:
+
+function MultiCompanySwitcher() {
+  const { multiCompanyAccesses, selectedMultiCompany, switchMultiCompany } = useAuth()
+
+  if (!multiCompanyAccesses || multiCompanyAccesses.length <= 1) return null
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2 h-8 max-w-[200px]">
+          {selectedMultiCompany?.logo_url ? (
+            <img src={selectedMultiCompany.logo_url} className="h-4 w-4 rounded" />
+          ) : (
+            <div className="h-4 w-4 rounded bg-primary/20 flex items-center justify-center text-[8px] font-bold">
+              {selectedMultiCompany?.name?.[0]}
+            </div>
+          )}
+          <span className="truncate text-xs">{selectedMultiCompany?.name ?? 'Seleziona azienda'}</span>
+          <ChevronDown className="h-3 w-3 ml-auto flex-shrink-0" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          Le tue aziende ({multiCompanyAccesses.length})
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {multiCompanyAccesses.map((access) => (
+          <DropdownMenuItem
+            key={access.company_id}
+            onClick={() => switchMultiCompany(access.company_id)}
+            className={`gap-2 ${access.company_id === selectedMultiCompany?.id ? 'bg-accent' : ''}`}
+          >
+            <div className="h-6 w-6 rounded bg-primary/10 flex items-center justify-center text-xs font-bold flex-shrink-0">
+              {(access.company as any)?.name?.[0]}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm truncate">{(access.company as any)?.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {access.access_role === 'company_admin' ? 'Amministratore' : 'Staff'}
+              </p>
+            </div>
+            {access.company_id === selectedMultiCompany?.id && (
+              <Check className="h-4 w-4 text-primary flex-shrink-0" />
+            )}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+```
+
+Posiziona `<MultiCompanySwitcher />` nell'header del CompanyLayout,
+accanto al nome utente o nella navbar superiore.
+
+Importa: `ChevronDown, Check` da lucide-react.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 11 — AdminLayout: Viste per Ruolo Piattaforma                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+In `src/components/layouts/AdminLayout.tsx`, aggiorna la logica di
+visualizzazione delle voci di menu per includere i nuovi ruoli.
+
+I ruoli piattaforma usano già il sistema `permissions` esistente,
+quindi la sidebar mostra/nasconde le voci in base ai permessi.
+
+Aggiungi solo una sezione "Il Mio Profilo" nella sidebar per gli
+utenti non super_admin (platform_* roles):
+
+```typescript
+// In fondo alla sidebar, prima del logout:
+{role !== 'super_admin' && (
+  <div className="border-t pt-3 mt-3">
+    <div className="flex items-center gap-2 px-2 py-1">
+      <Avatar className="h-7 w-7">
+        <AvatarFallback className="text-xs">
+          {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium truncate">
+          {profile?.first_name} {profile?.last_name}
+        </p>
+        <p className="text-[10px] text-muted-foreground">
+          {PLATFORM_ROLE_DESCRIPTIONS[role as PlatformRole]?.label ?? role}
+        </p>
+      </div>
+    </div>
+  </div>
+)}
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  STEP 12 — ProtectedRoute: Supporto Nuovi Ruoli                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+In `src/components/auth/ProtectedRoute.tsx`, aggiorna il check dei ruoli
+per riconoscere i nuovi platform roles come autorizzati all'area /admin:
+
+```typescript
+// I ruoli che possono accedere all'area admin:
+const ADMIN_ROLES: AppRole[] = [
+  'super_admin',
+  'platform_manager',
+  'platform_sales',
+  'platform_support',
+  'platform_marketing',
+  'platform_implementation',
+]
+
+// Nella logica di redirect:
+const canAccessAdmin = role && ADMIN_ROLES.includes(role)
+
+// Se la rotta è /admin/* e il ruolo non è admin-level → redirect
+if (pathname.startsWith('/admin') && !canAccessAdmin) {
+  return <Navigate to={getDefaultRoute(role)} replace />
+}
+
+// Gli utenti multi_company_user vanno sempre a /azienda
+// (viene gestito dal CompanyLayout con il switcher)
+```
+
+Aggiorna anche `src/components/auth/RoleBasedRedirect.tsx`:
+```typescript
+// Dopo login, redirect basato su ruolo:
+case 'platform_manager':
+case 'platform_sales':
+case 'platform_support':
+case 'platform_marketing':
+case 'platform_implementation':
+  return <Navigate to="/admin" replace />
+
+case 'multi_company_user':
+  return <Navigate to="/azienda/dashboard" replace />
+  // Il company switcher gestirà quale azienda mostrare
+```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  RIEPILOGO ARCHITETTURA FINALE                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+LIVELLO 0 — Super Admin (invariato):
+  - Accesso totale a tutto
+  - Può creare utenti di tutti i livelli
+  - Ruolo: "super_admin"
+
+LIVELLO 1 — Team Piattaforma (NUOVO):
+  - Staff interno: Marketing, Sales, Support, ecc.
+  - Accedono ad /admin con permessi filtrati per ruolo
+  - Ruoli: "platform_manager" | "platform_sales" | "platform_support" |
+           "platform_marketing" | "platform_implementation"
+  - Stessa tabella super_admin_permissions con campo platform_role aggiunto
+
+LIVELLO 2 — Utenti Multi-Azienda (NUOVO):
+  - Consulenti, agenzie, partner
+  - Accedono ad /azienda con company switcher
+  - NON vedono /admin
+  - Ruolo: "multi_company_user"
+  - Nuova tabella: multi_company_access (user_id, company_id, access_role)
+
+LIVELLO 3 — Utenti Azienda Singola (invariato):
+  - company_admin, company_staff, customer, employee, salesperson, call_center
+  - Accedono SOLO alla propria azienda
+
+================================================================================
+NOTE PER LOVABLE
+================================================================================
+- NON modificare la Edge Function manage-super-admins esistente
+- Crea una NUOVA Edge Function manage-platform-users (può chiamare le stesse logiche)
+- Il SQL per le migration va SOLO come commento — non eseguire
+- Usa SEMPRE effectiveCompany?.id nei hook (già gestito dal context aggiornato)
+- Usa first_name + last_name separati (mai full_name)
+- I nuovi ruoli platform_* nei percorsi URL /admin si comportano
+  come super_admin ma filtrati dai permessi (nessuna pagina nuova necessaria)
+================================================================================

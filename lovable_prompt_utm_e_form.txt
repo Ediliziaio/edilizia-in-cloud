@@ -1,0 +1,2062 @@
+╔══════════════════════════════════════════════════════════════════╗
+║     UTM ATTRIBUTION TRACKING + FORM BUILDER                     ║
+║         2 moduli — prompt sequenziali per Lovable.dev           ║
+╚══════════════════════════════════════════════════════════════════╝
+
+MODULO A: UTM Attribution tracking stile GHL
+MODULO B: Form Builder embeddabile (in Impostazioni)
+
+FILOSOFIA:
+  NON si creano campagne nel sistema.
+  Il sistema LEGGE gli UTM dalle URL delle pagine dove arrivano i lead
+  (via Meta Ads, Google Ads, TikTok, ecc.) e attribuisce automaticamente
+  ogni contatto/lead alla sorgente corretta.
+
+  Proprio come GoHighLevel:
+    → fbclid, gclid, ttclid, msclkid vengono catturati e salvati
+    → UTM standard: utm_source, utm_medium, utm_campaign, utm_content, utm_term
+    → Ad-level: utm_campaign (= nome campagna), utm_content (= nome adset/ad)
+    → Prima visita = first touch; ultima visita prima della conversione = last touch
+    → Ogni Contatto ha una tab "Attribuzione" che mostra da dove è arrivato
+    → La Reportistica mostra breakdown per source / medium / campaign / ad
+
+POSIZIONAMENTO SIDEBAR:
+  Modulo A → nessuna voce di menu propria (i dati si vedono nel Contatto e in Reportistica)
+  Modulo B → Impostazioni → sezione "Form & Acquisizione"
+
+
+══════════════════════════════════════════════════════════════════════
+PROMPT A1 di 4 — DATABASE: UTM ATTRIBUTION
+══════════════════════════════════════════════════════════════════════
+
+Crea questa migrazione Supabase per il sistema di UTM Attribution tracking.
+
+```sql
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 1: attribution_sessions
+-- Ogni sessione di visita con i suoi parametri UTM
+-- Una sessione = una visita univoca identificata da session_id (uuid generato lato JS)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE attribution_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Identificatori sessione
+  session_id TEXT NOT NULL,                    -- UUID generato dal tracking script
+  visitor_id TEXT,                              -- ID visitatore persistente (cookie 1st party)
+
+  -- UTM standard
+  utm_source TEXT,        -- es. "facebook", "google", "instagram"
+  utm_medium TEXT,        -- es. "cpc", "social", "email"
+  utm_campaign TEXT,      -- nome campagna: es. "promo_estate_2025"
+  utm_content TEXT,       -- nome adset o variante: es. "adset_remarketing"
+  utm_term TEXT,          -- parola chiave (Google): es. "software gestionale"
+
+  -- Click ID piattaforme pubblicitarie
+  fbclid TEXT,            -- Facebook / Instagram click ID
+  gclid TEXT,             -- Google Ads click ID
+  ttclid TEXT,            -- TikTok click ID
+  msclkid TEXT,           -- Microsoft Ads click ID
+  li_fat_id TEXT,         -- LinkedIn click ID
+
+  -- URL completa di atterraggio
+  landing_url TEXT,
+  referrer TEXT,
+
+  -- Device / browser
+  user_agent TEXT,
+  device_type TEXT CHECK (device_type IN ('desktop', 'mobile', 'tablet', 'unknown')) DEFAULT 'unknown',
+
+  -- IP hashed per privacy (SHA-256, mai raw)
+  ip_hash TEXT,
+
+  -- Stato
+  converted_at TIMESTAMPTZ,         -- quando ha convertito (compilato form o creato contatto)
+  contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
+
+  created_at TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(company_id, session_id)
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 2: contact_attributions
+-- Attribuzione finale associata a un Contatto
+-- Mantiene first touch e last touch separati
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE contact_attributions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE UNIQUE,
+
+  -- First touch (prima visita in assoluto)
+  ft_source TEXT,
+  ft_medium TEXT,
+  ft_campaign TEXT,
+  ft_content TEXT,
+  ft_term TEXT,
+  ft_fbclid TEXT,
+  ft_gclid TEXT,
+  ft_ttclid TEXT,
+  ft_landing_url TEXT,
+  ft_session_id TEXT,
+  ft_at TIMESTAMPTZ,
+
+  -- Last touch (ultima visita prima della conversione)
+  lt_source TEXT,
+  lt_medium TEXT,
+  lt_campaign TEXT,
+  lt_content TEXT,
+  lt_term TEXT,
+  lt_fbclid TEXT,
+  lt_gclid TEXT,
+  lt_ttclid TEXT,
+  lt_landing_url TEXT,
+  lt_session_id TEXT,
+  lt_at TIMESTAMPTZ,
+
+  -- Totale touchpoint registrati
+  touchpoint_count INT DEFAULT 1,
+
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- ALTER TABLE contacts: aggiungi colonne quick-access attribution
+-- (ridondanti con contact_attributions ma utili per query rapide e filtri)
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE contacts
+  ADD COLUMN IF NOT EXISTS attr_source TEXT,
+  ADD COLUMN IF NOT EXISTS attr_medium TEXT,
+  ADD COLUMN IF NOT EXISTS attr_campaign TEXT,
+  ADD COLUMN IF NOT EXISTS attr_content TEXT,
+  ADD COLUMN IF NOT EXISTS attr_model TEXT CHECK (attr_model IN ('first_touch', 'last_touch')) DEFAULT 'last_touch';
+-- attr_model: quale modello viene usato per popolare attr_* (di default last touch)
+
+-- ════════════════════════════════════════════════════════════════
+-- INDICI
+-- ════════════════════════════════════════════════════════════════
+CREATE INDEX idx_attribution_sessions_company ON attribution_sessions(company_id);
+CREATE INDEX idx_attribution_sessions_session ON attribution_sessions(session_id);
+CREATE INDEX idx_attribution_sessions_contact ON attribution_sessions(contact_id);
+CREATE INDEX idx_attribution_sessions_fbclid ON attribution_sessions(fbclid) WHERE fbclid IS NOT NULL;
+CREATE INDEX idx_attribution_sessions_gclid ON attribution_sessions(gclid) WHERE gclid IS NOT NULL;
+CREATE INDEX idx_attribution_sessions_source ON attribution_sessions(company_id, utm_source);
+CREATE INDEX idx_attribution_sessions_campaign ON attribution_sessions(company_id, utm_campaign);
+CREATE INDEX idx_contact_attributions_company ON contact_attributions(company_id);
+CREATE INDEX idx_contact_attributions_contact ON contact_attributions(contact_id);
+
+-- ════════════════════════════════════════════════════════════════
+-- RLS
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE attribution_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contact_attributions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "attribution_sessions_company_isolation" ON attribution_sessions
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "contact_attributions_company_isolation" ON contact_attributions
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: get_attribution_report(company_id, date_from, date_to, group_by)
+-- Ritorna breakdown lead per source/medium/campaign/content
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION get_attribution_report(
+  p_company_id UUID,
+  p_date_from TIMESTAMPTZ DEFAULT NOW() - INTERVAL '30 days',
+  p_date_to TIMESTAMPTZ DEFAULT NOW(),
+  p_group_by TEXT DEFAULT 'source'  -- 'source' | 'medium' | 'campaign' | 'content'
+)
+RETURNS TABLE (
+  dimension TEXT,
+  total_sessions BIGINT,
+  total_leads BIGINT,
+  conversion_rate NUMERIC,
+  sources TEXT[]
+) LANGUAGE sql STABLE AS $$
+  SELECT
+    CASE p_group_by
+      WHEN 'source'   THEN COALESCE(utm_source, 'direct')
+      WHEN 'medium'   THEN COALESCE(utm_medium, 'none')
+      WHEN 'campaign' THEN COALESCE(utm_campaign, 'none')
+      WHEN 'content'  THEN COALESCE(utm_content, 'none')
+    END AS dimension,
+    COUNT(*) AS total_sessions,
+    COUNT(contact_id) AS total_leads,
+    ROUND(
+      COUNT(contact_id)::NUMERIC / NULLIF(COUNT(*), 0) * 100, 2
+    ) AS conversion_rate,
+    ARRAY_AGG(DISTINCT COALESCE(utm_source, 'direct')) AS sources
+  FROM attribution_sessions
+  WHERE
+    company_id = p_company_id
+    AND created_at BETWEEN p_date_from AND p_date_to
+  GROUP BY 1
+  ORDER BY total_leads DESC;
+$$;
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: attach_attribution_to_contact(session_id, contact_id, company_id)
+-- Chiamata quando un lead viene identificato (form submit o creazione manuale)
+-- Popola contact_attributions con first/last touch
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION attach_attribution_to_contact(
+  p_session_id TEXT,
+  p_contact_id UUID,
+  p_company_id UUID
+)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  v_session attribution_sessions%ROWTYPE;
+  v_existing contact_attributions%ROWTYPE;
+BEGIN
+  -- Prendi la sessione
+  SELECT * INTO v_session
+  FROM attribution_sessions
+  WHERE session_id = p_session_id AND company_id = p_company_id;
+
+  IF NOT FOUND THEN RETURN; END IF;
+
+  -- Aggiorna sessione come convertita
+  UPDATE attribution_sessions
+  SET contact_id = p_contact_id, converted_at = now()
+  WHERE session_id = p_session_id AND company_id = p_company_id;
+
+  -- Cerca attribuzione esistente per il contatto
+  SELECT * INTO v_existing FROM contact_attributions
+  WHERE contact_id = p_contact_id AND company_id = p_company_id;
+
+  IF NOT FOUND THEN
+    -- Prima conversione: first touch = last touch = questa sessione
+    INSERT INTO contact_attributions (
+      company_id, contact_id,
+      ft_source, ft_medium, ft_campaign, ft_content, ft_term,
+      ft_fbclid, ft_gclid, ft_ttclid, ft_landing_url, ft_session_id, ft_at,
+      lt_source, lt_medium, lt_campaign, lt_content, lt_term,
+      lt_fbclid, lt_gclid, lt_ttclid, lt_landing_url, lt_session_id, lt_at,
+      touchpoint_count
+    ) VALUES (
+      p_company_id, p_contact_id,
+      v_session.utm_source, v_session.utm_medium, v_session.utm_campaign,
+      v_session.utm_content, v_session.utm_term,
+      v_session.fbclid, v_session.gclid, v_session.ttclid,
+      v_session.landing_url, p_session_id, v_session.created_at,
+      -- last touch uguale al first touch (primo contatto)
+      v_session.utm_source, v_session.utm_medium, v_session.utm_campaign,
+      v_session.utm_content, v_session.utm_term,
+      v_session.fbclid, v_session.gclid, v_session.ttclid,
+      v_session.landing_url, p_session_id, v_session.created_at,
+      1
+    );
+  ELSE
+    -- Contatto già esistente: aggiorna solo last touch e incrementa touchpoint
+    UPDATE contact_attributions SET
+      lt_source = v_session.utm_source,
+      lt_medium = v_session.utm_medium,
+      lt_campaign = v_session.utm_campaign,
+      lt_content = v_session.utm_content,
+      lt_term = v_session.utm_term,
+      lt_fbclid = v_session.fbclid,
+      lt_gclid = v_session.gclid,
+      lt_ttclid = v_session.ttclid,
+      lt_landing_url = v_session.landing_url,
+      lt_session_id = p_session_id,
+      lt_at = v_session.created_at,
+      touchpoint_count = touchpoint_count + 1,
+      updated_at = now()
+    WHERE contact_id = p_contact_id AND company_id = p_company_id;
+  END IF;
+
+  -- Aggiorna colonne quick-access su contacts (usa last touch di default)
+  UPDATE contacts SET
+    attr_source   = v_session.utm_source,
+    attr_medium   = v_session.utm_medium,
+    attr_campaign = v_session.utm_campaign,
+    attr_content  = v_session.utm_content
+  WHERE id = p_contact_id;
+END;
+$$;
+```
+
+Applica la migrazione con nome: `add_utm_attribution_tracking`
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT A2 di 4 — EDGE FUNCTION: attribution-capture + TRACKING SCRIPT
+════════════════════════════════════════════════════════════════════
+
+Crea l'edge function pubblica `attribution-capture` e lo snippet JS di tracking.
+
+### Edge Function: supabase/functions/attribution-capture/index.ts
+
+```typescript
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "content-type, x-company-id",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  try {
+    const body = await req.json();
+    const {
+      company_id,
+      session_id,
+      visitor_id,
+      // UTM standard
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      utm_content,
+      utm_term,
+      // Click IDs piattaforme
+      fbclid,
+      gclid,
+      ttclid,
+      msclkid,
+      li_fat_id,
+      // Page info
+      landing_url,
+      referrer,
+      user_agent,
+    } = body;
+
+    if (!company_id || !session_id) {
+      return new Response(
+        JSON.stringify({ error: "company_id e session_id obbligatori" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verifica che company_id esista
+    const { data: company } = await supabase
+      .from("companies")
+      .select("id")
+      .eq("id", company_id)
+      .single();
+
+    if (!company) {
+      return new Response(
+        JSON.stringify({ error: "company non trovata" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Detect device type
+    const ua = user_agent || req.headers.get("user-agent") || "";
+    let device_type: string = "desktop";
+    if (/mobile|android|iphone|ipod/i.test(ua)) device_type = "mobile";
+    else if (/ipad|tablet/i.test(ua)) device_type = "tablet";
+
+    // Hash IP per privacy (SHA-256)
+    const rawIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    const ipBuffer = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(rawIp)
+    );
+    const ipHash = Array.from(new Uint8Array(ipBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    // Upsert sessione (se la stessa session_id arriva di nuovo, aggiorna)
+    const { error } = await supabase
+      .from("attribution_sessions")
+      .upsert({
+        company_id,
+        session_id,
+        visitor_id: visitor_id || null,
+        utm_source: utm_source || null,
+        utm_medium: utm_medium || null,
+        utm_campaign: utm_campaign || null,
+        utm_content: utm_content || null,
+        utm_term: utm_term || null,
+        fbclid: fbclid || null,
+        gclid: gclid || null,
+        ttclid: ttclid || null,
+        msclkid: msclkid || null,
+        li_fat_id: li_fat_id || null,
+        landing_url: landing_url || null,
+        referrer: referrer || null,
+        user_agent: ua || null,
+        device_type,
+        ip_hash: ipHash,
+      }, {
+        onConflict: "company_id,session_id",
+        ignoreDuplicates: false,
+      });
+
+    if (error) throw error;
+
+    return new Response(
+      JSON.stringify({ ok: true, session_id }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err) {
+    console.error("attribution-capture error:", err);
+    return new Response(
+      JSON.stringify({ error: "Errore interno" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+```
+
+### Snippet JS da mostrare all'utente in Impostazioni → Snippet di Tracking
+
+Questo snippet va incollato su ogni pagina del sito del cliente (idealmente prima di `</head>`).
+Salvalo come stringa nel file `src/constants/trackingSnippet.ts`:
+
+```typescript
+// src/constants/trackingSnippet.ts
+
+export function getTrackingSnippet(companyId: string, supabaseUrl: string): string {
+  return `<!-- UTM Attribution Tracker -->
+<script>
+(function() {
+  var COMPANY_ID = '${companyId}';
+  var ENDPOINT   = '${supabaseUrl}/functions/v1/attribution-capture';
+
+  // ── Genera / recupera IDs persistenti ──────────────────────────
+  function uuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  var visitorId = localStorage.getItem('_attr_vid');
+  if (!visitorId) { visitorId = uuid(); localStorage.setItem('_attr_vid', visitorId); }
+
+  var sessionId = sessionStorage.getItem('_attr_sid');
+  if (!sessionId) { sessionId = uuid(); sessionStorage.setItem('_attr_sid', sessionId); }
+
+  // ── Leggi parametri UTM e click ID dall'URL ────────────────────
+  var params = new URLSearchParams(window.location.search);
+  var utmKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term',
+                 'fbclid','gclid','ttclid','msclkid','li_fat_id'];
+  var data = {};
+  var hasUtm = false;
+
+  utmKeys.forEach(function(k) {
+    var v = params.get(k);
+    if (v) { data[k] = v; hasUtm = true; }
+  });
+
+  // ── Persisti UTM in localStorage (per multi-pagina) ──────────
+  if (hasUtm) {
+    localStorage.setItem('_attr_utm', JSON.stringify(data));
+  } else {
+    var stored = localStorage.getItem('_attr_utm');
+    if (stored) {
+      try { data = JSON.parse(stored); hasUtm = true; } catch(e) {}
+    }
+  }
+
+  // ── Invia al backend solo se ci sono UTM o click ID ───────────
+  if (!hasUtm) return;
+
+  var payload = Object.assign({}, data, {
+    company_id:   COMPANY_ID,
+    session_id:   sessionId,
+    visitor_id:   visitorId,
+    landing_url:  window.location.href,
+    referrer:     document.referrer || null,
+    user_agent:   navigator.userAgent
+  });
+
+  fetch(ENDPOINT, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(payload),
+    keepalive: true
+  }).catch(function() {});  // silenzioso in caso di errore
+
+  // ── Esponi session_id globalmente (usato dai form per l'attribuzione) ──
+  window._attrSessionId = sessionId;
+})();
+</script>`;
+}
+```
+
+Mostra questo snippet nella sezione **Impostazioni → Snippet di Tracking** con un pulsante "Copia snippet".
+Aggiungi una nota: "Incolla questo codice su ogni pagina del tuo sito, prima di `</head>`. Lo snippet rileva automaticamente UTM, fbclid, gclid e altri parametri pubblicitari e li associa ai lead che compilano i tuoi form."
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT A3 di 4 — UI: TAB ATTRIBUZIONE NEL DETTAGLIO CONTATTO
+════════════════════════════════════════════════════════════════════
+
+Nel componente di dettaglio contatto (`ContactDetail.tsx` o equivalente), aggiungi una nuova tab **"Attribuzione"** che mostra da dove è arrivato quel contatto.
+
+### Hook: src/hooks/useContactAttribution.ts
+
+```typescript
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+
+export interface ContactAttributionData {
+  id: string;
+  contact_id: string;
+  // First touch
+  ft_source: string | null;
+  ft_medium: string | null;
+  ft_campaign: string | null;
+  ft_content: string | null;
+  ft_term: string | null;
+  ft_fbclid: string | null;
+  ft_gclid: string | null;
+  ft_ttclid: string | null;
+  ft_landing_url: string | null;
+  ft_at: string | null;
+  // Last touch
+  lt_source: string | null;
+  lt_medium: string | null;
+  lt_campaign: string | null;
+  lt_content: string | null;
+  lt_term: string | null;
+  lt_fbclid: string | null;
+  lt_gclid: string | null;
+  lt_ttclid: string | null;
+  lt_landing_url: string | null;
+  lt_at: string | null;
+  // Meta
+  touchpoint_count: number;
+  // Tutte le sessioni del contatto
+  sessions: AttributionSession[];
+}
+
+export interface AttributionSession {
+  session_id: string;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  fbclid: string | null;
+  gclid: string | null;
+  ttclid: string | null;
+  landing_url: string | null;
+  device_type: string;
+  created_at: string;
+  converted_at: string | null;
+}
+
+export function useContactAttribution(contactId: string) {
+  return useQuery({
+    queryKey: ["contact-attribution", contactId],
+    queryFn: async (): Promise<ContactAttributionData | null> => {
+      // Attribuzione principale
+      const { data: attr } = await supabase
+        .from("contact_attributions")
+        .select("*")
+        .eq("contact_id", contactId)
+        .single();
+
+      if (!attr) return null;
+
+      // Tutte le sessioni associate
+      const { data: sessions } = await supabase
+        .from("attribution_sessions")
+        .select("session_id, utm_source, utm_medium, utm_campaign, utm_content, fbclid, gclid, ttclid, landing_url, device_type, created_at, converted_at")
+        .eq("contact_id", contactId)
+        .order("created_at", { ascending: false });
+
+      return { ...attr, sessions: sessions || [] };
+    },
+    enabled: !!contactId,
+  });
+}
+```
+
+### Componente: src/components/contacts/ContactAttributionTab.tsx
+
+```tsx
+import React from "react";
+import { useContactAttribution } from "@/hooks/useContactAttribution";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import {
+  Globe, MousePointer, Target, Layers, Smartphone,
+  Monitor, Tablet, ExternalLink, Clock, TrendingUp
+} from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+
+// Mappa source → colore badge e icona
+const SOURCE_COLORS: Record<string, string> = {
+  facebook: "bg-blue-100 text-blue-800",
+  instagram: "bg-pink-100 text-pink-800",
+  google: "bg-red-100 text-red-800",
+  tiktok: "bg-gray-900 text-white",
+  linkedin: "bg-blue-700 text-white",
+  email: "bg-yellow-100 text-yellow-800",
+  organic: "bg-green-100 text-green-800",
+  direct: "bg-gray-100 text-gray-700",
+};
+
+function SourceBadge({ source }: { source: string | null }) {
+  const s = source?.toLowerCase() || "direct";
+  const colorClass = SOURCE_COLORS[s] || "bg-gray-100 text-gray-700";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colorClass}`}>
+      {source || "Direct / Organico"}
+    </span>
+  );
+}
+
+function DeviceIcon({ type }: { type: string }) {
+  if (type === "mobile") return <Smartphone className="h-3.5 w-3.5" />;
+  if (type === "tablet") return <Tablet className="h-3.5 w-3.5" />;
+  return <Monitor className="h-3.5 w-3.5" />;
+}
+
+function TouchCard({
+  label,
+  source, medium, campaign, content, term,
+  fbclid, gclid, ttclid,
+  landingUrl, at,
+}: {
+  label: string;
+  source: string | null; medium: string | null; campaign: string | null;
+  content: string | null; term: string | null;
+  fbclid: string | null; gclid: string | null; ttclid: string | null;
+  landingUrl: string | null; at: string | null;
+}) {
+  const clickId = fbclid || gclid || ttclid;
+  const clickIdLabel = fbclid ? "fbclid" : gclid ? "gclid" : ttclid ? "ttclid" : null;
+
+  return (
+    <Card className="border border-dashed">
+      <CardHeader className="pb-2 pt-3 px-4">
+        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <TrendingUp className="h-3.5 w-3.5" />
+          {label}
+          {at && (
+            <span className="ml-auto text-xs font-normal normal-case">
+              {format(new Date(at), "dd MMM yyyy HH:mm", { locale: it })}
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-3 space-y-1.5">
+        <div className="flex flex-wrap gap-2">
+          {source && (
+            <div className="flex items-center gap-1 text-xs">
+              <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">Source:</span>
+              <SourceBadge source={source} />
+            </div>
+          )}
+          {medium && (
+            <div className="flex items-center gap-1 text-xs">
+              <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-muted-foreground">Medium:</span>
+              <span className="font-medium">{medium}</span>
+            </div>
+          )}
+        </div>
+
+        {campaign && (
+          <div className="flex items-center gap-1 text-xs">
+            <Target className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Campagna:</span>
+            <span className="font-medium">{campaign}</span>
+          </div>
+        )}
+
+        {content && (
+          <div className="flex items-center gap-1 text-xs">
+            <MousePointer className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Ad/Adset:</span>
+            <span className="font-medium">{content}</span>
+          </div>
+        )}
+
+        {term && (
+          <div className="text-xs">
+            <span className="text-muted-foreground">Keyword: </span>
+            <span className="font-medium italic">"{term}"</span>
+          </div>
+        )}
+
+        {clickId && clickIdLabel && (
+          <div className="text-xs font-mono bg-muted rounded px-1.5 py-0.5 inline-block">
+            {clickIdLabel}: {clickId.substring(0, 16)}…
+          </div>
+        )}
+
+        {landingUrl && (
+          <a
+            href={landingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-primary hover:underline truncate max-w-full"
+          >
+            <ExternalLink className="h-3 w-3 shrink-0" />
+            <span className="truncate">{landingUrl}</span>
+          </a>
+        )}
+
+        {!source && !medium && !campaign && !content && (
+          <p className="text-xs text-muted-foreground italic">
+            Accesso diretto o organico — nessun parametro UTM rilevato
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface Props {
+  contactId: string;
+}
+
+export function ContactAttributionTab({ contactId }: Props) {
+  const { data, isLoading } = useContactAttribution(contactId);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+        Caricamento attribuzione…
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-40 gap-2 text-center px-6">
+        <Globe className="h-10 w-10 text-muted-foreground/40" />
+        <p className="text-sm font-medium text-muted-foreground">Nessun dato di attribuzione</p>
+        <p className="text-xs text-muted-foreground">
+          Aggiungi lo snippet di tracking al sito per iniziare a tracciare la provenienza dei lead.
+        </p>
+      </div>
+    );
+  }
+
+  const sameTouch =
+    data.ft_session_id === data.lt_session_id ||
+    data.touchpoint_count === 1;
+
+  return (
+    <div className="space-y-4 p-4">
+      {/* Riepilogo */}
+      <div className="flex items-center gap-3">
+        <SourceBadge source={data.lt_source} />
+        {data.touchpoint_count > 1 && (
+          <Badge variant="secondary" className="text-xs">
+            {data.touchpoint_count} touchpoint
+          </Badge>
+        )}
+      </div>
+
+      {/* First touch */}
+      <TouchCard
+        label="First Touch"
+        source={data.ft_source}
+        medium={data.ft_medium}
+        campaign={data.ft_campaign}
+        content={data.ft_content}
+        term={data.ft_term}
+        fbclid={data.ft_fbclid}
+        gclid={data.ft_gclid}
+        ttclid={data.ft_ttclid}
+        landingUrl={data.ft_landing_url}
+        at={data.ft_at}
+      />
+
+      {/* Last touch (solo se diverso dal first) */}
+      {!sameTouch && (
+        <TouchCard
+          label="Last Touch (conversione)"
+          source={data.lt_source}
+          medium={data.lt_medium}
+          campaign={data.lt_campaign}
+          content={data.lt_content}
+          term={data.lt_term}
+          fbclid={data.lt_fbclid}
+          gclid={data.lt_gclid}
+          ttclid={data.lt_ttclid}
+          landingUrl={data.lt_landing_url}
+          at={data.lt_at}
+        />
+      )}
+
+      {/* Storico sessioni */}
+      {data.sessions.length > 0 && (
+        <>
+          <Separator />
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Storico visite ({data.sessions.length})
+            </p>
+            <div className="space-y-2">
+              {data.sessions.map((s) => (
+                <div
+                  key={s.session_id}
+                  className="flex items-start gap-3 text-xs bg-muted/40 rounded-md px-3 py-2"
+                >
+                  <DeviceIcon type={s.device_type} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <SourceBadge source={s.utm_source} />
+                      {s.utm_campaign && (
+                        <span className="text-muted-foreground">{s.utm_campaign}</span>
+                      )}
+                      {s.converted_at && (
+                        <Badge variant="outline" className="text-xs text-green-700 border-green-300">
+                          Convertito
+                        </Badge>
+                      )}
+                    </div>
+                    {s.landing_url && (
+                      <p className="text-muted-foreground truncate mt-0.5">{s.landing_url}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 text-muted-foreground shrink-0">
+                    <Clock className="h-3 w-3" />
+                    {format(new Date(s.created_at), "dd/MM HH:mm", { locale: it })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+```
+
+Aggiungi la tab nel componente di dettaglio del contatto:
+
+```tsx
+// Nel file ContactDetail.tsx, aggiungi tra le tab esistenti:
+<TabsTrigger value="attribution">Attribuzione</TabsTrigger>
+
+// E nel contenuto:
+<TabsContent value="attribution">
+  <ContactAttributionTab contactId={contactId} />
+</TabsContent>
+```
+
+Aggiungi anche nell'elenco contatti le colonne `attr_source` e `attr_campaign` come badge cliccabili per filtrare.
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT A4 di 4 — UI: REPORTISTICA UTM ATTRIBUTION
+════════════════════════════════════════════════════════════════════
+
+Nella sezione **Reportistica**, aggiungi una nuova scheda "Attribuzione Lead" che mostra il breakdown delle sorgenti di traffico.
+
+### Hook: src/hooks/useAttributionReport.ts
+
+```typescript
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { useCompany } from "@/hooks/useCompany";
+import { subDays } from "date-fns";
+
+export type GroupBy = "source" | "medium" | "campaign" | "content";
+
+export interface AttributionRow {
+  dimension: string;
+  total_sessions: number;
+  total_leads: number;
+  conversion_rate: number;
+  sources: string[];
+}
+
+export function useAttributionReport(
+  groupBy: GroupBy = "source",
+  dateFrom?: Date,
+  dateTo?: Date
+) {
+  const { company } = useCompany();
+  const from = dateFrom || subDays(new Date(), 30);
+  const to = dateTo || new Date();
+
+  return useQuery({
+    queryKey: ["attribution-report", company?.id, groupBy, from, to],
+    queryFn: async (): Promise<AttributionRow[]> => {
+      const { data, error } = await supabase.rpc("get_attribution_report", {
+        p_company_id: company!.id,
+        p_date_from: from.toISOString(),
+        p_date_to: to.toISOString(),
+        p_group_by: groupBy,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!company?.id,
+  });
+}
+```
+
+### Componente: src/components/reportistica/AttributionReport.tsx
+
+Crea un componente completo con:
+
+1. **Filtri in alto**: DateRangePicker (ultimi 7gg / 30gg / 90gg / personalizzato) + Tabs per `GroupBy` (Sorgente / Medium / Campagna / Contenuto/Ad)
+
+2. **KPI Cards** (4 card):
+   - Totale sessioni con UTM nel periodo
+   - Totale lead attribuiti
+   - Tasso di conversione medio
+   - Sorgente principale (quella con più lead)
+
+3. **Bar Chart** (recharts `BarChart`): dimensione sull'asse X, `total_sessions` (grigio) e `total_leads` (colore primario) come barre affiancate
+
+4. **Tabella dettagliata** con colonne:
+   - Dimensione (con `SourceBadge` se `groupBy === 'source'`)
+   - Sessioni
+   - Lead
+   - Tasso di conversione (con barra di progresso visiva)
+
+5. **Drill-down**: quando `groupBy` è `source`, cliccare su una riga cambia automaticamente `groupBy` a `campaign` e aggiunge un filtro `utm_source = riga.dimension`. Mostra breadcrumb: "Facebook → Campagne"
+
+Aggiungi questa scheda in Reportistica:
+
+```tsx
+// In Reportistica.tsx o equivalente
+<TabsTrigger value="attribution">
+  <TrendingUp className="h-4 w-4 mr-2" />
+  Attribuzione Lead
+</TabsTrigger>
+<TabsContent value="attribution">
+  <AttributionReport />
+</TabsContent>
+```
+
+
+══════════════════════════════════════════════════════════════════════
+ ███████╗ ██████╗ ██████╗ ███╗   ███╗
+ ██╔════╝██╔═══██╗██╔══██╗████╗ ████║
+ █████╗  ██║   ██║██████╔╝██╔████╔██║
+ ██╔══╝  ██║   ██║██╔══██╗██║╚██╔╝██║
+ ██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║
+ ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝
+ ██████╗ ██╗   ██╗██╗██╗     ██████╗ ███████╗██████╗
+ ██╔══██╗██║   ██║██║██║     ██╔══██╗██╔════╝██╔══██╗
+ ██████╔╝██║   ██║██║██║     ██║  ██║█████╗  ██████╔╝
+ ██╔══██╗██║   ██║██║██║     ██║  ██║██╔══╝  ██╔══██╗
+ ██████╔╝╚██████╔╝██║███████╗██████╔╝███████╗██║  ██║
+ ╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝ ╚══════╝╚═╝  ╚═╝
+══════════════════════════════════════════════════════════════════════
+
+POSIZIONAMENTO: Impostazioni → sezione "Form & Acquisizione"
+(NON nella sidebar di Marketing — è una configurazione globale)
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT B1 di 4 — DATABASE: FORM BUILDER
+════════════════════════════════════════════════════════════════════
+
+Crea questa migrazione Supabase per il modulo Form Builder.
+
+```sql
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 1: lead_forms
+-- Ogni form pubblico embeddabile sul sito del cliente
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE lead_forms (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  name TEXT NOT NULL,
+  description TEXT,
+  slug TEXT NOT NULL,                          -- URL-friendly: "form-contatto-estate"
+
+  -- Campi del form (array ordinato di field definition)
+  -- Schema campo: { id, type, label, placeholder, required, options[], mapping, conditional }
+  fields JSONB NOT NULL DEFAULT '[]',
+
+  -- Aspetto
+  theme JSONB NOT NULL DEFAULT '{
+    "primaryColor": "#6366f1",
+    "backgroundColor": "#ffffff",
+    "textColor": "#1f2937",
+    "fontFamily": "Inter, sans-serif",
+    "borderRadius": "8px",
+    "buttonText": "Invia",
+    "showLogo": false,
+    "successTitle": "Grazie!",
+    "successMessage": "Abbiamo ricevuto la tua richiesta. Ti contatteremo presto."
+  }',
+
+  -- Impostazioni comportamento
+  settings JSONB NOT NULL DEFAULT '{
+    "notifyEmail": null,
+    "notifyOnSubmit": true,
+    "redirectUrl": null,
+    "createContact": true,
+    "assignedUserId": null,
+    "defaultTags": [],
+    "defaultPipelineId": null,
+    "defaultStageId": null
+  }',
+
+  -- Stato
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  is_published BOOLEAN NOT NULL DEFAULT false,
+
+  -- Stats denormalizzate (aggiornate da trigger)
+  view_count INT NOT NULL DEFAULT 0,
+  submission_count INT NOT NULL DEFAULT 0,
+
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(company_id, slug)
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 2: form_views
+-- Ogni volta che la pagina del form viene caricata
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE form_views (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id UUID NOT NULL REFERENCES lead_forms(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  session_id TEXT,       -- session_id del tracking script (se presente)
+  visitor_id TEXT,
+  device_type TEXT CHECK (device_type IN ('desktop', 'mobile', 'tablet', 'unknown')) DEFAULT 'unknown',
+  referrer TEXT,
+  ip_hash TEXT,
+
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 3: form_submissions
+-- Ogni compilazione del form
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE form_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id UUID NOT NULL REFERENCES lead_forms(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Dati compilati (field_id → valore)
+  data JSONB NOT NULL DEFAULT '{}',
+
+  -- Contatto creato/aggiornato
+  contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
+
+  -- UTM attribution al momento della compilazione
+  session_id TEXT,       -- collega a attribution_sessions
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  utm_content TEXT,
+  utm_term TEXT,
+  fbclid TEXT,
+  gclid TEXT,
+
+  -- Metadati
+  ip_hash TEXT,
+  user_agent TEXT,
+  device_type TEXT,
+
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- INDICI
+-- ════════════════════════════════════════════════════════════════
+CREATE INDEX idx_lead_forms_company ON lead_forms(company_id);
+CREATE INDEX idx_lead_forms_slug ON lead_forms(company_id, slug);
+CREATE INDEX idx_form_views_form ON form_views(form_id);
+CREATE INDEX idx_form_views_company ON form_views(company_id);
+CREATE INDEX idx_form_submissions_form ON form_submissions(form_id);
+CREATE INDEX idx_form_submissions_contact ON form_submissions(contact_id);
+CREATE INDEX idx_form_submissions_session ON form_submissions(session_id);
+
+-- ════════════════════════════════════════════════════════════════
+-- RLS
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE lead_forms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_submissions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "lead_forms_company_isolation" ON lead_forms
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "form_views_company_isolation" ON form_views
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "form_submissions_company_isolation" ON form_submissions
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+-- ════════════════════════════════════════════════════════════════
+-- TRIGGER: aggiorna view_count e submission_count su lead_forms
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION trg_update_form_stats()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_TABLE_NAME = 'form_views' THEN
+    UPDATE lead_forms SET view_count = view_count + 1
+    WHERE id = NEW.form_id;
+  ELSIF TG_TABLE_NAME = 'form_submissions' THEN
+    UPDATE lead_forms SET submission_count = submission_count + 1
+    WHERE id = NEW.form_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_form_view_count
+AFTER INSERT ON form_views
+FOR EACH ROW EXECUTE FUNCTION trg_update_form_stats();
+
+CREATE TRIGGER trg_form_submission_count
+AFTER INSERT ON form_submissions
+FOR EACH ROW EXECUTE FUNCTION trg_update_form_stats();
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: trigger_form_automations(submission_id)
+-- Integrazione con il sistema automazioni Marketing esistente
+-- Aggiunge il tipo di trigger 'form_submitted' se non già presente
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION trigger_form_automations(
+  p_submission_id UUID
+)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  v_sub form_submissions%ROWTYPE;
+  v_flow RECORD;
+BEGIN
+  SELECT * INTO v_sub FROM form_submissions WHERE id = p_submission_id;
+  IF NOT FOUND OR v_sub.contact_id IS NULL THEN RETURN; END IF;
+
+  FOR v_flow IN
+    SELECT id FROM automation_flows
+    WHERE company_id = v_sub.company_id
+      AND is_active = true
+      AND trigger_type = 'form_submitted'
+      AND (trigger_config->>'form_id' = v_sub.form_id::text
+           OR trigger_config->>'form_id' IS NULL)
+  LOOP
+    INSERT INTO automation_enrollments (flow_id, contact_id, company_id, status, trigger_data)
+    VALUES (
+      v_flow.id,
+      v_sub.contact_id,
+      v_sub.company_id,
+      'active',
+      jsonb_build_object(
+        'submission_id', p_submission_id,
+        'form_id', v_sub.form_id,
+        'utm_source', v_sub.utm_source,
+        'utm_campaign', v_sub.utm_campaign
+      )
+    )
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+END;
+$$;
+```
+
+Applica la migrazione con nome: `add_form_builder`
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT B2 di 4 — EDGE FUNCTIONS: form-submit + form-render
+════════════════════════════════════════════════════════════════════
+
+Crea le due edge function pubbliche (no JWT) per il funzionamento dei form.
+
+### supabase/functions/form-submit/index.ts
+
+```typescript
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  try {
+    const body = await req.json();
+    const {
+      form_id,
+      company_id,
+      data: formData,  // { field_id: valore }
+      session_id,      // dal tracking script window._attrSessionId
+      visitor_id,
+    } = body;
+
+    if (!form_id || !company_id || !formData) {
+      return new Response(
+        JSON.stringify({ error: "Dati mancanti" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Recupera il form e la sua configurazione
+    const { data: form, error: formErr } = await supabase
+      .from("lead_forms")
+      .select("*")
+      .eq("id", form_id)
+      .eq("company_id", company_id)
+      .eq("is_active", true)
+      .eq("is_published", true)
+      .single();
+
+    if (formErr || !form) {
+      return new Response(
+        JSON.stringify({ error: "Form non trovato o non attivo" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Recupera UTM dalla sessione (se presente)
+    let sessionData: Record<string, string | null> = {};
+    if (session_id) {
+      const { data: session } = await supabase
+        .from("attribution_sessions")
+        .select("utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, gclid, ttclid")
+        .eq("session_id", session_id)
+        .eq("company_id", company_id)
+        .single();
+      if (session) sessionData = session;
+    }
+
+    // Estrai mappature campi → contatto
+    const fields: Array<{
+      id: string; type: string; label: string; mapping?: string; required?: boolean;
+    }> = form.fields || [];
+
+    // Validazione campi required
+    const missingFields: string[] = [];
+    for (const field of fields) {
+      if (field.required && field.type !== "heading" && field.type !== "paragraph" && field.type !== "divider") {
+        const val = formData[field.id];
+        if (!val || (typeof val === "string" && val.trim() === "")) {
+          missingFields.push(field.label);
+        }
+      }
+    }
+    if (missingFields.length > 0) {
+      return new Response(
+        JSON.stringify({ error: `Campi obbligatori mancanti: ${missingFields.join(", ")}` }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Costruisci oggetto contatto dalle mappature
+    const contactData: Record<string, string> = {};
+    for (const field of fields) {
+      if (field.mapping && formData[field.id] !== undefined) {
+        // mapping = "first_name" | "last_name" | "email" | "phone" | "company" | "notes" | ...
+        contactData[field.mapping] = formData[field.id];
+      }
+    }
+
+    // IP hashing
+    const rawIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") || "unknown";
+    const ipBuffer = await crypto.subtle.digest(
+      "SHA-256", new TextEncoder().encode(rawIp)
+    );
+    const ipHash = Array.from(new Uint8Array(ipBuffer))
+      .map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    // Device type
+    const ua = req.headers.get("user-agent") || "";
+    let device_type = "desktop";
+    if (/mobile|android|iphone|ipod/i.test(ua)) device_type = "mobile";
+    else if (/ipad|tablet/i.test(ua)) device_type = "tablet";
+
+    // Upsert contatto per email (deduplication)
+    let contactId: string | null = null;
+    const settings = form.settings || {};
+
+    if (settings.createContact !== false && contactData.email) {
+      const { data: existingContact } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("company_id", company_id)
+        .eq("email", contactData.email)
+        .single();
+
+      if (existingContact) {
+        // Aggiorna campi del contatto esistente
+        const updatePayload: Record<string, unknown> = {
+          ...contactData,
+          attr_source: sessionData.utm_source || undefined,
+          attr_medium: sessionData.utm_medium || undefined,
+          attr_campaign: sessionData.utm_campaign || undefined,
+          attr_content: sessionData.utm_content || undefined,
+        };
+        // Rimuovi campi undefined
+        Object.keys(updatePayload).forEach(k => updatePayload[k] === undefined && delete updatePayload[k]);
+
+        await supabase
+          .from("contacts")
+          .update(updatePayload)
+          .eq("id", existingContact.id);
+        contactId = existingContact.id;
+      } else {
+        // Crea nuovo contatto
+        const newContact: Record<string, unknown> = {
+          company_id,
+          ...contactData,
+          source: "form",
+          attr_source: sessionData.utm_source || null,
+          attr_medium: sessionData.utm_medium || null,
+          attr_campaign: sessionData.utm_campaign || null,
+          attr_content: sessionData.utm_content || null,
+        };
+
+        // Assegna a utente se configurato nel form
+        if (settings.assignedUserId) newContact.assigned_user_id = settings.assignedUserId;
+
+        // Tags di default
+        if (settings.defaultTags?.length > 0) newContact.tags = settings.defaultTags;
+
+        const { data: created } = await supabase
+          .from("contacts")
+          .insert(newContact)
+          .select("id")
+          .single();
+
+        contactId = created?.id || null;
+
+        // Se c'è un pipeline configurato, crea anche un deal/opportunità
+        if (contactId && settings.defaultPipelineId && settings.defaultStageId) {
+          await supabase.from("opportunities").insert({
+            company_id,
+            contact_id: contactId,
+            pipeline_id: settings.defaultPipelineId,
+            stage_id: settings.defaultStageId,
+            title: `Lead da form: ${form.name}`,
+          });
+        }
+      }
+    }
+
+    // Crea la submission
+    const { data: submission } = await supabase
+      .from("form_submissions")
+      .insert({
+        form_id,
+        company_id,
+        data: formData,
+        contact_id: contactId,
+        session_id: session_id || null,
+        utm_source: sessionData.utm_source || null,
+        utm_medium: sessionData.utm_medium || null,
+        utm_campaign: sessionData.utm_campaign || null,
+        utm_content: sessionData.utm_content || null,
+        utm_term: sessionData.utm_term || null,
+        fbclid: sessionData.fbclid || null,
+        gclid: sessionData.gclid || null,
+        ip_hash: ipHash,
+        user_agent: ua,
+        device_type,
+      })
+      .select("id")
+      .single();
+
+    // Attribuzione UTM sul contatto
+    if (contactId && session_id) {
+      await supabase.rpc("attach_attribution_to_contact", {
+        p_session_id: session_id,
+        p_contact_id: contactId,
+        p_company_id: company_id,
+      });
+    }
+
+    // Trigger automazioni Marketing
+    if (submission?.id) {
+      await supabase.rpc("trigger_form_automations", {
+        p_submission_id: submission.id,
+      });
+    }
+
+    // Notifica email interna
+    if (settings.notifyOnSubmit && settings.notifyEmail) {
+      // Usa Supabase Edge Function separata o SMTP diretto
+      // (integra con il sistema email esistente del progetto)
+      const notifyPayload = {
+        to: settings.notifyEmail,
+        subject: `Nuovo lead da form: ${form.name}`,
+        body: Object.entries(formData)
+          .map(([k, v]) => {
+            const field = fields.find(f => f.id === k);
+            return `${field?.label || k}: ${v}`;
+          })
+          .join("\n"),
+      };
+      // Invoke sistema email esistente — adatta al tuo hook
+      await supabase.functions.invoke("send-notification-email", {
+        body: notifyPayload
+      }).catch(() => {}); // Non bloccare la risposta se fallisce
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        contact_id: contactId,
+        redirect_url: settings.redirectUrl || null,
+        success_title: form.theme?.successTitle || "Grazie!",
+        success_message: form.theme?.successMessage || "Richiesta ricevuta.",
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err) {
+    console.error("form-submit error:", err);
+    return new Response(
+      JSON.stringify({ error: "Errore interno" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+```
+
+### supabase/functions/form-render/index.ts
+
+Genera una pagina HTML standalone completa per il form pubblico.
+Includi lo snippet di attribution tracking nello `<head>` con il `company_id` corretto.
+
+```typescript
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+Deno.serve(async (req: Request) => {
+  const url = new URL(req.url);
+  const companyId = url.searchParams.get("company") || url.pathname.split("/")[1];
+  const slug = url.searchParams.get("slug") || url.pathname.split("/")[2];
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  const { data: form } = await supabase
+    .from("lead_forms")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .eq("is_published", true)
+    .single();
+
+  if (!form) {
+    return new Response("<h1>Form non trovato</h1>", {
+      status: 404,
+      headers: { "Content-Type": "text/html" },
+    });
+  }
+
+  // Registra view
+  await supabase.from("form_views").insert({
+    form_id: form.id,
+    company_id: form.company_id,
+    referrer: req.headers.get("referer"),
+  }).catch(() => {});
+
+  const theme = form.theme || {};
+  const fields: Array<Record<string, unknown>> = form.fields || [];
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+  // Genera HTML per ogni campo
+  function renderField(field: Record<string, unknown>): string {
+    const id = field.id as string;
+    const label = field.label as string;
+    const required = field.required ? "required" : "";
+    const placeholder = (field.placeholder as string) || "";
+
+    switch (field.type) {
+      case "text":
+      case "email":
+      case "phone":
+      case "number":
+        return `
+          <div class="form-group">
+            <label for="${id}">${label}${field.required ? ' <span class="req">*</span>' : ''}</label>
+            <input type="${field.type === 'phone' ? 'tel' : field.type}" id="${id}" name="${id}"
+              placeholder="${placeholder}" ${required} />
+          </div>`;
+      case "textarea":
+        return `
+          <div class="form-group">
+            <label for="${id}">${label}${field.required ? ' <span class="req">*</span>' : ''}</label>
+            <textarea id="${id}" name="${id}" placeholder="${placeholder}" rows="4" ${required}></textarea>
+          </div>`;
+      case "select":
+        const opts = ((field.options as string[]) || [])
+          .map((o: string) => `<option value="${o}">${o}</option>`).join("");
+        return `
+          <div class="form-group">
+            <label for="${id}">${label}${field.required ? ' <span class="req">*</span>' : ''}</label>
+            <select id="${id}" name="${id}" ${required}><option value="">Seleziona…</option>${opts}</select>
+          </div>`;
+      case "checkbox":
+        return `
+          <div class="form-group form-check">
+            <input type="checkbox" id="${id}" name="${id}" ${required} />
+            <label for="${id}">${label}${field.required ? ' <span class="req">*</span>' : ''}</label>
+          </div>`;
+      case "radio":
+        const radios = ((field.options as string[]) || [])
+          .map((o: string) => `
+            <label class="radio-option">
+              <input type="radio" name="${id}" value="${o}" ${required} /> ${o}
+            </label>`).join("");
+        return `
+          <div class="form-group">
+            <label>${label}${field.required ? ' <span class="req">*</span>' : ''}</label>
+            <div class="radio-group">${radios}</div>
+          </div>`;
+      case "date":
+        return `
+          <div class="form-group">
+            <label for="${id}">${label}${field.required ? ' <span class="req">*</span>' : ''}</label>
+            <input type="date" id="${id}" name="${id}" ${required} />
+          </div>`;
+      case "heading":
+        return `<h2 class="form-heading">${label}</h2>`;
+      case "paragraph":
+        return `<p class="form-paragraph">${label}</p>`;
+      case "divider":
+        return `<hr class="form-divider" />`;
+      case "hidden":
+        return `<input type="hidden" id="${id}" name="${id}" value="${placeholder}" />`;
+      default:
+        return "";
+    }
+  }
+
+  const fieldsHtml = fields.map(renderField).join("\n");
+
+  const html = `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${form.name}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: ${theme.fontFamily || "Inter, sans-serif"};
+      background: #f3f4f6;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .form-wrapper {
+      background: ${theme.backgroundColor || "#fff"};
+      border-radius: ${theme.borderRadius || "8px"};
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; color: ${theme.textColor || "#1f2937"}; margin-bottom: 0.5rem; }
+    .subtitle { color: #6b7280; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1.2rem; }
+    label { display: block; font-size: 0.875rem; font-weight: 500; color: ${theme.textColor || "#1f2937"}; margin-bottom: 0.4rem; }
+    .req { color: #ef4444; }
+    input[type="text"], input[type="email"], input[type="tel"], input[type="number"],
+    input[type="date"], textarea, select {
+      width: 100%; padding: 0.6rem 0.85rem;
+      border: 1.5px solid #d1d5db; border-radius: calc(${theme.borderRadius || "8px"} * 0.6);
+      font-size: 0.9rem; color: ${theme.textColor || "#1f2937"};
+      transition: border-color 0.15s;
+      background: white;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none; border-color: ${theme.primaryColor || "#6366f1"};
+      box-shadow: 0 0 0 3px ${theme.primaryColor || "#6366f1"}22;
+    }
+    .form-check { display: flex; align-items: flex-start; gap: 0.5rem; }
+    .form-check input[type="checkbox"] { width: auto; margin-top: 0.2rem; }
+    .radio-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .radio-option { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; font-weight: 400; }
+    .radio-option input { width: auto; }
+    .form-heading { font-size: 1.1rem; font-weight: 600; color: ${theme.textColor || "#1f2937"}; margin: 1.5rem 0 0.5rem; }
+    .form-paragraph { font-size: 0.875rem; color: #6b7280; margin-bottom: 1rem; }
+    .form-divider { border: none; border-top: 1px solid #e5e7eb; margin: 1.5rem 0; }
+    button[type="submit"] {
+      width: 100%; padding: 0.75rem;
+      background: ${theme.primaryColor || "#6366f1"}; color: white;
+      border: none; border-radius: ${theme.borderRadius || "8px"};
+      font-size: 1rem; font-weight: 600; cursor: pointer;
+      transition: opacity 0.15s;
+      margin-top: 0.5rem;
+    }
+    button[type="submit"]:hover { opacity: 0.9; }
+    button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error-msg { color: #ef4444; font-size: 0.8rem; margin-top: 0.3rem; }
+    .success-box {
+      text-align: center; padding: 2rem 1rem;
+      display: none;
+    }
+    .success-box .check { font-size: 3rem; margin-bottom: 1rem; }
+    .success-box h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .success-box p { color: #6b7280; }
+  </style>
+  <!-- Attribution Tracking -->
+  <script>
+  (function() {
+    var COMPANY_ID = '${form.company_id}';
+    var ENDPOINT   = '${supabaseUrl}/functions/v1/attribution-capture';
+    function uuid() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+    var visitorId = localStorage.getItem('_attr_vid');
+    if (!visitorId) { visitorId = uuid(); localStorage.setItem('_attr_vid', visitorId); }
+    var sessionId = sessionStorage.getItem('_attr_sid');
+    if (!sessionId) { sessionId = uuid(); sessionStorage.setItem('_attr_sid', sessionId); }
+    var params = new URLSearchParams(window.location.search);
+    var utmKeys = ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid','gclid','ttclid','msclkid'];
+    var data = {}; var hasUtm = false;
+    utmKeys.forEach(function(k) { var v = params.get(k); if (v) { data[k] = v; hasUtm = true; } });
+    if (!hasUtm) { try { var s = localStorage.getItem('_attr_utm'); if (s) { data = JSON.parse(s); hasUtm = true; } } catch(e) {} }
+    else { localStorage.setItem('_attr_utm', JSON.stringify(data)); }
+    window._attrSessionId = sessionId;
+    window._attrVisitorId = visitorId;
+    if (hasUtm) {
+      fetch(ENDPOINT, { method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(Object.assign({}, data, { company_id: COMPANY_ID, session_id: sessionId, visitor_id: visitorId, landing_url: window.location.href, referrer: document.referrer })),
+        keepalive: true }).catch(function(){});
+    }
+  })();
+  </script>
+</head>
+<body>
+  <div class="form-wrapper">
+    <h1>${form.name}</h1>
+    ${form.description ? `<p class="subtitle">${form.description}</p>` : ""}
+    <form id="lead-form" novalidate>
+      ${fieldsHtml}
+      <button type="submit" id="submit-btn">${theme.buttonText || "Invia"}</button>
+    </form>
+    <div class="success-box" id="success-box">
+      <div class="check">✅</div>
+      <h2>${theme.successTitle || "Grazie!"}</h2>
+      <p>${theme.successMessage || "Abbiamo ricevuto la tua richiesta."}</p>
+    </div>
+  </div>
+  <script>
+    var FORM_ID    = '${form.id}';
+    var COMPANY_ID = '${form.company_id}';
+    var SUBMIT_URL = '${supabaseUrl}/functions/v1/form-submit';
+
+    document.getElementById('lead-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Invio in corso…';
+
+      var formEl = document.getElementById('lead-form');
+      var inputs = formEl.querySelectorAll('input, textarea, select');
+      var data = {};
+      inputs.forEach(function(inp) {
+        if (!inp.name) return;
+        if (inp.type === 'checkbox') data[inp.name] = inp.checked;
+        else if (inp.type === 'radio') { if (inp.checked) data[inp.name] = inp.value; }
+        else data[inp.name] = inp.value;
+      });
+
+      try {
+        var resp = await fetch(SUBMIT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            form_id: FORM_ID,
+            company_id: COMPANY_ID,
+            data: data,
+            session_id: window._attrSessionId || null,
+            visitor_id: window._attrVisitorId || null,
+          })
+        });
+        var result = await resp.json();
+        if (resp.ok) {
+          if (result.redirect_url) {
+            window.location.href = result.redirect_url;
+          } else {
+            formEl.style.display = 'none';
+            document.getElementById('success-box').style.display = 'block';
+          }
+        } else {
+          alert(result.error || 'Errore durante l invio. Riprova.');
+          btn.disabled = false;
+          btn.textContent = '${theme.buttonText || "Invia"}';
+        }
+      } catch(err) {
+        alert('Errore di rete. Verifica la connessione e riprova.');
+        btn.disabled = false;
+        btn.textContent = '${theme.buttonText || "Invia"}';
+      }
+    });
+  </script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "X-Frame-Options": "ALLOWALL",  // permette iframe embed
+      "Content-Security-Policy": "frame-ancestors *",
+    },
+  });
+});
+```
+
+Entrambe le edge function devono avere `verify_jwt: false` nel deploy.
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT B3 di 4 — UI: FORM BUILDER IN IMPOSTAZIONI
+════════════════════════════════════════════════════════════════════
+
+Aggiungi una nuova sezione **"Form & Acquisizione"** all'interno di **Impostazioni**.
+
+### Struttura pagina Impostazioni
+
+Nella pagina Impostazioni (o `Settings.tsx`), aggiungi una nuova sezione con due tab:
+1. **Form Builder** — lista e builder dei form
+2. **Snippet Tracking** — lo snippet JS per il sito
+
+---
+
+### Componente: src/pages/settings/FormBuilder.tsx
+
+Crea una pagina con due viste: **Lista Form** e **Editor Form**.
+
+#### VISTA LISTA FORM
+
+```tsx
+// Lista form con cards
+// Ogni card mostra:
+//   - Nome form
+//   - Badge stato: Pubblicato (verde) / Bozza (grigio)
+//   - Stats: X visualizzazioni · Y invii · Z% conversione
+//   - Azioni: Modifica | Copia link | Preview | Elimina
+//   - Toggle is_published (switch)
+// Pulsante "+ Nuovo Form" in alto a destra
+
+// Query:
+const { data: forms } = useQuery({
+  queryKey: ['lead-forms'],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from('lead_forms')
+      .select('id, name, slug, is_active, is_published, view_count, submission_count, created_at')
+      .order('created_at', { ascending: false });
+    return data || [];
+  }
+});
+
+// Calcolo conversione: (submission_count / view_count * 100).toFixed(1)%
+```
+
+#### VISTA EDITOR FORM (3 colonne)
+
+Layout a 3 colonne affiancate:
+
+**Colonna 1 — Libreria Campi** (larghezza fissa ~220px):
+```
+┌─────────────────────┐
+│  LIBRERIA CAMPI     │
+├─────────────────────┤
+│ Testo               │
+│ Email               │
+│ Telefono            │
+│ Area di testo       │
+│ Menu a tendina      │
+│ Checkbox            │
+│ Radio               │
+│ Data                │
+│ Numero              │
+│──────────────────── │
+│  STRUTTURA          │
+│ Intestazione        │
+│ Paragrafo           │
+│ Divisore            │
+│ Campo nascosto      │
+└─────────────────────┘
+Ogni voce è trascinabile
+sul canvas centrale.
+```
+
+**Colonna 2 — Canvas** (flex 1):
+- Lista ordinabile dei campi aggiunti (drag & drop con @dnd-kit/sortable)
+- Ogni campo mostra: tipo (icona) + label + badge "required" se obbligatorio
+- Click su un campo → lo seleziona e apre il pannello proprietà
+- Tasto ✕ per rimuovere il campo
+- Stato vuoto: area tratteggiata con testo "Trascina i campi qui"
+
+**Colonna 3 — Pannello Proprietà** (larghezza fissa ~280px):
+Quando un campo è selezionato, mostra:
+- Input "Label"
+- Input "Placeholder"
+- Toggle "Obbligatorio"
+- Select "Mappatura contatto" (Nome, Cognome, Email, Telefono, Azienda, Note, — nessuna —)
+- Per tipo select/radio: lista opzioni con add/remove
+- Per campo nascosto: input "Valore"
+
+Quando nessun campo è selezionato, mostra 4 tab:
+- **Aspetto**: color picker primaryColor, backgroundColor, textColor, borderRadius, testo bottone, messaggio di successo
+- **Impostazioni**: email notifica, redirect URL, toggle "Crea contatto", assegna utente, pipeline di default
+- **Condivisione**: URL pubblica (copy button) + snippet iframe + snippet JS
+
+**In alto all'editor**:
+- Breadcrumb: Impostazioni > Form > [nome form]
+- Pulsanti: "Salva bozza" | "Pubblica" | "Anteprima" (apre in nuova tab la form-render URL)
+- Input nome form inline (editable h1)
+
+---
+
+### Hook: src/hooks/useFormBuilder.ts
+
+```typescript
+import { useState, useCallback } from "react";
+import { nanoid } from "nanoid";
+
+export interface FormField {
+  id: string;
+  type: "text" | "email" | "phone" | "textarea" | "select" | "checkbox" |
+        "radio" | "date" | "number" | "file" | "heading" | "paragraph" |
+        "divider" | "hidden";
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  options?: string[];             // per select e radio
+  mapping?: string;               // "email" | "first_name" | "last_name" | ecc.
+  value?: string;                 // per hidden
+}
+
+export function useFormBuilder(initialFields: FormField[] = []) {
+  const [fields, setFields] = useState<FormField[]>(initialFields);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const addField = useCallback((type: FormField["type"]) => {
+    const defaults: Partial<Record<FormField["type"], Partial<FormField>>> = {
+      email: { label: "Email", mapping: "email", required: true },
+      phone: { label: "Telefono", mapping: "phone" },
+      text: { label: "Nome" },
+      textarea: { label: "Messaggio", placeholder: "Scrivi qui…" },
+      select: { label: "Selezione", options: ["Opzione 1", "Opzione 2"] },
+      radio: { label: "Scelta", options: ["Sì", "No"] },
+      checkbox: { label: "Accetto la privacy policy", required: true },
+      heading: { label: "Titolo sezione" },
+      paragraph: { label: "Testo descrittivo della sezione." },
+    };
+    const newField: FormField = {
+      id: nanoid(),
+      type,
+      label: type.charAt(0).toUpperCase() + type.slice(1),
+      ...defaults[type],
+    };
+    setFields(prev => [...prev, newField]);
+    setSelectedId(newField.id);
+    setIsDirty(true);
+  }, []);
+
+  const updateField = useCallback((id: string, updates: Partial<FormField>) => {
+    setFields(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+    setIsDirty(true);
+  }, []);
+
+  const removeField = useCallback((id: string) => {
+    setFields(prev => prev.filter(f => f.id !== id));
+    setSelectedId(prev => prev === id ? null : prev);
+    setIsDirty(true);
+  }, []);
+
+  const reorderFields = useCallback((activeId: string, overId: string) => {
+    setFields(prev => {
+      const oldIndex = prev.findIndex(f => f.id === activeId);
+      const newIndex = prev.findIndex(f => f.id === overId);
+      const result = [...prev];
+      const [removed] = result.splice(oldIndex, 1);
+      result.splice(newIndex, 0, removed);
+      return result;
+    });
+    setIsDirty(true);
+  }, []);
+
+  const selectedField = fields.find(f => f.id === selectedId) || null;
+
+  return {
+    fields,
+    selectedId,
+    selectedField,
+    isDirty,
+    setIsDirty,
+    addField,
+    updateField,
+    removeField,
+    reorderFields,
+    setSelectedId,
+  };
+}
+```
+
+---
+
+### Snippet di Condivisione nel pannello proprietà
+
+Quando l'utente va nel tab "Condivisione" del pannello proprietà, mostra:
+
+**URL Pubblica:**
+```
+https://[progetto].supabase.co/functions/v1/form-render?company=[id]&slug=[slug]
+```
+Con pulsante "Copia URL" e "Apri anteprima".
+
+**Embed come iframe:**
+```html
+<iframe
+  src="https://[progetto].supabase.co/functions/v1/form-render?company=[id]&slug=[slug]"
+  width="100%" height="600" frameborder="0"
+  style="border:none; border-radius: 8px;">
+</iframe>
+```
+
+**Snippet Tracking (rimanda alla tab Snippet Tracking in Impostazioni)**:
+Mostra un box informativo: "Per attribuire i lead ai tuoi annunci pubblicitari, installa lo snippet di tracking su ogni pagina del tuo sito. Trovi lo snippet nella sezione Impostazioni → Snippet Tracking."
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT B4 di 4 — SNIPPET TRACKING IN IMPOSTAZIONI + INTEGRAZIONE SIDEBAR
+════════════════════════════════════════════════════════════════════
+
+### Tab "Snippet Tracking" in Impostazioni → Form & Acquisizione
+
+Crea un componente `TrackingSnippetSettings.tsx` che mostra:
+
+1. **Card principale con lo snippet JS**
+
+```tsx
+import { getTrackingSnippet } from "@/constants/trackingSnippet";
+
+// Usa company.id e SUPABASE_URL (da env var VITE_SUPABASE_URL)
+const snippet = getTrackingSnippet(company.id, import.meta.env.VITE_SUPABASE_URL);
+```
+
+Layout della card:
+- Titolo: "Snippet di Tracking UTM"
+- Descrizione: "Incolla questo codice prima di `</head>` su ogni pagina del tuo sito. Lo snippet rileva automaticamente i parametri UTM e i click ID (fbclid, gclid, ttclid) dagli URL degli annunci Meta, Google, TikTok, LinkedIn e li associa ai lead."
+- Box codice monospace con sfondo scuro, testo selezionabile
+- Pulsante "Copia snippet" con feedback visivo (Check icon per 2 secondi dopo la copia)
+
+2. **Card "Come funziona"** — spiega il flusso in 3 passi con icone:
+   1. Un utente clicca sul tuo annuncio Meta/Google → l'URL contiene `?utm_campaign=...&fbclid=...`
+   2. Lo snippet legge i parametri dall'URL e li salva nella sessione
+   3. Quando l'utente compila un form, i dati UTM vengono salvati automaticamente sul suo profilo contatto
+
+3. **Card "Parametri supportati"** — tabella con due colonne:
+
+| Parametro | Piattaforma |
+|-----------|-------------|
+| `utm_source` | Tutte |
+| `utm_medium` | Tutte |
+| `utm_campaign` | Tutte |
+| `utm_content` | Meta (nome adset), Google (variante) |
+| `utm_term` | Google (parola chiave) |
+| `fbclid` | Meta Ads (Facebook & Instagram) |
+| `gclid` | Google Ads |
+| `ttclid` | TikTok Ads |
+| `msclkid` | Microsoft Ads |
+| `li_fat_id` | LinkedIn Ads |
+
+4. **Card "Test snippet"** — input URL per simulare:
+   - Campo: "Incolla un URL con parametri UTM per testare il rilevamento"
+   - Pulsante "Analizza"
+   - Output: mostra i parametri rilevati come badge colorati
+
+---
+
+### Navigazione Impostazioni
+
+Nella pagina Impostazioni, aggiungi una nuova sezione **"Form & Acquisizione"** con due tab:
+- "Form" → componente FormBuilder (lista e editor)
+- "Tracking UTM" → componente TrackingSnippetSettings
+
+Posiziona questa sezione dopo "Integrazioni" e prima di "Avanzate" (o nell'ordine logico del tuo layout Impostazioni).
+
+---
+
+### Aggiornamento sidebar (se usi il sistema accordion del prompt sidebar_ux)
+
+NON aggiungere voci in Marketing per Form e Campagne.
+I form sono ora in Impostazioni.
+L'attribuzione si vede nel dettaglio Contatto (tab "Attribuzione") e in Reportistica (tab "Attribuzione Lead").
+
+Se vuoi un riferimento rapido in Marketing, aggiungi **solo** in Reportistica:
+```
+Reportistica
+  ├── Dashboard
+  ├── Pipeline
+  ├── Email
+  └── Attribuzione Lead   ← nuovo (punta alla tab attribution)
+```
+
+---
+
+### Integrazione con Contatti — Filtri avanzati
+
+Nella lista Contatti, aggiungi filtri per:
+- **Sorgente** (attr_source): dropdown con tutte le sorgenti presenti nel DB
+- **Campagna** (attr_campaign): input testuale o dropdown con le campagne distinte
+
+Queste colonne vanno aggiunte anche come colonne opzionali nella tabella Contatti (si attivano dal selettore colonne con visibilità toggle).
+```
+
+
+════════════════════════════════════════════════════════════════════
+RIEPILOGO ORDINE DI ESECUZIONE
+════════════════════════════════════════════════════════════════════
+
+Esegui i prompt in questo ordine su Lovable:
+
+  1. A1 — Migrazione DB UTM Attribution
+  2. A2 — Edge Function attribution-capture + trackingSnippet.ts
+  3. A3 — Tab Attribuzione nel dettaglio Contatto
+  4. A4 — Scheda Attribuzione Lead in Reportistica
+  5. B1 — Migrazione DB Form Builder
+  6. B2 — Edge Functions form-submit + form-render
+  7. B3 — Form Builder UI in Impostazioni
+  8. B4 — Snippet Tracking in Impostazioni + integrazioni finali
+
+Ogni prompt è autonomo e può essere dato separatamente.
+Inizia sempre da A1 e B1 (migrazioni DB) prima delle rispettive UI.

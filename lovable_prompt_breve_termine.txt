@@ -1,0 +1,1338 @@
+╔══════════════════════════════════════════════════════════════════╗
+║   BREVE TERMINE — 4 FUNZIONI · 7 PROMPT SEQUENZIALI            ║
+║   Notifiche · Filtri URL · Optimistic · Listino                 ║
+╚══════════════════════════════════════════════════════════════════╝
+
+ISTRUZIONI GENERALI
+───────────────────
+Esegui UN PROMPT ALLA VOLTA nell'ordine indicato.
+Ogni prompt dipende dal precedente. Testa che compili prima di
+procedere al successivo.
+
+PROMPTS IN QUESTO FILE:
+  [N1] Notifiche — DB + RLS + funzione PG
+  [N2] Notifiche — Hook realtime + UI (Bell + Panel)
+  [N3] Notifiche — Trigger automatici (ticket, ordini, task)
+  [F1] Filtri persistenti in URL params (3 pagine)
+  [O1] Optimistic updates su toggle/mark-as-done
+  [L1] Listino centralizzato — potenzia ArticleCatalog
+  [L2] Listino centralizzato — CatalogBrowserDialog in ordini
+
+
+════════════════════════════════════════════════════════════════════
+[N1] NOTIFICHE — DB, RLS, FUNZIONE POSTGRES
+════════════════════════════════════════════════════════════════════
+
+Crea la struttura dati per il sistema di notifiche in-app.
+Nessun componente UI in questo prompt — solo DB.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Tabella notifications
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Crea questa migrazione Supabase:
+
+```sql
+-- Tabella notifiche in-app
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id    uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type          text NOT NULL,
+  -- Tipi validi: 'order_status_changed' | 'installment_due' | 'ticket_new'
+  --              | 'ticket_reply' | 'task_assigned' | 'task_due' | 'generic'
+  title         text NOT NULL,
+  body          text,
+  entity_type   text,  -- 'order' | 'ticket' | 'task' | 'installment' | 'contact'
+  entity_id     uuid,
+  action_url    text,  -- percorso relativo, es. /azienda/ordini/uuid
+  is_read       boolean NOT NULL DEFAULT false,
+  is_dismissed  boolean NOT NULL DEFAULT false,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- Indici per performance
+CREATE INDEX idx_notifications_user_id    ON public.notifications(user_id);
+CREATE INDEX idx_notifications_company_id ON public.notifications(company_id);
+CREATE INDEX idx_notifications_is_read    ON public.notifications(is_read) WHERE is_read = false;
+CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DESC);
+
+-- RLS
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+-- Ogni utente vede solo le proprie notifiche
+CREATE POLICY "users_read_own_notifications"
+  ON public.notifications FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Ogni utente può aggiornare solo is_read e is_dismissed delle proprie
+CREATE POLICY "users_update_own_notifications"
+  ON public.notifications FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Solo service_role inserisce (tramite trigger PG o funzione RPC)
+-- Gli utenti NON possono inserire notifiche proprie
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Funzione create_notification()
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+-- Funzione helper chiamabile dai trigger (SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION public.create_notification(
+  p_company_id  uuid,
+  p_user_id     uuid,
+  p_type        text,
+  p_title       text,
+  p_body        text        DEFAULT NULL,
+  p_entity_type text        DEFAULT NULL,
+  p_entity_id   uuid        DEFAULT NULL,
+  p_action_url  text        DEFAULT NULL
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  -- Non creare notifiche se l'utente non esiste più
+  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = p_user_id) THEN
+    RETURN NULL;
+  END IF;
+
+  INSERT INTO public.notifications (
+    company_id, user_id, type, title, body,
+    entity_type, entity_id, action_url
+  ) VALUES (
+    p_company_id, p_user_id, p_type, p_title, p_body,
+    p_entity_type, p_entity_id, p_action_url
+  ) RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$$;
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Funzione mark_notifications_read()
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+-- RPC per segnare tutte le notifiche come lette
+CREATE OR REPLACE FUNCTION public.mark_all_notifications_read(
+  p_company_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE public.notifications
+  SET is_read = true
+  WHERE user_id = auth.uid()
+    AND company_id = p_company_id
+    AND is_read = false;
+END;
+$$;
+
+-- Abilita realtime sulla tabella notifications
+ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+```
+
+
+════════════════════════════════════════════════════════════════════
+[N2] NOTIFICHE — HOOK REALTIME + UI (BELL + PANEL)
+════════════════════════════════════════════════════════════════════
+
+Crea il sistema di notifiche lato client: hook con realtime,
+campanella nel layout, pannello laterale.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Hook useNotifications
+File da CREARE: src/hooks/useNotifications.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+import { useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+export interface Notification {
+  id: string;
+  company_id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  action_url: string | null;
+  is_read: boolean;
+  is_dismissed: boolean;
+  created_at: string;
+}
+
+export function useNotifications() {
+  const { profile, company } = useAuth();
+  const queryClient = useQueryClient();
+  const companyId = company?.id;
+  const userId = profile?.id;
+
+  // Query principale: notifiche non dismissed
+  const { data: notifications = [], isLoading } = useQuery<Notification[]>({
+    queryKey: ["notifications", companyId, userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("company_id", companyId!)
+        .eq("user_id", userId!)
+        .eq("is_dismissed", false)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data as Notification[];
+    },
+    enabled: !!companyId && !!userId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+
+  // Subscription realtime: aggiorna la cache quando arriva una nuova notifica
+  useEffect(() => {
+    if (!companyId || !userId) return;
+
+    const channel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          // Aggiungi la nuova notifica in cima alla cache senza refetch
+          queryClient.setQueryData<Notification[]>(
+            ["notifications", companyId, userId],
+            (old = []) => [payload.new as Notification, ...old]
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [companyId, userId, queryClient]);
+
+  // Numero non lette
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  // Segna una notifica come letta
+  const markAsRead = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", id)
+        .eq("user_id", userId!);
+      if (error) throw error;
+    },
+    onMutate: async (id) => {
+      // Optimistic update
+      queryClient.setQueryData<Notification[]>(
+        ["notifications", companyId, userId],
+        (old = []) => old.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    },
+  });
+
+  // Segna tutte come lette
+  const markAllAsRead = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("mark_all_notifications_read", {
+        p_company_id: companyId!,
+      });
+      if (error) throw error;
+    },
+    onMutate: async () => {
+      queryClient.setQueryData<Notification[]>(
+        ["notifications", companyId, userId],
+        (old = []) => old.map((n) => ({ ...n, is_read: true }))
+      );
+    },
+  });
+
+  // Dismissta (nasconde dal pannello)
+  const dismiss = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_dismissed: true })
+        .eq("id", id)
+        .eq("user_id", userId!);
+      if (error) throw error;
+    },
+    onMutate: async (id) => {
+      queryClient.setQueryData<Notification[]>(
+        ["notifications", companyId, userId],
+        (old = []) => old.filter((n) => n.id !== id)
+      );
+    },
+  });
+
+  return {
+    notifications,
+    unreadCount,
+    isLoading,
+    markAsRead: markAsRead.mutate,
+    markAllAsRead: markAllAsRead.mutate,
+    dismiss: dismiss.mutate,
+  };
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Componente NotificationsPanel
+File da CREARE: src/components/notifications/NotificationsPanel.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Crea un pannello Sheet laterale (destra, width 380px) con queste
+caratteristiche:
+
+```typescript
+// Props:
+interface NotificationsPanelProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+```
+
+**Struttura visiva:**
+- Header: "Notifiche" + badge contatore non lette + pulsante
+  "Segna tutte come lette" (disabilitato se unreadCount === 0)
+- Lista notifiche ordinata per data (più recente in cima)
+- Ogni notifica:
+  - Icona a sinistra basata su `type` (usa icone lucide-react):
+    - `ticket_new` / `ticket_reply` → MessageSquare (colore blue)
+    - `order_status_changed` → Package (colore orange)
+    - `task_assigned` / `task_due` → CheckSquare (colore purple)
+    - `installment_due` → Banknote (colore green)
+    - `generic` → Bell (colore gray)
+  - Sfondo: bianco se letta, `bg-primary/5` se non letta
+  - Titolo (font-medium) + body (text-sm text-muted-foreground)
+  - Timestamp relativo in basso a destra (es. "2 ore fa")
+    usa: `formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: it })`
+    (importa it da date-fns/locale)
+  - Se `action_url` è presente: click sulla notifica naviga alla
+    URL E la marca come letta
+  - Pulsante X in alto a destra su hover: chiama `dismiss(id)`
+- Se lista vuota: empty state con Bell e "Nessuna notifica"
+
+**Comportamento:**
+- Quando il panel si apre: chiama `markAsRead` per tutte le notifiche
+  visibili che non sono già lette (dopo 500ms per non essere troppo aggressivo)
+- Ogni click su una notifica con action_url: `navigate(action_url)` +
+  `markAsRead(id)` + `onOpenChange(false)`
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — NotificationBell in CompanyLayout
+File da MODIFICARE: src/components/layouts/CompanyLayout.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nel file CompanyLayout.tsx:
+
+1. Importa il hook e il panel:
+```typescript
+import { useNotifications } from "@/hooks/useNotifications";
+import { NotificationsPanel } from "@/components/notifications/NotificationsPanel";
+import { Bell } from "lucide-react";
+```
+
+2. Nel body del componente, aggiungi state e hook:
+```typescript
+const [notificationsPanelOpen, setNotificationsPanelOpen] = useState(false);
+const { unreadCount } = useNotifications();
+```
+
+3. Nella sidebar, trovando la sezione in fondo che ha il link
+   Impostazioni + l'avatar utente, aggiungi PRIMA di quel blocco
+   un pulsante campanella:
+
+```tsx
+{/* Notification Bell — inserisci nella sidebar, sopra il footer */}
+<SidebarMenuItem>
+  <button
+    onClick={() => setNotificationsPanelOpen(true)}
+    className="relative flex items-center gap-2 w-full px-3 py-2 rounded-md
+               text-sm text-muted-foreground hover:bg-accent hover:text-foreground
+               transition-colors"
+  >
+    <Bell className="h-4 w-4 flex-shrink-0" />
+    <span>Notifiche</span>
+    {unreadCount > 0 && (
+      <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center
+                       rounded-full bg-destructive px-1.5 text-[10px] font-bold
+                       text-destructive-foreground">
+        {unreadCount > 99 ? "99+" : unreadCount}
+      </span>
+    )}
+  </button>
+</SidebarMenuItem>
+```
+
+4. Fuori dal Sidebar, insieme agli altri Sheet/Dialog del layout:
+```tsx
+<NotificationsPanel
+  open={notificationsPanelOpen}
+  onOpenChange={setNotificationsPanelOpen}
+/>
+```
+
+
+════════════════════════════════════════════════════════════════════
+[N3] NOTIFICHE — TRIGGER AUTOMATICI
+════════════════════════════════════════════════════════════════════
+
+Crea i trigger PostgreSQL che generano notifiche automaticamente
+per gli eventi più importanti.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER 1 — Nuovo ticket → notifica agli admin
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+CREATE OR REPLACE FUNCTION public.notify_new_ticket()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_admin RECORD;
+  v_customer_name text;
+BEGIN
+  -- Recupera nome cliente
+  SELECT first_name || ' ' || last_name INTO v_customer_name
+  FROM public.profiles WHERE id = NEW.customer_id LIMIT 1;
+
+  -- Notifica all'assegnatario se c'è, altrimenti a tutti gli admin
+  IF NEW.assigned_to IS NOT NULL THEN
+    PERFORM public.create_notification(
+      NEW.company_id,
+      NEW.assigned_to,
+      'ticket_new',
+      'Nuovo ticket: ' || NEW.subject,
+      'Da: ' || COALESCE(v_customer_name, 'Cliente'),
+      'ticket',
+      NEW.id,
+      '/azienda/ticket/' || NEW.id
+    );
+  ELSE
+    -- Notifica tutti i company_admin e company_staff
+    FOR v_admin IN
+      SELECT p.id FROM public.profiles p
+      JOIN public.user_roles ur ON ur.user_id = p.id
+      WHERE p.company_id = NEW.company_id
+        AND ur.role IN ('company_admin', 'company_staff')
+    LOOP
+      PERFORM public.create_notification(
+        NEW.company_id,
+        v_admin.id,
+        'ticket_new',
+        'Nuovo ticket: ' || NEW.subject,
+        'Da: ' || COALESCE(v_customer_name, 'Cliente'),
+        'ticket',
+        NEW.id,
+        '/azienda/ticket/' || NEW.id
+      );
+    END LOOP;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_notify_new_ticket
+  AFTER INSERT ON public.tickets
+  FOR EACH ROW EXECUTE FUNCTION public.notify_new_ticket();
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER 2 — Messaggio su ticket → notifica alle parti
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+-- Cerca la tabella ticket_messages (o simile) nel progetto.
+-- Il nome esatto potrebbe essere 'ticket_messages' o 'support_messages'.
+-- Adatta il trigger al nome reale trovato nel DB.
+
+CREATE OR REPLACE FUNCTION public.notify_ticket_reply()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_ticket  RECORD;
+  v_sender_name text;
+BEGIN
+  -- Prendi dati del ticket
+  SELECT t.*, p.first_name || ' ' || p.last_name AS sender_name
+  INTO v_ticket
+  FROM public.tickets t
+  LEFT JOIN public.profiles p ON p.id = NEW.sender_id
+  WHERE t.id = NEW.ticket_id;
+
+  -- Notifica all'assigned_to se è diverso dal mittente
+  IF v_ticket.assigned_to IS NOT NULL AND v_ticket.assigned_to <> NEW.sender_id THEN
+    PERFORM public.create_notification(
+      v_ticket.company_id,
+      v_ticket.assigned_to,
+      'ticket_reply',
+      'Risposta su: ' || v_ticket.subject,
+      COALESCE(v_ticket.sender_name, 'Utente') || ' ha risposto al ticket',
+      'ticket',
+      NEW.ticket_id,
+      '/azienda/ticket/' || NEW.ticket_id
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+-- Adatta il nome tabella al nome reale nel DB:
+CREATE TRIGGER trg_notify_ticket_reply
+  AFTER INSERT ON public.ticket_messages
+  FOR EACH ROW EXECUTE FUNCTION public.notify_ticket_reply();
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER 3 — Task assegnato → notifica all'assegnatario
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+-- Adatta 'marketing_tasks' al nome reale della tabella task
+CREATE OR REPLACE FUNCTION public.notify_task_assigned()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_due_text text;
+BEGIN
+  -- Solo se c'è un assegnatario E è diverso da chi ha creato il task
+  IF NEW.assigned_to IS NULL THEN RETURN NEW; END IF;
+  IF NEW.assigned_to = NEW.created_by THEN RETURN NEW; END IF;
+
+  v_due_text := CASE
+    WHEN NEW.due_date IS NOT NULL THEN ' (scadenza: ' || NEW.due_date::date::text || ')'
+    ELSE ''
+  END;
+
+  PERFORM public.create_notification(
+    NEW.company_id,
+    NEW.assigned_to,
+    'task_assigned',
+    'Nuovo task assegnato: ' || COALESCE(NEW.title, 'Senza titolo'),
+    'Ti è stato assegnato un task' || v_due_text,
+    'task',
+    NEW.id,
+    '/azienda/marketing/task'
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_notify_task_assigned
+  AFTER INSERT ON public.marketing_tasks
+  FOR EACH ROW EXECUTE FUNCTION public.notify_task_assigned();
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TRIGGER 4 — Ordine cambia stato → notifica all'admin
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+CREATE OR REPLACE FUNCTION public.notify_order_status_change()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_new_status_name text;
+  v_creator         RECORD;
+BEGIN
+  -- Solo se lo stato è effettivamente cambiato
+  IF OLD.current_status_id = NEW.current_status_id THEN RETURN NEW; END IF;
+
+  -- Nome nuovo stato
+  SELECT name INTO v_new_status_name
+  FROM public.order_statuses WHERE id = NEW.current_status_id;
+
+  -- Notifica al creatore / assegnato all'ordine (se diverso da chi ha fatto il cambio)
+  IF NEW.created_by IS NOT NULL AND NEW.created_by <> auth.uid() THEN
+    PERFORM public.create_notification(
+      NEW.company_id,
+      NEW.created_by,
+      'order_status_changed',
+      'Ordine ' || NEW.order_code || ': ' || COALESCE(v_new_status_name, 'nuovo stato'),
+      COALESCE(NEW.description, 'Stato aggiornato'),
+      'order',
+      NEW.id,
+      '/azienda/ordini/' || NEW.id
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_notify_order_status
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.notify_order_status_change();
+```
+
+
+════════════════════════════════════════════════════════════════════
+[F1] FILTRI PERSISTENTI IN URL PARAMS
+════════════════════════════════════════════════════════════════════
+
+Salva i filtri attivi nell'URL in modo che:
+- Il tasto Back del browser ripristini i filtri precedenti
+- Un link condiviso apra la lista già filtrata
+- Navigare via e tornare mantenga la selezione
+
+Applica a 3 pagine: OrdersList, MarketingContacts, MarketingOpportunities.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+UTILITY — Hook useFilterParams (condiviso)
+File da CREARE: src/hooks/useFilterParams.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useCallback } from "react";
+
+/**
+ * Hook per gestire filtri persistenti in URL params.
+ * Aggiorna l'URL senza aggiungere entry nella history (replace:true)
+ * per non "spammare" la cronologia con ogni cambiamento di filtro.
+ */
+export function useFilterParams<T extends Record<string, string>>(
+  defaults: T
+) {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Leggi un parametro (con fallback al default)
+  const getParam = useCallback(
+    (key: keyof T): string => {
+      return searchParams.get(key as string) ?? defaults[key];
+    },
+    [searchParams, defaults]
+  );
+
+  // Aggiorna uno o più parametri
+  const setParam = useCallback(
+    (key: keyof T, value: string) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (value === defaults[key] || value === "") {
+            next.delete(key as string); // rimuovi se è il default (URL pulito)
+          } else {
+            next.set(key as string, value);
+          }
+          return next;
+        },
+        { replace: true } // non aggiunge voce in history
+      );
+    },
+    [setSearchParams, defaults]
+  );
+
+  // Aggiorna più parametri in una volta
+  const setParams = useCallback(
+    (updates: Partial<T>) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(updates)) {
+            if (value === defaults[key] || value === "") {
+              next.delete(key);
+            } else {
+              next.set(key, value as string);
+            }
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams, defaults]
+  );
+
+  // Reset tutti i filtri
+  const resetParams = useCallback(() => {
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
+
+  return { getParam, setParam, setParams, resetParams };
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGINA 1 — OrdersList.tsx
+File da MODIFICARE: src/pages/azienda/OrdersList.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sostituisci i filtri che usano `useState` locale con `useFilterParams`.
+
+Trova lo state corrente dei filtri (qualcosa di simile):
+```typescript
+// QUESTI STATI LOCALI:
+const [statusFilter, setStatusFilter] = useState("tutti");
+const [paymentFilter, setPaymentFilter] = useState("tutti");
+const [viewMode, setViewMode] = useState<"table" | "pipeline">("table");
+const [search, setSearch] = useState("");
+```
+
+Sostituisci con:
+```typescript
+import { useFilterParams } from "@/hooks/useFilterParams";
+
+// DEFAULTS — i valori di default (quando i param sono assenti)
+const FILTER_DEFAULTS = {
+  status: "tutti",
+  payment: "tutti",
+  view: "table",
+  search: "",
+} as const;
+
+const { getParam, setParam } = useFilterParams(FILTER_DEFAULTS);
+
+// Leggi i valori correnti:
+const statusFilter = getParam("status");
+const paymentFilter = getParam("payment");
+const viewMode = getParam("view") as "table" | "pipeline";
+const search = getParam("search");
+```
+
+Ovunque nel codice ci siano chiamate `setStatusFilter(...)`,
+`setPaymentFilter(...)`, `setViewMode(...)`, `setSearch(...)`,
+sostituiscile con `setParam("status", ...)` ecc.
+
+Il queryKey deve includere i filtri URL per invalidare correttamente:
+```typescript
+queryKey: ["orders", effectiveCompany?.id, statusFilter, paymentFilter]
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGINA 2 — MarketingContacts.tsx
+File da MODIFICARE: src/pages/azienda/marketing/MarketingContacts.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+const FILTER_DEFAULTS = {
+  search: "",
+  pipeline: "all",
+  tag: "all",
+  view: "table",   // "table" | "list"
+  tab: "all",      // "all" | "lists"
+} as const;
+
+const { getParam, setParam } = useFilterParams(FILTER_DEFAULTS);
+const search    = getParam("search");
+const pipeline  = getParam("pipeline");
+const tagFilter = getParam("tag");
+const viewMode  = getParam("view") as "table" | "list";
+const activeTab = getParam("tab") as "all" | "lists";
+```
+
+Tutti i setter locali (`setSearch`, `setViewMode`, ecc.) → `setParam(...)`.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PAGINA 3 — MarketingOpportunities.tsx
+File da MODIFICARE: src/pages/azienda/marketing/MarketingOpportunities.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+const FILTER_DEFAULTS = {
+  pipeline: "",
+  search: "",
+  view: "kanban",   // "kanban" | "list"
+  status: "open",   // "open" | "won" | "lost" | "abandoned"
+  sortField: "created_at",
+  sortDir: "desc",
+} as const;
+
+const { getParam, setParam } = useFilterParams(FILTER_DEFAULTS);
+const selectedPipelineId = getParam("pipeline") || null;
+const searchQuery = getParam("search");
+const viewMode = getParam("view") as "kanban" | "list";
+const statusFilter = getParam("status");
+```
+
+
+════════════════════════════════════════════════════════════════════
+[O1] OPTIMISTIC UPDATES SU TOGGLE / MARK-AS-DONE
+════════════════════════════════════════════════════════════════════
+
+Aggiungi `onMutate` per risposta UI immediata (< 50ms percepita)
+su 3 azioni di toggle molto comuni. In caso di errore server,
+il rollback ripristina lo stato originale.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTIMISTIC 1 — MarketingTasks: toggle completato
+File da MODIFICARE: src/pages/azienda/marketing/MarketingTasks.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la mutation che aggiorna lo status di un task (es. da
+"pending" a "completed" o viceversa). Aggiungi il pattern completo:
+
+```typescript
+const toggleTaskMutation = useMutation({
+  mutationFn: async ({ taskId, newStatus }: { taskId: string; newStatus: string }) => {
+    const { error } = await supabase
+      .from("marketing_tasks")  // adatta al nome tabella reale
+      .update({ status: newStatus })
+      .eq("id", taskId);
+    if (error) throw error;
+  },
+
+  // OTTIMISTICO: aggiorna la cache PRIMA della risposta server
+  onMutate: async ({ taskId, newStatus }) => {
+    // Cancella eventuali refetch in corso per questa query
+    await queryClient.cancelQueries({ queryKey: ["marketing-tasks", companyId] });
+
+    // Salva snapshot per rollback
+    const previousTasks = queryClient.getQueryData(["marketing-tasks", companyId]);
+
+    // Aggiorna la cache immediatamente
+    queryClient.setQueryData(
+      ["marketing-tasks", companyId],
+      (old: any[] = []) =>
+        old.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+    );
+
+    return { previousTasks }; // passato a onError
+  },
+
+  // ROLLBACK se il server risponde con errore
+  onError: (_err, _vars, context) => {
+    if (context?.previousTasks) {
+      queryClient.setQueryData(["marketing-tasks", companyId], context.previousTasks);
+    }
+    toast.error("Errore nell'aggiornamento del task");
+  },
+
+  // Sincronizza con il server in ogni caso (successo o errore)
+  onSettled: () => {
+    queryClient.invalidateQueries({ queryKey: ["marketing-tasks", companyId] });
+  },
+});
+```
+
+Nel handler del checkbox/pulsante:
+```typescript
+const handleToggle = (task: Task) => {
+  const newStatus = task.status === "completed" ? "pending" : "completed";
+  toggleTaskMutation.mutate({ taskId: task.id, newStatus });
+};
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTIMISTIC 2 — Ticket: cambia stato (aperto → in lavorazione → risolto)
+File da MODIFICARE: src/pages/azienda/TicketsList.tsx (o TicketDetail.tsx)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la mutation che aggiorna `status` su `tickets`. Aggiungi:
+
+```typescript
+const updateTicketStatusMutation = useMutation({
+  mutationFn: async ({ ticketId, status }: { ticketId: string; status: string }) => {
+    const { error } = await supabase
+      .from("tickets")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", ticketId);
+    if (error) throw error;
+  },
+
+  onMutate: async ({ ticketId, status }) => {
+    const queryKey = ["tickets", companyId];
+    await queryClient.cancelQueries({ queryKey });
+    const previousTickets = queryClient.getQueryData(queryKey);
+
+    queryClient.setQueryData(
+      queryKey,
+      (old: any[] = []) =>
+        old.map((t) => (t.id === ticketId ? { ...t, status } : t))
+    );
+
+    return { previousTickets };
+  },
+
+  onError: (_err, _vars, context) => {
+    queryClient.setQueryData(["tickets", companyId], context?.previousTickets);
+    toast.error("Errore nell'aggiornamento del ticket");
+  },
+
+  onSettled: () => {
+    queryClient.invalidateQueries({ queryKey: ["tickets", companyId] });
+  },
+});
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTIMISTIC 3 — OrderItem: cambia stato magazzino
+File da MODIFICARE: src/components/orders/OrderItemsList.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la mutation che aggiorna `status` su `order_items`
+(da_ordinare → ordinato → in_magazzino → installato).
+
+```typescript
+const updateItemStatusMutation = useMutation({
+  mutationFn: async ({ itemId, status }: { itemId: string; status: string }) => {
+    const { error } = await supabase
+      .from("order_items")
+      .update({ status })
+      .eq("id", itemId);
+    if (error) throw error;
+  },
+
+  onMutate: async ({ itemId, status }) => {
+    const queryKey = ["order-items", orderId];
+    await queryClient.cancelQueries({ queryKey });
+    const previousItems = queryClient.getQueryData(queryKey);
+
+    queryClient.setQueryData(
+      queryKey,
+      (old: any[] = []) =>
+        old.map((item) => (item.id === itemId ? { ...item, status } : item))
+    );
+
+    return { previousItems };
+  },
+
+  onError: (_err, _vars, context) => {
+    queryClient.setQueryData(["order-items", orderId], context?.previousItems);
+    toast.error("Errore nell'aggiornamento dello stato");
+  },
+
+  onSettled: () => {
+    queryClient.invalidateQueries({ queryKey: ["order-items", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["warehouse-items", companyId] });
+  },
+});
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPTIMISTIC 4 — Installment: segna come pagata
+File da MODIFICARE: componente che gestisce le rate (FinancialSummary
+o simile, dove c'è il bottone "Segna come pagata")
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+const markInstallmentPaidMutation = useMutation({
+  mutationFn: async ({ installmentId, paidDate }: { installmentId: string; paidDate: string }) => {
+    const { error } = await supabase
+      .from("order_installments")  // adatta al nome reale
+      .update({ is_paid: true, paid_date: paidDate })
+      .eq("id", installmentId);
+    if (error) throw error;
+  },
+
+  onMutate: async ({ installmentId, paidDate }) => {
+    const queryKey = ["order-installments", orderId];
+    await queryClient.cancelQueries({ queryKey });
+    const previous = queryClient.getQueryData(queryKey);
+
+    queryClient.setQueryData(
+      queryKey,
+      (old: any[] = []) =>
+        old.map((inst) =>
+          inst.id === installmentId
+            ? { ...inst, is_paid: true, paid_date: paidDate }
+            : inst
+        )
+    );
+
+    return { previous };
+  },
+
+  onError: (_err, _vars, context) => {
+    queryClient.setQueryData(["order-installments", orderId], context?.previous);
+    toast.error("Errore nella registrazione del pagamento");
+  },
+
+  onSettled: () => {
+    queryClient.invalidateQueries({ queryKey: ["order-installments", orderId] });
+    queryClient.invalidateQueries({ queryKey: ["orders", companyId] });
+  },
+});
+```
+
+
+════════════════════════════════════════════════════════════════════
+[L1] LISTINO CENTRALIZZATO — POTENZIA ArticleCatalog
+════════════════════════════════════════════════════════════════════
+
+La tabella `article_templates` già esiste ed è usata da
+`ArticleCombobox`. Potenzia l'interfaccia in Impostazioni
+per gestire il listino in modo più professionale.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Aggiungi colonna `is_active` alla tabella
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+-- Aggiungi is_active se non esiste già
+ALTER TABLE public.article_templates
+  ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
+
+-- Aggiungi sort_order per ordinamento manuale
+ALTER TABLE public.article_templates
+  ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
+
+-- Crea indice per filtrare solo quelli attivi
+CREATE INDEX IF NOT EXISTS idx_article_templates_active
+  ON public.article_templates(company_id, is_active)
+  WHERE is_active = true;
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Migliora ArticleCatalog component
+File da MODIFICARE: src/components/settings/ArticleCatalog.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Aggiungi queste funzionalità all'interfaccia esistente:
+
+**A. Filtro per categoria (tab o select):**
+Nel header della pagina, aggiungi una barra filtri:
+```tsx
+// Sopra la tabella/lista, aggiungi:
+<div className="flex items-center gap-2 mb-4">
+  <Input
+    placeholder="Cerca articolo o codice..."
+    value={search}
+    onChange={(e) => setSearch(e.target.value)}
+    className="max-w-xs"
+  />
+  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+    <SelectTrigger className="w-[160px]">
+      <SelectValue placeholder="Categoria" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="all">Tutte le categorie</SelectItem>
+      <SelectItem value="Infissi">Infissi</SelectItem>
+      <SelectItem value="Posa in Opera">Posa in Opera</SelectItem>
+      <SelectItem value="Accessori">Accessori</SelectItem>
+      <SelectItem value="Pratiche">Pratiche</SelectItem>
+      <SelectItem value="Trasporto">Trasporto</SelectItem>
+      <SelectItem value="Altro">Altro</SelectItem>
+    </SelectContent>
+  </Select>
+  <div className="ml-auto flex items-center gap-2">
+    <Badge variant="outline">{filteredArticles.length} articoli</Badge>
+    <Button onClick={() => setShowDialog(true)}>
+      <Plus className="h-4 w-4 mr-2" />
+      Nuovo articolo
+    </Button>
+  </div>
+</div>
+```
+
+**B. Toggle is_active nella lista:**
+In ogni riga della tabella (o card), aggiungi uno Switch:
+```tsx
+<Switch
+  checked={article.is_active}
+  onCheckedChange={(checked) =>
+    toggleActiveMutation.mutate({ id: article.id, is_active: checked })
+  }
+/>
+```
+
+Con mutation ottimistica:
+```typescript
+const toggleActiveMutation = useMutation({
+  mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
+    const { error } = await supabase
+      .from("article_templates")
+      .update({ is_active })
+      .eq("id", id);
+    if (error) throw error;
+  },
+  onMutate: async ({ id, is_active }) => {
+    await queryClient.cancelQueries({ queryKey: ["article-templates", companyId] });
+    const prev = queryClient.getQueryData(["article-templates", companyId]);
+    queryClient.setQueryData(
+      ["article-templates", companyId],
+      (old: any[] = []) => old.map(a => a.id === id ? {...a, is_active} : a)
+    );
+    return { prev };
+  },
+  onError: (_e, _v, ctx) => {
+    queryClient.setQueryData(["article-templates", companyId], ctx?.prev);
+  },
+  onSettled: () => {
+    queryClient.invalidateQueries({ queryKey: ["article-templates", companyId] });
+  },
+});
+```
+
+**C. Colonne tabella migliorate:**
+La tabella deve mostrare nell'ordine:
+| Codice SKU | Nome | Categoria | Unità | Prezzo vendita | Costo std | Margine% | Fornitore | Attivo | Azioni |
+
+Il margine % deve avere colore:
+- Verde se >= 30%
+- Giallo se 10-29%
+- Rosso se < 10%
+
+**D. Importazione CSV:**
+Aggiungi pulsante "Importa CSV" vicino a "Nuovo articolo".
+Apre un Dialog con:
+- Area file drop per CSV
+- Formato atteso: `nome,sku,categoria,unita,prezzo,costo,iva`
+- Preview delle prime 5 righe
+- Pulsante "Importa X articoli"
+
+```typescript
+// Mutation per import bulk
+const importMutation = useMutation({
+  mutationFn: async (articles: Partial<ArticleTemplate>[]) => {
+    const { error } = await supabase
+      .from("article_templates")
+      .insert(articles.map(a => ({ ...a, company_id: companyId, is_active: true })));
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["article-templates", companyId] });
+    toast.success(`Articoli importati con successo`);
+  },
+});
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Aggiorna ArticleCombobox per escludere is_active=false
+File da MODIFICARE: src/components/orders/ArticleCombobox.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nella query che carica gli articoli, aggiungi il filtro:
+```typescript
+.eq("is_active", true)  // mostra solo articoli attivi nel listino
+```
+
+Così gli articoli disattivati non appaiono più quando si creano ordini.
+
+
+════════════════════════════════════════════════════════════════════
+[L2] LISTINO — CatalogBrowserDialog (sfoglia e aggiungi multipli)
+════════════════════════════════════════════════════════════════════
+
+Crea un dialogo che permette di sfogliare il listino per categoria
+e aggiungere più articoli in una sola operazione.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Crea CatalogBrowserDialog
+File da CREARE: src/components/orders/CatalogBrowserDialog.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+// Interface props:
+interface CatalogBrowserDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAddArticles: (articles: SelectedArticle[]) => void;
+}
+
+interface SelectedArticle {
+  id: string;
+  name: string;
+  sku: string | null;
+  category: string | null;
+  unit_price: number;
+  standard_cost: number;
+  unit_of_measure: string;
+  vat_rate: number;
+  supplier_id: string | null;
+  quantity: number; // default 1, editabile nel dialog
+}
+```
+
+**Layout del dialog (Dialog full-width, max-w-4xl):**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Sfoglia Listino Prodotti                          [X]   │
+│─────────────────────────────────────────────────────────│
+│ [🔍 Cerca articolo o codice...        ]                 │
+│─────────────────────────────────────────────────────────│
+│  CATEGORIE              │  ARTICOLI              │  SEL │
+│  ─────────────          │  ──────────────────    │  ─── │
+│  • Tutti (42)           │  □ Infisso PVC...  €X  │  3   │
+│  • Infissi (15)         │  □ Profilo ALU...  €X  │  sel │
+│  • Posa in Opera (8)    │  □ Vetro temper...  €X │  art │
+│  • Accessori (12)       │  ✓ Cerniera PVC  €X   │  ico │
+│  • Pratiche (4)         │     qty: [1] [-] [+]   │  li  │
+│  • Trasporto (2)        │  □ Kit fermaglio  €X   │  sti │
+│  • Altro (1)            │                        │      │
+│─────────────────────────────────────────────────────────│
+│        [Annulla]    [Aggiungi 3 articoli →]             │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Implementazione:**
+- Colonna sinistra (25%): lista categorie con contatore, click → filtra centro
+- Colonna centro (50%): lista articoli filtrati + search globale
+  Ogni riga: checkbox | nome (bold) + sku (gray) | prezzo | se selezionato: qty stepper
+- Colonna destra (25%): riepilogo articoli selezionati con totale imponibile
+- Footer: pulsante "Aggiungi N articoli" (disabilitato se 0 selezionati)
+
+**Query per caricare articoli:**
+```typescript
+const { data: articles = [] } = useQuery({
+  queryKey: ["article-templates", companyId],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("article_templates")
+      .select("id, name, sku, category, unit_price, standard_cost, unit_of_measure, vat_rate, supplier_id, description")
+      .eq("company_id", companyId!)
+      .eq("is_active", true)
+      .order("category")
+      .order("name");
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!companyId && open,  // carica solo quando il dialog è aperto
+  staleTime: 5 * 60 * 1000,
+  gcTime: 15 * 60 * 1000,
+});
+```
+
+**Logica selezione:**
+```typescript
+const [selected, setSelected] = useState<Map<string, SelectedArticle>>(new Map());
+const [searchQuery, setSearchQuery] = useState("");
+const [activeCategory, setActiveCategory] = useState<string>("all");
+
+const toggleArticle = (article: typeof articles[0]) => {
+  setSelected(prev => {
+    const next = new Map(prev);
+    if (next.has(article.id)) {
+      next.delete(article.id);
+    } else {
+      next.set(article.id, { ...article, quantity: 1 });
+    }
+    return next;
+  });
+};
+
+const updateQty = (articleId: string, qty: number) => {
+  if (qty < 1) return;
+  setSelected(prev => {
+    const next = new Map(prev);
+    const existing = next.get(articleId);
+    if (existing) next.set(articleId, { ...existing, quantity: qty });
+    return next;
+  });
+};
+
+const handleConfirm = () => {
+  onAddArticles(Array.from(selected.values()));
+  setSelected(new Map());
+  setSearchQuery("");
+  setActiveCategory("all");
+  onOpenChange(false);
+};
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Integra CatalogBrowserDialog in OrderItemsList
+File da MODIFICARE: src/components/orders/OrderItemsList.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In `OrderItemsList.tsx`:
+
+1. Aggiungi import e stato:
+```typescript
+import { CatalogBrowserDialog } from "./CatalogBrowserDialog";
+// ...
+const [catalogOpen, setCatalogOpen] = useState(false);
+```
+
+2. Nel header della sezione "Articoli" (dove c'è il pulsante
+   "Aggiungi articolo"), aggiungi UN SECONDO PULSANTE accanto:
+
+```tsx
+{/* Bottoni aggiungi — trovare il pulsante "Aggiungi articolo" esistente e affiancare: */}
+<div className="flex items-center gap-2">
+  {/* Pulsante esistente per aggiunta singola */}
+  <Button variant="outline" size="sm" onClick={handleAddRow}>
+    <Plus className="h-4 w-4 mr-1" />
+    Aggiungi riga
+  </Button>
+
+  {/* NUOVO pulsante per sfoglia listino */}
+  <Button variant="outline" size="sm" onClick={() => setCatalogOpen(true)}>
+    <BookOpen className="h-4 w-4 mr-1" />
+    Sfoglia listino
+  </Button>
+</div>
+```
+
+3. Aggiungi il dialog in fondo al componente (prima del return close):
+```tsx
+<CatalogBrowserDialog
+  open={catalogOpen}
+  onOpenChange={setCatalogOpen}
+  onAddArticles={(articles) => {
+    // Per ogni articolo selezionato, crea un nuovo OrderItem pre-compilato
+    const newItems = articles.map((article, idx) => ({
+      id: `temp-${Date.now()}-${idx}`,
+      name: article.name,
+      sku: article.sku ?? "",
+      description: "",
+      quantity: article.quantity,
+      unit_price: article.unit_price,
+      standard_cost: article.standard_cost,
+      unit_of_measure: article.unit_of_measure,
+      vat_rate: article.vat_rate,
+      supplier_id: article.supplier_id,
+      status: "da_ordinare" as const,
+      // altri campi con default...
+    }));
+    // Chiama la funzione esistente che aggiunge items alla lista
+    // (es. setOrderItems, onAddItems, ecc. — adatta al nome reale)
+    setOrderItems(prev => [...prev, ...newItems]);
+  }}
+/>
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Integra anche in CreateOrder.tsx
+File da MODIFICARE: src/pages/azienda/CreateOrder.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nella pagina CreateOrder.tsx, la sezione "Articoli Ordine" usa
+`OrderItemsList` come componente. Verifica che il pulsante
+"Sfoglia listino" sia visibile anche in questa view.
+
+Se OrderItemsList riceve la prop per mostrare/nascondere il bottone
+listino, assicurati di passarla:
+```tsx
+<OrderItemsList
+  // props esistenti...
+  showCatalogBrowser={true}
+/>
+```
+
+Se il pulsante è sempre visibile in OrderItemsList, non serve nulla.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — Icona BookOpen in lucide-react
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Assicurati che `BookOpen` sia importata da "lucide-react" nei file
+che la usano. È disponibile in lucide-react v0.263.1+.
+
+```typescript
+import { BookOpen } from "lucide-react";
+```
+

@@ -1,0 +1,2333 @@
+============================================================
+PROMPT 1 di 6 — DATABASE SCHEMA: INTERNAL AUTOMATION TABLES
+============================================================
+
+Crea le tabelle database per il sistema di automazioni della Gestione Interna.
+IMPORTANTE: NON modificare nessuna tabella esistente del sistema Marketing Automations
+(`automation_flows`, `automation_nodes`, `automation_connections`, `automation_enrollments`,
+`automation_queue`, `automation_execution_log`). Crea tabelle SEPARATE con prefisso `internal_`.
+
+Crea questa migrazione Supabase:
+
+```sql
+-- ============================================================
+-- INTERNAL AUTOMATION SYSTEM - Mirror of Marketing Automations
+-- ============================================================
+
+-- Main flow table (mirrors automation_flows but for Gestione Interna)
+CREATE TABLE IF NOT EXISTS internal_automation_flows (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  is_active BOOLEAN DEFAULT true,
+  trigger_type TEXT NOT NULL,
+  trigger_config JSONB DEFAULT '{}',
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  last_triggered_at TIMESTAMPTZ,
+  total_runs INTEGER DEFAULT 0,
+  successful_runs INTEGER DEFAULT 0,
+  failed_runs INTEGER DEFAULT 0
+);
+
+-- Nodes in the visual builder (mirrors automation_nodes)
+CREATE TABLE IF NOT EXISTS internal_automation_nodes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES internal_automation_flows(id) ON DELETE CASCADE,
+  node_type TEXT NOT NULL, -- 'trigger' | 'action' | 'condition' | 'delay' | 'branch'
+  node_subtype TEXT NOT NULL, -- es. 'order_status_change', 'send_email', 'if_condition'
+  config JSONB DEFAULT '{}',
+  position_x FLOAT DEFAULT 0,
+  position_y FLOAT DEFAULT 0,
+  label TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Connections between nodes (mirrors automation_connections)
+CREATE TABLE IF NOT EXISTS internal_automation_connections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES internal_automation_flows(id) ON DELETE CASCADE,
+  source_node_id UUID NOT NULL REFERENCES internal_automation_nodes(id) ON DELETE CASCADE,
+  target_node_id UUID NOT NULL REFERENCES internal_automation_nodes(id) ON DELETE CASCADE,
+  condition_branch TEXT, -- 'yes' | 'no' | null
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enrollments: tracks which entity is running through which flow
+CREATE TABLE IF NOT EXISTS internal_automation_enrollments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  flow_id UUID NOT NULL REFERENCES internal_automation_flows(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  entity_type TEXT NOT NULL, -- 'order' | 'employee' | 'ticket' | 'task' | 'cost' | 'warehouse_item'
+  entity_id UUID NOT NULL,
+  current_node_id UUID REFERENCES internal_automation_nodes(id),
+  status TEXT DEFAULT 'active', -- 'active' | 'completed' | 'failed' | 'paused'
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
+  error_message TEXT,
+  context_data JSONB DEFAULT '{}' -- snapshot dei dati al momento del trigger
+);
+
+-- Async execution queue (mirrors automation_queue)
+CREATE TABLE IF NOT EXISTS internal_automation_queue (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  enrollment_id UUID NOT NULL REFERENCES internal_automation_enrollments(id) ON DELETE CASCADE,
+  flow_id UUID NOT NULL REFERENCES internal_automation_flows(id) ON DELETE CASCADE,
+  node_id UUID NOT NULL REFERENCES internal_automation_nodes(id),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  scheduled_at TIMESTAMPTZ DEFAULT NOW(),
+  processed_at TIMESTAMPTZ,
+  status TEXT DEFAULT 'pending', -- 'pending' | 'processing' | 'done' | 'failed'
+  retry_count INTEGER DEFAULT 0,
+  error_message TEXT,
+  payload JSONB DEFAULT '{}'
+);
+
+-- Execution log (mirrors automation_execution_log)
+CREATE TABLE IF NOT EXISTS internal_automation_execution_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  enrollment_id UUID REFERENCES internal_automation_enrollments(id),
+  flow_id UUID NOT NULL REFERENCES internal_automation_flows(id) ON DELETE CASCADE,
+  node_id UUID REFERENCES internal_automation_nodes(id),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  entity_type TEXT,
+  entity_id UUID,
+  action TEXT NOT NULL,
+  status TEXT DEFAULT 'success', -- 'success' | 'error' | 'skipped'
+  details JSONB DEFAULT '{}',
+  executed_at TIMESTAMPTZ DEFAULT NOW(),
+  duration_ms INTEGER
+);
+
+-- RLS Policies
+ALTER TABLE internal_automation_flows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE internal_automation_nodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE internal_automation_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE internal_automation_enrollments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE internal_automation_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE internal_automation_execution_log ENABLE ROW LEVEL SECURITY;
+
+-- Flows: company members can CRUD their own
+CREATE POLICY "company_internal_flows" ON internal_automation_flows
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+-- Nodes: accessible via flow ownership
+CREATE POLICY "company_internal_nodes" ON internal_automation_nodes
+  FOR ALL USING (
+    flow_id IN (
+      SELECT id FROM internal_automation_flows
+      WHERE company_id = get_user_company_id(auth.uid())
+    )
+  );
+
+-- Connections: accessible via flow ownership
+CREATE POLICY "company_internal_connections" ON internal_automation_connections
+  FOR ALL USING (
+    flow_id IN (
+      SELECT id FROM internal_automation_flows
+      WHERE company_id = get_user_company_id(auth.uid())
+    )
+  );
+
+-- Enrollments: company members can read, service_role writes
+CREATE POLICY "company_internal_enrollments_read" ON internal_automation_enrollments
+  FOR SELECT USING (company_id = get_user_company_id(auth.uid()));
+
+-- Queue: service_role only (no user policy needed, edge function uses service_role)
+CREATE POLICY "company_internal_queue_read" ON internal_automation_queue
+  FOR SELECT USING (company_id = get_user_company_id(auth.uid()));
+
+-- Execution log: company members can read
+CREATE POLICY "company_internal_execution_log_read" ON internal_automation_execution_log
+  FOR SELECT USING (company_id = get_user_company_id(auth.uid()));
+
+-- Indexes for performance
+CREATE INDEX idx_internal_flows_company ON internal_automation_flows(company_id);
+CREATE INDEX idx_internal_flows_active ON internal_automation_flows(company_id, is_active);
+CREATE INDEX idx_internal_nodes_flow ON internal_automation_nodes(flow_id);
+CREATE INDEX idx_internal_connections_flow ON internal_automation_connections(flow_id);
+CREATE INDEX idx_internal_enrollments_entity ON internal_automation_enrollments(entity_type, entity_id);
+CREATE INDEX idx_internal_enrollments_flow ON internal_automation_enrollments(flow_id, status);
+CREATE INDEX idx_internal_queue_pending ON internal_automation_queue(status, scheduled_at)
+  WHERE status = 'pending';
+CREATE INDEX idx_internal_log_flow ON internal_automation_execution_log(flow_id, executed_at DESC);
+
+-- Function to update updated_at
+CREATE OR REPLACE FUNCTION update_internal_automation_flows_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_internal_flows_updated_at
+  BEFORE UPDATE ON internal_automation_flows
+  FOR EACH ROW EXECUTE FUNCTION update_internal_automation_flows_updated_at();
+```
+
+Successivamente crea i database trigger PostgreSQL che popolano la queue quando accadono eventi
+nei moduli di Gestione Interna:
+
+```sql
+-- ============================================================
+-- DATABASE TRIGGERS: populate internal_automation_queue
+-- ============================================================
+
+-- Helper function: trova tutti i flow attivi per un dato trigger_type e company_id
+-- e inserisce i job in coda
+CREATE OR REPLACE FUNCTION trigger_internal_automations(
+  p_company_id UUID,
+  p_trigger_type TEXT,
+  p_entity_type TEXT,
+  p_entity_id UUID,
+  p_context JSONB DEFAULT '{}'
+)
+RETURNS VOID AS $$
+DECLARE
+  v_flow RECORD;
+  v_trigger_node RECORD;
+  v_enrollment_id UUID;
+  v_first_action_node UUID;
+BEGIN
+  -- Trova tutti i flow attivi per questo trigger e company
+  FOR v_flow IN
+    SELECT id FROM internal_automation_flows
+    WHERE company_id = p_company_id
+      AND is_active = true
+      AND trigger_type = p_trigger_type
+  LOOP
+    -- Trova il nodo trigger del flow
+    SELECT id INTO v_trigger_node
+    FROM internal_automation_nodes
+    WHERE flow_id = v_flow.id AND node_type = 'trigger'
+    LIMIT 1;
+
+    -- Trova il primo nodo azione connesso al trigger
+    SELECT target_node_id INTO v_first_action_node
+    FROM internal_automation_connections
+    WHERE flow_id = v_flow.id AND source_node_id = v_trigger_node.id
+    LIMIT 1;
+
+    IF v_first_action_node IS NULL THEN
+      CONTINUE; -- nessuna azione configurata, skip
+    END IF;
+
+    -- Crea enrollment
+    INSERT INTO internal_automation_enrollments (
+      flow_id, company_id, entity_type, entity_id,
+      current_node_id, status, context_data
+    ) VALUES (
+      v_flow.id, p_company_id, p_entity_type, p_entity_id,
+      v_first_action_node, 'active', p_context
+    ) RETURNING id INTO v_enrollment_id;
+
+    -- Inserisci nella queue per esecuzione asincrona
+    INSERT INTO internal_automation_queue (
+      enrollment_id, flow_id, node_id, company_id,
+      scheduled_at, status, payload
+    ) VALUES (
+      v_enrollment_id, v_flow.id, v_first_action_node, p_company_id,
+      NOW(), 'pending',
+      jsonb_build_object(
+        'entity_type', p_entity_type,
+        'entity_id', p_entity_id,
+        'context', p_context
+      )
+    );
+
+    -- Incrementa counter
+    UPDATE internal_automation_flows
+    SET total_runs = total_runs + 1, last_triggered_at = NOW()
+    WHERE id = v_flow.id;
+
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- TRIGGER 1: Ordine creato
+CREATE OR REPLACE FUNCTION trg_internal_order_created()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM trigger_internal_automations(
+    NEW.company_id, 'order_created', 'order', NEW.id,
+    jsonb_build_object(
+      'order_number', NEW.order_number,
+      'client_name', NEW.client_name,
+      'total_amount', NEW.total_amount,
+      'status', NEW.status,
+      'created_at', NEW.created_at
+    )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_order_created ON orders;
+CREATE TRIGGER internal_auto_order_created
+  AFTER INSERT ON orders
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_order_created();
+
+
+-- TRIGGER 2: Stato ordine cambiato
+CREATE OR REPLACE FUNCTION trg_internal_order_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    PERFORM trigger_internal_automations(
+      NEW.company_id, 'order_status_change', 'order', NEW.id,
+      jsonb_build_object(
+        'old_status', OLD.status,
+        'new_status', NEW.status,
+        'order_number', NEW.order_number,
+        'client_name', NEW.client_name,
+        'total_amount', NEW.total_amount
+      )
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_order_status ON orders;
+CREATE TRIGGER internal_auto_order_status
+  AFTER UPDATE ON orders
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_order_status_change();
+
+
+-- TRIGGER 3: Pagamento ricevuto su ordine
+CREATE OR REPLACE FUNCTION trg_internal_payment_received()
+RETURNS TRIGGER AS $$
+DECLARE v_order RECORD;
+BEGIN
+  IF NEW.payment_status = 'paid' AND (OLD.payment_status IS DISTINCT FROM 'paid') THEN
+    SELECT * INTO v_order FROM orders WHERE id = NEW.id;
+    PERFORM trigger_internal_automations(
+      NEW.company_id, 'order_payment_received', 'order', NEW.id,
+      jsonb_build_object(
+        'order_number', v_order.order_number,
+        'client_name', v_order.client_name,
+        'total_amount', NEW.total_amount,
+        'payment_date', NOW()
+      )
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_payment_received ON orders;
+CREATE TRIGGER internal_auto_payment_received
+  AFTER UPDATE ON orders
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_payment_received();
+
+
+-- TRIGGER 4: Ticket creato
+CREATE OR REPLACE FUNCTION trg_internal_ticket_created()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM trigger_internal_automations(
+    NEW.company_id, 'ticket_created', 'ticket', NEW.id,
+    jsonb_build_object(
+      'title', NEW.title,
+      'priority', NEW.priority,
+      'category', NEW.category,
+      'status', NEW.status,
+      'assigned_to', NEW.assigned_to
+    )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_ticket_created ON tickets;
+CREATE TRIGGER internal_auto_ticket_created
+  AFTER INSERT ON tickets
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_ticket_created();
+
+
+-- TRIGGER 5: Stato ticket cambiato
+CREATE OR REPLACE FUNCTION trg_internal_ticket_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    PERFORM trigger_internal_automations(
+      NEW.company_id, 'ticket_status_change', 'ticket', NEW.id,
+      jsonb_build_object(
+        'old_status', OLD.status,
+        'new_status', NEW.status,
+        'title', NEW.title,
+        'priority', NEW.priority
+      )
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_ticket_status ON tickets;
+CREATE TRIGGER internal_auto_ticket_status
+  AFTER UPDATE ON tickets
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_ticket_status_change();
+
+
+-- TRIGGER 6: Task creato
+CREATE OR REPLACE FUNCTION trg_internal_task_created()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM trigger_internal_automations(
+    NEW.company_id, 'task_created', 'task', NEW.id,
+    jsonb_build_object(
+      'title', NEW.title,
+      'priority', NEW.priority,
+      'assigned_to', NEW.assigned_to,
+      'due_date', NEW.due_date,
+      'status', NEW.status
+    )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_task_created ON tasks;
+CREATE TRIGGER internal_auto_task_created
+  AFTER INSERT ON tasks
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_task_created();
+
+
+-- TRIGGER 7: Task completato
+CREATE OR REPLACE FUNCTION trg_internal_task_completed()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'completed' AND OLD.status != 'completed' THEN
+    PERFORM trigger_internal_automations(
+      NEW.company_id, 'task_completed', 'task', NEW.id,
+      jsonb_build_object(
+        'title', NEW.title,
+        'assigned_to', NEW.assigned_to,
+        'completed_at', NOW()
+      )
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_task_completed ON tasks;
+CREATE TRIGGER internal_auto_task_completed
+  AFTER UPDATE ON tasks
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_task_completed();
+
+
+-- TRIGGER 8: Dipendente aggiunto
+CREATE OR REPLACE FUNCTION trg_internal_employee_added()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM trigger_internal_automations(
+    NEW.company_id, 'employee_added', 'employee', NEW.id,
+    jsonb_build_object(
+      'full_name', NEW.full_name,
+      'role', NEW.role,
+      'department', NEW.department,
+      'start_date', NEW.start_date
+    )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_employee_added ON employees;
+CREATE TRIGGER internal_auto_employee_added
+  AFTER INSERT ON employees
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_employee_added();
+
+
+-- TRIGGER 9: Magazzino sotto soglia
+-- (Questo trigger viene chiamato manualmente dal check periodico o al momento dell'aggiornamento)
+CREATE OR REPLACE FUNCTION trg_internal_warehouse_low_stock()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.quantity <= NEW.min_quantity AND NEW.quantity IS DISTINCT FROM OLD.quantity THEN
+    PERFORM trigger_internal_automations(
+      NEW.company_id, 'warehouse_low_stock', 'warehouse_item', NEW.id,
+      jsonb_build_object(
+        'item_name', NEW.name,
+        'current_quantity', NEW.quantity,
+        'min_quantity', NEW.min_quantity,
+        'unit', NEW.unit
+      )
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_warehouse_low_stock ON warehouse_items;
+CREATE TRIGGER internal_auto_warehouse_low_stock
+  AFTER UPDATE ON warehouse_items
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_warehouse_low_stock();
+
+
+-- TRIGGER 10: Costo inserito (sopra soglia)
+CREATE OR REPLACE FUNCTION trg_internal_cost_added()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM trigger_internal_automations(
+    NEW.company_id, 'cost_added', 'cost', NEW.id,
+    jsonb_build_object(
+      'description', NEW.description,
+      'amount', NEW.amount,
+      'category', NEW.category,
+      'date', NEW.date
+    )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS internal_auto_cost_added ON costs;
+CREATE TRIGGER internal_auto_cost_added
+  AFTER INSERT ON costs
+  FOR EACH ROW EXECUTE FUNCTION trg_internal_cost_added();
+```
+
+============================================================
+PROMPT 2 di 6 — CATALOGO TRIGGER E AZIONI (TypeScript types)
+============================================================
+
+Crea il file `src/types/internalAutomationBuilder.ts` che definisce tutti i trigger e le azioni
+disponibili per il sistema di automazioni Gestione Interna.
+NON modificare `src/types/automationBuilder.ts` (quello è per Marketing).
+
+```typescript
+// src/types/internalAutomationBuilder.ts
+
+export type InternalNodeType = 'trigger' | 'action' | 'condition' | 'delay' | 'branch';
+
+// ============================================================
+// TRIGGERS
+// ============================================================
+
+export type InternalTriggerType =
+  // ORDINI
+  | 'order_created'
+  | 'order_status_change'
+  | 'order_payment_received'
+  | 'order_work_start'
+  | 'order_work_end'
+  | 'order_due_date_approaching'
+  | 'order_overdue'
+  // TICKET
+  | 'ticket_created'
+  | 'ticket_status_change'
+  | 'ticket_assigned'
+  | 'ticket_high_priority'
+  // TASK
+  | 'task_created'
+  | 'task_completed'
+  | 'task_overdue'
+  | 'task_assigned'
+  // DIPENDENTI
+  | 'employee_added'
+  | 'employee_document_expiring'
+  | 'employee_anniversary'
+  // MAGAZZINO
+  | 'warehouse_low_stock'
+  | 'warehouse_item_added'
+  | 'warehouse_movement'
+  // COSTI
+  | 'cost_added'
+  | 'cost_above_threshold'
+  // CALENDARIO
+  | 'event_upcoming'
+  | 'event_created';
+
+export interface InternalTriggerDefinition {
+  type: InternalTriggerType;
+  label: string;
+  description: string;
+  category: 'Ordini' | 'Ticket' | 'Task' | 'Dipendenti' | 'Magazzino' | 'Costi' | 'Calendario';
+  icon: string; // lucide icon name
+  color: string; // tailwind color class
+  configFields: InternalTriggerConfigField[];
+  availableVariables: InternalVariable[];
+}
+
+export interface InternalTriggerConfigField {
+  key: string;
+  label: string;
+  type: 'text' | 'select' | 'number' | 'multi_select';
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+  required?: boolean;
+}
+
+export interface InternalVariable {
+  key: string; // es. "{{order.number}}"
+  label: string;
+  description: string;
+  category: string;
+}
+
+// ============================================================
+// ACTIONS
+// ============================================================
+
+export type InternalActionType =
+  | 'create_task'
+  | 'update_order_status'
+  | 'send_internal_notification'
+  | 'send_email_to_customer'
+  | 'send_email_to_employee'
+  | 'create_ticket'
+  | 'assign_employee'
+  | 'update_field'
+  | 'create_calendar_event'
+  | 'add_cost_record'
+  | 'webhook_call'
+  | 'wait_delay';
+
+export interface InternalActionDefinition {
+  type: InternalActionType;
+  label: string;
+  description: string;
+  icon: string;
+  color: string;
+  configFields: InternalActionConfigField[];
+}
+
+export interface InternalActionConfigField {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'number' | 'duration' | 'user_select' | 'multi_select';
+  options?: { value: string; label: string }[];
+  placeholder?: string;
+  required?: boolean;
+  supportsVariables?: boolean; // se true, mostra bottone inserisci variabile
+}
+
+// ============================================================
+// NODE DATA (usato nel visual builder)
+// ============================================================
+
+export interface InternalAutomationNode {
+  id: string;
+  type: InternalNodeType;
+  subtype: InternalTriggerType | InternalActionType | 'if_condition' | 'split_branch';
+  config: Record<string, unknown>;
+  position: { x: number; y: number };
+  label?: string;
+}
+
+export interface InternalAutomationConnection {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  conditionBranch?: 'yes' | 'no';
+}
+
+export interface InternalAutomationFlow {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  triggerType: InternalTriggerType;
+  triggerConfig: Record<string, unknown>;
+  nodes: InternalAutomationNode[];
+  connections: InternalAutomationConnection[];
+  createdAt: string;
+  updatedAt: string;
+  lastTriggeredAt?: string;
+  totalRuns: number;
+  successfulRuns: number;
+  failedRuns: number;
+}
+
+// ============================================================
+// CATALOG DEFINITIONS
+// ============================================================
+
+export const INTERNAL_TRIGGER_CATALOG: InternalTriggerDefinition[] = [
+  // ORDINI
+  {
+    type: 'order_created',
+    label: 'Ordine Creato',
+    description: 'Si attiva quando viene creato un nuovo ordine',
+    category: 'Ordini',
+    icon: 'ShoppingCart',
+    color: 'text-blue-600',
+    configFields: [],
+    availableVariables: [
+      { key: '{{order.number}}', label: 'Numero Ordine', description: '', category: 'Ordine' },
+      { key: '{{order.client_name}}', label: 'Nome Cliente', description: '', category: 'Ordine' },
+      { key: '{{order.total_amount}}', label: 'Importo Totale', description: '', category: 'Ordine' },
+      { key: '{{order.status}}', label: 'Stato', description: '', category: 'Ordine' },
+    ],
+  },
+  {
+    type: 'order_status_change',
+    label: 'Stato Ordine Cambiato',
+    description: 'Si attiva quando lo stato di un ordine viene modificato',
+    category: 'Ordini',
+    icon: 'RefreshCw',
+    color: 'text-blue-600',
+    configFields: [
+      {
+        key: 'from_status',
+        label: 'Da Stato (opzionale)',
+        type: 'select',
+        options: [
+          { value: '*', label: 'Qualsiasi' },
+          { value: 'draft', label: 'Bozza' },
+          { value: 'confirmed', label: 'Confermato' },
+          { value: 'in_progress', label: 'In Lavorazione' },
+          { value: 'completed', label: 'Completato' },
+          { value: 'cancelled', label: 'Annullato' },
+        ],
+      },
+      {
+        key: 'to_status',
+        label: 'A Stato',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'confirmed', label: 'Confermato' },
+          { value: 'in_progress', label: 'In Lavorazione' },
+          { value: 'completed', label: 'Completato' },
+          { value: 'cancelled', label: 'Annullato' },
+        ],
+      },
+    ],
+    availableVariables: [
+      { key: '{{order.number}}', label: 'Numero Ordine', description: '', category: 'Ordine' },
+      { key: '{{order.client_name}}', label: 'Nome Cliente', description: '', category: 'Ordine' },
+      { key: '{{order.old_status}}', label: 'Stato Precedente', description: '', category: 'Ordine' },
+      { key: '{{order.new_status}}', label: 'Nuovo Stato', description: '', category: 'Ordine' },
+    ],
+  },
+  {
+    type: 'order_payment_received',
+    label: 'Pagamento Ricevuto',
+    description: 'Si attiva quando il pagamento di un ordine viene registrato',
+    category: 'Ordini',
+    icon: 'CreditCard',
+    color: 'text-green-600',
+    configFields: [],
+    availableVariables: [
+      { key: '{{order.number}}', label: 'Numero Ordine', description: '', category: 'Ordine' },
+      { key: '{{order.client_name}}', label: 'Nome Cliente', description: '', category: 'Ordine' },
+      { key: '{{order.total_amount}}', label: 'Importo', description: '', category: 'Ordine' },
+    ],
+  },
+  {
+    type: 'order_due_date_approaching',
+    label: 'Scadenza Ordine si Avvicina',
+    description: 'Si attiva X giorni prima della scadenza di consegna',
+    category: 'Ordini',
+    icon: 'Clock',
+    color: 'text-orange-600',
+    configFields: [
+      { key: 'days_before', label: 'Giorni Prima', type: 'number', required: true, placeholder: '3' },
+    ],
+    availableVariables: [
+      { key: '{{order.number}}', label: 'Numero Ordine', description: '', category: 'Ordine' },
+      { key: '{{order.due_date}}', label: 'Data Scadenza', description: '', category: 'Ordine' },
+      { key: '{{order.days_remaining}}', label: 'Giorni Rimanenti', description: '', category: 'Ordine' },
+    ],
+  },
+  {
+    type: 'order_overdue',
+    label: 'Ordine in Ritardo',
+    description: 'Si attiva quando la data di consegna è superata e l\'ordine non è completato',
+    category: 'Ordini',
+    icon: 'AlertTriangle',
+    color: 'text-red-600',
+    configFields: [],
+    availableVariables: [
+      { key: '{{order.number}}', label: 'Numero Ordine', description: '', category: 'Ordine' },
+      { key: '{{order.days_overdue}}', label: 'Giorni in Ritardo', description: '', category: 'Ordine' },
+    ],
+  },
+  // TICKET
+  {
+    type: 'ticket_created',
+    label: 'Ticket Creato',
+    description: 'Si attiva quando viene aperto un nuovo ticket',
+    category: 'Ticket',
+    icon: 'Ticket',
+    color: 'text-purple-600',
+    configFields: [
+      {
+        key: 'priority',
+        label: 'Solo per Priorità (opzionale)',
+        type: 'select',
+        options: [
+          { value: '*', label: 'Qualsiasi' },
+          { value: 'low', label: 'Bassa' },
+          { value: 'medium', label: 'Media' },
+          { value: 'high', label: 'Alta' },
+          { value: 'critical', label: 'Critica' },
+        ],
+      },
+    ],
+    availableVariables: [
+      { key: '{{ticket.title}}', label: 'Titolo Ticket', description: '', category: 'Ticket' },
+      { key: '{{ticket.priority}}', label: 'Priorità', description: '', category: 'Ticket' },
+      { key: '{{ticket.category}}', label: 'Categoria', description: '', category: 'Ticket' },
+    ],
+  },
+  {
+    type: 'ticket_status_change',
+    label: 'Stato Ticket Cambiato',
+    description: 'Si attiva quando lo stato di un ticket cambia',
+    category: 'Ticket',
+    icon: 'RefreshCw',
+    color: 'text-purple-600',
+    configFields: [
+      {
+        key: 'to_status',
+        label: 'Nuovo Stato',
+        type: 'select',
+        options: [
+          { value: 'open', label: 'Aperto' },
+          { value: 'in_progress', label: 'In Lavorazione' },
+          { value: 'resolved', label: 'Risolto' },
+          { value: 'closed', label: 'Chiuso' },
+        ],
+      },
+    ],
+    availableVariables: [
+      { key: '{{ticket.title}}', label: 'Titolo', description: '', category: 'Ticket' },
+      { key: '{{ticket.old_status}}', label: 'Stato Precedente', description: '', category: 'Ticket' },
+      { key: '{{ticket.new_status}}', label: 'Nuovo Stato', description: '', category: 'Ticket' },
+    ],
+  },
+  // TASK
+  {
+    type: 'task_created',
+    label: 'Task Creato',
+    description: 'Si attiva quando viene creato un nuovo task',
+    category: 'Task',
+    icon: 'CheckSquare',
+    color: 'text-teal-600',
+    configFields: [],
+    availableVariables: [
+      { key: '{{task.title}}', label: 'Titolo Task', description: '', category: 'Task' },
+      { key: '{{task.assigned_to}}', label: 'Assegnato A', description: '', category: 'Task' },
+      { key: '{{task.due_date}}', label: 'Scadenza', description: '', category: 'Task' },
+    ],
+  },
+  {
+    type: 'task_completed',
+    label: 'Task Completato',
+    description: 'Si attiva quando un task viene marcato come completato',
+    category: 'Task',
+    icon: 'CheckCircle',
+    color: 'text-green-600',
+    configFields: [],
+    availableVariables: [
+      { key: '{{task.title}}', label: 'Titolo Task', description: '', category: 'Task' },
+      { key: '{{task.completed_at}}', label: 'Data Completamento', description: '', category: 'Task' },
+    ],
+  },
+  {
+    type: 'task_overdue',
+    label: 'Task in Scadenza/Scaduto',
+    description: 'Si attiva quando un task supera la data di scadenza',
+    category: 'Task',
+    icon: 'AlertOctagon',
+    color: 'text-red-600',
+    configFields: [
+      { key: 'days_before', label: 'Avvisa X giorni prima (0 = già scaduto)', type: 'number', placeholder: '0' },
+    ],
+    availableVariables: [
+      { key: '{{task.title}}', label: 'Titolo Task', description: '', category: 'Task' },
+      { key: '{{task.due_date}}', label: 'Scadenza', description: '', category: 'Task' },
+      { key: '{{task.assigned_to}}', label: 'Assegnato A', description: '', category: 'Task' },
+    ],
+  },
+  // DIPENDENTI
+  {
+    type: 'employee_added',
+    label: 'Dipendente Aggiunto',
+    description: 'Si attiva quando viene registrato un nuovo dipendente',
+    category: 'Dipendenti',
+    icon: 'UserPlus',
+    color: 'text-indigo-600',
+    configFields: [],
+    availableVariables: [
+      { key: '{{employee.full_name}}', label: 'Nome Completo', description: '', category: 'Dipendente' },
+      { key: '{{employee.role}}', label: 'Ruolo', description: '', category: 'Dipendente' },
+      { key: '{{employee.department}}', label: 'Reparto', description: '', category: 'Dipendente' },
+    ],
+  },
+  {
+    type: 'employee_document_expiring',
+    label: 'Documento Dipendente in Scadenza',
+    description: 'Si attiva quando un documento (contratto, certificato, visita medica) sta per scadere',
+    category: 'Dipendenti',
+    icon: 'FileWarning',
+    color: 'text-yellow-600',
+    configFields: [
+      { key: 'days_before', label: 'Giorni Prima della Scadenza', type: 'number', required: true, placeholder: '30' },
+    ],
+    availableVariables: [
+      { key: '{{employee.full_name}}', label: 'Nome Dipendente', description: '', category: 'Dipendente' },
+      { key: '{{document.name}}', label: 'Nome Documento', description: '', category: 'Documento' },
+      { key: '{{document.expiry_date}}', label: 'Data Scadenza', description: '', category: 'Documento' },
+    ],
+  },
+  // MAGAZZINO
+  {
+    type: 'warehouse_low_stock',
+    label: 'Magazzino Sotto Soglia',
+    description: 'Si attiva quando la quantità di un articolo scende sotto la soglia minima',
+    category: 'Magazzino',
+    icon: 'Package',
+    color: 'text-amber-600',
+    configFields: [],
+    availableVariables: [
+      { key: '{{item.name}}', label: 'Nome Articolo', description: '', category: 'Magazzino' },
+      { key: '{{item.quantity}}', label: 'Quantità Attuale', description: '', category: 'Magazzino' },
+      { key: '{{item.min_quantity}}', label: 'Soglia Minima', description: '', category: 'Magazzino' },
+      { key: '{{item.unit}}', label: 'Unità di Misura', description: '', category: 'Magazzino' },
+    ],
+  },
+  // COSTI
+  {
+    type: 'cost_added',
+    label: 'Costo Inserito',
+    description: 'Si attiva quando viene registrato un nuovo costo',
+    category: 'Costi',
+    icon: 'TrendingDown',
+    color: 'text-red-600',
+    configFields: [
+      { key: 'amount_threshold', label: 'Solo se importo superiore a (€)', type: 'number', placeholder: '0' },
+      {
+        key: 'category',
+        label: 'Solo per Categoria (opzionale)',
+        type: 'select',
+        options: [
+          { value: '*', label: 'Qualsiasi' },
+          { value: 'materials', label: 'Materiali' },
+          { value: 'labor', label: 'Manodopera' },
+          { value: 'overhead', label: 'Spese Generali' },
+          { value: 'other', label: 'Altro' },
+        ],
+      },
+    ],
+    availableVariables: [
+      { key: '{{cost.description}}', label: 'Descrizione', description: '', category: 'Costo' },
+      { key: '{{cost.amount}}', label: 'Importo', description: '', category: 'Costo' },
+      { key: '{{cost.category}}', label: 'Categoria', description: '', category: 'Costo' },
+    ],
+  },
+];
+
+export const INTERNAL_ACTION_CATALOG: InternalActionDefinition[] = [
+  {
+    type: 'create_task',
+    label: 'Crea Task',
+    description: 'Crea automaticamente un nuovo task',
+    icon: 'Plus',
+    color: 'text-blue-600',
+    configFields: [
+      { key: 'title', label: 'Titolo Task', type: 'text', required: true, supportsVariables: true, placeholder: 'Es. Seguire ordine {{order.number}}' },
+      { key: 'description', label: 'Descrizione', type: 'textarea', supportsVariables: true },
+      {
+        key: 'priority',
+        label: 'Priorità',
+        type: 'select',
+        options: [
+          { value: 'low', label: 'Bassa' },
+          { value: 'medium', label: 'Media' },
+          { value: 'high', label: 'Alta' },
+        ],
+      },
+      { key: 'due_days', label: 'Scadenza (giorni da ora)', type: 'number', placeholder: '3' },
+      { key: 'assign_to', label: 'Assegna A (User ID o ruolo)', type: 'user_select' },
+    ],
+  },
+  {
+    type: 'update_order_status',
+    label: 'Cambia Stato Ordine',
+    description: 'Modifica lo stato di un ordine',
+    icon: 'RefreshCw',
+    color: 'text-green-600',
+    configFields: [
+      {
+        key: 'new_status',
+        label: 'Nuovo Stato',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'confirmed', label: 'Confermato' },
+          { value: 'in_progress', label: 'In Lavorazione' },
+          { value: 'completed', label: 'Completato' },
+          { value: 'cancelled', label: 'Annullato' },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'send_internal_notification',
+    label: 'Invia Notifica Interna',
+    description: 'Invia una notifica a uno o più utenti del team',
+    icon: 'Bell',
+    color: 'text-yellow-600',
+    configFields: [
+      { key: 'message', label: 'Messaggio', type: 'textarea', required: true, supportsVariables: true },
+      {
+        key: 'recipients',
+        label: 'Destinatari',
+        type: 'multi_select',
+        options: [
+          { value: 'all_users', label: 'Tutti gli utenti' },
+          { value: 'admins', label: 'Solo Amministratori' },
+          { value: 'assigned_user', label: 'Utente Assegnato' },
+        ],
+      },
+      { key: 'link_to', label: 'Link (opzionale)', type: 'text', placeholder: '/azienda/ordini/{{order.id}}' },
+    ],
+  },
+  {
+    type: 'send_email_to_customer',
+    label: 'Invia Email al Cliente',
+    description: 'Manda un\'email automatica al cliente dell\'ordine',
+    icon: 'Mail',
+    color: 'text-blue-600',
+    configFields: [
+      { key: 'subject', label: 'Oggetto', type: 'text', required: true, supportsVariables: true },
+      { key: 'body', label: 'Corpo Email', type: 'textarea', required: true, supportsVariables: true },
+    ],
+  },
+  {
+    type: 'send_email_to_employee',
+    label: 'Invia Email a Dipendente',
+    description: 'Invia un\'email a un dipendente specifico o al dipendente assegnato',
+    icon: 'UserCheck',
+    color: 'text-indigo-600',
+    configFields: [
+      { key: 'recipient', label: 'Destinatario', type: 'user_select', required: true },
+      { key: 'subject', label: 'Oggetto', type: 'text', required: true, supportsVariables: true },
+      { key: 'body', label: 'Corpo Email', type: 'textarea', required: true, supportsVariables: true },
+    ],
+  },
+  {
+    type: 'create_ticket',
+    label: 'Crea Ticket',
+    description: 'Apre automaticamente un nuovo ticket di supporto',
+    icon: 'Ticket',
+    color: 'text-purple-600',
+    configFields: [
+      { key: 'title', label: 'Titolo', type: 'text', required: true, supportsVariables: true },
+      { key: 'description', label: 'Descrizione', type: 'textarea', supportsVariables: true },
+      {
+        key: 'priority',
+        label: 'Priorità',
+        type: 'select',
+        options: [
+          { value: 'low', label: 'Bassa' },
+          { value: 'medium', label: 'Media' },
+          { value: 'high', label: 'Alta' },
+          { value: 'critical', label: 'Critica' },
+        ],
+      },
+      { key: 'category', label: 'Categoria', type: 'text', supportsVariables: true },
+    ],
+  },
+  {
+    type: 'create_calendar_event',
+    label: 'Crea Evento Calendario',
+    description: 'Aggiunge un evento al calendario aziendale',
+    icon: 'Calendar',
+    color: 'text-cyan-600',
+    configFields: [
+      { key: 'title', label: 'Titolo Evento', type: 'text', required: true, supportsVariables: true },
+      { key: 'description', label: 'Descrizione', type: 'textarea', supportsVariables: true },
+      { key: 'start_offset_days', label: 'Inizia tra X giorni', type: 'number', placeholder: '1' },
+      { key: 'duration_hours', label: 'Durata (ore)', type: 'number', placeholder: '1' },
+      { key: 'assign_to', label: 'Assegna A', type: 'user_select' },
+    ],
+  },
+  {
+    type: 'wait_delay',
+    label: 'Attendi',
+    description: 'Pausa l\'esecuzione per un periodo definito prima di procedere',
+    icon: 'Timer',
+    color: 'text-gray-600',
+    configFields: [
+      { key: 'delay_value', label: 'Durata', type: 'number', required: true, placeholder: '1' },
+      {
+        key: 'delay_unit',
+        label: 'Unità',
+        type: 'select',
+        options: [
+          { value: 'minutes', label: 'Minuti' },
+          { value: 'hours', label: 'Ore' },
+          { value: 'days', label: 'Giorni' },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'webhook_call',
+    label: 'Webhook Esterno',
+    description: 'Invia una richiesta HTTP POST a un URL esterno',
+    icon: 'Webhook',
+    color: 'text-gray-600',
+    configFields: [
+      { key: 'url', label: 'URL Webhook', type: 'text', required: true, placeholder: 'https://...' },
+      { key: 'payload_template', label: 'Payload JSON (opzionale)', type: 'textarea', supportsVariables: true },
+    ],
+  },
+];
+```
+
+============================================================
+PROMPT 3 di 6 — EDGE FUNCTION: process-internal-automation
+============================================================
+
+Crea una nuova Supabase Edge Function `process-internal-automation` che esegue i job dalla
+tabella `internal_automation_queue`. NON modificare la funzione `process-automation` esistente
+(quella è usata dalle Marketing Automations).
+
+Crea il file `supabase/functions/process-internal-automation/index.ts`:
+
+```typescript
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const resendApiKey = Deno.env.get("RESEND_API_KEY");
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+Deno.serve(async (_req) => {
+  const startTime = Date.now();
+  let processedCount = 0;
+
+  try {
+    // Fetch pending jobs (max 20 per run)
+    const { data: jobs, error } = await supabase
+      .from("internal_automation_queue")
+      .select(`
+        *,
+        internal_automation_nodes!node_id(node_type, node_subtype, config),
+        internal_automation_enrollments!enrollment_id(entity_type, entity_id, context_data)
+      `)
+      .eq("status", "pending")
+      .lte("scheduled_at", new Date().toISOString())
+      .order("scheduled_at", { ascending: true })
+      .limit(20);
+
+    if (error) throw error;
+    if (!jobs || jobs.length === 0) {
+      return new Response(JSON.stringify({ processed: 0, message: "No pending jobs" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    for (const job of jobs) {
+      // Mark as processing
+      await supabase
+        .from("internal_automation_queue")
+        .update({ status: "processing" })
+        .eq("id", job.id);
+
+      const node = job.internal_automation_nodes;
+      const enrollment = job.internal_automation_enrollments;
+
+      if (!node || !enrollment) {
+        await markJobFailed(job.id, "Node or enrollment not found");
+        continue;
+      }
+
+      const context = {
+        ...(enrollment.context_data || {}),
+        ...(job.payload?.context || {}),
+        entity_type: enrollment.entity_type,
+        entity_id: enrollment.entity_id,
+      };
+
+      try {
+        const actionStartTime = Date.now();
+
+        // Route to correct action executor
+        let result: { success: boolean; details?: Record<string, unknown>; error?: string };
+
+        switch (node.node_subtype) {
+          case "create_task":
+            result = await executeCreateTask(job.company_id, node.config, context);
+            break;
+          case "update_order_status":
+            result = await executeUpdateOrderStatus(job.company_id, enrollment.entity_id, node.config, context);
+            break;
+          case "send_internal_notification":
+            result = await executeSendInternalNotification(job.company_id, node.config, context);
+            break;
+          case "send_email_to_customer":
+            result = await executeSendEmailToCustomer(job.company_id, enrollment.entity_id, enrollment.entity_type, node.config, context);
+            break;
+          case "send_email_to_employee":
+            result = await executeSendEmailToEmployee(job.company_id, node.config, context);
+            break;
+          case "create_ticket":
+            result = await executeCreateTicket(job.company_id, node.config, context);
+            break;
+          case "create_calendar_event":
+            result = await executeCreateCalendarEvent(job.company_id, node.config, context);
+            break;
+          case "wait_delay":
+            result = await executeWaitDelay(job.id, node.config);
+            break;
+          case "webhook_call":
+            result = await executeWebhookCall(node.config, context);
+            break;
+          case "if_condition":
+            result = await executeCondition(job, node.config, context);
+            break;
+          default:
+            result = { success: false, error: `Unknown action: ${node.node_subtype}` };
+        }
+
+        const durationMs = Date.now() - actionStartTime;
+
+        if (result.success) {
+          await markJobDone(job.id);
+          await logExecution(job, node.node_subtype, "success", result.details || {}, durationMs);
+
+          // If node_subtype is not a delay, advance to next node
+          if (node.node_subtype !== "wait_delay") {
+            await advanceEnrollment(job, result.details?.next_branch as string | undefined);
+          }
+        } else {
+          if (result.error === "DELAY_SCHEDULED") {
+            // Job rescheduled, do nothing
+          } else {
+            await markJobFailed(job.id, result.error || "Unknown error");
+            await logExecution(job, node.node_subtype, "error", { error: result.error }, durationMs);
+          }
+        }
+
+        processedCount++;
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        await markJobFailed(job.id, errorMsg);
+        await logExecution(job, node.node_subtype, "error", { error: errorMsg }, 0);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ processed: processedCount, duration_ms: Date.now() - startTime }),
+      { headers: { "Content-Type": "application/json" } }
+    );
+  } catch (err) {
+    console.error("Fatal error:", err);
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+});
+
+// ============================================================
+// HELPER: Advance enrollment to next node
+// ============================================================
+async function advanceEnrollment(job: Record<string, unknown>, branch?: string) {
+  // Find the next node via connections
+  const { data: connection } = await supabase
+    .from("internal_automation_connections")
+    .select("target_node_id")
+    .eq("flow_id", job.flow_id)
+    .eq("source_node_id", job.node_id)
+    .eq(branch ? "condition_branch" : "id", branch || job.id) // if branch, filter by it
+    .limit(1)
+    .maybeSingle();
+
+  if (!connection) {
+    // No more nodes: mark enrollment as completed
+    await supabase
+      .from("internal_automation_enrollments")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", job.enrollment_id);
+
+    await supabase
+      .from("internal_automation_flows")
+      .update({ successful_runs: supabase.rpc("increment_column") }) // handled by trigger
+      .eq("id", job.flow_id);
+
+    return;
+  }
+
+  // Get the target node to check if it's a delay
+  const { data: nextNode } = await supabase
+    .from("internal_automation_nodes")
+    .select("node_subtype, config")
+    .eq("id", connection.target_node_id)
+    .single();
+
+  let scheduledAt = new Date().toISOString();
+  if (nextNode?.node_subtype === "wait_delay") {
+    const delayMs = calculateDelayMs(nextNode.config);
+    scheduledAt = new Date(Date.now() + delayMs).toISOString();
+  }
+
+  // Queue the next node
+  await supabase.from("internal_automation_queue").insert({
+    enrollment_id: job.enrollment_id,
+    flow_id: job.flow_id,
+    node_id: connection.target_node_id,
+    company_id: job.company_id,
+    scheduled_at: scheduledAt,
+    status: "pending",
+    payload: job.payload,
+  });
+
+  // Update enrollment's current node
+  await supabase
+    .from("internal_automation_enrollments")
+    .update({ current_node_id: connection.target_node_id })
+    .eq("id", job.enrollment_id);
+}
+
+function calculateDelayMs(config: Record<string, unknown>): number {
+  const value = Number(config.delay_value) || 1;
+  const unit = config.delay_unit as string;
+  const multipliers: Record<string, number> = {
+    minutes: 60 * 1000,
+    hours: 60 * 60 * 1000,
+    days: 24 * 60 * 60 * 1000,
+  };
+  return value * (multipliers[unit] || multipliers.hours);
+}
+
+// ============================================================
+// ACTION EXECUTORS
+// ============================================================
+
+function interpolate(template: string, context: Record<string, unknown>): string {
+  return template.replace(/\{\{([^}]+)\}\}/g, (match, key) => {
+    const parts = key.trim().split(".");
+    let value: unknown = context;
+    for (const part of parts) {
+      value = (value as Record<string, unknown>)?.[part];
+    }
+    return value !== undefined && value !== null ? String(value) : match;
+  });
+}
+
+async function executeCreateTask(companyId: string, config: Record<string, unknown>, context: Record<string, unknown>) {
+  const dueDate = config.due_days
+    ? new Date(Date.now() + Number(config.due_days) * 86400000).toISOString()
+    : null;
+
+  const { error } = await supabase.from("tasks").insert({
+    company_id: companyId,
+    title: interpolate(String(config.title || ""), context),
+    description: config.description ? interpolate(String(config.description), context) : null,
+    priority: config.priority || "medium",
+    due_date: dueDate,
+    assigned_to: config.assign_to || null,
+    status: "todo",
+    created_by_automation: true,
+  });
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, details: { action: "create_task" } };
+}
+
+async function executeUpdateOrderStatus(
+  companyId: string,
+  entityId: string,
+  config: Record<string, unknown>,
+  _context: Record<string, unknown>
+) {
+  if (!config.new_status) return { success: false, error: "new_status not configured" };
+
+  const { error } = await supabase
+    .from("orders")
+    .update({ status: config.new_status })
+    .eq("id", entityId)
+    .eq("company_id", companyId);
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, details: { action: "update_order_status", new_status: config.new_status } };
+}
+
+async function executeSendInternalNotification(companyId: string, config: Record<string, unknown>, context: Record<string, unknown>) {
+  const message = interpolate(String(config.message || ""), context);
+
+  // Get recipients
+  let userIds: string[] = [];
+  const recipients = config.recipients as string[] || ["all_users"];
+
+  if (recipients.includes("all_users")) {
+    const { data: users } = await supabase
+      .from("company_users")
+      .select("user_id")
+      .eq("company_id", companyId);
+    userIds = (users || []).map((u: Record<string, string>) => u.user_id);
+  } else if (recipients.includes("admins")) {
+    const { data: admins } = await supabase
+      .from("company_users")
+      .select("user_id")
+      .eq("company_id", companyId)
+      .in("role", ["owner", "admin"]);
+    userIds = (admins || []).map((u: Record<string, string>) => u.user_id);
+  }
+
+  // Insert notifications
+  const notifications = userIds.map((userId) => ({
+    company_id: companyId,
+    user_id: userId,
+    message,
+    link: config.link_to ? interpolate(String(config.link_to), context) : null,
+    type: "automation",
+    read: false,
+    created_at: new Date().toISOString(),
+  }));
+
+  if (notifications.length > 0) {
+    const { error } = await supabase.from("notifications").insert(notifications);
+    if (error) return { success: false, error: error.message };
+  }
+
+  return { success: true, details: { action: "send_notification", recipients: userIds.length } };
+}
+
+async function executeSendEmailToCustomer(
+  companyId: string,
+  entityId: string,
+  entityType: string,
+  config: Record<string, unknown>,
+  context: Record<string, unknown>
+) {
+  if (!resendApiKey) return { success: false, error: "Email service not configured" };
+
+  // Get customer email based on entity type
+  let customerEmail: string | null = null;
+  if (entityType === "order") {
+    const { data: order } = await supabase
+      .from("orders")
+      .select("client_email")
+      .eq("id", entityId)
+      .eq("company_id", companyId)
+      .single();
+    customerEmail = order?.client_email;
+  }
+
+  if (!customerEmail) return { success: false, error: "Customer email not found" };
+
+  const subject = interpolate(String(config.subject || ""), context);
+  const body = interpolate(String(config.body || ""), context);
+
+  // Get company info for from address
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name, email")
+    .eq("id", companyId)
+    .single();
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: `${company?.name || "Gestionale"} <noreply@${Deno.env.get("APP_DOMAIN") || "gestionale.app"}>`,
+      to: [customerEmail],
+      subject,
+      html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">${body.replace(/\n/g, "<br>")}</div>`,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    return { success: false, error: err };
+  }
+
+  return { success: true, details: { action: "send_email_customer", to: customerEmail } };
+}
+
+async function executeSendEmailToEmployee(
+  companyId: string,
+  config: Record<string, unknown>,
+  context: Record<string, unknown>
+) {
+  if (!resendApiKey) return { success: false, error: "Email service not configured" };
+
+  let recipientEmail: string | null = null;
+
+  if (config.recipient === "assigned_user" && context.assigned_to) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", context.assigned_to)
+      .single();
+    recipientEmail = profile?.email;
+  } else if (config.recipient) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", config.recipient)
+      .single();
+    recipientEmail = profile?.email;
+  }
+
+  if (!recipientEmail) return { success: false, error: "Recipient email not found" };
+
+  const subject = interpolate(String(config.subject || ""), context);
+  const body = interpolate(String(config.body || ""), context);
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: `Gestionale <noreply@${Deno.env.get("APP_DOMAIN") || "gestionale.app"}>`,
+      to: [recipientEmail],
+      subject,
+      html: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">${body.replace(/\n/g, "<br>")}</div>`,
+    }),
+  });
+
+  if (!response.ok) return { success: false, error: await response.text() };
+  return { success: true, details: { action: "send_email_employee", to: recipientEmail } };
+}
+
+async function executeCreateTicket(companyId: string, config: Record<string, unknown>, context: Record<string, unknown>) {
+  const { error } = await supabase.from("tickets").insert({
+    company_id: companyId,
+    title: interpolate(String(config.title || ""), context),
+    description: config.description ? interpolate(String(config.description), context) : null,
+    priority: config.priority || "medium",
+    category: config.category ? interpolate(String(config.category), context) : null,
+    status: "open",
+    created_by_automation: true,
+  });
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, details: { action: "create_ticket" } };
+}
+
+async function executeCreateCalendarEvent(companyId: string, config: Record<string, unknown>, context: Record<string, unknown>) {
+  const startOffset = Number(config.start_offset_days || 1);
+  const durationHours = Number(config.duration_hours || 1);
+  const startDate = new Date(Date.now() + startOffset * 86400000);
+  const endDate = new Date(startDate.getTime() + durationHours * 3600000);
+
+  const { error } = await supabase.from("calendar_events").insert({
+    company_id: companyId,
+    title: interpolate(String(config.title || ""), context),
+    description: config.description ? interpolate(String(config.description), context) : null,
+    start_date: startDate.toISOString(),
+    end_date: endDate.toISOString(),
+    assigned_to: config.assign_to || null,
+    created_by_automation: true,
+  });
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, details: { action: "create_calendar_event" } };
+}
+
+async function executeWaitDelay(jobId: string, config: Record<string, unknown>) {
+  const delayMs = calculateDelayMs(config as Record<string, unknown>);
+  const scheduledAt = new Date(Date.now() + delayMs).toISOString();
+
+  // Reschedule this job for later
+  await supabase
+    .from("internal_automation_queue")
+    .update({ status: "pending", scheduled_at: scheduledAt })
+    .eq("id", jobId);
+
+  return { success: false, error: "DELAY_SCHEDULED" };
+}
+
+async function executeWebhookCall(config: Record<string, unknown>, context: Record<string, unknown>) {
+  if (!config.url) return { success: false, error: "URL not configured" };
+
+  let payload = {};
+  if (config.payload_template) {
+    try {
+      const interpolated = interpolate(String(config.payload_template), context);
+      payload = JSON.parse(interpolated);
+    } catch {
+      payload = { data: context };
+    }
+  } else {
+    payload = context;
+  }
+
+  const response = await fetch(String(config.url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) return { success: false, error: `HTTP ${response.status}` };
+  return { success: true, details: { action: "webhook", status: response.status } };
+}
+
+async function executeCondition(
+  job: Record<string, unknown>,
+  config: Record<string, unknown>,
+  context: Record<string, unknown>
+): Promise<{ success: boolean; details?: Record<string, unknown>; error?: string }> {
+  // Simple condition evaluation: field operator value
+  const { field, operator, value } = config as { field: string; operator: string; value: unknown };
+  const contextValue = context[field];
+
+  let conditionMet = false;
+  switch (operator) {
+    case "equals": conditionMet = String(contextValue) === String(value); break;
+    case "not_equals": conditionMet = String(contextValue) !== String(value); break;
+    case "contains": conditionMet = String(contextValue).toLowerCase().includes(String(value).toLowerCase()); break;
+    case "greater_than": conditionMet = Number(contextValue) > Number(value); break;
+    case "less_than": conditionMet = Number(contextValue) < Number(value); break;
+    default: conditionMet = false;
+  }
+
+  // Find branch connections
+  const branch = conditionMet ? "yes" : "no";
+
+  const { data: connection } = await supabase
+    .from("internal_automation_connections")
+    .select("target_node_id")
+    .eq("flow_id", job.flow_id)
+    .eq("source_node_id", job.node_id)
+    .eq("condition_branch", branch)
+    .limit(1)
+    .maybeSingle();
+
+  if (connection) {
+    await supabase.from("internal_automation_queue").insert({
+      enrollment_id: job.enrollment_id,
+      flow_id: job.flow_id,
+      node_id: connection.target_node_id,
+      company_id: job.company_id,
+      scheduled_at: new Date().toISOString(),
+      status: "pending",
+      payload: job.payload,
+    });
+  }
+
+  return { success: true, details: { action: "condition", branch, condition_met: conditionMet } };
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+async function markJobDone(jobId: string) {
+  await supabase
+    .from("internal_automation_queue")
+    .update({ status: "done", processed_at: new Date().toISOString() })
+    .eq("id", jobId);
+}
+
+async function markJobFailed(jobId: string, error: string) {
+  await supabase
+    .from("internal_automation_queue")
+    .update({
+      status: "failed",
+      processed_at: new Date().toISOString(),
+      error_message: error,
+      retry_count: supabase.rpc("increment_column"), // handled separately if needed
+    })
+    .eq("id", jobId);
+}
+
+async function logExecution(
+  job: Record<string, unknown>,
+  action: string,
+  status: "success" | "error" | "skipped",
+  details: Record<string, unknown>,
+  durationMs: number
+) {
+  const enrollment = job.internal_automation_enrollments as Record<string, unknown> | null;
+  await supabase.from("internal_automation_execution_log").insert({
+    enrollment_id: job.enrollment_id,
+    flow_id: job.flow_id,
+    node_id: job.node_id,
+    company_id: job.company_id,
+    entity_type: enrollment?.entity_type,
+    entity_id: enrollment?.entity_id,
+    action,
+    status,
+    details,
+    executed_at: new Date().toISOString(),
+    duration_ms: durationMs,
+  });
+}
+```
+
+Aggiungi anche un pg_cron job per chiamare questa edge function ogni minuto (oppure usa lo
+stesso scheduler già esistente per process-automation adattandolo). Se il progetto usa già
+`pg_cron` per process-automation, aggiungi:
+
+```sql
+-- In una nuova migrazione Supabase:
+SELECT cron.schedule(
+  'process-internal-automations',
+  '* * * * *', -- ogni minuto
+  $$
+  SELECT net.http_post(
+    url := current_setting('app.settings.edge_function_url') || '/process-internal-automation',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+```
+
+============================================================
+PROMPT 4 di 6 — VISUAL BUILDER: InternalAutomationBuilder.tsx
+============================================================
+
+Crea il componente React per il visual builder delle automazioni Gestione Interna.
+IMPORTANTE: Non modificare `MarketingAutomations.tsx` o qualsiasi componente nella cartella
+`src/components/automationBuilder/` esistente. Crea nuovi componenti nella cartella
+`src/components/internalAutomationBuilder/`.
+
+1. Crea `src/components/internalAutomationBuilder/InternalAutomationCanvas.tsx`:
+   - Utilizza la stessa struttura di `AutomationCanvas.tsx` delle Marketing Automations come
+     riferimento visivo e UX
+   - Usa ReactFlow (react-flow-renderer) per il canvas drag-and-drop se già installato,
+     altrimenti usa una griglia CSS con connettori SVG
+   - Nodi cliccabili con pannello laterale di configurazione
+   - Il nodo Trigger è sempre il primo nodo (non eliminabile)
+   - Pulsante "+" per aggiungere nodi dopo ogni nodo esistente
+   - Linee di connessione con etichette "sì/no" per i nodi condizione
+   - Stessa palette colori del builder Marketing ma con sfumatura verde (per distinguerlo visivamente)
+
+2. Crea `src/components/internalAutomationBuilder/InternalNodePanel.tsx`:
+   - Pannello laterale che appare quando si clicca un nodo
+   - Form di configurazione dinamico basato sui `configFields` del catalogo
+   - Supporto per `supportsVariables: true` → bottone "Inserisci variabile" che apre dropdown
+     con tutte le variabili disponibili per quel trigger
+   - Validazione in tempo reale dei campi required
+   - Pulsante "Salva" e "Elimina nodo"
+
+3. Crea `src/components/internalAutomationBuilder/InternalTriggerSelector.tsx`:
+   - Modale/drawer che si apre quando si crea una nuova automazione o si modifica il trigger
+   - Mostra tutti i trigger del catalogo raggruppati per categoria (Ordini, Ticket, Task, ecc.)
+   - Card con icona, titolo, descrizione per ogni trigger
+   - Ricerca rapida per nome
+
+4. Crea `src/components/internalAutomationBuilder/InternalActionSelector.tsx`:
+   - Modale/drawer che si apre quando si clicca "+" su un nodo
+   - Mostra tutte le azioni del catalogo in griglia
+   - Includi anche i nodi speciali: "Condizione (Se/Altrimenti)", "Attendi"
+
+5. Crea `src/hooks/useInternalAutomations.ts`:
+   ```typescript
+   // Hook principale per CRUD delle automazioni interne
+   import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+   import { supabase } from "@/integrations/supabase/client";
+
+   export function useInternalAutomations(companyId: string) {
+     const queryClient = useQueryClient();
+
+     const flowsQuery = useQuery({
+       queryKey: ["internal_automation_flows", companyId],
+       queryFn: async () => {
+         const { data, error } = await supabase
+           .from("internal_automation_flows")
+           .select(`
+             *,
+             internal_automation_nodes(*),
+             internal_automation_connections(*)
+           `)
+           .eq("company_id", companyId)
+           .order("created_at", { ascending: false });
+         if (error) throw error;
+         return data;
+       },
+     });
+
+     const createFlow = useMutation({
+       mutationFn: async (flow: {
+         name: string;
+         triggerType: string;
+         triggerConfig: Record<string, unknown>;
+       }) => {
+         const { data, error } = await supabase
+           .from("internal_automation_flows")
+           .insert({
+             company_id: companyId,
+             name: flow.name,
+             trigger_type: flow.triggerType,
+             trigger_config: flow.triggerConfig,
+             is_active: false,
+           })
+           .select()
+           .single();
+         if (error) throw error;
+
+         // Create trigger node
+         await supabase.from("internal_automation_nodes").insert({
+           flow_id: data.id,
+           node_type: "trigger",
+           node_subtype: flow.triggerType,
+           config: flow.triggerConfig,
+           position_x: 300,
+           position_y: 50,
+           label: `Trigger: ${flow.triggerType}`,
+         });
+
+         return data;
+       },
+       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["internal_automation_flows", companyId] }),
+     });
+
+     const saveFlow = useMutation({
+       mutationFn: async (params: {
+         flowId: string;
+         nodes: Array<{ id?: string; node_type: string; node_subtype: string; config: Record<string, unknown>; position_x: number; position_y: number }>;
+         connections: Array<{ source_node_id: string; target_node_id: string; condition_branch?: string }>;
+       }) => {
+         // Upsert nodes
+         for (const node of params.nodes) {
+           if (node.id) {
+             await supabase
+               .from("internal_automation_nodes")
+               .update({ config: node.config, position_x: node.position_x, position_y: node.position_y })
+               .eq("id", node.id);
+           } else {
+             await supabase.from("internal_automation_nodes").insert({ ...node, flow_id: params.flowId });
+           }
+         }
+
+         // Replace connections
+         await supabase.from("internal_automation_connections").delete().eq("flow_id", params.flowId);
+         if (params.connections.length > 0) {
+           await supabase.from("internal_automation_connections").insert(
+             params.connections.map((c) => ({ ...c, flow_id: params.flowId }))
+           );
+         }
+       },
+       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["internal_automation_flows", companyId] }),
+     });
+
+     const toggleFlow = useMutation({
+       mutationFn: async ({ flowId, isActive }: { flowId: string; isActive: boolean }) => {
+         const { error } = await supabase
+           .from("internal_automation_flows")
+           .update({ is_active: isActive })
+           .eq("id", flowId);
+         if (error) throw error;
+       },
+       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["internal_automation_flows", companyId] }),
+     });
+
+     const deleteFlow = useMutation({
+       mutationFn: async (flowId: string) => {
+         const { error } = await supabase
+           .from("internal_automation_flows")
+           .delete()
+           .eq("id", flowId);
+         if (error) throw error;
+       },
+       onSuccess: () => queryClient.invalidateQueries({ queryKey: ["internal_automation_flows", companyId] }),
+     });
+
+     return { flowsQuery, createFlow, saveFlow, toggleFlow, deleteFlow };
+   }
+   ```
+
+============================================================
+PROMPT 5 di 6 — PAGINA PRINCIPALE: InternalAutomations.tsx
+============================================================
+
+Crea la pagina principale per le automazioni di Gestione Interna in
+`src/pages/azienda/InternalAutomations.tsx`.
+
+IMPORTANTE: questa pagina sostituisce l'attuale `src/pages/azienda/Automations.tsx`.
+Non eliminare `Automations.tsx` (potrebbe essere usato come fallback), ma crea
+`InternalAutomations.tsx` come nuova versione completa e poi aggiorna il router per
+puntare a `InternalAutomations.tsx` invece di `Automations.tsx`.
+
+La pagina deve avere questa struttura UX:
+
+**VISTA LISTA (default):**
+```
+┌─────────────────────────────────────────────────────────┐
+│ 🤖 Automazioni Gestione Interna           [+ Nuova]     │
+│ Automatizza i processi interni della tua azienda        │
+├─────────────────────────────────────────────────────────┤
+│ [Tutte] [Attive] [Inattive] [Ordini] [Ticket] [Task]... │
+├─────────────────────────────────────────────────────────┤
+│ ┌────────────────────────────────────────────────────┐  │
+│ │ 🔵 Notifica team su nuovo ordine          [ON/OFF] │  │
+│ │ Trigger: Ordine Creato → 2 azioni                  │  │
+│ │ Eseguita 47 volte · Ultima: 2 ore fa               │  │
+│ │ [Modifica] [Duplica] [Log] [Elimina]               │  │
+│ └────────────────────────────────────────────────────┘  │
+│ ┌────────────────────────────────────────────────────┐  │
+│ │ 🟡 Riassegna ticket priorità critica      [ON/OFF] │  │
+│ │ Trigger: Ticket Creato (Critico) → 3 azioni        │  │
+│ │ Eseguita 12 volte · Ultima: 1 giorno fa            │  │
+│ │ [Modifica] [Duplica] [Log] [Elimina]               │  │
+│ └────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**VISTA BUILDER (quando si crea/modifica):**
+- Full-screen canvas con il visual builder
+- Header con: nome flow editabile, pulsanti [Salva], [Attiva/Disattiva], [← Torna alla lista]
+- Canvas occupante tutta l'area disponibile
+- Pannello laterale sinistro con le azioni disponibili (drag per aggiungere)
+- Pannello laterale destro (configurazione nodo selezionato)
+
+**LOG DRAWER:**
+- Drawer laterale che si apre al click su "Log"
+- Mostra gli ultimi 50 log di esecuzione per quella flow
+- Colonne: Data/Ora, Entità, Azione, Status (✅/❌), Durata
+- Filtro per status e data
+
+```typescript
+// src/pages/azienda/InternalAutomations.tsx
+// Struttura base del componente (implementa la UX descritta sopra):
+
+import React, { useState } from "react";
+import { useCompany } from "@/hooks/useCompany";
+import { useInternalAutomations } from "@/hooks/useInternalAutomations";
+import { InternalAutomationCanvas } from "@/components/internalAutomationBuilder/InternalAutomationCanvas";
+import { InternalTriggerSelector } from "@/components/internalAutomationBuilder/InternalTriggerSelector";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Bot, Edit, Copy, Trash2, List } from "lucide-react";
+import { INTERNAL_TRIGGER_CATALOG } from "@/types/internalAutomationBuilder";
+import { formatDistanceToNow } from "date-fns";
+import { it } from "date-fns/locale";
+
+type View = "list" | "builder" | "log";
+
+export default function InternalAutomations() {
+  const { company } = useCompany();
+  const { flowsQuery, createFlow, toggleFlow, deleteFlow } = useInternalAutomations(company?.id || "");
+
+  const [view, setView] = useState<View>("list");
+  const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
+  const [showTriggerSelector, setShowTriggerSelector] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  const flows = flowsQuery.data || [];
+
+  const categories = ["all", "Ordini", "Ticket", "Task", "Dipendenti", "Magazzino", "Costi", "Calendario"];
+
+  const filteredFlows = flows.filter((f) => {
+    const triggerDef = INTERNAL_TRIGGER_CATALOG.find((t) => t.type === f.trigger_type);
+    if (filterCategory !== "all" && triggerDef?.category !== filterCategory) return false;
+    if (filterStatus === "active" && !f.is_active) return false;
+    if (filterStatus === "inactive" && f.is_active) return false;
+    return true;
+  });
+
+  // Se view è "builder", renderizza il canvas full-screen
+  if (view === "builder" && selectedFlowId) {
+    return (
+      <InternalAutomationCanvas
+        flowId={selectedFlowId}
+        companyId={company?.id || ""}
+        onBack={() => { setView("list"); setSelectedFlowId(null); }}
+      />
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Bot className="h-6 w-6 text-green-600" />
+            Automazioni Gestione Interna
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Automatizza i processi interni: ordini, ticket, task, dipendenti e magazzino
+          </p>
+        </div>
+        <Button onClick={() => setShowTriggerSelector(true)} className="gap-2">
+          <Plus className="h-4 w-4" /> Nuova Automazione
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex gap-1 border rounded-lg p-1">
+          {["all", "active", "inactive"].map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`px-3 py-1 rounded text-sm ${filterStatus === s ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            >
+              {s === "all" ? "Tutte" : s === "active" ? "Attive" : "Inattive"}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 border rounded-lg p-1 flex-wrap">
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setFilterCategory(c)}
+              className={`px-3 py-1 rounded text-sm ${filterCategory === c ? "bg-green-600 text-white" : "hover:bg-muted"}`}
+            >
+              {c === "all" ? "Tutti" : c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Flow List */}
+      {flowsQuery.isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />
+          ))}
+        </div>
+      ) : filteredFlows.length === 0 ? (
+        <div className="text-center py-16 border-2 border-dashed rounded-lg">
+          <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+          <p className="font-medium">Nessuna automazione configurata</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            Crea la tua prima automazione per automatizzare i processi interni
+          </p>
+          <Button onClick={() => setShowTriggerSelector(true)} variant="outline">
+            <Plus className="h-4 w-4 mr-2" /> Crea Automazione
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredFlows.map((flow) => {
+            const triggerDef = INTERNAL_TRIGGER_CATALOG.find((t) => t.type === flow.trigger_type);
+            const nodeCount = (flow.internal_automation_nodes || []).filter((n) => n.node_type === "action").length;
+
+            return (
+              <div key={flow.id} className="border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-1 ${triggerDef?.color || "text-gray-500"}`}>
+                      {/* Icon would be rendered here based on triggerDef.icon */}
+                      <Bot className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{flow.name}</h3>
+                        {flow.is_active ? (
+                          <Badge variant="default" className="bg-green-600 text-xs">Attiva</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">Inattiva</Badge>
+                        )}
+                        {triggerDef && (
+                          <Badge variant="outline" className="text-xs">{triggerDef.category}</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        Trigger: {triggerDef?.label || flow.trigger_type} → {nodeCount} {nodeCount === 1 ? "azione" : "azioni"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Eseguita {flow.total_runs} volte
+                        {flow.last_triggered_at && ` · Ultima: ${formatDistanceToNow(new Date(flow.last_triggered_at), { addSuffix: true, locale: it })}`}
+                        {flow.total_runs > 0 && ` · ${Math.round((flow.successful_runs / flow.total_runs) * 100)}% successo`}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={flow.is_active}
+                    onCheckedChange={(checked) => toggleFlow.mutate({ flowId: flow.id, isActive: checked })}
+                  />
+                </div>
+                <div className="flex gap-2 mt-3 pt-3 border-t">
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={() => { setSelectedFlowId(flow.id); setView("builder"); }}
+                  >
+                    <Edit className="h-3 w-3 mr-1" /> Modifica
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <List className="h-3 w-3 mr-1" /> Log
+                  </Button>
+                  <Button
+                    variant="outline" size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => {
+                      if (confirm("Eliminare questa automazione?")) deleteFlow.mutate(flow.id);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" /> Elimina
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Trigger Selector Modal */}
+      {showTriggerSelector && (
+        <InternalTriggerSelector
+          onSelect={async (triggerType, triggerConfig) => {
+            const flowName = `Nuova automazione ${new Date().toLocaleDateString("it-IT")}`;
+            const newFlow = await createFlow.mutateAsync({
+              name: flowName,
+              triggerType,
+              triggerConfig,
+            });
+            setSelectedFlowId(newFlow.id);
+            setView("builder");
+            setShowTriggerSelector(false);
+          }}
+          onClose={() => setShowTriggerSelector(false)}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+Aggiorna il file di routing (`src/App.tsx` o `src/router/index.tsx`) per includere il percorso:
+```typescript
+// Sostituisce o affianca /azienda/automazioni
+<Route path="/azienda/automazioni-interne" element={<InternalAutomations />} />
+```
+
+E aggiorna il menu di navigazione di Gestione Interna per puntare al nuovo URL
+`/azienda/automazioni-interne` invece di `/azienda/automazioni`.
+
+============================================================
+PROMPT 6 di 6 — MIGRAZIONE DATI + CRON + TEST
+============================================================
+
+**PARTE A: Migrazione dati dalle vecchie automazioni**
+
+Crea una migrazione Supabase per trasferire le automazioni esistenti dalla tabella legacy
+`automations` alle nuove tabelle `internal_automation_flows` e `internal_automation_nodes`:
+
+```sql
+-- Migrazione one-time: importa automazioni esistenti nella nuova struttura
+DO $$
+DECLARE
+  v_auto RECORD;
+  v_flow_id UUID;
+  v_trigger_node_id UUID;
+  v_action_config JSONB;
+  v_action JSONB;
+  v_action_node_id UUID;
+  v_prev_node_id UUID;
+  v_action_subtype TEXT;
+  v_pos_y FLOAT := 150;
+BEGIN
+  FOR v_auto IN SELECT * FROM automations WHERE is_active IS NOT NULL
+  LOOP
+    -- Crea il flow corrispondente
+    INSERT INTO internal_automation_flows (
+      company_id, name, trigger_type, trigger_config, is_active, created_at
+    ) VALUES (
+      v_auto.company_id,
+      v_auto.name,
+      v_auto.trigger_type,
+      COALESCE(v_auto.trigger_config, '{}'),
+      COALESCE(v_auto.is_active, false),
+      v_auto.created_at
+    ) RETURNING id INTO v_flow_id;
+
+    -- Crea nodo trigger
+    INSERT INTO internal_automation_nodes (
+      flow_id, node_type, node_subtype, config, position_x, position_y, label
+    ) VALUES (
+      v_flow_id, 'trigger', v_auto.trigger_type,
+      COALESCE(v_auto.trigger_config, '{}'),
+      300, 50,
+      'Trigger: ' || v_auto.trigger_type
+    ) RETURNING id INTO v_trigger_node_id;
+
+    v_prev_node_id := v_trigger_node_id;
+    v_pos_y := 150;
+
+    -- Crea nodi azione per ogni azione nel JSONB actions array
+    FOR v_action IN SELECT * FROM jsonb_array_elements(COALESCE(v_auto.actions, '[]'))
+    LOOP
+      -- Mappa vecchi tipi ai nuovi
+      v_action_subtype := CASE v_action->>'type'
+        WHEN 'create_task' THEN 'create_task'
+        WHEN 'change_order_status' THEN 'update_order_status'
+        WHEN 'create_reminder' THEN 'send_internal_notification'
+        ELSE v_action->>'type'
+      END;
+
+      INSERT INTO internal_automation_nodes (
+        flow_id, node_type, node_subtype, config, position_x, position_y
+      ) VALUES (
+        v_flow_id, 'action', v_action_subtype,
+        COALESCE(v_action->'config', '{}'),
+        300, v_pos_y
+      ) RETURNING id INTO v_action_node_id;
+
+      -- Connetti al nodo precedente
+      INSERT INTO internal_automation_connections (
+        flow_id, source_node_id, target_node_id
+      ) VALUES (
+        v_flow_id, v_prev_node_id, v_action_node_id
+      );
+
+      v_prev_node_id := v_action_node_id;
+      v_pos_y := v_pos_y + 120;
+    END LOOP;
+
+  END LOOP;
+END;
+$$;
+
+-- Dopo verifica, puoi disabilitare (non eliminare) le vecchie automazioni
+-- UPDATE automations SET is_active = false WHERE is_active = true;
+```
+
+**PARTE B: Statistiche e Dashboard**
+
+Nella pagina `InternalAutomations.tsx`, aggiungi una sezione di riepilogo statistiche in cima:
+
+```typescript
+// Aggiungi questo componente alla pagina lista, prima dei filtri:
+function InternalAutomationStats({ flows }: { flows: InternalAutomationFlow[] }) {
+  const totalActive = flows.filter(f => f.is_active).length;
+  const totalRuns = flows.reduce((sum, f) => sum + f.total_runs, 0);
+  const totalSuccess = flows.reduce((sum, f) => sum + f.successful_runs, 0);
+  const successRate = totalRuns > 0 ? Math.round((totalSuccess / totalRuns) * 100) : 0;
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="border rounded-lg p-4 bg-card">
+        <p className="text-sm text-muted-foreground">Automazioni Attive</p>
+        <p className="text-2xl font-bold text-green-600">{totalActive}</p>
+      </div>
+      <div className="border rounded-lg p-4 bg-card">
+        <p className="text-sm text-muted-foreground">Totale Esecuzioni</p>
+        <p className="text-2xl font-bold">{totalRuns.toLocaleString()}</p>
+      </div>
+      <div className="border rounded-lg p-4 bg-card">
+        <p className="text-sm text-muted-foreground">Tasso Successo</p>
+        <p className="text-2xl font-bold text-blue-600">{successRate}%</p>
+      </div>
+      <div className="border rounded-lg p-4 bg-card">
+        <p className="text-sm text-muted-foreground">Flows Configurati</p>
+        <p className="text-2xl font-bold">{flows.length}</p>
+      </div>
+    </div>
+  );
+}
+```
+
+**PARTE C: Log Drawer**
+
+Crea `src/components/internalAutomationBuilder/InternalAutomationLogDrawer.tsx`:
+
+```typescript
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
+import { formatDistanceToNow } from "date-fns";
+import { it } from "date-fns/locale";
+
+interface Props {
+  flowId: string;
+  flowName: string;
+  open: boolean;
+  onClose: () => void;
+}
+
+export function InternalAutomationLogDrawer({ flowId, flowName, open, onClose }: Props) {
+  const { data: logs, isLoading } = useQuery({
+    queryKey: ["internal_automation_logs", flowId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("internal_automation_execution_log")
+        .select("*")
+        .eq("flow_id", flowId)
+        .order("executed_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
+  return (
+    <Sheet open={open} onOpenChange={onClose}>
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Log Esecuzioni — {flowName}</SheetTitle>
+        </SheetHeader>
+
+        <div className="mt-4 space-y-2">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="h-16 bg-muted animate-pulse rounded" />
+              ))}
+            </div>
+          ) : !logs || logs.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">Nessun log disponibile</p>
+          ) : (
+            logs.map((log) => (
+              <div key={log.id} className="border rounded p-3 flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant={log.status === "success" ? "default" : "destructive"} className="text-xs">
+                      {log.status === "success" ? "✅ Successo" : "❌ Errore"}
+                    </Badge>
+                    <span className="text-sm font-medium truncate">{log.action}</span>
+                    {log.entity_type && (
+                      <Badge variant="outline" className="text-xs">{log.entity_type}</Badge>
+                    )}
+                  </div>
+                  {log.details?.error && (
+                    <p className="text-xs text-destructive mt-1 truncate">{String(log.details.error)}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatDistanceToNow(new Date(log.executed_at), { addSuffix: true, locale: it })}
+                    {log.duration_ms && ` · ${log.duration_ms}ms`}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+```
+
+**PARTE D: Verifica finale**
+
+Dopo aver implementato tutto, verifica che:
+1. Le tabelle `internal_automation_*` esistano su Supabase e abbiano RLS attivo
+2. I trigger PostgreSQL `internal_auto_*` siano presenti su tutte le tabelle GI
+3. L'edge function `process-internal-automation` sia deployata e risponda correttamente
+4. La pagina `/azienda/automazioni-interne` sia raggiungibile e mostri la lista
+5. Il visual builder apra correttamente e permetta di creare un flow con un trigger e un'azione
+6. Il toggle attiva/disattiva funzioni senza errori
+7. Nessun import o export dal sistema Marketing Automations venga modificato
+8. La migrazione dati abbia trasferito correttamente le automazioni legacy
+
+**NOTE CRITICHE:**
+- NON modificare le tabelle: `automation_flows`, `automation_nodes`, `automation_connections`,
+  `automation_enrollments`, `automation_queue`, `automation_execution_log`
+- NON modificare l'edge function `process-automation`
+- NON modificare i file: `src/types/automationBuilder.ts`, `src/pages/azienda/marketing/MarketingAutomations.tsx`
+- Le due sezioni (Marketing Automations e Internal Automations) sono completamente SEPARATE
+  e indipendenti, condividono solo i design system components (Button, Badge, Switch, ecc.)

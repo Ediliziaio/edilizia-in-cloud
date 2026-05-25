@@ -1,0 +1,192 @@
+╔══════════════════════════════════════════════════════════════════╗
+║   NOTE IDEE + FUNZIONI MANCANTI — Edilizia in Cloud            ║
+║   Analisi post-cleanup · marzo 2026                             ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Queste sono osservazioni emerse dall'analisi del codice.
+Non sono nei prompt di cleanup — sono suggerimenti separati
+da valutare e pianificare se e quando vuoi aggiungerli.
+
+
+════════════════════════════════════════════════════════════════════
+A. FUNZIONI PRESENTI MA INCOMPLETE / HALF-BAKED
+════════════════════════════════════════════════════════════════════
+
+1. IMPORT OPPORTUNITÀ (MarketingOpportunities.tsx)
+   Il wizard di import CSV esiste ma:
+   - Non ha preview delle righe prima dell'import
+   - Non mostra quante righe saranno ignorate (duplicate)
+   - Se fallisce a metà non fa rollback → dati parziali nel DB
+   → Soluzione: importa in transazione server-side (Edge Function),
+     non nel client. Mostra conteggio preview + conferma prima.
+
+2. BLOCCHI SLOT CALENDARIO (Calendar.tsx, MarketingCalendar.tsx)
+   `is_blocked_slot` esiste nel DB ma la UI non permette di
+   creare blocchi slot direttamente dal calendario con un click.
+   L'utente può solo vederli, non aggiungerne facilmente.
+   → Aggiungere quick-action "Blocca slot" nel context menu del
+     calendario (click destro su orario vuoto).
+
+3. BUILDER EMAIL — NESTING PROFONDO (BuilderBlock.tsx)
+   Il builder permette colonne dentro colonne, ma senza limite.
+   Con 5+ livelli di nesting l'HTML generato non è compatibile
+   con Outlook/Gmail. Non c'è nessun warning all'utente.
+   → Limite massimo 2 livelli di nesting + avviso se si supera.
+
+4. MAPPA WAREHOUSE (Warehouse.tsx)
+   La vista mappa (`showMap`) è presente ma non è chiaro come
+   le coordinate dei prodotti vengano impostate. Se un prodotto
+   non ha coordinate, la mappa è vuota senza spiegazione.
+   → Aggiungere tooltip/onboarding "Assegna posizione ai prodotti
+     per vederli sulla mappa".
+
+5. REPORTISTICA (ReportisticaPage.tsx)
+   La sezione esiste ma sembra avere solo alcune metriche.
+   Mancano export PDF dei report e confronto periodi (questo mese
+   vs mese scorso, questo anno vs anno scorso).
+
+
+════════════════════════════════════════════════════════════════════
+B. MODULI COMPLETAMENTE MANCANTI
+════════════════════════════════════════════════════════════════════
+
+6. MODULO HR / DIPENDENTI — PARZIALE
+   Esiste una sezione Dipendenti (timbrature, work log) ma manca:
+   - Gestione ferie/permessi (richiesta + approvazione)
+   - Buste paga semplificate (ore × tariffa)
+   - Calendario ferie aziendale visibile a tutti
+   - Documenti dipendente (contratto, visita medica, scadenze)
+   → È il modulo più richiesto nelle aziende edili. Priorità alta.
+
+7. NOTIFICHE IN-APP
+   Non esiste un centro notifiche nell'app. Tutte le comunicazioni
+   vanno via email. Mancano:
+   - Notifica quando un ordine cambia stato
+   - Notifica quando scade una rata
+   - Notifica quando una scadenza si avvicina (3 giorni prima)
+   - Badge con contatore non letti nella sidebar
+   → Tabella `notifications` in Supabase + realtime subscription.
+
+8. LISTINO PRODOTTI/SERVIZI CENTRALIZZATO
+   Il catalogo esiste in Impostazioni ma ogni preventivo/ordine
+   ricrea gli articoli da zero. Manca:
+   - Import da listino direttamente nella riga preventivo
+   - Prezzi aggiornabili da listino (con history prezzi)
+   - Listini per cliente (prezzi personalizzati)
+   → Collegamento diretto riga-preventivo → catalogo.
+
+9. FIRMA DIGITALE DOCUMENTI
+   Preventivi e contratti vengono inviati via email ma non c'è
+   firma digitale. Il cliente non può firmare direttamente online.
+   → Integrazione con DocuSign o firma semplice via link sicuro
+     (OTP via SMS/email + canvas firma).
+
+10. PORTALE CLIENTE — ESPANDIBILE
+    Il portale cliente esiste (pagine /cliente/) ma è molto basico:
+    - Non mostra lo storico completo dei documenti
+    - Non permette di scaricare fatture/preventivi
+    - Non ha chat diretta con l'azienda
+    → Espandere con: area documenti, download PDF, messaggi diretti.
+
+
+════════════════════════════════════════════════════════════════════
+C. MIGLIORAMENTI UX EMERSI DAL CODICE
+════════════════════════════════════════════════════════════════════
+
+11. PAGINAZIONE SERVER-SIDE PER EMAIL CAMPAIGNS + TEMPLATES
+    Attualmente EmailCampaignsTab e EmailTemplatesTab caricano TUTTE
+    le campagne e paginano lato client. Con 500+ campagne questo
+    è lento e wastes bandwidth.
+    → Spostare `.range()` sulla query Supabase + count separato.
+
+12. LAZY LOADING DELLE SEZIONI MARKETING
+    EmailMarketing.tsx importa EmailStatsTab, EmailCampaignsTab,
+    EmailTemplatesTab tutti insieme. Questi sono componenti grandi.
+    → React.lazy() + Suspense per caricarli solo quando la tab
+      è attiva.
+
+13. SKELETON LOADING UNIFORME
+    Alcune sezioni usano spinner, altre skeleton, altre niente.
+    Non c'è uno standard. L'UX è inconsistente.
+    → Standardizzare su skeleton cards per tutte le sezioni che
+      caricano liste (ordini, contatti, campagne, warehouse).
+
+14. RICERCA GLOBALE
+    Non c'è una ricerca globale nell'app. Se l'utente cerca
+    "Mario Rossi" non sa se andare in Clienti o in Contatti Marketing.
+    → Barra di ricerca globale (Cmd+K) che cerca su ordini, clienti,
+      contatti, ticket, fatture in parallelo.
+
+15. FILTRI PERSISTENTI
+    Ogni volta che l'utente naviga via da OrdersList e torna,
+    i filtri si resettano. Stesso per ContactsList, WarehouseItems.
+    → Salvare filtri attivi in sessionStorage o URL params per
+      mantenere il contesto quando si torna indietro.
+
+
+════════════════════════════════════════════════════════════════════
+D. PROBLEMI ARCHITETTURALI A LUNGO TERMINE
+════════════════════════════════════════════════════════════════════
+
+16. FILE ENORMI DA SPEZZARE
+    Alcuni file sono diventati molto grandi e difficili da mantenere:
+    - MarketingContactDetail.tsx (~62KB) — troppo monolitico
+    - useCompanyCostsData.ts — troppe responsabilità in un hook
+    - useCashFlowData.ts — 12+ query in un solo hook
+    → Plan di refactor: creare sub-hook separati e componenti più
+      piccoli con responsabilità singola.
+
+17. RPC vs QUERY MULTIPLE
+    In molti posti si fanno 4-8 query Supabase separate dove
+    basterebbe una sola RPC PostgreSQL. Questo causa:
+    - 4-8 round-trip HTTP invece di 1
+    - Dati inconsistenti (query A e query B girano in momenti diversi)
+    - Nessuna transazione
+    → Creare RPC aggregate per i dati critici del cruscotto e delle
+      pagine principali (ordini+costi+dipendenti in un colpo solo).
+
+18. MANCANZA DI OTTIMISTIC UPDATES
+    Quando l'utente marca un task come completato, la UI aspetta
+    la risposta del server prima di aggiornarsi (~300ms). Sembra lenta.
+    → Aggiungere optimistic updates con `onMutate` in React Query:
+      aggiorna la UI immediatamente, ripristina se il server fallisce.
+
+19. NESSUN RATE LIMITING CLIENT-SIDE
+    Le mutation (salva, elimina, aggiorna) non hanno debounce né
+    protezione contro click multipli veloci. Un utente veloce può
+    inviare 10 richieste identiche in 1 secondo.
+    → Pattern: disabilita il pulsante mentre la mutation è `isPending`.
+      Già fatto in alcuni punti, ma non uniforme ovunque.
+
+20. QUERY KEY INCONSISTENTI
+    I queryKey non seguono uno standard. Si trovano:
+    - ["orders", companyId]
+    - ["company-orders", companyId, filters]
+    - ["ordersList"]
+    Questo rende difficile l'invalidazione mirata post-mutation.
+    → Centralizzare i queryKey in src/lib/queryKeys.ts come oggetto
+      costante, usato da tutti gli hook.
+
+
+════════════════════════════════════════════════════════════════════
+E. PRIORITÀ CONSIGLIATA
+════════════════════════════════════════════════════════════════════
+
+BREVE TERMINE (subito dopo cleanup):
+  1. Notifiche in-app (Supabase realtime — 2-3 prompt)
+  2. Filtri persistenti in URL params (1 prompt)
+  3. Optimistic updates su toggle/mark-as-done (1 prompt)
+  4. Listino centralizzato → riga preventivo (2 prompt)
+
+MEDIO TERMINE (prossimo sprint):
+  5. Modulo HR ferie/permessi (4-5 prompt)
+  6. Paginazione server-side campaigns/templates (1 prompt)
+  7. Ricerca globale Cmd+K (2 prompt)
+  8. Firma digitale preventivi (3 prompt con provider esterno)
+
+LUNGO TERMINE (roadmap):
+  9. Refactor file giganti in sub-componenti
+  10. Centralizzazione queryKeys
+  11. RPC aggregate per pagine critiche
+  12. Portale cliente espanso
+

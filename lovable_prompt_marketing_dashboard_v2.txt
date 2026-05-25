@@ -1,0 +1,1585 @@
+====================================================================
+MARKETING DASHBOARD V2 — EDILIZIA IN CLOUD
+Prompt sequenziale per Lovable.dev (MD1 → MD5)
+====================================================================
+Stack: React + TypeScript + Shadcn UI + Recharts + TanStack Query
+Sezione: Marketing & Vendite → Dashboard
+Obiettivo: trasformare la dashboard verticale scroll-infinito in un
+           cruscotto denso a tab personalizzabili, stile direttore
+           commerciale — tutto visibile, zero scroll sulla Panoramica
+
+STATO ATTUALE (NON TOCCARE — SOLO RIORGANIZZARE):
+  File principale:
+    src/pages/azienda/marketing/MarketingDashboard.tsx
+  Hook dati:
+    src/hooks/useMarketingDashboard.ts
+    → ritorna: { data, isLoading, error, refetch, filters, updateFilters, permissions }
+  Componenti esistenti (NON riscrivere — riusare nei tab):
+    src/components/marketing/dashboard/DashboardFilters.tsx
+    src/components/marketing/dashboard/DashboardStrategicKPI.tsx
+    src/components/marketing/dashboard/DashboardKPICards.tsx
+    src/components/marketing/dashboard/DashboardAlerts.tsx
+    src/components/marketing/dashboard/DashboardInsights.tsx
+    src/components/marketing/dashboard/DashboardFunnel.tsx
+    src/components/marketing/dashboard/DashboardForecast.tsx
+    src/components/marketing/dashboard/DashboardSalesTable.tsx
+    src/components/marketing/dashboard/DashboardCallCenter.tsx
+    src/components/marketing/dashboard/DashboardSourcesTable.tsx
+    src/components/marketing/dashboard/DashboardTrendChart.tsx
+    src/components/marketing/dashboard/utils.ts
+      → fmtCur(n), fmt(n), calcDelta(curr, prev), formatValue()
+
+  Tipi chiave (NON ricreare — importare da dove già definiti):
+    KpiData: leads_total, leads_new, contacts_worked,
+             appointments_set, appointments_done, show_rate,
+             contracts_won, revenue, avg_ticket, close_rate,
+             pipeline_active_value, forecast_30d, sales_velocity,
+             rpl, weighted_pipeline, lead_to_appointment_rate,
+             appointment_to_contract_rate, lead_to_contract_rate,
+             avg_lead_to_won_days, avg_time_to_first_contact
+    DashboardStats: kpi, kpi_prev, funnel, sales_performance,
+                    sources, call_center, alerts, trend
+    AlertsData: stale_leads, stale_leads_2h, stale_opportunities,
+                pending_appointments, show_rate_below_threshold,
+                pipeline_declining
+
+PRINCIPI DI DESIGN DA RISPETTARE:
+  1. TUTTO visibile senza scroll nella tab Panoramica (viewport ~900px)
+  2. Layout DENSO: padding ridotti, font compatti, card basse
+  3. ZERO duplicati KPI — ogni metrica compare UNA sola volta
+  4. Gerarchia visiva chiara: hero → strip → split → table
+  5. Tab = viste separate, non accordion scroll
+
+LEGENDA:
+  MD1 → hook useDashboardLayout.ts (tab system)
+  MD2 → MarketingDashboard.tsx riscritta (orchestrator)
+  MD3 → TabPanoramica.tsx (layout denso)
+  MD4 → 5 tab content (Pipeline, Attività, Team, Fonti, Trend)
+  MD5 → CustomizePanel.tsx + verifica finale
+====================================================================
+
+
+====================================================================
+PROMPT MD1 — HOOK: useDashboardLayout.ts
+====================================================================
+
+Leggi prima:
+- src/hooks/useMarketingDashboard.ts (per capire lo stile del progetto)
+
+Poi crea: src/hooks/useDashboardLayout.ts
+
+Questo hook gestisce tab visibili, ordine, tab attiva.
+Persiste in localStorage con chiave 'mktg_dashboard_layout_v1'.
+NON fa chiamate API. NON dipende da Supabase.
+
+```typescript
+import { useState, useCallback, useMemo } from 'react';
+
+// ============================================================
+// TYPES
+// ============================================================
+
+export type TabId =
+  | 'panoramica'
+  | 'pipeline'
+  | 'attivita'
+  | 'team'
+  | 'fonti'
+  | 'trend';
+
+export interface TabDefinition {
+  id: TabId;
+  label: string;
+  iconName: string; // nome lucide-react (es: 'LayoutDashboard')
+  description: string;
+  defaultVisible: boolean;
+}
+
+export interface DashboardLayout {
+  visibleTabs: TabId[];
+  activeTab: TabId;
+}
+
+// ============================================================
+// CONFIGURAZIONE TAB (immutabile)
+// ============================================================
+
+export const ALL_TABS: TabDefinition[] = [
+  {
+    id: 'panoramica',
+    label: 'Panoramica',
+    iconName: 'LayoutDashboard',
+    description: 'Vista executive con i KPI più importanti',
+    defaultVisible: true,
+  },
+  {
+    id: 'pipeline',
+    label: 'Pipeline',
+    iconName: 'GitBranch',
+    description: 'Funnel opportunità e forecast dettagliato',
+    defaultVisible: true,
+  },
+  {
+    id: 'attivita',
+    label: 'Attività',
+    iconName: 'Phone',
+    description: 'Chiamate, appuntamenti e call center',
+    defaultVisible: true,
+  },
+  {
+    id: 'team',
+    label: 'Team',
+    iconName: 'Users',
+    description: 'Performance commerciali per venditore',
+    defaultVisible: true,
+  },
+  {
+    id: 'fonti',
+    label: 'Fonti & ROI',
+    iconName: 'BarChart2',
+    description: 'Analisi fonti lead e ritorno investimento',
+    defaultVisible: true,
+  },
+  {
+    id: 'trend',
+    label: 'Trend',
+    iconName: 'TrendingUp',
+    description: 'Andamento temporale lead, appuntamenti, vinti',
+    defaultVisible: true,
+  },
+];
+
+const STORAGE_KEY = 'mktg_dashboard_layout_v1';
+
+const DEFAULT_LAYOUT: DashboardLayout = {
+  visibleTabs: ALL_TABS.filter((t) => t.defaultVisible).map((t) => t.id),
+  activeTab: 'panoramica',
+};
+
+// ============================================================
+// HELPER: legge localStorage in modo sicuro
+// ============================================================
+
+function readStorage(): DashboardLayout {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_LAYOUT;
+    const parsed = JSON.parse(raw) as Partial<DashboardLayout>;
+
+    // Valida che i tab salvati esistano ancora
+    const validIds = new Set<TabId>(ALL_TABS.map((t) => t.id));
+    const visibleTabs = (parsed.visibleTabs ?? DEFAULT_LAYOUT.visibleTabs).filter(
+      (id) => validIds.has(id)
+    );
+    // Assicura che panoramica sia sempre visibile
+    if (!visibleTabs.includes('panoramica')) {
+      visibleTabs.unshift('panoramica');
+    }
+
+    const activeTab =
+      parsed.activeTab && validIds.has(parsed.activeTab) && visibleTabs.includes(parsed.activeTab)
+        ? parsed.activeTab
+        : visibleTabs[0] ?? 'panoramica';
+
+    return { visibleTabs, activeTab };
+  } catch {
+    return DEFAULT_LAYOUT;
+  }
+}
+
+function writeStorage(layout: DashboardLayout): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+  } catch {
+    // Ignora errori localStorage (private browsing, etc.)
+  }
+}
+
+// ============================================================
+// HOOK
+// ============================================================
+
+export function useDashboardLayout() {
+  const [layout, setLayout] = useState<DashboardLayout>(() => readStorage());
+
+  const setActiveTab = useCallback((id: TabId) => {
+    setLayout((prev) => {
+      // Non attivare tab non visibili
+      if (!prev.visibleTabs.includes(id)) return prev;
+      const next = { ...prev, activeTab: id };
+      writeStorage(next);
+      return next;
+    });
+  }, []);
+
+  const toggleTabVisibility = useCallback((id: TabId) => {
+    setLayout((prev) => {
+      // 'panoramica' non si può nascondere
+      if (id === 'panoramica') return prev;
+
+      const isCurrentlyVisible = prev.visibleTabs.includes(id);
+      let visibleTabs: TabId[];
+
+      if (isCurrentlyVisible) {
+        // Rimuove il tab dalla lista visibili
+        visibleTabs = prev.visibleTabs.filter((t) => t !== id);
+        // Assicura almeno 1 tab visibile oltre panoramica
+        if (visibleTabs.length === 0) visibleTabs = ['panoramica'];
+      } else {
+        // Aggiunge il tab nella posizione originale (basata su ALL_TABS)
+        const allOrder = ALL_TABS.map((t) => t.id);
+        visibleTabs = allOrder.filter(
+          (tabId) => prev.visibleTabs.includes(tabId) || tabId === id
+        );
+      }
+
+      // Se il tab attivo viene nascosto, attiva il primo disponibile
+      const activeTab =
+        visibleTabs.includes(prev.activeTab)
+          ? prev.activeTab
+          : visibleTabs[0] ?? 'panoramica';
+
+      const next = { visibleTabs, activeTab };
+      writeStorage(next);
+      return next;
+    });
+  }, []);
+
+  const resetToDefaults = useCallback(() => {
+    writeStorage(DEFAULT_LAYOUT);
+    setLayout(DEFAULT_LAYOUT);
+  }, []);
+
+  // Tab definitions nella giusta order (basata su ALL_TABS)
+  const visibleTabDefs = useMemo(
+    () =>
+      ALL_TABS.filter((t) => layout.visibleTabs.includes(t.id)),
+    [layout.visibleTabs]
+  );
+
+  return {
+    layout,
+    visibleTabDefs,
+    activeTab: layout.activeTab,
+    setActiveTab,
+    toggleTabVisibility,
+    resetToDefaults,
+  };
+}
+```
+
+// VERIFICA MD1:
+// 1. Nessun errore TypeScript
+// 2. Nessun import da Supabase o React Query
+// 3. Importa correttamente il tipo TabId se usato in altri file
+// 4. Testa manualmente nel browser:
+//    const layout = useDashboardLayout()
+//    layout.toggleTabVisibility('team') → team scompare da visibleTabDefs
+//    layout.setActiveTab('pipeline') → activeTab diventa 'pipeline'
+//    Ricarica pagina → stato persiste (da localStorage)
+// 5. 'panoramica' non può essere nascosta (toggleTabVisibility('panoramica') = no-op)
+
+
+====================================================================
+PROMPT MD2 — REWRITE: MarketingDashboard.tsx
+====================================================================
+
+Leggi prima:
+- src/pages/azienda/marketing/MarketingDashboard.tsx (ATTUALE — studia la struttura)
+- src/hooks/useMarketingDashboard.ts
+- src/hooks/useDashboardLayout.ts (appena creato)
+- src/components/marketing/dashboard/DashboardFilters.tsx
+- src/components/marketing/dashboard/DashboardAlerts.tsx
+
+Poi RISCRIVI completamente il file:
+src/pages/azienda/marketing/MarketingDashboard.tsx
+
+Il file attuale aveva un'unica lunga lista di componenti verticali.
+Il nuovo file è l'orchestratore che gestisce tab + alert banner + filtri compatti.
+
+NOTA IMPORTANTE sugli import: i 5 componenti tab (TabPanoramica,
+TabPipeline, TabAttivita, TabTeam, TabFonti, TabTrend) verranno creati
+nei prompt MD3 e MD4. In questo file aggiungili come import e rendili
+con un placeholder <div>Loading...</div> se non ancora presenti —
+verranno sostituiti automaticamente quando creati.
+
+```tsx
+import React, { useState } from 'react';
+import { useMarketingDashboard } from '@/hooks/useMarketingDashboard';
+import { useDashboardLayout, TabId } from '@/hooks/useDashboardLayout';
+import { DashboardFilters } from '@/components/marketing/dashboard/DashboardFilters';
+import { AlertBanner } from '@/components/marketing/dashboard/AlertBanner';
+import { DashboardCustomizePanel } from '@/components/marketing/dashboard/DashboardCustomizePanel';
+import { TabPanoramica } from '@/components/marketing/dashboard/tabs/TabPanoramica';
+import { TabPipeline } from '@/components/marketing/dashboard/tabs/TabPipeline';
+import { TabAttivita } from '@/components/marketing/dashboard/tabs/TabAttivita';
+import { TabTeam } from '@/components/marketing/dashboard/tabs/TabTeam';
+import { TabFonti } from '@/components/marketing/dashboard/tabs/TabFonti';
+import { TabTrend } from '@/components/marketing/dashboard/tabs/TabTrend';
+import { Button } from '@/components/ui/button';
+import {
+  RefreshCw,
+  Download,
+  Target,
+  Settings2,
+  LayoutDashboard,
+  GitBranch,
+  Phone,
+  Users,
+  BarChart2,
+  TrendingUp,
+} from 'lucide-react';
+import { SalesTargetsDialog } from '@/components/marketing/dashboard/SalesTargetsDialog';
+
+// Mappa iconName → componente Lucide
+const TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  LayoutDashboard,
+  GitBranch,
+  Phone,
+  Users,
+  BarChart2,
+  TrendingUp,
+};
+
+export default function MarketingDashboard() {
+  const { data, isLoading, error, refetch, filters, updateFilters, permissions } =
+    useMarketingDashboard();
+  const { visibleTabDefs, activeTab, setActiveTab, toggleTabVisibility, resetToDefaults } =
+    useDashboardLayout();
+
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [showTargets, setShowTargets] = useState(false);
+
+  // Determina se ci sono alert attivi per mostrare il banner
+  const hasAlerts =
+    data?.alerts &&
+    (data.alerts.stale_leads > 0 ||
+      data.alerts.stale_opportunities > 0 ||
+      data.alerts.pending_appointments > 0 ||
+      data.alerts.stale_leads_2h > 0 ||
+      data.alerts.show_rate_below_threshold ||
+      data.alerts.pipeline_declining);
+
+  // Conteggio totale alert (per badge nella tab bar se necessario)
+  const alertCount = data?.alerts
+    ? (data.alerts.stale_leads > 0 ? 1 : 0) +
+      (data.alerts.stale_opportunities > 0 ? 1 : 0) +
+      (data.alerts.pending_appointments > 0 ? 1 : 0) +
+      (data.alerts.stale_leads_2h > 0 ? 1 : 0) +
+      (data.alerts.show_rate_below_threshold ? 1 : 0) +
+      (data.alerts.pipeline_declining ? 1 : 0)
+    : 0;
+
+  // Funzione per renderizzare il contenuto del tab attivo
+  const renderActiveTab = () => {
+    if (isLoading || !data) {
+      return (
+        <div className="flex items-center justify-center h-64 text-muted-foreground text-sm animate-pulse">
+          Caricamento dati...
+        </div>
+      );
+    }
+    if (error) {
+      return (
+        <div className="flex items-center justify-center h-32 text-destructive text-sm">
+          Errore nel caricamento dei dati. Riprova.
+        </div>
+      );
+    }
+
+    const commonProps = { data, filters };
+
+    switch (activeTab) {
+      case 'panoramica':
+        return <TabPanoramica {...commonProps} />;
+      case 'pipeline':
+        return <TabPipeline {...commonProps} />;
+      case 'attivita':
+        return <TabAttivita {...commonProps} />;
+      case 'team':
+        return <TabTeam {...commonProps} />;
+      case 'fonti':
+        return <TabFonti {...commonProps} />;
+      case 'trend':
+        return <TabTrend {...commonProps} />;
+      default:
+        return <TabPanoramica {...commonProps} />;
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full min-h-0 bg-background">
+
+      {/* ── RIGA 1: Header compatto ── */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-background shrink-0">
+        <div>
+          <h1 className="text-base font-semibold leading-tight">
+            Dashboard Marketing & Vendite
+          </h1>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {permissions?.canManageTargets && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setShowTargets(true)}
+            >
+              <Target className="h-3 w-3" />
+              Target
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={() => refetch()}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+            Aggiorna
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs gap-1"
+          >
+            <Download className="h-3 w-3" />
+            Esporta
+          </Button>
+        </div>
+      </div>
+
+      {/* ── RIGA 2: Filtri compatti ── */}
+      <div className="px-4 py-1.5 border-b bg-background shrink-0">
+        <DashboardFilters
+          filters={filters}
+          updateFilters={updateFilters}
+          compact={true}
+        />
+      </div>
+
+      {/* ── RIGA 3: Alert banner (collassabile, solo se ci sono alert) ── */}
+      {hasAlerts && data?.alerts && (
+        <AlertBanner alerts={data.alerts} alertCount={alertCount} />
+      )}
+
+      {/* ── RIGA 4: Tab bar + pulsante Personalizza ── */}
+      <div className="flex items-center gap-0 px-4 border-b bg-background shrink-0">
+        <div className="flex items-center gap-0 flex-1 overflow-x-auto no-scrollbar">
+          {visibleTabDefs.map((tab) => {
+            const Icon = TAB_ICONS[tab.iconName];
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabId)}
+                className={`
+                  flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium
+                  border-b-2 transition-colors whitespace-nowrap shrink-0
+                  ${isActive
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted'}
+                `}
+              >
+                {Icon && <Icon className="h-3.5 w-3.5" />}
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        {/* Pulsante Personalizza */}
+        <button
+          onClick={() => setShowCustomize(true)}
+          className="flex items-center gap-1 px-2.5 py-2.5 text-xs text-muted-foreground
+                     hover:text-foreground transition-colors shrink-0 border-l ml-1"
+          title="Personalizza tab visibili"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Personalizza</span>
+        </button>
+      </div>
+
+      {/* ── ZONA CONTENUTO TAB (scrollabile solo qui, non tutta la pagina) ── */}
+      <div className="flex-1 overflow-auto min-h-0 p-4">
+        {renderActiveTab()}
+      </div>
+
+      {/* ── PANNELLO PERSONALIZZA (drawer laterale) ── */}
+      <DashboardCustomizePanel
+        open={showCustomize}
+        onOpenChange={setShowCustomize}
+        visibleTabDefs={visibleTabDefs}
+        onToggleTab={toggleTabVisibility}
+        onReset={resetToDefaults}
+      />
+
+      {/* ── DIALOG TARGET ── */}
+      {showTargets && (
+        <SalesTargetsDialog
+          open={showTargets}
+          onOpenChange={setShowTargets}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+IMPORTANTE — Passa il prop `compact={true}` a DashboardFilters:
+Apri il file DashboardFilters.tsx e aggiungi il supporto al prop compact.
+Quando compact=true:
+- Usa height ridotta (h-7 per i bottoni invece di h-9)
+- Font size xs invece di sm
+- Gap ridotti
+- Il componente deve accettare: interface DashboardFiltersProps { filters, updateFilters, compact?: boolean }
+Se DashboardFilters non accetta già questo prop, aggiungilo e usa classi
+condizionali basate su !!compact per ridurre le dimensioni.
+
+Crea anche il nuovo componente AlertBanner:
+Crea: src/components/marketing/dashboard/AlertBanner.tsx
+
+```tsx
+// AlertBanner.tsx — banner fisso collassabile per gli alert operativi
+import React, { useState } from 'react';
+import { AlertsData } from '@/hooks/useMarketingDashboard'; // importa il tipo esistente
+import { AlertTriangle, Clock, CalendarX, Target, TrendingDown, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+interface AlertBannerProps {
+  alerts: AlertsData;
+  alertCount: number;
+}
+
+interface AlertItem {
+  id: string;
+  message: string;
+  count?: number;
+  severity: 'critical' | 'warning';
+  icon: React.ComponentType<{ className?: string }>;
+  path?: string;
+}
+
+export function AlertBanner({ alerts, alertCount }: AlertBannerProps) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const navigate = useNavigate();
+
+  if (dismissed) return null;
+
+  const items: AlertItem[] = [
+    alerts.stale_leads > 0 && {
+      id: 'stale-leads',
+      message: `${alerts.stale_leads} lead non contattati da 48h+`,
+      count: alerts.stale_leads,
+      severity: 'critical' as const,
+      icon: Clock,
+      path: '/azienda/marketing/contatti',
+    },
+    alerts.stale_opportunities > 0 && {
+      id: 'stale-opps',
+      message: `${alerts.stale_opportunities} opportunità ferme da 7+ giorni`,
+      count: alerts.stale_opportunities,
+      severity: 'critical' as const,
+      icon: AlertTriangle,
+      path: '/azienda/marketing/opportunita',
+    },
+    alerts.stale_leads_2h > 0 && {
+      id: 'stale-leads-2h',
+      message: `${alerts.stale_leads_2h} lead non contattati entro 2h`,
+      count: alerts.stale_leads_2h,
+      severity: 'warning' as const,
+      icon: Clock,
+      path: '/azienda/marketing/contatti',
+    },
+    alerts.pending_appointments > 0 && {
+      id: 'pending-app',
+      message: `${alerts.pending_appointments} appuntamenti passati senza esito`,
+      count: alerts.pending_appointments,
+      severity: 'warning' as const,
+      icon: CalendarX,
+      path: '/azienda/marketing/appuntamenti',
+    },
+    alerts.show_rate_below_threshold && {
+      id: 'show-rate',
+      message: 'Show rate sotto soglia (< 60%)',
+      severity: 'warning' as const,
+      icon: Target,
+    },
+    alerts.pipeline_declining && {
+      id: 'pipeline',
+      message: 'Pipeline in calo vs periodo precedente',
+      severity: 'warning' as const,
+      icon: TrendingDown,
+    },
+  ].filter(Boolean) as AlertItem[];
+
+  const hasCritical = items.some((i) => i.severity === 'critical');
+  const bannerColor = hasCritical
+    ? 'bg-red-50 border-red-200 text-red-800'
+    : 'bg-yellow-50 border-yellow-200 text-yellow-800';
+  const dotColor = hasCritical ? 'bg-red-500' : 'bg-yellow-500';
+
+  return (
+    <div className={`border-b shrink-0 ${bannerColor}`}>
+      {/* Header del banner — sempre visibile */}
+      <div className="flex items-center gap-2 px-4 py-1.5">
+        <span className={`inline-block h-2 w-2 rounded-full ${dotColor} animate-pulse shrink-0`} />
+        <span className="text-xs font-medium flex-1">
+          {collapsed
+            ? `${alertCount} alert operation${alertCount === 1 ? 'e' : 'i'} — clicca per espandere`
+            : items.slice(0, 2).map((item) => item.message).join('  ·  ')
+              + (items.length > 2 ? `  +${items.length - 2} altri` : '')}
+        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            className="p-0.5 hover:opacity-70 transition-opacity"
+          >
+            {collapsed
+              ? <ChevronDown className="h-3.5 w-3.5" />
+              : <ChevronUp className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            onClick={() => setDismissed(true)}
+            className="p-0.5 hover:opacity-70 transition-opacity"
+            title="Nascondi alert (si rimostra al prossimo aggiornamento)"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Lista alert espansa */}
+      {!collapsed && items.length > 2 && (
+        <div className="px-4 pb-2 flex flex-wrap gap-2">
+          {items.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => item.path && navigate(item.path)}
+                className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border
+                  transition-opacity hover:opacity-80
+                  ${item.severity === 'critical'
+                    ? 'bg-red-100 border-red-300 text-red-800'
+                    : 'bg-yellow-100 border-yellow-300 text-yellow-800'}
+                  ${item.path ? 'cursor-pointer' : 'cursor-default'}`}
+              >
+                <Icon className="h-3 w-3" />
+                {item.message}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+// VERIFICA MD2:
+// 1. MarketingDashboard.tsx compila senza errori TypeScript
+// 2. Apri la pagina /azienda/marketing — vedi la struttura con:
+//    header compatto | filtri compatti | alert banner (se ci sono alert) | tab bar
+// 3. I tab sono cliccabili e cambiano activeTab
+// 4. Il pulsante "Personalizza" appare a destra nella tab bar
+// 5. Alert banner appare SOLO se ci sono alert (nessun banner su dati puliti)
+// 6. Alert banner ha pulsante chiudi (×) e collassa/espandi (↑/↓)
+// 7. DashboardFilters accetta prop compact={true} senza errori
+// 8. Se le prop {data, filters} vengono passate ai tab component prima
+//    che esistano i tab file, Lovable crea i file vuoti — va bene
+// 9. CRITICO: la pagina non si rompe se i componenti TabXxx non esistono ancora —
+//    usa null coalescing o try/catch per import dinamici se necessario
+
+
+====================================================================
+PROMPT MD3 — COMPONENTE: TabPanoramica.tsx (layout denso)
+====================================================================
+
+Leggi prima:
+- src/components/marketing/dashboard/utils.ts (fmtCur, fmt, calcDelta)
+- src/components/marketing/dashboard/DashboardFunnel.tsx (studia le props)
+- src/components/marketing/dashboard/DashboardSalesTable.tsx (studia le props)
+- src/hooks/useMarketingDashboard.ts (tipi DashboardStats, KpiData)
+
+Crea: src/components/marketing/dashboard/tabs/TabPanoramica.tsx
+
+Questa è la tab principale. Layout DENSO a 4 righe verticali che
+si adatta a viewport ~900px senza scroll. NON usa DashboardStrategicKPI
+né DashboardKPICards — questi sono rimpiazzati da elementi inline più
+compatti e mirati.
+
+STRUTTURA VISIVA (4 righe):
+  RIGA 1: 3 hero card — Fatturato | Pipeline Attiva | Forecast 30gg
+  RIGA 2: KPI strip — 6 metriche compatte in una sola riga
+  RIGA 3: split 55/45 — Funnel sx | Conversioni+Velocity dx
+  RIGA 4: tabella team compatta
+
+```tsx
+import React from 'react';
+import { DashboardStats } from '@/hooks/useMarketingDashboard'; // importa il tipo
+import { DashboardFiltersState } from '@/hooks/useMarketingDashboard'; // importa il tipo
+import { DashboardFunnel } from '@/components/marketing/dashboard/DashboardFunnel';
+import { DashboardSalesTable } from '@/components/marketing/dashboard/DashboardSalesTable';
+import { fmtCur, fmt, calcDelta } from '@/components/marketing/dashboard/utils';
+import { TrendingUp, TrendingDown, Minus, ArrowRight } from 'lucide-react';
+
+interface TabPanoramicaProps {
+  data: DashboardStats;
+  filters: DashboardFiltersState;
+}
+
+// ──────────────────────────────────────────────────────────────
+// SOTTO-COMPONENTE: HeroCard (una delle 3 card principali)
+// ──────────────────────────────────────────────────────────────
+function HeroCard({
+  label,
+  value,
+  formattedValue,
+  prevValue,
+  target,
+  format = 'currency',
+  isMain = false,
+}: {
+  label: string;
+  value: number;
+  formattedValue: string;
+  prevValue?: number;
+  target?: number;
+  format?: 'currency' | 'number' | 'percent';
+  isMain?: boolean;
+}) {
+  const delta = prevValue !== undefined ? calcDelta(value, prevValue) : null;
+  const targetPct = target && target > 0 ? Math.min((value / target) * 100, 100) : null;
+
+  const DeltaIcon =
+    delta?.direction === 'up'
+      ? TrendingUp
+      : delta?.direction === 'down'
+      ? TrendingDown
+      : Minus;
+
+  const deltaColor =
+    delta?.direction === 'up'
+      ? 'text-green-600'
+      : delta?.direction === 'down'
+      ? 'text-red-500'
+      : 'text-muted-foreground';
+
+  return (
+    <div className={`rounded-lg border bg-card p-3 flex flex-col gap-1.5 ${isMain ? 'ring-1 ring-primary/20' : ''}`}>
+      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        {label}
+      </div>
+      <div className={`font-bold leading-none ${isMain ? 'text-3xl' : 'text-2xl'}`}>
+        {formattedValue}
+      </div>
+      {/* Delta vs periodo precedente */}
+      {delta && (
+        <div className={`flex items-center gap-1 text-xs ${deltaColor}`}>
+          <DeltaIcon className="h-3 w-3" />
+          <span>{delta.value > 0 ? '+' : ''}{delta.value.toFixed(0)}% vs prec.</span>
+        </div>
+      )}
+      {/* Barra progresso target (solo se target definito) */}
+      {targetPct !== null && (
+        <div className="space-y-0.5 mt-0.5">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{targetPct.toFixed(0)}% del target</span>
+            <span>{fmtCur(target!)}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                targetPct >= 100 ? 'bg-green-500' : targetPct >= 50 ? 'bg-primary' : 'bg-orange-400'
+              }`}
+              style={{ width: `${targetPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// SOTTO-COMPONENTE: KpiChip (chip compatto per la strip)
+// ──────────────────────────────────────────────────────────────
+function KpiChip({
+  label,
+  value,
+  prevValue,
+  format = 'number',
+}: {
+  label: string;
+  value: number;
+  prevValue?: number;
+  format?: 'number' | 'currency' | 'percent';
+}) {
+  const delta = prevValue !== undefined ? calcDelta(value, prevValue) : null;
+
+  const displayValue =
+    format === 'currency'
+      ? fmtCur(value)
+      : format === 'percent'
+      ? `${value.toFixed(1)}%`
+      : fmt(value);
+
+  const deltaColor =
+    delta?.direction === 'up'
+      ? 'text-green-600'
+      : delta?.direction === 'down'
+      ? 'text-red-500'
+      : 'text-muted-foreground';
+
+  const DeltaIcon =
+    delta?.direction === 'up' ? TrendingUp : delta?.direction === 'down' ? TrendingDown : Minus;
+
+  return (
+    <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 flex-1 min-w-0">
+      <div className="min-w-0">
+        <div className="text-xs text-muted-foreground truncate">{label}</div>
+        <div className="text-sm font-semibold leading-tight">{displayValue}</div>
+      </div>
+      {delta && (
+        <DeltaIcon className={`h-3.5 w-3.5 shrink-0 ${deltaColor}`} />
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// SOTTO-COMPONENTE: ConversionBox (conversioni + velocity)
+// ──────────────────────────────────────────────────────────────
+function ConversionPanel({ kpi }: { kpi: import('@/hooks/useMarketingDashboard').KpiData }) {
+  const convRows = [
+    {
+      label: 'Lead → Appuntamento',
+      value: kpi.lead_to_appointment_rate,
+      good: 40,
+    },
+    {
+      label: 'App. → Contratto',
+      value: kpi.appointment_to_contract_rate,
+      good: 30,
+    },
+    {
+      label: 'Lead → Contratto',
+      value: kpi.lead_to_contract_rate,
+      good: 15,
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border bg-card p-3 flex flex-col gap-3 h-full">
+      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        Conversioni & Velocità
+      </div>
+
+      {/* Conversion rates */}
+      <div className="space-y-2">
+        {convRows.map((row) => (
+          <div key={row.label}>
+            <div className="flex justify-between text-xs mb-0.5">
+              <span className="text-muted-foreground flex items-center gap-1">
+                <ArrowRight className="h-3 w-3" />
+                {row.label}
+              </span>
+              <span
+                className={`font-medium ${
+                  row.value >= row.good ? 'text-green-600' : 'text-orange-500'
+                }`}
+              >
+                {row.value.toFixed(1)}%
+              </span>
+            </div>
+            <div className="h-1 rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full ${
+                  row.value >= row.good ? 'bg-green-500' : 'bg-orange-400'
+                }`}
+                style={{ width: `${Math.min(row.value, 100)}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Divider */}
+      <div className="border-t" />
+
+      {/* Velocity & revenue metrics */}
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { label: 'Sales Velocity', value: `${fmtCur(kpi.sales_velocity)}/gg` },
+          { label: 'Rev. per Lead', value: fmtCur(kpi.rpl) },
+          { label: 'Ciclo medio', value: `${kpi.avg_lead_to_won_days?.toFixed(1) ?? '—'}gg` },
+          { label: '1° contatto', value: kpi.avg_time_to_first_contact
+            ? `${(kpi.avg_time_to_first_contact / 3600).toFixed(1)}h`
+            : '—' },
+        ].map((item) => (
+          <div key={item.label} className="text-center rounded bg-muted/50 px-2 py-1.5">
+            <div className="text-xs text-muted-foreground">{item.label}</div>
+            <div className="text-sm font-semibold mt-0.5">{item.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// COMPONENTE PRINCIPALE: TabPanoramica
+// ──────────────────────────────────────────────────────────────
+export function TabPanoramica({ data, filters }: TabPanoramicaProps) {
+  const { kpi, kpi_prev } = data;
+
+  // I target vengono dal data se esposti, altrimenti null
+  // Se il progetto espone i target in kpi o in un campo separato,
+  // sostituisci null con i valori reali
+  const revenueTarget: number | undefined = undefined; // es: data.targets?.revenue
+  const contractsTarget: number | undefined = undefined;
+
+  return (
+    <div className="flex flex-col gap-3 h-full">
+
+      {/* ── RIGA 1: Hero cards ── */}
+      <div className="grid grid-cols-3 gap-3">
+        <HeroCard
+          label="Fatturato"
+          value={kpi.revenue}
+          formattedValue={fmtCur(kpi.revenue)}
+          prevValue={kpi_prev?.revenue}
+          target={revenueTarget}
+          format="currency"
+          isMain
+        />
+        <HeroCard
+          label="Pipeline Attiva"
+          value={kpi.pipeline_active_value}
+          formattedValue={fmtCur(kpi.pipeline_active_value)}
+          prevValue={kpi_prev?.pipeline_active_value}
+          format="currency"
+        />
+        <HeroCard
+          label="Forecast 30gg"
+          value={kpi.forecast_30d}
+          formattedValue={fmtCur(kpi.forecast_30d)}
+          prevValue={kpi_prev?.forecast_30d}
+          format="currency"
+        />
+      </div>
+
+      {/* ── RIGA 2: KPI strip (6 chip) ── */}
+      <div className="flex gap-2">
+        <KpiChip
+          label="Lead Totali"
+          value={kpi.leads_total}
+          prevValue={kpi_prev?.leads_total}
+        />
+        <KpiChip
+          label="Nuovi Lead"
+          value={kpi.leads_new}
+          prevValue={kpi_prev?.leads_new}
+        />
+        <KpiChip
+          label="App. Fissati"
+          value={kpi.appointments_set}
+          prevValue={kpi_prev?.appointments_set}
+        />
+        <KpiChip
+          label="Tasso Chiusura"
+          value={kpi.close_rate}
+          prevValue={kpi_prev?.close_rate}
+          format="percent"
+        />
+        <KpiChip
+          label="Show Rate"
+          value={kpi.show_rate}
+          prevValue={kpi_prev?.show_rate}
+          format="percent"
+        />
+        <KpiChip
+          label="Ticket Medio"
+          value={kpi.avg_ticket}
+          prevValue={kpi_prev?.avg_ticket}
+          format="currency"
+        />
+      </div>
+
+      {/* ── RIGA 3: Funnel sx | Conversioni dx ── */}
+      <div className="grid grid-cols-[55fr_45fr] gap-3 flex-1 min-h-0">
+        <div className="rounded-lg border bg-card p-3 overflow-hidden">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+            Funnel Pipeline
+          </div>
+          {/* DashboardFunnel esistente — riusa le sue props esatte */}
+          <DashboardFunnel
+            funnel={data.funnel}
+            compact={true}
+          />
+        </div>
+        <ConversionPanel kpi={kpi} />
+      </div>
+
+      {/* ── RIGA 4: Team compatto ── */}
+      <div className="rounded-lg border bg-card p-3">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+          Performance Team
+        </div>
+        {/* DashboardSalesTable esistente — riusa le sue props esatte */}
+        <DashboardSalesTable
+          salesPerformance={data.sales_performance}
+          compact={true}
+        />
+      </div>
+
+    </div>
+  );
+}
+```
+
+IMPORTANTE — prop `compact` su DashboardFunnel e DashboardSalesTable:
+Apri DashboardFunnel.tsx e aggiungi il supporto al prop compact?: boolean:
+  - Se compact=true: riduci le altezze delle barre, il font size, il padding
+  - Mantieni la logica esistente invariata, solo ridimensiona
+
+Apri DashboardSalesTable.tsx e aggiungi il supporto al prop compact?: boolean:
+  - Se compact=true: riduci il padding delle celle (py-1 invece di py-3),
+    font size xs invece di sm
+  - Mostra SOLO colonne essenziali in compact mode:
+    Commerciale | App. Svolti | Vinti | Fatturato | Chiusura%
+    (nascondi App. Fissati, Show Rate, vs Media)
+  - Mantieni la logica esistente invariata
+
+// VERIFICA MD3:
+// 1. TabPanoramica.tsx compila senza errori
+// 2. Apri la tab Panoramica — vedi 4 righe
+// 3. Row 1: 3 card con i valori corretti da kpi (revenue, pipeline_active_value, forecast_30d)
+// 4. Row 2: 6 chip con leads_total, leads_new, appointments_set, close_rate, show_rate, avg_ticket
+// 5. Row 3: funnel sx + conversioni dx (lead_to_appointment_rate, etc.)
+// 6. Row 4: tabella team compatta
+// 7. NESSUN duplicato rispetto alle altre righe
+// 8. Su schermo 1440px: tutto visibile senza scroll (le 4 righe si adattano all'altezza)
+// 9. Se i valori sono 0 (account nuovo), i chip mostrano 0 correttamente senza sembrare rotti
+
+
+====================================================================
+PROMPT MD4 — 5 COMPONENTI TAB: Pipeline, Attività, Team, Fonti, Trend
+====================================================================
+
+Leggi prima:
+- Tutti i componenti esistenti in src/components/marketing/dashboard/:
+  DashboardFunnel.tsx, DashboardForecast.tsx, DashboardCallCenter.tsx,
+  DashboardSalesTable.tsx, DashboardSourcesTable.tsx, DashboardTrendChart.tsx,
+  DashboardInsights.tsx
+- Per ognuno: leggi le PROPS ESATTE (nomi e tipi)
+- src/hooks/useMarketingDashboard.ts (tipi DashboardStats)
+
+Crea 5 file nella cartella src/components/marketing/dashboard/tabs/:
+
+────────────────────────────────────────────────────────
+### TabPipeline.tsx
+────────────────────────────────────────────────────────
+```tsx
+// src/components/marketing/dashboard/tabs/TabPipeline.tsx
+// Vista dedicata al funnel e forecast — usa i componenti esistenti in versione FULL
+import React from 'react';
+import { DashboardStats, DashboardFiltersState } from '@/hooks/useMarketingDashboard';
+import { DashboardFunnel } from '@/components/marketing/dashboard/DashboardFunnel';
+import { DashboardForecast } from '@/components/marketing/dashboard/DashboardForecast';
+import { DashboardInsights } from '@/components/marketing/dashboard/DashboardInsights';
+import { fmtCur } from '@/components/marketing/dashboard/utils';
+
+interface TabPipelineProps {
+  data: DashboardStats;
+  filters: DashboardFiltersState;
+}
+
+export function TabPipeline({ data, filters }: TabPipelineProps) {
+  return (
+    <div className="space-y-4">
+
+      {/* Header stats veloci */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'Pipeline Attiva', value: fmtCur(data.kpi.pipeline_active_value) },
+          { label: 'Forecast 30gg', value: fmtCur(data.kpi.forecast_30d) },
+          { label: 'Forecast min', value: fmtCur(data.kpi.forecast_min ?? 0) },
+          { label: 'Forecast max', value: fmtCur(data.kpi.forecast_max ?? 0) },
+        ].map((item) => (
+          <div key={item.label} className="rounded-lg border bg-card p-3">
+            <div className="text-xs text-muted-foreground">{item.label}</div>
+            <div className="text-xl font-bold mt-1">{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Funnel + Forecast side by side, full size */}
+      <div className="grid grid-cols-[55fr_45fr] gap-4">
+        <div className="rounded-lg border bg-card p-4">
+          <h3 className="text-sm font-medium mb-3">Funnel Pipeline</h3>
+          {/* Usa DashboardFunnel con le sue PROP ESATTE senza compact */}
+          <DashboardFunnel funnel={data.funnel} />
+        </div>
+        <div className="rounded-lg border bg-card p-4">
+          <h3 className="text-sm font-medium mb-3">Forecast & Metriche</h3>
+          {/* Usa DashboardForecast con le sue PROP ESATTE */}
+          <DashboardForecast kpi={data.kpi} kpiPrev={data.kpi_prev} />
+        </div>
+      </div>
+
+      {/* Insights strategici */}
+      {data.kpi && (
+        <DashboardInsights kpi={data.kpi} kpiPrev={data.kpi_prev} />
+      )}
+
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────
+### TabAttivita.tsx
+────────────────────────────────────────────────────────
+```tsx
+// src/components/marketing/dashboard/tabs/TabAttivita.tsx
+import React from 'react';
+import { DashboardStats, DashboardFiltersState } from '@/hooks/useMarketingDashboard';
+import { DashboardCallCenter } from '@/components/marketing/dashboard/DashboardCallCenter';
+import { fmtCur, fmt } from '@/components/marketing/dashboard/utils';
+
+interface TabAttivitaProps {
+  data: DashboardStats;
+  filters: DashboardFiltersState;
+}
+
+export function TabAttivita({ data, filters }: TabAttivitaProps) {
+  const kpi = data.kpi;
+
+  return (
+    <div className="space-y-4">
+      {/* KPI attività */}
+      <div className="grid grid-cols-5 gap-3">
+        {[
+          { label: 'App. Fissati', value: fmt(kpi.appointments_set) },
+          { label: 'App. Svolti', value: fmt(kpi.appointments_done) },
+          { label: 'Show Rate', value: `${kpi.show_rate.toFixed(1)}%` },
+          { label: 'Contatti Lavorati', value: fmt(kpi.contacts_worked) },
+          { label: 'Tempo 1° Contatto', value: kpi.avg_time_to_first_contact
+            ? `${(kpi.avg_time_to_first_contact / 3600).toFixed(1)}h`
+            : '—' },
+        ].map((item) => (
+          <div key={item.label} className="rounded-lg border bg-card p-3">
+            <div className="text-xs text-muted-foreground">{item.label}</div>
+            <div className="text-xl font-bold mt-1">{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Call center table — se presenti dati */}
+      {data.call_center && data.call_center.length > 0 ? (
+        <div className="rounded-lg border bg-card p-4">
+          <h3 className="text-sm font-medium mb-3">Call Center per Operatore</h3>
+          <DashboardCallCenter callCenter={data.call_center} />
+        </div>
+      ) : (
+        <div className="rounded-lg border bg-card p-6 text-center text-muted-foreground text-sm">
+          Nessun dato call center disponibile per il periodo selezionato.
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────
+### TabTeam.tsx
+────────────────────────────────────────────────────────
+```tsx
+// src/components/marketing/dashboard/tabs/TabTeam.tsx
+import React from 'react';
+import { DashboardStats, DashboardFiltersState } from '@/hooks/useMarketingDashboard';
+import { DashboardSalesTable } from '@/components/marketing/dashboard/DashboardSalesTable';
+import { fmtCur, fmt } from '@/components/marketing/dashboard/utils';
+
+interface TabTeamProps {
+  data: DashboardStats;
+  filters: DashboardFiltersState;
+}
+
+export function TabTeam({ data, filters }: TabTeamProps) {
+  const kpi = data.kpi;
+
+  // Totali team
+  const totalRevenue = data.sales_performance.reduce((s, r) => s + r.revenue, 0);
+  const totalWon = data.sales_performance.reduce((s, r) => s + r.contracts_won, 0);
+  const avgShowRate = data.sales_performance.length > 0
+    ? data.sales_performance.reduce((s, r) => s + r.show_rate, 0) / data.sales_performance.length
+    : 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Summary team */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'Venditori attivi', value: fmt(data.sales_performance.length) },
+          { label: 'Contratti totali', value: fmt(totalWon) },
+          { label: 'Fatturato team', value: fmtCur(totalRevenue) },
+          { label: 'Show rate medio', value: `${avgShowRate.toFixed(1)}%` },
+        ].map((item) => (
+          <div key={item.label} className="rounded-lg border bg-card p-3">
+            <div className="text-xs text-muted-foreground">{item.label}</div>
+            <div className="text-xl font-bold mt-1">{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabella performance FULL (no compact) */}
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="text-sm font-medium mb-3">Performance Commerciali</h3>
+        <DashboardSalesTable
+          salesPerformance={data.sales_performance}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────
+### TabFonti.tsx
+────────────────────────────────────────────────────────
+```tsx
+// src/components/marketing/dashboard/tabs/TabFonti.tsx
+import React from 'react';
+import { DashboardStats, DashboardFiltersState } from '@/hooks/useMarketingDashboard';
+import { DashboardSourcesTable } from '@/components/marketing/dashboard/DashboardSourcesTable';
+import { fmtCur, fmt } from '@/components/marketing/dashboard/utils';
+
+interface TabFontiProps {
+  data: DashboardStats;
+  filters: DashboardFiltersState;
+}
+
+export function TabFonti({ data, filters }: TabFontiProps) {
+  // Trova fonte migliore per ROI
+  const bestSource = data.sources.length > 0
+    ? data.sources.reduce((best, s) =>
+        (s.roi_pct ?? 0) > (best.roi_pct ?? 0) ? s : best, data.sources[0])
+    : null;
+  // Fonte con più lead
+  const topLeadSource = data.sources.length > 0
+    ? data.sources.reduce((top, s) => s.leads > top.leads ? s : top, data.sources[0])
+    : null;
+
+  return (
+    <div className="space-y-4">
+      {/* Summary fonti */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'Fonti attive', value: fmt(data.sources.length) },
+          { label: 'Spesa totale', value: fmtCur(data.sources.reduce((s, r) => s + (r.spend ?? 0), 0)) },
+          { label: 'Fonte top lead', value: topLeadSource?.source ?? '—' },
+          { label: 'Fonte miglior ROI', value: bestSource ? `${bestSource.source} (${(bestSource.roi_pct ?? 0).toFixed(0)}%)` : '—' },
+        ].map((item) => (
+          <div key={item.label} className="rounded-lg border bg-card p-3">
+            <div className="text-xs text-muted-foreground">{item.label}</div>
+            <div className="text-sm font-bold mt-1 truncate" title={item.value}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabella fonti & ROI */}
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="text-sm font-medium mb-3">Analisi Fonti & ROI</h3>
+        <DashboardSourcesTable sources={data.sources} />
+      </div>
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────
+### TabTrend.tsx
+────────────────────────────────────────────────────────
+```tsx
+// src/components/marketing/dashboard/tabs/TabTrend.tsx
+import React from 'react';
+import { DashboardStats, DashboardFiltersState } from '@/hooks/useMarketingDashboard';
+import { DashboardTrendChart } from '@/components/marketing/dashboard/DashboardTrendChart';
+
+interface TabTrendProps {
+  data: DashboardStats;
+  filters: DashboardFiltersState;
+}
+
+export function TabTrend({ data, filters }: TabTrendProps) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-card p-4">
+        <h3 className="text-sm font-medium mb-3">Andamento Temporale</h3>
+        {/* DashboardTrendChart con le sue PROP ESATTE */}
+        <DashboardTrendChart trend={data.trend} />
+      </div>
+    </div>
+  );
+}
+```
+
+IMPORTANTE per tutti i 5 file:
+Per ogni DashboardXxx usato (DashboardFunnel, DashboardForecast, etc.),
+LEGGI LE PROP ESATTE del componente prima di usarlo. Se le prop sono
+diverse da quelle usate negli esempi sopra (es: DashboardFunnel potrebbe
+usare `stages` invece di `funnel`, DashboardForecast potrebbe usare `data`
+invece di `kpi`), ADATTA le chiamate per usare le prop reali del componente.
+Non inventare prop — leggile dal file esistente.
+
+// VERIFICA MD4:
+// 1. Tutti e 5 i file compilano senza errori TypeScript
+// 2. Tab Pipeline: mostra funnel full + forecast + insights
+// 3. Tab Attività: mostra KPI attività + call center table (o messaggio se vuota)
+// 4. Tab Team: mostra summary + tabella performance full
+// 5. Tab Fonti: mostra summary + tabella fonti ROI
+// 6. Tab Trend: mostra il grafico temporale
+// 7. Ogni tab ha i summary cards in cima (4 metriche rilevanti per il contesto)
+// 8. Nessun componente esistente è stato riscritto — solo usato
+// 9. Le prop passate ai componenti esistenti corrispondono alle prop reali
+
+
+====================================================================
+PROMPT MD5 — CustomizePanel + VERIFICA FINALE
+====================================================================
+
+Leggi prima:
+- src/hooks/useDashboardLayout.ts
+- src/pages/azienda/marketing/MarketingDashboard.tsx
+
+Crea: src/components/marketing/dashboard/DashboardCustomizePanel.tsx
+
+```tsx
+import React from 'react';
+import {
+  ALL_TABS,
+  TabDefinition,
+  TabId,
+} from '@/hooks/useDashboardLayout';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import {
+  LayoutDashboard,
+  GitBranch,
+  Phone,
+  Users,
+  BarChart2,
+  TrendingUp,
+  RotateCcw,
+} from 'lucide-react';
+
+const TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  LayoutDashboard,
+  GitBranch,
+  Phone,
+  Users,
+  BarChart2,
+  TrendingUp,
+};
+
+interface DashboardCustomizePanelProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  visibleTabDefs: TabDefinition[];
+  onToggleTab: (id: TabId) => void;
+  onReset: () => void;
+}
+
+export function DashboardCustomizePanel({
+  open,
+  onOpenChange,
+  visibleTabDefs,
+  onToggleTab,
+  onReset,
+}: DashboardCustomizePanelProps) {
+  const visibleIds = new Set(visibleTabDefs.map((t) => t.id));
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-80">
+        <SheetHeader>
+          <SheetTitle>Personalizza Dashboard</SheetTitle>
+          <SheetDescription>
+            Scegli quali tab visualizzare nella barra di navigazione.
+            La tab Panoramica è sempre visibile.
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="mt-6 space-y-1">
+          {ALL_TABS.map((tab) => {
+            const Icon = TAB_ICONS[tab.iconName];
+            const isVisible = visibleIds.has(tab.id);
+            const isLocked = tab.id === 'panoramica'; // non disabilitabile
+
+            return (
+              <div
+                key={tab.id}
+                className={`flex items-center gap-3 rounded-lg p-3 transition-colors ${
+                  isVisible ? 'bg-accent/50' : 'opacity-50'
+                }`}
+              >
+                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-background border shrink-0">
+                  {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{tab.label}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {tab.description}
+                  </div>
+                </div>
+                <Switch
+                  checked={isVisible}
+                  disabled={isLocked}
+                  onCheckedChange={() => onToggleTab(tab.id as TabId)}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 pt-4 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2"
+            onClick={() => {
+              onReset();
+              onOpenChange(false);
+            }}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Ripristina impostazioni predefinite
+          </Button>
+          <p className="text-xs text-center text-muted-foreground mt-2">
+            Le preferenze vengono salvate automaticamente
+          </p>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+```
+
+────────────────────────────────────────────────────────
+### CHECKLIST FINALE DASHBOARD V2
+────────────────────────────────────────────────────────
+
+STRUTTURA FILE:
+□ src/hooks/useDashboardLayout.ts — hook tab con localStorage
+□ src/pages/azienda/marketing/MarketingDashboard.tsx — orchestrator riscritta
+□ src/components/marketing/dashboard/AlertBanner.tsx — banner alert collassabile
+□ src/components/marketing/dashboard/DashboardCustomizePanel.tsx — drawer personalizzazione
+□ src/components/marketing/dashboard/tabs/TabPanoramica.tsx — layout denso
+□ src/components/marketing/dashboard/tabs/TabPipeline.tsx
+□ src/components/marketing/dashboard/tabs/TabAttivita.tsx
+□ src/components/marketing/dashboard/tabs/TabTeam.tsx
+□ src/components/marketing/dashboard/tabs/TabFonti.tsx
+□ src/components/marketing/dashboard/tabs/TabTrend.tsx
+
+COMPONENTI MODIFICATI (non riscritti — solo aggiunto prop compact):
+□ DashboardFilters.tsx — accetta compact?: boolean
+□ DashboardFunnel.tsx — accetta compact?: boolean
+□ DashboardSalesTable.tsx — accetta compact?: boolean
+
+VERIFICA FUNZIONALE — esegui nell'ordine:
+
+1. Apri /azienda/marketing
+   → vedi: header compatto | filtri | tab bar (6 tab) | pulsante ⚙ Personalizza
+
+2. Filtra "30 giorni"
+   → tutti i tab si aggiornano
+
+3. Clicca ogni tab e verifica:
+   - Panoramica: 4 righe (hero, strip, split, team), nessuno scroll
+   - Pipeline: funnel full + forecast
+   - Attività: KPI + call center
+   - Team: summary + tabella completa
+   - Fonti: summary + tabella ROI
+   - Trend: grafico temporale
+
+4. Clicca ⚙ Personalizza
+   → si apre il drawer laterale
+   → vedi 6 toggle (Panoramica è disabled/locked)
+   → disattiva "Trend" → il tab Trend scompare dalla barra
+
+5. Ricarica la pagina
+   → Trend è ancora nascosto (persiste da localStorage)
+   → Tab attivo è quello che era prima del reload
+
+6. Riapri ⚙ Personalizza → clicca "Ripristina"
+   → tutti i 6 tab tornano visibili
+
+7. Se ci sono alert (stale_leads > 0 nella dashboard):
+   → banner arancione/rosso appare sotto i filtri
+   → cliccando ↑ si collassa a una riga
+   → cliccando × scompare (si rimostra al prossimo refetch)
+
+8. NESSUNA metrica compare due volte nella tab Panoramica
+   - Contratti Vinti: NON appare (rimosso dalla panoramica, vedi TabTeam)
+   - Fatturato: compare UNA sola volta nella hero row
+
+9. Console browser: 0 errori, 0 warning TypeScript
+
+10. Test localStorage manuale:
+    window.localStorage.getItem('mktg_dashboard_layout_v1')
+    → deve ritornare JSON con visibleTabs e activeTab corretti
+
+// FINE PROMPTS MARKETING DASHBOARD V2 (MD1 → MD5)
+
+
+====================================================================
+RIEPILOGO TECNICO MARKETING DASHBOARD V2
+====================================================================
+
+HOOK NUOVO:
+  useDashboardLayout.ts — gestisce tab, persistenza localStorage
+
+COMPONENTI NUOVI:
+  AlertBanner.tsx — banner fisso collassabile con severity
+  DashboardCustomizePanel.tsx — Sheet drawer con toggle tabs
+  tabs/TabPanoramica.tsx — layout 4 righe denso senza scroll
+  tabs/TabPipeline.tsx — funnel + forecast + insights full
+  tabs/TabAttivita.tsx — attività + call center
+  tabs/TabTeam.tsx — performance commerciali full
+  tabs/TabFonti.tsx — analisi fonti + ROI
+  tabs/TabTrend.tsx — trend temporale
+
+COMPONENTI RISCRITTI:
+  MarketingDashboard.tsx — rimpiazza scroll verticale con tab system
+
+COMPONENTI MODIFICATI (aggiunto prop compact):
+  DashboardFilters.tsx, DashboardFunnel.tsx, DashboardSalesTable.tsx
+
+COMPONENTI INVARIATI (riusati nelle tab):
+  DashboardForecast.tsx, DashboardInsights.tsx, DashboardCallCenter.tsx,
+  DashboardSourcesTable.tsx, DashboardTrendChart.tsx, utils.ts
+
+GERARCHIA VISIVA PANORAMICA:
+  [Header] → [Filtri] → [Alert banner?] → [Tab bar + ⚙]
+  ↓ CONTENUTO TAB PANORAMICA (senza scroll):
+  Row 1: Fatturato hero | Pipeline | Forecast 30gg
+  Row 2: Lead | Nuovi Lead | App.Fissati | Chiusura% | Show Rate | Ticket
+  Row 3: Funnel (55%) | Conversioni + Velocity (45%)
+  Row 4: Tabella Team compatta
+
+PERSISTENZA:
+  localStorage key: 'mktg_dashboard_layout_v1'
+  Struttura: { visibleTabs: TabId[], activeTab: TabId }
+  Fallback: tutti i tab visibili, activeTab = 'panoramica'
+====================================================================

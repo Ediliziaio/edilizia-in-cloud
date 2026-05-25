@@ -1,0 +1,1527 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║   FIRMA DIGITALE PREVENTIVI — Edilizia in Cloud                            ║
+║   Sezione: Marketing & Vendite › Preventivi                                ║
+║   Tabella base: quotes (già esistente) · Token pubblico · Pagina cliente   ║
+║   Sequenza: 5 prompt · Marzo 2026                                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+CONTESTO TECNICO
+────────────────
+La tabella `quotes` esiste già con queste colonne rilevanti:
+  - id, company_id, quote_number, title, status
+  - contact_id, total, valid_until
+  - signature_token (TEXT UNIQUE) — token pubblico per il link firma
+  - signature_link (TEXT)         — link completo inviato al cliente
+  - sent_at (TIMESTAMPTZ)
+  - viewed_at (TIMESTAMPTZ)
+  - signed_at (TIMESTAMPTZ)
+  - signed_by_name (TEXT)
+  - signed_by_ip (TEXT)
+  - refused_at (TIMESTAMPTZ)
+  - refused_reason (TEXT)
+  - expires_at (TIMESTAMPTZ)
+
+Le righe prodotto sono in `quote_items`.
+Il PDF del preventivo viene generato dall'edge function `generate-quote-pdf`.
+
+COSA MANCA (da costruire con questi prompt):
+  1. Edge Function `send-quote-signature` — invia email al cliente con link firma
+  2. Edge Function `quote-sign`           — pubblica, gestisce view / sign / refuse
+  3. Pagina pubblica `/offerta/:token`    — QuoteSignPage.tsx (no login)
+  4. UI in QuoteDetail.tsx               — bottone "Invia per Firma" + status firma
+  5. Integrazione PDF                    — timbro "FIRMATO" nel PDF finale
+
+Esegui i prompt in ordine. Non saltare passi.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [FD1] — MIGRATION DATABASE
+              Colonne firma + policy pubblica + bucket PDF firmati
+════════════════════════════════════════════════════════════════════════════════
+
+Esegui questo SQL nel Supabase SQL Editor:
+
+```sql
+-- Migration: firma_digitale_preventivi
+-- Aggiunge colonne firma a `quotes` se non esistono già,
+-- crea policy pubblica per QuoteSignPage e bucket per PDF firmati.
+
+-- 1. Aggiungi colonne firma (safe: usa IF NOT EXISTS)
+ALTER TABLE quotes
+  ADD COLUMN IF NOT EXISTS signature_token   TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS signature_link    TEXT,
+  ADD COLUMN IF NOT EXISTS sent_at           TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS viewed_at         TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS signed_at         TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS signed_by_name    TEXT,
+  ADD COLUMN IF NOT EXISTS signed_by_ip      TEXT,
+  ADD COLUMN IF NOT EXISTS refused_at        TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS refused_reason    TEXT,
+  ADD COLUMN IF NOT EXISTS expires_at        TIMESTAMPTZ;
+
+-- Indice per ricerca veloce tramite token
+CREATE INDEX IF NOT EXISTS idx_quotes_signature_token ON quotes(signature_token)
+  WHERE signature_token IS NOT NULL;
+
+-- 2. Policy Supabase RLS — lettura pubblica tramite token
+-- La pagina /offerta/:token NON usa autenticazione.
+-- Espone solo le colonne necessarie, mai dati sensibili aziendali.
+CREATE POLICY IF NOT EXISTS "public_read_quote_by_token"
+ON quotes FOR SELECT
+TO anon
+USING (
+  signature_token IS NOT NULL
+  AND expires_at > now()
+  AND status IN ('inviata', 'accettata', 'rifiutata')
+);
+
+-- 3. Policy pubblica per quote_items (lettura via token, join tramite edge function)
+-- La edge function usa service_role quindi non serve policy anon su quote_items.
+-- Lascia la lettura alle edge functions con service role key.
+
+-- 4. Funzione per generare numero preventivo progressivo (se non esiste)
+CREATE OR REPLACE FUNCTION generate_quote_number(p_company_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_year   int  := EXTRACT(YEAR FROM now());
+  v_count  int;
+BEGIN
+  SELECT COALESCE(COUNT(*), 0) + 1 INTO v_count
+  FROM quotes
+  WHERE company_id = p_company_id
+    AND EXTRACT(YEAR FROM created_at) = v_year;
+  RETURN 'OFF-' || v_year || '-' || LPAD(v_count::text, 3, '0');
+END;
+$$;
+GRANT EXECUTE ON FUNCTION generate_quote_number(uuid) TO authenticated;
+
+-- 5. Storage bucket per PDF firmati (separato da quote-pdfs)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('quote-signed-pdfs', 'quote-signed-pdfs', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY IF NOT EXISTS "company_members_read_signed_pdfs"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'quote-signed-pdfs'
+  AND (storage.foldername(name))[1] = (
+    SELECT company_id::text FROM profiles WHERE id = auth.uid()
+  )
+);
+
+-- Service role può scrivere (usato dall'edge function quote-sign)
+CREATE POLICY IF NOT EXISTS "service_role_write_signed_pdfs"
+ON storage.objects FOR INSERT TO service_role
+WITH CHECK (bucket_id = 'quote-signed-pdfs');
+
+-- 6. Funzione helper per notifiche (se non esiste già)
+-- Se create_notification RPC non esiste nel tuo schema, rimuovi la chiamata
+-- dalla edge function quote-sign o crea questa funzione base:
+CREATE OR REPLACE FUNCTION create_notification(
+  p_company_id  uuid,
+  p_type        text,
+  p_title       text,
+  p_body        text,
+  p_link        text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  INSERT INTO notifications(company_id, type, title, body, link, read, created_at)
+  VALUES (p_company_id, p_type, p_title, p_body, p_link, false, now())
+  ON CONFLICT DO NOTHING;
+EXCEPTION WHEN OTHERS THEN NULL; -- silenzia se notifications non esiste
+END;
+$$;
+GRANT EXECUTE ON FUNCTION create_notification(uuid,text,text,text,text) TO service_role;
+```
+
+════════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [FD2] — EDGE FUNCTION: send-quote-signature
+              Genera token · Invia email al cliente · Aggiorna stato quote
+════════════════════════════════════════════════════════════════════════════════
+
+Crea il file: supabase/functions/send-quote-signature/index.ts
+
+verify_jwt: TRUE (richiede utente autenticato — è l'operatore che invia)
+
+```typescript
+// supabase/functions/send-quote-signature/index.ts
+// POST { quote_id, recipient_email, recipient_name?, custom_message?, expires_days? }
+// Genera token univoco, costruisce link firma, invia email Resend, aggiorna quote.
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  // Verifica autenticazione
+  const authHeader = req.headers.get("authorization") ?? "";
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(
+    authHeader.replace("Bearer ", "")
+  );
+  if (authErr || !user) {
+    return new Response(JSON.stringify({ error: "Non autorizzato" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const { quote_id, recipient_email, recipient_name, custom_message, expires_days = 30 } =
+    await req.json();
+
+  if (!quote_id || !recipient_email) {
+    return new Response(JSON.stringify({ error: "quote_id e recipient_email obbligatori" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Carica la quote e verifica ownership
+  const { data: quote, error: quoteErr } = await supabase
+    .from("quotes")
+    .select(`
+      id, company_id, quote_number, title, total, valid_until, status,
+      companies!inner(name, email, phone, logo_url)
+    `)
+    .eq("id", quote_id)
+    .maybeSingle();
+
+  if (quoteErr || !quote) {
+    return new Response(JSON.stringify({ error: "Preventivo non trovato" }), {
+      status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Verifica membership utente → azienda
+  const { data: member } = await supabase
+    .from("company_members")
+    .select("id")
+    .eq("company_id", quote.company_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!member) {
+    return new Response(JSON.stringify({ error: "Accesso negato" }), {
+      status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Genera token univoco e link di firma
+  const token = crypto.randomUUID();
+  const siteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziancloud.it";
+  const signatureLink = `${siteUrl}/offerta/${token}`;
+  const expiresAt = new Date(Date.now() + expires_days * 24 * 60 * 60 * 1000).toISOString();
+
+  // Aggiorna la quote con token e stato
+  const { error: updateErr } = await supabase
+    .from("quotes")
+    .update({
+      signature_token: token,
+      signature_link:  signatureLink,
+      sent_at:         new Date().toISOString(),
+      expires_at:      expiresAt,
+      status:          "inviata",
+    })
+    .eq("id", quote_id);
+
+  if (updateErr) {
+    return new Response(JSON.stringify({ error: "Errore aggiornamento preventivo" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Invia email tramite Resend
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  if (resendApiKey) {
+    const companyName  = (quote.companies as any)?.name ?? "Azienda";
+    const companyEmail = (quote.companies as any)?.email ?? "";
+    const validUntil   = quote.valid_until
+      ? new Date(quote.valid_until).toLocaleDateString("it-IT")
+      : `${expires_days} giorni`;
+
+    const totalFormatted = new Intl.NumberFormat("it-IT", {
+      style: "currency", currency: "EUR",
+    }).format(Number(quote.total ?? 0));
+
+    const greeting = recipient_name ? `Gentile ${recipient_name},` : "Gentile Cliente,";
+    const customMsg = custom_message
+      ? `<p style="color:#374151;line-height:1.6;">${custom_message}</p>`
+      : "";
+
+    const emailBody = `
+<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0">
+  <tr><td align="center" style="padding:40px 20px;">
+    <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+
+      <!-- Header -->
+      <tr><td style="background:#1e3a8a;padding:32px 40px;">
+        <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:600;">
+          Offerta Commerciale
+        </h1>
+        <p style="color:#93c5fd;margin:6px 0 0 0;font-size:14px;">${companyName}</p>
+      </td></tr>
+
+      <!-- Body -->
+      <tr><td style="padding:40px;">
+        <p style="color:#374151;font-size:16px;line-height:1.6;margin-top:0;">${greeting}</p>
+        ${customMsg}
+        <p style="color:#374151;font-size:15px;line-height:1.6;">
+          Ti inviamo in allegato l'offerta commerciale <strong>N. ${quote.quote_number}</strong>${quote.title ? ` — "${quote.title}"` : ""}.
+        </p>
+
+        <!-- Box importo -->
+        <table width="100%" style="background:#f0f4ff;border-radius:8px;margin:24px 0;">
+          <tr><td style="padding:20px 24px;">
+            <p style="margin:0;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;">Importo totale offerta</p>
+            <p style="margin:4px 0 0 0;color:#1e3a8a;font-size:28px;font-weight:700;">${totalFormatted}</p>
+            <p style="margin:8px 0 0 0;color:#9ca3af;font-size:12px;">Valida fino al: ${validUntil}</p>
+          </td></tr>
+        </table>
+
+        <p style="color:#374151;font-size:15px;line-height:1.6;">
+          Per visualizzare l'offerta completa e procedere con l'accettazione, clicca sul bottone qui sotto:
+        </p>
+
+        <!-- CTA Button -->
+        <table width="100%" style="margin:32px 0;">
+          <tr><td align="center">
+            <a href="${signatureLink}"
+               style="background:#1e3a8a;color:#ffffff;text-decoration:none;padding:16px 40px;border-radius:8px;font-size:16px;font-weight:600;display:inline-block;">
+              Visualizza e Firma Offerta →
+            </a>
+          </td></tr>
+        </table>
+
+        <p style="color:#9ca3af;font-size:13px;line-height:1.6;">
+          Oppure copia questo link nel browser:<br>
+          <a href="${signatureLink}" style="color:#1e3a8a;word-break:break-all;">${signatureLink}</a>
+        </p>
+
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:32px 0;">
+        <p style="color:#374151;font-size:14px;line-height:1.6;margin:0;">
+          Per qualsiasi informazione, non esitare a contattarci:<br>
+          ${companyEmail ? `<a href="mailto:${companyEmail}" style="color:#1e3a8a;">${companyEmail}</a>` : ""}
+        </p>
+      </td></tr>
+
+      <!-- Footer -->
+      <tr><td style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;">
+        <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center;">
+          Questa offerta è stata generata da ${companyName} tramite Edilizia in Cloud.
+        </p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from:    `${companyName} <noreply@ediliziancloud.it>`,
+        to:      [recipient_email],
+        subject: `Offerta N. ${quote.quote_number} — ${companyName}`,
+        html:    emailBody,
+      }),
+    });
+  }
+
+  return new Response(
+    JSON.stringify({ success: true, signature_link: signatureLink, token }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+});
+```
+
+════════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [FD3] — EDGE FUNCTION: quote-sign
+              Pubblica (no JWT) · view · sign · refuse
+════════════════════════════════════════════════════════════════════════════════
+
+Crea il file: supabase/functions/quote-sign/index.ts
+
+verify_jwt: FALSE (è pubblica — il cliente non ha login)
+
+```typescript
+// supabase/functions/quote-sign/index.ts
+// POST { token, action: 'view'|'sign'|'refuse', signer_name?, refuse_reason? }
+// Pubblica — no autenticazione. Autenticazione tramite token univoco.
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+  }
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  const { token, action, signer_name, refuse_reason } = await req.json();
+
+  // Validazione input
+  if (!token || !action) {
+    return new Response(JSON.stringify({ error: "token e action obbligatori" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Validazione formato token (UUID)
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_REGEX.test(token)) {
+    return new Response(JSON.stringify({ error: "Token non valido" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (!["view", "sign", "refuse"].includes(action)) {
+    return new Response(JSON.stringify({ error: "action deve essere view, sign o refuse" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Carica la quote tramite token
+  const { data: quote, error: quoteErr } = await supabase
+    .from("quotes")
+    .select(`
+      id, company_id, quote_number, title, total, status,
+      expires_at, signature_token, signed_at, signed_by_name,
+      refused_at, valid_until, contact_id,
+      quote_items(id, name, description, quantity, unit, unit_price, discount_percentage, total_price, position),
+      companies!inner(id, name, email, phone, address, logo_url, vat_number)
+    `)
+    .eq("signature_token", token)
+    .maybeSingle();
+
+  if (quoteErr || !quote) {
+    return new Response(JSON.stringify({ error: "Token non trovato" }), {
+      status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Verifica scadenza
+  if (quote.expires_at && new Date(quote.expires_at) < new Date()) {
+    if (quote.status === "inviata") {
+      await supabase.from("quotes").update({ status: "scaduta" }).eq("id", quote.id);
+    }
+    return new Response(JSON.stringify({ error: "expired", status: "scaduta" }), {
+      status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // IP del client
+  const clientIp =
+    req.headers.get("x-forwarded-for") ??
+    req.headers.get("cf-connecting-ip") ??
+    "unknown";
+
+  // ─────────────────────────────────────────────
+  // ACTION: view
+  // ─────────────────────────────────────────────
+  if (action === "view") {
+    // Traccia la prima visualizzazione
+    if (!quote.viewed_at) {
+      await supabase
+        .from("quotes")
+        .update({ viewed_at: new Date().toISOString() })
+        .eq("id", quote.id);
+    }
+
+    // Restituisce i dati della quote (esclude dati sensibili interni)
+    return new Response(
+      JSON.stringify({
+        id:           quote.id,
+        quote_number: quote.quote_number,
+        title:        quote.title,
+        total:        quote.total,
+        status:       quote.status,
+        expires_at:   quote.expires_at,
+        valid_until:  quote.valid_until,
+        signed_at:    quote.signed_at,
+        signed_by:    quote.signed_by_name,
+        refused_at:   quote.refused_at,
+        items:        (quote.quote_items as any[])?.sort((a, b) => a.position - b.position) ?? [],
+        company: {
+          name:       (quote.companies as any)?.name,
+          email:      (quote.companies as any)?.email,
+          phone:      (quote.companies as any)?.phone,
+          address:    (quote.companies as any)?.address,
+          logo_url:   (quote.companies as any)?.logo_url,
+          vat_number: (quote.companies as any)?.vat_number,
+        },
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // ACTION: sign
+  // ─────────────────────────────────────────────
+  if (action === "sign") {
+    if (!signer_name?.trim()) {
+      return new Response(JSON.stringify({ error: "signer_name obbligatorio" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (quote.status === "accettata") {
+      return new Response(JSON.stringify({ error: "Preventivo già firmato" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (quote.status !== "inviata") {
+      return new Response(
+        JSON.stringify({ error: `Impossibile firmare: stato attuale "${quote.status}"` }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const signedAt = new Date().toISOString();
+
+    await supabase.from("quotes").update({
+      status:         "accettata",
+      signed_at:      signedAt,
+      signed_by_name: signer_name.trim(),
+      signed_by_ip:   clientIp,
+    }).eq("id", quote.id);
+
+    // Notifica all'azienda
+    try {
+      await supabase.rpc("create_notification", {
+        p_company_id: quote.company_id,
+        p_type:       "quote",
+        p_title:      "Preventivo firmato!",
+        p_body:       `${signer_name.trim()} ha accettato l'offerta ${quote.quote_number}`,
+        p_link:       `/azienda/marketing/preventivi/${quote.id}`,
+      });
+    } catch (_) { /* notifiche opzionali */ }
+
+    return new Response(
+      JSON.stringify({ success: true, signed_at: signedAt, signer_name: signer_name.trim() }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // ACTION: refuse
+  // ─────────────────────────────────────────────
+  if (action === "refuse") {
+    if (quote.status === "rifiutata") {
+      return new Response(JSON.stringify({ error: "Già rifiutato" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (quote.status === "accettata") {
+      return new Response(JSON.stringify({ error: "Non puoi rifiutare un preventivo già firmato" }), {
+        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    await supabase.from("quotes").update({
+      status:         "rifiutata",
+      refused_at:     new Date().toISOString(),
+      refused_reason: refuse_reason?.trim() ?? null,
+    }).eq("id", quote.id);
+
+    // Notifica all'azienda
+    try {
+      await supabase.rpc("create_notification", {
+        p_company_id: quote.company_id,
+        p_type:       "quote",
+        p_title:      "Preventivo rifiutato",
+        p_body:       `L'offerta ${quote.quote_number} è stata rifiutata${refuse_reason ? `: ${refuse_reason}` : ""}`,
+        p_link:       `/azienda/marketing/preventivi/${quote.id}`,
+      });
+    } catch (_) { /* notifiche opzionali */ }
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  return new Response(JSON.stringify({ error: "Action non gestita" }), {
+    status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+});
+```
+
+════════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [FD4] — PAGINA PUBBLICA DI FIRMA
+              src/pages/public/QuoteSignPage.tsx
+              Route: /offerta/:token (FUORI da auth guard)
+════════════════════════════════════════════════════════════════════════════════
+
+Crea il file: src/pages/public/QuoteSignPage.tsx
+
+In App.tsx, aggiungi la route PRIMA di qualsiasi AuthGuard/ProtectedRoute:
+```tsx
+<Route path="/offerta/:token" element={<QuoteSignPage />} />
+```
+
+Questo file è 100% pubblico. Non importare nulla che richieda auth.
+
+```tsx
+// src/pages/public/QuoteSignPage.tsx
+import React, { useEffect, useState, useCallback } from "react";
+import { useParams } from "react-router-dom";
+import { CheckCircle, XCircle, Clock, AlertCircle, Loader2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+// ─── Tipi ────────────────────────────────────────────────────────────────────
+
+type QuoteStatus = "inviata" | "accettata" | "rifiutata" | "scaduta" | "bozza";
+
+interface QuoteItem {
+  id:                  string;
+  name:                string;
+  description?:        string;
+  quantity:            number;
+  unit?:               string;
+  unit_price:          number;
+  discount_percentage: number;
+  total_price:         number;
+  position:            number;
+}
+
+interface QuoteData {
+  id:           string;
+  quote_number: string;
+  title?:       string;
+  total:        number;
+  status:       QuoteStatus;
+  expires_at?:  string;
+  valid_until?: string;
+  signed_at?:   string;
+  signed_by?:   string;
+  refused_at?:  string;
+  items:        QuoteItem[];
+  company: {
+    name:       string;
+    email?:     string;
+    phone?:     string;
+    address?:   string;
+    logo_url?:  string;
+    vat_number?: string;
+  };
+}
+
+type PageState = "loading" | "error" | "expired" | "signed" | "refused" | "ready";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatEur(n: number): string {
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+}
+
+function formatDate(iso?: string): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function getEdgeFunctionUrl(name: string): string {
+  const base = import.meta.env.VITE_SUPABASE_URL ?? "";
+  return `${base}/functions/v1/${name}`;
+}
+
+function getAnonKey(): string {
+  return import.meta.env.VITE_SUPABASE_ANON_KEY ?? "";
+}
+
+// ─── Componente principale ────────────────────────────────────────────────────
+
+export default function QuoteSignPage() {
+  const { token } = useParams<{ token: string }>();
+
+  const [state,       setState]       = useState<PageState>("loading");
+  const [quoteData,   setQuoteData]   = useState<QuoteData | null>(null);
+  const [errorMsg,    setErrorMsg]    = useState<string>("");
+
+  // Form firma
+  const [signerName,  setSignerName]  = useState("");
+  const [submitting,  setSubmitting]  = useState(false);
+  const [signedAt,    setSignedAt]    = useState<string>("");
+
+  // Dialog rifiuto
+  const [refuseOpen,  setRefuseOpen]  = useState(false);
+  const [refuseReason, setRefuseReason] = useState("");
+  const [refusing,    setRefusing]    = useState(false);
+
+  // ── Chiama quote-sign (action view) per caricare i dati ──────────────────
+  const loadQuote = useCallback(async () => {
+    if (!token) { setState("error"); setErrorMsg("Token mancante nel link."); return; }
+
+    try {
+      const res = await fetch(getEdgeFunctionUrl("quote-sign"), {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": getAnonKey(),
+        },
+        body: JSON.stringify({ token, action: "view" }),
+      });
+
+      if (res.status === 410) { setState("expired"); return; }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setState("error");
+        setErrorMsg(body.error ?? "Link non valido o offerta non più disponibile.");
+        return;
+      }
+
+      const data: QuoteData = await res.json();
+      setQuoteData(data);
+
+      if (data.status === "accettata") { setSignedAt(data.signed_at ?? ""); setState("signed");  return; }
+      if (data.status === "rifiutata") { setState("refused"); return; }
+      if (data.status === "scaduta")   { setState("expired"); return; }
+
+      setState("ready");
+    } catch (err) {
+      setState("error");
+      setErrorMsg("Errore di connessione. Riprova più tardi.");
+    }
+  }, [token]);
+
+  useEffect(() => { loadQuote(); }, [loadQuote]);
+
+  // ── Firma ─────────────────────────────────────────────────────────────────
+  const handleSign = async () => {
+    if (!signerName.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(getEdgeFunctionUrl("quote-sign"), {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", "apikey": getAnonKey() },
+        body: JSON.stringify({ token, action: "sign", signer_name: signerName.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Errore durante la firma");
+      setSignedAt(body.signed_at);
+      setState("signed");
+    } catch (err: any) {
+      setErrorMsg(err.message ?? "Errore durante la firma");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Rifiuto ───────────────────────────────────────────────────────────────
+  const handleRefuse = async () => {
+    setRefusing(true);
+    try {
+      const res = await fetch(getEdgeFunctionUrl("quote-sign"), {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", "apikey": getAnonKey() },
+        body: JSON.stringify({ token, action: "refuse", refuse_reason: refuseReason }),
+      });
+      if (!res.ok) throw new Error("Errore");
+      setState("refused");
+      setRefuseOpen(false);
+    } catch (_) {
+      // mostra errore inline se vuoi
+    } finally {
+      setRefusing(false);
+    }
+  };
+
+  // ── Calcoli totali ────────────────────────────────────────────────────────
+  const subtotal   = quoteData?.items.reduce((s, i) => s + i.total_price, 0) ?? 0;
+  const iva        = (quoteData?.total ?? 0) - subtotal;
+
+  // ── RENDER STATI SPECIALI ─────────────────────────────────────────────────
+
+  if (state === "loading") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-900" />
+    </div>
+  );
+
+  if (state === "error") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center max-w-sm">
+        <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+        <h1 className="text-xl font-semibold text-gray-800 mb-2">Link non valido</h1>
+        <p className="text-gray-500 text-sm">{errorMsg || "Questo link non è valido o l'offerta non è più disponibile."}</p>
+      </div>
+    </div>
+  );
+
+  if (state === "expired") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center max-w-sm">
+        <Clock className="w-16 h-16 text-amber-400 mx-auto mb-4" />
+        <h1 className="text-xl font-semibold text-gray-800 mb-2">Offerta scaduta</h1>
+        <p className="text-gray-500 text-sm mb-4">
+          Questa offerta non è più valida.{" "}
+          {quoteData?.company?.email && (
+            <>Contatta <a href={`mailto:${quoteData.company.email}`} className="text-blue-900 underline">{quoteData.company.email}</a> per un nuovo preventivo.</>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+
+  if (state === "signed") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center max-w-sm">
+        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+        <h1 className="text-xl font-semibold text-gray-800 mb-2">Offerta Firmata!</h1>
+        <p className="text-gray-500 text-sm mb-1">
+          Grazie <strong>{quoteData?.signed_by}</strong>, l'offerta è stata accettata.
+        </p>
+        {signedAt && (
+          <p className="text-gray-400 text-xs">Firmata il {formatDate(signedAt)}</p>
+        )}
+        <p className="text-gray-400 text-xs mt-2">Riceverai una copia via email.</p>
+      </div>
+    </div>
+  );
+
+  if (state === "refused") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center max-w-sm">
+        <XCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+        <h1 className="text-xl font-semibold text-gray-800 mb-2">Offerta rifiutata</h1>
+        <p className="text-gray-500 text-sm">L'offerta è stata rifiutata. L'azienda è stata notificata.</p>
+      </div>
+    </div>
+  );
+
+  // ── STATO READY: pagina principale ───────────────────────────────────────
+  if (!quoteData) return null;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-blue-900 text-white">
+        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-4">
+          {quoteData.company.logo_url && (
+            <img
+              src={quoteData.company.logo_url}
+              alt={quoteData.company.name}
+              className="h-10 w-auto object-contain bg-white rounded p-1"
+            />
+          )}
+          <div>
+            <p className="text-blue-200 text-xs font-medium uppercase tracking-wider">
+              Offerta Commerciale
+            </p>
+            <h1 className="text-lg font-bold leading-tight">
+              N. {quoteData.quote_number}
+              {quoteData.title && <span className="font-normal ml-2 text-blue-200">— {quoteData.title}</span>}
+            </h1>
+          </div>
+          <div className="ml-auto">
+            <Badge variant="secondary" className="bg-blue-800 text-blue-100 border-0">
+              In attesa di firma
+            </Badge>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+
+        {/* Intestazione azienda + scadenza */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Emessa da</p>
+            <p className="font-semibold text-gray-800">{quoteData.company.name}</p>
+            {quoteData.company.email && <p className="text-sm text-gray-500">{quoteData.company.email}</p>}
+            {quoteData.company.phone && <p className="text-sm text-gray-500">{quoteData.company.phone}</p>}
+          </div>
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Validità</p>
+            {quoteData.valid_until && (
+              <p className="font-semibold text-gray-800">Fino al {formatDate(quoteData.valid_until)}</p>
+            )}
+            {quoteData.expires_at && (
+              <p className="text-sm text-gray-500">Link scade il {formatDate(quoteData.expires_at)}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Tabella prodotti */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-700 text-sm">Prodotti e Servizi</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="text-left px-4 py-2 text-gray-500 font-medium">Descrizione</th>
+                  <th className="text-right px-4 py-2 text-gray-500 font-medium">Qtà</th>
+                  <th className="text-right px-4 py-2 text-gray-500 font-medium">Prezzo</th>
+                  <th className="text-right px-4 py-2 text-gray-500 font-medium">Totale</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quoteData.items.map((item, idx) => (
+                  <tr key={item.id} className={idx % 2 === 0 ? "" : "bg-gray-50/50"}>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-800">{item.name}</p>
+                      {item.description && (
+                        <p className="text-gray-500 text-xs mt-0.5">{item.description}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
+                      {item.quantity} {item.unit ?? ""}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
+                      {formatEur(item.unit_price)}
+                      {item.discount_percentage > 0 && (
+                        <span className="ml-1 text-xs text-green-600">-{item.discount_percentage}%</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-800 whitespace-nowrap">
+                      {formatEur(item.total_price)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totali */}
+          <div className="border-t border-gray-100 px-4 py-3 space-y-1">
+            <div className="flex justify-between text-sm text-gray-500">
+              <span>Subtotale</span>
+              <span>{formatEur(subtotal)}</span>
+            </div>
+            {iva > 0 && (
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>IVA</span>
+                <span>{formatEur(iva)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-base font-bold text-blue-900 pt-1 border-t border-gray-100">
+              <span>TOTALE</span>
+              <span>{formatEur(quoteData.total)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Box firma */}
+        <div className="bg-blue-900 rounded-xl p-6 text-white">
+          <h2 className="text-lg font-bold mb-1">Firma l'Offerta</h2>
+          <p className="text-blue-200 text-sm mb-5">
+            Inserisci il tuo nome e clicca su "Accetto e Firmo" per confermare l'accettazione di questa offerta.
+          </p>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-blue-100 mb-1">
+                Nome e Cognome *
+              </label>
+              <Input
+                value={signerName}
+                onChange={e => setSignerName(e.target.value)}
+                placeholder="Es. Mario Rossi"
+                className="bg-white/10 border-white/20 text-white placeholder:text-blue-300 focus:border-white"
+              />
+            </div>
+
+            <p className="text-blue-200 text-xs">
+              Firmando confermo di aver letto e accettato l'offerta commerciale e le condizioni allegate.
+              Questa firma ha valore di firma elettronica semplice ai sensi del Reg. EU 910/2014.
+            </p>
+
+            {errorMsg && (
+              <p className="bg-red-500/20 border border-red-400/50 text-red-200 text-sm px-3 py-2 rounded-lg">
+                {errorMsg}
+              </p>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-1">
+              <Button
+                onClick={handleSign}
+                disabled={!signerName.trim() || submitting}
+                className="flex-1 bg-green-500 hover:bg-green-400 text-white font-semibold h-12 text-base"
+              >
+                {submitting ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Invio in corso...</>
+                ) : (
+                  <><CheckCircle className="w-5 h-5 mr-2" /> Accetto e Firmo</>
+                )}
+              </Button>
+              <Button
+                onClick={() => setRefuseOpen(true)}
+                variant="ghost"
+                className="text-blue-200 hover:text-white hover:bg-white/10 border border-white/20"
+              >
+                <X className="w-4 h-4 mr-1" /> Rifiuta offerta
+              </Button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+      {/* Dialog rifiuto */}
+      <Dialog open={refuseOpen} onOpenChange={setRefuseOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rifiuta Offerta</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500">
+            Sei sicuro di voler rifiutare questa offerta? L'azienda verrà notificata.
+          </p>
+          <Textarea
+            value={refuseReason}
+            onChange={e => setRefuseReason(e.target.value)}
+            placeholder="Motivo del rifiuto (opzionale)"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRefuseOpen(false)}>Annulla</Button>
+            <Button
+              variant="destructive"
+              onClick={handleRefuse}
+              disabled={refusing}
+            >
+              {refusing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Conferma Rifiuto"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+```
+
+════════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [FD5] — UI AGGIORNAMENTI IN QuoteDetail.tsx
+              Bottone "Invia per Firma" · Dialog invio · Status Card firma
+════════════════════════════════════════════════════════════════════════════════
+
+Modifica il file esistente: src/pages/azienda/marketing/QuoteDetail.tsx
+(o il path corretto dove si trova il dettaglio del preventivo)
+
+─────────────────────────────────────────────────────────────────────
+PARTE A — Hook useSignatureActions
+─────────────────────────────────────────────────────────────────────
+
+Crea src/hooks/useSignatureActions.ts:
+
+```typescript
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
+import { toast } from "sonner";
+
+interface SendParams {
+  quoteId:        string;
+  recipientEmail: string;
+  recipientName?: string;
+  customMessage?: string;
+  expiresDays?:   number;
+}
+
+export function useSignatureActions(companyId: string) {
+  const queryClient = useQueryClient();
+
+  const sendForSignature = useMutation({
+    mutationFn: async (params: SendParams) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Non autenticato");
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-quote-signature`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+            "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            quote_id:       params.quoteId,
+            recipient_email: params.recipientEmail,
+            recipient_name:  params.recipientName,
+            custom_message:  params.customMessage,
+            expires_days:    params.expiresDays ?? 30,
+          }),
+        }
+      );
+
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Errore durante l'invio");
+      return body as { success: boolean; signature_link: string; token: string };
+    },
+    onSuccess: (_, variables) => {
+      toast.success("Preventivo inviato per firma!");
+      queryClient.invalidateQueries({ queryKey: ["quote", variables.quoteId] });
+      queryClient.invalidateQueries({ queryKey: ["quotes", companyId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  return { sendForSignature };
+}
+```
+
+─────────────────────────────────────────────────────────────────────
+PARTE B — Componente SendSignatureDialog
+─────────────────────────────────────────────────────────────────────
+
+Crea src/components/marketing/preventivi/SendSignatureDialog.tsx:
+
+```tsx
+import React, { useState } from "react";
+import { Send, Copy, Check, Mail } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Button }   from "@/components/ui/button";
+import { Input }    from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label }    from "@/components/ui/label";
+
+interface Props {
+  open:         boolean;
+  onClose:      () => void;
+  quoteId:      string;
+  companyId:    string;
+  defaultEmail?: string;
+  defaultName?:  string;
+  onSend: (params: {
+    recipientEmail: string;
+    recipientName:  string;
+    customMessage:  string;
+    expiresDays:    number;
+  }) => void;
+  isSending:    boolean;
+  signatureLink?: string; // link già generato (post-invio)
+}
+
+export function SendSignatureDialog({
+  open, onClose, defaultEmail = "", defaultName = "",
+  onSend, isSending, signatureLink,
+}: Props) {
+  const [email,   setEmail]   = useState(defaultEmail);
+  const [name,    setName]    = useState(defaultName);
+  const [message, setMessage] = useState("");
+  const [days,    setDays]    = useState(30);
+  const [copied,  setCopied]  = useState(false);
+
+  const handleCopyLink = () => {
+    if (!signatureLink) return;
+    navigator.clipboard.writeText(signatureLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSend = () => {
+    if (!email.trim()) return;
+    onSend({ recipientEmail: email.trim(), recipientName: name.trim(), customMessage: message, expiresDays: days });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="w-5 h-5 text-blue-900" />
+            Invia per Firma Digitale
+          </DialogTitle>
+        </DialogHeader>
+
+        {signatureLink ? (
+          // Stato post-invio: mostra il link
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-sm font-medium text-green-800 mb-1">✅ Preventivo inviato!</p>
+              <p className="text-xs text-green-600">Il cliente ha ricevuto il link via email.</p>
+            </div>
+            <div>
+              <Label className="text-xs text-gray-500">Link di firma (copialo per condividerlo)</Label>
+              <div className="flex gap-2 mt-1">
+                <Input value={signatureLink} readOnly className="text-xs font-mono" />
+                <Button size="icon" variant="outline" onClick={handleCopyLink}>
+                  {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          // Form invio
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="sig-email">Email destinatario *</Label>
+              <Input
+                id="sig-email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="cliente@email.it"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="sig-name">Nome destinatario</Label>
+              <Input
+                id="sig-name"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Mario Rossi"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="sig-msg">Messaggio personalizzato (opzionale)</Label>
+              <Textarea
+                id="sig-msg"
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                placeholder="Buongiorno, le inviamo in allegato l'offerta..."
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="sig-days">Validità link (giorni)</Label>
+              <Input
+                id="sig-days"
+                type="number"
+                min={1}
+                max={365}
+                value={days}
+                onChange={e => setDays(Number(e.target.value))}
+                className="mt-1 w-24"
+              />
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            {signatureLink ? "Chiudi" : "Annulla"}
+          </Button>
+          {!signatureLink && (
+            <Button
+              onClick={handleSend}
+              disabled={!email.trim() || isSending}
+              className="bg-blue-900 hover:bg-blue-800"
+            >
+              {isSending ? "Invio..." : (
+                <><Mail className="w-4 h-4 mr-2" /> Invia per Firma</>
+              )}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+─────────────────────────────────────────────────────────────────────
+PARTE C — Componente QuoteSignatureStatusCard
+─────────────────────────────────────────────────────────────────────
+
+Crea src/components/marketing/preventivi/QuoteSignatureStatusCard.tsx:
+
+```tsx
+import React from "react";
+import { CheckCircle, Clock, XCircle, Send, Eye } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface Quote {
+  status:         string;
+  signature_link?: string;
+  sent_at?:        string;
+  viewed_at?:      string;
+  signed_at?:      string;
+  signed_by_name?: string;
+  refused_at?:     string;
+  refused_reason?: string;
+  expires_at?:     string;
+}
+
+function fmt(iso?: string) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+export function QuoteSignatureStatusCard({ quote }: { quote: Quote }) {
+  if (!quote.sent_at && !quote.signed_at) return null;
+
+  const isExpired = quote.expires_at && new Date(quote.expires_at) < new Date()
+    && quote.status !== "accettata" && quote.status !== "rifiutata";
+
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold text-gray-600 flex items-center gap-2">
+          <Send className="w-4 h-4" /> Stato Firma Digitale
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+
+        {/* Timeline */}
+        <div className="space-y-2 text-sm">
+
+          {quote.sent_at && (
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Send className="w-3 h-3 text-blue-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-700">Link inviato</p>
+                <p className="text-gray-400 text-xs">{fmt(quote.sent_at)}</p>
+                {isExpired && (
+                  <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs mt-1">
+                    Link scaduto
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+
+          {quote.viewed_at && (
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Eye className="w-3 h-3 text-purple-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-700">Visualizzato dal cliente</p>
+                <p className="text-gray-400 text-xs">{fmt(quote.viewed_at)}</p>
+              </div>
+            </div>
+          )}
+
+          {quote.signed_at && (
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <CheckCircle className="w-3 h-3 text-green-600" />
+              </div>
+              <div>
+                <p className="font-medium text-green-700">
+                  Firmato da <strong>{quote.signed_by_name}</strong>
+                </p>
+                <p className="text-gray-400 text-xs">{fmt(quote.signed_at)}</p>
+              </div>
+            </div>
+          )}
+
+          {quote.refused_at && (
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <XCircle className="w-3 h-3 text-red-500" />
+              </div>
+              <div>
+                <p className="font-medium text-red-600">Offerta rifiutata</p>
+                <p className="text-gray-400 text-xs">{fmt(quote.refused_at)}</p>
+                {quote.refused_reason && (
+                  <p className="text-gray-500 text-xs mt-0.5 italic">"{quote.refused_reason}"</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Pending: inviato ma non ancora azione */}
+          {quote.sent_at && !quote.signed_at && !quote.refused_at && !isExpired && (
+            <div className="flex items-start gap-3">
+              <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Clock className="w-3 h-3 text-amber-500" />
+              </div>
+              <div>
+                <p className="font-medium text-amber-700">In attesa di firma</p>
+                {quote.expires_at && (
+                  <p className="text-gray-400 text-xs">Scade il {fmt(quote.expires_at)}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Link diretto (copiabile) */}
+        {quote.signature_link && !quote.signed_at && !quote.refused_at && !isExpired && (
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-xs text-gray-400 mb-1">Link firma cliente</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-gray-500 truncate flex-1 font-mono">
+                {quote.signature_link}
+              </p>
+              <button
+                onClick={() => navigator.clipboard.writeText(quote.signature_link!)}
+                className="text-xs text-blue-600 hover:text-blue-800 flex-shrink-0"
+              >
+                Copia
+              </button>
+            </div>
+          </div>
+        )}
+
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+─────────────────────────────────────────────────────────────────────
+PARTE D — Integrazione in QuoteDetail.tsx
+─────────────────────────────────────────────────────────────────────
+
+Nel file QuoteDetail.tsx esistente aggiungi:
+
+1. IMPORT nuovi:
+```tsx
+import { Send } from "lucide-react";
+import { SendSignatureDialog }       from "@/components/marketing/preventivi/SendSignatureDialog";
+import { QuoteSignatureStatusCard }  from "@/components/marketing/preventivi/QuoteSignatureStatusCard";
+import { useSignatureActions }       from "@/hooks/useSignatureActions";
+```
+
+2. HOOK nel body del componente:
+```tsx
+const [sigDialogOpen,  setSigDialogOpen]  = useState(false);
+const [signatureLink,  setSignatureLink]  = useState<string | undefined>();
+const { sendForSignature } = useSignatureActions(company?.id ?? "");
+```
+
+3. BOTTONE nella barra azioni header (accanto a "Genera PDF"):
+```tsx
+{/* Mostra solo se lo stato è 'bozza' o 'inviata' (reinvio) */}
+{(quote.status === "bozza" || quote.status === "inviata") && (
+  <Button
+    onClick={() => setSigDialogOpen(true)}
+    className="bg-blue-900 hover:bg-blue-800 text-white"
+    size="sm"
+  >
+    <Send className="w-4 h-4 mr-2" />
+    Invia per Firma
+  </Button>
+)}
+```
+
+4. CARD STATUS dopo la card principale del preventivo:
+```tsx
+<QuoteSignatureStatusCard quote={quote} />
+```
+
+5. DIALOG alla fine del return (prima di </div> finale):
+```tsx
+<SendSignatureDialog
+  open={sigDialogOpen}
+  onClose={() => { setSigDialogOpen(false); setSignatureLink(undefined); }}
+  quoteId={quote.id}
+  companyId={company?.id ?? ""}
+  defaultEmail={quote.client_email ?? ""}
+  defaultName={quote.client_name ?? ""}
+  signatureLink={signatureLink}
+  isSending={sendForSignature.isPending}
+  onSend={async (params) => {
+    const result = await sendForSignature.mutateAsync({
+      quoteId:        quote.id,
+      recipientEmail: params.recipientEmail,
+      recipientName:  params.recipientName,
+      customMessage:  params.customMessage,
+      expiresDays:    params.expiresDays,
+    });
+    if (result?.signature_link) setSignatureLink(result.signature_link);
+  }}
+/>
+```
+
+════════════════════════════════════════════════════════════════════════════════
+
+
+================================================================================
+NOTE IMPORTANTI PER L'IMPLEMENTAZIONE
+================================================================================
+
+1. ORDINE DI ESECUZIONE (obbligatorio):
+   FD1 → FD2 → FD3 → FD4 → FD5
+   Non saltare passi. Le edge functions dipendono dal DB (FD1).
+
+2. VARIABILI D'AMBIENTE necessarie in Supabase → Edge Functions → Secrets:
+   - RESEND_API_KEY      → per invio email (obbligatorio per FD2)
+   - SITE_URL            → es. https://app.ediliziacloud.it (obbligatorio per FD2)
+   - SUPABASE_URL        → auto-disponibile nelle edge functions
+   - SUPABASE_SERVICE_ROLE_KEY → auto-disponibile nelle edge functions
+
+3. VARIABILI VITE nel frontend (file .env.local):
+   - VITE_SUPABASE_URL
+   - VITE_SUPABASE_ANON_KEY
+   Queste vengono usate in QuoteSignPage.tsx per chiamare le edge functions.
+
+4. ROUTE PUBBLICA: la route /offerta/:token DEVE stare fuori
+   dall'AuthGuard/ProtectedRoute in App.tsx.
+   Aggiungila prima del blocco delle route protette.
+
+5. FIRMA ELETTRONICA SEMPLICE (art. 3 Reg. EU 910/2014):
+   Il sistema registra: nome firmatario + IP + data/ora UTC.
+   Sufficiente per la validità legale in Italia come firma elettronica semplice.
+   Non serve firma grafica/canvas per questo tipo di firma.
+
+6. STATES BADGE nella lista preventivi:
+   - bozza    → Badge grigio
+   - inviata  → Badge blu (in attesa di firma)
+   - accettata → Badge verde
+   - rifiutata → Badge rosso
+   - scaduta  → Badge ambra
+
+7. SCADENZA AUTOMATICA: aggiorna anche il cron job check-lifecycle-events
+   per marcare come 'scaduta' le quotes con valid_until < today AND status='inviata'.
+
+================================================================================

@@ -1,0 +1,1143 @@
+╔══════════════════════════════════════════════════════════════════╗
+║     FINANZA COMPLETA: SCADENZARIO + PRIMA NOTA + FORNITORI/OdA  ║
+║         3 moduli — prompt sequenziali per Lovable.dev           ║
+╚══════════════════════════════════════════════════════════════════╝
+
+STATO ATTUALE DEL PROGETTO (non ricreare ciò che esiste già):
+  ✅ Tabella `suppliers` con anagrafica completa (P.IVA, email, telefono, metodo pagamento)
+  ✅ `order_items` con campi deposit_amount/paid, balance_amount/paid, balance_expected_date
+  ✅ SupplierPaymentsCard raggruppa pagamenti per fornitore nell'OrderDetail
+  ✅ SupplierSelect permette di associare fornitore a ogni articolo dell'ordine
+  ✅ SuppliersConfig in Impostazioni gestisce l'anagrafica fornitori
+  ✅ CashFlowForecast ha già tab entrate/uscite/previsionale/tesoreria/margini
+  ✅ CompanyCosts gestisce costi fissi e variabili dell'azienda
+
+COSA MANCA (da costruire con questi prompt):
+  ❌ Scadenzario: vista unificata di tutte le scadenze (incassi + pagamenti fornitori + costi)
+  ❌ Prima Nota: registro cronologico di entrate/uscite effettive con saldo corrente
+  ❌ Pagina Fornitori dedicata: non solo in Impostazioni ma come modulo operativo completo
+  ❌ Ordini di Acquisto (OdA): documento formale emesso al fornitore con stato e tracking
+
+POSIZIONAMENTO SIDEBAR (Gestione Interna → sotto-categoria "Finanza"):
+  Finanza
+    ├── Costi          (già esiste → CompanyCosts)
+    ├── Previsionale   (già esiste → CashFlowForecast)
+    ├── Scadenzario    ← NUOVO
+    ├── Prima Nota     ← NUOVO
+    └── Fornitori      ← NUOVO (sostituisce il solo link in Impostazioni)
+
+
+══════════════════════════════════════════════════════════════════════
+PROMPT 1 di 6 — DATABASE: SCADENZARIO + PRIMA NOTA
+══════════════════════════════════════════════════════════════════════
+
+Crea questa migrazione Supabase per Scadenzario e Prima Nota.
+NON toccare le tabelle esistenti `orders`, `order_items`, `suppliers`, `company_costs`.
+Usa quelle tramite JOIN/VIEW nelle query.
+
+```sql
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 1: prima_nota_entries
+-- Registro cronologico di tutte le movimentazioni finanziarie effettive.
+-- È il "libro mastro semplificato": ogni riga è una transazione reale
+-- (non previsionale). Il saldo si calcola come running total.
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE prima_nota_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Tipo e direzione
+  direction TEXT NOT NULL CHECK (direction IN ('entrata', 'uscita')),
+  category TEXT NOT NULL,
+  -- Categorie entrata: 'incasso_ordine' | 'acconto_ordine' | 'altro_entrata'
+  -- Categorie uscita:  'pagamento_fornitore' | 'costo_aziendale' | 'stipendio' |
+  --                    'provvigione' | 'tasse' | 'altro_uscita'
+
+  description TEXT NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+  entry_date DATE NOT NULL,
+
+  -- Collegamento opzionale a entità esistenti
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  order_item_id UUID REFERENCES order_items(id) ON DELETE SET NULL,
+  supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+  company_cost_id UUID REFERENCES company_costs(id) ON DELETE SET NULL,
+
+  -- Metodo di pagamento
+  payment_method TEXT,
+  -- 'bonifico' | 'contanti' | 'carta' | 'riba' | 'assegno' | 'altro'
+
+  -- Conto bancario / cassa (facoltativo, testo libero per ora)
+  account_label TEXT,  -- es. "Conto BancaXYZ", "Cassa"
+
+  -- Note libere
+  notes TEXT,
+
+  -- Allegato (ricevuta, estratto conto)
+  attachment_url TEXT,
+
+  -- Creato manualmente o generato automaticamente
+  is_auto_generated BOOLEAN NOT NULL DEFAULT false,
+  auto_source TEXT,  -- 'order_payment' | 'supplier_payment' | 'company_cost'
+
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 2: scadenze
+-- Scadenze finanziarie future pianificate (non ancora pagate/incassate).
+-- Aggrega in modo unificato: rate da incassare dai clienti +
+-- pagamenti da fare ai fornitori + costi aziendali ricorrenti.
+-- Quando una scadenza viene saldata → si crea una prima_nota_entry.
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE scadenze (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Tipo di scadenza
+  type TEXT NOT NULL CHECK (type IN (
+    'incasso_cliente',     -- rata da ricevere da un cliente
+    'pagamento_fornitore', -- rata da pagare a un fornitore
+    'costo_aziendale',     -- costo fisso/variabile aziendale
+    'scadenza_fiscale',    -- IVA, F24, dichiarazione ecc.
+    'altro'
+  )),
+  direction TEXT GENERATED ALWAYS AS (
+    CASE
+      WHEN type IN ('incasso_cliente') THEN 'entrata'
+      ELSE 'uscita'
+    END
+  ) STORED,
+
+  description TEXT NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+  due_date DATE NOT NULL,
+
+  -- Stato
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'paid', 'overdue', 'cancelled')),
+  paid_date DATE,
+  paid_amount NUMERIC(12, 2),  -- può differire da amount (pagamento parziale)
+
+  -- Collegamento a entità esistenti
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  order_item_id UUID REFERENCES order_items(id) ON DELETE SET NULL,
+  supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+  company_cost_id UUID REFERENCES company_costs(id) ON DELETE SET NULL,
+  prima_nota_entry_id UUID REFERENCES prima_nota_entries(id) ON DELETE SET NULL,
+
+  -- Metadati
+  notes TEXT,
+  is_auto_generated BOOLEAN NOT NULL DEFAULT false,
+  auto_source TEXT,
+
+  -- Alert: giorni di preavviso per notifica
+  alert_days_before INT DEFAULT 7,
+  alert_sent_at TIMESTAMPTZ,
+
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- INDICI
+-- ════════════════════════════════════════════════════════════════
+CREATE INDEX idx_prima_nota_company ON prima_nota_entries(company_id);
+CREATE INDEX idx_prima_nota_date ON prima_nota_entries(company_id, entry_date DESC);
+CREATE INDEX idx_prima_nota_direction ON prima_nota_entries(company_id, direction);
+CREATE INDEX idx_prima_nota_order ON prima_nota_entries(order_id) WHERE order_id IS NOT NULL;
+
+CREATE INDEX idx_scadenze_company ON scadenze(company_id);
+CREATE INDEX idx_scadenze_due_date ON scadenze(company_id, due_date);
+CREATE INDEX idx_scadenze_status ON scadenze(company_id, status);
+CREATE INDEX idx_scadenze_type ON scadenze(company_id, type);
+
+-- ════════════════════════════════════════════════════════════════
+-- RLS
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE prima_nota_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scadenze ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "prima_nota_company_isolation" ON prima_nota_entries
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "scadenze_company_isolation" ON scadenze
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: mark_scadenza_paid(scadenza_id, paid_date, paid_amount, payment_method, notes)
+-- Segna una scadenza come pagata e crea automaticamente la prima nota entry.
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION mark_scadenza_paid(
+  p_scadenza_id UUID,
+  p_paid_date DATE DEFAULT CURRENT_DATE,
+  p_paid_amount NUMERIC DEFAULT NULL,
+  p_payment_method TEXT DEFAULT 'bonifico',
+  p_notes TEXT DEFAULT NULL,
+  p_account_label TEXT DEFAULT NULL
+)
+RETURNS UUID LANGUAGE plpgsql AS $$
+DECLARE
+  v_sc scadenze%ROWTYPE;
+  v_entry_id UUID;
+  v_amount NUMERIC;
+BEGIN
+  SELECT * INTO v_sc FROM scadenze WHERE id = p_scadenza_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Scadenza non trovata'; END IF;
+
+  v_amount := COALESCE(p_paid_amount, v_sc.amount);
+
+  -- Crea prima nota entry
+  INSERT INTO prima_nota_entries (
+    company_id, direction, category, description, amount, entry_date,
+    order_id, order_item_id, supplier_id, company_cost_id,
+    payment_method, account_label, notes, is_auto_generated, auto_source
+  ) VALUES (
+    v_sc.company_id,
+    v_sc.direction,
+    CASE v_sc.type
+      WHEN 'incasso_cliente'     THEN 'incasso_ordine'
+      WHEN 'pagamento_fornitore' THEN 'pagamento_fornitore'
+      WHEN 'costo_aziendale'     THEN 'costo_aziendale'
+      WHEN 'scadenza_fiscale'    THEN 'tasse'
+      ELSE 'altro_' || v_sc.direction
+    END,
+    v_sc.description,
+    v_amount,
+    p_paid_date,
+    v_sc.order_id,
+    v_sc.order_item_id,
+    v_sc.supplier_id,
+    v_sc.company_cost_id,
+    p_payment_method,
+    p_account_label,
+    p_notes,
+    true,
+    'scadenza_paid'
+  ) RETURNING id INTO v_entry_id;
+
+  -- Aggiorna scadenza
+  UPDATE scadenze SET
+    status = 'paid',
+    paid_date = p_paid_date,
+    paid_amount = v_amount,
+    prima_nota_entry_id = v_entry_id,
+    updated_at = now()
+  WHERE id = p_scadenza_id;
+
+  RETURN v_entry_id;
+END;
+$$;
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: get_prima_nota_saldo(company_id, as_of_date)
+-- Calcola entrate totali, uscite totali e saldo netto fino a una data.
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION get_prima_nota_saldo(
+  p_company_id UUID,
+  p_as_of DATE DEFAULT CURRENT_DATE,
+  p_from_date DATE DEFAULT NULL
+)
+RETURNS TABLE (
+  total_entrate NUMERIC,
+  total_uscite NUMERIC,
+  saldo NUMERIC,
+  entry_count BIGINT
+) LANGUAGE sql STABLE AS $$
+  SELECT
+    COALESCE(SUM(CASE WHEN direction = 'entrata' THEN amount ELSE 0 END), 0) AS total_entrate,
+    COALESCE(SUM(CASE WHEN direction = 'uscita'  THEN amount ELSE 0 END), 0) AS total_uscite,
+    COALESCE(SUM(CASE WHEN direction = 'entrata' THEN amount ELSE -amount END), 0) AS saldo,
+    COUNT(*) AS entry_count
+  FROM prima_nota_entries
+  WHERE
+    company_id = p_company_id
+    AND entry_date <= p_as_of
+    AND (p_from_date IS NULL OR entry_date >= p_from_date);
+$$;
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: get_scadenzario_summary(company_id, days_ahead)
+-- Per il Cruscotto: prossime scadenze con urgency grouping.
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION get_scadenzario_summary(
+  p_company_id UUID,
+  p_days_ahead INT DEFAULT 30
+)
+RETURNS TABLE (
+  scadute_count BIGINT,
+  scadute_amount NUMERIC,
+  questa_settimana_count BIGINT,
+  questa_settimana_amount NUMERIC,
+  questo_mese_count BIGINT,
+  questo_mese_amount NUMERIC,
+  entrate_previste NUMERIC,
+  uscite_previste NUMERIC
+) LANGUAGE sql STABLE AS $$
+  SELECT
+    COUNT(*) FILTER (WHERE status = 'pending' AND due_date < CURRENT_DATE) AS scadute_count,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'pending' AND due_date < CURRENT_DATE), 0) AS scadute_amount,
+    COUNT(*) FILTER (WHERE status = 'pending' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7) AS questa_settimana_count,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'pending' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7), 0) AS questa_settimana_amount,
+    COUNT(*) FILTER (WHERE status = 'pending' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + p_days_ahead) AS questo_mese_count,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'pending' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + p_days_ahead), 0) AS questo_mese_amount,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'pending' AND direction = 'entrata' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + p_days_ahead), 0) AS entrate_previste,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'pending' AND direction = 'uscita' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + p_days_ahead), 0) AS uscite_previste
+  FROM scadenze
+  WHERE company_id = p_company_id;
+$$;
+
+-- ════════════════════════════════════════════════════════════════
+-- TRIGGER: auto-aggiorna status a 'overdue' su lettura (via funzione)
+-- Non serve un trigger continuo; invece usa un job cron o la funzione
+-- check_overdue_scadenze() chiamata dalla edge function check-due-dates
+-- (già esistente nel progetto).
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION check_overdue_scadenze(p_company_id UUID DEFAULT NULL)
+RETURNS INT LANGUAGE plpgsql AS $$
+DECLARE
+  updated_count INT;
+BEGIN
+  UPDATE scadenze
+  SET status = 'overdue', updated_at = now()
+  WHERE
+    status = 'pending'
+    AND due_date < CURRENT_DATE
+    AND (p_company_id IS NULL OR company_id = p_company_id);
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  RETURN updated_count;
+END;
+$$;
+```
+
+Applica la migrazione con nome: `add_scadenzario_prima_nota`
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 2 di 6 — DATABASE: FORNITORI E ORDINI DI ACQUISTO (OdA)
+════════════════════════════════════════════════════════════════════
+
+La tabella `suppliers` esiste già con questi campi:
+`id, company_id, name, vat_rate, is_foreign, address, city, province, postal_code,
+country, vat_number, fiscal_code, email, phone, website, product_category, notes,
+payment_method, created_at`
+
+Aggiungi solo i campi mancanti alla tabella `suppliers` e crea la nuova tabella
+`purchase_orders` (Ordini di Acquisto).
+
+```sql
+-- ════════════════════════════════════════════════════════════════
+-- ALTER TABLE suppliers: aggiungi campi operativi mancanti
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE suppliers
+  ADD COLUMN IF NOT EXISTS lead_time_days INT,          -- giorni medi di consegna
+  ADD COLUMN IF NOT EXISTS min_order_amount NUMERIC(12,2), -- ordine minimo
+  ADD COLUMN IF NOT EXISTS credit_limit NUMERIC(12,2),  -- fido concesso
+  ADD COLUMN IF NOT EXISTS rating INT CHECK (rating BETWEEN 1 AND 5), -- valutazione 1-5 stelle
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS iban TEXT,
+  ADD COLUMN IF NOT EXISTS bank_name TEXT;
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA: purchase_orders (Ordini di Acquisto)
+-- Un OdA è il documento formale inviato a un fornitore per acquistare
+-- materiali/servizi. Può nascere:
+--   a) da un ordine cliente (collegato via order_id)
+--   b) autonomamente (riordino magazzino, acquisto attrezzature, ecc.)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE purchase_orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Numero OdA auto-generato: ODA-2025-0001
+  oda_number TEXT,
+
+  -- Fornitore (obbligatorio)
+  supplier_id UUID NOT NULL REFERENCES suppliers(id) ON DELETE RESTRICT,
+
+  -- Collegamento opzionale a ordine cliente
+  order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+
+  -- Stato workflow
+  status TEXT NOT NULL DEFAULT 'bozza'
+    CHECK (status IN (
+      'bozza',       -- creato ma non inviato
+      'inviato',     -- inviato al fornitore
+      'confermato',  -- fornitore ha confermato
+      'parziale',    -- ricevuto parzialmente
+      'ricevuto',    -- tutto ricevuto
+      'annullato'    -- annullato
+    )),
+
+  -- Date chiave
+  issue_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  expected_delivery_date DATE,
+  actual_delivery_date DATE,
+
+  -- Totali (calcolati da trigger)
+  subtotal NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  vat_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+
+  -- Condizioni di pagamento
+  payment_method TEXT,
+  payment_terms TEXT,  -- es. "60 gg data fattura"
+
+  -- Note e riferimenti
+  notes TEXT,
+  supplier_reference TEXT,  -- codice ordine del fornitore
+  delivery_address TEXT,
+
+  -- Chi ha creato/modificato
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  sent_at TIMESTAMPTZ,
+  confirmed_at TIMESTAMPTZ,
+
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA: purchase_order_items (Righe dell'OdA)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE purchase_order_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  purchase_order_id UUID NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Collegamento opzionale all'articolo dell'ordine cliente
+  order_item_id UUID REFERENCES order_items(id) ON DELETE SET NULL,
+
+  -- Descrizione
+  name TEXT NOT NULL,
+  description TEXT,
+  quantity NUMERIC(10, 3) NOT NULL DEFAULT 1,
+  unit TEXT DEFAULT 'pz',  -- 'pz' | 'm2' | 'ml' | 'kg' | 'h'
+  unit_price NUMERIC(12, 4) NOT NULL DEFAULT 0,
+  vat_rate NUMERIC(5, 2) NOT NULL DEFAULT 22,
+  discount_percent NUMERIC(5, 2) DEFAULT 0,
+
+  -- Calcolati
+  line_total NUMERIC(12, 2) GENERATED ALWAYS AS (
+    ROUND(quantity * unit_price * (1 - COALESCE(discount_percent, 0) / 100), 2)
+  ) STORED,
+  vat_line NUMERIC(12, 2) GENERATED ALWAYS AS (
+    ROUND(quantity * unit_price * (1 - COALESCE(discount_percent, 0) / 100) * vat_rate / 100, 2)
+  ) STORED,
+
+  -- Ricezione parziale
+  quantity_received NUMERIC(10, 3) DEFAULT 0,
+  received_at TIMESTAMPTZ,
+
+  position INT NOT NULL DEFAULT 0,
+  notes TEXT,
+
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TRIGGER: ricalcola totali su purchase_orders
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION recalculate_purchase_order_totals()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE purchase_orders
+  SET
+    subtotal = (
+      SELECT COALESCE(SUM(line_total), 0) FROM purchase_order_items
+      WHERE purchase_order_id = COALESCE(NEW.purchase_order_id, OLD.purchase_order_id)
+    ),
+    vat_amount = (
+      SELECT COALESCE(SUM(vat_line), 0) FROM purchase_order_items
+      WHERE purchase_order_id = COALESCE(NEW.purchase_order_id, OLD.purchase_order_id)
+    ),
+    total_amount = (
+      SELECT COALESCE(SUM(line_total + vat_line), 0) FROM purchase_order_items
+      WHERE purchase_order_id = COALESCE(NEW.purchase_order_id, OLD.purchase_order_id)
+    ),
+    updated_at = now()
+  WHERE id = COALESCE(NEW.purchase_order_id, OLD.purchase_order_id);
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER trg_purchase_order_totals
+AFTER INSERT OR UPDATE OR DELETE ON purchase_order_items
+FOR EACH ROW EXECUTE FUNCTION recalculate_purchase_order_totals();
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: generate_oda_number(company_id)
+-- Genera il prossimo numero OdA: ODA-YYYY-NNNN
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION generate_oda_number(p_company_id UUID)
+RETURNS TEXT LANGUAGE plpgsql AS $$
+DECLARE
+  v_year TEXT := to_char(CURRENT_DATE, 'YYYY');
+  v_count INT;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext(p_company_id::text || v_year || '_oda'));
+  SELECT COUNT(*) + 1 INTO v_count
+  FROM purchase_orders
+  WHERE company_id = p_company_id
+    AND to_char(issue_date, 'YYYY') = v_year;
+  RETURN 'ODA-' || v_year || '-' || lpad(v_count::text, 4, '0');
+END;
+$$;
+
+-- ════════════════════════════════════════════════════════════════
+-- TRIGGER: assegna oda_number automaticamente all'INSERT
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION trg_assign_oda_number()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.oda_number IS NULL THEN
+    NEW.oda_number := generate_oda_number(NEW.company_id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER before_insert_purchase_order
+BEFORE INSERT ON purchase_orders
+FOR EACH ROW EXECUTE FUNCTION trg_assign_oda_number();
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: create_oda_from_order(order_id, supplier_id, item_ids[])
+-- Crea un OdA a partire da articoli di un ordine cliente.
+-- Gli articoli selezionati devono avere status 'da_ordinare'.
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION create_oda_from_order(
+  p_order_id UUID,
+  p_supplier_id UUID,
+  p_item_ids UUID[],
+  p_expected_delivery_date DATE DEFAULT NULL,
+  p_notes TEXT DEFAULT NULL
+)
+RETURNS UUID LANGUAGE plpgsql AS $$
+DECLARE
+  v_company_id UUID;
+  v_oda_id UUID;
+  v_item order_items%ROWTYPE;
+  v_supplier suppliers%ROWTYPE;
+BEGIN
+  -- Recupera company_id dall'ordine
+  SELECT company_id INTO v_company_id FROM orders WHERE id = p_order_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Ordine non trovato'; END IF;
+
+  -- Recupera fornitore
+  SELECT * INTO v_supplier FROM suppliers WHERE id = p_supplier_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Fornitore non trovato'; END IF;
+
+  -- Crea OdA
+  INSERT INTO purchase_orders (
+    company_id, supplier_id, order_id,
+    status, issue_date, expected_delivery_date,
+    payment_method, payment_terms, notes
+  ) VALUES (
+    v_company_id, p_supplier_id, p_order_id,
+    'bozza', CURRENT_DATE, p_expected_delivery_date,
+    v_supplier.payment_method, NULL, p_notes
+  ) RETURNING id INTO v_oda_id;
+
+  -- Aggiungi righe dagli order_items selezionati
+  FOR v_item IN
+    SELECT * FROM order_items
+    WHERE id = ANY(p_item_ids) AND order_id = p_order_id
+  LOOP
+    INSERT INTO purchase_order_items (
+      purchase_order_id, company_id, order_item_id,
+      name, description, quantity, unit_price, vat_rate, position
+    ) VALUES (
+      v_oda_id, v_company_id, v_item.id,
+      v_item.name, v_item.description, v_item.quantity,
+      COALESCE(v_item.purchase_price, 0), COALESCE(v_item.vat_rate, 22),
+      v_item.position
+    );
+
+    -- Aggiorna status articolo a 'ordinato'
+    UPDATE order_items SET status = 'ordinato' WHERE id = v_item.id;
+  END LOOP;
+
+  RETURN v_oda_id;
+END;
+$$;
+
+-- ════════════════════════════════════════════════════════════════
+-- RLS per le nuove tabelle
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE purchase_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE purchase_order_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "purchase_orders_company_isolation" ON purchase_orders
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+CREATE POLICY "purchase_order_items_company_isolation" ON purchase_order_items
+  USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+```
+
+Applica la migrazione con nome: `add_purchase_orders_enhance_suppliers`
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 3 di 6 — UI: SCADENZARIO (pagina dedicata)
+════════════════════════════════════════════════════════════════════
+
+Crea la pagina `src/pages/azienda/Scadenzario.tsx` e i suoi componenti.
+
+### Struttura della pagina
+
+La pagina ha tre sezioni principali accessibili da tab:
+1. **Tutte** (default) — lista unificata di tutte le scadenze
+2. **Da Incassare** — solo direction = 'entrata' (verde)
+3. **Da Pagare** — solo direction = 'uscita' (rosso/arancio)
+
+### KPI Cards in cima (4 card):
+
+| Card | Valore | Colore |
+|------|--------|--------|
+| Scadute | sum(amount) WHERE status='overdue' | rosso |
+| Questa settimana | sum WHERE due_date ≤ +7gg | arancio |
+| Prossimi 30 giorni | sum WHERE due_date ≤ +30gg | giallo |
+| Saldo netto atteso | entrate_previste - uscite_previste | blu/verde |
+
+### Lista scadenze
+
+Colonne tabella:
+- **Scadenza** (data con badge urgency: SCADUTA / OGGI / X giorni)
+- **Tipo** (badge colorato: Incasso Cliente / Pagamento Fornitore / Costo / Fiscale)
+- **Descrizione** (con link cliccabile all'ordine o fornitore se collegato)
+- **Importo** (verde se entrata, rosso se uscita)
+- **Stato** (Pending / Pagato / Scaduto / Annullato)
+- **Azioni** (pulsante "Segna come Pagata" per pending + menu ⋮ con Modifica / Elimina)
+
+### Filtri:
+
+- DateRange picker (questo mese / prossimi 30gg / prossimi 90gg / personalizzato)
+- Select tipo (Tutti / Da Incassare / Da Pagare)
+- Select stato (Tutti / In Attesa / Scadute / Pagate)
+- Input ricerca testo libero
+
+### Dialog "Segna come Pagata"
+
+Quando l'utente clicca "Segna come Pagata" su una scadenza pending:
+```tsx
+// Dialog con:
+// - Campo data pagamento (default: oggi)
+// - Campo importo effettivo pagato (default: importo scadenza)
+// - Select metodo pagamento (Bonifico / Contanti / Carta / RiBa / Assegno / Altro)
+// - Input conto/cassa (testo libero, es. "Conto BancaXYZ")
+// - Textarea note opzionale
+// - Switch "Crea voce Prima Nota automaticamente" (default: ON)
+// Al submit chiama: supabase.rpc('mark_scadenza_paid', { ... })
+```
+
+### Dialog "Nuova Scadenza Manuale"
+
+Pulsante "+ Nuova Scadenza" in alto a destra:
+```tsx
+// Form con:
+// - Select tipo (incasso_cliente / pagamento_fornitore / costo_aziendale / scadenza_fiscale / altro)
+// - Input descrizione
+// - Input importo
+// - DatePicker data scadenza
+// - Select collega a ordine (opzionale, combobox ricerca ordini)
+// - Select collega a fornitore (opzionale)
+// - Input alert giorni prima (default 7)
+// - Textarea note
+```
+
+### Hook: src/hooks/useScadenzario.ts
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { useCompany } from "@/hooks/useCompany";
+import { addDays, startOfDay } from "date-fns";
+
+export function useScadenzario(filters?: {
+  dateFrom?: Date;
+  dateTo?: Date;
+  type?: string;
+  status?: string;
+  search?: string;
+}) {
+  const { company } = useCompany();
+
+  const { data: scadenze = [], isLoading } = useQuery({
+    queryKey: ["scadenze", company?.id, filters],
+    queryFn: async () => {
+      let query = supabase
+        .from("scadenze")
+        .select(`
+          *,
+          orders(id, order_code, customer_name),
+          suppliers(id, name),
+          prima_nota_entries(id, entry_date)
+        `)
+        .eq("company_id", company!.id)
+        .order("due_date", { ascending: true });
+
+      if (filters?.dateFrom) query = query.gte("due_date", filters.dateFrom.toISOString().split("T")[0]);
+      if (filters?.dateTo) query = query.lte("due_date", filters.dateTo.toISOString().split("T")[0]);
+      if (filters?.type && filters.type !== "all") query = query.eq("type", filters.type);
+      if (filters?.status && filters.status !== "all") query = query.eq("status", filters.status);
+      if (filters?.search) query = query.ilike("description", `%${filters.search}%`);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!company?.id,
+  });
+
+  const { data: summary } = useQuery({
+    queryKey: ["scadenzario-summary", company?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_scadenzario_summary", {
+        p_company_id: company!.id,
+        p_days_ahead: 30,
+      });
+      if (error) throw error;
+      return data?.[0] || null;
+    },
+    enabled: !!company?.id,
+  });
+
+  const markPaidMutation = useMutation({
+    mutationFn: async (params: {
+      scadenzaId: string;
+      paidDate: string;
+      paidAmount: number;
+      paymentMethod: string;
+      notes?: string;
+      accountLabel?: string;
+    }) => {
+      const { data, error } = await supabase.rpc("mark_scadenza_paid", {
+        p_scadenza_id: params.scadenzaId,
+        p_paid_date: params.paidDate,
+        p_paid_amount: params.paidAmount,
+        p_payment_method: params.paymentMethod,
+        p_notes: params.notes || null,
+        p_account_label: params.accountLabel || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scadenze"] });
+      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
+      queryClient.invalidateQueries({ queryKey: ["scadenzario-summary"] });
+    },
+  });
+
+  const queryClient = useQueryClient();
+  return { scadenze, isLoading, summary, markPaidMutation };
+}
+```
+
+### Integrazione con CashFlowForecast esistente
+
+Nel file `src/pages/azienda/CashFlowForecast.tsx`, aggiungi un link/pulsante nella tab
+"Entrate attese" e "Pagamenti fornitori" che porta allo Scadenzario:
+```tsx
+<Button variant="outline" size="sm" asChild>
+  <Link to="/azienda/scadenzario">
+    Vai allo Scadenzario completo →
+  </Link>
+</Button>
+```
+
+### Integrazione con Cruscotto
+
+Nel componente `CruscottoAlerts.tsx`, aggiungi una sezione che mostra le scadenze urgenti
+(scadute + prossimi 7gg) usando la funzione `get_scadenzario_summary`.
+
+Aggiungi la route in `App.tsx`:
+```tsx
+<Route path="/azienda/scadenzario" element={<Scadenzario />} />
+```
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 4 di 6 — UI: PRIMA NOTA
+════════════════════════════════════════════════════════════════════
+
+Crea la pagina `src/pages/azienda/PrimaNota.tsx` e i suoi componenti.
+
+### Layout pagina
+
+**Header con saldo corrente**: box grande in cima che mostra:
+- Totale Entrate (verde con icona TrendingUp)
+- Totale Uscite (rosso con icona TrendingDown)
+- **Saldo Netto** (grande, verde se positivo / rosso se negativo)
+- DateRange selezionato (questo mese di default)
+
+**Grafici**: mini bar chart mensile (recharts) che mostra entrate vs uscite per mese
+negli ultimi 6 mesi.
+
+**Tabella movimenti** con colonne:
+- Data
+- Categoria (badge colorato)
+- Descrizione (con link all'ordine se collegato)
+- Metodo pagamento
+- Importo (verde + se entrata, rosso - se uscita)
+- **Saldo progressivo** (running balance, calcolato lato frontend)
+- Azioni (Modifica / Elimina)
+
+**Saldo progressivo** — calcolo lato frontend:
+```typescript
+// Ordina per entry_date ASC
+// Calcola running balance:
+let runningBalance = 0;
+const entriesWithBalance = sortedEntries.map(entry => {
+  runningBalance += entry.direction === 'entrata' ? entry.amount : -entry.amount;
+  return { ...entry, running_balance: runningBalance };
+});
+```
+
+### Filtri:
+- DateRange (questo mese / scorso mese / questo anno / personalizzato)
+- Select direction (Tutte / Entrate / Uscite)
+- Select categoria
+- Input ricerca descrizione
+- Export CSV
+
+### Dialog "Nuova Registrazione Manuale"
+
+Pulsante "+ Nuova Registrazione":
+```tsx
+// Form con:
+// - Select direction (Entrata / Uscita) — radio button visivo con colori
+// - Select categoria (dipende da direction)
+// - DatePicker data (default oggi)
+// - Input importo
+// - Input descrizione
+// - Select metodo pagamento
+// - Input conto/cassa
+// - Combobox collega a ordine (opzionale)
+// - Combobox collega a fornitore (opzionale)
+// - Textarea note
+// - Upload allegato (ricevuta) → Supabase Storage bucket 'prima-nota-attachments'
+```
+
+### Hook: src/hooks/usePrimaNota.ts
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { useCompany } from "@/hooks/useCompany";
+import { startOfMonth, endOfMonth } from "date-fns";
+
+export function usePrimaNota(filters?: {
+  dateFrom?: Date;
+  dateTo?: Date;
+  direction?: string;
+  category?: string;
+  search?: string;
+}) {
+  const { company } = useCompany();
+  const queryClient = useQueryClient();
+
+  const { data: entries = [], isLoading } = useQuery({
+    queryKey: ["prima-nota", company?.id, filters],
+    queryFn: async () => {
+      let query = supabase
+        .from("prima_nota_entries")
+        .select(`
+          *,
+          orders(id, order_code, customer_name),
+          suppliers(id, name)
+        `)
+        .eq("company_id", company!.id)
+        .order("entry_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      const from = filters?.dateFrom || startOfMonth(new Date());
+      const to = filters?.dateTo || endOfMonth(new Date());
+      query = query.gte("entry_date", from.toISOString().split("T")[0]);
+      query = query.lte("entry_date", to.toISOString().split("T")[0]);
+
+      if (filters?.direction && filters.direction !== "all")
+        query = query.eq("direction", filters.direction);
+      if (filters?.category && filters.category !== "all")
+        query = query.eq("category", filters.category);
+      if (filters?.search)
+        query = query.ilike("description", `%${filters.search}%`);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!company?.id,
+  });
+
+  const { data: saldo } = useQuery({
+    queryKey: ["prima-nota-saldo", company?.id, filters?.dateFrom, filters?.dateTo],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
+        p_company_id: company!.id,
+        p_as_of: (filters?.dateTo || endOfMonth(new Date())).toISOString().split("T")[0],
+        p_from_date: (filters?.dateFrom || startOfMonth(new Date())).toISOString().split("T")[0],
+      });
+      if (error) throw error;
+      return data?.[0] || { total_entrate: 0, total_uscite: 0, saldo: 0 };
+    },
+    enabled: !!company?.id,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (entry: Omit<typeof entries[0], "id" | "created_at" | "updated_at">) => {
+      const { data, error } = await supabase
+        .from("prima_nota_entries")
+        .insert({ ...entry, company_id: company!.id })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["prima-nota"] });
+      queryClient.invalidateQueries({ queryKey: ["prima-nota-saldo"] });
+    },
+  });
+
+  return { entries, isLoading, saldo, createMutation };
+}
+```
+
+Aggiungi la route in `App.tsx`:
+```tsx
+<Route path="/azienda/prima-nota" element={<PrimaNota />} />
+```
+
+### Integrazione con Scadenzario
+
+Quando una scadenza viene pagata (tramite `mark_scadenza_paid`), la voce di Prima Nota
+viene creata automaticamente dalla funzione SQL. La Prima Nota mostra automaticamente
+la voce con un badge "Auto" per distinguerla dalle registrazioni manuali.
+
+### Widget Cruscotto
+
+Nel `CruscottoAziendale.tsx`, nella sezione Finanza, aggiungi due valori:
+- Saldo Prima Nota corrente (questo mese)
+- Link "Vai alla Prima Nota →"
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 5 di 6 — UI: PAGINA FORNITORI (modulo operativo completo)
+════════════════════════════════════════════════════════════════════
+
+Crea la pagina `src/pages/azienda/Suppliers.tsx` che sostituisce il solo
+link in Impostazioni con un modulo operativo completo.
+La gestione anagrafica (CRUD fornitore) rimane in Impostazioni → Fornitori.
+Questa nuova pagina è la **vista operativa** del fornitore.
+
+### Layout a due colonne (lista + dettaglio)
+
+**Colonna sinistra — Lista Fornitori** (larghezza ~350px):
+- Search input per nome
+- Filtro per categoria prodotto
+- Filtro per stato (attivi / inattivi)
+- Cards o righe per ogni fornitore con:
+  - Nome + categoria
+  - Badge valutazione (⭐⭐⭐⭐⭐)
+  - Totale OdA aperti (importo totale)
+  - Totale da pagare (scadenze pending)
+  - Pulsante "+ OdA" rapido
+
+**Colonna destra — Dettaglio Fornitore**
+
+Quando si seleziona un fornitore, mostra 5 tab:
+
+**Tab 1: Anagrafica**
+- Tutti i campi del fornitore (read-only con pulsante Modifica → apre il dialog esistente)
+- Valutazione a stelle (editabile inline)
+- Lead time, ordine minimo, fido
+- IBAN e banca
+
+**Tab 2: Ordini di Acquisto (OdA)**
+- Lista OdA per quel fornitore con colonne: numero, data, ordine cliente collegato,
+  totale, stato (badge colorato), data consegna attesa
+- Pulsante "+ Nuovo OdA" che apre l'OdA editor (Prompt 6)
+- Clicca su una riga → apre il dettaglio OdA
+
+**Tab 3: Scadenze Pagamenti**
+- Filtro scadenze per questo fornitore dalla tabella `scadenze`
+- Stessa UX dello Scadenzario ma filtrato: mostra rate in scadenza, scadute, pagate
+- Pulsante "Segna come Pagata" su ogni scadenza pending
+
+**Tab 4: Prima Nota**
+- Tutte le voci di `prima_nota_entries` dove `supplier_id = fornitore.id`
+- Mostra totale pagato al fornitore nel periodo selezionato
+
+**Tab 5: Statistiche**
+- Totale acquistato da questo fornitore (questo anno / ultimi 12 mesi / tutto)
+- Numero OdA emessi
+- Ritardi medi di consegna (actual_delivery_date - expected_delivery_date)
+- Prodotti/servizi più acquistati (top 5 per importo)
+
+### Hook: src/hooks/useSuppliers.ts
+
+```typescript
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { useCompany } from "@/hooks/useCompany";
+
+export function useSuppliers(filters?: { search?: string; category?: string; isActive?: boolean }) {
+  const { company } = useCompany();
+
+  return useQuery({
+    queryKey: ["suppliers-full", company?.id, filters],
+    queryFn: async () => {
+      let query = supabase
+        .from("suppliers")
+        .select(`
+          *,
+          purchase_orders(
+            id, status, total_amount,
+            scadenze(id, status, amount, due_date)
+          )
+        `)
+        .eq("company_id", company!.id)
+        .order("name");
+
+      if (filters?.isActive !== undefined) query = query.eq("is_active", filters.isActive);
+      if (filters?.search) query = query.ilike("name", `%${filters.search}%`);
+      if (filters?.category) query = query.eq("product_category", filters.category);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!company?.id,
+  });
+}
+```
+
+Aggiungi la route in `App.tsx`:
+```tsx
+<Route path="/azienda/fornitori" element={<Suppliers />} />
+<Route path="/azienda/fornitori/:supplierId" element={<Suppliers />} />
+```
+
+**IMPORTANTE:** non eliminare la pagina `SettingsSuppliers.tsx` esistente in Impostazioni —
+continua ad esistere per il CRUD anagrafica. La nuova pagina Fornitori è la vista operativa.
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 6 di 6 — UI: EDITOR ORDINE DI ACQUISTO (OdA)
+════════════════════════════════════════════════════════════════════
+
+Crea la pagina/componente per la creazione e gestione degli Ordini di Acquisto.
+L'OdA può essere aperto in due modi:
+  a) Dal dettaglio di un ordine cliente → pulsante "Crea OdA" sugli articoli da_ordinare
+  b) Dalla tab OdA del fornitore → pulsante "+ Nuovo OdA"
+
+### Componente: src/components/purchase-orders/PurchaseOrderEditor.tsx
+
+Layout a 2 colonne (simile all'editor fattura):
+
+**Colonna sinistra — Form**:
+- Header: numero OdA (auto, non editabile), stato (Select), data emissione (DatePicker)
+- Fornitore: SupplierSelect (già esistente) — se aperto dall'ordine cliente, pre-compilato
+- Data consegna attesa: DatePicker
+- Riferimento fornitore: input testo (es. loro codice offerta)
+- Indirizzi di consegna: textarea
+- Note: textarea
+- Condizioni di pagamento: input testo libero + Select metodo (usa PAYMENT_METHODS esistente)
+
+**Colonna destra — Anteprima documento** (stile PDF):
+- Header con logo azienda + dati azienda
+- Dati fornitore
+- Numero OdA + data
+- Tabella righe: cod | descrizione | qtà | um | prezzo unit. | iva | totale
+- Footer: subtotale + IVA + **totale**
+- Note
+
+**Tabella righe (inline editable)**:
+- Pulsante "+ Aggiungi riga"
+- Se aperto dall'ordine cliente, pre-popola le righe con gli articoli `da_ordinare`
+  dello stesso fornitore
+- Ogni riga: nome (input), qtà (input number), unità (select pz/m2/ml/kg/h),
+  prezzo unit. (input), IVA (select 0/4/5/10/22%), sconto % (input), totale riga (calc)
+- Drag & drop per riordinare le righe (usa @dnd-kit/sortable già presente)
+
+**Barra azioni in cima**:
+- "Salva bozza" → status = 'bozza'
+- "Invia al fornitore" → status = 'inviato', apre dialog:
+  - Checkbox "Invia via email" + campo email fornitore (pre-compilato da anagrafica)
+  - Checkbox "Crea scadenza pagamento automatica"
+    → se attivo: DatePicker data scadenza + importo (pre-compilato con total_amount)
+- "Segna Ricevuto" (visibile se status = 'inviato' o 'confermato') → apre dialog
+  conferma ricezione con gestione parziale:
+  - Per ogni riga: "quantità ricevuta" (input, default = quantità ordinata)
+  - Se tutto ricevuto → status = 'ricevuto'
+  - Se parziale → status = 'parziale'
+  - Aggiorna automaticamente status degli order_items collegati a 'in_magazzino'
+
+**Integrazione con articoli ordine cliente**
+
+Nel file `src/components/orders/OrderItemsList.tsx` (già esistente),
+aggiungi per ogni articolo con status `da_ordinare`:
+- Badge che indica se esiste già un OdA per quell'articolo
+- Pulsante "Crea OdA" → apre `PurchaseOrderEditor` in dialog/sheet con l'articolo pre-caricato
+
+Questo pulsante deve comparire SOLO se l'articolo ha un `supplier_id` associato.
+
+**Dialog "Crea OdA da articoli selezionati"** (chiamata rapida):
+
+```tsx
+// Quando l'utente seleziona più articoli da_ordinare dello stesso fornitore
+// e clicca "Crea OdA" nella toolbar di selezione multipla:
+// 1. Mostra dialog con riepilogo articoli selezionati
+// 2. Campo data consegna attesa
+// 3. Campo note
+// 4. Pulsante "Crea OdA" → chiama supabase.rpc('create_oda_from_order', {...})
+// 5. Redirect all'OdA creato per completarlo
+```
+
+**Route**:
+```tsx
+<Route path="/azienda/ordini-acquisto" element={<PurchaseOrdersList />} />
+<Route path="/azienda/ordini-acquisto/:odaId" element={<PurchaseOrderDetail />} />
+```
+
+Aggiungi anche un link "Ordini di Acquisto" nella sidebar di Gestione Interna,
+sotto la sotto-categoria "Operazioni" (vicino a Ordini).
+
+---
+
+### Export PDF dell'OdA (integrazione con il sistema PDF esistente)
+
+Se il progetto ha già una funzione per generare PDF (es. `generate-invoice-pdf`),
+aggiungere anche `generate-oda-pdf`:
+
+```typescript
+// supabase/functions/generate-oda-pdf/index.ts
+// Genera un PDF dell'OdA con:
+// - Logo e intestazione azienda
+// - Dati fornitore destinatario
+// - Tabella articoli
+// - Totali
+// - Firme (spazio vuoto)
+// Stessa struttura della generate-invoice-pdf ma per OdA.
+// Salva in Storage bucket 'purchase-order-pdfs'
+```
+
+
+════════════════════════════════════════════════════════════════════
+RIEPILOGO ORDINE DI ESECUZIONE
+════════════════════════════════════════════════════════════════════
+
+  1. Prompt 1 — Migrazione DB Scadenzario + Prima Nota
+  2. Prompt 2 — Migrazione DB Fornitori (ALTER) + Ordini Acquisto
+  3. Prompt 3 — UI Scadenzario (pagina + hook + integrazioni Cruscotto)
+  4. Prompt 4 — UI Prima Nota (pagina + hook + widget Cruscotto)
+  5. Prompt 5 — UI Fornitori (pagina operativa completa con 5 tab)
+  6. Prompt 6 — UI Editor OdA + integrazione OrderItemsList esistente
+
+INIZIA SEMPRE DAI PROMPT DB (1 e 2) PRIMA DELLE UI.
+I prompt 1 e 2 sono indipendenti tra loro e possono essere dati insieme.
+I prompt 3, 4, 5, 6 dipendono dai rispettivi DB e possono andare in quest'ordine.

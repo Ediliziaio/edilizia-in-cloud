@@ -1,0 +1,890 @@
+====================================================================
+PROMPT LOVABLE — Gestione Webhook (nuovo modulo completo)
+====================================================================
+
+CONTESTO TECNICO
+- Stack: React 18 + TypeScript + Vite + Supabase + TanStack React Query v5
+- UI: Shadcn/ui + Radix UI + Tailwind CSS + Lucide Icons
+- Pattern auth: useAuth() → effectiveCompany?.id (MAI company?.id)
+- Utilities in src/lib/ (MAI src/utils/)
+- Route esistente: /azienda/impostazioni/* con sidebar nav già presente
+- Edge Functions in supabase/functions/
+
+OBIETTIVO
+Creare un modulo webhook completo con:
+- Lista webhook per azienda (CRUD)
+- Selezione eventi (22 eventi predefiniti raggruppati)
+- Log deliveries con status, HTTP code, durata, risposta
+- Retry manuale dei delivery falliti
+- "Test webhook" — invio payload di prova in tempo reale
+- HMAC signing secret per sicurezza
+
+================================================================
+STEP 1 — MIGRAZIONE DATABASE
+================================================================
+
+Crea file: supabase/migrations/20260320130000_webhooks.sql
+
+```sql
+CREATE TABLE IF NOT EXISTS webhooks (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id   uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  url          text NOT NULL,
+  secret       text,             -- HMAC-SHA256 signing secret
+  is_active    boolean NOT NULL DEFAULT true,
+  events       text[] NOT NULL DEFAULT '{}',
+  created_by   uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at   timestamptz DEFAULT now(),
+  updated_at   timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  webhook_id      uuid NOT NULL REFERENCES webhooks(id) ON DELETE CASCADE,
+  event_type      text NOT NULL,
+  payload         jsonb NOT NULL DEFAULT '{}',
+  status          text NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending','success','failed','retrying')),
+  http_status     integer,
+  response_body   text,
+  duration_ms     integer,
+  attempt_count   integer NOT NULL DEFAULT 1,
+  last_attempt_at timestamptz DEFAULT now(),
+  created_at      timestamptz DEFAULT now()
+);
+
+CREATE INDEX idx_webhooks_company_id   ON webhooks(company_id);
+CREATE INDEX idx_wh_deliveries_wh_id   ON webhook_deliveries(webhook_id);
+CREATE INDEX idx_wh_deliveries_created ON webhook_deliveries(created_at DESC);
+CREATE INDEX idx_wh_deliveries_status  ON webhook_deliveries(status);
+
+ALTER TABLE webhooks          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE webhook_deliveries ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_webhooks" ON webhooks
+  FOR ALL USING (
+    company_id IN (SELECT company_id FROM profiles WHERE id = auth.uid())
+  );
+
+CREATE POLICY "company_webhook_deliveries" ON webhook_deliveries
+  FOR ALL USING (
+    webhook_id IN (
+      SELECT w.id FROM webhooks w
+      JOIN profiles p ON p.id = auth.uid()
+      WHERE w.company_id = p.company_id
+    )
+  );
+```
+
+================================================================
+STEP 2 — EDGE FUNCTION: supabase/functions/send-webhook/index.ts
+================================================================
+
+```typescript
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+async function signPayload(secret: string, payload: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+Deno.serve(async (req) => {
+  const { webhook_id, event_type, payload, is_test } = await req.json();
+
+  // Fetch webhook config
+  const { data: webhook, error: wErr } = await supabase
+    .from("webhooks")
+    .select("id, url, secret, is_active")
+    .eq("id", webhook_id)
+    .single();
+
+  if (wErr || !webhook) {
+    return new Response(JSON.stringify({ error: "Webhook not found" }), { status: 404 });
+  }
+
+  if (!webhook.is_active && !is_test) {
+    return new Response(JSON.stringify({ error: "Webhook inactive" }), { status: 400 });
+  }
+
+  const payloadStr = JSON.stringify({
+    event: event_type,
+    timestamp: new Date().toISOString(),
+    data: payload,
+  });
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Webhook-Event": event_type,
+    "X-Webhook-Timestamp": new Date().toISOString(),
+    "User-Agent": "SalesOS-Webhook/1.0",
+  };
+
+  if (webhook.secret) {
+    const sig = await signPayload(webhook.secret, payloadStr);
+    headers["X-Webhook-Signature"] = `sha256=${sig}`;
+  }
+
+  const start = Date.now();
+  let httpStatus: number | null = null;
+  let responseBody: string | null = null;
+  let deliveryStatus: "success" | "failed" = "failed";
+
+  try {
+    const resp = await fetch(webhook.url, {
+      method: "POST",
+      headers,
+      body: payloadStr,
+      signal: AbortSignal.timeout(10000), // 10s timeout
+    });
+    httpStatus = resp.status;
+    responseBody = await resp.text();
+    deliveryStatus = resp.ok ? "success" : "failed";
+  } catch (err) {
+    responseBody = String(err);
+  }
+
+  const durationMs = Date.now() - start;
+
+  if (!is_test) {
+    // Log delivery
+    await supabase.from("webhook_deliveries").insert({
+      webhook_id,
+      event_type,
+      payload,
+      status: deliveryStatus,
+      http_status: httpStatus,
+      response_body: responseBody?.slice(0, 2000), // truncate
+      duration_ms: durationMs,
+    });
+  }
+
+  return new Response(
+    JSON.stringify({ status: deliveryStatus, http_status: httpStatus, response_body: responseBody, duration_ms: durationMs }),
+    { headers: { "Content-Type": "application/json" } }
+  );
+});
+```
+
+================================================================
+STEP 3 — TIPI: src/types/webhooks.ts
+================================================================
+
+```typescript
+export const WEBHOOK_EVENTS = {
+  "Lead & Opportunità": [
+    "contact.created",
+    "contact.updated",
+    "contact.deleted",
+    "opportunity.created",
+    "opportunity.updated",
+    "opportunity.stage_changed",
+    "opportunity.won",
+    "opportunity.lost",
+  ],
+  "Ordini": [
+    "order.created",
+    "order.status_changed",
+    "order.completed",
+    "order.cancelled",
+  ],
+  "Appuntamenti": [
+    "appointment.created",
+    "appointment.rescheduled",
+    "appointment.cancelled",
+    "appointment.completed",
+  ],
+  "Task": [
+    "task.created",
+    "task.completed",
+    "task.overdue",
+  ],
+  "Pagamenti": [
+    "payment.received",
+    "payment.failed",
+  ],
+} as const;
+
+export type WebhookEventType = typeof WEBHOOK_EVENTS[keyof typeof WEBHOOK_EVENTS][number];
+
+export interface Webhook {
+  id: string;
+  company_id: string;
+  name: string;
+  url: string;
+  secret: string | null;
+  is_active: boolean;
+  events: string[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhook_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  status: "pending" | "success" | "failed" | "retrying";
+  http_status: number | null;
+  response_body: string | null;
+  duration_ms: number | null;
+  attempt_count: number;
+  last_attempt_at: string;
+  created_at: string;
+}
+```
+
+================================================================
+STEP 4 — HOOK: src/hooks/useWebhooks.ts
+================================================================
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { Webhook, WebhookDelivery } from "@/types/webhooks";
+
+export function useWebhooks(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ["webhooks", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("webhooks")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as Webhook[];
+    },
+    enabled: !!companyId,
+  });
+}
+
+export function useWebhookDeliveries(webhookId: string | null) {
+  return useQuery({
+    queryKey: ["webhook-deliveries", webhookId],
+    queryFn: async () => {
+      if (!webhookId) return [];
+      const { data, error } = await supabase
+        .from("webhook_deliveries")
+        .select("*")
+        .eq("webhook_id", webhookId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data as WebhookDelivery[];
+    },
+    enabled: !!webhookId,
+  });
+}
+
+export function useCreateWebhook(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Pick<Webhook, "name" | "url" | "secret" | "events">) => {
+      if (!companyId) throw new Error("companyId richiesto");
+      const { error } = await supabase.from("webhooks").insert({ ...data, company_id: companyId });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", companyId] }),
+  });
+}
+
+export function useUpdateWebhook(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: Partial<Webhook> & { id: string }) => {
+      const { error } = await supabase.from("webhooks").update({ ...data, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", companyId] }),
+  });
+}
+
+export function useDeleteWebhook(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (webhookId: string) => {
+      const { error } = await supabase.from("webhooks").delete().eq("id", webhookId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks", companyId] }),
+  });
+}
+
+export function useRetryDelivery(webhookId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (deliveryId: string) => {
+      // Get delivery + webhook info, then call edge function
+      const { data: delivery } = await supabase
+        .from("webhook_deliveries")
+        .select("webhook_id, event_type, payload")
+        .eq("id", deliveryId)
+        .single();
+      if (!delivery) throw new Error("Delivery non trovato");
+
+      // Update status to retrying
+      await supabase.from("webhook_deliveries")
+        .update({ status: "retrying", attempt_count: supabase.rpc("increment_attempt", { row_id: deliveryId }) as any })
+        .eq("id", deliveryId);
+
+      const { error } = await supabase.functions.invoke("send-webhook", {
+        body: { webhook_id: delivery.webhook_id, event_type: delivery.event_type, payload: delivery.payload },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["webhook-deliveries", webhookId] }),
+  });
+}
+```
+
+================================================================
+STEP 5 — PAGINA: src/pages/azienda/settings/SettingsWebhooks.tsx
+================================================================
+
+```typescript
+import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { useWebhooks, useCreateWebhook, useUpdateWebhook, useDeleteWebhook } from "@/hooks/useWebhooks";
+import type { Webhook } from "@/types/webhooks";
+import { WEBHOOK_EVENTS } from "@/types/webhooks";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription
+} from "@/components/ui/sheet";
+import {
+  Plus, Webhook, Pencil, Trash2, Activity, ChevronRight, CheckCircle2,
+  XCircle, Clock, RotateCcw, Copy, RefreshCw, Zap, Loader2, Eye
+} from "lucide-react";
+import { formatRelativeTime, formatDateTime } from "@/lib/formatters";
+import { supabase } from "@/integrations/supabase/client";
+import { useWebhookDeliveries, useRetryDelivery } from "@/hooks/useWebhooks";
+
+// ---- Sub-component: WebhookFormDialog ----
+function WebhookFormDialog({
+  open,
+  onOpenChange,
+  webhook,
+  companyId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  webhook: Webhook | null;
+  companyId: string;
+}) {
+  const { toast } = useToast();
+  const createMutation = useCreateWebhook(companyId);
+  const updateMutation = useUpdateWebhook(companyId);
+
+  const [name, setName] = useState(webhook?.name || "");
+  const [url, setUrl] = useState(webhook?.url || "");
+  const [secret, setSecret] = useState(webhook?.secret || "");
+  const [selectedEvents, setSelectedEvents] = useState<string[]>(webhook?.events || []);
+  const [testResult, setTestResult] = useState<{ status: string; http_status: number | null } | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const allEvents = Object.values(WEBHOOK_EVENTS).flat();
+  const allSelected = allEvents.every((e) => selectedEvents.includes(e));
+
+  const toggleEvent = (event: string) => {
+    setSelectedEvents((prev) =>
+      prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event]
+    );
+  };
+
+  const toggleGroup = (events: readonly string[], enabled: boolean) => {
+    setSelectedEvents((prev) => {
+      const filtered = prev.filter((e) => !events.includes(e));
+      return enabled ? [...filtered, ...events] : filtered;
+    });
+  };
+
+  const generateSecret = () => {
+    const arr = new Uint8Array(32);
+    crypto.getRandomValues(arr);
+    setSecret(Array.from(arr).map((b) => b.toString(16).padStart(2, "0")).join(""));
+  };
+
+  const handleTest = async () => {
+    if (!url) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const { data } = await supabase.functions.invoke("send-webhook", {
+        body: {
+          webhook_id: webhook?.id || "test",
+          event_type: "test.ping",
+          payload: { message: "Test da Sales OS", timestamp: new Date().toISOString() },
+          is_test: true,
+          test_url: url, // Edge function deve supportare test_url quando webhook_id="test"
+        },
+      });
+      setTestResult({ status: data?.status, http_status: data?.http_status });
+    } catch {
+      setTestResult({ status: "failed", http_status: null });
+    }
+    setTesting(false);
+  };
+
+  const handleSave = async () => {
+    if (!name || !url || selectedEvents.length === 0) {
+      toast({ title: "Campi obbligatori", description: "Inserisci nome, URL e seleziona almeno un evento.", variant: "destructive" });
+      return;
+    }
+    try {
+      if (webhook) {
+        await updateMutation.mutateAsync({ id: webhook.id, name, url, secret: secret || null, events: selectedEvents });
+      } else {
+        await createMutation.mutateAsync({ name, url, secret: secret || null, events: selectedEvents });
+      }
+      toast({ title: webhook ? "Webhook aggiornato" : "Webhook creato" });
+      onOpenChange(false);
+    } catch {
+      toast({ title: "Errore", description: "Impossibile salvare il webhook.", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{webhook ? "Modifica Webhook" : "Crea Webhook"}</DialogTitle>
+          <DialogDescription>Configura l'endpoint che riceverà le notifiche degli eventi.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-2">
+          {/* Name */}
+          <div className="space-y-1.5">
+            <Label>Nome webhook *</Label>
+            <Input placeholder="Es. CRM Integration" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+
+          {/* URL */}
+          <div className="space-y-1.5">
+            <Label>URL endpoint *</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="https://tuosito.com/webhook"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="flex-1"
+              />
+              <Button variant="outline" size="sm" onClick={handleTest} disabled={!url || testing}>
+                {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+                Test
+              </Button>
+            </div>
+            {testResult && (
+              <div className={`flex items-center gap-2 text-sm mt-1 ${testResult.status === "success" ? "text-green-600" : "text-destructive"}`}>
+                {testResult.status === "success"
+                  ? <CheckCircle2 className="h-4 w-4" />
+                  : <XCircle className="h-4 w-4" />}
+                {testResult.status === "success"
+                  ? `Risposta ricevuta: HTTP ${testResult.http_status}`
+                  : `Test fallito${testResult.http_status ? ` (HTTP ${testResult.http_status})` : ""}`}
+              </div>
+            )}
+          </div>
+
+          {/* Secret */}
+          <div className="space-y-1.5">
+            <Label>Secret (opzionale)</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Lascia vuoto per nessun signing"
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                className="flex-1 font-mono text-sm"
+              />
+              <Button variant="outline" size="sm" onClick={generateSecret}>
+                <RefreshCw className="h-4 w-4" />
+                Genera
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Se impostato, ogni richiesta includerà l'header <code>X-Webhook-Signature: sha256=...</code>
+            </p>
+          </div>
+
+          <Separator />
+
+          {/* Events */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Eventi *</Label>
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+                onClick={() => toggleGroup(allEvents, !allSelected)}
+              >
+                {allSelected ? "Deseleziona tutti" : "Seleziona tutti"}
+              </button>
+            </div>
+            {Object.entries(WEBHOOK_EVENTS).map(([group, events]) => {
+              const groupSelected = events.filter((e) => selectedEvents.includes(e)).length;
+              const allGroupSelected = groupSelected === events.length;
+              return (
+                <div key={group}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Checkbox
+                      checked={allGroupSelected}
+                      onCheckedChange={(v) => toggleGroup(events, !!v)}
+                    />
+                    <span className="text-sm font-medium">{group}</span>
+                    <Badge variant="secondary" className="text-xs">{groupSelected}/{events.length}</Badge>
+                  </div>
+                  <div className="ml-6 grid grid-cols-2 gap-1.5">
+                    {events.map((evt) => (
+                      <div key={evt} className="flex items-center gap-2">
+                        <Checkbox
+                          id={evt}
+                          checked={selectedEvents.includes(evt)}
+                          onCheckedChange={() => toggleEvent(evt)}
+                        />
+                        <label htmlFor={evt} className="text-sm font-mono text-muted-foreground cursor-pointer">
+                          {evt}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+          <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
+            {(createMutation.isPending || updateMutation.isPending) && (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            )}
+            {webhook ? "Salva modifiche" : "Crea webhook"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- Sub-component: DeliveriesSheet ----
+function DeliveriesSheet({
+  open,
+  onOpenChange,
+  webhook,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  webhook: Webhook | null;
+}) {
+  const { data: deliveries = [], isLoading } = useWebhookDeliveries(open ? webhook?.id || null : null);
+  const retryMutation = useRetryDelivery(webhook?.id || null);
+  const { toast } = useToast();
+
+  const statusConfig = {
+    success: { label: "Successo", color: "text-green-600", bg: "bg-green-100", icon: CheckCircle2 },
+    failed:  { label: "Fallito",  color: "text-red-600",   bg: "bg-red-100",   icon: XCircle },
+    pending: { label: "In attesa", color: "text-yellow-600", bg: "bg-yellow-100", icon: Clock },
+    retrying:{ label: "Retry",    color: "text-blue-600",  bg: "bg-blue-100",  icon: RotateCcw },
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Log Delivery — {webhook?.name}
+          </SheetTitle>
+          <SheetDescription>Ultimi 100 invii per questo webhook.</SheetDescription>
+        </SheetHeader>
+
+        <div className="mt-6 space-y-3">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : deliveries.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">Nessun delivery trovato.</p>
+          ) : (
+            deliveries.map((delivery) => {
+              const cfg = statusConfig[delivery.status] || statusConfig.failed;
+              const Icon = cfg.icon;
+              return (
+                <div key={delivery.id} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+                        <Icon className="h-3 w-3" />
+                        {cfg.label}
+                      </span>
+                      <code className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        {delivery.event_type}
+                      </code>
+                      {delivery.http_status && (
+                        <span className="text-xs text-muted-foreground">HTTP {delivery.http_status}</span>
+                      )}
+                      {delivery.duration_ms && (
+                        <span className="text-xs text-muted-foreground">{delivery.duration_ms}ms</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {formatRelativeTime(delivery.created_at)}
+                      </span>
+                      {delivery.status === "failed" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            try {
+                              await retryMutation.mutateAsync(delivery.id);
+                              toast({ title: "Retry inviato" });
+                            } catch {
+                              toast({ title: "Errore retry", variant: "destructive" });
+                            }
+                          }}
+                          disabled={retryMutation.isPending}
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          Riprova
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {delivery.response_body && (
+                    <pre className="text-xs bg-muted rounded p-2 overflow-x-auto max-h-20 text-muted-foreground">
+                      {delivery.response_body}
+                    </pre>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ---- PAGINA PRINCIPALE ----
+export default function SettingsWebhooks() {
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id as string;
+  const deleteMutation = useDeleteWebhook(companyId);
+  const updateMutation = useUpdateWebhook(companyId);
+  const { toast } = useToast();
+
+  const { data: webhooks = [], isLoading } = useWebhooks(companyId);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingWebhook, setEditingWebhook] = useState<Webhook | null>(null);
+  const [logsWebhook, setLogsWebhook] = useState<Webhook | null>(null);
+  const [logsOpen, setLogsOpen] = useState(false);
+
+  const openEdit = (w: Webhook) => { setEditingWebhook(w); setFormOpen(true); };
+  const openCreate = () => { setEditingWebhook(null); setFormOpen(true); };
+  const openLogs = (w: Webhook) => { setLogsWebhook(w); setLogsOpen(true); };
+
+  const handleDelete = async (webhookId: string) => {
+    try {
+      await deleteMutation.mutateAsync(webhookId);
+      toast({ title: "Webhook eliminato" });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile eliminare il webhook.", variant: "destructive" });
+    }
+  };
+
+  const handleToggleActive = async (webhook: Webhook) => {
+    await updateMutation.mutateAsync({ id: webhook.id, is_active: !webhook.is_active });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Webhook</h1>
+          <p className="text-muted-foreground mt-1">
+            Ricevi notifiche in tempo reale sugli eventi del tuo CRM su URL esterni.
+          </p>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus className="h-4 w-4 mr-2" />
+          Crea Webhook
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : webhooks.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center gap-3 py-12">
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+              <Webhook className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div className="text-center">
+              <p className="font-medium">Nessun webhook configurato</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Crea il tuo primo webhook per integrare sistemi esterni.
+              </p>
+            </div>
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Crea Webhook
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {webhooks.map((webhook) => (
+            <Card key={webhook.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`h-2 w-2 rounded-full shrink-0 ${webhook.is_active ? "bg-green-500" : "bg-muted-foreground"}`} />
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{webhook.name}</p>
+                      <p className="text-sm text-muted-foreground truncate max-w-sm">
+                        {webhook.url}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge variant="secondary" className="text-xs">
+                          {webhook.events.length} eventi
+                        </Badge>
+                        {webhook.secret && (
+                          <Badge variant="outline" className="text-xs">Firmato</Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          Creato {formatRelativeTime(webhook.created_at)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Switch
+                      checked={webhook.is_active}
+                      onCheckedChange={() => handleToggleActive(webhook)}
+                    />
+                    <Button variant="ghost" size="icon" onClick={() => openLogs(webhook)}>
+                      <Activity className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(webhook)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Elimina webhook?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Verranno eliminati anche tutti i log di delivery. Questa azione è irreversibile.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => handleDelete(webhook.id)}
+                          >
+                            Elimina
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <WebhookFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        webhook={editingWebhook}
+        companyId={companyId}
+      />
+
+      <DeliveriesSheet
+        open={logsOpen}
+        onOpenChange={setLogsOpen}
+        webhook={logsWebhook}
+      />
+    </div>
+  );
+}
+```
+
+================================================================
+STEP 6 — AGGIUNGERE ROUTE E VOCE DI MENU
+================================================================
+
+1. In src/App.tsx (o file di routing), aggiungi la rotta:
+   <Route path="/azienda/impostazioni/webhook" element={<SettingsWebhooks />} />
+
+2. Nel file della sidebar delle impostazioni (cerca il file che contiene
+   le voci di menu per /azienda/impostazioni/*), aggiungi dopo "Integrazioni":
+   { path: "/azienda/impostazioni/webhook", label: "Webhook", icon: Webhook }
+   (importa Webhook da "lucide-react")
+
+3. Nel file supabase/functions/send-webhook/index.ts aggiungi il supporto
+   per is_test con test_url:
+   Se webhook_id === "test" e is_test === true, usa test_url invece di
+   cercare il webhook nel database.
+
+================================================================
+NOTE FINALI
+================================================================
+
+- L'edge function usa un timeout di 10 secondi per ogni chiamata HTTP.
+  Aumenta a 30s se necessario per endpoint lenti.
+- Il campo response_body viene troncato a 2000 caratteri nel DB per
+  evitare storage eccessivo su risposte HTML verbose.
+- Per la funzione di retry, serve una funzione RPC PostgreSQL increment_attempt:
+  CREATE OR REPLACE FUNCTION increment_attempt(row_id uuid)
+  RETURNS integer AS $$ UPDATE webhook_deliveries SET attempt_count = attempt_count + 1
+  WHERE id = row_id RETURNING attempt_count; $$ LANGUAGE SQL;
+  Oppure gestire il conteggio lato JS (leggi attempt_count attuale + 1).
+- La firm HMAC è compatibile con Stripe, Shopify e la maggior parte degli
+  webhook standards — i tuoi clienti possono verificare i payload facilmente.

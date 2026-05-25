@@ -1,0 +1,1051 @@
+================================================================================
+PROMPT — SISTEMA DI TEMPLATE E PERSONALIZZAZIONE PREVENTIVI
+================================================================================
+Progetto: Gestionale SaaS multi-tenant (Supabase + React + TypeScript)
+Modulo: Generatore di Preventivi (già implementato)
+Obiettivo: Aggiungere la personalizzazione grafica del PDF dell'offerta:
+           template, logo, colori, font, layout.
+
+NON modificare la logica esistente del preventivo. Aggiungi SOLO quanto
+descritto qui sotto, integrandolo nel flusso già presente.
+
+================================================================================
+PROMPT 1 — DATABASE: TABELLA TEMPLATE + COLONNA NELLA QUOTE
+================================================================================
+
+Crea la seguente migrazione SQL:
+
+```sql
+-- ============================================================
+-- TABELLA: quote_templates
+-- Template grafici salvati dall'azienda per i preventivi
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quote_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  name TEXT NOT NULL DEFAULT 'Template Personalizzato',
+  is_default BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+
+  -- Layout base (4 stili predefiniti)
+  layout TEXT NOT NULL DEFAULT 'classic',
+  -- 'classic' | 'modern' | 'minimal' | 'bold'
+
+  -- Logo
+  logo_url TEXT,
+  -- Percorso nel bucket company-assets (usa logo aziendale o personalizzato)
+  logo_position TEXT DEFAULT 'left',
+  -- 'left' | 'center' | 'right'
+  logo_size TEXT DEFAULT 'medium',
+  -- 'small' | 'medium' | 'large'
+  show_logo BOOLEAN DEFAULT true,
+
+  -- Palette colori (hex string, es. '#1E40AF')
+  primary_color TEXT DEFAULT '#1E40AF',
+  -- Colore principale: header, titoli, bordi tabella
+  secondary_color TEXT DEFAULT '#3B82F6',
+  -- Colore secondario: sottotitoli, accenti
+  accent_color TEXT DEFAULT '#DBEAFE',
+  -- Colore sfondo leggero: righe alternate tabella, box
+  text_color TEXT DEFAULT '#111827',
+  -- Colore testo corpo
+  header_text_color TEXT DEFAULT '#FFFFFF',
+  -- Colore testo nell'header (bianco su sfondo scuro)
+
+  -- Tipografia
+  font_family TEXT DEFAULT 'helvetica',
+  -- 'helvetica' | 'times' | 'courier'
+
+  -- Elementi visibili nel PDF
+  show_quote_number BOOLEAN DEFAULT true,
+  show_validity_date BOOLEAN DEFAULT true,
+  show_company_details BOOLEAN DEFAULT true,
+  show_client_details BOOLEAN DEFAULT true,
+  show_payment_terms BOOLEAN DEFAULT true,
+  show_delivery_terms BOOLEAN DEFAULT true,
+  show_notes BOOLEAN DEFAULT true,
+  show_page_numbers BOOLEAN DEFAULT true,
+
+  -- Testi personalizzabili
+  footer_text TEXT DEFAULT '',
+  -- Testo nel footer di ogni pagina
+  cover_tagline TEXT DEFAULT '',
+  -- Frase commerciale sotto il titolo dell'offerta
+  -- es. "La qualità che fa la differenza."
+
+  -- Watermark (opzionale)
+  show_watermark BOOLEAN DEFAULT false,
+  watermark_text TEXT DEFAULT 'OFFERTA RISERVATA',
+
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE quote_templates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_members_read_templates"
+ON quote_templates FOR SELECT TO authenticated
+USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_admin_manage_templates"
+ON quote_templates FOR ALL TO authenticated
+USING (company_id = get_user_company_id(auth.uid()))
+WITH CHECK (company_id = get_user_company_id(auth.uid()));
+
+-- Assicura che ci sia sempre al massimo 1 template default per azienda
+CREATE OR REPLACE FUNCTION enforce_single_default_template()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.is_default = true THEN
+    UPDATE quote_templates
+    SET is_default = false
+    WHERE company_id = NEW.company_id AND id != NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER single_default_template
+BEFORE INSERT OR UPDATE ON quote_templates
+FOR EACH ROW WHEN (NEW.is_default = true)
+EXECUTE FUNCTION enforce_single_default_template();
+
+-- Trigger updated_at
+CREATE TRIGGER quote_templates_updated_at
+BEFORE UPDATE ON quote_templates
+FOR EACH ROW EXECUTE FUNCTION quotes_set_updated_at();
+
+-- ============================================================
+-- AGGIUNGI COLONNA template_id ALLA TABELLA quotes
+-- ============================================================
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS
+  template_id UUID REFERENCES quote_templates(id) ON DELETE SET NULL;
+
+-- ============================================================
+-- BUCKET STORAGE per logo personalizzati dei template
+-- (potrebbe già esistere come company-assets — aggiunge policy)
+-- ============================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('quote-template-assets', 'quote-template-assets', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "company_upload_template_assets"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'quote-template-assets' AND
+  (storage.foldername(name))[1] = (
+    SELECT company_id::text FROM profiles WHERE id = auth.uid()
+  )
+);
+
+CREATE POLICY "company_read_template_assets"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'quote-template-assets' AND
+  (storage.foldername(name))[1] = (
+    SELECT company_id::text FROM profiles WHERE id = auth.uid()
+  )
+);
+
+-- Template di default creato automaticamente per ogni nuova azienda
+-- (opzionale: inserisci un template default durante la creazione azienda)
+```
+
+================================================================================
+PROMPT 2 — PAGINA IMPOSTAZIONI TEMPLATE
+================================================================================
+
+Crea: src/pages/azienda/settings/SettingsQuoteTemplates.tsx
+
+ROUTE da aggiungere in App.tsx (sezione settings):
+```
+/azienda/impostazioni/template-preventivi → SettingsQuoteTemplates
+```
+
+VOCE di menu nelle impostazioni (CompanyLayout.tsx), nella stessa sezione
+di "Materiali Preventivi":
+```
+Label: "Template Offerte"
+Icon: Palette (lucide-react)
+Route: /azienda/impostazioni/template-preventivi
+Visibile solo a: isAdmin
+```
+
+---
+
+### LAYOUT DELLA PAGINA
+
+La pagina è divisa in due pannelli affiancati (60% / 40%):
+
+```
+┌─────────────────────────────────┬──────────────────────────┐
+│  PANNELLO SINISTRO              │  PANNELLO DESTRO         │
+│  Configurazione (scrollabile)   │  Preview live (sticky)   │
+└─────────────────────────────────┴──────────────────────────┘
+```
+
+---
+
+### PANNELLO SINISTRO — CONFIGURAZIONE
+
+#### SEZIONE 1 — I tuoi Template
+
+Header: "Template Salvati" + bottone [+ Nuovo Template]
+
+Griglia di card (3 colonne) per ogni template salvato:
+```
+┌──────────────────────┐
+│  [Miniatura layout]  │
+│  Nome Template       │
+│  [Default] badge     │
+│                      │
+│  [Modifica] [🗑]     │
+│  [Imposta Default]   │
+└──────────────────────┘
+```
+
+Quando si clicca [Modifica] o [+ Nuovo Template] → apre il form di editing
+sotto (o in un pannello laterale/drawer).
+
+---
+
+#### SEZIONE 2 — Editor Template (form)
+
+Titolo: "Modifica Template" / "Nuovo Template"
+
+**A — INFORMAZIONI BASE**
+- Nome template * (es. "Classico Aziendale", "Offerta Premium")
+- Toggle "Imposta come default" (usato automaticamente per ogni nuova offerta)
+
+---
+
+**B — SCELTA LAYOUT**
+
+4 card cliccabili con preview visiva del layout:
+
+```
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│ CLASSIC  │  │  MODERN  │  │ MINIMAL  │  │   BOLD   │
+│          │  │          │  │          │  │          │
+│ Header   │  │█████████│  │          │  │██│        │
+│ bianco   │  │ colorato │  │ Solo     │  │██│ Side-  │
+│ bordo    │  │ full     │  │ linee    │  │██│ bar    │
+│ colorato │  │ width    │  │ & testo  │  │██│ color  │
+└──────────┘  └──────────┘  └──────────┘  └──────────┘
+  [Seleziona]  [Seleziona]   [Seleziona]   [Seleziona]
+```
+
+Descrizione per ogni layout:
+- **Classic**: Header bianco con logo e bordo colorato. Professionale e formale.
+- **Modern**: Header full-color con logo in bianco. Design contemporaneo.
+- **Minimal**: Nessun colore di sfondo, solo linee e tipografia. Elegante.
+- **Bold**: Sidebar colorata a sinistra, testo grande. Massimo impatto visivo.
+
+---
+
+**C — LOGO**
+
+```
+┌─────────────────────────────────────────────────┐
+│  Logo offerta                                    │
+│                                                  │
+│  ○ Usa logo aziendale (dalle impostazioni)       │
+│  ○ Carica logo specifico per questo template     │
+│    [Dropzone upload PNG/JPG/SVG max 2MB]         │
+│                                                  │
+│  Posizione:  [● Sinistra] [ Centro ] [ Destra ]  │
+│  Dimensione: [● Media  ] [Piccola] [Grande ]     │
+│  Toggle: Mostra logo nel PDF                     │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+**D — PALETTE COLORI**
+
+Sottotitolo: "Scegli una palette predefinita o personalizza"
+
+**Palette predefinite** (8 card cliccabili):
+```
+[● Blu Professionale]  [  Verde Fiducia   ]
+   #1E40AF / #DBEAFE      #166534 / #DCFCE7
+
+[  Rosso Energia    ]  [  Grigio Elegante ]
+   #991B1B / #FEE2E2      #374151 / #F3F4F6
+
+[  Viola Premium    ]  [  Arancio Energia ]
+   #6D28D9 / #EDE9FE      #C2410C / #FFF7ED
+
+[  Teal Moderno     ]  [  Nero Lusso      ]
+   #0F766E / #CCFBF1      #000000 / #F8F8F8
+```
+
+**Colori personalizzati** (mostrati sotto le palette):
+```
+Colore Primario     [████] #1E40AF  [color picker]
+Colore Secondario   [████] #3B82F6  [color picker]
+Sfondo leggero      [████] #DBEAFE  [color picker]
+Testo corpo         [████] #111827  [color picker]
+Testo su header     [████] #FFFFFF  [color picker]
+```
+
+Usa `<input type="color">` nativo o una libreria leggera come `react-colorful`.
+
+---
+
+**E — TIPOGRAFIA**
+
+```
+Font documento:
+[● Helvetica (consigliato)] [ Times New Roman ] [ Courier ]
+   Moderno, leggibile         Classico, formale   Monospace
+```
+
+---
+
+**F — ELEMENTI DA MOSTRARE**
+
+Toggle list (checkbox con label):
+```
+[✓] Numero offerta
+[✓] Data di validità
+[✓] Dati azienda emittente
+[✓] Dati cliente
+[✓] Termini di pagamento
+[✓] Condizioni di consegna
+[✓] Note per il cliente
+[✓] Numerazione pagine
+[ ] Watermark
+    └── se attivo → campo testo: [OFFERTA RISERVATA          ]
+```
+
+---
+
+**G — TESTI PERSONALIZZABILI**
+
+```
+Tagline copertina (opzionale)
+[Es: "La qualità che fa la differenza."              ]
+Apparirà sotto il titolo dell'offerta sulla copertina.
+
+Testo footer pagine (opzionale)
+[Es: "Per informazioni: info@azienda.it | 02 123456  ]
+Apparirà in fondo a ogni pagina del documento.
+```
+
+---
+
+**H — BOTTONI AZIONE**
+
+```
+[Annulla]   [Salva Template]   [Salva e Imposta Default]
+```
+
+---
+
+### PANNELLO DESTRO — PREVIEW LIVE
+
+Un'anteprima del PDF che si aggiorna in tempo reale mentre l'utente modifica
+le impostazioni nel pannello sinistro.
+
+La preview è un componente React che simula visivamente le 2 pagine principali
+del PDF (NON genera il PDF reale — è solo un'anteprima HTML/CSS stilizzata).
+
+**Foglio simulato (ombra, bordi arrotondati, rapporto A4):**
+
+```
+┌────────────────────────────────────────────┐
+│ [PREVIEW PAGINA 1 — COPERTINA]             │
+│                                            │
+│  ┌──────────────────────────────────────┐  │
+│  │  [Logo]            OFFERTA N. 001    │  │
+│  │  ████████████████████████████████   │  │
+│  │  OFFERTA COMMERCIALE                 │  │
+│  │  "Offerta serramenti Villa Rossi"    │  │
+│  │  [tagline]                           │  │
+│  │                                      │  │
+│  │  EMESSA DA        DESTINATARIO       │  │
+│  │  Azienda SRL      Mario Rossi        │  │
+│  │  ...              ...                │  │
+│  └──────────────────────────────────────┘  │
+│                                            │
+│ [PREVIEW PAGINA 2 — PRODOTTI]              │
+│  ┌──────────────────────────────────────┐  │
+│  │ Descrizione  Qty  Prezzo   Totale    │  │
+│  │ ─────────── ──── ──────── ────────  │  │
+│  │ Prodotto 1    2   €500    €1.000    │  │
+│  │ Prodotto 2    1   €300     €300     │  │
+│  │                                      │  │
+│  │          Subtotale:   €1.300,00      │  │
+│  │          IVA 22%:      €286,00       │  │
+│  │          TOTALE:      €1.586,00      │  │
+│  └──────────────────────────────────────┘  │
+└────────────────────────────────────────────┘
+```
+
+La preview applica i colori, il font, la posizione del logo e il layout
+scelti usando classi CSS dinamiche (inline style o CSS variables).
+
+Per ogni layout (classic/modern/minimal/bold) mostra una struttura diversa:
+- **classic**: header bianco, logo in alto a sinistra, bordo colorato
+- **modern**: header pieno con colore primario, logo e testo bianchi
+- **minimal**: solo linea sottile colorata in alto, nessun blocco colorato
+- **bold**: rettangolo verticale colorato a sinistra, logo nella sidebar
+
+Aggiungi i bottoni sotto la preview:
+```
+[↩ Pagina 1]  [↪ Pagina 2]   [📥 Scarica anteprima PDF]
+```
+
+Il bottone "Scarica anteprima PDF" chiama generate-quote-pdf con dati di
+esempio (quote fittizia) e il template corrente per mostrare il risultato reale.
+
+================================================================================
+PROMPT 3 — INTEGRAZIONE NEL QUOTE BUILDER (Step Riepilogo)
+================================================================================
+
+Nel QuoteBuilder esistente, nello **Step 4 "Riepilogo"**, aggiungi una sezione
+PRIMA dei bottoni di azione (genera PDF / invia per firma / salva bozza).
+
+---
+
+### NUOVA SEZIONE: "Aspetto del Documento"
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  🎨  Aspetto del Documento                                      │
+│                                                                  │
+│  Template:  [Template Classico Aziendale     ▼]  [+ Nuovo]     │
+│                                                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
+│  │ Classic  │  │ Modern   │  │ Minimal  │  │  Bold    │       │
+│  │ ● Attivo │  │          │  │          │  │          │       │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
+│                                                                  │
+│  Palette:   [● Blu Prof.] [Verde] [Rosso] [Grigio] [Custom]    │
+│                                                                  │
+│  Logo:      [● Usa logo aziendale]  [ Carica altro ]           │
+│                                                                  │
+│  [⚙ Personalizzazione avanzata →]                               │
+│                                (apre drawer con tutte le opzioni)│
+└────────────────────────────────────────────────────────────────┘
+```
+
+**Comportamento:**
+- Il Select "Template" mostra tutti i template salvati dell'azienda.
+  Il template di default è pre-selezionato automaticamente.
+- Le 4 card layout mostrano l'anteprima miniaturizzata e permettono
+  di cambiare layout velocemente.
+- La selezione palette aggiorna una piccola preview inline.
+- Il link "Personalizzazione avanzata →" apre un Drawer laterale con
+  tutte le opzioni dell'editor template (identico alla pagina Settings
+  ma in formato drawer, senza il pannello preview).
+  In fondo al drawer: [Applica solo a questa offerta] [Salva come template]
+
+**Salvataggio:**
+- Il template_id scelto viene salvato nella colonna `quotes.template_id`
+- Se l'utente personalizza senza salvare un template → le customizzazioni
+  vengono salvate inline nella quote stessa (aggiungi colonne opzionali
+  a `quotes`: `custom_primary_color`, `custom_logo_url`, `custom_layout`)
+  oppure crea un template temporaneo "Personalizzato - [nome offerta]" con is_active=false
+
+---
+
+### MINI-PREVIEW nel Riepilogo
+
+Sotto la sezione "Aspetto del Documento", mostra una piccola anteprima
+(altezza ~200px, sfondo foglio bianco con ombra) della copertina del documento
+con il template selezionato applicato.
+
+Questa mini-preview è puramente CSS/React (non chiama il server).
+
+================================================================================
+PROMPT 4 — AGGIORNAMENTO EDGE FUNCTION generate-quote-pdf
+================================================================================
+
+Aggiorna la edge function `supabase/functions/generate-quote-pdf/index.ts`
+per leggere e applicare il template scelto.
+
+### MODIFICHE DA FARE:
+
+**1. Carica il template dalla DB:**
+
+```typescript
+// Dopo aver caricato la quote, carica anche il template
+let template = null;
+if (quote.template_id) {
+  const { data: tmpl } = await supabase
+    .from('quote_templates')
+    .select('*')
+    .eq('id', quote.template_id)
+    .single();
+  template = tmpl;
+}
+
+// Se non c'è template associato, prendi il default dell'azienda
+if (!template) {
+  const { data: defaultTmpl } = await supabase
+    .from('quote_templates')
+    .select('*')
+    .eq('company_id', quote.company_id)
+    .eq('is_default', true)
+    .single();
+  template = defaultTmpl;
+}
+
+// Se non esiste nessun template → usa valori di fallback
+const t = template ?? {
+  layout: 'classic',
+  primary_color: '#1E40AF',
+  secondary_color: '#3B82F6',
+  accent_color: '#DBEAFE',
+  text_color: '#111827',
+  header_text_color: '#FFFFFF',
+  font_family: 'helvetica',
+  logo_position: 'left',
+  logo_size: 'medium',
+  show_logo: true,
+  show_quote_number: true,
+  show_validity_date: true,
+  show_payment_terms: true,
+  show_delivery_terms: true,
+  show_notes: true,
+  show_page_numbers: true,
+  show_watermark: false,
+  watermark_text: '',
+  footer_text: '',
+  cover_tagline: '',
+};
+```
+
+**2. Funzione helper per convertire HEX → RGB (per pdf-lib):**
+
+```typescript
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const clean = hex.replace('#', '');
+  return {
+    r: parseInt(clean.slice(0, 2), 16) / 255,
+    g: parseInt(clean.slice(2, 4), 16) / 255,
+    b: parseInt(clean.slice(4, 6), 16) / 255,
+  };
+}
+```
+
+**3. Carica logo dal storage:**
+
+```typescript
+let logoImageEmbed = null;
+const logoPath = t.logo_url ?? company?.logo_url;
+if (t.show_logo && logoPath) {
+  try {
+    const { data: logoFile } = await supabase.storage
+      .from('quote-template-assets')
+      .download(logoPath.includes('quote-template-assets/')
+        ? logoPath.split('quote-template-assets/')[1]
+        : logoPath);
+
+    if (logoFile) {
+      const logoBytes = await logoFile.arrayBuffer();
+      // Determina il tipo dal nome file
+      if (logoPath.endsWith('.png')) {
+        logoImageEmbed = await pdfDoc.embedPng(logoBytes);
+      } else if (logoPath.endsWith('.jpg') || logoPath.endsWith('.jpeg')) {
+        logoImageEmbed = await pdfDoc.embedJpg(logoBytes);
+      }
+    }
+  } catch (e) {
+    console.warn('Logo not loaded:', e);
+  }
+}
+```
+
+**4. Applica il layout nel PDF:**
+
+Crea una funzione `drawQuoteCover(page, quote, company, t, logoImageEmbed)`
+e una `drawQuoteDetails(page, quote, items, t)` che applicano il layout
+in base a `t.layout`:
+
+```typescript
+function drawQuoteCover(page, quote, company, t, logo) {
+  const primaryRgb = hexToRgb(t.primary_color);
+  const headerTextRgb = hexToRgb(t.header_text_color);
+  const textRgb = hexToRgb(t.text_color);
+  const W = page.getWidth();
+  const H = page.getHeight();
+
+  if (t.layout === 'classic') {
+    // Header bianco, bordo superiore colorato (8px)
+    page.drawRectangle({ x: 0, y: H - 8, width: W, height: 8,
+      color: rgb(primaryRgb.r, primaryRgb.g, primaryRgb.b) });
+    // Logo in alto a sinistra / centro / destra in base a t.logo_position
+    // ...
+  }
+
+  if (t.layout === 'modern') {
+    // Header full-color (altezza 180px)
+    page.drawRectangle({ x: 0, y: H - 180, width: W, height: 180,
+      color: rgb(primaryRgb.r, primaryRgb.g, primaryRgb.b) });
+    // Logo e testi in bianco sull'header
+    // ...
+  }
+
+  if (t.layout === 'minimal') {
+    // Solo linea sottile colorata in alto (2px)
+    page.drawRectangle({ x: 50, y: H - 50, width: W - 100, height: 2,
+      color: rgb(primaryRgb.r, primaryRgb.g, primaryRgb.b) });
+    // Tutto il resto in grigio scuro
+    // ...
+  }
+
+  if (t.layout === 'bold') {
+    // Sidebar colorata sinistra (larghezza 80px, altezza piena)
+    page.drawRectangle({ x: 0, y: 0, width: 80, height: H,
+      color: rgb(primaryRgb.r, primaryRgb.g, primaryRgb.b) });
+    // Logo nella sidebar (rotazione 90° o posizione fissa)
+    // Contenuto spostato a destra di 100px
+    // ...
+  }
+
+  // Watermark (se attivo, testo diagonale semitrasparente)
+  if (t.show_watermark && t.watermark_text) {
+    // Disegna testo diagonale al centro della pagina con opacity bassa
+    page.drawText(t.watermark_text, {
+      x: W / 2 - 100, y: H / 2,
+      size: 48,
+      font: helvetica,
+      color: rgb(0.85, 0.85, 0.85),
+      rotate: degrees(45),
+    });
+  }
+
+  // Tagline sotto il titolo
+  if (t.cover_tagline) {
+    page.drawText(t.cover_tagline, {
+      x: 50, y: /* posizione sotto titolo */,
+      size: 13, font: helveticaItalic,
+      color: rgb(primaryRgb.r, primaryRgb.g, primaryRgb.b),
+    });
+  }
+
+  // Footer di ogni pagina
+  if (t.footer_text) {
+    page.drawText(t.footer_text, {
+      x: 50, y: 25, size: 9, font: helvetica,
+      color: rgb(0.5, 0.5, 0.5),
+      maxWidth: W - 100,
+    });
+  }
+}
+```
+
+Per la tabella prodotti nella pagina 2, applica:
+- Colore primario per la riga header della tabella
+- Colore accent per le righe alternate
+- Colore primario per la riga TOTALE
+- Font secondo `t.font_family`
+
+**5. Righe alternate nella tabella prodotti:**
+
+```typescript
+sortedItems.forEach((item, idx) => {
+  const isEven = idx % 2 === 0;
+  if (isEven) {
+    const accentRgb = hexToRgb(t.accent_color);
+    detailPage.drawRectangle({
+      x: MARGIN, y: rowY - 2,
+      width: W - MARGIN * 2, height: ROW_HEIGHT,
+      color: rgb(accentRgb.r, accentRgb.g, accentRgb.b),
+    });
+  }
+  // ... disegna testo della riga
+});
+```
+
+================================================================================
+PROMPT 5 — HOOK E QUERY FRONTEND
+================================================================================
+
+Crea: src/hooks/useQuoteTemplates.ts
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+
+export function useQuoteTemplates() {
+  const { company } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: templates = [], isLoading } = useQuery({
+    queryKey: ['quote-templates', company?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('quote_templates')
+        .select('*')
+        .eq('company_id', company!.id)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!company?.id,
+  });
+
+  const defaultTemplate = templates.find(t => t.is_default) ?? templates[0] ?? null;
+
+  const upsertTemplate = useMutation({
+    mutationFn: async (template: Partial<QuoteTemplate> & { id?: string }) => {
+      if (template.id) {
+        const { error } = await supabase
+          .from('quote_templates')
+          .update({ ...template, updated_at: new Date().toISOString() })
+          .eq('id', template.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('quote_templates')
+          .insert({ ...template, company_id: company!.id });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quote-templates'] }),
+  });
+
+  const deleteTemplate = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('quote_templates')
+        .update({ is_active: false })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quote-templates'] }),
+  });
+
+  return { templates, defaultTemplate, isLoading, upsertTemplate, deleteTemplate };
+}
+```
+
+Crea anche: src/types/quoteTemplate.ts
+
+```typescript
+export type QuoteTemplateLayout = 'classic' | 'modern' | 'minimal' | 'bold';
+export type LogoPosition = 'left' | 'center' | 'right';
+export type LogoSize = 'small' | 'medium' | 'large';
+export type FontFamily = 'helvetica' | 'times' | 'courier';
+
+export interface QuoteTemplate {
+  id: string;
+  company_id: string;
+  name: string;
+  is_default: boolean;
+  is_active: boolean;
+  layout: QuoteTemplateLayout;
+  logo_url: string | null;
+  logo_position: LogoPosition;
+  logo_size: LogoSize;
+  show_logo: boolean;
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  text_color: string;
+  header_text_color: string;
+  font_family: FontFamily;
+  show_quote_number: boolean;
+  show_validity_date: boolean;
+  show_company_details: boolean;
+  show_client_details: boolean;
+  show_payment_terms: boolean;
+  show_delivery_terms: boolean;
+  show_notes: boolean;
+  show_page_numbers: boolean;
+  footer_text: string;
+  cover_tagline: string;
+  show_watermark: boolean;
+  watermark_text: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const COLOR_PALETTES = [
+  { name: 'Blu Professionale', primary: '#1E40AF', secondary: '#3B82F6', accent: '#DBEAFE', headerText: '#FFFFFF' },
+  { name: 'Verde Fiducia',     primary: '#166534', secondary: '#22C55E', accent: '#DCFCE7', headerText: '#FFFFFF' },
+  { name: 'Rosso Energia',     primary: '#991B1B', secondary: '#EF4444', accent: '#FEE2E2', headerText: '#FFFFFF' },
+  { name: 'Grigio Elegante',   primary: '#374151', secondary: '#6B7280', accent: '#F3F4F6', headerText: '#FFFFFF' },
+  { name: 'Viola Premium',     primary: '#6D28D9', secondary: '#8B5CF6', accent: '#EDE9FE', headerText: '#FFFFFF' },
+  { name: 'Arancio Energia',   primary: '#C2410C', secondary: '#F97316', accent: '#FFF7ED', headerText: '#FFFFFF' },
+  { name: 'Teal Moderno',      primary: '#0F766E', secondary: '#14B8A6', accent: '#CCFBF1', headerText: '#FFFFFF' },
+  { name: 'Nero Lusso',        primary: '#111827', secondary: '#374151', accent: '#F9FAFB', headerText: '#FFFFFF' },
+] as const;
+
+export const DEFAULT_TEMPLATE: Omit<QuoteTemplate, 'id' | 'company_id' | 'created_at' | 'updated_at'> = {
+  name: 'Template Default',
+  is_default: true,
+  is_active: true,
+  layout: 'classic',
+  logo_url: null,
+  logo_position: 'left',
+  logo_size: 'medium',
+  show_logo: true,
+  primary_color: '#1E40AF',
+  secondary_color: '#3B82F6',
+  accent_color: '#DBEAFE',
+  text_color: '#111827',
+  header_text_color: '#FFFFFF',
+  font_family: 'helvetica',
+  show_quote_number: true,
+  show_validity_date: true,
+  show_company_details: true,
+  show_client_details: true,
+  show_payment_terms: true,
+  show_delivery_terms: true,
+  show_notes: true,
+  show_page_numbers: true,
+  footer_text: '',
+  cover_tagline: '',
+  show_watermark: false,
+  watermark_text: 'OFFERTA RISERVATA',
+};
+```
+
+================================================================================
+PROMPT 6 — COMPONENTE MINI-PREVIEW LIVE (React)
+================================================================================
+
+Crea: src/components/quotes/QuoteTemplatePreview.tsx
+
+Questo componente mostra un'anteprima HTML/CSS del PDF in base al template.
+NON usa pdf-lib — è solo una simulazione visiva in React.
+
+```tsx
+import { QuoteTemplate } from '@/types/quoteTemplate';
+
+interface Props {
+  template: Partial<QuoteTemplate>;
+  companyName?: string;
+  companyLogoUrl?: string;
+  page?: 'cover' | 'detail';
+  scale?: number; // 0.3 per mini, 0.7 per grande
+}
+
+export function QuoteTemplatePreview({
+  template: t,
+  companyName = 'La Tua Azienda Srl',
+  companyLogoUrl,
+  page = 'cover',
+  scale = 0.4,
+}: Props) {
+  const primary = t.primary_color ?? '#1E40AF';
+  const accent = t.accent_color ?? '#DBEAFE';
+  const headerText = t.header_text_color ?? '#FFFFFF';
+  const textColor = t.text_color ?? '#111827';
+  const layout = t.layout ?? 'classic';
+
+  // Stile foglio A4 simulato
+  const sheetStyle: React.CSSProperties = {
+    width: 595,
+    height: 842,
+    backgroundColor: '#FFFFFF',
+    position: 'relative',
+    overflow: 'hidden',
+    fontFamily: t.font_family === 'times' ? 'Georgia, serif'
+              : t.font_family === 'courier' ? 'monospace'
+              : 'Helvetica, Arial, sans-serif',
+    transform: `scale(${scale})`,
+    transformOrigin: 'top left',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+    borderRadius: 4,
+    color: textColor,
+  };
+
+  return (
+    <div style={{ width: 595 * scale, height: 842 * scale, overflow: 'hidden' }}>
+      <div style={sheetStyle}>
+        {layout === 'classic' && <ClassicLayout t={t} primary={primary} accent={accent} headerText={headerText} companyName={companyName} page={page} />}
+        {layout === 'modern'  && <ModernLayout  t={t} primary={primary} accent={accent} headerText={headerText} companyName={companyName} page={page} />}
+        {layout === 'minimal' && <MinimalLayout t={t} primary={primary} accent={accent} headerText={headerText} companyName={companyName} page={page} />}
+        {layout === 'bold'    && <BoldLayout    t={t} primary={primary} accent={accent} headerText={headerText} companyName={companyName} page={page} />}
+
+        {/* Watermark */}
+        {t.show_watermark && t.watermark_text && (
+          <div style={{
+            position: 'absolute', top: '40%', left: '15%',
+            fontSize: 52, fontWeight: 'bold', color: 'rgba(0,0,0,0.07)',
+            transform: 'rotate(45deg)', whiteSpace: 'nowrap', pointerEvents: 'none',
+          }}>
+            {t.watermark_text}
+          </div>
+        )}
+
+        {/* Footer */}
+        {t.footer_text && (
+          <div style={{
+            position: 'absolute', bottom: 20, left: 50, right: 50,
+            fontSize: 8, color: '#9CA3AF', borderTop: '1px solid #E5E7EB',
+            paddingTop: 6, textAlign: 'center',
+          }}>
+            {t.footer_text}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// I 4 layout sub-component implementano il layout visivo in HTML/CSS
+// corrispondente a quello che verrà generato nel PDF
+
+function ClassicLayout({ t, primary, accent, headerText, companyName, page }) {
+  return (
+    <>
+      {/* Bordo colorato in alto */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 8, backgroundColor: primary }} />
+      {/* Header bianco con logo e numero offerta */}
+      <div style={{ padding: '30px 50px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: 18, fontWeight: 'bold', color: primary }}>{companyName}</div>
+        {t.show_quote_number && <div style={{ fontSize: 11, color: '#6B7280' }}>OFFERTA N. OFF-2026-001</div>}
+      </div>
+      {/* Linea separatore */}
+      <div style={{ height: 1, backgroundColor: accent, margin: '0 50px' }} />
+      {page === 'cover' ? <ClassicCoverBody primary={primary} accent={accent} t={t} /> : <DetailBody primary={primary} accent={accent} />}
+    </>
+  );
+}
+
+function ModernLayout({ t, primary, accent, headerText, companyName, page }) {
+  return (
+    <>
+      {/* Header full-color */}
+      <div style={{ backgroundColor: primary, padding: '40px 50px 30px', color: headerText }}>
+        <div style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 4 }}>{companyName}</div>
+        {t.show_quote_number && <div style={{ fontSize: 10, opacity: 0.8 }}>OFFERTA N. OFF-2026-001</div>}
+        <div style={{ fontSize: 16, marginTop: 20, fontWeight: 'bold' }}>OFFERTA COMMERCIALE</div>
+        <div style={{ fontSize: 11, opacity: 0.9, marginTop: 4 }}>Offerta serramenti Villa Rossi</div>
+        {t.cover_tagline && <div style={{ fontSize: 10, opacity: 0.75, marginTop: 8, fontStyle: 'italic' }}>{t.cover_tagline}</div>}
+      </div>
+      {page === 'cover' ? <ModernCoverBody accent={accent} t={t} /> : <DetailBody primary={primary} accent={accent} />}
+    </>
+  );
+}
+
+function MinimalLayout({ t, primary, accent, headerText, companyName, page }) {
+  return (
+    <>
+      <div style={{ padding: '50px 50px 0' }}>
+        <div style={{ borderBottom: `2px solid ${primary}`, paddingBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 16, fontWeight: 'bold' }}>{companyName}</div>
+          {t.show_quote_number && <div style={{ fontSize: 10, color: '#6B7280' }}>OFF-2026-001</div>}
+        </div>
+        <div style={{ marginTop: 40, fontSize: 22, fontWeight: 'bold' }}>OFFERTA COMMERCIALE</div>
+        <div style={{ fontSize: 13, color: '#6B7280', marginTop: 6 }}>Offerta serramenti Villa Rossi</div>
+        {t.cover_tagline && <div style={{ fontSize: 10, color: primary, marginTop: 8, fontStyle: 'italic' }}>{t.cover_tagline}</div>}
+      </div>
+      {page !== 'cover' && <DetailBody primary={primary} accent={accent} />}
+    </>
+  );
+}
+
+function BoldLayout({ t, primary, accent, headerText, companyName, page }) {
+  return (
+    <div style={{ display: 'flex', height: '100%' }}>
+      {/* Sidebar sinistra colorata */}
+      <div style={{ width: 80, backgroundColor: primary, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: headerText, fontSize: 9, fontWeight: 'bold', writingMode: 'vertical-rl', transform: 'rotate(180deg)', opacity: 0.9 }}>
+          {companyName}
+        </div>
+      </div>
+      {/* Contenuto principale */}
+      <div style={{ flex: 1, padding: '40px 40px' }}>
+        <div style={{ fontSize: 9, color: '#9CA3AF', marginBottom: 30 }}>
+          {t.show_quote_number ? 'OFFERTA N. OFF-2026-001' : ''}
+        </div>
+        <div style={{ fontSize: 24, fontWeight: '900', color: primary, lineHeight: 1.2 }}>OFFERTA<br/>COMMERCIALE</div>
+        <div style={{ fontSize: 12, color: '#374151', marginTop: 10 }}>Offerta serramenti Villa Rossi</div>
+        {t.cover_tagline && <div style={{ fontSize: 10, color: primary, marginTop: 8, fontStyle: 'italic' }}>{t.cover_tagline}</div>}
+        {page !== 'cover' && <DetailBody primary={primary} accent={accent} />}
+      </div>
+    </div>
+  );
+}
+
+// Corpo pagina dettaglio (tabella prodotti simulata)
+function DetailBody({ primary, accent }) {
+  const rows = [
+    { name: 'Finestre doppio vetro 100x140', qty: 3, price: '€ 890,00', total: '€ 2.670,00' },
+    { name: 'Porta finestra 90x210', qty: 2, price: '€ 1.200,00', total: '€ 2.400,00' },
+    { name: 'Installazione e posa', qty: 1, price: '€ 800,00', total: '€ 800,00' },
+  ];
+  return (
+    <div style={{ padding: '20px 50px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+        <thead>
+          <tr style={{ backgroundColor: primary, color: '#FFFFFF' }}>
+            <th style={{ padding: '6px 8px', textAlign: 'left' }}>Descrizione</th>
+            <th style={{ padding: '6px 8px', textAlign: 'center', width: 40 }}>Qty</th>
+            <th style={{ padding: '6px 8px', textAlign: 'right', width: 80 }}>Prezzo</th>
+            <th style={{ padding: '6px 8px', textAlign: 'right', width: 80 }}>Totale</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} style={{ backgroundColor: i % 2 === 0 ? accent : '#FFFFFF' }}>
+              <td style={{ padding: '5px 8px' }}>{r.name}</td>
+              <td style={{ padding: '5px 8px', textAlign: 'center' }}>{r.qty}</td>
+              <td style={{ padding: '5px 8px', textAlign: 'right' }}>{r.price}</td>
+              <td style={{ padding: '5px 8px', textAlign: 'right' }}>{r.total}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ textAlign: 'right', marginTop: 16, fontSize: 9 }}>
+        <div>Subtotale: <strong>€ 5.870,00</strong></div>
+        <div>IVA 22%: <strong>€ 1.291,40</strong></div>
+        <div style={{ fontSize: 12, fontWeight: 'bold', color: primary, borderTop: `2px solid ${primary}`, marginTop: 6, paddingTop: 6 }}>
+          TOTALE: € 7.161,40
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+Dopo aver implementato tutti i prompt:
+
+1. Vai in Impostazioni → Template Offerte
+   - Crea un nuovo template "Moderno Blu" con layout Modern e palette Blu
+   - Imposta come default
+   - Verifica la preview live si aggiorna in tempo reale
+
+2. Crea un nuovo preventivo
+   - Nel Step 4 "Riepilogo", verifica che la sezione "Aspetto del Documento" sia presente
+   - Cambia template → verifica che la mini-preview si aggiorni
+   - Clicca "Genera PDF" → verifica che il PDF rispecchi il template scelto
+
+3. Verifica i 4 layout nel PDF generato:
+   - Classic: bordo colorato in alto, header bianco
+   - Modern: header full-color
+   - Minimal: solo linea sottile
+   - Bold: sidebar colorata sinistra
+
+4. Verifica che il template default venga pre-selezionato automaticamente
+   per ogni nuovo preventivo
+
+================================================================================
+NOTE
+================================================================================
+
+- NON modificare la logica di quote_items, quote_pdf_attachments, firma digitale
+- Il componente QuoteTemplatePreview è SOLO visuale (React/CSS), non genera PDF
+- La generazione PDF reale avviene sempre nella edge function
+- Se pdf-lib non supporta font personalizzati, usa StandardFonts.Helvetica /
+  StandardFonts.TimesRoman / StandardFonts.Courier come fallback
+- Il color picker può usare semplicemente <input type="color"> nativo di HTML5
+  per semplicità, senza librerie aggiuntive
+
+================================================================================

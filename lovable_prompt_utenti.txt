@@ -1,0 +1,397 @@
+================================================================================
+PROMPT LOVABLE — GESTIONE UTENTI AZIENDA: BUG FIX + UX WIZARD + PERMESSI
+================================================================================
+
+CONTESTO
+--------
+La sezione "Impostazioni → Utenti" gestisce la creazione e i permessi degli
+utenti aziendali (Amministratori, Operatori, Venditori, Call Center).
+Ogni utente non-admin ha una riga in `staff_permissions` con colonne booleane
+per ogni sezione dell'app. Questo prompt consolida tutti i fix necessari.
+
+================================================================================
+1. RISCRIVI `StaffUserDialog.tsx` COME WIZARD A 4 STEP (O 3 PER ADMIN)
+================================================================================
+
+Il file `src/components/users/StaffUserDialog.tsx` deve diventare un wizard
+multi-step con layout fisso (header fisso, body scrollabile, footer fisso).
+
+FLUSSO PER RUOLI CON PERMESSI (Operatore, Venditore, Call Center):
+  Step 1 — Tipo Utente  → Step 2 — Dati Utente  → Step 3 — Permessi  → Step 4 — Conferma → [submit] → Schermata Password
+
+FLUSSO PER AMMINISTRATORE (nessun permesso granulare):
+  Step 1 — Tipo Utente  → Step 2 — Dati Utente  → Step 3 — Conferma → [submit] → Schermata Password
+
+REGOLE FONDAMENTALI:
+- NON includere permessi granulari inventati (Esporta Clienti, Elimina Ordini,
+  Gestisci Pagamenti, Approva Ordini, Calendario Team Completo, Visualizza
+  Margini, Gestisci Fornitori, Report Finanziari, Gestisci Articoli Magazzino).
+  QUESTI CAMPI NON ESISTONO in `staff_permissions` e non devono apparire.
+- NON includere il dropdown "Applica Template" (la tabella `permission_templates`
+  non esiste nel database).
+- Usa SOLO le colonne reali di `staff_permissions`.
+
+STRUTTURA JSX DEL DIALOG:
+  <DialogContent className="max-w-xl max-h-[92vh] flex flex-col p-0 gap-0">
+    {/* Header fisso */}
+    <div className="px-6 pt-5 pb-4 border-b shrink-0">
+      {/* barra di progresso step + titolo */}
+    </div>
+    {/* Body scrollabile */}
+    <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+      {/* contenuto step corrente */}
+    </div>
+    {/* Footer fisso */}
+    <div className="px-6 py-4 border-t shrink-0 flex items-center justify-between">
+      {/* pulsanti Indietro/Avanti/Crea Utente/Chiudi */}
+    </div>
+  </DialogContent>
+
+STEP 1 — TIPO UTENTE:
+  Griglia 2×2 con card cliccabili per selezionare il ruolo:
+  - Amministratore (ShieldCheck, blu) — "Accesso completo a tutto"
+  - Operatore (User, slate) — "Gestione interna commesse"
+  - Venditore (TrendingUp, verde) — "Vendite e opportunità"
+  - Call Center (Phone, arancione) — "Contatti e assistenza"
+
+  Quando l'utente seleziona un ruolo, applica automaticamente i preset di
+  permessi predefiniti (vedi sezione PRESET più sotto).
+
+  Per Amministratore mostra un banner info: "L'amministratore ha accesso
+  completo a tutte le sezioni. Non è necessario configurare permessi specifici."
+
+STEP 2 — DATI UTENTE:
+  - Input Nome (required)
+  - Input Cognome (required)
+  - Input Email (required, type="email")
+  - Badge recap del ruolo selezionato
+  - Note: "Verrà usata per il login. La password temporanea sarà inviata a questo indirizzo."
+  - Validazione: il pulsante "Avanti" è disabilitato se nome/cognome/email non sono validi
+
+STEP 3 — PERMESSI (SOLO per Operatore, Venditore, Call Center):
+  Mostra i permessi raggruppati per area usando SOLO le colonne reali del DB.
+
+  GRUPPI DI PERMESSI (usa questi esatti, niente altro):
+
+  Gruppo "Cruscotto Aziendale" (icona Building2, indigo):
+    - can_view_cruscotto → "Cruscotto — KPI e performance aziendali"
+
+  Gruppo "Gestione Interna" (icona LayoutDashboard, blu):
+    - can_view_dashboard → "Dashboard"
+    - can_view_orders / can_edit_orders → "Ordini e Commesse"
+    - can_view_warehouse / can_edit_warehouse → "Magazzino"
+    - can_view_calendar → "Calendario"
+    - can_view_customers / can_edit_customers → "Clienti"
+    - can_view_employees → "Dipendenti"
+    - can_view_tickets / can_edit_tickets → "Assistenza / Ticket"
+    - can_view_forecast → "Previsionale"
+    - can_view_settings / can_edit_settings → "Impostazioni"
+
+  Gruppo "Marketing e Vendite" (icona Megaphone, viola):
+    - can_view_marketing_dashboard → "Dashboard Marketing"
+    - can_view_marketing_contacts / can_edit_marketing_contacts → "Contatti CRM"
+    - can_view_marketing_opportunities / can_edit_marketing_opportunities → "Opportunità"
+    - can_view_marketing_activities → "Attività"
+    - can_view_marketing_appointments → "Appuntamenti"
+    - can_view_marketing_automations → "Automazioni"
+    - can_view_marketing_ai_agent → "Agente AI"
+    - can_view_marketing_email → "Email Marketing"
+    - can_view_marketing_whatsapp → "WhatsApp"
+    - can_view_marketing_reports → "Reportistica Marketing"
+
+  Per ogni GRUPPO: Switch toggle-all che attiva/disattiva tutti gli item del gruppo.
+  Badge con contatore "N/M" (attivi/totali).
+
+  Per ogni ITEM con editKey: il toggle "Modifica" appare SOLO quando il view è attivo.
+  Se il view viene disattivato, disattiva automaticamente anche l'edit.
+
+  In fondo alla lista permessi, fuori dai gruppi:
+  Switch "Solo elementi assegnati" (colonna `only_assigned`):
+  "Se attivo, l'utente vedrà SOLO ordini, attività e appuntamenti assegnati a lui."
+
+  Pulsanti quick actions: "Seleziona tutto", "Deseleziona tutto",
+  "Ripristina preset [NomeRuolo]"
+
+  Badge in alto a destra con conteggio totale permessi attivi (escludendo
+  only_assigned, can_view_marketing, can_edit_marketing dal conteggio).
+
+STEP 3 PER AMMINISTRATORE — Schermata accesso completo:
+  Icona ShieldCheck grande (blu), testo:
+  "Accesso amministratore completo"
+  "Gli amministratori hanno accesso a tutte le sezioni. Non è necessario
+  configurare permessi specifici."
+
+STEP 4 — CONFERMA (per Operatore/Venditore/CallCenter):
+  Riepilogo in card: Nome Cognome, Email, Ruolo (con icona), Permessi attivi (badge).
+  Banner giallo: "Verrà generata una password temporanea. L'utente dovrà cambiarla al primo accesso."
+  Pulsante "Crea Utente" in footer.
+
+STEP 3 (ADMIN) — CONFERMA (per Amministratore):
+  Stessa struttura del STEP 4 sopra, ma senza la riga "Permessi attivi".
+  Pulsante "Crea Utente" in footer.
+
+SCHERMATA PASSWORD (dopo submit riuscito):
+  Icona CheckCircle2 verde, "Utente creato con successo!"
+  Box con email e password temporanea (font-mono, pulsante copia con icona Copy).
+  Banner rosso: "Mostra solo una volta. Comunica questa password all'utente
+  in modo sicuro prima di chiudere."
+  Solo pulsante "Chiudi" nel footer.
+
+LOGICA ISCONFIRMSTEP (CRITICO — già fixato localmente, verifica sia così):
+  const isConfirmStep = showPermissions ? step === 4 : step === 3;
+  // showPermissions = roleType è in ["company_staff","salesperson","call_center"]
+  // Admin: step 3 = conferma + submit
+  // Staff/Sales/CC: step 4 = conferma + submit (step 3 = permessi)
+
+PRESET PERMESSI PER RUOLO (applicati automaticamente quando si seleziona il ruolo):
+  company_staff:
+    can_view_dashboard, can_view_orders, can_edit_orders,
+    can_view_warehouse, can_view_calendar, can_view_customers, can_view_employees
+
+  salesperson:
+    can_view_dashboard, can_view_orders, can_view_customers, can_edit_customers,
+    can_view_calendar, can_view_marketing_dashboard, can_view_marketing_contacts,
+    can_edit_marketing_contacts, can_view_marketing_opportunities,
+    can_edit_marketing_opportunities, can_view_marketing_activities,
+    can_view_marketing_appointments, can_view_marketing_reports,
+    can_view_marketing: true, can_edit_marketing: true
+
+  call_center:
+    can_view_dashboard, can_view_customers, can_edit_customers, can_view_calendar,
+    can_view_marketing_contacts, can_edit_marketing_contacts,
+    can_view_marketing_opportunities, can_view_marketing_activities,
+    can_view_marketing_appointments, can_view_marketing: true
+
+SYNC FLAG LEGACY (eseguita PRIMA del submit):
+  Prima di inviare i dati, calcola automaticamente:
+    can_view_marketing = true se ALMENO UNO dei can_view_marketing_* è true
+    can_edit_marketing = true se ALMENO UNO dei can_edit_marketing_* è true
+  Questo mantiene compatibilità con i controlli legacy nell'app.
+
+INTERFACCIA ESPORTATA (non cambiare, UsersConfig dipende da questa):
+  export type StaffRoleType = "company_admin"|"company_staff"|"salesperson"|"call_center"
+  export interface StaffUserFormData {
+    first_name: string;
+    last_name: string;
+    email: string;
+    role_type: StaffRoleType;
+    permissions?: StaffPermissions;
+  }
+  export function StaffUserDialog({ open, onOpenChange, onSubmit, isLoading })
+  // onSubmit: (data: StaffUserFormData) => Promise<{ temporaryPassword?: string }>
+
+================================================================================
+2. FIX CRITICO SICUREZZA — RLS `staff_permissions` (WITH CHECK mancante)
+================================================================================
+
+PROBLEMA: La policy RLS "Company admins can manage staff permissions" su
+`staff_permissions` ha solo la clausola USING ma non WITH CHECK. Questo
+significa che un admin può leggere SOLO i record della sua azienda ma può
+SCRIVERE su qualsiasi riga del database (incluse righe di altre aziende).
+
+FIX: Crea una nuova migration SQL che corregge la policy:
+
+-- Nuova migration: fix_staff_permissions_rls_with_check.sql
+ALTER POLICY "Company admins can manage staff permissions"
+  ON public.staff_permissions
+  USING (
+    has_role(auth.uid(), 'company_admin'::app_role)
+    AND company_id = get_user_company_id(auth.uid())
+  )
+  WITH CHECK (
+    has_role(auth.uid(), 'company_admin'::app_role)
+    AND company_id = get_user_company_id(auth.uid())
+  );
+
+Assicurati che questa migration venga applicata correttamente.
+
+================================================================================
+3. FIX — `supabase/functions/delete-company-user/index.ts`
+================================================================================
+
+PROBLEMA: Se la cancellazione dell'auth user fallisce (supabaseAdmin.auth.admin.
+deleteUser), la funzione logga l'errore ma ritorna comunque `{ success: true }`.
+L'utente pensa che la cancellazione sia andata a buon fine ma l'account Auth
+rimane attivo (l'utente può ancora loggare).
+
+FIX: Se `deleteAuthError` è presente, ritorna un errore HTTP 500:
+  if (deleteAuthError) {
+    console.error("Failed to delete auth user:", deleteAuthError);
+    return new Response(
+      JSON.stringify({ error: "Impossibile eliminare l'account utente" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+================================================================================
+4. FIX — Generazione password in `supabase/functions/create-company-staff/`
+================================================================================
+
+PROBLEMA: La funzione `generateTemporaryPassword()` usa `Math.random()` che
+non è crittograficamente sicuro. Anche per una password temporanea, è buona
+pratica usare l'API crypto di Deno.
+
+FIX: Sostituisci la funzione con questa implementazione sicura:
+
+  function generateTemporaryPassword(): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#";
+    const array = new Uint32Array(12);
+    crypto.getRandomValues(array);
+    return Array.from(array, (n) => chars[n % chars.length]).join("");
+  }
+
+(Deno ha `crypto` globale, nessun import necessario)
+
+================================================================================
+5. FIX — `src/hooks/usePermissions.ts` — canViewUsers hardcoded a false
+================================================================================
+
+PROBLEMA: La riga `canViewUsers: false` è hardcoded (commentata come TODO).
+Questo significa che nessun utente può vedere la sezione utenti dall'hook
+usePermissions, anche se ha il permesso.
+
+POSIZIONE: Cerca `canViewUsers: false` in `usePermissions.ts`.
+
+FIX: Determina `canViewUsers` in base al ruolo:
+  - super_admin e company_admin → sempre true
+  - company_staff/salesperson/call_center → leggi da `can_view_settings` nei
+    loro staff_permissions (chi può vedere le impostazioni può vedere gli utenti)
+
+  Esempio:
+    canViewUsers: hasRole("company_admin") || hasRole("super_admin")
+      || (permissions?.can_view_settings ?? false),
+
+================================================================================
+6. FIX — `src/pages/azienda/settings/SettingsUserDetail.tsx`
+   changeRoleMutation: loop delete senza error handling
+================================================================================
+
+PROBLEMA: Il `changeRoleMutation` elimina i vecchi ruoli con un for loop
+di delete separati, senza gestire gli errori. Se un delete fallisce, il loop
+continua silenziosamente e lo stato dei ruoli rimane inconsistente.
+
+FIX: Usa una singola operazione `.delete().in("role", rolesToRemove)`:
+  // Invece del for loop:
+  const { error: deleteError } = await supabase
+    .from("user_roles")
+    .delete()
+    .eq("user_id", userId)
+    .in("role", rolesToRemove);
+
+  if (deleteError) throw deleteError;
+
+  // Poi inserisci i nuovi ruoli
+  const { error: insertError } = await supabase
+    .from("user_roles")
+    .insert(newRoles.map(role => ({ user_id: userId, role })));
+
+  if (insertError) throw insertError;
+
+================================================================================
+7. FIX — `src/components/settings/UsersConfig.tsx`
+   handleCreateUser: aggiornamento permessi senza error handling
+================================================================================
+
+PROBLEMA: Dopo la creazione dell'utente, il blocco che aggiorna `staff_permissions`
+con i permessi granulari non ha error handling. Se l'update fallisce, l'utente
+viene creato ma senza i permessi configurati, e non viene mostrato nessun errore.
+
+FIX: Aggiungi error handling all'update dei permessi:
+  const { error: permUpdateError } = await supabase
+    .from("staff_permissions")
+    .update({ ...permFields, only_assigned: only_assigned || false })
+    .eq("user_id", response.data.user_id);
+
+  if (permUpdateError) {
+    console.error("Failed to update permissions:", permUpdateError);
+    toast.warning("Utente creato, ma i permessi non sono stati salvati", {
+      description: "Vai nel dettaglio utente per configurare i permessi manualmente.",
+    });
+  }
+
+================================================================================
+8. MIGLIORAMENTO UX — Tabella utenti in `UsersConfig.tsx`
+================================================================================
+
+Assicurati che la tabella utenti mostri correttamente:
+
+a) BADGE RUOLO con colori distinti per ogni ruolo:
+   - Amministratore → blu (ShieldCheck)
+   - Operatore → slate (UserCheck)
+   - Venditore → verde (TrendingUp)
+   - Call Center → arancione (Phone)
+
+b) BADGE PERMESSI nella lista: mostra una sintesi compatta dei permessi attivi.
+   Per admin: "Accesso completo" con icona ShieldCheck.
+   Per altri: mostra le prime 3 sezioni attive + "+N altri" se ci sono altri.
+
+c) STATO UTENTE: se `must_change_password = true` in staff_permissions,
+   mostra un badge "Password da cambiare" (giallo/amber) accanto al nome.
+
+d) AZIONI nel dropdown (⋮):
+   - "Modifica permessi" → apre PermissionsDialog
+   - "Dettaglio utente" → naviga a /settings/users/:id
+   - Separatore
+   - "Elimina utente" → AlertDialog di conferma (rosso, azione distruttiva)
+
+e) EMPTY STATE: se non ci sono utenti nella categoria filtrata, mostra un
+   messaggio amichevole con icona e CTA per invitare un utente.
+
+================================================================================
+9. MIGLIORAMENTO UX — PermissionsDialog (modifica permessi utente esistente)
+================================================================================
+
+Il dialog per MODIFICARE i permessi di un utente esistente deve:
+- Mostrare gli stessi PERM_GROUPS del wizard (punto 1), con la stessa struttura
+  a gruppi, Switch toggle-all, toggle "Modifica" inline.
+- NON mostrare i permessi granulari inventati (stesso principio del wizard).
+- Avere un pulsante "Ripristina preset [RuoloUtente]" che applica i default
+  del ruolo corrente dell'utente.
+- Mostrare il contatore "N permessi attivi" in un badge.
+- Dopo il salvataggio, aggiornare `can_view_marketing` e `can_edit_marketing`
+  in base ai flag granulari (sync legacy, stessa logica del wizard).
+- Mostrare toast di successo/errore dopo il salvataggio.
+
+================================================================================
+10. VERIFICA FINALE — CHECKLIST
+================================================================================
+
+Dopo aver applicato tutte le modifiche, verifica che:
+
+[ ] Creazione Admin: wizard 3 step (Tipo → Dati → Conferma → Password)
+[ ] Creazione Operatore: wizard 4 step (Tipo → Dati → Permessi → Conferma → Password)
+[ ] Creazione Venditore: wizard 4 step, preset marketing precompilato
+[ ] Creazione Call Center: wizard 4 step, preset contatti/appuntamenti
+[ ] Toggle gruppo: attiva/disattiva tutti i permessi del gruppo
+[ ] Toggle "Modifica" appare SOLO se il view corrispondente è attivo
+[ ] "Ripristina preset" ripristina i default del ruolo selezionato
+[ ] "Solo elementi assegnati" si salva correttamente (colonna only_assigned)
+[ ] can_view_marketing e can_edit_marketing vengono sincronizzati dai granulari
+[ ] Password viene mostrata dopo creazione utente (schermata dedicata)
+[ ] Pulsante copia password funziona
+[ ] Eliminazione utente: mostra errore se la cancellazione Auth fallisce
+[ ] Tabella utenti si aggiorna dopo creazione/modifica/eliminazione
+[ ] Filtro per ruolo funziona nella tabella utenti
+[ ] Badge "Password da cambiare" appare se must_change_password = true
+[ ] canViewUsers in usePermissions.ts NON è più hardcoded a false
+
+================================================================================
+NOTE TECNICHE IMPORTANTI
+================================================================================
+
+- Database: Supabase (Postgres) con RLS abilitato
+- Ruoli nel sistema: super_admin, company_admin, company_staff, salesperson,
+  call_center (enum `app_role`)
+- salesperson e call_center hanno ENTRAMBI i ruoli nel DB user_roles:
+  es. salesperson → ["salesperson", "company_staff"]
+  Questo perché la staff_permissions row viene creata solo se l'utente ha
+  il ruolo company_staff. Quindi anche salesperson/call_center l'hanno.
+- La funzione `has_permission(user_id, permission)` in PostgreSQL è usata
+  nelle RLS di altre tabelle per controllare i permessi granulari.
+- La funzione `get_user_company_id(auth.uid())` restituisce il company_id
+  dell'utente corrente.
+- Non creare nuove tabelle. Usa solo lo schema esistente.
+- Usa sempre React Query (useQuery/useMutation) per le operazioni dati.
+- Usa i componenti shadcn/ui esistenti (Switch, Checkbox, Badge, Dialog, ecc.)
+
+================================================================================

@@ -1,0 +1,871 @@
+====================================================================
+PROMPT LOVABLE — Numeri Virtuali (Twilio): Gestione Numeri di Telefono
+====================================================================
+
+CONTESTO TECNICO
+- Stack: React 18 + TypeScript + Vite + Supabase + TanStack React Query v5
+- UI: Shadcn/ui + Radix UI + Tailwind CSS + Lucide Icons
+- Pattern auth: useAuth() → effectiveCompany?.id (MAI company?.id)
+- Edge Functions in supabase/functions/
+- WhatsApp già presente — questo aggiunge numeri virtuali per SMS/chiamate
+- NOTA: Richiede account Twilio configurato a livello piattaforma
+  (account SID + auth token nelle variabili d'ambiente dell'Edge Function)
+
+OBIETTIVO
+Creare il modulo numeri virtuali con:
+- Lista numeri posseduti dall'azienda
+- Flusso acquisto numero (ricerca → selezione → conferma)
+- Assegnazione numero a utente del team
+- Dashboard crediti SMS collegata a SettingsCredits
+- Rilascio numero con conferma
+- Edge Function Twilio proxy sicuro
+
+================================================================
+STEP 1 — MIGRAZIONE DATABASE
+================================================================
+
+Crea file: supabase/migrations/20260320150000_phone_numbers.sql
+
+```sql
+CREATE TABLE IF NOT EXISTS virtual_phone_numbers (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id       uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  phone_number     text NOT NULL UNIQUE,     -- Formato E.164: +39XXXXXXXXXX
+  friendly_name    text,
+  twilio_sid       text NOT NULL,            -- Twilio PhoneNumber SID (PNxxxx)
+  country_code     text NOT NULL DEFAULT 'IT',
+  number_type      text NOT NULL DEFAULT 'local'
+                     CHECK (number_type IN ('local','mobile','toll_free')),
+  capabilities     jsonb NOT NULL DEFAULT '{"sms": true, "voice": false, "mms": false}',
+  is_active        boolean NOT NULL DEFAULT true,
+  assigned_to      uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  monthly_cost_eur decimal(10,2) NOT NULL DEFAULT 1.00,
+  purchased_at     timestamptz DEFAULT now(),
+  released_at      timestamptz
+);
+
+CREATE TABLE IF NOT EXISTS phone_number_sms_usage (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone_number_id uuid NOT NULL REFERENCES virtual_phone_numbers(id) ON DELETE CASCADE,
+  period_start    date NOT NULL,
+  period_end      date NOT NULL,
+  sms_sent        integer NOT NULL DEFAULT 0,
+  sms_received    integer NOT NULL DEFAULT 0,
+  cost_eur        decimal(10,2) NOT NULL DEFAULT 0.00
+);
+
+CREATE INDEX idx_vpn_company_id      ON virtual_phone_numbers(company_id);
+CREATE INDEX idx_vpn_twilio_sid      ON virtual_phone_numbers(twilio_sid);
+CREATE INDEX idx_sms_usage_number_id ON phone_number_sms_usage(phone_number_id);
+CREATE INDEX idx_sms_usage_period    ON phone_number_sms_usage(period_start);
+
+ALTER TABLE virtual_phone_numbers  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE phone_number_sms_usage ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_phone_numbers" ON virtual_phone_numbers
+  FOR ALL USING (
+    company_id IN (SELECT company_id FROM profiles WHERE id = auth.uid())
+  );
+
+CREATE POLICY "company_sms_usage" ON phone_number_sms_usage
+  FOR ALL USING (
+    phone_number_id IN (
+      SELECT vpn.id FROM virtual_phone_numbers vpn
+      JOIN profiles p ON p.id = auth.uid()
+      WHERE vpn.company_id = p.company_id
+    )
+  );
+```
+
+================================================================
+STEP 2 — EDGE FUNCTION: supabase/functions/twilio-phone/index.ts
+================================================================
+
+```typescript
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID")!;
+const TWILIO_AUTH_TOKEN   = Deno.env.get("TWILIO_AUTH_TOKEN")!;
+const TWILIO_BASE_URL     = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}`;
+
+const twilioHeaders = {
+  "Authorization": "Basic " + btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`),
+  "Content-Type": "application/x-www-form-urlencoded",
+};
+
+async function twilioGet(path: string) {
+  const resp = await fetch(`${TWILIO_BASE_URL}${path}.json`, { headers: twilioHeaders });
+  if (!resp.ok) throw new Error(`Twilio error: ${resp.status} ${await resp.text()}`);
+  return resp.json();
+}
+
+async function twilioPost(path: string, body: Record<string, string>) {
+  const resp = await fetch(`${TWILIO_BASE_URL}${path}.json`, {
+    method: "POST",
+    headers: twilioHeaders,
+    body: new URLSearchParams(body).toString(),
+  });
+  if (!resp.ok) throw new Error(`Twilio error: ${resp.status} ${await resp.text()}`);
+  return resp.json();
+}
+
+async function twilioDelete(path: string) {
+  const resp = await fetch(`${TWILIO_BASE_URL}${path}.json`, {
+    method: "DELETE",
+    headers: twilioHeaders,
+  });
+  if (resp.status !== 204 && !resp.ok) throw new Error(`Twilio delete error: ${resp.status}`);
+  return true;
+}
+
+Deno.serve(async (req) => {
+  const { action, company_id, ...params } = await req.json();
+
+  // Verifica che l'utente abbia accesso all'azienda
+  // (il JWT Supabase viene validato automaticamente dall'edge runtime)
+
+  try {
+    switch (action) {
+
+      case "search_available": {
+        // Cerca numeri disponibili per paese, tipo e area code opzionale
+        const { country = "IT", number_type = "local", area_code, page_size = 20 } = params;
+        const typeMap: Record<string, string> = {
+          local: "Local",
+          mobile: "Mobile",
+          toll_free: "TollFree",
+        };
+        let path = `/AvailablePhoneNumbers/${country}/${typeMap[number_type]}?PageSize=${page_size}&SmsEnabled=true`;
+        if (area_code) path += `&AreaCode=${area_code}`;
+        if (country === "IT") path += `&InRegion=IT`;
+
+        const data = await twilioGet(
+          `/AvailablePhoneNumbers/${country}/${typeMap[number_type]}?PageSize=${page_size}&SmsEnabled=true${area_code ? `&AreaCode=${area_code}` : ""}`
+        );
+
+        // Normalizza risposta Twilio
+        const available_numbers = (data.available_phone_numbers || []).map((n: any) => ({
+          phone_number: n.phone_number,
+          friendly_name: n.friendly_name,
+          region: n.region,
+          capabilities: {
+            sms: n.capabilities?.SMS === "true" || n.capabilities?.sms === true,
+            voice: n.capabilities?.voice === "true" || n.capabilities?.voice === true,
+            mms: n.capabilities?.MMS === "true" || n.capabilities?.mms === true,
+          },
+          monthly_cost_eur: 1.00, // prezzo fisso di default, aggiornare con pricing API se disponibile
+        }));
+
+        return Response.json({ available_numbers });
+      }
+
+      case "purchase": {
+        const { phone_number } = params;
+        if (!phone_number || !company_id) throw new Error("phone_number e company_id richiesti");
+
+        // Acquista il numero su Twilio
+        const result = await twilioPost("/IncomingPhoneNumbers", {
+          PhoneNumber: phone_number,
+          FriendlyName: `SalesOS - ${company_id.slice(0, 8)}`,
+          SmsMethod: "POST",
+          // SmsUrl: `${Deno.env.get("SUPABASE_URL")}/functions/v1/twilio-sms-webhook`, // futuro
+        });
+
+        // Salva nel database
+        const { error } = await supabase.from("virtual_phone_numbers").insert({
+          company_id,
+          phone_number: result.phone_number,
+          friendly_name: result.friendly_name,
+          twilio_sid: result.sid,
+          country_code: phone_number.startsWith("+39") ? "IT" : phone_number.slice(1, 3),
+          capabilities: {
+            sms:   result.capabilities?.sms   === "true" || true,
+            voice: result.capabilities?.voice === "true" || false,
+            mms:   result.capabilities?.mms   === "true" || false,
+          },
+          monthly_cost_eur: 1.00,
+        });
+        if (error) throw error;
+
+        return Response.json({ success: true, phone_number: result.phone_number, twilio_sid: result.sid });
+      }
+
+      case "release": {
+        const { phone_number_id } = params;
+        if (!phone_number_id) throw new Error("phone_number_id richiesto");
+
+        // Recupera il twilio_sid
+        const { data: numData, error: numErr } = await supabase
+          .from("virtual_phone_numbers")
+          .select("twilio_sid")
+          .eq("id", phone_number_id)
+          .eq("company_id", company_id)
+          .single();
+        if (numErr || !numData) throw new Error("Numero non trovato");
+
+        // Rilascia su Twilio
+        await twilioDelete(`/IncomingPhoneNumbers/${numData.twilio_sid}`);
+
+        // Aggiorna DB
+        await supabase.from("virtual_phone_numbers").update({
+          is_active: false,
+          released_at: new Date().toISOString(),
+        }).eq("id", phone_number_id);
+
+        return Response.json({ success: true });
+      }
+
+      case "list_company": {
+        // Restituisce i numeri dell'azienda con dati Twilio aggiornati
+        const { data, error } = await supabase
+          .from("virtual_phone_numbers")
+          .select("*, assigned_user:profiles(id, first_name, last_name)")
+          .eq("company_id", company_id)
+          .eq("is_active", true)
+          .order("purchased_at", { ascending: false });
+        if (error) throw error;
+        return Response.json({ phone_numbers: data });
+      }
+
+      default:
+        return Response.json({ error: "Azione non supportata" }, { status: 400 });
+    }
+  } catch (err) {
+    console.error("twilio-phone error:", err);
+    return Response.json({ error: String(err) }, { status: 500 });
+  }
+});
+```
+
+================================================================
+STEP 3 — HOOK: src/hooks/usePhoneNumbers.ts
+================================================================
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+export interface VirtualPhoneNumber {
+  id: string;
+  company_id: string;
+  phone_number: string;
+  friendly_name: string | null;
+  twilio_sid: string;
+  country_code: string;
+  number_type: "local" | "mobile" | "toll_free";
+  capabilities: { sms: boolean; voice: boolean; mms: boolean };
+  is_active: boolean;
+  assigned_to: string | null;
+  assigned_user?: { id: string; first_name: string; last_name: string } | null;
+  monthly_cost_eur: number;
+  purchased_at: string;
+  released_at: string | null;
+}
+
+export interface AvailableNumber {
+  phone_number: string;
+  friendly_name: string;
+  region: string;
+  capabilities: { sms: boolean; voice: boolean; mms: boolean };
+  monthly_cost_eur: number;
+}
+
+export function usePhoneNumbers(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ["phone-numbers", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("virtual_phone_numbers")
+        .select("*, assigned_user:profiles(id, first_name, last_name)")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("purchased_at", { ascending: false });
+      if (error) throw error;
+      return data as VirtualPhoneNumber[];
+    },
+    enabled: !!companyId,
+  });
+}
+
+export function useSearchNumbers(companyId: string | undefined) {
+  return useMutation({
+    mutationFn: async ({
+      country,
+      number_type,
+      area_code,
+    }: {
+      country: string;
+      number_type: string;
+      area_code?: string;
+    }): Promise<AvailableNumber[]> => {
+      const { data, error } = await supabase.functions.invoke("twilio-phone", {
+        body: { action: "search_available", company_id: companyId, country, number_type, area_code },
+      });
+      if (error) throw error;
+      return data.available_numbers;
+    },
+  });
+}
+
+export function usePurchaseNumber(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (phone_number: string) => {
+      const { data, error } = await supabase.functions.invoke("twilio-phone", {
+        body: { action: "purchase", company_id: companyId, phone_number },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["phone-numbers", companyId] }),
+  });
+}
+
+export function useReleaseNumber(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (phone_number_id: string) => {
+      const { data, error } = await supabase.functions.invoke("twilio-phone", {
+        body: { action: "release", company_id: companyId, phone_number_id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["phone-numbers", companyId] }),
+  });
+}
+
+export function useAssignNumber(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ numberId, userId }: { numberId: string; userId: string | null }) => {
+      const { error } = await supabase
+        .from("virtual_phone_numbers")
+        .update({ assigned_to: userId })
+        .eq("id", numberId)
+        .eq("company_id", companyId!);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["phone-numbers", companyId] }),
+  });
+}
+```
+
+================================================================
+STEP 4 — PAGINA: src/pages/azienda/settings/SettingsPhoneNumbers.tsx
+================================================================
+
+```typescript
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import {
+  usePhoneNumbers, useSearchNumbers, usePurchaseNumber,
+  useReleaseNumber, useAssignNumber
+} from "@/hooks/usePhoneNumbers";
+import type { VirtualPhoneNumber, AvailableNumber } from "@/hooks/usePhoneNumbers";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
+import {
+  Phone, Plus, Search, MessageSquare, PhoneCall, Trash2,
+  Loader2, User, ExternalLink, Info, ArrowRight
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { formatDate } from "@/lib/formatters";
+
+const COUNTRIES = [
+  { value: "IT", label: "🇮🇹 Italia (+39)" },
+  { value: "GB", label: "🇬🇧 Regno Unito (+44)" },
+  { value: "US", label: "🇺🇸 USA (+1)" },
+  { value: "DE", label: "🇩🇪 Germania (+49)" },
+  { value: "FR", label: "🇫🇷 Francia (+33)" },
+  { value: "ES", label: "🇪🇸 Spagna (+34)" },
+];
+
+const NUMBER_TYPES = [
+  { value: "local",     label: "Locale" },
+  { value: "mobile",    label: "Mobile" },
+  { value: "toll_free", label: "Numero verde" },
+];
+
+// ---- Sub-component: PurchaseDialog ----
+function PurchaseDialog({
+  open,
+  onOpenChange,
+  companyId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  companyId: string;
+}) {
+  const { toast } = useToast();
+  const searchMutation = useSearchNumbers(companyId);
+  const purchaseMutation = usePurchaseNumber(companyId);
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [country, setCountry] = useState("IT");
+  const [numberType, setNumberType] = useState("local");
+  const [areaCode, setAreaCode] = useState("");
+  const [results, setResults] = useState<AvailableNumber[]>([]);
+  const [selected, setSelected] = useState<AvailableNumber | null>(null);
+
+  const reset = () => { setStep(1); setResults([]); setSelected(null); };
+  const handleClose = (v: boolean) => { if (!v) reset(); onOpenChange(v); };
+
+  const handleSearch = async () => {
+    try {
+      const nums = await searchMutation.mutateAsync({
+        country,
+        number_type: numberType,
+        area_code: areaCode || undefined,
+      });
+      setResults(nums);
+      setStep(2);
+    } catch (err) {
+      toast({ title: "Errore ricerca", description: String(err), variant: "destructive" });
+    }
+  };
+
+  const handlePurchase = async () => {
+    if (!selected) return;
+    try {
+      await purchaseMutation.mutateAsync(selected.phone_number);
+      toast({
+        title: "Numero acquistato",
+        description: `${selected.phone_number} è ora disponibile.`,
+      });
+      handleClose(false);
+    } catch (err) {
+      toast({ title: "Errore acquisto", description: String(err), variant: "destructive" });
+    }
+  };
+
+  const CapBadge = ({ enabled, label }: { enabled: boolean; label: string }) =>
+    enabled ? (
+      <Badge variant="secondary" className="text-xs">{label}</Badge>
+    ) : null;
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {step === 1 ? "Cerca numero" : step === 2 ? "Scegli numero" : "Conferma acquisto"}
+          </DialogTitle>
+          <DialogDescription>
+            {step === 1 && "Seleziona paese, tipo e area code per la ricerca."}
+            {step === 2 && `${results.length} numeri disponibili. Seleziona quello che preferisci.`}
+            {step === 3 && "Verifica i dettagli prima di procedere all'acquisto."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Step 1: Search filters */}
+        {step === 1 && (
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Paese</Label>
+                <Select value={country} onValueChange={setCountry}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tipo numero</Label>
+                <Select value={numberType} onValueChange={setNumberType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {NUMBER_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Prefisso/Area code (opzionale)</Label>
+              <Input
+                placeholder="Es. 02 per Milano, 06 per Roma"
+                value={areaCode}
+                onChange={(e) => setAreaCode(e.target.value)}
+              />
+            </div>
+            <Alert className="bg-blue-50 border-blue-200">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800 text-sm">
+                I numeri italiani hanno un costo fisso di ~€1,00/mese + costo per SMS inviato.
+                Il credito viene scalato dal tuo wallet.
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        {/* Step 2: Results list */}
+        {step === 2 && (
+          <div className="space-y-2 max-h-80 overflow-y-auto py-2">
+            {results.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                Nessun numero disponibile per questi criteri. Prova a cambiare area code o tipo.
+              </p>
+            ) : (
+              results.map((num) => (
+                <button
+                  key={num.phone_number}
+                  onClick={() => { setSelected(num); setStep(3); }}
+                  className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    selected?.phone_number === num.phone_number
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50 hover:bg-muted/40"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-mono font-medium">{num.phone_number}</p>
+                      <p className="text-xs text-muted-foreground">{num.friendly_name}</p>
+                      <div className="flex gap-1 mt-1">
+                        <CapBadge enabled={num.capabilities.sms}   label="SMS" />
+                        <CapBadge enabled={num.capabilities.voice} label="Voce" />
+                        <CapBadge enabled={num.capabilities.mms}   label="MMS" />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">€{num.monthly_cost_eur.toFixed(2)}/mese</p>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground ml-auto mt-1" />
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Step 3: Confirmation */}
+        {step === 3 && selected && (
+          <div className="space-y-4 py-2">
+            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Numero:</span>
+                <span className="font-mono font-semibold text-lg">{selected.phone_number}</span>
+              </div>
+              <Separator />
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Capacità:</span>
+                <div className="flex gap-1">
+                  <CapBadge enabled={selected.capabilities.sms}   label="SMS" />
+                  <CapBadge enabled={selected.capabilities.voice} label="Voce" />
+                  <CapBadge enabled={selected.capabilities.mms}   label="MMS" />
+                </div>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Costo mensile:</span>
+                <span className="font-medium">€{selected.monthly_cost_eur.toFixed(2)}/mese</span>
+              </div>
+            </div>
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Il costo mensile verrà addebitato automaticamente al tuo wallet SMS.
+                Puoi rilasciare il numero in qualsiasi momento senza penali.
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        <DialogFooter>
+          {step === 1 && (
+            <>
+              <Button variant="outline" onClick={() => handleClose(false)}>Annulla</Button>
+              <Button onClick={handleSearch} disabled={searchMutation.isPending}>
+                {searchMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
+                Cerca
+              </Button>
+            </>
+          )}
+          {step === 2 && (
+            <>
+              <Button variant="outline" onClick={() => setStep(1)}>Indietro</Button>
+              <Button disabled>Seleziona un numero</Button>
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <Button variant="outline" onClick={() => setStep(2)}>Indietro</Button>
+              <Button onClick={handlePurchase} disabled={purchaseMutation.isPending}>
+                {purchaseMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Acquista numero
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- PAGINA PRINCIPALE ----
+export default function SettingsPhoneNumbers() {
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id as string;
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const { data: phoneNumbers = [], isLoading } = usePhoneNumbers(companyId);
+  const releaseMutation = useReleaseNumber(companyId);
+  const assignMutation = useAssignNumber(companyId);
+
+  // Load company users for assignment
+  const { data: companyUsers = [] } = useQuery({
+    queryKey: ["company-users-simple", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId)
+        .order("first_name");
+      return data || [];
+    },
+    enabled: !!companyId,
+  });
+
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+
+  const handleRelease = async (number: VirtualPhoneNumber) => {
+    try {
+      await releaseMutation.mutateAsync(number.id);
+      toast({ title: "Numero rilasciato", description: `${number.phone_number} è stato rilasciato.` });
+    } catch (err) {
+      toast({ title: "Errore", description: String(err), variant: "destructive" });
+    }
+  };
+
+  const handleAssign = async (numberId: string, userId: string) => {
+    await assignMutation.mutateAsync({ numberId, userId: userId === "none" ? null : userId });
+  };
+
+  const CapBadge = ({ enabled, label, icon: Icon }: { enabled: boolean; label: string; icon: typeof MessageSquare }) =>
+    enabled ? (
+      <Badge variant="secondary" className="text-xs flex items-center gap-1">
+        <Icon className="h-3 w-3" />
+        {label}
+      </Badge>
+    ) : null;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Numeri Virtuali</h1>
+          <p className="text-muted-foreground mt-1">
+            Acquista e gestisci numeri di telefono per SMS e chiamate.
+          </p>
+        </div>
+        <Button onClick={() => setPurchaseOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Acquista numero
+        </Button>
+      </div>
+
+      {/* Platform note */}
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription className="text-sm">
+          Questa funzione richiede un account Twilio configurato dalla piattaforma.
+          Contatta il supporto per abilitare la telefonia sulla tua azienda.
+        </AlertDescription>
+      </Alert>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : phoneNumbers.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center gap-3 py-12">
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+              <Phone className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div className="text-center">
+              <p className="font-medium">Nessun numero virtuale</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Acquista un numero per iniziare a inviare SMS e ricevere chiamate.
+              </p>
+            </div>
+            <Button onClick={() => setPurchaseOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Acquista numero
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {phoneNumbers.map((num) => (
+            <Card key={num.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    {/* Number + capabilities */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="font-mono font-semibold text-lg">{num.phone_number}</span>
+                      <CapBadge enabled={num.capabilities.sms}   label="SMS"   icon={MessageSquare} />
+                      <CapBadge enabled={num.capabilities.voice} label="Voce"  icon={PhoneCall} />
+                    </div>
+
+                    {/* Friendly name + cost */}
+                    <p className="text-sm text-muted-foreground">
+                      {num.friendly_name || "—"} · €{Number(num.monthly_cost_eur).toFixed(2)}/mese
+                      · Acquistato {formatDate(num.purchased_at)}
+                    </p>
+
+                    {/* Assign to user */}
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <Select
+                        value={num.assigned_to || "none"}
+                        onValueChange={(v) => handleAssign(num.id, v)}
+                      >
+                        <SelectTrigger className="w-52 h-8 text-sm">
+                          <SelectValue placeholder="Non assegnato" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Non assegnato</SelectItem>
+                          {companyUsers.map((u: any) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.first_name} {u.last_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Release */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="text-destructive hover:text-destructive shrink-0">
+                        <Trash2 className="h-4 w-4 mr-1.5" />
+                        Rilascia
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Rilasciare il numero?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Il numero <strong>{num.phone_number}</strong> verrà rilasciato e potrà
+                          essere acquistato da altri. Non sarà più possibile inviare o ricevere
+                          SMS/chiamate su questo numero. La fatturazione mensile cesserà immediatamente.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annulla</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => handleRelease(num)}
+                        >
+                          Sì, rilascia
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* Credits link */}
+          <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
+            <div>
+              <p className="text-sm font-medium">Crediti SMS</p>
+              <p className="text-xs text-muted-foreground">Visualizza e ricarica i crediti per SMS e numeri virtuali.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate("/azienda/impostazioni/crediti")}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Vai a Crediti
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <PurchaseDialog
+        open={purchaseOpen}
+        onOpenChange={setPurchaseOpen}
+        companyId={companyId}
+      />
+    </div>
+  );
+}
+```
+
+================================================================
+STEP 5 — AGGIUNGERE ROUTE E VOCE DI MENU
+================================================================
+
+1. In src/App.tsx (o file di routing), aggiungi la rotta:
+   <Route path="/azienda/impostazioni/numeri-telefono" element={<SettingsPhoneNumbers />} />
+
+2. Nella sidebar impostazioni, aggiungi dopo "Integrazioni":
+   { path: "/azienda/impostazioni/numeri-telefono", label: "Numeri Virtuali", icon: Phone }
+   (importa Phone da "lucide-react")
+
+3. Variabili d'ambiente da aggiungere in Supabase Dashboard → Edge Functions → Secrets:
+   - TWILIO_ACCOUNT_SID = ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   - TWILIO_AUTH_TOKEN  = your_auth_token
+
+================================================================
+NOTE FINALI
+================================================================
+
+- La disponibilità dei numeri italiani via Twilio richiede un Business Profile
+  verificato su Twilio + "Regulatory Bundle" per l'Italia. Questo è un
+  requisito normativo, non tecnico. Comunicalo all'utente.
+
+- Per i numeri italiani locali, Twilio usa il prefisso +39 seguito dall'area
+  code. La ricerca per "area_code=02" trova numeri di Milano.
+
+- L'integrazione Twilio per SMS in uscita va configurata separatamente:
+  usare il numero acquistato come "From" nelle API Twilio per inviare SMS
+  ai contatti CRM. Questo è un secondo prompt separato.
+
+- Il webhook SMS in arrivo (TwiML) per ricevere messaggi va configurato
+  sull'URL SmsUrl del numero Twilio — punta a una Edge Function
+  twilio-sms-webhook che riceve i messaggi e li salva nella inbox del CRM.
+
+- Il costo dei numeri italiani su Twilio è tipicamente ~$1/mese per numero
+  locale + $0.0079/SMS inviato. Prezzi aggiornati su twilio.com/sms/pricing.

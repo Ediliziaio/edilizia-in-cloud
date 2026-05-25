@@ -1,0 +1,1402 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║   LUNGO TERMINE — Edilizia in Cloud · Roadmap Refactor & Espansione     ║
+║   Sequenza: 9 prompt · Marzo 2026                                        ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+Questa sequenza copre i 4 temi della roadmap a lungo termine:
+  9.  Refactor file giganti in sub-componenti
+  10. Centralizzazione queryKeys
+  11. RPC aggregate per pagine critiche
+  12. Portale cliente espanso
+
+Ogni prompt è AUTONOMO e va eseguito in ordine. Non saltare passaggi.
+Nessun prompt aggiunge funzionalità nuove — solo qualità del codice e UX.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [R1] — REFACTOR MarketingContactDetail.tsx
+                Split monolite 1370 righe in sub-componenti
+════════════════════════════════════════════════════════════════════════════
+
+Il file src/pages/azienda/marketing/MarketingContactDetail.tsx ha circa
+1370 righe. Contiene tutto: header contatto, form editing inline, tab
+Activities / Notes / Documents / Appointments / Opportunities / AI,
+gestione stato locale, query, mutation, handler. È impossibile da
+mantenere e testa tardi il compilatore TypeScript.
+
+AZIONE: Spezza il file in componenti separati mantenendo identico
+comportamento visivo e funzionale. NON cambiare nulla nell'UX.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Crea il componente InlineField riutilizzabile
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/components/marketing/contacts/InlineField.tsx:
+
+```tsx
+// InlineField — campo testo/select/email/tel editabile inline
+// Props:
+//   label: string
+//   value: string | null | undefined
+//   field: string                         // nome campo per onSave
+//   type?: "text" | "email" | "tel" | "select" | "textarea"
+//   options?: { value: string; label: string }[]  // solo se type="select"
+//   onSave: (field: string, value: string) => Promise<void>
+//   icon?: React.ReactNode
+
+// Stato interno: isEditing (boolean), localValue (string)
+// Quando isEditing=false: mostra valore + icona matita on-hover
+// Quando isEditing=true: mostra Input/Select/Textarea + tasto Salva + tasto X
+// onSave: chiama prop, poi isEditing=false; su errore rimane aperto + toast error
+// Se value è null/undefined mostra placeholder "—" in grigio
+
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Pencil, Check, X } from "lucide-react";
+import { toast } from "sonner";
+
+interface InlineFieldProps {
+  label: string;
+  value?: string | null;
+  field: string;
+  type?: "text" | "email" | "tel" | "select" | "textarea";
+  options?: { value: string; label: string }[];
+  onSave: (field: string, value: string) => Promise<void>;
+  icon?: React.ReactNode;
+}
+
+export function InlineField({ label, value, field, type = "text", options, onSave, icon }: InlineFieldProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [localValue, setLocalValue] = useState(value ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(field, localValue);
+      setIsEditing(false);
+    } catch {
+      toast.error("Errore nel salvataggio");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setLocalValue(value ?? "");
+    setIsEditing(false);
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="group flex items-start gap-2 py-1">
+        {icon && <span className="mt-0.5 text-muted-foreground">{icon}</span>}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className={`text-sm truncate ${!value ? "text-muted-foreground italic" : ""}`}>
+            {value || "—"}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => setIsEditing(true)}
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1 py-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      {type === "select" && options ? (
+        <Select value={localValue} onValueChange={setLocalValue}>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map(o => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : type === "textarea" ? (
+        <Textarea
+          value={localValue}
+          onChange={e => setLocalValue(e.target.value)}
+          className="text-sm min-h-[60px]"
+          autoFocus
+        />
+      ) : (
+        <Input
+          type={type}
+          value={localValue}
+          onChange={e => setLocalValue(e.target.value)}
+          className="h-8 text-sm"
+          autoFocus
+          onKeyDown={e => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") handleCancel();
+          }}
+        />
+      )}
+      <div className="flex gap-1">
+        <Button size="sm" className="h-7 text-xs" onClick={handleSave} disabled={saving}>
+          <Check className="h-3 w-3 mr-1" /> Salva
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={handleCancel}>
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Estrai ContactActivityTab
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/components/marketing/contacts/ContactActivityTab.tsx.
+
+Sposta in questo file:
+- L'interfaccia Activity (o importala da types)
+- Il componente che mostra la timeline di attività (chiamate, email, note, meeting)
+- La query useQuery per le activity del contatto
+- Il form per aggiungere una nuova activity
+- Le mutation per creare/eliminare activity
+
+Props:
+  contactId: string
+  companyId: string
+
+Il componente deve essere completamente autosufficiente per la sua tab.
+NON duplicare logica: se alcune query vengono già fatte nel parent, passale
+come prop invece di rifare la query.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Estrai ContactNotesTab
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/components/marketing/contacts/ContactNotesTab.tsx.
+
+Sposta in questo file:
+- Query e mutation delle note del contatto
+- Il form di creazione nota (textarea + salva)
+- La lista delle note con data, autore, testo
+- Il pulsante elimina nota con conferma
+
+Props: contactId, companyId
+
+────────────────────────────────────────────────────────────────────────────
+STEP 4 — Estrai ContactDocumentsTab
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/components/marketing/contacts/ContactDocumentsTab.tsx.
+
+Sposta in questo file:
+- Upload file (se presente)
+- Lista documenti allegati al contatto
+- Preview / download link
+- Elimina documento
+
+Props: contactId, companyId
+
+────────────────────────────────────────────────────────────────────────────
+STEP 5 — Estrai ContactOpportunitiesTab
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/components/marketing/contacts/ContactOpportunitiesTab.tsx.
+
+Sposta in questo file:
+- Query delle opportunità legate al contatto
+- Tabella/lista opportunità con stato pipeline, valore, data chiusura
+- Link a OpportunityDetail
+- Pulsante "Nuova opportunità" pre-compilato con questo contatto
+
+Props: contactId, companyId, contactName
+
+────────────────────────────────────────────────────────────────────────────
+STEP 6 — Semplifica MarketingContactDetail.tsx
+────────────────────────────────────────────────────────────────────────────
+
+Ora che le tab sono separate, MarketingContactDetail.tsx deve:
+1. Mantenere solo:
+   - Query per i dati del contatto (profilo, campi base)
+   - Mutation updateContact (usata da InlineField tramite onSave)
+   - L'header del contatto (avatar, nome, azienda, badge stato)
+   - Il componente <Tabs> con i <TabsContent> che importano i sub-componenti
+
+2. Il file risultante deve essere < 250 righe.
+
+3. Import definitivi da aggiungere in MarketingContactDetail.tsx:
+   ```tsx
+   import { InlineField } from "@/components/marketing/contacts/InlineField";
+   import { ContactActivityTab } from "@/components/marketing/contacts/ContactActivityTab";
+   import { ContactNotesTab } from "@/components/marketing/contacts/ContactNotesTab";
+   import { ContactDocumentsTab } from "@/components/marketing/contacts/ContactDocumentsTab";
+   import { ContactOpportunitiesTab } from "@/components/marketing/contacts/ContactOpportunitiesTab";
+   ```
+
+4. Verifica che nessuna funzione sia duplicata tra parent e children.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 7 — Spezza anche useCashFlowData.ts
+────────────────────────────────────────────────────────────────────────────
+
+Il file src/hooks/useCashFlowData.ts ha ~554 righe con 12 query Supabase.
+Le query sono logicamente divise in 2 gruppi:
+
+GRUPPO A — Forecast (previsionale):
+  - entrate_previste (ordini aperti con importo residuo)
+  - uscite_previste (scadenze future da pagare)
+  - rate_in_scadenza (rate ordini non saldate)
+  - forecast mensile aggregato
+  - confronto anno precedente
+  - (altre query legate a dati futuri/previsionali)
+
+GRUPPO B — Treasury (tesoreria attuale):
+  - saldo_conti (conti bancari correnti)
+  - movimenti_recenti (ultimi N movimenti)
+  - paid_costs (costi già pagati per periodo)
+  - incassi_effettivi (fatture pagate)
+  - cashflow_reale (entrate - uscite effettive)
+  - (altre query legate a dati consuntivi)
+
+AZIONE:
+1. Crea src/hooks/useForecastData.ts — contiene il gruppo A
+2. Crea src/hooks/useTreasuryData.ts — contiene il gruppo B
+3. In src/hooks/useCashFlowData.ts lascia solo:
+   ```ts
+   // useCashFlowData — facade hook per backward compatibility
+   // Aggrega useForecastData + useTreasuryData in un unico return
+   import { useForecastData } from "./useForecastData";
+   import { useTreasuryData } from "./useTreasuryData";
+
+   export function useCashFlowData(companyId: string) {
+     const forecast = useForecastData(companyId);
+     const treasury = useTreasuryData(companyId);
+     return {
+       ...forecast,
+       ...treasury,
+       isLoading: forecast.isLoading || treasury.isLoading,
+     };
+   }
+   ```
+
+Questo garantisce che tutti i componenti che usano `useCashFlowData`
+continuino a funzionare senza modifiche.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 8 — Estrai utility da useCompanyCostsData.ts
+────────────────────────────────────────────────────────────────────────────
+
+Il file src/hooks/useCompanyCostsData.ts ha ~704 righe.
+Contiene sia la logica di fetch (query Supabase) sia utility pure di
+trasformazione dati (es. buildUnifiedCost(), groupCostsByCategory(),
+calcoloScostamento(), formatForExport()).
+
+AZIONE:
+1. Crea src/lib/costsUtils.ts — sposta in questo file TUTTE le funzioni
+   pure (quelle che non usano useQuery/useMutation/supabase, solo array
+   transformation e calcoli).
+
+2. In useCompanyCostsData.ts importa da costsUtils:
+   ```ts
+   import { buildUnifiedCost, groupCostsByCategory, calcoloScostamento } from "@/lib/costsUtils";
+   ```
+
+3. Il file useCompanyCostsData.ts risultante deve contenere solo:
+   - Le interfacce TypeScript (CostsFilters, UnifiedCost, ecc.)
+   - Le query Supabase (useQuery hooks)
+   - Il return statement aggregato
+
+4. Aggiungi export named da costsUtils per i test futuri:
+   ```ts
+   export { buildUnifiedCost, groupCostsByCategory, calcoloScostamento };
+   ```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [QK1] — CENTRALIZZAZIONE QUERY KEYS
+                Crea src/lib/queryKeys.ts
+════════════════════════════════════════════════════════════════════════════
+
+In tutta la codebase i queryKey di React Query (TanStack Query v5) sono
+definiti inline in ogni hook, con nomi inconsistenti:
+  ["orders", companyId]
+  ["company-orders", companyId, filters]
+  ["ordersList"]
+  ["marketing-contacts", companyId]
+  ["contacts", companyId]
+  ... e altri 200+ pattern
+
+Questo rende impossibile l'invalidazione mirata post-mutation e causa
+bug di cache stantia. La soluzione è un file centralizzato di costanti.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Crea src/lib/queryKeys.ts
+────────────────────────────────────────────────────────────────────────────
+
+Crea il file src/lib/queryKeys.ts con questa struttura:
+
+```ts
+/**
+ * queryKeys.ts — Centralizzazione di tutti i queryKey di TanStack Query
+ *
+ * Pattern: ogni dominio ha un oggetto con factory functions.
+ * Uso: queryClient.invalidateQueries({ queryKey: queryKeys.orders.all(companyId) })
+ */
+
+export const queryKeys = {
+
+  // ── ORDINI ──────────────────────────────────────────────────────────
+  orders: {
+    all: (companyId: string) => ["orders", companyId] as const,
+    list: (companyId: string, filters?: Record<string, unknown>) =>
+      ["orders", companyId, "list", filters] as const,
+    detail: (orderId: string) => ["orders", "detail", orderId] as const,
+    items: (orderId: string) => ["orders", orderId, "items"] as const,
+    installments: (orderId: string) => ["orders", orderId, "installments"] as const,
+    documents: (orderId: string) => ["orders", orderId, "documents"] as const,
+    statusHistory: (orderId: string) => ["orders", orderId, "status-history"] as const,
+  },
+
+  // ── CLIENTI / AZIENDE ──────────────────────────────────────────────
+  clients: {
+    all: (companyId: string) => ["clients", companyId] as const,
+    list: (companyId: string, filters?: Record<string, unknown>) =>
+      ["clients", companyId, "list", filters] as const,
+    detail: (clientId: string) => ["clients", "detail", clientId] as const,
+  },
+
+  // ── MARKETING CONTACTS ─────────────────────────────────────────────
+  marketingContacts: {
+    all: (companyId: string) => ["marketing-contacts", companyId] as const,
+    list: (companyId: string, filters?: Record<string, unknown>) =>
+      ["marketing-contacts", companyId, "list", filters] as const,
+    detail: (contactId: string) => ["marketing-contacts", "detail", contactId] as const,
+    activities: (contactId: string) => ["marketing-contacts", contactId, "activities"] as const,
+    notes: (contactId: string) => ["marketing-contacts", contactId, "notes"] as const,
+    documents: (contactId: string) => ["marketing-contacts", contactId, "documents"] as const,
+    opportunities: (contactId: string) => ["marketing-contacts", contactId, "opportunities"] as const,
+  },
+
+  // ── OPPORTUNITÀ ────────────────────────────────────────────────────
+  opportunities: {
+    all: (companyId: string) => ["opportunities", companyId] as const,
+    list: (companyId: string, filters?: Record<string, unknown>) =>
+      ["opportunities", companyId, "list", filters] as const,
+    detail: (opportunityId: string) => ["opportunities", "detail", opportunityId] as const,
+  },
+
+  // ── EMAIL MARKETING ────────────────────────────────────────────────
+  emailCampaigns: {
+    all: (companyId: string) => ["email-campaigns", companyId] as const,
+    paginated: (companyId: string, page: number, search: string) =>
+      ["email-campaigns", companyId, "paginated", page, search] as const,
+    detail: (campaignId: string) => ["email-campaigns", "detail", campaignId] as const,
+    stats: (companyId: string) => ["email-campaigns", companyId, "stats"] as const,
+  },
+
+  emailTemplates: {
+    all: (companyId: string) => ["email-templates", companyId] as const,
+    paginated: (companyId: string, page: number, search: string) =>
+      ["email-templates", companyId, "paginated", page, search] as const,
+    detail: (templateId: string) => ["email-templates", "detail", templateId] as const,
+  },
+
+  // ── TICKET / SUPPORTO ──────────────────────────────────────────────
+  tickets: {
+    all: (companyId: string) => ["tickets", companyId] as const,
+    list: (companyId: string, filters?: Record<string, unknown>) =>
+      ["tickets", companyId, "list", filters] as const,
+    detail: (ticketId: string) => ["tickets", "detail", ticketId] as const,
+    messages: (ticketId: string) => ["tickets", ticketId, "messages"] as const,
+  },
+
+  // ── DIPENDENTI / HR ────────────────────────────────────────────────
+  employees: {
+    all: (companyId: string) => ["employees", companyId] as const,
+    detail: (employeeId: string) => ["employees", "detail", employeeId] as const,
+    workLogs: (employeeId: string, period?: string) =>
+      ["employees", employeeId, "work-logs", period] as const,
+    leaveRequests: (companyId: string) => ["employees", companyId, "leave-requests"] as const,
+    leaveBalances: (companyId: string, year: number) =>
+      ["employees", companyId, "leave-balances", year] as const,
+  },
+
+  // ── WAREHOUSE ──────────────────────────────────────────────────────
+  warehouse: {
+    all: (companyId: string) => ["warehouse", companyId] as const,
+    items: (companyId: string, filters?: Record<string, unknown>) =>
+      ["warehouse", companyId, "items", filters] as const,
+    movements: (companyId: string) => ["warehouse", companyId, "movements"] as const,
+    detail: (itemId: string) => ["warehouse", "detail", itemId] as const,
+  },
+
+  // ── CATALOGO ARTICOLI ─────────────────────────────────────────────
+  articleTemplates: {
+    all: (companyId: string) => ["article-templates", companyId] as const,
+    active: (companyId: string) => ["article-templates", companyId, "active"] as const,
+    detail: (templateId: string) => ["article-templates", "detail", templateId] as const,
+  },
+
+  // ── FINANZA / CASHFLOW ─────────────────────────────────────────────
+  cashflow: {
+    all: (companyId: string) => ["cashflow", companyId] as const,
+    forecast: (companyId: string, period?: string) =>
+      ["cashflow", companyId, "forecast", period] as const,
+    treasury: (companyId: string) => ["cashflow", companyId, "treasury"] as const,
+    paidCosts: (companyId: string, filters?: Record<string, unknown>) =>
+      ["cashflow", companyId, "paid-costs", filters] as const,
+  },
+
+  // ── COSTS ──────────────────────────────────────────────────────────
+  costs: {
+    all: (companyId: string) => ["costs", companyId] as const,
+    list: (companyId: string, filters?: Record<string, unknown>) =>
+      ["costs", companyId, "list", filters] as const,
+    detail: (costId: string) => ["costs", "detail", costId] as const,
+  },
+
+  // ── DASHBOARD ─────────────────────────────────────────────────────
+  dashboard: {
+    company: (companyId: string) => ["dashboard", companyId] as const,
+    cruscotto: (companyId: string) => ["dashboard", companyId, "cruscotto"] as const,
+    marketing: (companyId: string) => ["dashboard", companyId, "marketing"] as const,
+  },
+
+  // ── NOTIFICATIONS ──────────────────────────────────────────────────
+  notifications: {
+    all: (companyId: string) => ["notifications", companyId] as const,
+    unread: (companyId: string) => ["notifications", companyId, "unread"] as const,
+  },
+
+  // ── COMPANY SETTINGS ─────────────────────────────────────────────
+  company: {
+    detail: (companyId: string) => ["company", companyId] as const,
+    members: (companyId: string) => ["company", companyId, "members"] as const,
+    settings: (companyId: string) => ["company", companyId, "settings"] as const,
+  },
+
+  // ── CALENDARIO ────────────────────────────────────────────────────
+  calendar: {
+    events: (companyId: string, month?: string) =>
+      ["calendar", companyId, "events", month] as const,
+    blockedSlots: (companyId: string) => ["calendar", companyId, "blocked-slots"] as const,
+  },
+
+  // ── FIRMA DIGITALE ────────────────────────────────────────────────
+  signatures: {
+    byOrder: (orderId: string) => ["signatures", "order", orderId] as const,
+    detail: (token: string) => ["signatures", "detail", token] as const,
+  },
+
+  // ── PORTALE CLIENTE ───────────────────────────────────────────────
+  customerPortal: {
+    orders: (customerId: string) => ["customer-portal", customerId, "orders"] as const,
+    orderDetail: (orderId: string) => ["customer-portal", "order", orderId] as const,
+    documents: (customerId: string) => ["customer-portal", customerId, "documents"] as const,
+    appointments: (customerId: string) =>
+      ["customer-portal", customerId, "appointments"] as const,
+    messages: (customerId: string) => ["customer-portal", customerId, "messages"] as const,
+    installments: (customerId: string) =>
+      ["customer-portal", customerId, "installments"] as const,
+  },
+
+} as const;
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Migra i hook esistenti al nuovo sistema
+────────────────────────────────────────────────────────────────────────────
+
+Apri i seguenti file e sostituisci i queryKey inline con quelli del file
+centralizzato. Fai i cambiamenti uno per uno, verificando che il comportamento
+rimanga identico:
+
+FILE DA AGGIORNARE (priorità alta — usati da più componenti):
+
+1. src/hooks/useOrdersData.ts (o nome equivalente)
+   PRIMA:  queryKey: ["orders", companyId]
+   DOPO:   queryKey: queryKeys.orders.all(companyId)
+
+2. src/hooks/useMarketingContactsData.ts
+   PRIMA:  queryKey: ["marketing-contacts", companyId]
+   DOPO:   queryKey: queryKeys.marketingContacts.all(companyId)
+
+3. src/hooks/useEmailCampaignsPaginated.ts (creato in medio termine)
+   PRIMA:  queryKey: ["email-campaigns", companyId, page, search]
+   DOPO:   queryKey: queryKeys.emailCampaigns.paginated(companyId, page, search)
+
+4. src/hooks/useNotifications.ts (creato in breve termine)
+   PRIMA:  queryKey: ["notifications", companyId]
+   DOPO:   queryKey: queryKeys.notifications.all(companyId)
+
+5. src/hooks/useCashFlowData.ts / useForecastData.ts / useTreasuryData.ts
+   PRIMA:  queryKey: ["cashflow", companyId, ...]
+   DOPO:   queryKey: queryKeys.cashflow.forecast(companyId) ecc.
+
+6. src/hooks/useCompanyCostsData.ts
+   PRIMA:  queryKey: ["costs", companyId, filters]
+   DOPO:   queryKey: queryKeys.costs.list(companyId, filters)
+
+7. src/hooks/useCruscottoData.ts
+   PRIMA:  queryKey: ["dashboard", ...]
+   DOPO:   queryKey: queryKeys.dashboard.cruscotto(companyId)
+
+8. src/hooks/useCompanyDashboardData.ts
+   PRIMA:  queryKey: ["dashboard", companyId]
+   DOPO:   queryKey: queryKeys.dashboard.company(companyId)
+
+REGOLA IMPORTANTE: nelle mutation (useMutation onSuccess), aggiorna anche
+le chiamate a queryClient.invalidateQueries() usando i nuovi queryKeys.
+Esempio:
+  PRIMA:  queryClient.invalidateQueries({ queryKey: ["orders", companyId] })
+  DOPO:   queryClient.invalidateQueries({ queryKey: queryKeys.orders.all(companyId) })
+
+Aggiungi import in cima a ogni hook modificato:
+  import { queryKeys } from "@/lib/queryKeys";
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [RPC1] — RPC AGGREGATE PER DASHBOARD
+                Da 16+ query parallele a 1-2 RPC PostgreSQL
+════════════════════════════════════════════════════════════════════════════
+
+Il file src/hooks/useCompanyDashboardData.ts esegue ~16 query Supabase
+in parallelo via Promise.all. Ogni query è un round-trip HTTP separato.
+Questo causa:
+  - 16 richieste HTTP invece di 1
+  - Dati potenzialmente inconsistenti (ogni query legge in momenti diversi)
+  - Latenza percepita alta anche su connessioni veloci
+
+La soluzione è una singola RPC PostgreSQL che ritorna tutti i dati in
+un solo JSON strutturato.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Crea la RPC get_dashboard_data() in Supabase
+────────────────────────────────────────────────────────────────────────────
+
+Nel SQL editor di Supabase, esegui questa migration:
+
+```sql
+-- Migration: create_get_dashboard_data_rpc
+-- Aggregates all dashboard data into a single RPC call
+
+CREATE OR REPLACE FUNCTION get_dashboard_data(p_company_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_result jsonb;
+  v_ordini_attivi int;
+  v_ordini_valore numeric;
+  v_fatturato_mese numeric;
+  v_costi_mese numeric;
+  v_ticket_aperti int;
+  v_task_in_scadenza int;
+  v_dipendenti_attivi int;
+  v_rate_in_scadenza int;
+  v_contatti_marketing int;
+  v_opportunita_aperte int;
+  v_valore_pipeline numeric;
+BEGIN
+  -- Verifica che l'utente abbia accesso a questa company
+  IF NOT EXISTS (
+    SELECT 1 FROM company_members
+    WHERE company_id = p_company_id
+    AND user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Access denied';
+  END IF;
+
+  -- Ordini attivi (non completati, non annullati)
+  SELECT COUNT(*), COALESCE(SUM(importo_totale), 0)
+  INTO v_ordini_attivi, v_ordini_valore
+  FROM orders
+  WHERE company_id = p_company_id
+    AND stato NOT IN ('completato', 'annullato');
+
+  -- Fatturato mese corrente (ordini completati questo mese)
+  SELECT COALESCE(SUM(importo_totale), 0)
+  INTO v_fatturato_mese
+  FROM orders
+  WHERE company_id = p_company_id
+    AND stato = 'completato'
+    AND date_trunc('month', updated_at) = date_trunc('month', now());
+
+  -- Costi mese corrente
+  SELECT COALESCE(SUM(importo), 0)
+  INTO v_costi_mese
+  FROM costs
+  WHERE company_id = p_company_id
+    AND date_trunc('month', data_costo) = date_trunc('month', now());
+
+  -- Ticket aperti
+  SELECT COUNT(*)
+  INTO v_ticket_aperti
+  FROM tickets
+  WHERE company_id = p_company_id
+    AND stato NOT IN ('chiuso', 'risolto');
+
+  -- Task in scadenza (prossimi 7 giorni)
+  SELECT COUNT(*)
+  INTO v_task_in_scadenza
+  FROM tasks
+  WHERE company_id = p_company_id
+    AND completed = false
+    AND due_date IS NOT NULL
+    AND due_date <= now() + interval '7 days'
+    AND due_date >= now();
+
+  -- Dipendenti attivi
+  SELECT COUNT(*)
+  INTO v_dipendenti_attivi
+  FROM employees
+  WHERE company_id = p_company_id
+    AND attivo = true;
+
+  -- Rate in scadenza (prossimi 30 giorni, non pagate)
+  SELECT COUNT(*)
+  INTO v_rate_in_scadenza
+  FROM order_installments oi
+  JOIN orders o ON o.id = oi.order_id
+  WHERE o.company_id = p_company_id
+    AND oi.pagata = false
+    AND oi.data_scadenza IS NOT NULL
+    AND oi.data_scadenza <= now() + interval '30 days'
+    AND oi.data_scadenza >= now();
+
+  -- Contatti marketing
+  SELECT COUNT(*)
+  INTO v_contatti_marketing
+  FROM marketing_contacts
+  WHERE company_id = p_company_id;
+
+  -- Opportunità aperte + valore pipeline
+  SELECT COUNT(*), COALESCE(SUM(valore_stimato), 0)
+  INTO v_opportunita_aperte, v_valore_pipeline
+  FROM opportunities
+  WHERE company_id = p_company_id
+    AND stato NOT IN ('vinta', 'persa', 'annullata');
+
+  -- Costruisci JSON risultato
+  v_result := jsonb_build_object(
+    'ordini_attivi',       v_ordini_attivi,
+    'ordini_valore',       v_ordini_valore,
+    'fatturato_mese',      v_fatturato_mese,
+    'costi_mese',          v_costi_mese,
+    'margine_mese',        v_fatturato_mese - v_costi_mese,
+    'ticket_aperti',       v_ticket_aperti,
+    'task_in_scadenza',    v_task_in_scadenza,
+    'dipendenti_attivi',   v_dipendenti_attivi,
+    'rate_in_scadenza',    v_rate_in_scadenza,
+    'contatti_marketing',  v_contatti_marketing,
+    'opportunita_aperte',  v_opportunita_aperte,
+    'valore_pipeline',     v_valore_pipeline,
+    'generated_at',        now()
+  );
+
+  RETURN v_result;
+END;
+$$;
+
+-- Revoca accesso pubblico, solo utenti autenticati
+REVOKE ALL ON FUNCTION get_dashboard_data(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_dashboard_data(uuid) TO authenticated;
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Aggiorna useCompanyDashboardData.ts
+────────────────────────────────────────────────────────────────────────────
+
+Sostituisci il contenuto di src/hooks/useCompanyDashboardData.ts con:
+
+```ts
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
+
+export interface DashboardData {
+  ordini_attivi: number;
+  ordini_valore: number;
+  fatturato_mese: number;
+  costi_mese: number;
+  margine_mese: number;
+  ticket_aperti: number;
+  task_in_scadenza: number;
+  dipendenti_attivi: number;
+  rate_in_scadenza: number;
+  contatti_marketing: number;
+  opportunita_aperte: number;
+  valore_pipeline: number;
+  generated_at: string;
+}
+
+export function useCompanyDashboardData(companyId: string) {
+  return useQuery({
+    queryKey: queryKeys.dashboard.company(companyId),
+    queryFn: async (): Promise<DashboardData> => {
+      const { data, error } = await supabase
+        .rpc("get_dashboard_data", { p_company_id: companyId });
+
+      if (error) throw error;
+      return data as DashboardData;
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,   // 2 minuti (dati dashboard non devono essere real-time)
+    gcTime: 5 * 60 * 1000,
+  });
+}
+```
+
+I componenti che usano `useCompanyDashboardData` accedono ai dati
+tramite il campo `data` della query:
+  const { data: dashboard, isLoading } = useCompanyDashboardData(companyId);
+  // dashboard.ordini_attivi, dashboard.fatturato_mese, ecc.
+
+Aggiorna i componenti della dashboard che leggevano da hook multipli
+(es. usavano useOrdersStats() + useTicketsCount() + ecc.) per usare
+i valori da `dashboard` invece.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Crea RPC get_cashflow_summary() per CashFlow
+────────────────────────────────────────────────────────────────────────────
+
+Crea una seconda RPC per aggregare le query del cashflow:
+
+```sql
+-- Migration: create_get_cashflow_summary_rpc
+
+CREATE OR REPLACE FUNCTION get_cashflow_summary(
+  p_company_id uuid,
+  p_months_ahead int DEFAULT 3
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_result jsonb;
+BEGIN
+  -- Verifica accesso
+  IF NOT EXISTS (
+    SELECT 1 FROM company_members
+    WHERE company_id = p_company_id AND user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Access denied';
+  END IF;
+
+  SELECT jsonb_build_object(
+
+    -- Saldo attuale (somma conti correnti)
+    'saldo_attuale', (
+      SELECT COALESCE(SUM(saldo), 0)
+      FROM conti_bancari
+      WHERE company_id = p_company_id AND attivo = true
+    ),
+
+    -- Entrate previste nei prossimi N mesi (rate non pagate su ordini attivi)
+    'entrate_previste', (
+      SELECT COALESCE(SUM(oi.importo), 0)
+      FROM order_installments oi
+      JOIN orders o ON o.id = oi.order_id
+      WHERE o.company_id = p_company_id
+        AND oi.pagata = false
+        AND oi.data_scadenza >= now()
+        AND oi.data_scadenza <= now() + (p_months_ahead || ' months')::interval
+    ),
+
+    -- Uscite previste nei prossimi N mesi
+    'uscite_previste', (
+      SELECT COALESCE(SUM(importo), 0)
+      FROM costs
+      WHERE company_id = p_company_id
+        AND pagato = false
+        AND data_scadenza >= now()
+        AND data_scadenza <= now() + (p_months_ahead || ' months')::interval
+    ),
+
+    -- Incassato mese corrente
+    'incassato_mese', (
+      SELECT COALESCE(SUM(oi.importo), 0)
+      FROM order_installments oi
+      JOIN orders o ON o.id = oi.order_id
+      WHERE o.company_id = p_company_id
+        AND oi.pagata = true
+        AND date_trunc('month', oi.data_pagamento) = date_trunc('month', now())
+    ),
+
+    -- Speso mese corrente
+    'speso_mese', (
+      SELECT COALESCE(SUM(importo), 0)
+      FROM costs
+      WHERE company_id = p_company_id
+        AND pagato = true
+        AND date_trunc('month', data_pagamento) = date_trunc('month', now())
+    ),
+
+    -- Forecast mensile (array di oggetti {mese, entrate, uscite})
+    'forecast_mensile', (
+      SELECT jsonb_agg(m ORDER BY m->>'mese')
+      FROM (
+        SELECT jsonb_build_object(
+          'mese', to_char(gs.mese, 'YYYY-MM'),
+          'entrate', COALESCE((
+            SELECT SUM(oi.importo)
+            FROM order_installments oi
+            JOIN orders o ON o.id = oi.order_id
+            WHERE o.company_id = p_company_id
+              AND oi.pagata = false
+              AND date_trunc('month', oi.data_scadenza) = gs.mese
+          ), 0),
+          'uscite', COALESCE((
+            SELECT SUM(importo)
+            FROM costs
+            WHERE company_id = p_company_id
+              AND pagato = false
+              AND date_trunc('month', data_scadenza) = gs.mese
+          ), 0)
+        ) AS m
+        FROM generate_series(
+          date_trunc('month', now()),
+          date_trunc('month', now()) + ((p_months_ahead - 1) || ' months')::interval,
+          '1 month'
+        ) AS gs(mese)
+      ) subq
+    ),
+
+    'generated_at', now()
+
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION get_cashflow_summary(uuid, int) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_cashflow_summary(uuid, int) TO authenticated;
+```
+
+Poi aggiorna useCashFlowData.ts / useForecastData.ts per usare questa RPC
+invece delle query multiple. Mantieni la stessa interfaccia di ritorno per
+non rompere i componenti esistenti.
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PC1] — PORTALE CLIENTE: DATABASE + STRUTTURA
+                Espansione da 3 a 6 sezioni
+════════════════════════════════════════════════════════════════════════════
+
+Il portale cliente attuale (pagine /cliente/*) ha solo 3 sezioni:
+  - I miei ordini (CustomerOrders.tsx)
+  - Supporto (CustomerLayout.tsx)
+  - Profilo (CustomerLayout.tsx)
+
+Mancano: documenti scaricabili, piano rate, appuntamenti, messaggi diretti.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Aggiungi colonne e tabella messaggi
+────────────────────────────────────────────────────────────────────────────
+
+Esegui in Supabase SQL Editor:
+
+```sql
+-- Migration: customer_portal_expansion
+
+-- 1. Tabella messaggi diretti cliente ↔ azienda
+CREATE TABLE IF NOT EXISTS customer_messages (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id  uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  client_id   uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  sender_role text NOT NULL CHECK (sender_role IN ('cliente', 'azienda')),
+  sender_id   uuid NOT NULL REFERENCES profiles(id),
+  body        text NOT NULL CHECK (char_length(body) > 0),
+  read_at     timestamptz,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_customer_messages_client ON customer_messages(company_id, client_id, created_at DESC);
+CREATE INDEX idx_customer_messages_unread ON customer_messages(client_id, read_at) WHERE read_at IS NULL;
+
+-- RLS
+ALTER TABLE customer_messages ENABLE ROW LEVEL SECURITY;
+
+-- Il cliente vede solo i suoi messaggi
+CREATE POLICY "customer_messages_client_read" ON customer_messages
+  FOR SELECT USING (
+    client_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM company_members WHERE company_id = customer_messages.company_id AND user_id = auth.uid()
+    )
+  );
+
+-- Il cliente può inserire messaggi solo come 'cliente'
+CREATE POLICY "customer_messages_client_insert" ON customer_messages
+  FOR INSERT WITH CHECK (
+    (sender_role = 'cliente' AND client_id = auth.uid() AND sender_id = auth.uid())
+    OR
+    (sender_role = 'azienda' AND EXISTS (
+      SELECT 1 FROM company_members WHERE company_id = customer_messages.company_id AND user_id = auth.uid()
+    ))
+  );
+
+-- 2. Tabella appuntamenti visibili al cliente (view read-only su calendar_events)
+-- Solo appuntamenti con client_id = auth.uid() sono visibili al cliente
+-- Nessuna nuova tabella: aggiungiamo policy sulla tabella esistente calendar_events
+
+-- Controlla se la tabella si chiama calendar_events o appointments e adatta:
+ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY; -- se non già abilitata
+
+CREATE POLICY "calendar_events_client_read" ON calendar_events
+  FOR SELECT USING (
+    client_id = auth.uid()                    -- il cliente vede i propri appuntamenti
+    OR
+    EXISTS (
+      SELECT 1 FROM company_members
+      WHERE company_id = calendar_events.company_id
+      AND user_id = auth.uid()
+    )                                          -- l'azienda vede tutto
+  );
+
+-- 3. Abilitare download documenti nel portale cliente
+-- Supabase Storage: aggiungi policy su bucket "attachments" o "documents"
+-- per permettere al cliente di leggere i file collegati ai propri ordini
+
+-- (Sostituisci 'attachments' col nome reale del bucket nel tuo progetto)
+-- Da fare nel pannello Storage → Policies di Supabase:
+--   Policy name: "Clients can read their order documents"
+--   Allowed operation: SELECT
+--   Target roles: authenticated
+--   Policy definition:
+--     (bucket_id = 'attachments' AND EXISTS (
+--       SELECT 1 FROM orders o
+--       WHERE o.id::text = (storage.foldername(name))[2]
+--         AND o.client_id = auth.uid()
+--     ))
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Espandi CustomerLayout.tsx con nuove voci di navigazione
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/cliente/CustomerLayout.tsx aggiorna l'array di navigazione:
+
+```tsx
+const navItems = [
+  { to: `/cliente/${companySlug}/ordini`,       label: "I miei ordini",   icon: ClipboardList },
+  { to: `/cliente/${companySlug}/documenti`,    label: "Documenti",       icon: FileText },
+  { to: `/cliente/${companySlug}/rate`,         label: "Piano rate",      icon: CreditCard },
+  { to: `/cliente/${companySlug}/appuntamenti`, label: "Appuntamenti",    icon: CalendarDays },
+  { to: `/cliente/${companySlug}/messaggi`,     label: "Messaggi",        icon: MessageSquare },
+  { to: `/cliente/${companySlug}/profilo`,      label: "Profilo",         icon: User },
+];
+```
+
+Aggiungi badge non letti su "Messaggi":
+```tsx
+// Dopo le navItems, aggiungi badge per messaggi non letti
+const { data: unreadMessages } = useQuery({
+  queryKey: queryKeys.customerPortal.messages(clientId),
+  queryFn: async () => {
+    const { count } = await supabase
+      .from("customer_messages")
+      .select("*", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .is("read_at", null)
+      .eq("sender_role", "azienda");  // solo messaggi non letti dall'azienda
+    return count ?? 0;
+  },
+  enabled: !!clientId,
+  refetchInterval: 30_000, // polling ogni 30 secondi
+});
+
+// Nel render del nav item "Messaggi" aggiungere il badge:
+{unreadMessages > 0 && (
+  <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+    {unreadMessages > 9 ? "9+" : unreadMessages}
+  </span>
+)}
+```
+
+Aggiungi le route in src/App.tsx nella sezione delle rotte cliente:
+```tsx
+<Route path="/cliente/:companySlug/documenti"    element={<CustomerDocuments />} />
+<Route path="/cliente/:companySlug/rate"         element={<CustomerInstallments />} />
+<Route path="/cliente/:companySlug/appuntamenti" element={<CustomerAppointments />} />
+<Route path="/cliente/:companySlug/messaggi"     element={<CustomerMessages />} />
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PC2] — PORTALE CLIENTE: PAGINE DOCUMENTI + PIANO RATE
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Crea CustomerDocuments.tsx
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/pages/cliente/CustomerDocuments.tsx:
+
+```tsx
+// Mostra tutti i documenti scaricabili del cliente
+// Fonti di documenti:
+//   1. Preventivi (ordini con tipo='preventivo') → PDF generato
+//   2. Fatture allegate agli ordini (order_documents con tipo='fattura')
+//   3. Contratti firmati (signature_requests con stato='firmato')
+//   4. Documenti generici allegati (order_documents altri tipi)
+
+// UI:
+// - Toolbar con filtro tipo documento (tutti / preventivi / fatture / contratti / altri)
+// - Lista documenti ordinata per data decrescente
+// - Ogni riga: icona tipo, nome file, data, nome ordine di riferimento, pulsante Download
+// - Pulsante Download chiama la Supabase Storage signed URL (60 sec di validità)
+// - Se nessun documento: empty state "Nessun documento disponibile"
+
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { queryKeys } from "@/lib/queryKeys";
+import { useCustomerAuth } from "@/hooks/useCustomerAuth"; // hook esistente
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { FileText, Download, FileCheck, Receipt } from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+
+interface CustomerDocument {
+  id: string;
+  type: "preventivo" | "fattura" | "contratto" | "altro";
+  nome: string;
+  ordine_nome: string;
+  data: string;
+  storage_path: string | null;
+  order_id: string;
+}
+
+export function CustomerDocuments() {
+  const { clientId, companyId } = useCustomerAuth();
+
+  const { data: documents = [], isLoading } = useQuery({
+    queryKey: queryKeys.customerPortal.documents(clientId),
+    queryFn: async (): Promise<CustomerDocument[]> => {
+      // Fetch order_documents collegati agli ordini del cliente
+      const { data, error } = await supabase
+        .from("order_documents")
+        .select(`
+          id,
+          tipo,
+          nome_file,
+          storage_path,
+          created_at,
+          orders!inner(id, numero_ordine, client_id, company_id)
+        `)
+        .eq("orders.client_id", clientId)
+        .eq("orders.company_id", companyId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return (data ?? []).map(d => ({
+        id: d.id,
+        type: d.tipo ?? "altro",
+        nome: d.nome_file ?? "Documento",
+        ordine_nome: d.orders?.numero_ordine ?? "—",
+        data: d.created_at,
+        storage_path: d.storage_path,
+        order_id: d.orders?.id ?? "",
+      }));
+    },
+    enabled: !!clientId && !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const handleDownload = async (storagePath: string, nome: string) => {
+    const { data } = await supabase.storage
+      .from("attachments")
+      .createSignedUrl(storagePath, 60);
+
+    if (data?.signedUrl) {
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.download = nome;
+      a.click();
+    }
+  };
+
+  const typeIcon = (type: string) => {
+    switch (type) {
+      case "preventivo": return <FileText className="h-4 w-4 text-blue-500" />;
+      case "fattura":    return <Receipt className="h-4 w-4 text-green-500" />;
+      case "contratto":  return <FileCheck className="h-4 w-4 text-purple-500" />;
+      default:           return <FileText className="h-4 w-4 text-gray-400" />;
+    }
+  };
+
+  if (isLoading) return <div className="p-6">Caricamento...</div>;
+
+  return (
+    <div className="p-6 space-y-4">
+      <h1 className="text-2xl font-bold">Documenti</h1>
+
+      {documents.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p>Nessun documento disponibile</p>
+        </div>
+      ) : (
+        <div className="divide-y rounded-lg border">
+          {documents.map(doc => (
+            <div key={doc.id} className="flex items-center gap-3 p-4">
+              {typeIcon(doc.type)}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm truncate">{doc.nome}</p>
+                <p className="text-xs text-muted-foreground">
+                  Ordine {doc.ordine_nome} · {format(new Date(doc.data), "d MMM yyyy", { locale: it })}
+                </p>
+              </div>
+              <Badge variant="outline" className="capitalize text-xs">
+                {doc.type}
+              </Badge>
+              {doc.storage_path && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleDownload(doc.storage_path!, doc.nome)}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Crea CustomerInstallments.tsx (Piano Rate)
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/pages/cliente/CustomerInstallments.tsx:
+
+```tsx
+// Mostra il piano rate completo di tutti gli ordini del cliente
+// Raggruppato per ordine, con stato pagamento per ogni rata
+
+// UI:
+// - Header con riepilogo: Totale dovuto / Pagato / Da pagare
+// - Per ogni ordine: card espandibile con numero ordine + stato ordine
+//   dentro: tabella rate con colonne: Numero, Descrizione, Importo, Scadenza, Stato
+//   Stato: badge "Pagata" (verde), "In scadenza" (arancio se entro 7gg), "Scaduta" (rosso), "Da pagare" (grigio)
+// - Totale rata pagata: verde, non pagata con data scadenza evidente
+
+// Import necessari da TanStack Query + date-fns + shadcn
+
+// Query: order_installments JOIN orders WHERE orders.client_id = clientId
+// Raggruppa per order_id lato client
+
+// isOverdue(date): data < oggi e non pagata → rosso
+// isDueSoon(date): data tra oggi e +7gg e non pagata → arancio
+```
+
+Implementa il componente completo con la logica descritta sopra.
+Usa isAfter/isBefore/addDays da date-fns per la logica di stato.
+Le rate "pagate" mostrano la data di pagamento invece della scadenza.
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PC3] — PORTALE CLIENTE: APPUNTAMENTI + MESSAGGI DIRETTI
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Crea CustomerAppointments.tsx
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/pages/cliente/CustomerAppointments.tsx:
+
+```tsx
+// Mostra gli appuntamenti del cliente (visibili grazie alla policy RLS creata in PC1)
+// Appuntamenti presi dalla tabella calendar_events (o appointments) dove client_id = clientId
+
+// UI — sezioni:
+//   PROSSIMI APPUNTAMENTI (data >= oggi, ordinati crescenti)
+//     - Card per ogni appuntamento: data, ora, titolo, luogo/indirizzo, note
+//     - Badge tipo appuntamento (sopralluogo, consegna, riunione, ecc.)
+//     - Pulsante "Aggiungi al calendario" che genera un file .ics download
+
+//   APPUNTAMENTI PASSATI (data < oggi, ordinati decrescenti, collassati di default)
+//     - Stessa struttura, toggle "Mostra storico"
+
+// Generazione .ics:
+function generateICS(appointment: { titolo: string; data: string; ora_inizio: string; ora_fine: string; luogo?: string; note?: string }): string {
+  const startDt = appointment.data.replace(/-/g, "") + "T" + (appointment.ora_inizio ?? "090000").replace(/:/g, "");
+  const endDt   = appointment.data.replace(/-/g, "") + "T" + (appointment.ora_fine   ?? "100000").replace(/:/g, "");
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Edilizia in Cloud//IT",
+    "BEGIN:VEVENT",
+    `DTSTART:${startDt}`,
+    `DTEND:${endDt}`,
+    `SUMMARY:${appointment.titolo}`,
+    appointment.luogo ? `LOCATION:${appointment.luogo}` : "",
+    appointment.note  ? `DESCRIPTION:${appointment.note}` : "",
+    `UID:${Date.now()}@ediliziacloud`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].filter(Boolean).join("\r\n");
+}
+
+// Download .ics:
+const handleAddToCalendar = (appointment: AppointmentRow) => {
+  const ics = generateICS(appointment);
+  const blob = new Blob([ics], { type: "text/calendar" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `appuntamento-${appointment.data}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Query: usa queryKeys.customerPortal.appointments(clientId)
+// staleTime: 10 minuti (appuntamenti non cambiano spesso)
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Crea CustomerMessages.tsx
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/pages/cliente/CustomerMessages.tsx:
+
+```tsx
+// Chat diretta cliente ↔ azienda
+// Basata sulla tabella customer_messages creata in PC1
+
+// UI — layout tipo chat:
+//   - Area messaggi scrollabile con flex-col-reverse (ultimi in basso)
+//   - Messaggio azienda: bolla sinistra (bg-gray-100)
+//   - Messaggio cliente: bolla destra (bg-primary text-white)
+//   - Ogni messaggio: testo + timestamp + "letto" se read_at non null
+//   - Textarea in basso + pulsante Invia (disabled se testo vuoto o isPending)
+//   - Pressione Enter invia (Shift+Enter va a capo)
+//   - Scroll automatico all'ultimo messaggio su nuovo arrivo
+
+// Query: useQuery per caricare messaggi
+//   queryKey: queryKeys.customerPortal.messages(clientId)
+//   ordine: created_at ASC
+
+// Mutation: INSERT in customer_messages
+//   sender_role: "cliente"
+//   sender_id: clientId
+//   client_id: clientId
+//   company_id: companyId
+//   Optimistic update: aggiunge il messaggio alla cache prima della risposta
+
+// Mark as read: quando il componente si monta (o quando arrivano nuovi messaggi),
+//   esegui UPDATE customer_messages SET read_at = now()
+//   WHERE client_id = clientId AND sender_role = 'azienda' AND read_at IS NULL
+//   → invalida queryKeys.customerPortal.messages dopo
+
+// Realtime subscription (Supabase):
+//   useEffect(() => {
+//     const channel = supabase
+//       .channel(`customer-messages-${clientId}`)
+//       .on("postgres_changes", {
+//         event: "INSERT",
+//         schema: "public",
+//         table: "customer_messages",
+//         filter: `client_id=eq.${clientId}`,
+//       }, () => {
+//         queryClient.invalidateQueries({ queryKey: queryKeys.customerPortal.messages(clientId) });
+//       })
+//       .subscribe();
+//     return () => { supabase.removeChannel(channel); };
+//   }, [clientId]);
+
+// Empty state: "Nessun messaggio. Scrivi all'azienda per informazioni."
+// Altezza fissa con overflow-y-auto per la zona messaggi
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Vista messaggi lato azienda (interno)
+────────────────────────────────────────────────────────────────────────────
+
+Aggiungi una tab "Messaggi clienti" nella sezione Clienti o nel Supporto
+dell'area gestionale interna:
+
+Crea src/components/clients/ClientMessagesPanel.tsx:
+
+```tsx
+// Pannello messaggi per la vista interna azienda
+// Props: clientId, companyId, clientName
+
+// UI:
+// - Stessa struttura chat di CustomerMessages ma con bolle invertite
+//   (azienda a destra, cliente a sinistra)
+// - Header con nome cliente + stato online (se volete)
+// - Mutation inserisce sender_role: "azienda"
+
+// Può essere usato come Sheet o Dialog quando si apre il dettaglio cliente
+
+// Notifica badge "N nuovi messaggi" visibile nell'elenco clienti
+// usando query COUNT su customer_messages con read_at IS NULL e sender_role='cliente'
+// con refetchInterval: 60_000
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║   RIEPILOGO LUNGO TERMINE                                               ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║                                                                         ║
+║   PROMPT  TEMA                        RISULTATO                         ║
+║   ──────  ──────────────────────────  ──────────────────────────────    ║
+║   [R1]    Refactor contatti           MarketingContactDetail < 250 rr   ║
+║           + useCashFlow split         useForecastData + useTreasuryData ║
+║           + costsUtils                lib/costsUtils.ts estratta        ║
+║                                                                         ║
+║   [QK1]   QueryKeys centrali          src/lib/queryKeys.ts creato       ║
+║           + migrazione hook           200+ pattern standardizzati       ║
+║                                                                         ║
+║   [RPC1]  RPC aggregate               get_dashboard_data() → 1 call     ║
+║           + RPC cashflow              get_cashflow_summary() → 2 call   ║
+║                                                                         ║
+║   [PC1]   Portale: DB + nav           customer_messages, nav 6 voci     ║
+║   [PC2]   Portale: Documenti + Rate   Download PDF + piano rate         ║
+║   [PC3]   Portale: Appuntamenti       .ics export + Chat realtime       ║
+║           + Messaggi                  ClientMessagesPanel interno        ║
+║                                                                         ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+ORDINE DI ESECUZIONE CONSIGLIATO:
+  1. [QK1] prima di tutto — gli altri prompt useranno queryKeys
+  2. [R1]  refactor — nessuna dipendenza esterna
+  3. [RPC1] RPC — crea migration Supabase e aggiorna hook
+  4. [PC1] → [PC2] → [PC3] in sequenza (ogni prompt dipende dal precedente)

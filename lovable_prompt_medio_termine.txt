@@ -1,0 +1,1954 @@
+╔══════════════════════════════════════════════════════════════════╗
+║   MEDIO TERMINE — 4 MODULI · 11 PROMPT SEQUENZIALI             ║
+║   HR Ferie · Paginazione · Cmd+K · Firma Digitale              ║
+╚══════════════════════════════════════════════════════════════════╝
+
+NOTA PRELIMINARE IMPORTANTE
+────────────────────────────
+Prima di iniziare questo file, assicurati che il file
+`lovable_prompt_breve_termine.txt` sia stato completamente
+eseguito (notifiche, filtri URL, optimistic updates, listino).
+Questo file dipende da quell'infrastruttura.
+
+PROMPTS IN QUESTO FILE:
+  [HR1] Modulo HR — DB: ferie, permessi, saldi
+  [HR2] Modulo HR — Vista dipendente: richiesta + storico
+  [HR3] Modulo HR — Vista admin: approvazioni + riepilogo
+  [HR4] Modulo HR — Layer calendario ferie aziendale
+  [PAG1] Paginazione server-side campaigns + templates
+  [CMD1] Ricerca globale — Hook useGlobalSearch
+  [CMD2] Ricerca globale — CommandPalette Cmd+K
+  [FD1] Firma digitale — DB + Edge Functions
+  [FD2] Firma digitale — Pagina pubblica /firma/:token
+  [FD3] Firma digitale — UI in OrderDetail (richiesta + status)
+  [FD4] Firma digitale — install dipendenza + integrazione
+
+
+════════════════════════════════════════════════════════════════════
+[HR1] MODULO HR — DATABASE: RICHIESTE FERIE + SALDI
+════════════════════════════════════════════════════════════════════
+
+CONTESTO: Il sistema ha già `work_logs` con activity_type
+'ferie' e 'permesso' per la consuntivazione. Questo modulo aggiunge
+il flusso di RICHIESTA + APPROVAZIONE preventivo, separato dai log.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Tabella leave_requests
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+CREATE TABLE IF NOT EXISTS public.leave_requests (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id    uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  employee_id   uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  type          text NOT NULL CHECK (type IN ('ferie','permesso','malattia','congedo')),
+  start_date    date NOT NULL,
+  end_date      date NOT NULL,
+  -- Per ferie: giorni. Per permesso orario: null (usa hours)
+  total_days    numeric(5,2),
+  total_hours   numeric(5,2),
+  status        text NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending','approved','rejected','cancelled')),
+  notes         text,
+  approved_by   uuid REFERENCES public.profiles(id),
+  approved_at   timestamptz,
+  rejection_note text,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+
+  -- Vincolo: almeno una tra total_days e total_hours deve essere valorizzata
+  CONSTRAINT leave_duration_check CHECK (
+    total_days IS NOT NULL OR total_hours IS NOT NULL
+  ),
+  -- end_date >= start_date
+  CONSTRAINT leave_dates_check CHECK (end_date >= start_date)
+);
+
+CREATE INDEX idx_leave_requests_company    ON public.leave_requests(company_id);
+CREATE INDEX idx_leave_requests_employee   ON public.leave_requests(employee_id);
+CREATE INDEX idx_leave_requests_status     ON public.leave_requests(status);
+CREATE INDEX idx_leave_requests_dates      ON public.leave_requests(start_date, end_date);
+
+ALTER TABLE public.leave_requests ENABLE ROW LEVEL SECURITY;
+
+-- Il dipendente vede solo le proprie richieste
+CREATE POLICY "employee_own_leave"
+  ON public.leave_requests FOR SELECT
+  USING (
+    employee_id IN (
+      SELECT id FROM public.profiles WHERE id = auth.uid()
+    )
+    OR
+    -- Admin e staff vedono tutte quelle della company
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      JOIN public.user_roles ur ON ur.user_id = p.id
+      WHERE p.id = auth.uid()
+        AND p.company_id = leave_requests.company_id
+        AND ur.role IN ('company_admin', 'company_staff')
+    )
+  );
+
+-- Il dipendente può inserire solo le proprie (pending)
+CREATE POLICY "employee_insert_own_leave"
+  ON public.leave_requests FOR INSERT
+  WITH CHECK (
+    employee_id IN (
+      SELECT id FROM public.profiles WHERE id = auth.uid()
+    )
+    AND status = 'pending'
+  );
+
+-- Il dipendente può cancellare le proprie (solo se pending)
+CREATE POLICY "employee_cancel_own_leave"
+  ON public.leave_requests FOR UPDATE
+  USING (
+    (employee_id IN (SELECT id FROM public.profiles WHERE id = auth.uid())
+     AND status = 'pending')
+    OR
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      JOIN public.user_roles ur ON ur.user_id = p.id
+      WHERE p.id = auth.uid()
+        AND p.company_id = leave_requests.company_id
+        AND ur.role IN ('company_admin', 'company_staff')
+    )
+  );
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Tabella leave_balances (saldi per anno)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+CREATE TABLE IF NOT EXISTS public.leave_balances (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id            uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  employee_id           uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  year                  integer NOT NULL,
+  -- Ferie (in giorni lavorativi)
+  ferie_days_total      numeric(5,2) NOT NULL DEFAULT 0,
+  ferie_days_used       numeric(5,2) NOT NULL DEFAULT 0,
+  -- Permessi (in ore)
+  permessi_hours_total  numeric(6,2) NOT NULL DEFAULT 0,
+  permessi_hours_used   numeric(6,2) NOT NULL DEFAULT 0,
+  -- ROL/altro (ore recuperabili)
+  rol_hours_total       numeric(6,2) NOT NULL DEFAULT 0,
+  rol_hours_used        numeric(6,2) NOT NULL DEFAULT 0,
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+
+  UNIQUE (company_id, employee_id, year)
+);
+
+CREATE INDEX idx_leave_balances_company  ON public.leave_balances(company_id, year);
+CREATE INDEX idx_leave_balances_employee ON public.leave_balances(employee_id, year);
+
+ALTER TABLE public.leave_balances ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "leave_balances_read"
+  ON public.leave_balances FOR SELECT
+  USING (
+    employee_id IN (SELECT id FROM public.profiles WHERE id = auth.uid())
+    OR
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      JOIN public.user_roles ur ON ur.user_id = p.id
+      WHERE p.id = auth.uid()
+        AND p.company_id = leave_balances.company_id
+        AND ur.role IN ('company_admin', 'company_staff')
+    )
+  );
+
+CREATE POLICY "leave_balances_admin_write"
+  ON public.leave_balances FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      JOIN public.user_roles ur ON ur.user_id = p.id
+      WHERE p.id = auth.uid()
+        AND p.company_id = leave_balances.company_id
+        AND ur.role = 'company_admin'
+    )
+  );
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Funzione approve_leave_request()
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+CREATE OR REPLACE FUNCTION public.approve_leave_request(
+  p_request_id    uuid,
+  p_approved      boolean,      -- true = approva, false = rifiuta
+  p_rejection_note text DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_request public.leave_requests%ROWTYPE;
+  v_year    integer;
+BEGIN
+  SELECT * INTO v_request FROM public.leave_requests WHERE id = p_request_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Richiesta non trovata'; END IF;
+  IF v_request.status <> 'pending' THEN
+    RAISE EXCEPTION 'La richiesta non è in stato pending';
+  END IF;
+
+  v_year := EXTRACT(YEAR FROM v_request.start_date)::integer;
+
+  IF p_approved THEN
+    -- Aggiorna la richiesta
+    UPDATE public.leave_requests SET
+      status = 'approved',
+      approved_by = auth.uid(),
+      approved_at = now(),
+      updated_at = now()
+    WHERE id = p_request_id;
+
+    -- Aggiorna il saldo (crea se non esiste)
+    INSERT INTO public.leave_balances (company_id, employee_id, year)
+    VALUES (v_request.company_id, v_request.employee_id, v_year)
+    ON CONFLICT (company_id, employee_id, year) DO NOTHING;
+
+    IF v_request.type = 'ferie' THEN
+      UPDATE public.leave_balances SET
+        ferie_days_used = ferie_days_used + COALESCE(v_request.total_days, 0),
+        updated_at = now()
+      WHERE company_id = v_request.company_id
+        AND employee_id = v_request.employee_id
+        AND year = v_year;
+    ELSIF v_request.type = 'permesso' THEN
+      UPDATE public.leave_balances SET
+        permessi_hours_used = permessi_hours_used + COALESCE(v_request.total_hours, 0),
+        updated_at = now()
+      WHERE company_id = v_request.company_id
+        AND employee_id = v_request.employee_id
+        AND year = v_year;
+    END IF;
+
+    -- Notifica al dipendente (usa create_notification se esiste)
+    PERFORM public.create_notification(
+      v_request.company_id,
+      v_request.employee_id,
+      'generic',
+      'Richiesta ferie approvata',
+      'La tua richiesta dal ' || v_request.start_date::text ||
+      ' al ' || v_request.end_date::text || ' è stata approvata.',
+      'leave_request', v_request.id, '/dipendente/ferie'
+    );
+
+  ELSE
+    UPDATE public.leave_requests SET
+      status = 'rejected',
+      approved_by = auth.uid(),
+      approved_at = now(),
+      rejection_note = p_rejection_note,
+      updated_at = now()
+    WHERE id = p_request_id;
+
+    PERFORM public.create_notification(
+      v_request.company_id,
+      v_request.employee_id,
+      'generic',
+      'Richiesta ferie non approvata',
+      COALESCE(p_rejection_note, 'La tua richiesta non è stata approvata.'),
+      'leave_request', v_request.id, '/dipendente/ferie'
+    );
+  END IF;
+END;
+$$;
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — RPC get_leave_summary() per riepilogo admin
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+CREATE OR REPLACE FUNCTION public.get_leave_summary(
+  p_company_id uuid,
+  p_year integer DEFAULT NULL
+)
+RETURNS TABLE (
+  employee_id         uuid,
+  employee_name       text,
+  ferie_days_total    numeric,
+  ferie_days_used     numeric,
+  ferie_days_remaining numeric,
+  permessi_hours_total numeric,
+  permessi_hours_used  numeric,
+  permessi_hours_remaining numeric,
+  pending_requests    bigint
+)
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT
+    p.id                          AS employee_id,
+    p.first_name || ' ' || p.last_name AS employee_name,
+    COALESCE(lb.ferie_days_total, 0),
+    COALESCE(lb.ferie_days_used, 0),
+    GREATEST(0, COALESCE(lb.ferie_days_total, 0) - COALESCE(lb.ferie_days_used, 0)),
+    COALESCE(lb.permessi_hours_total, 0),
+    COALESCE(lb.permessi_hours_used, 0),
+    GREATEST(0, COALESCE(lb.permessi_hours_total, 0) - COALESCE(lb.permessi_hours_used, 0)),
+    COUNT(lr.id) FILTER (WHERE lr.status = 'pending')
+  FROM public.profiles p
+  LEFT JOIN public.leave_balances lb ON lb.employee_id = p.id
+    AND lb.company_id = p_company_id
+    AND lb.year = COALESCE(p_year, EXTRACT(YEAR FROM now())::integer)
+  LEFT JOIN public.leave_requests lr ON lr.employee_id = p.id
+    AND lr.company_id = p_company_id
+  WHERE p.company_id = p_company_id
+    AND p.role_type IN ('operaio', 'staff_interno')
+  GROUP BY p.id, p.first_name, p.last_name, lb.ferie_days_total,
+    lb.ferie_days_used, lb.permessi_hours_total, lb.permessi_hours_used
+  ORDER BY p.first_name, p.last_name;
+$$;
+```
+
+
+════════════════════════════════════════════════════════════════════
+[HR2] MODULO HR — VISTA DIPENDENTE (RICHIESTA + STORICO)
+════════════════════════════════════════════════════════════════════
+
+Crea la vista per i dipendenti per richiedere e monitorare
+ferie e permessi, accessibile dall'area /dipendente/.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Pagina dipendente
+File da CREARE: src/pages/dipendente/LeaveRequests.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Layout della pagina:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Ferie & Permessi                    [+ Nuova richiesta]  │
+│─────────────────────────────────────────────────────────│
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  FERIE       │  │  PERMESSI    │  │  ROL         │  │
+│  │  12 / 26 gg  │  │  8 / 32 ore │  │  4 / 10 ore  │  │
+│  │  ████░░ 46%  │  │  ████░░ 25% │  │  ██░░░ 40%   │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│─────────────────────────────────────────────────────────│
+│  Storico richieste                                      │
+│  ─────────────────────────────────────────────────────  │
+│  🟡 ATTESA  Ferie  15-22 ago 2025  7 gg   [Annulla]    │
+│  ✅ APPROVATA Permesso 3 lug 2025  4 ore              │
+│  ✅ APPROVATA Ferie  10-17 mag 2025  6 gg             │
+│  ❌ RIFIUTATA Ferie  1-5 apr 2025   "date non disponibili"│
+└─────────────────────────────────────────────────────────┘
+```
+
+**Implementazione:**
+
+```typescript
+// Query saldo
+const { data: balance } = useQuery({
+  queryKey: ["leave-balance", profile?.id, currentYear],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("leave_balances")
+      .select("*")
+      .eq("employee_id", profile!.id)
+      .eq("year", currentYear)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!profile?.id,
+  staleTime: 5 * 60 * 1000,
+});
+
+// Query storico richieste
+const { data: requests = [] } = useQuery({
+  queryKey: ["leave-requests-employee", profile?.id],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("leave_requests")
+      .select("*")
+      .eq("employee_id", profile!.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!profile?.id,
+  staleTime: 2 * 60 * 1000,
+});
+
+// Mutation: nuova richiesta
+const createRequestMutation = useMutation({
+  mutationFn: async (request: LeaveRequestInsert) => {
+    const { error } = await supabase
+      .from("leave_requests")
+      .insert({ ...request, employee_id: profile!.id, company_id: profile!.company_id });
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["leave-requests-employee"] });
+    toast.success("Richiesta inviata con successo");
+    setDialogOpen(false);
+  },
+});
+
+// Mutation: annulla richiesta (solo pending)
+const cancelRequestMutation = useMutation({
+  mutationFn: async (requestId: string) => {
+    const { error } = await supabase
+      .from("leave_requests")
+      .update({ status: "cancelled" })
+      .eq("id", requestId)
+      .eq("status", "pending");
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["leave-requests-employee"] });
+    toast.success("Richiesta annullata");
+  },
+});
+```
+
+**Dialog "Nuova richiesta":**
+```tsx
+// Form con i campi:
+// - Tipo: Select (Ferie | Permesso orario | Malattia | Congedo)
+// - Data inizio: DatePicker
+// - Data fine: DatePicker (solo per ferie/malattia)
+// - Ore: NumberInput (solo per permesso orario)
+// - Note: Textarea
+// - Riepilogo: calcolo automatico giorni lavorativi
+
+// Calcolo giorni lavorativi (escludi weekend):
+const calcWorkingDays = (start: Date, end: Date): number => {
+  let count = 0;
+  const cur = new Date(start);
+  while (cur <= end) {
+    const day = cur.getDay();
+    if (day !== 0 && day !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+};
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Aggiungi route in App.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nella sezione delle route `/dipendente/`, aggiungi:
+```tsx
+// Import lazy:
+const LeaveRequests = lazy(() => import("./pages/dipendente/LeaveRequests"));
+
+// Route:
+<Route path="ferie" element={
+  <ProtectedRoute allowedRoles={["employee"]}>
+    <LeaveRequests />
+  </ProtectedRoute>
+} />
+```
+
+Aggiungi anche il link nel menu del dipendente (EmployeeLayout o sidebar dipendente):
+```tsx
+<NavLink to="/dipendente/ferie">
+  <CalendarDays className="h-4 w-4" />
+  Ferie & Permessi
+</NavLink>
+```
+
+
+════════════════════════════════════════════════════════════════════
+[HR3] MODULO HR — VISTA ADMIN (APPROVAZIONI + RIEPILOGO)
+════════════════════════════════════════════════════════════════════
+
+Aggiungi il tab "Ferie & Permessi" nella pagina Employees.tsx
+esistente, con gestione approvazioni e saldi.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Nuovo tab in Employees.tsx
+File da MODIFICARE: src/pages/azienda/Employees.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nella pagina Employees.tsx esistente (che ha già tab Operai,
+Squadre Esterne, Staff Interno, Work Log), aggiungi un quinto tab:
+
+```tsx
+// Aggiungi tab value:
+<TabsTrigger value="ferie">
+  Ferie & Permessi
+  {pendingLeaveCount > 0 && (
+    <Badge variant="destructive" className="ml-1.5 h-4 px-1 text-[10px]">
+      {pendingLeaveCount}
+    </Badge>
+  )}
+</TabsTrigger>
+```
+
+**Contenuto del nuovo tab — COMPONENTE LeaveAdminTab:**
+File da CREARE: `src/components/employees/LeaveAdminTab.tsx`
+
+```
+LAYOUT DEL TAB:
+┌─────────────────────────────────────────────────────────┐
+│  RICHIESTE IN ATTESA (3)                                │
+│  ─────────────────────────────────────────────────────  │
+│  Mario Rossi · Ferie · 15-22 ago · 7 gg               │
+│  Nota: "vacanza estiva"         [✓ Approva] [✗ Rifiuta] │
+│                                                          │
+│  Luca Bianchi · Permesso · 3 lug · 4 ore               │
+│  Nota: -                        [✓ Approva] [✗ Rifiuta] │
+│─────────────────────────────────────────────────────────│
+│  SALDI DIPENDENTI [Anno: 2025 ▼]                        │
+│  ─────────────────────────────────────────────────────  │
+│  Nome        Ferie rimaste  Permessi rimasti   [Edit]   │
+│  M. Rossi    14 / 26 gg     22 / 32 ore        [✎]     │
+│  L. Bianchi  22 / 26 gg     28 / 32 ore        [✎]     │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Queries nel componente:**
+```typescript
+// Richieste pending
+const { data: pendingRequests = [] } = useQuery({
+  queryKey: ["leave-requests-pending", companyId],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("leave_requests")
+      .select(`
+        *,
+        employee:profiles!leave_requests_employee_id_fkey(
+          id, first_name, last_name
+        )
+      `)
+      .eq("company_id", companyId!)
+      .eq("status", "pending")
+      .order("created_at");
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!companyId,
+  staleTime: 60 * 1000,
+});
+
+// Saldi via RPC
+const { data: summaries = [] } = useQuery({
+  queryKey: ["leave-summary", companyId, selectedYear],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .rpc("get_leave_summary", {
+        p_company_id: companyId!,
+        p_year: selectedYear,
+      });
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!companyId,
+  staleTime: 2 * 60 * 1000,
+});
+```
+
+**Mutation approvazione:**
+```typescript
+const approveMutation = useMutation({
+  mutationFn: async ({ requestId, approved, note }: {
+    requestId: string;
+    approved: boolean;
+    note?: string;
+  }) => {
+    const { error } = await supabase.rpc("approve_leave_request", {
+      p_request_id: requestId,
+      p_approved: approved,
+      p_rejection_note: note ?? null,
+    });
+    if (error) throw error;
+  },
+  onSuccess: (_, { approved }) => {
+    queryClient.invalidateQueries({ queryKey: ["leave-requests-pending"] });
+    queryClient.invalidateQueries({ queryKey: ["leave-summary"] });
+    toast.success(approved ? "Richiesta approvata" : "Richiesta rifiutata");
+  },
+});
+```
+
+**Dialog rifiuto:** quando si clicca "Rifiuta", apri un piccolo
+Dialog con textarea per la nota di rifiuto obbligatoria.
+
+**Modifica saldi (Edit):** ogni riga ha un pulsante edit che apre
+un popover con i campi numerici per modificare i totali
+(ferie_days_total, permessi_hours_total, rol_hours_total).
+Usa upsert su `leave_balances`:
+```typescript
+const { error } = await supabase
+  .from("leave_balances")
+  .upsert({
+    company_id: companyId,
+    employee_id: employeeId,
+    year: selectedYear,
+    ferie_days_total: newFerieDays,
+    permessi_hours_total: newPermessiHours,
+    rol_hours_total: newRolHours,
+  }, { onConflict: "company_id,employee_id,year" });
+```
+
+
+════════════════════════════════════════════════════════════════════
+[HR4] MODULO HR — LAYER FERIE IN CALENDARIO AZIENDALE
+════════════════════════════════════════════════════════════════════
+
+Aggiungi le ferie approvate come layer visibile nel calendario
+in src/pages/azienda/Calendar.tsx.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Query ferie approvate in Calendar.tsx
+File da MODIFICARE: src/pages/azienda/Calendar.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Aggiungi questa query al componente Calendar.tsx:
+
+```typescript
+// Carica ferie approvate nel range del calendario visualizzato
+const { data: approvedLeaves = [] } = useQuery({
+  queryKey: ["approved-leaves", companyId, calendarYear],
+  queryFn: async () => {
+    const yearStart = `${calendarYear}-01-01`;
+    const yearEnd = `${calendarYear}-12-31`;
+    const { data, error } = await supabase
+      .from("leave_requests")
+      .select(`
+        id, employee_id, type, start_date, end_date, total_days, total_hours,
+        employee:profiles!leave_requests_employee_id_fkey(
+          id, first_name, last_name
+        )
+      `)
+      .eq("company_id", companyId!)
+      .eq("status", "approved")
+      .gte("start_date", yearStart)
+      .lte("end_date", yearEnd)
+      .order("start_date");
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!companyId,
+  staleTime: 5 * 60 * 1000,
+});
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Aggiungi il layer al CalendarGanttView
+File da MODIFICARE: src/components/calendar/CalendarGanttView.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Aggiungi prop `leaveRequests` al componente Gantt. Le ferie
+approvate appaiono come barre colorate sotto il nome del dipendente,
+con stile diverso dagli ordini:
+
+```tsx
+// Prop aggiuntiva:
+interface CalendarGanttViewProps {
+  // ... props esistenti ...
+  leaveRequests?: ApprovedLeave[];  // dal query sopra
+}
+
+// Nel rendering delle righe dipendenti, aggiungi le barre ferie:
+{/* Barra ferie — colorata in amber/orange per distinguerla dagli ordini */}
+{leaveRequests
+  ?.filter(lr => lr.employee_id === employee.id)
+  .map(lr => (
+    <div
+      key={lr.id}
+      className="absolute h-5 rounded opacity-80 flex items-center px-1
+                 bg-amber-200 border border-amber-400 text-amber-800 text-[10px]"
+      style={{
+        left: `${getLeftPercent(lr.start_date)}%`,
+        width: `${getWidthPercent(lr.start_date, lr.end_date)}%`,
+        top: "2px",
+      }}
+      title={`Ferie: ${lr.start_date} → ${lr.end_date}`}
+    >
+      🏖 {lr.type === "ferie" ? "Ferie" : "Permesso"}
+    </div>
+  ))
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Toggle visibilità nel CalendarLayerPanel
+File da MODIFICARE: src/components/calendar/CalendarLayerPanel.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nella lista dei layer esistenti, aggiungi:
+```tsx
+<LayerToggleItem
+  label="Ferie & Permessi"
+  icon={<CalendarDays className="h-4 w-4 text-amber-500" />}
+  checked={visibleLayers.includes("leaves")}
+  onToggle={() => toggleLayer("leaves")}
+/>
+```
+
+Usa il nome layer `"leaves"` per il controllo visibilità.
+Passa `showLeaves={visibleLayers.includes("leaves")}` al Gantt.
+
+
+════════════════════════════════════════════════════════════════════
+[PAG1] PAGINAZIONE SERVER-SIDE: CAMPAIGNS + TEMPLATES
+════════════════════════════════════════════════════════════════════
+
+PROBLEMA ATTUALE: EmailCampaignsTab.tsx e EmailTemplatesTab.tsx
+caricano TUTTE le campagne/template in memoria, poi paginano con
+`slice()`. Con 500+ campagne → lento e wastes bandwidth.
+
+SOLUZIONE: hook condiviso con Supabase `.range()` + count query.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Hook useEmailCampaignsPaginated
+File da CREARE: src/hooks/useEmailCampaignsPaginated.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+interface EmailCampaignFilters {
+  search: string;
+  category: "all" | "automation" | "bulk";
+  folderId: string | null;
+  isTemplate: boolean;
+}
+
+interface PaginationParams {
+  page: number;       // 0-indexed
+  perPage: number;
+}
+
+export function useEmailCampaignsPaginated(
+  companyId: string | undefined,
+  filters: EmailCampaignFilters,
+  pagination: PaginationParams
+) {
+  const { page, perPage } = pagination;
+
+  return useQuery({
+    queryKey: [
+      "email-campaigns-paginated",
+      companyId,
+      filters.search,
+      filters.category,
+      filters.folderId,
+      filters.isTemplate,
+      page,
+      perPage,
+    ],
+    queryFn: async () => {
+      let query = supabase
+        .from("email_campaigns")
+        .select(
+          "id, name, subject, status, scheduled_at, sent_at, folder_id, " +
+          "category, is_template, created_at, updated_at, " +
+          "stats_open_rate, stats_click_rate, stats_sent_count",
+          { count: "exact" }
+        )
+        .eq("company_id", companyId!)
+        .eq("is_template", filters.isTemplate);
+
+      // Filtro folder
+      if (filters.folderId) {
+        query = query.eq("folder_id", filters.folderId);
+      } else {
+        query = query.is("folder_id", null);
+      }
+
+      // Filtro categoria
+      if (filters.category !== "all") {
+        query = query.eq("category", filters.category);
+      }
+
+      // Ricerca (server-side, case-insensitive)
+      if (filters.search.trim()) {
+        query = query.ilike("name", `%${filters.search.trim()}%`);
+      }
+
+      // Paginazione server-side
+      const from = page * perPage;
+      const to = from + perPage - 1;
+      query = query.range(from, to).order("created_at", { ascending: false });
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { data: data ?? [], total: count ?? 0 };
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 8 * 60 * 1000,
+    placeholderData: (prev) => prev, // mantieni dati precedenti durante il cambio pagina
+  });
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Sostituisci la query in EmailCampaignsTab.tsx
+File da MODIFICARE: src/components/email-marketing/EmailCampaignsTab.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la query che carica le campagne (`email-campaigns` queryKey)
+e la logica di paginazione con `slice()`. Sostituisci con:
+
+```typescript
+// RIMUOVI: la vecchia query + filtri + slice
+// AGGIUNGI:
+const [page, setPage] = useState(0);
+const [perPage, setPerPage] = useState(10);
+// Reset pagina quando cambiano filtri:
+useEffect(() => { setPage(0); }, [search, categoryFilter, currentFolderId]);
+
+const { data: campaignData, isLoading } = useEmailCampaignsPaginated(
+  companyId,
+  {
+    search,
+    category: categoryFilter as "all" | "automation" | "bulk",
+    folderId: currentFolderId,
+    isTemplate: false,
+  },
+  { page, perPage }
+);
+
+const campaigns = campaignData?.data ?? [];
+const totalCount = campaignData?.total ?? 0;
+const totalPages = Math.ceil(totalCount / perPage);
+
+// Il "showing" ora viene da server:
+const showing = totalCount > 0
+  ? `${page * perPage + 1}–${Math.min((page + 1) * perPage, totalCount)} di ${totalCount}`
+  : "";
+```
+
+RIMUOVI tutti i `useMemo` che filtravano e facevano `slice()`
+in locale — non servono più.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Stessa sostituzione in EmailTemplatesTab.tsx
+File da MODIFICARE: src/components/email-marketing/EmailTemplatesTab.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Uguale a EmailCampaignsTab ma con `isTemplate: true`:
+
+```typescript
+const { data: templateData, isLoading } = useEmailCampaignsPaginated(
+  companyId,
+  {
+    search,
+    category: "all",   // template non hanno categoria
+    folderId: currentFolderId,
+    isTemplate: true,
+  },
+  { page, perPage }
+);
+```
+
+
+════════════════════════════════════════════════════════════════════
+[CMD1] RICERCA GLOBALE — HOOK useGlobalSearch
+════════════════════════════════════════════════════════════════════
+
+CONTESTO: L'infrastruttura `cmdk` è già installata.
+Il componente `CommandDialog` esiste in src/components/ui/command.tsx.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Hook useGlobalSearch
+File da CREARE: src/hooks/useGlobalSearch.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useDebounce } from "./useDebounce";  // hook creato nel breve termine
+
+export interface SearchResult {
+  id: string;
+  type: "order" | "customer" | "contact" | "ticket" | "employee";
+  title: string;       // testo principale
+  subtitle: string;    // testo secondario (es. email, codice ordine)
+  url: string;         // URL di navigazione
+  icon: string;        // nome icona lucide per il tipo
+}
+
+export function useGlobalSearch(query: string, companyId: string | undefined) {
+  const debouncedQuery = useDebounce(query, 250);
+
+  return useQuery<SearchResult[]>({
+    queryKey: ["global-search", companyId, debouncedQuery],
+    queryFn: async () => {
+      if (!debouncedQuery || debouncedQuery.length < 2) return [];
+
+      const pattern = `%${debouncedQuery}%`;
+
+      // Esegui tutte e 4 le ricerche in parallelo
+      const [ordersRes, customersRes, contactsRes, ticketsRes] = await Promise.all([
+
+        // ORDINI: cerca per codice o descrizione
+        supabase
+          .from("orders")
+          .select("id, order_code, description, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
+          .eq("company_id", companyId!)
+          .or(`order_code.ilike.${pattern},description.ilike.${pattern}`)
+          .limit(5),
+
+        // CLIENTI: cerca per nome o email
+        supabase
+          .from("profiles")
+          .select("id, first_name, last_name, email, phone")
+          .eq("company_id", companyId!)
+          .eq("role_type", "customer")
+          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+          .limit(5),
+
+        // CONTATTI MARKETING: cerca per nome o email
+        supabase
+          .from("contacts")
+          .select("id, first_name, last_name, email, phone")
+          .eq("company_id", companyId!)
+          .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`)
+          .limit(5),
+
+        // TICKET: cerca per oggetto
+        supabase
+          .from("tickets")
+          .select("id, subject, status")
+          .eq("company_id", companyId!)
+          .ilike("subject", pattern)
+          .limit(5),
+      ]);
+
+      const results: SearchResult[] = [];
+
+      // Ordini
+      for (const o of ordersRes.data ?? []) {
+        const cust = o.customer as any;
+        results.push({
+          id: o.id,
+          type: "order",
+          title: o.order_code,
+          subtitle: o.description ?? (cust ? `${cust.first_name} ${cust.last_name}` : ""),
+          url: `/azienda/ordini/${o.id}`,
+          icon: "Package",
+        });
+      }
+
+      // Clienti
+      for (const c of customersRes.data ?? []) {
+        results.push({
+          id: c.id,
+          type: "customer",
+          title: `${c.first_name} ${c.last_name}`,
+          subtitle: c.email ?? c.phone ?? "",
+          url: `/azienda/clienti/${c.id}`,
+          icon: "User",
+        });
+      }
+
+      // Contatti marketing
+      for (const c of contactsRes.data ?? []) {
+        results.push({
+          id: c.id,
+          type: "contact",
+          title: `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim(),
+          subtitle: c.email ?? c.phone ?? "",
+          url: `/azienda/marketing/contatti/${c.id}`,
+          icon: "UserCircle",
+        });
+      }
+
+      // Ticket
+      for (const t of ticketsRes.data ?? []) {
+        results.push({
+          id: t.id,
+          type: "ticket",
+          title: t.subject,
+          subtitle: `Stato: ${t.status}`,
+          url: `/azienda/assistenza/${t.id}`,
+          icon: "MessageSquare",
+        });
+      }
+
+      return results;
+    },
+    enabled: !!companyId && debouncedQuery.length >= 2,
+    staleTime: 30 * 1000,
+    gcTime: 2 * 60 * 1000,
+  });
+}
+```
+
+
+════════════════════════════════════════════════════════════════════
+[CMD2] RICERCA GLOBALE — CommandPalette Cmd+K
+════════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Componente CommandPalette
+File da CREARE: src/components/CommandPalette.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  CommandDialog, CommandInput, CommandList, CommandEmpty,
+  CommandGroup, CommandItem, CommandSeparator,
+} from "@/components/ui/command";
+import {
+  Package, User, UserCircle, MessageSquare,
+  LayoutDashboard, ShoppingCart, Warehouse,
+  Calendar, Users, Ticket, BarChart2, Settings,
+  Search, Loader2,
+} from "lucide-react";
+import { useGlobalSearch } from "@/hooks/useGlobalSearch";
+import { useAuth } from "@/hooks/useAuth";
+
+// Navigazione rapida — le route principali dell'app
+const QUICK_NAV = [
+  { title: "Dashboard",       url: "/azienda",                    icon: LayoutDashboard },
+  { title: "Ordini",          url: "/azienda/ordini",             icon: ShoppingCart },
+  { title: "Clienti",         url: "/azienda/clienti",            icon: Users },
+  { title: "Magazzino",       url: "/azienda/magazzino",          icon: Warehouse },
+  { title: "Calendario",      url: "/azienda/calendario",         icon: Calendar },
+  { title: "Ticket Clienti",  url: "/azienda/assistenza",         icon: Ticket },
+  { title: "Marketing",       url: "/azienda/marketing",          icon: BarChart2 },
+  { title: "Impostazioni",    url: "/azienda/impostazioni",       icon: Settings },
+];
+
+const RESULT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Package, User, UserCircle, MessageSquare,
+};
+
+interface CommandPaletteProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+  const [query, setQuery] = useState("");
+  const navigate = useNavigate();
+  const { company } = useAuth();
+
+  const { data: results = [], isFetching } = useGlobalSearch(query, company?.id);
+
+  // Reset query quando si chiude
+  useEffect(() => {
+    if (!open) setTimeout(() => setQuery(""), 200);
+  }, [open]);
+
+  const handleSelect = (url: string) => {
+    navigate(url);
+    onOpenChange(false);
+  };
+
+  // Raggruppa risultati per tipo
+  const groupedResults = results.reduce((acc, r) => {
+    const group = {
+      order: "Ordini",
+      customer: "Clienti",
+      contact: "Contatti Marketing",
+      ticket: "Ticket",
+      employee: "Dipendenti",
+    }[r.type] ?? "Risultati";
+    (acc[group] = acc[group] ?? []).push(r);
+    return acc;
+  }, {} as Record<string, typeof results>);
+
+  return (
+    <CommandDialog open={open} onOpenChange={onOpenChange}>
+      <div className="flex items-center border-b px-3">
+        {isFetching ? (
+          <Loader2 className="h-4 w-4 shrink-0 opacity-50 animate-spin" />
+        ) : (
+          <Search className="h-4 w-4 shrink-0 opacity-50" />
+        )}
+        <CommandInput
+          placeholder="Cerca ordini, clienti, contatti, ticket..."
+          value={query}
+          onValueChange={setQuery}
+          className="border-0 focus:ring-0"
+        />
+      </div>
+
+      <CommandList className="max-h-[400px]">
+        {/* Risultati ricerca */}
+        {query.length >= 2 && (
+          <>
+            {results.length === 0 && !isFetching && (
+              <CommandEmpty>Nessun risultato per "{query}"</CommandEmpty>
+            )}
+            {Object.entries(groupedResults).map(([group, items]) => (
+              <CommandGroup key={group} heading={group}>
+                {items.map((result) => {
+                  const Icon = RESULT_ICONS[result.icon] ?? Package;
+                  return (
+                    <CommandItem
+                      key={result.id}
+                      value={`${result.type}-${result.id}`}
+                      onSelect={() => handleSelect(result.url)}
+                      className="flex items-center gap-3 py-2"
+                    >
+                      <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate">{result.title}</div>
+                        {result.subtitle && (
+                          <div className="text-xs text-muted-foreground truncate">
+                            {result.subtitle}
+                          </div>
+                        )}
+                      </div>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            ))}
+            {results.length > 0 && <CommandSeparator />}
+          </>
+        )}
+
+        {/* Navigazione rapida — sempre visibile */}
+        <CommandGroup heading={query.length >= 2 ? "Navigazione rapida" : "Sezioni principali"}>
+          {QUICK_NAV
+            .filter(item =>
+              query.length < 2 ||
+              item.title.toLowerCase().includes(query.toLowerCase())
+            )
+            .map((item) => (
+              <CommandItem
+                key={item.url}
+                value={`nav-${item.url}`}
+                onSelect={() => handleSelect(item.url)}
+                className="flex items-center gap-3"
+              >
+                <item.icon className="h-4 w-4 text-muted-foreground" />
+                <span>{item.title}</span>
+              </CommandItem>
+            ))
+          }
+        </CommandGroup>
+      </CommandList>
+
+      {/* Footer con shortcut hint */}
+      <div className="border-t px-3 py-2 flex items-center justify-between text-xs text-muted-foreground">
+        <span>↑↓ naviga · ↵ apri · esc chiudi</span>
+        <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1
+                        rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">
+          ⌘K
+        </kbd>
+      </div>
+    </CommandDialog>
+  );
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Integra in CompanyLayout
+File da MODIFICARE: src/components/layouts/CompanyLayout.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+// Aggiungi import:
+import { CommandPalette } from "@/components/CommandPalette";
+
+// Nel body del componente:
+const [commandOpen, setCommandOpen] = useState(false);
+
+// Keyboard shortcut globale:
+useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      e.preventDefault();
+      setCommandOpen((prev) => !prev);
+    }
+  };
+  document.addEventListener("keydown", handleKeyDown);
+  return () => document.removeEventListener("keydown", handleKeyDown);
+}, []);
+
+// Nel JSX della sidebar, aggiungi pulsante cerca (sopra la campanella notifiche):
+<SidebarMenuItem>
+  <button
+    onClick={() => setCommandOpen(true)}
+    className="flex items-center gap-2 w-full px-3 py-2 rounded-md
+               text-sm text-muted-foreground hover:bg-accent hover:text-foreground
+               transition-colors"
+  >
+    <Search className="h-4 w-4 flex-shrink-0" />
+    <span>Cerca...</span>
+    <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center
+                    gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium
+                    opacity-60">
+      ⌘K
+    </kbd>
+  </button>
+</SidebarMenuItem>
+
+// Fuori dal Sidebar, aggiungi il componente:
+<CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+```
+
+
+════════════════════════════════════════════════════════════════════
+[FD1] FIRMA DIGITALE — DATABASE + EDGE FUNCTIONS
+════════════════════════════════════════════════════════════════════
+
+CONTESTO: I "preventivi" in questo sistema sono gli ordini.
+La firma digitale si applica al documento ordine/preventivo.
+NON usa provider esterni a pagamento — firma con canvas nativo
+(aggiunge react-signature-canvas come dipendenza npm) + Supabase Storage.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Tabella signature_requests
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```sql
+CREATE TABLE IF NOT EXISTS public.signature_requests (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id          uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  order_id            uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  token               uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  -- Destinatario firma
+  signer_email        text NOT NULL,
+  signer_name         text NOT NULL,
+  -- Documento
+  document_title      text NOT NULL,  -- es. "Preventivo ORD-2025-0042"
+  document_notes      text,           -- note per il firmatario
+  -- Stato
+  status              text NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending','signed','expired','cancelled')),
+  -- Firma
+  signed_at           timestamptz,
+  signature_image_url text,   -- URL in Supabase Storage
+  signer_ip           text,
+  signer_user_agent   text,
+  -- Scadenza (default 7 giorni)
+  expires_at          timestamptz NOT NULL
+                      DEFAULT (now() + INTERVAL '7 days'),
+  -- Audit
+  created_by          uuid REFERENCES public.profiles(id),
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_sig_requests_order     ON public.signature_requests(order_id);
+CREATE INDEX idx_sig_requests_token     ON public.signature_requests(token);
+CREATE INDEX idx_sig_requests_company   ON public.signature_requests(company_id);
+CREATE INDEX idx_sig_requests_status    ON public.signature_requests(status);
+
+ALTER TABLE public.signature_requests ENABLE ROW LEVEL SECURITY;
+
+-- Admin vede le richieste della propria company
+CREATE POLICY "company_users_read_signatures"
+  ON public.signature_requests FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.company_id = signature_requests.company_id
+    )
+  );
+
+-- Admin può inserire/aggiornare/cancellare
+CREATE POLICY "company_admin_manage_signatures"
+  ON public.signature_requests FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles p
+      JOIN public.user_roles ur ON ur.user_id = p.id
+      WHERE p.id = auth.uid()
+        AND p.company_id = signature_requests.company_id
+        AND ur.role IN ('company_admin', 'company_staff')
+    )
+  );
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Edge Function: get-signature-request (PUBBLICA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Crea edge function `get-signature-request` (verify_jwt: false):
+
+```typescript
+// supabase/functions/get-signature-request/index.ts
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(req.url);
+    const token = url.searchParams.get("token");
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Token mancante" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data: sigReq, error } = await supabase
+      .from("signature_requests")
+      .select(`
+        id, token, status, signer_name, signer_email,
+        document_title, document_notes, expires_at, signed_at,
+        order:orders(order_code, description, total_amount, vat_rate),
+        company:companies(name, logo_url)
+      `)
+      .eq("token", token)
+      .maybeSingle();
+
+    if (error || !sigReq) {
+      return new Response(JSON.stringify({ error: "Richiesta non trovata" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // Controlla scadenza
+    if (sigReq.status === "pending" && new Date(sigReq.expires_at) < new Date()) {
+      await supabase
+        .from("signature_requests")
+        .update({ status: "expired", updated_at: new Date().toISOString() })
+        .eq("id", sigReq.id);
+      sigReq.status = "expired";
+    }
+
+    return new Response(JSON.stringify(sigReq), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+
+  } catch (err) {
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+});
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — Edge Function: submit-signature (PUBBLICA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Crea edge function `submit-signature` (verify_jwt: false):
+
+```typescript
+// supabase/functions/submit-signature/index.ts
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const { token, signatureDataUrl } = await req.json() as {
+      token: string;
+      signatureDataUrl: string;  // base64 PNG dall'canvas
+    };
+
+    if (!token || !signatureDataUrl) {
+      return new Response(JSON.stringify({ error: "Parametri mancanti" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Verifica richiesta
+    const { data: sigReq } = await supabase
+      .from("signature_requests")
+      .select("id, status, expires_at, company_id")
+      .eq("token", token)
+      .maybeSingle();
+
+    if (!sigReq) return new Response(JSON.stringify({ error: "Token non valido" }), {
+      status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+
+    if (sigReq.status !== "pending") return new Response(JSON.stringify({
+      error: sigReq.status === "signed" ? "Già firmato" : "Token scaduto o annullato"
+    }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    if (new Date(sigReq.expires_at) < new Date()) {
+      await supabase.from("signature_requests")
+        .update({ status: "expired" }).eq("id", sigReq.id);
+      return new Response(JSON.stringify({ error: "Link scaduto" }), {
+        status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // Salva immagine firma in Storage
+    const base64Data = signatureDataUrl.replace(/^data:image\/png;base64,/, "");
+    const signatureBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    const storagePath = `signatures/${sigReq.company_id}/${sigReq.id}.png`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("attachments")
+      .upload(storagePath, signatureBuffer, {
+        contentType: "image/png",
+        upsert: true,
+      });
+
+    if (uploadError) throw uploadError;
+
+    // URL pubblico della firma
+    const { data: { publicUrl } } = supabase.storage
+      .from("attachments")
+      .getPublicUrl(storagePath);
+
+    // Aggiorna la richiesta come firmata
+    await supabase.from("signature_requests").update({
+      status: "signed",
+      signed_at: new Date().toISOString(),
+      signature_image_url: publicUrl,
+      signer_ip: req.headers.get("x-forwarded-for") ?? "unknown",
+      signer_user_agent: req.headers.get("user-agent") ?? "unknown",
+      updated_at: new Date().toISOString(),
+    }).eq("id", sigReq.id);
+
+    return new Response(JSON.stringify({ success: true, signedAt: new Date().toISOString() }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+
+  } catch (err) {
+    return new Response(JSON.stringify({ error: String(err) }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+});
+```
+
+
+════════════════════════════════════════════════════════════════════
+[FD2] FIRMA DIGITALE — PAGINA PUBBLICA /firma/:token
+════════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Pagina pubblica
+File da CREARE: src/pages/public/SignaturePage.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Layout della pagina (standalone, nessun layout app):**
+
+```
+┌───────────────────────────────────────────┐
+│  [Logo Azienda]     Edilizia in Cloud     │
+│───────────────────────────────────────────│
+│  📄 Preventivo ORD-2025-0042              │
+│  Cliente: Mario Rossi                     │
+│  Importo: € 12.500,00 + IVA              │
+│  Note: "Fornitura e posa finestre..."     │
+│───────────────────────────────────────────│
+│  Firma qui sotto per confermare           │
+│  ┌────────────────────────────────────┐   │
+│  │                                    │   │
+│  │     [area firma — canvas]          │   │
+│  │                                    │   │
+│  └────────────────────────────────────┘   │
+│  [Cancella]              [Firma e Accetto]│
+│───────────────────────────────────────────│
+│  ⚠ Firmando accetti il preventivo.       │
+│  Data: 10/03/2025  IP: rilevato           │
+└───────────────────────────────────────────┘
+```
+
+**Implementazione:**
+
+```typescript
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
+import SignatureCanvas from "react-signature-canvas";
+// NOTE: questa libreria va installata (vedi [FD4])
+
+export default function SignaturePage() {
+  const { token } = useParams<{ token: string }>();
+  const sigCanvasRef = useRef<SignatureCanvas>(null);
+  const [requestData, setRequestData] = useState<SignatureRequestData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [signedAt, setSignedAt] = useState<string | null>(null);
+
+  // Carica i dati della richiesta dall'edge function pubblica
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const response = await fetch(
+          `${supabaseUrl}/functions/v1/get-signature-request?token=${token}`
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        setRequestData(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Errore nel caricamento");
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (token) load();
+  }, [token]);
+
+  const handleSubmit = async () => {
+    if (!sigCanvasRef.current?.toDataURL || sigCanvasRef.current.isEmpty()) {
+      alert("Per favore firma prima di procedere");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const signatureDataUrl = sigCanvasRef.current.toDataURL("image/png");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const response = await fetch(
+        `${supabaseUrl}/functions/v1/submit-signature`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, signatureDataUrl }),
+        }
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      setSignedAt(result.signedAt);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Errore durante la firma");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // STATO: loading
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+        <p className="text-muted-foreground">Caricamento documento...</p>
+      </div>
+    </div>
+  );
+
+  // STATO: errore / token non valido
+  if (error) return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="text-center max-w-md">
+        <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Link non valido</h2>
+        <p className="text-muted-foreground">{error}</p>
+      </div>
+    </div>
+  );
+
+  // STATO: già firmato
+  if (requestData?.status === "signed" || signedAt) return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="text-center max-w-md">
+        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+        <h2 className="text-2xl font-semibold mb-2">Documento firmato!</h2>
+        <p className="text-muted-foreground">
+          Il documento è stato firmato con successo.
+          {(signedAt ?? requestData?.signed_at) && (
+            <> · <strong>{new Date(signedAt ?? requestData!.signed_at!).toLocaleString("it-IT")}</strong></>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+
+  // STATO: scaduto
+  if (requestData?.status === "expired") return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="text-center max-w-md">
+        <Clock className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+        <h2 className="text-xl font-semibold mb-2">Link scaduto</h2>
+        <p className="text-muted-foreground">
+          Questo link di firma è scaduto. Contatta l'azienda per riceverne uno nuovo.
+        </p>
+      </div>
+    </div>
+  );
+
+  // STATO: form firma
+  const order = requestData?.order as any;
+  const company = requestData?.company as any;
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-2xl mx-auto py-8 px-4">
+        {/* Header company */}
+        <div className="text-center mb-8">
+          {company?.logo_url && (
+            <img src={company.logo_url} alt="Logo" className="h-12 mx-auto mb-3 object-contain" />
+          )}
+          <h1 className="text-lg font-semibold">{company?.name}</h1>
+        </div>
+
+        {/* Info documento */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
+          <h2 className="text-xl font-bold mb-4">{requestData?.document_title}</h2>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-muted-foreground">Destinatario:</span> {requestData?.signer_name}</div>
+            <div><span className="text-muted-foreground">Codice:</span> {order?.order_code}</div>
+            {order?.total_amount && (
+              <div><span className="text-muted-foreground">Importo:</span>{" "}
+                € {Number(order.total_amount).toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+              </div>
+            )}
+            <div><span className="text-muted-foreground">Scadenza link:</span>{" "}
+              {new Date(requestData!.expires_at).toLocaleDateString("it-IT")}
+            </div>
+          </div>
+          {requestData?.document_notes && (
+            <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
+              {requestData.document_notes}
+            </div>
+          )}
+        </div>
+
+        {/* Canvas firma */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 mb-4">
+          <h3 className="font-medium mb-4">Firma qui sotto:</h3>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden">
+            <SignatureCanvas
+              ref={sigCanvasRef}
+              penColor="#1a1a1a"
+              canvasProps={{
+                width: 560,
+                height: 200,
+                className: "w-full",
+                style: { background: "#fafafa" },
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => sigCanvasRef.current?.clear()}
+            className="mt-2 text-sm text-muted-foreground hover:text-foreground underline"
+          >
+            Cancella firma
+          </button>
+        </div>
+
+        {/* Submit */}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className="w-full bg-primary text-primary-foreground rounded-xl py-4 text-base
+                     font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        >
+          {isSubmitting ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Invio in corso...
+            </span>
+          ) : "Firma e Accetto il Documento"}
+        </button>
+
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          Firmando questo documento confermi di aver letto e accettato i termini indicati.
+          La firma verrà registrata con data, ora e indirizzo IP.
+        </p>
+      </div>
+    </div>
+  );
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Aggiungi route pubblica in App.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In App.tsx, FUORI da tutti i layout protetti, aggiungi:
+
+```tsx
+// Import lazy:
+const SignaturePage = lazy(() => import("./pages/public/SignaturePage"));
+
+// Route pubblica (NON dentro ProtectedRoute o layout azienda):
+<Route
+  path="/firma/:token"
+  element={
+    <Suspense fallback={<PageLoader />}>
+      <SignaturePage />
+    </Suspense>
+  }
+/>
+```
+
+
+════════════════════════════════════════════════════════════════════
+[FD3] FIRMA DIGITALE — UI IN ORDERDETAIL
+════════════════════════════════════════════════════════════════════
+
+Aggiungi il pulsante "Richiedi Firma" e il tracking dello stato
+nella pagina dettaglio ordine.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Hook e sezione firma in OrderDetail.tsx
+File da MODIFICARE: src/pages/azienda/OrderDetail.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Aggiungi query per le richieste di firma:**
+```typescript
+const { data: signatureRequests = [] } = useQuery({
+  queryKey: ["signature-requests", orderId],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("signature_requests")
+      .select("*")
+      .eq("order_id", orderId!)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+  enabled: !!orderId,
+  staleTime: 2 * 60 * 1000,
+});
+```
+
+**Mutation per creare nuova richiesta firma:**
+```typescript
+const createSignatureMutation = useMutation({
+  mutationFn: async (params: {
+    signerEmail: string;
+    signerName: string;
+    documentNotes?: string;
+  }) => {
+    const documentTitle = `Preventivo ${order?.order_code ?? ""}`;
+    const { error } = await supabase
+      .from("signature_requests")
+      .insert({
+        company_id: effectiveCompany!.id,
+        order_id: orderId!,
+        signer_email: params.signerEmail,
+        signer_name: params.signerName,
+        document_title: documentTitle,
+        document_notes: params.documentNotes ?? null,
+        created_by: profile!.id,
+      });
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["signature-requests", orderId] });
+    toast.success("Richiesta di firma creata. Copia il link e invialo al cliente.");
+    setSignatureDialogOpen(false);
+  },
+});
+```
+
+**Aggiungi nel JSX della pagina OrderDetail, in una sezione "Firma Digitale"
+posizionata vicino ai pulsanti azione dell'ordine:**
+
+```tsx
+{/* Sezione firma digitale */}
+<div className="rounded-xl border p-4 mt-4">
+  <div className="flex items-center justify-between mb-3">
+    <h3 className="font-semibold flex items-center gap-2">
+      <PenLine className="h-4 w-4" />
+      Firma Digitale
+    </h3>
+    <Button size="sm" variant="outline" onClick={() => setSignatureDialogOpen(true)}>
+      <Plus className="h-4 w-4 mr-1" />
+      Richiedi Firma
+    </Button>
+  </div>
+
+  {signatureRequests.length === 0 ? (
+    <p className="text-sm text-muted-foreground">
+      Nessuna richiesta di firma inviata.
+    </p>
+  ) : (
+    <div className="space-y-2">
+      {signatureRequests.map((req) => (
+        <div key={req.id} className="flex items-center justify-between
+                                     text-sm border rounded-lg px-3 py-2">
+          <div>
+            <span className="font-medium">{req.signer_name}</span>
+            <span className="text-muted-foreground ml-2">{req.signer_email}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Badge stato */}
+            {req.status === "pending" && (
+              <Badge variant="outline" className="text-orange-600 border-orange-300">
+                In attesa
+              </Badge>
+            )}
+            {req.status === "signed" && (
+              <Badge className="bg-green-100 text-green-700 border-green-300">
+                ✓ Firmato {req.signed_at
+                  ? new Date(req.signed_at).toLocaleDateString("it-IT")
+                  : ""}
+              </Badge>
+            )}
+            {req.status === "expired" && (
+              <Badge variant="outline" className="text-gray-400">Scaduto</Badge>
+            )}
+
+            {/* Copia link (solo se pending) */}
+            {req.status === "pending" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  const link = `${window.location.origin}/firma/${req.token}`;
+                  navigator.clipboard.writeText(link);
+                  toast.success("Link copiato!");
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            )}
+
+            {/* Visualizza firma (se firmato) */}
+            {req.status === "signed" && req.signature_image_url && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => window.open(req.signature_image_url!, "_blank")}
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+```
+
+**Dialog "Richiedi Firma":**
+```tsx
+<Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Richiedi Firma Digitale</DialogTitle>
+      <DialogDescription>
+        Crea un link sicuro da inviare al cliente per la firma del documento.
+      </DialogDescription>
+    </DialogHeader>
+    <div className="space-y-4 py-2">
+      <div>
+        <Label>Nome del firmatario *</Label>
+        <Input
+          placeholder="es. Mario Rossi"
+          value={signerName}
+          onChange={(e) => setSignerName(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label>Email del firmatario *</Label>
+        <Input
+          type="email"
+          placeholder="mario.rossi@email.com"
+          value={signerEmail}
+          onChange={(e) => setSignerEmail(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label>Note per il firmatario</Label>
+        <Textarea
+          placeholder="Eventuali istruzioni o note per il cliente..."
+          value={signatureNotes}
+          onChange={(e) => setSignatureNotes(e.target.value)}
+          rows={3}
+        />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Il link sarà valido per 7 giorni.
+      </p>
+    </div>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setSignatureDialogOpen(false)}>
+        Annulla
+      </Button>
+      <Button
+        onClick={() => createSignatureMutation.mutate({
+          signerEmail, signerName, documentNotes: signatureNotes
+        })}
+        disabled={!signerEmail || !signerName || createSignatureMutation.isPending}
+      >
+        {createSignatureMutation.isPending ? "Creazione..." : "Crea Link Firma"}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+Aggiungi gli stati locali necessari:
+```typescript
+const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+const [signerName, setSignerName] = useState("");
+const [signerEmail, setSignerEmail] = useState("");
+const [signatureNotes, setSignatureNotes] = useState("");
+```
+
+
+════════════════════════════════════════════════════════════════════
+[FD4] FIRMA DIGITALE — INSTALLAZIONE DIPENDENZA
+════════════════════════════════════════════════════════════════════
+
+Questo prompt va eseguito PRIMA di [FD2] — installa la libreria
+per il canvas firma.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — Aggiungi dipendenza a package.json
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Aggiungi questa dipendenza al file package.json nella sezione
+`"dependencies"`:
+
+```json
+"react-signature-canvas": "^1.0.6"
+```
+
+E nella sezione `"devDependencies"` (per i tipi TypeScript):
+```json
+"@types/react-signature-canvas": "^1.0.5"
+```
+
+Lovable deve eseguire `npm install` dopo questa modifica.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — Verifica import in SignaturePage.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Dopo l'installazione, verifica che il componente SignaturePage.tsx
+abbia l'import corretto:
+
+```typescript
+import SignatureCanvas from "react-signature-canvas";
+import type SignatureCanvasType from "react-signature-canvas";
+
+// Il ref type:
+const sigCanvasRef = useRef<SignatureCanvasType>(null);
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ORDINE CORRETTO DI ESECUZIONE PER FIRMA DIGITALE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. [FD4] — installa react-signature-canvas (package.json)
+  2. [FD1] — crea tabella + edge functions (DB + Supabase)
+  3. [FD2] — crea pagina pubblica /firma/:token
+  4. [FD3] — aggiungi UI in OrderDetail (richiesta + status)
+

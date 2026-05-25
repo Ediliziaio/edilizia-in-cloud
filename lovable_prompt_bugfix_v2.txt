@@ -1,0 +1,311 @@
+================================================================================
+PROMPT LOVABLE — BUG FIX GESTIONE UTENTI (analisi completa del codice sorgente)
+================================================================================
+
+Ho analizzato tutto il codice sorgente. Di seguito i 7 bug confermati da fixare,
+con file esatti, righe e codice corretto. Non inventare niente, non aggiungere
+feature non richieste. Fix chirurgici ai file indicati.
+
+================================================================================
+BUG 1 — CRITICO SICUREZZA: RLS mancante su `staff_permissions`
+File: supabase/migrations/ → crea nuova migration
+================================================================================
+
+PROBLEMA:
+La policy "Company admins can manage staff permissions" su `staff_permissions`
+ha SOLO la clausola USING, senza WITH CHECK. Questo permette a un company_admin
+di scrivere (INSERT/UPDATE) su righe di staff_permissions appartenenti ad
+ALTRE aziende. Il SELECT è protetto correttamente, ma la scrittura no.
+
+FIX — Crea una nuova migration SQL:
+
+  -- Fix RLS: add WITH CHECK to staff_permissions admin policy
+  DROP POLICY IF EXISTS "Company admins can manage staff permissions" ON public.staff_permissions;
+
+  CREATE POLICY "Company admins can manage staff permissions"
+    ON public.staff_permissions
+    FOR ALL
+    USING (
+      has_role(auth.uid(), 'company_admin'::app_role)
+      AND company_id = get_user_company_id(auth.uid())
+    )
+    WITH CHECK (
+      has_role(auth.uid(), 'company_admin'::app_role)
+      AND company_id = get_user_company_id(auth.uid())
+    );
+
+================================================================================
+BUG 2 — CRITICO: `delete-company-user` ritorna successo anche se Auth fallisce
+File: supabase/functions/delete-company-user/index.ts
+================================================================================
+
+PROBLEMA:
+Righe ~93-100: se `supabaseAdmin.auth.admin.deleteUser(userId)` fallisce,
+la funzione logga l'errore con console.error ma ritorna comunque
+`{ success: true }`. L'utente pensa che la cancellazione sia andata a buon fine
+ma l'account Auth è ancora attivo (l'utente può continuare a fare login).
+
+CODICE ATTUALE (da sostituire):
+  const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId);
+  if (deleteAuthError) {
+    console.error("Error deleting auth user:", deleteAuthError);
+    // Profile already deleted, log but don't fail   ← SBAGLIATO
+  }
+
+  return new Response(JSON.stringify({ success: true }), { ... });
+
+CODICE CORRETTO:
+  const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId);
+  if (deleteAuthError) {
+    console.error("Error deleting auth user:", deleteAuthError);
+    return new Response(
+      JSON.stringify({ error: "Impossibile eliminare l'account utente: " + deleteAuthError.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  return new Response(JSON.stringify({ success: true }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+================================================================================
+BUG 3 — MEDIO: `canViewUsers` sempre false in usePermissions.ts
+File: src/hooks/usePermissions.ts  (riga ~158)
+================================================================================
+
+PROBLEMA:
+Nel blocco che calcola i permessi per company_staff / salesperson / call_center,
+`canViewUsers` è hardcoded a `false`. Nessun utente non-admin può mai vedere
+la sezione utenti, anche se l'amministratore gli ha assegnato `can_view_settings`.
+
+CODICE ATTUALE (da sostituire):
+  canViewUsers: false,
+
+CODICE CORRETTO:
+  canViewUsers: permissions?.can_view_settings ?? false,
+
+LOGICA: chi può vedere le impostazioni può anche vedere la lista utenti.
+super_admin e company_admin hanno già `canViewUsers: true` tramite ALL_PERMISSIONS.
+
+================================================================================
+BUG 4 — MEDIO: `Math.random()` non sicuro in reset-customer-password
+File: supabase/functions/reset-customer-password/index.ts
+================================================================================
+
+PROBLEMA:
+La funzione `generateSecurePassword()` usa `Math.random()` sia per scegliere
+i caratteri che per fare lo shuffle. `Math.random()` NON è crittograficamente
+sicuro e non deve essere usato per generare password.
+
+CODICE ATTUALE (da sostituire interamente):
+  function generateSecurePassword(): string {
+    const length = 12;
+    const lowercase = "abcdefghijklmnopqrstuvwxyz";
+    const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const numbers = "0123456789";
+    const special = "!@#$%&*";
+    const allChars = lowercase + uppercase + numbers + special;
+
+    let password = "";
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += special[Math.floor(Math.random() * special.length)];
+
+    for (let i = password.length; i < length; i++) {
+      password += allChars[Math.floor(Math.random() * allChars.length)];
+    }
+
+    return password.split("").sort(() => Math.random() - 0.5).join("");
+  }
+
+CODICE CORRETTO (usa crypto globale di Deno, nessun import necessario):
+  function generateSecurePassword(): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#%&";
+    const array = new Uint32Array(14);
+    crypto.getRandomValues(array);
+    const password = Array.from(array, (n) => chars[n % chars.length]);
+
+    // Garantisce almeno 1 maiuscola, 1 minuscola, 1 numero, 1 speciale
+    // (con 14 caratteri casuali da un set misto, la probabilità è >99.9%)
+    return password.join("");
+  }
+
+Stessa correzione va applicata in `supabase/functions/create-company-staff/index.ts`
+dove c'è un'altra funzione `generateTemporaryPassword()` che usa `Math.random()`:
+
+  // Sostituisci con:
+  function generateTemporaryPassword(): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    const array = new Uint32Array(12);
+    crypto.getRandomValues(array);
+    return Array.from(array, (n) => chars[n % chars.length]).join("");
+  }
+
+================================================================================
+BUG 5 — MEDIO: `changeRoleMutation` delete senza error handling
+File: src/pages/azienda/settings/SettingsUserDetail.tsx
+================================================================================
+
+PROBLEMA:
+Il for loop che cancella i vecchi ruoli non verifica errori. Se un delete
+fallisce silenziosamente, il vecchio ruolo rimane attivo e il successivo
+insert può fallire per unique constraint violation, lasciando l'utente
+in uno stato inconsistente senza ruoli.
+
+CODICE ATTUALE (da sostituire):
+  const rolesToRemove = ["company_admin", "company_staff", "salesperson", "call_center"] as const;
+  for (const r of rolesToRemove) {
+    await supabase.from("user_roles").delete().eq("user_id", userId!).eq("role", r);
+  }
+
+CODICE CORRETTO (singola operazione atomica con error check):
+  const { error: deleteError } = await supabase
+    .from("user_roles")
+    .delete()
+    .eq("user_id", userId!)
+    .in("role", ["company_admin", "company_staff", "salesperson", "call_center"]);
+
+  if (deleteError) throw deleteError;
+
+Lascia invariato tutto il codice successivo degli insert (già ha error handling).
+
+================================================================================
+BUG 6 — MEDIO: permission update senza error handling dopo creazione utente
+File: src/components/settings/UsersConfig.tsx  (funzione handleCreateUser)
+================================================================================
+
+PROBLEMA:
+Dopo aver creato l'utente via edge function, il blocco che aggiorna
+`staff_permissions` con i permessi granulari non controlla l'errore.
+Se l'update fallisce, l'utente viene creato ma senza i permessi configurati
+nel wizard, e nessun messaggio di errore viene mostrato.
+
+CODICE ATTUALE (da sostituire):
+  await supabase
+    .from("staff_permissions")
+    .update({ ...permFields, only_assigned: only_assigned || false })
+    .eq("user_id", response.data.user_id);
+
+CODICE CORRETTO:
+  const { error: permUpdateError } = await supabase
+    .from("staff_permissions")
+    .update({ ...permFields, only_assigned: only_assigned || false })
+    .eq("user_id", response.data.user_id);
+
+  if (permUpdateError) {
+    console.error("Failed to update permissions:", permUpdateError);
+    toast.warning("Utente creato, permessi non salvati", {
+      description: "Vai nel dettaglio utente per configurare i permessi manualmente.",
+    });
+  }
+
+================================================================================
+BUG 7 — MEDIO: `handleSavePermissions` non sincronizza i flag legacy marketing
+File: src/hooks/useCompanyDetail.ts  (funzione handleSavePermissions, riga ~406)
+================================================================================
+
+PROBLEMA:
+Quando un SuperAdmin modifica i permessi di un utente dalla pagina CompanyDetail,
+`handleSavePermissions` salva i permessi grezzi ricevuti da `PermissionsDialog`
+senza calcolare `can_view_marketing` e `can_edit_marketing` dai flag granulari.
+
+Questo rompe le logiche che usano i flag legacy nell'app:
+- `can_view_marketing` sarà sempre `false` anche se l'utente ha
+  `can_view_marketing_contacts: true`, `can_view_marketing_dashboard: true`, ecc.
+
+CODICE ATTUALE (da sostituire):
+  const handleSavePermissions = async (permissions: StaffPermissions) => {
+    if (!permissionsUser) return;
+    setSavingPermissions(true);
+    try {
+      const { error } = await supabase
+        .from("staff_permissions")
+        .update(permissions)
+        .eq("user_id", permissionsUser.id)
+        .eq("company_id", id!);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      toast.success("Permessi aggiornati");
+    } catch (err: any) {
+      toast.error("Errore", { description: err.message });
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
+CODICE CORRETTO (aggiunge sync dei flag legacy prima del save):
+  const handleSavePermissions = async (permissions: StaffPermissions) => {
+    if (!permissionsUser) return;
+    setSavingPermissions(true);
+    try {
+      // Sync legacy marketing flags from granular permissions
+      const syncedPermissions = {
+        ...permissions,
+        can_view_marketing: [
+          "can_view_marketing_dashboard", "can_view_marketing_contacts",
+          "can_view_marketing_opportunities", "can_view_marketing_activities",
+          "can_view_marketing_appointments", "can_view_marketing_automations",
+          "can_view_marketing_ai_agent", "can_view_marketing_email",
+          "can_view_marketing_whatsapp", "can_view_marketing_reports",
+        ].some(k => (permissions as any)[k] === true),
+        can_edit_marketing: [
+          "can_edit_marketing_contacts",
+          "can_edit_marketing_opportunities",
+        ].some(k => (permissions as any)[k] === true),
+      };
+
+      const { error } = await supabase
+        .from("staff_permissions")
+        .update(syncedPermissions)
+        .eq("user_id", permissionsUser.id)
+        .eq("company_id", id!);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["company-team", id] });
+      toast.success("Permessi aggiornati");
+    } catch (err: any) {
+      toast.error("Errore", { description: err.message });
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
+================================================================================
+RIEPILOGO FILE DA MODIFICARE
+================================================================================
+
+  1. supabase/migrations/[nuova migration]     → Bug 1: RLS WITH CHECK
+  2. supabase/functions/delete-company-user/index.ts  → Bug 2: success su errore auth
+  3. src/hooks/usePermissions.ts               → Bug 3: canViewUsers false hardcoded
+  4. supabase/functions/reset-customer-password/index.ts  → Bug 4: Math.random
+  5. supabase/functions/create-company-staff/index.ts     → Bug 4: Math.random
+  6. src/pages/azienda/settings/SettingsUserDetail.tsx    → Bug 5: for loop delete
+  7. src/components/settings/UsersConfig.tsx              → Bug 6: no error handling
+  8. src/hooks/useCompanyDetail.ts             → Bug 7: legacy flag sync mancante
+
+================================================================================
+NOTA: COSA NON TOCCARE
+================================================================================
+
+- src/components/users/StaffUserDialog.tsx → già corretto, NON modificare
+- src/components/users/UserRolesPermissionsTab.tsx → funziona correttamente
+- src/components/users/PermissionsDialog.tsx → funziona correttamente
+- src/components/users/permissionsDefaults.ts → funziona correttamente
+- src/pages/azienda/settings/SettingsUserDetail.tsx → SOLO il for loop (Bug 5),
+  il resto (savePermissionsMutation, query, tabs) funziona correttamente
+- supabase/functions/create-company-staff/index.ts → SOLO generateTemporaryPassword,
+  tutto il resto funziona correttamente
+
+================================================================================
+VERIFICA FINALE DOPO IL FIX
+================================================================================
+
+[ ] Crea migration SQL e verificala applicata senza errori (Bug 1)
+[ ] Testa delete utente: se auth.admin.deleteUser fallisce → frontend mostra errore (Bug 2)
+[ ] Un operatore con can_view_settings=true vede la sezione Utenti (Bug 3)
+[ ] Password generate da reset e create non usano Math.random (Bug 4)
+[ ] Cambio ruolo utente in SettingsUserDetail non lascia utente senza ruoli (Bug 5)
+[ ] Se aggiornamento permessi dopo creazione fallisce → toast warning visibile (Bug 6)
+[ ] Dopo modifica permessi da CompanyDetail, can_view_marketing riflette i granulari (Bug 7)
+
+================================================================================

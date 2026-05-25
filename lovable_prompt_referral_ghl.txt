@@ -1,0 +1,1035 @@
+================================================================================
+PROMPT — SISTEMA PARTNER/REFERRAL STILE GHL — COMPLETO E FUNZIONANTE
+================================================================================
+Progetto: Gestionale SaaS multi-tenant (Supabase + React + TypeScript)
+Obiettivo: Trasformare il sistema referral esistente (base) in un sistema
+           partner professionale stile GoHighLevel — con portale partner,
+           tier commission, tracking automatico, payout workflow, notifiche.
+
+STATO ATTUALE (già implementato, NON toccare):
+  - Tabelle: referrers, referral_companies, referral_payouts
+  - Admin dashboard base con CRUD referrer
+  - Pagina /admin/referral con ReferralDashboard.tsx
+  - Componenti: ReferrerDialog, ReferralTable, PayoutDialog, ReferrerDetailDialog
+
+COSA MANCA (tutto da implementare):
+  - URL ?ref= tracking sul login/signup → NON funziona
+  - Calcolo automatico commissioni → client-side only, non automatico
+  - Portale self-service per i partner → NON esiste
+  - Sistema tier (Bronze/Silver/Gold/Platinum) → NON esiste
+  - Tracking click/conversioni link → NON esiste
+  - Notifiche email ai partner → NON esistono
+  - Workflow approvazione payout → NON esiste
+  - Materiali marketing scaricabili → NON esistono
+  - Leaderboard partner → NON esiste
+
+Implementa i 6 prompt IN SEQUENZA.
+
+================================================================================
+PROMPT 1 — DATABASE: TIER, LEDGER, CLICK TRACKING, MATERIALI
+================================================================================
+
+```sql
+-- ============================================================
+-- TIER SYSTEM
+-- ============================================================
+CREATE TABLE IF NOT EXISTS referral_tiers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  -- 'Bronze' | 'Silver' | 'Gold' | 'Platinum'
+  slug TEXT NOT NULL UNIQUE,
+  min_active_companies INTEGER NOT NULL DEFAULT 0,
+  -- Soglia minima aziende attive per raggiungere il tier
+  commission_multiplier NUMERIC(4,2) DEFAULT 1.00,
+  -- Moltiplicatore sulla commissione base (es. Gold = 1.25 = +25%)
+  color TEXT DEFAULT '#CD7F32',
+  -- Colore badge tier
+  icon TEXT DEFAULT '🥉',
+  perks JSONB DEFAULT '[]',
+  -- Lista benefit del tier (es. ["Supporto dedicato", "Early access"])
+  position INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Inserisci i 4 tier di default
+INSERT INTO referral_tiers (name, slug, min_active_companies, commission_multiplier, color, icon, perks, position) VALUES
+  ('Bronze',   'bronze',   0,  1.00, '#CD7F32', '🥉', '["Link referral personale", "Dashboard base"]', 1),
+  ('Silver',   'silver',   3,  1.15, '#C0C0C0', '🥈', '["Commission +15%", "Report mensile", "Supporto prioritario"]', 2),
+  ('Gold',     'gold',     10, 1.25, '#FFD700', '🥇', '["Commission +25%", "Materiali marketing", "Account manager dedicato"]', 3),
+  ('Platinum', 'platinum', 25, 1.40, '#E5E4E2', '💎', '["Commission +40%", "White-label co-brand", "Revenue share sugli upgrade"]', 4)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Aggiungi tier_id alla tabella referrers
+ALTER TABLE referrers
+  ADD COLUMN IF NOT EXISTS tier_id UUID REFERENCES referral_tiers(id),
+  ADD COLUMN IF NOT EXISTS tier_updated_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS partner_type TEXT DEFAULT 'referrer',
+  -- 'referrer' | 'agency' | 'reseller'
+  ADD COLUMN IF NOT EXISTS payout_method TEXT DEFAULT 'bank_transfer',
+  -- 'bank_transfer' | 'paypal' | 'stripe'
+  ADD COLUMN IF NOT EXISTS payout_details JSONB DEFAULT '{}',
+  -- Dati bancari cifrati (IBAN, PayPal email, ecc.)
+  ADD COLUMN IF NOT EXISTS has_accepted_terms BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS public_profile_enabled BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS utm_source TEXT,
+  -- UTM source custom del partner (es. "facebook-mario")
+  ADD COLUMN IF NOT EXISTS total_clicks INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_conversions INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS conversion_rate NUMERIC(5,2) DEFAULT 0;
+
+-- ============================================================
+-- CLICK TRACKING
+-- ============================================================
+CREATE TABLE IF NOT EXISTS referral_clicks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  referrer_id UUID NOT NULL REFERENCES referrers(id) ON DELETE CASCADE,
+  referral_code TEXT NOT NULL,
+  ip_address TEXT,
+  user_agent TEXT,
+  utm_source TEXT,
+  utm_medium TEXT,
+  utm_campaign TEXT,
+  landing_page TEXT,
+  -- URL dove è atterrato il visitatore
+  converted BOOLEAN DEFAULT false,
+  -- true quando questo click ha portato a una registrazione
+  converted_company_id UUID REFERENCES companies(id),
+  converted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE referral_clicks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "super_admin_manage_clicks" ON referral_clicks FOR ALL TO authenticated
+USING (EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'super_admin'));
+
+-- ============================================================
+-- COMMISSION LEDGER (registro dettagliato commissioni)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS referral_commission_ledger (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  referrer_id UUID NOT NULL REFERENCES referrers(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  period_month INTEGER NOT NULL,
+  -- 1-12
+  period_year INTEGER NOT NULL,
+  subscription_plan_name TEXT,
+  plan_mrr NUMERIC(10,2) DEFAULT 0,
+  -- MRR del piano sottoscritto dall'azienda in questo periodo
+  commission_type TEXT,
+  -- 'percentage' | 'fixed'
+  commission_rate NUMERIC(5,2),
+  tier_multiplier NUMERIC(4,2) DEFAULT 1.00,
+  commission_amount NUMERIC(10,2) DEFAULT 0,
+  -- Importo finale = plan_mrr * rate * multiplier (o fixed * multiplier)
+  status TEXT DEFAULT 'pending',
+  -- 'pending' | 'approved' | 'paid' | 'cancelled'
+  payout_id UUID REFERENCES referral_payouts(id),
+  notes TEXT,
+  calculated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(referrer_id, company_id, period_month, period_year)
+);
+
+ALTER TABLE referral_commission_ledger ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "super_admin_manage_ledger" ON referral_commission_ledger FOR ALL TO authenticated
+USING (EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'super_admin'));
+
+-- ============================================================
+-- PAYOUT REQUESTS (workflow approvazione)
+-- ============================================================
+-- Estendi referral_payouts con status workflow
+ALTER TABLE referral_payouts
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending',
+  -- 'pending' | 'approved' | 'processing' | 'paid' | 'rejected'
+  ADD COLUMN IF NOT EXISTS requested_by_referrer BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+  ADD COLUMN IF NOT EXISTS transaction_reference TEXT;
+  -- Riferimento bonifico/transazione
+
+-- ============================================================
+-- MATERIALI MARKETING PARTNER
+-- ============================================================
+CREATE TABLE IF NOT EXISTS partner_materials (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  type TEXT NOT NULL,
+  -- 'logo' | 'banner' | 'email_template' | 'social_post' | 'pdf_brochure' | 'video'
+  file_url TEXT NOT NULL,
+  thumbnail_url TEXT,
+  min_tier TEXT DEFAULT 'bronze',
+  -- Tier minimo richiesto per accedere al materiale
+  is_active BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE partner_materials ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "super_admin_manage_materials" ON partner_materials FOR ALL TO authenticated
+USING (EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'super_admin'));
+-- I partner autenticati possono vedere i materiali del loro tier o inferiore
+CREATE POLICY "partners_view_materials" ON partner_materials FOR SELECT TO authenticated
+USING (
+  is_active = true AND
+  EXISTS (
+    SELECT 1 FROM referrers r
+    JOIN referral_tiers t ON r.tier_id = t.id
+    JOIN referral_tiers mt ON partner_materials.min_tier = mt.slug
+    WHERE r.email = (SELECT email FROM profiles WHERE id = auth.uid())
+    AND t.position >= mt.position
+  )
+);
+
+-- ============================================================
+-- FUNCTION: calcola e aggiorna tier automaticamente
+-- ============================================================
+CREATE OR REPLACE FUNCTION update_referrer_tier(p_referrer_id UUID)
+RETURNS VOID AS $$
+DECLARE
+  v_active_count INTEGER;
+  v_tier_id UUID;
+BEGIN
+  -- Conta aziende attive portate dal referrer
+  SELECT COUNT(*) INTO v_active_count
+  FROM referral_companies rc
+  JOIN companies c ON rc.company_id = c.id
+  WHERE rc.referrer_id = p_referrer_id
+    AND rc.is_active = true
+    AND c.status = 'active';
+
+  -- Trova il tier appropriato (il più alto che soddisfa la soglia)
+  SELECT id INTO v_tier_id
+  FROM referral_tiers
+  WHERE min_active_companies <= v_active_count
+  ORDER BY min_active_companies DESC
+  LIMIT 1;
+
+  -- Aggiorna il referrer
+  UPDATE referrers SET
+    tier_id = v_tier_id,
+    tier_updated_at = now(),
+    total_conversions = v_active_count,
+    conversion_rate = CASE
+      WHEN total_clicks > 0 THEN (v_active_count::NUMERIC / total_clicks * 100)
+      ELSE 0
+    END
+  WHERE id = p_referrer_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- FUNCTION: calcola commissioni mensili
+-- ============================================================
+CREATE OR REPLACE FUNCTION calculate_monthly_commissions(
+  p_month INTEGER,
+  p_year INTEGER
+)
+RETURNS INTEGER AS $$
+DECLARE
+  v_referrer RECORD;
+  v_company RECORD;
+  v_plan_mrr NUMERIC;
+  v_commission NUMERIC;
+  v_multiplier NUMERIC;
+  v_count INTEGER := 0;
+BEGIN
+  -- Per ogni referrer attivo
+  FOR v_referrer IN
+    SELECT r.*, rt.commission_multiplier
+    FROM referrers r
+    LEFT JOIN referral_tiers rt ON r.tier_id = rt.id
+    WHERE r.is_active = true
+  LOOP
+    -- Per ogni azienda attiva portata da questo referrer
+    FOR v_company IN
+      SELECT rc.company_id, sp.price_monthly, sp.name AS plan_name
+      FROM referral_companies rc
+      JOIN companies c ON rc.company_id = c.id
+      JOIN subscription_plans sp ON c.subscription_plan_id = sp.id
+      WHERE rc.referrer_id = v_referrer.id
+        AND rc.is_active = true
+        AND c.status = 'active'
+    LOOP
+      v_plan_mrr := COALESCE(v_company.price_monthly, 0);
+      v_multiplier := COALESCE(v_referrer.commission_multiplier, 1.00);
+
+      -- Calcola commissione
+      IF v_referrer.commission_type = 'percentage' THEN
+        v_commission := v_plan_mrr * (v_referrer.commission_value / 100) * v_multiplier;
+      ELSE
+        v_commission := v_referrer.commission_value * v_multiplier;
+      END IF;
+
+      -- Inserisci o aggiorna il ledger
+      INSERT INTO referral_commission_ledger (
+        referrer_id, company_id, period_month, period_year,
+        subscription_plan_name, plan_mrr,
+        commission_type, commission_rate, tier_multiplier, commission_amount,
+        status
+      ) VALUES (
+        v_referrer.id, v_company.company_id, p_month, p_year,
+        v_company.plan_name, v_plan_mrr,
+        v_referrer.commission_type, v_referrer.commission_value,
+        v_multiplier, v_commission,
+        'pending'
+      )
+      ON CONFLICT (referrer_id, company_id, period_month, period_year)
+      DO UPDATE SET
+        plan_mrr = EXCLUDED.plan_mrr,
+        commission_amount = EXCLUDED.commission_amount,
+        tier_multiplier = EXCLUDED.tier_multiplier,
+        calculated_at = now();
+
+      v_count := v_count + 1;
+    END LOOP;
+
+    -- Aggiorna total_earned del referrer
+    UPDATE referrers SET
+      total_earned = (
+        SELECT COALESCE(SUM(commission_amount), 0)
+        FROM referral_commission_ledger
+        WHERE referrer_id = v_referrer.id AND status != 'cancelled'
+      )
+    WHERE id = v_referrer.id;
+  END LOOP;
+
+  RETURN v_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+================================================================================
+PROMPT 2 — TRACKING URL ?ref= + AUTO-ASSEGNAZIONE AL SIGNUP
+================================================================================
+
+### A — EDGE FUNCTION: track-referral-click
+
+Crea: supabase/functions/track-referral-click/index.ts
+
+```typescript
+// Endpoint pubblico (no auth) chiamato quando qualcuno visita un link referral
+// POST { referral_code, ip_address, user_agent, utm_source, utm_medium,
+//         utm_campaign, landing_page }
+// Salva in referral_clicks e incrementa total_clicks sul referrer
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
+
+  const body = await req.json();
+  const { referral_code, utm_source, utm_medium, utm_campaign, landing_page } = body;
+  const ip_address = req.headers.get('x-forwarded-for') ?? req.headers.get('cf-connecting-ip');
+  const user_agent = req.headers.get('user-agent');
+
+  // Trova il referrer
+  const { data: referrer } = await supabase
+    .from('referrers')
+    .select('id')
+    .eq('referral_code', referral_code)
+    .eq('is_active', true)
+    .single();
+
+  if (!referrer) {
+    return new Response(JSON.stringify({ error: 'Invalid referral code' }), {
+      status: 404, headers: corsHeaders
+    });
+  }
+
+  // Registra il click
+  const { data: click } = await supabase
+    .from('referral_clicks')
+    .insert({
+      referrer_id: referrer.id,
+      referral_code,
+      ip_address,
+      user_agent,
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      landing_page,
+    })
+    .select('id')
+    .single();
+
+  // Incrementa total_clicks
+  await supabase.rpc('increment_referrer_clicks', { p_referrer_id: referrer.id });
+
+  return new Response(JSON.stringify({ success: true, click_id: click?.id }), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+});
+```
+
+Aggiungi la funzione SQL:
+```sql
+CREATE OR REPLACE FUNCTION increment_referrer_clicks(p_referrer_id UUID)
+RETURNS VOID AS $$
+  UPDATE referrers SET total_clicks = total_clicks + 1 WHERE id = p_referrer_id;
+$$ LANGUAGE SQL SECURITY DEFINER;
+```
+
+---
+
+### B — LOGIN PAGE: cattura il codice referral dall'URL
+
+Modifica: src/pages/Login.tsx (o LoginForm.tsx)
+
+```typescript
+import { useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+
+// Nel componente:
+const [searchParams] = useSearchParams();
+
+useEffect(() => {
+  const refCode = searchParams.get('ref');
+  if (refCode) {
+    // Salva in sessionStorage per usarlo dopo la registrazione
+    sessionStorage.setItem('referral_code', refCode);
+
+    // Traccia il click (fire and forget)
+    fetch('/api/track-referral-click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        referral_code: refCode,
+        landing_page: window.location.pathname,
+        utm_source: searchParams.get('utm_source'),
+        utm_medium: searchParams.get('utm_medium'),
+        utm_campaign: searchParams.get('utm_campaign'),
+      }),
+    }).catch(() => {}); // Ignora errori di tracking
+  }
+}, [searchParams]);
+```
+
+---
+
+### C — CREATE COMPANY: usa il codice salvato in sessione
+
+Modifica: src/pages/admin/CreateCompany.tsx
+
+Quando il SuperAdmin crea una nuova azienda, controlla se c'è un codice
+referral salvato in sessione OPPURE usa il campo "Referrer" già presente nel form.
+
+La logica di assegnazione referral già esiste — assicurati che dopo la
+creazione dell'azienda venga anche:
+1. Creato il record in `referral_clicks` con converted=true
+2. Aggiornato l'eventuale click esistente con converted=true e converted_company_id
+3. Chiamata `update_referrer_tier(referrer_id)` per rivalutare il tier
+
+```typescript
+// Dopo la creazione dell'azienda con referrer:
+if (selectedReferrerId && companyId) {
+  // Già esistente: insert in referral_companies + update companies.referred_by
+
+  // NUOVO: marca il click come convertito
+  const savedClickId = sessionStorage.getItem('referral_click_id');
+  if (savedClickId) {
+    await supabase.from('referral_clicks').update({
+      converted: true,
+      converted_company_id: companyId,
+      converted_at: new Date().toISOString(),
+    }).eq('id', savedClickId);
+  }
+
+  // NUOVO: aggiorna tier del referrer
+  await supabase.rpc('update_referrer_tier', { p_referrer_id: selectedReferrerId });
+
+  sessionStorage.removeItem('referral_code');
+  sessionStorage.removeItem('referral_click_id');
+}
+```
+
+================================================================================
+PROMPT 3 — PORTALE SELF-SERVICE PARTNER (NUOVA SEZIONE)
+================================================================================
+
+I partner devono avere il LORO portale personale dove possono:
+- Vedere le loro performance
+- Copiare il link referral
+- Scaricare materiali marketing
+- Richiedere i payout
+- Vedere lo storico commissioni
+
+---
+
+### COME FUNZIONA L'ACCESSO AL PORTALE PARTNER
+
+Un partner viene identificato dal suo **email** (già salvata in `referrers.email`).
+Quando un partner accede all'app con il SUO account (auth.users), se il suo email
+corrisponde a un record in `referrers`, viene mostrata una voce "Portale Partner"
+nel menu.
+
+Aggiungi in src/hooks/useAuth.ts (o AuthContext):
+```typescript
+// Controlla se l'utente corrente è anche un partner registrato
+const { data: partnerData } = await supabase
+  .from('referrers')
+  .select('id, name, referral_code, tier_id, is_active, has_accepted_terms')
+  .eq('email', user.email)
+  .eq('is_active', true)
+  .maybeSingle();
+
+setIsPartner(!!partnerData);
+setPartnerData(partnerData);
+```
+
+---
+
+### ROUTE DEL PORTALE PARTNER
+
+Aggiungi in App.tsx (FUORI dalle route /admin e /azienda, sezione separata):
+
+```
+/partner                    → PartnerDashboard (overview)
+/partner/link               → PartnerLink (il mio link)
+/partner/commissioni        → PartnerCommissions (ledger)
+/partner/payout             → PartnerPayout (richiedi pagamento)
+/partner/materiali          → PartnerMaterials (scarica kit)
+/partner/profilo            → PartnerProfile (dati personali + bancari)
+```
+
+Guard: solo utenti con `isPartner = true` accedono.
+Se l'utente non è partner → redirect a /login.
+
+Aggiungi voce di menu nella navigazione (per partner loggati):
+```typescript
+// In App.tsx o nel layout principale, se isPartner:
+<Route path="/partner/*" element={
+  <PartnerGuard>
+    <PartnerLayout />
+  </PartnerGuard>
+} />
+```
+
+---
+
+### LAYOUT: PartnerLayout.tsx
+
+Header orizzontale fisso con:
+- Logo della piattaforma
+- Menu: Dashboard | Il Mio Link | Commissioni | Payout | Materiali | Profilo
+- Badge tier in alto a destra (es. 🥇 Gold)
+- Notifiche (campanella)
+- Utente / Logout
+
+---
+
+### PAGINA 1: PartnerDashboard.tsx — /partner
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  👋  Ciao [Nome Partner]!           Tier: 🥇 GOLD  [Progressi →]   │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
+│  Click   │  │ Conversioni│  │ Aziende  │  │Commissioni│  │  Saldo  │
+│  Totali  │  │  Totali   │  │  Attive  │  │ Ce Mese  │  │   Da    │
+│    247   │  │    12     │  │    12    │  │  €588,00  │  │ Pagare  │
+│ +12 oggi │  │ 4.8% rate │  │ attive   │  │ +€49 new │  │ €1.240  │
+└──────────┘  └──────────┘  └──────────┘  └──────────┘  └──────────┘
+
+── PROGRESSI TIER ──────────────────────────────────────────────────
+Gold (10 aziende) ████████████████░░░░░░░░ Platinum (25 aziende)
+12/25 aziende → ancora 13 per diventare 💎 Platinum (+40% commission!)
+
+── IL TUO LINK REFERRAL ────────────────────────────────────────────
+🔗 https://app.gestionale.it/login?ref=ABC123   [Copia] [Condividi]
+
+── AZIENDE PORTATE (ultime 5) ──────────────────────────────────────
+Nome Azienda          Settore      Piano      MRR    Commission
+Domus Group Srl       Edilizia     Pro €149   €149   €14,90/mese ✅
+Verde Futuro Snc      Agricoltura  Starter €49 €49   €4,90/mese  ✅
+...
+
+── GRAFICO: Click vs Conversioni (ultimi 30 giorni) ────────────────
+[AreaChart con 2 serie: clicks (blu) e conversioni (verde)]
+```
+
+---
+
+### PAGINA 2: PartnerLink.tsx — /partner/link
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🔗  IL TUO LINK REFERRAL                                           │
+│                                                                     │
+│  Codice univoco:  ABC123  [Copia codice]                           │
+│                                                                     │
+│  Link diretto:                                                      │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  https://app.gestionale.it/login?ref=ABC123                 │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│  [📋 Copia link]  [📱 QR Code]  [📤 Condividi via WhatsApp/Email]  │
+│                                                                     │
+│  LINK CON UTM PERSONALIZZATI:                                       │
+│  Fonte:    [facebook          ]   Campagna: [campagna-estate-2026  ]│
+│  Link UTM: https://...?ref=ABC123&utm_source=facebook&...           │
+│  [Genera Link]  [Copia]                                             │
+│                                                                     │
+│  STATISTICHE LINK ──────────────────────────────────────────────── │
+│  Oggi: 5 click  |  Questa settimana: 23  |  Totale: 247            │
+│                                                                     │
+│  BarChart ultimi 7 giorni (click per giorno)                        │
+│                                                                     │
+│  TOP SORGENTI:                                                      │
+│  facebook: 120 click (48.6%)                                        │
+│  direct:    89 click (36.0%)                                        │
+│  whatsapp:  38 click (15.4%)                                        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**QR Code:** usa la libreria `npm:qrcode@1.5.3` (edge function) o
+`react-qr-code` nel frontend per generare il QR del link.
+
+**Condividi via WhatsApp:** `https://wa.me/?text=Prova%20il%20gestionale%20con%20il%20mio%20link%3A%20[URL_ENCODED]`
+
+---
+
+### PAGINA 3: PartnerCommissions.tsx — /partner/commissioni
+
+```
+FILTRI: [Mese: Marzo 2026 ▼] [Anno: 2026 ▼]  [Tutti gli stati ▼]
+
+KPI STRIP:
+  Maturato questo mese: €588,00  |  Già pagato: €1.200,00  |
+  Da ricevere: €1.240,00  |  Totale storico: €2.440,00
+
+TABELLA LEDGER:
+Mese/Anno   Azienda            Piano        MRR      Rate    Moltipl.  Commissione  Stato
+Mar 2026    Domus Group Srl    Pro €149     €149     10%     ×1.25     €18,63      Pending
+Mar 2026    Verde Futuro Snc   Starter €49  €49      10%     ×1.25     €6,13       Pending
+...
+
+Footer tabella:
+  Subtotale marzo: €588,00   [Richiedi Payout →]
+
+GRAFICO: Commissioni mensili ultimi 6 mesi (BarChart)
+```
+
+---
+
+### PAGINA 4: PartnerPayout.tsx — /partner/payout
+
+```
+SALDO DISPONIBILE: € 1.240,00
+(Commissioni approvate non ancora pagate)
+
+┌────────────────────────────────────────────────────────┐
+│  RICHIEDI PAGAMENTO                                    │
+│                                                        │
+│  Importo richiesto:  € [1.240,00      ] (max €1.240)  │
+│  Metodo:             [Bonifico bancario ▼]             │
+│                                                        │
+│  IBAN:    [IT60 X054 2811 1010 0000 0123 456 ▼]       │
+│  (salvato dal tuo profilo — modifica in Profilo)       │
+│                                                        │
+│  Note:    [opzionale                          ]        │
+│                                                        │
+│  [🏦 Richiedi Pagamento]                               │
+└────────────────────────────────────────────────────────┘
+
+STORICO PAGAMENTI:
+Data Richiesta    Importo      Periodo          Metodo     Stato
+15/02/2026        €600,00      Gen-Feb 2026     Bonifico   ✅ Pagato
+                                                           Rif: IT2345678
+10/01/2026        €600,00      Nov-Dic 2025     Bonifico   ✅ Pagato
+```
+
+**Al submit:** insert in `referral_payouts` con status='pending', requested_by_referrer=true.
+Notifica automatica all'admin via email: "Il partner [nome] ha richiesto un payout di €X"
+
+---
+
+### PAGINA 5: PartnerMaterials.tsx — /partner/materiali
+
+```
+KIT MARKETING — Scarica materiali per promuovere la piattaforma
+
+Tier corrente: 🥇 Gold — Hai accesso a tutti i materiali Bronze, Silver, Gold
+
+[LOGHI E BRAND]          [BANNER]              [EMAIL TEMPLATE]
+[📥 Scarica PNG]         [📥 Scarica 1200x628] [📥 HTML pronto]
+[📥 Scarica SVG]         [📥 Scarica 1080x1080]
+
+[PDF BROCHURE]           [POST SOCIAL]         [VIDEO PRESENTAZIONE]
+[📥 Scarica PDF]         [📥 Testo + Immagine] [▶ Guarda / Scarica]
+
+Materiali bloccati (richiede Platinum 💎):
+[🔒 White-label kit]     [🔒 Co-branded materials]
+   Raggiungi 25 aziende per sbloccare
+```
+
+---
+
+### PAGINA 6: PartnerProfile.tsx — /partner/profilo
+
+```
+INFORMAZIONI PERSONALI:
+  Nome *:         [Mario Rossi              ]
+  Email:          mario@example.com (non modificabile)
+  Telefono:       [+39 333 1234567          ]
+  Tipo partner:   [● Referrer ○ Agenzia ○ Rivenditore]
+
+DATI DI PAGAMENTO:
+  Metodo:         [Bonifico bancario ▼]
+  IBAN:           [IT60 X054 2811 1010 0000 0123 456]
+  Intestatario:   [Mario Rossi              ]
+  Banca:          [Banca Esempio            ]
+  Codice Fiscale: [RSSMRA80A01H501X         ]
+  (necessario per la ricevuta)
+
+TERMINI E CONDIZIONI:
+  [✓] Ho letto e accettato i Termini del Programma Partner
+      Accettato il: 09/03/2026
+
+[Salva Profilo]
+```
+
+================================================================================
+PROMPT 4 — ADMIN: MIGLIORAMENTI GHL-STYLE
+================================================================================
+
+Aggiorna ReferralDashboard.tsx e i componenti correlati con funzionalità GHL:
+
+---
+
+### A — NUOVO TAB "PAYOUT PENDING" nel Dashboard Admin
+
+Aggiungi un 3° tab "Payout da Approvare" con badge rosso se ci sono richieste:
+
+```
+[Referrer] [Analytics] [💰 Payout (3)] [🎯 Tier & Materiali]
+```
+
+Nel tab Payout:
+```
+PAYOUT IN ATTESA DI APPROVAZIONE (3)
+
+Partner           Importo    Richiesto il   Metodo       Azioni
+Mario Rossi       €1.240,00  09/03/2026     Bonifico     [✅ Approva] [❌ Rifiuta]
+Anna Bianchi      €520,00    08/03/2026     PayPal       [✅ Approva] [❌ Rifiuta]
+Luca Verdi        €890,00    07/03/2026     Bonifico     [✅ Approva] [❌ Rifiuta]
+
+[✅ Approva Tutti]  [📥 Esporta CSV per contabilità]
+
+PAYOUT APPROVATI / STORICO:
+...
+```
+
+**Approva payout:**
+1. Aggiorna status='approved' in referral_payouts
+2. Aggiorna status='paid' nel ledger per il periodo corrispondente
+3. Aggiorna total_paid sul referrer
+4. Invia email di conferma al partner
+
+---
+
+### B — TAB "TIER & MATERIALI" nel Dashboard Admin
+
+```
+GESTIONE TIER:
+[Modifica Bronze] [Modifica Silver] [Modifica Gold] [Modifica Platinum]
+
+MATERIALI MARKETING:
+[+ Carica Nuovo Materiale]
+
+Tabella materiali: nome | tipo | tier minimo | download count | [modifica] [elimina]
+```
+
+---
+
+### C — AGGIORNAMENTO ReferralTable.tsx
+
+Aggiungi colonne:
+- **Tier badge** (🥉🥈🥇💎) con colore
+- **Click totali**
+- **Conversion rate** (%)
+
+Aggiungi azione: **[📊 Analytics]** → apre drawer con dati completi del partner
+
+Aggiungi azione: **[🔄 Ricalcola Tier]** → chiama `update_referrer_tier(id)`
+
+---
+
+### D — CALCOLO COMMISSIONI MENSILE (bottone admin)
+
+Nel tab Analytics, aggiungi:
+```
+[🔄 Calcola commissioni Marzo 2026]
+```
+
+Chiama la function SQL `calculate_monthly_commissions(month, year)` tramite RPC.
+Mostra un toast con "Calcolate X voci di commissione".
+
+Aggiungi anche nel check-lifecycle-events esistente (cron mensile):
+```typescript
+// Il 1° di ogni mese, calcola le commissioni del mese precedente
+const now = new Date();
+const lastMonth = now.getMonth() === 0 ? 12 : now.getMonth();
+const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+if (now.getDate() === 1) {
+  await supabase.rpc('calculate_monthly_commissions', {
+    p_month: lastMonth,
+    p_year: year
+  });
+}
+```
+
+---
+
+### E — LEADERBOARD nel tab Analytics
+
+```
+🏆 TOP PARTNER DEL MESE
+
+#1  💎 Roberto Neri       12 aziende  €588/mese  ████████████████████ 100%
+#2  🥇 Mario Rossi         8 aziende  €392/mese  █████████████░░░░░░░  67%
+#3  🥇 Anna Bianchi         5 aziende  €245/mese  ████████░░░░░░░░░░░░  42%
+#4  🥈 Luca Verdi           3 aziende  €147/mese  █████░░░░░░░░░░░░░░░  25%
+#5  🥉 Sara Costa           1 azienda   €49/mese  ██░░░░░░░░░░░░░░░░░░   8%
+```
+
+---
+
+### F — EXPORT CSV (contabilità)
+
+Aggiungi bottone [📥 Esporta CSV] nel tab Analytics e nel tab Payout.
+
+Esporta ledger commission con:
+- Partner nome, email, codice fiscale
+- Mese/anno
+- Aziende e piani
+- Commissioni
+- Status pagamento
+
+```typescript
+const csvContent = [
+  ['Partner', 'Email', 'C.F.', 'Mese', 'Anno', 'Azienda', 'Piano', 'MRR', 'Commissione', 'Stato'],
+  ...rows.map(r => [r.referrer_name, r.email, r.fiscal_code, r.period_month, r.period_year,
+                    r.company_name, r.plan_name, r.plan_mrr, r.commission_amount, r.status])
+].map(row => row.join(',')).join('\n');
+
+const blob = new Blob([csvContent], { type: 'text/csv' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = `commissioni-${year}-${month}.csv`;
+a.click();
+```
+
+================================================================================
+PROMPT 5 — NOTIFICHE EMAIL AI PARTNER
+================================================================================
+
+Crea: supabase/functions/send-partner-notification/index.ts
+
+Questa function viene chiamata nei momenti chiave del lifecycle partner.
+
+```typescript
+// Parametri accettati:
+// { type, referrer_id, data? }
+// type: 'welcome' | 'conversion' | 'commission_calculated' |
+//       'payout_approved' | 'payout_paid' | 'tier_upgrade'
+
+serve(async (req) => {
+  const { type, referrer_id, data } = await req.json();
+  const supabase = createClient(/* service role */);
+
+  const { data: referrer } = await supabase
+    .from('referrers')
+    .select('*, referral_tiers(*)')
+    .eq('id', referrer_id)
+    .single();
+
+  if (!referrer) return new Response('Not found', { status: 404 });
+
+  let subject = '';
+  let htmlBody = '';
+
+  const baseStyle = `font-family: sans-serif; max-width: 600px; margin: 0 auto;`;
+
+  switch (type) {
+    case 'welcome':
+      subject = `🎉 Benvenuto nel Programma Partner!`;
+      htmlBody = `
+        <div style="${baseStyle}">
+          <h2>Ciao ${referrer.name}!</h2>
+          <p>Sei ufficialmente un partner <strong>${referrer.referral_tiers?.name ?? 'Bronze'}</strong>.</p>
+          <p>Il tuo codice referral personale è: <strong>${referrer.referral_code}</strong></p>
+          <p>Il tuo link:</p>
+          <a href="${data?.signup_link}" style="background:#1E40AF;color:white;padding:12px 24px;
+             text-decoration:none;border-radius:6px;display:inline-block;">
+            Copia il tuo link
+          </a>
+          <p>Ogni volta che un'azienda si registra con il tuo link, guadagnerai
+             ${referrer.commission_type === 'percentage'
+               ? referrer.commission_value + '% del piano mensile'
+               : '€' + referrer.commission_value + ' fissi al mese'}.</p>
+        </div>`;
+      break;
+
+    case 'conversion':
+      subject = `🚀 Nuova conversione! ${data?.company_name} si è registrata`;
+      htmlBody = `
+        <div style="${baseStyle}">
+          <h2>Ottimo lavoro, ${referrer.name}!</h2>
+          <p><strong>${data?.company_name}</strong> si è appena registrata usando il tuo link.</p>
+          <p>Inizierai a guadagnare commissioni a partire dal prossimo mese.</p>
+          <p>Vai alla tua dashboard per vedere i dettagli.</p>
+        </div>`;
+      break;
+
+    case 'commission_calculated':
+      subject = `💰 Le tue commissioni di ${data?.month_name} sono pronte`;
+      htmlBody = `
+        <div style="${baseStyle}">
+          <h2>Commissioni ${data?.month_name} ${data?.year}</h2>
+          <p>Ciao ${referrer.name}, abbiamo calcolato le tue commissioni per ${data?.month_name}:</p>
+          <div style="background:#F0FDF4;padding:20px;border-radius:8px;text-align:center;">
+            <div style="font-size:32px;font-weight:bold;color:#166534;">€${data?.total_amount}</div>
+            <div style="color:#166534;">${data?.company_count} aziende attive</div>
+          </div>
+          <p>Vai alla tua dashboard per richiedere il pagamento.</p>
+        </div>`;
+      break;
+
+    case 'payout_approved':
+      subject = `✅ Pagamento di €${data?.amount} approvato`;
+      htmlBody = `
+        <div style="${baseStyle}">
+          <h2>Pagamento approvato!</h2>
+          <p>Il tuo pagamento di <strong>€${data?.amount}</strong> è stato approvato.</p>
+          <p>Riceverai il bonifico entro 3-5 giorni lavorativi.</p>
+          <p>Riferimento: <strong>${data?.reference ?? 'In elaborazione'}</strong></p>
+        </div>`;
+      break;
+
+    case 'tier_upgrade':
+      subject = `🎉 Sei salito a ${data?.new_tier}!`;
+      htmlBody = `
+        <div style="${baseStyle}">
+          <h2>Complimenti ${referrer.name}! 🎊</h2>
+          <p>Hai raggiunto il tier <strong>${data?.new_tier} ${data?.tier_icon}</strong>!</p>
+          <p>Ora guadagni il <strong>${data?.multiplier}x</strong> su ogni commissione.</p>
+          <div style="background:#FEF9C3;padding:20px;border-radius:8px;">
+            <strong>Nuovi vantaggi sbloccati:</strong>
+            <ul>${(data?.perks ?? []).map(p => `<li>${p}</li>`).join('')}</ul>
+          </div>
+        </div>`;
+      break;
+  }
+
+  // Invia usando il sistema email della piattaforma (getPlatformSetting)
+  // ... logica invio email esistente
+});
+```
+
+Chiama questa function nei momenti giusti:
+- Alla creazione del referrer → type='welcome'
+- Dopo update_referrer_tier quando il tier cambia → type='tier_upgrade'
+- Dopo calculate_monthly_commissions → type='commission_calculated' per ogni referrer
+- Dopo approvazione payout → type='payout_approved'
+- Dopo conversione nuova azienda → type='conversion'
+
+================================================================================
+PROMPT 6 — ONBOARDING PARTNER + ACCETTAZIONE TERMINI
+================================================================================
+
+Se un partner logga per la prima volta (has_accepted_terms = false),
+mostrargli un Modal obbligatorio prima di accedere al portale:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  🤝  BENVENUTO NEL PROGRAMMA PARTNER                                │
+│                                                                     │
+│  Prima di accedere al tuo portale, leggi e accetta i termini        │
+│  del programma.                                                     │
+│                                                                     │
+│  RIEPILOGO COMMISSIONI:                                             │
+│  ─────────────────────────────────────────────────────             │
+│  Tipo:       Percentuale 10%                                        │
+│  Pagamenti:  Mensili, su richiesta del partner                      │
+│  Metodo:     Bonifico bancario / PayPal                             │
+│                                                                     │
+│  PROGRESSIONE TIER:                                                 │
+│  🥉 Bronze (0 az) → 🥈 Silver (3 az) → 🥇 Gold (10 az) →         │
+│  💎 Platinum (25 az)                                                │
+│                                                                     │
+│  [📄 Leggi i Termini Completi]                                      │
+│                                                                     │
+│  [✓] Accetto i termini e condizioni del Programma Partner          │
+│                                                                     │
+│  [Accedi al Portale Partner →]  (disabilitato finché non accetta)  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Al click "Accedi al Portale Partner":
+```typescript
+await supabase.from('referrers').update({
+  has_accepted_terms: true,
+  terms_accepted_at: new Date().toISOString()
+}).eq('id', partnerId);
+
+// Invia email di benvenuto
+await supabase.functions.invoke('send-partner-notification', {
+  body: { type: 'welcome', referrer_id: partnerId, data: { signup_link: partnerLink } }
+});
+```
+
+================================================================================
+VERIFICA FINALE END-TO-END
+================================================================================
+
+1. **Flusso referral completo:**
+   - Il partner copia il suo link /login?ref=ABC123
+   - Un cliente visita il link → track-referral-click registra il click
+   - Il SuperAdmin crea l'azienda e assegna il referrer ABC123
+   - Il sistema marca il click come convertito
+   - update_referrer_tier aggiorna il tier se necessario
+   - Email di conversione inviata al partner ✓
+
+2. **Calcolo commissioni:**
+   - Il 1° del mese, check-lifecycle-events chiama calculate_monthly_commissions
+   - Il ledger viene popolato per tutte le aziende attive
+   - Il partner riceve email con il totale ✓
+
+3. **Richiesta payout:**
+   - Il partner va su /partner/payout e richiede €1.240
+   - L'admin vede la notifica nel tab "Payout (1)"
+   - L'admin approva → email di conferma al partner ✓
+
+4. **Upgrade tier:**
+   - Il partner raggiunge 10 aziende attive
+   - update_referrer_tier lo porta a Gold
+   - Email "Sei salito a Gold! +25% commission!" ✓
+
+5. **Portale partner:**
+   - Il partner accede a /partner
+   - Vede la sua dashboard con KPI, grafico, aziende portate ✓
+   - Genera link UTM per Facebook ✓
+   - Scarica materiali marketing (se Gold) ✓
+
+================================================================================
+NOTE IMPORTANTI
+================================================================================
+
+- Il portale /partner è SEPARATO da /azienda e /admin — ha il suo layout
+- Un utente può essere contemporaneamente admin di un'azienda E partner
+  (stesso email in auth.users, ma record in referrers.email)
+- La pagina /partner usa useAuth per l'autenticazione ma useBrandSettings
+  della piattaforma (non dell'azienda — il partner vede il brand piattaforma)
+- NON modificare la struttura esistente di referrers, referral_companies,
+  referral_payouts — solo AGGIUNGI colonne e comportamento
+- I tier vengono assegnati automaticamente — il SuperAdmin NON li imposta manualmente
+- Tutte le commissioni nel ledger sono in status='pending' fino all'approvazione
+  manuale del SuperAdmin (sicurezza contro errori di calcolo)
+
+================================================================================

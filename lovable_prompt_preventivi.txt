@@ -1,0 +1,1178 @@
+================================================================================
+MODULO: GENERATORE DI PREVENTIVI — OFFERTE ORIENTATE ALLA VENDITA
+================================================================================
+Progetto: Gestionale SaaS multi-tenant (Supabase + React + TypeScript)
+Sezione: Marketing e Vendita → Preventivi
+Nota: Questo è un NUOVO modulo standalone. Non modificare il resto dell'app
+      tranne dove indicato esplicitamente (aggiunta voci di menu e link).
+
+Implementa i 5 prompt IN SEQUENZA. Ogni prompt dipende dal precedente.
+
+================================================================================
+PROMPT 1 — DATABASE + STORAGE
+================================================================================
+
+Crea la seguente migrazione SQL. Nome file: YYYYMMDDHHMMSS_create_quotes_module.sql
+
+```sql
+-- ============================================================
+-- STORAGE BUCKET per materiali PDF
+-- ============================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('quote-materials', 'quote-materials', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Policy: solo utenti autenticati della stessa azienda
+CREATE POLICY "company_members_can_upload_quote_materials"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'quote-materials' AND
+  (storage.foldername(name))[1] = (
+    SELECT company_id::text FROM profiles WHERE id = auth.uid()
+  )
+);
+
+CREATE POLICY "company_members_can_read_quote_materials"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'quote-materials' AND
+  (storage.foldername(name))[1] = (
+    SELECT company_id::text FROM profiles WHERE id = auth.uid()
+  )
+);
+
+CREATE POLICY "company_members_can_delete_quote_materials"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'quote-materials' AND
+  (storage.foldername(name))[1] = (
+    SELECT company_id::text FROM profiles WHERE id = auth.uid()
+  )
+);
+
+-- ============================================================
+-- TABELLA: quote_pdf_materials
+-- Materiali PDF caricati dall'azienda (globali o per prodotto)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quote_pdf_materials (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT NOT NULL DEFAULT 'altro',
+  -- categorie: 'scheda_prodotto' | 'condizioni_contrattuali' | 'garanzie' | 'presentazione_aziendale' | 'immagini' | 'altro'
+  file_url TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  file_size_bytes INTEGER,
+  -- Se collegato a un prodotto del catalogo (nullable = PDF globale)
+  catalog_item_id UUID REFERENCES catalog_items(id) ON DELETE SET NULL,
+  sort_order INTEGER DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE quote_pdf_materials ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_members_read_pdf_materials"
+ON quote_pdf_materials FOR SELECT TO authenticated
+USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_admin_manage_pdf_materials"
+ON quote_pdf_materials FOR ALL TO authenticated
+USING (company_id = get_user_company_id(auth.uid()))
+WITH CHECK (company_id = get_user_company_id(auth.uid()));
+
+-- ============================================================
+-- TABELLA: quotes
+-- Il preventivo / offerta commerciale
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quotes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  quote_number TEXT NOT NULL,
+  -- Numero progressivo tipo "OFF-2026-001"
+  title TEXT NOT NULL,
+  -- es. "Offerta serramenti Villa Rossi"
+  status TEXT NOT NULL DEFAULT 'bozza',
+  -- 'bozza' | 'inviata' | 'accettata' | 'rifiutata' | 'scaduta'
+
+  -- Collegamento cliente (uno dei due)
+  contact_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  opportunity_id UUID REFERENCES marketing_contacts(id) ON DELETE SET NULL,
+
+  -- Dati cliente (snapshot al momento della creazione)
+  client_name TEXT,
+  client_email TEXT,
+  client_phone TEXT,
+  client_address TEXT,
+  client_vat TEXT,
+  client_company_name TEXT,
+
+  -- Dati offerta
+  valid_until DATE,
+  notes TEXT,
+  internal_notes TEXT,
+  payment_terms TEXT,
+  -- es. "30% alla firma, 70% alla consegna"
+  delivery_terms TEXT,
+
+  -- Importi
+  subtotal NUMERIC(12,2) DEFAULT 0,
+  global_discount_percentage NUMERIC(5,2) DEFAULT 0,
+  global_discount_amount NUMERIC(12,2) DEFAULT 0,
+  tax_rate NUMERIC(5,2) DEFAULT 22,
+  tax_amount NUMERIC(12,2) DEFAULT 0,
+  total NUMERIC(12,2) DEFAULT 0,
+
+  -- PDF generato
+  pdf_url TEXT,
+  pdf_generated_at TIMESTAMPTZ,
+
+  -- Firma digitale
+  signature_token TEXT UNIQUE,
+  -- Token univoco per il link di firma pubblico
+  signature_link TEXT,
+  -- Link completo inviato al cliente
+  sent_at TIMESTAMPTZ,
+  viewed_at TIMESTAMPTZ,
+  signed_at TIMESTAMPTZ,
+  signed_by_name TEXT,
+  signed_by_ip TEXT,
+  refused_at TIMESTAMPTZ,
+  refused_reason TEXT,
+  expires_at TIMESTAMPTZ,
+  -- Quando scade il link di firma
+
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_members_read_quotes"
+ON quotes FOR SELECT TO authenticated
+USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_members_manage_quotes"
+ON quotes FOR ALL TO authenticated
+USING (company_id = get_user_company_id(auth.uid()))
+WITH CHECK (company_id = get_user_company_id(auth.uid()));
+
+-- ============================================================
+-- TABELLA: quote_items
+-- Righe dell'offerta (prodotti/servizi)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quote_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL DEFAULT 0,
+  -- Tipo riga
+  item_type TEXT DEFAULT 'product',
+  -- 'product' | 'service' | 'text' (riga descrittiva senza prezzo)
+
+  -- Descrizione
+  name TEXT NOT NULL,
+  description TEXT,
+  -- Descrizione estesa, note tecniche
+
+  -- Quantità e prezzi
+  quantity NUMERIC(10,3) DEFAULT 1,
+  unit TEXT DEFAULT 'pz',
+  -- es. 'pz', 'm²', 'm', 'ore', 'set'
+  unit_price NUMERIC(12,2) DEFAULT 0,
+  discount_percentage NUMERIC(5,2) DEFAULT 0,
+  total_price NUMERIC(12,2) DEFAULT 0,
+  -- = quantity * unit_price * (1 - discount/100)
+
+  -- Immagine/foto del prodotto (opzionale, mostrata nel PDF)
+  product_image_url TEXT,
+
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE quote_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_members_manage_quote_items"
+ON quote_items FOR ALL TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM quotes q
+    WHERE q.id = quote_items.quote_id
+    AND q.company_id = get_user_company_id(auth.uid())
+  )
+);
+
+-- ============================================================
+-- TABELLA: quote_pdf_attachments
+-- PDF materiali selezionati per questa offerta
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quote_pdf_attachments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quote_id UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  pdf_material_id UUID NOT NULL REFERENCES quote_pdf_materials(id) ON DELETE CASCADE,
+  position INTEGER DEFAULT 0,
+  -- Ordine nel PDF finale
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE quote_pdf_attachments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_members_manage_quote_attachments"
+ON quote_pdf_attachments FOR ALL TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM quotes q
+    WHERE q.id = quote_pdf_attachments.quote_id
+    AND q.company_id = get_user_company_id(auth.uid())
+  )
+);
+
+-- ============================================================
+-- FUNCTION: genera numero progressivo offerta
+-- ============================================================
+CREATE OR REPLACE FUNCTION generate_quote_number(p_company_id UUID)
+RETURNS TEXT AS $$
+DECLARE
+  v_year TEXT := to_char(now(), 'YYYY');
+  v_count INTEGER;
+  v_number TEXT;
+BEGIN
+  SELECT COUNT(*) + 1 INTO v_count
+  FROM quotes
+  WHERE company_id = p_company_id
+    AND to_char(created_at, 'YYYY') = v_year;
+
+  v_number := 'OFF-' || v_year || '-' || LPAD(v_count::TEXT, 3, '0');
+  RETURN v_number;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- TRIGGER: aggiorna updated_at
+-- ============================================================
+CREATE OR REPLACE FUNCTION quotes_set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN NEW.updated_at = now(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER quotes_updated_at
+BEFORE UPDATE ON quotes
+FOR EACH ROW EXECUTE FUNCTION quotes_set_updated_at();
+
+CREATE TRIGGER quote_pdf_materials_updated_at
+BEFORE UPDATE ON quote_pdf_materials
+FOR EACH ROW EXECUTE FUNCTION quotes_set_updated_at();
+
+-- ============================================================
+-- TRIGGER: ricalcola totale quote automaticamente
+-- ============================================================
+CREATE OR REPLACE FUNCTION recalculate_quote_totals()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_subtotal NUMERIC(12,2);
+  v_discount NUMERIC(12,2);
+  v_tax_rate NUMERIC(5,2);
+  v_tax_amount NUMERIC(12,2);
+  v_total NUMERIC(12,2);
+  v_quote_id UUID;
+BEGIN
+  -- Determina quale quote aggiornare
+  IF TG_OP = 'DELETE' THEN
+    v_quote_id := OLD.quote_id;
+  ELSE
+    v_quote_id := NEW.quote_id;
+  END IF;
+
+  -- Calcola subtotale dalle righe
+  SELECT COALESCE(SUM(total_price), 0) INTO v_subtotal
+  FROM quote_items
+  WHERE quote_id = v_quote_id AND item_type != 'text';
+
+  -- Prendi lo sconto e aliquota IVA dalla quote
+  SELECT
+    global_discount_percentage,
+    tax_rate
+  INTO v_discount, v_tax_rate
+  FROM quotes WHERE id = v_quote_id;
+
+  v_discount := v_subtotal * COALESCE(v_discount, 0) / 100;
+  v_tax_amount := (v_subtotal - v_discount) * COALESCE(v_tax_rate, 22) / 100;
+  v_total := v_subtotal - v_discount + v_tax_amount;
+
+  UPDATE quotes SET
+    subtotal = v_subtotal,
+    global_discount_amount = v_discount,
+    tax_amount = v_tax_amount,
+    total = v_total,
+    updated_at = now()
+  WHERE id = v_quote_id;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER quote_items_recalculate
+AFTER INSERT OR UPDATE OR DELETE ON quote_items
+FOR EACH ROW EXECUTE FUNCTION recalculate_quote_totals();
+
+-- ============================================================
+-- POLICY PUBBLICA per visualizzazione link firma (no auth)
+-- ============================================================
+-- I clienti vedono la propria offerta tramite token, senza login
+CREATE POLICY "public_view_quote_by_token"
+ON quotes FOR SELECT
+TO anon
+USING (
+  signature_token IS NOT NULL
+  AND status IN ('inviata', 'accettata', 'rifiutata')
+);
+
+CREATE POLICY "public_view_quote_items_by_token"
+ON quote_items FOR SELECT
+TO anon
+USING (
+  EXISTS (
+    SELECT 1 FROM quotes q
+    WHERE q.id = quote_items.quote_id
+    AND q.signature_token IS NOT NULL
+    AND q.status IN ('inviata', 'accettata', 'rifiutata')
+  )
+);
+```
+
+================================================================================
+PROMPT 2 — IMPOSTAZIONI: GESTIONE MATERIALI PDF
+================================================================================
+
+Crea la pagina: src/pages/azienda/settings/SettingsQuoteMaterials.tsx
+
+ROUTE da aggiungere in App.tsx (nella sezione settings azienda):
+```
+/azienda/impostazioni/materiali-preventivi → SettingsQuoteMaterials
+```
+
+VOCE DI MENU da aggiungere in CompanyLayout.tsx (sezione "Gestione ordini" o nuova
+sezione "Preventivi"):
+```
+Label: "Materiali Preventivi"
+Icon: FileStack (lucide)
+Route: /azienda/impostazioni/materiali-preventivi
+Visibile solo a: isAdmin
+```
+
+LA PAGINA deve avere queste sezioni:
+
+### A — HEADER
+Titolo: "Materiali per Preventivi"
+Sottotitolo: "Carica PDF di schede prodotto, condizioni contrattuali, garanzie e immagini
+da allegare automaticamente alle offerte."
+Bottone [+ Carica PDF] in alto a destra
+
+### B — FILTRI
+Tabs orizzontali:
+- Tutti | Globali | Per Prodotto
+Filtro per categoria (Select): Tutte le categorie | Scheda Prodotto |
+Condizioni Contrattuali | Garanzie | Presentazione Aziendale | Immagini | Altro
+
+### C — GRIGLIA MATERIALI
+Card per ogni materiale PDF con:
+- Icona FileText (lucide) con sfondo colorato per categoria
+- Nome del materiale
+- Categoria (badge colorato)
+- Se collegato a un prodotto: badge "🔗 [nome prodotto]" in blu
+- Dimensione file (es. "2.4 MB")
+- Data caricamento
+- Bottoni: [👁 Anteprima] [✏️ Rinomina] [🗑 Elimina]
+
+Drag & drop per riordinare i materiali (order è il campo sort_order)
+
+### D — MODAL: Carica PDF
+Stepper a 2 step:
+
+STEP 1 — Upload file
+- Dropzone grande per upload PDF (drag & drop o click)
+- Preview del nome file e dimensione
+- Validazione: solo .pdf, max 20MB
+- Carica su Supabase Storage in: quote-materials/{company_id}/{uuid}.pdf
+
+STEP 2 — Dettagli
+Campi:
+- Nome * (pre-compilato con nome del file, modificabile)
+- Categoria * (Select con le 6 categorie)
+- Descrizione (opzionale, textarea)
+- Collegato a prodotto? (Toggle)
+  - Se attivato: SearchSelect per cercare prodotti dal catalogo (tabella catalog_items)
+    Placeholder: "Cerca prodotto nel catalogo..."
+Bottone [Salva]
+
+### E — LOGICA DATI
+- Query: SELECT * FROM quote_pdf_materials WHERE company_id = ? ORDER BY sort_order
+- Insert: crea record dopo upload su storage
+- Delete: rimuove da storage E dal db
+- Anteprima: apre il PDF in un Dialog con <embed src={signedUrl} type="application/pdf">
+  Usa supabase.storage.from('quote-materials').createSignedUrl(path, 3600)
+- Aggiornamento sort_order: update batch su riordinamento drag&drop
+
+================================================================================
+PROMPT 3 — LISTA PREVENTIVI + QUOTE BUILDER (UI)
+================================================================================
+
+### PARTE A — LISTA PREVENTIVI
+
+Crea: src/pages/azienda/marketing/Preventivi.tsx
+
+ROUTE in App.tsx (nella sezione /azienda/marketing):
+```
+/azienda/marketing/preventivi → Preventivi
+```
+
+VOCE DI MENU in sidebarConfig.ts (marketingNavItems, dopo "Opportunità"):
+```typescript
+{
+  label: 'Preventivi',
+  icon: FileSignature,  // lucide-react
+  path: '/azienda/marketing/preventivi',
+  permission: 'can_view_marketing',  // o crea can_view_quotes se preferisci
+}
+```
+
+LA PAGINA deve contenere:
+
+HEADER:
+- Titolo "Preventivi"
+- KPI strip: [Bozze: N] [Inviate: N] [Accettate: N] [Valore Tot. Accettate: €X]
+- Bottone [+ Nuovo Preventivo]
+
+FILTRI:
+- SearchInput (cerca per numero, titolo, cliente)
+- Filter per Status (Tutti | Bozza | Inviata | Accettata | Rifiutata | Scaduta)
+- Filter per data (mese corrente / ultimi 3 mesi / tutto)
+
+TABELLA con colonne:
+| Numero | Titolo / Cliente | Status | Valore | Data Creazione | Validità | Azioni |
+
+- Status badge colorati: Bozza=grigio, Inviata=blu, Accettata=verde, Rifiutata=rosso, Scaduta=arancione
+- Colonna Azioni: [Apri] [Duplica] [Elimina]
+- Click sulla riga → apre QuoteDetail
+
+STATO VUOTO:
+- Illustrazione + "Nessun preventivo ancora"
+- Bottone "Crea il tuo primo preventivo"
+
+---
+
+### PARTE B — QUOTE BUILDER (Creazione/Modifica)
+
+Crea: src/pages/azienda/marketing/QuoteBuilder.tsx
+
+ROUTE:
+```
+/azienda/marketing/preventivi/nuovo → QuoteBuilder (mode=create)
+/azienda/marketing/preventivi/:id/modifica → QuoteBuilder (mode=edit)
+```
+
+IL BUILDER è a 4 step con navigazione libera (si può tornare indietro):
+
+---
+
+#### STEP 1 — CLIENTE & INTESTAZIONE
+
+Layout a 2 colonne (sinistra form, destra preview live dell'intestazione):
+
+Sinistra:
+- "Seleziona cliente esistente" → SearchSelect con autocomplete su customers
+  + marketing_contacts (mostra nome, email, tipo badge)
+  Quando selezionato, i campi sotto si auto-compilano
+
+- Oppure compila manualmente:
+  - Nome / Ragione Sociale *
+  - Email
+  - Telefono
+  - Indirizzo
+  - P.IVA / C.F.
+  - Nome azienda cliente
+
+- Separatore "Dettagli Offerta"
+  - Titolo Offerta * (es. "Offerta serramenti Via Roma 12")
+  - Validità (date picker, default: +30 giorni da oggi)
+  - Termini di pagamento (textarea, es. "30% alla firma, saldo alla consegna")
+  - Condizioni di consegna (textarea, es. "4-6 settimane dalla firma")
+  - Note per il cliente (textarea, mostrate nel PDF)
+  - Note interne (textarea, NON mostrate nel PDF)
+
+Destra (preview):
+- Box stilizzato che mostra come apparirà l'intestazione nel PDF
+- Logo azienda + dati azienda a sinistra
+- Dati cliente a destra
+- Numero offerta (generato automaticamente con generate_quote_number)
+- Data e validità
+
+---
+
+#### STEP 2 — PRODOTTI E SERVIZI
+
+Una pagina dedicata alla composizione delle righe dell'offerta.
+
+HEADER sezione:
+"Aggiungi i prodotti o servizi inclusi nell'offerta"
+
+LISTA RIGHE (drag & drop per riordinare):
+Ogni riga è una card espandibile con:
+```
+[≡ drag] [Tipo▼] [Nome prodotto / servizio              ] [Qta][Unità▼][Prezzo €][Sconto%][Totale €] [🗑]
+         ↓ espandi per:
+         - Descrizione estesa (textarea)
+         - Immagine prodotto (upload opzionale, mostrata nel PDF a fianco della riga)
+```
+
+Tipi riga (Select):
+- 📦 Prodotto
+- 🔧 Servizio
+- 📝 Testo (riga descrittiva senza prezzo)
+
+Bottoni sotto la lista:
+- [+ Aggiungi Prodotto/Servizio]
+- [+ Aggiungi Nota Testuale]
+- [Importa da Catalogo] → apre modale con lista catalog_items, click aggiunge riga
+
+RIEPILOGO TOTALI (card in basso a destra, si aggiorna live):
+```
+Subtotale:           € X.XXX,XX
+Sconto globale (%):  [___]%       − € XXX,XX
+Imponibile:          € X.XXX,XX
+IVA [22]%:           [__]%        + € XXX,XX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTALE:              € X.XXX,XX
+```
+
+I calcoli sono in tempo reale (React state, non da DB a ogni keystroke).
+Il salvataggio avviene solo quando si va allo step successivo o si preme [Salva bozza].
+
+---
+
+#### STEP 3 — DOCUMENTI ALLEGATI
+
+Questa sezione permette di scegliere quali PDF materiali allegare all'offerta.
+
+Layout a 2 colonne:
+
+Colonna sinistra "Libreria materiali":
+- Tabs: Globali | Per prodotto (filtra automaticamente per i prodotti nelle righe)
+- Lista scrollabile di tutti i PDF materiali dell'azienda
+- Ogni item: checkbox + nome + categoria badge + dimensione
+- "Suggeriti automaticamente" in cima (PDF collegati ai prodotti già inseriti nelle righe)
+
+Colonna destra "Allegati selezionati":
+- Lista ordinabile (drag & drop) dei PDF selezionati
+- Mostra: posizione numero, nome, categoria
+- Bottone rimuovi su ogni item
+- Preview: click su un item apre il PDF in modal
+
+Nota informativa: "Il PDF finale avrà: 1 pagina copertina + 1-2 pagine offerta
++ i documenti allegati nell'ordine indicato."
+
+---
+
+#### STEP 4 — RIEPILOGO & GENERA
+
+Layout a 2 pannelli:
+
+Pannello sinistra "Riepilogo":
+- Box cliente (nome, email, telefono)
+- Box offerta (numero, titolo, validità, totale in grande)
+- Lista prodotti (compatta: nome + totale riga)
+- Lista PDF allegati (N documenti allegati)
+- Eventuali note per il cliente
+
+Pannello destra "Azioni":
+Card con 3 azioni:
+
+1. [📥 Genera e Scarica PDF]
+   - Chiama edge function generate-quote-pdf
+   - Mostra progress spinner
+   - Download automatico del PDF
+
+2. [✉️ Invia per Firma Digitale]
+   - Input email (pre-compilato con email cliente)
+   - Opzione: "Aggiungi messaggio personalizzato"
+   - Bottone [Invia Offerta]
+   - Chiama edge function send-quote-signature
+   - Cambia status a 'inviata'
+
+3. [💾 Salva come Bozza]
+   - Salva senza generare PDF
+   - Rimane in status 'bozza'
+
+---
+
+### PARTE C — DETTAGLIO PREVENTIVO
+
+Crea: src/pages/azienda/marketing/QuoteDetail.tsx
+
+ROUTE: /azienda/marketing/preventivi/:id
+
+Layout a tab:
+- Tab "Offerta": riepilogo completo, timeline stati, PDF preview
+- Tab "Cliente": info cliente, link al contatto/opportunità
+- Tab "Documenti": lista PDF allegati con anteprima
+- Tab "Attività": note interne, log delle azioni
+
+HEADER della pagina:
+- Numero offerta + Titolo
+- Status badge + data
+- Bottoni contestuali in base allo stato:
+  - Bozza: [Modifica] [Genera PDF] [Invia per Firma] [Elimina]
+  - Inviata: [Rigenera PDF] [Segna Accettata] [Segna Rifiutata] [Copia Link Firma]
+  - Accettata: [Crea Ordine da Offerta] [Scarica PDF firmato]
+  - Rifiutata: [Duplica come nuova bozza]
+
+TIMELINE STATI (verticale):
+- Creata il [data] da [utente]
+- Inviata il [data] — link firma: [link con bottone copia]
+- Vista dal cliente il [data]
+- Firmata il [data] da [nome cliente] — IP: [ip]
+
+================================================================================
+PROMPT 4 — EDGE FUNCTIONS
+================================================================================
+
+Crea le seguenti edge functions in supabase/functions/
+
+---
+
+### EDGE FUNCTION 1: generate-quote-pdf
+
+File: supabase/functions/generate-quote-pdf/index.ts
+
+DIPENDENZE da installare (deno import):
+- pdf-lib: "npm:pdf-lib@1.17.1"
+- fontkit: "npm:@pdf-lib/fontkit@1.1.1"
+
+COSA FA:
+1. Riceve: { quote_id: string } nel body (con Authorization header)
+2. Verifica che l'utente sia autenticato e che la quote appartenga alla sua azienda
+3. Carica tutti i dati necessari dal DB:
+   - quote + quote_items + quote_pdf_attachments + quote_pdf_materials
+   - company (nome, logo_url, indirizzo, p.iva, telefono, email)
+4. Genera il PDF con pdf-lib:
+
+STRUTTURA DEL PDF GENERATO:
+```
+PAGINA 1 — COPERTINA
+─────────────────────────────────────────────────────
+[Logo azienda centrato, sopra]
+[Nome azienda grande]
+
+                    OFFERTA COMMERCIALE
+                    N. OFF-2026-001
+
+Date: 09/03/2026              Valida fino al: 09/04/2026
+
+┌─────────────────────┐  ┌─────────────────────────────┐
+│  EMESSA DA          │  │  DESTINATARIO               │
+│  Nome Azienda SRL   │  │  Mario Rossi / Azienda Spa  │
+│  Via Roma 1         │  │  Via Milano 5               │
+│  P.IVA: XXXXXXXXXXX │  │  Email: mario@email.com     │
+│  Tel: 02 XXXXXXXXX  │  │  Tel: 333 XXXXXXXX          │
+└─────────────────────┘  └─────────────────────────────┘
+
+[titolo offerta in grassetto]
+─────────────────────────────────────────────────────
+[footer: pagina 1 di N]
+
+PAGINA 2 — DETTAGLIO PRODOTTI E PREZZI
+─────────────────────────────────────────────────────
+OGGETTO: [titolo offerta]
+
+┌──────────────────────────────┬───┬───────┬──────┬───────────┐
+│ Descrizione                  │Qty│ U.M.  │Prezzo│  Totale   │
+├──────────────────────────────┼───┼───────┼──────┼───────────┤
+│ [nome prodotto]              │ 2 │  pz   │ €500 │  €1.000   │
+│ [descrizione estesa sotto]   │   │       │      │           │
+│ [immagine se presente]       │   │       │      │           │
+├──────────────────────────────┼───┼───────┼──────┼───────────┤
+│ [riga testo libero]          │   │       │      │           │
+└──────────────────────────────┴───┴───────┴──────┴───────────┘
+
+                              Subtotale:    € X.XXX,XX
+                         Sconto (X%):    − €   XXX,XX
+                            Imponibile:    € X.XXX,XX
+                          IVA (22%):    + €   XXX,XX
+                          ───────────────────────────
+                              TOTALE:    € X.XXX,XX
+
+Termini di pagamento: [payment_terms]
+Condizioni di consegna: [delivery_terms]
+
+Note: [notes]
+─────────────────────────────────────────────────────
+
+PAGINE SUCCESSIVE — PDF ALLEGATI
+─────────────────────────────────────────────────────
+Per ogni PDF in quote_pdf_attachments (ordinati per position):
+  - Scarica il PDF da Supabase Storage usando service role
+  - Usa pdf-lib per incorporare le pagine nel PDF finale
+```
+
+IMPLEMENTAZIONE:
+```typescript
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { PDFDocument, rgb, StandardFonts } from "npm:pdf-lib@1.17.1";
+import { corsHeaders } from "../_shared/cors.ts";
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
+    // Verifica autenticazione
+    const { data: { user }, error: authError } = await createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    ).auth.getUser();
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
+    const { quote_id } = await req.json();
+
+    // Carica tutti i dati
+    const { data: quote, error: quoteError } = await supabase
+      .from('quotes')
+      .select(`
+        *,
+        quote_items(*),
+        quote_pdf_attachments(
+          *,
+          quote_pdf_materials(*)
+        )
+      `)
+      .eq('id', quote_id)
+      .single();
+
+    if (quoteError || !quote) {
+      return new Response(JSON.stringify({ error: 'Quote not found' }), { status: 404 });
+    }
+
+    // Verifica company ownership
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('company_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.company_id !== quote.company_id) {
+      return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+    }
+
+    // Carica dati azienda
+    const { data: company } = await supabase
+      .from('companies')
+      .select('name, logo_url, address, city, vat_number, phone, email')
+      .eq('id', quote.company_id)
+      .single();
+
+    // GENERA PDF con pdf-lib
+    const pdfDoc = await PDFDocument.create();
+    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    const A4_WIDTH = 595.28;
+    const A4_HEIGHT = 841.89;
+    const MARGIN = 50;
+
+    // --- PAGINA 1: COPERTINA ---
+    const coverPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+    // [Implementa il layout della copertina come descritto sopra]
+    // Usa coverPage.drawText(), coverPage.drawLine(), coverPage.drawRectangle()
+
+    // --- PAGINA 2: DETTAGLIO PRODOTTI ---
+    const detailPage = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+    // [Implementa la tabella prodotti e il riepilogo importi]
+
+    // Ordina items per position
+    const sortedItems = (quote.quote_items || []).sort((a, b) => a.position - b.position);
+    // Disegna ogni riga...
+
+    // --- PAGINE PDF ALLEGATI ---
+    const attachments = (quote.quote_pdf_attachments || [])
+      .sort((a, b) => a.position - b.position);
+
+    for (const attachment of attachments) {
+      const material = attachment.quote_pdf_materials;
+      if (!material?.file_url) continue;
+
+      // Scarica il PDF da storage
+      const { data: fileData } = await supabase.storage
+        .from('quote-materials')
+        .download(material.file_url.split('quote-materials/')[1]);
+
+      if (!fileData) continue;
+
+      const pdfBytes = await fileData.arrayBuffer();
+      const attachedPdf = await PDFDocument.load(pdfBytes);
+      const pages = await pdfDoc.copyPages(attachedPdf, attachedPdf.getPageIndices());
+      pages.forEach(page => pdfDoc.addPage(page));
+    }
+
+    // Salva PDF
+    const finalPdfBytes = await pdfDoc.save();
+    const fileName = `${quote.company_id}/${quote.quote_number.replace(/\//g, '-')}.pdf`;
+
+    // Upload su storage (bucket quotes-pdf, crea il bucket se non esiste)
+    await supabase.storage
+      .from('quote-pdfs')
+      .upload(fileName, finalPdfBytes, {
+        contentType: 'application/pdf',
+        upsert: true
+      });
+
+    // Crea signed URL valida 24h
+    const { data: signedUrlData } = await supabase.storage
+      .from('quote-pdfs')
+      .createSignedUrl(fileName, 86400);
+
+    // Aggiorna quote con pdf_url e timestamp
+    await supabase.from('quotes').update({
+      pdf_url: fileName,
+      pdf_generated_at: new Date().toISOString()
+    }).eq('id', quote_id);
+
+    return new Response(JSON.stringify({
+      success: true,
+      pdf_url: signedUrlData?.signedUrl,
+      file_name: `${quote.quote_number} - ${quote.title}.pdf`
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('Error generating quote PDF:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: corsHeaders
+    });
+  }
+});
+```
+
+CREA anche il bucket quote-pdfs:
+```sql
+INSERT INTO storage.buckets (id, name, public) VALUES ('quote-pdfs', 'quote-pdfs', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "company_members_read_quote_pdfs"
+ON storage.objects FOR SELECT TO authenticated
+USING (
+  bucket_id = 'quote-pdfs' AND
+  (storage.foldername(name))[1] = (SELECT company_id::text FROM profiles WHERE id = auth.uid())
+);
+```
+
+---
+
+### EDGE FUNCTION 2: send-quote-signature
+
+File: supabase/functions/send-quote-signature/index.ts
+
+COSA FA:
+1. Riceve: { quote_id, recipient_email, custom_message? }
+2. Verifica autenticazione e ownership
+3. Genera un signature_token univoco (crypto.randomUUID())
+4. Costruisce il link firma: https://[project-url]/offerta/[token]
+5. Salva token + link + sent_at + status='inviata' nella quote
+6. Invia email al cliente con il link usando getPlatformSetting per provider email
+   L'email deve contenere:
+   - Oggetto: "Offerta N. [quote_number] — [company_name]"
+   - Body HTML con link grande e prominente [Visualizza e Firma Offerta]
+   - Importo totale visibile
+   - Data di scadenza
+   - Contatto aziendale
+7. Restituisce { success: true, signature_link }
+
+```typescript
+// Genera token
+const token = crypto.randomUUID();
+const signatureLink = `${Deno.env.get('SITE_URL') || 'https://app.gestionale.it'}/offerta/${token}`;
+
+// Aggiorna quote
+await supabase.from('quotes').update({
+  signature_token: token,
+  signature_link: signatureLink,
+  sent_at: new Date().toISOString(),
+  status: 'inviata',
+  expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+}).eq('id', quote_id);
+```
+
+---
+
+### EDGE FUNCTION 3: quote-sign (PUBBLICA — no auth richiesta)
+
+File: supabase/functions/quote-sign/index.ts
+
+COSA FA:
+1. Riceve: { token, action: 'view' | 'sign' | 'refuse', signer_name?, refuse_reason? }
+2. NON richiede autenticazione (è pubblica)
+3. Cerca la quote per signature_token
+4. Se action='view': aggiorna viewed_at (solo se non già visto), ritorna i dati della quote
+5. Se action='sign':
+   - Verifica che la quote sia in status 'inviata' e non scaduta
+   - Salva: signed_at=now(), signed_by_name, signed_by_ip, status='accettata'
+   - Genera PDF finale con timbro "FIRMATO DIGITALMENTE da [nome] il [data]"
+   - Invia email di conferma all'azienda e al cliente
+6. Se action='refuse':
+   - Salva: refused_at=now(), refused_reason, status='rifiutata'
+   - Notifica l'azienda
+
+SICUREZZA:
+- Rate limiting: max 10 richieste per IP per 5 minuti
+- Valida che signature_token sia UUID valido (regex)
+- Non esporre mai dati sensibili dell'azienda (solo quelli del preventivo)
+- Verifica expires_at: se scaduto, restituisci errore 410 Gone
+
+================================================================================
+PROMPT 5 — PAGINA PUBBLICA FIRMA + INTEGRAZIONI
+================================================================================
+
+### PARTE A — PAGINA PUBBLICA DI FIRMA
+
+Crea: src/pages/public/QuoteSignPage.tsx
+
+ROUTE in App.tsx (FUORI da qualsiasi guard di autenticazione):
+```
+/offerta/:token → QuoteSignPage
+```
+
+QUESTA PAGINA è accessibile senza login (è per il cliente finale).
+
+LAYOUT (pagina intera, design pulito e professionale):
+
+HEADER:
+- Logo dell'azienda emittente
+- "Offerta Commerciale N. [numero]"
+- Badge status (Attiva | Scaduta | Già firmata | Rifiutata)
+
+SEZIONE INFORMAZIONI:
+- Box 2 colonne: Emessa da [azienda] | Destinatario [cliente]
+- Validità: [data] | Emessa il: [data]
+
+DETTAGLIO PRODOTTI:
+- Tabella prodotti (nome, qty, unità, prezzo, totale)
+- Riepilogo totali (subtotale, sconto, IVA, totale)
+
+DOCUMENTI ALLEGATI:
+- Lista PDF allegati (solo nomi/categorie, non scaricabili qui)
+- Bottone [Visualizza PDF Completo] → apre/scarica il PDF
+
+NOTE:
+- Box "Note e condizioni" con il testo delle note_per_cliente
+
+AZIONE DI FIRMA (solo se status='inviata' e non scaduta):
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    FIRMA L'OFFERTA                           │
+│                                                              │
+│  Nome e Cognome *  [_______________________]                 │
+│                                                              │
+│  Firmando confermo di aver letto e accettato l'offerta       │
+│  commerciale e le condizioni allegate.                       │
+│                                                              │
+│  [ ✅ ACCETTO E FIRMO ]     [ ❌ Rifiuta offerta ]           │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Se click "Rifiuta": modale con campo textarea "Motivo del rifiuto (opzionale)"
+Se click "ACCETTO E FIRMO":
+- Chiama quote-sign con action='sign'
+- Mostra schermata di conferma: "✅ Offerta Firmata! Grazie [nome], riceverai una copia via email."
+- Mostra un checkmark animato
+
+STATI SPECIALI della pagina:
+- Offerta scaduta: banner rosso "Questa offerta è scaduta. Contatta [email azienda]."
+- Già firmata: banner verde "Offerta già firmata il [data] da [nome]."
+- Rifiutata: banner grigio "Offerta rifiutata."
+- Token non trovato: 404 con messaggio "Link non valido o offerta non più disponibile."
+
+CHIAMA quote-sign con action='view' al caricamento della pagina per tracciare la visualizzazione.
+
+---
+
+### PARTE B — INTEGRAZIONI CON IL RESTO DELL'APP
+
+#### B1 — Bottone "Genera Offerta" nei Contatti (marketing_contacts)
+
+In: src/pages/azienda/marketing/ContactDetail.tsx
+(o il componente che mostra il dettaglio di un contatto/opportunità)
+
+Aggiungi un bottone nella barra azioni del contatto:
+```tsx
+<Button onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?contact_id=${contact.id}`)}>
+  <FileText className="w-4 h-4 mr-2" />
+  Genera Offerta
+</Button>
+```
+
+Quando il QuoteBuilder viene aperto con ?contact_id=..., il STEP 1 deve:
+- Auto-compilare i dati del cliente dal contatto (nome, email, telefono, ecc.)
+- Mostrare il badge "Collegato a [nome contatto]"
+
+#### B2 — Bottone "Genera Offerta" nelle Opportunità
+
+In: src/pages/azienda/marketing/OpportunityDetail.tsx (o simile)
+
+Aggiungi lo stesso bottone con ?opportunity_id=...
+
+Quando aperto con ?opportunity_id=..., il QuoteBuilder deve:
+- Auto-compilare dal record opportunità
+- Pre-compilare il titolo con "Offerta [nome opportunità]"
+
+#### B3 — Sezione Preventivi nel dettaglio Contatto/Opportunità
+
+Aggiungi una Tab o sezione "Preventivi" nel dettaglio del contatto che mostra:
+- Lista delle offerte associate a questo contatto
+- Status, importo, data
+- Bottone [Apri] che porta al QuoteDetail
+
+```typescript
+// Query
+const { data: contactQuotes } = useQuery({
+  queryKey: ['contact-quotes', contactId],
+  queryFn: async () => {
+    const { data } = await supabase
+      .from('quotes')
+      .select('id, quote_number, title, status, total, created_at, valid_until')
+      .eq('contact_id', contactId)
+      .order('created_at', { ascending: false });
+    return data;
+  }
+});
+```
+
+#### B4 — Creazione Ordine da Offerta Accettata
+
+In QuoteDetail.tsx, quando status='accettata', il bottone [Crea Ordine da Offerta]:
+1. Naviga a /azienda/ordini/nuovo con i dati pre-compilati via query params
+   o via state React Router
+2. Pre-compila: cliente, prodotti, importo totale, note
+
+================================================================================
+PROMPT 6 (OPZIONALE) — VERIFICA FINALE E POLISHING
+================================================================================
+
+Dopo aver implementato i 5 prompt precedenti, verifica:
+
+1. NUMERAZIONE AUTOMATICA: al momento della creazione di una nuova quote,
+   chiama `generate_quote_number(company_id)` e salva il risultato in quote_number.
+   Fallo nel momento dell'INSERT in DB (non nel frontend).
+
+2. SCADENZA AUTOMATICA: aggiungi un cron job (o gestiscilo nel check-lifecycle-events
+   esistente) che ogni giorno aggiorna a 'scaduta' le quotes con:
+   `valid_until < CURRENT_DATE AND status = 'inviata'`
+
+   Nel check-lifecycle-events/index.ts esistente aggiungi:
+   ```typescript
+   // Scadenza preventivi
+   await supabase.from('quotes')
+     .update({ status: 'scaduta' })
+     .lt('valid_until', new Date().toISOString().split('T')[0])
+     .eq('status', 'inviata');
+   ```
+
+3. DUPLICA PREVENTIVO: la funzione "Duplica" nella lista preventivi deve:
+   - Creare una nuova quote con status='bozza'
+   - Copiare tutti i quote_items
+   - Copiare tutti i quote_pdf_attachments
+   - Generare un nuovo quote_number
+   - NON copiare: pdf_url, signature_token, signed_at, sent_at
+
+4. PERMESSI: se il sistema di permessi granulari usa staff_permissions,
+   valuta se aggiungere:
+   - can_view_quotes (default true per company_staff e salesperson)
+   - can_create_quotes (default true per company_staff e salesperson)
+   - can_delete_quotes (default false per company_staff)
+
+5. STORAGE BUCKET quote-pdfs: aggiungi nella migrazione:
+   ```sql
+   INSERT INTO storage.buckets (id, name, public) VALUES ('quote-pdfs', 'quote-pdfs', false)
+   ON CONFLICT (id) DO NOTHING;
+   ```
+
+6. TEST END-TO-END da verificare:
+   a. Carica un PDF in Impostazioni > Materiali Preventivi ✓
+   b. Crea nuovo preventivo con 3 righe prodotto ✓
+   c. Allega 2 PDF materiali ✓
+   d. Genera PDF e scaricalo ✓
+   e. Invia per firma → ricevi email con link ✓
+   f. Apri link come cliente → firma ✓
+   g. Verifica che la quote sia diventata 'accettata' ✓
+   h. Crea ordine da offerta accettata ✓
+
+================================================================================
+ARCHITETTURA RIEPILOGATIVA
+================================================================================
+
+DATABASE:
+  quote_pdf_materials   ← PDF azienda (globali + per prodotto)
+  quotes                ← Preventivi con stati e firma digitale
+  quote_items           ← Righe prodotti/servizi
+  quote_pdf_attachments ← PDF selezionati per ogni offerta
+
+STORAGE BUCKETS:
+  quote-materials/{company_id}/...  ← PDF caricati dall'azienda
+  quote-pdfs/{company_id}/...       ← PDF generati delle offerte
+
+EDGE FUNCTIONS:
+  generate-quote-pdf     ← Genera PDF completo (cover + dettaglio + allegati)
+  send-quote-signature   ← Invia email con link firma
+  quote-sign             ← Pubblica: view / sign / refuse
+
+FRONTEND:
+  /azienda/marketing/preventivi           ← Lista preventivi
+  /azienda/marketing/preventivi/nuovo     ← Nuovo preventivo
+  /azienda/marketing/preventivi/:id       ← Dettaglio
+  /azienda/marketing/preventivi/:id/modifica ← Modifica
+  /azienda/impostazioni/materiali-preventivi ← Gestione PDF
+  /offerta/:token                         ← Pagina pubblica cliente (no login)
+
+================================================================================
+NOTE IMPORTANTI PER L'IMPLEMENTAZIONE
+================================================================================
+
+1. QUESTO MODULO È STANDALONE: crea tutte le pagine nuove, non modificare
+   componenti esistenti tranne dove indicato (aggiunta bottoni nei dettagli
+   contatti/opportunità e aggiunta voci nel menu).
+
+2. Il PDF generato deve essere scaricabile dal browser (il backend restituisce
+   un signed URL temporaneo, il frontend fa window.open(url) o usa un link <a>).
+
+3. Per la FIRMA DIGITALE non usare librerie esterne di firma (DocuSign, ecc.)
+   Il sistema custom è sufficiente per la validità legale italiana come
+   "firma elettronica semplice" (art. 3 Reg. EU 910/2014).
+   Includi nel PDF firmato: data/ora UTC, IP, nome firmante.
+
+4. NON serve fare OCR sui PDF caricati — vengono solo allegati così come sono.
+
+5. La pagina /offerta/:token NON deve richiedere login. Deve essere accessibile
+   a chiunque abbia il link (il cliente finale).
+
+6. Usa sempre generate_quote_number() lato server per evitare duplicati in
+   caso di richieste concorrenti.
+
+================================================================================

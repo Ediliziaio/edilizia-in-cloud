@@ -1,0 +1,655 @@
+====================================================================
+PROMPT LOVABLE — UserAvailabilityTab: Disponibilità Settimanale Utente
+====================================================================
+
+CONTESTO TECNICO
+- Stack: React 18 + TypeScript + Vite + Supabase + TanStack React Query v5
+- UI: Shadcn/ui + Radix UI + Tailwind CSS + Lucide Icons
+- Pattern auth: useAuth() → effectiveCompany?.id (MAI company?.id)
+- Nomi: first_name + last_name separati (MAI full_name)
+- Utilities: src/lib/ (MAI src/utils/)
+- Locale: it-IT, timezone default Europe/Rome
+- Il file attuale src/components/users/UserAvailabilityTab.tsx è uno stub vuoto
+
+OBIETTIVO
+Implementare il tab "Disponibilità" nel dettaglio utente (SettingsUserDetail.tsx) con:
+- Configurazione orari settimanali per giorno
+- Slot multipli per giorno (con pausa)
+- Preset rapidi
+- Gestione eccezioni (giorni liberi / orari custom)
+- Selezione timezone
+
+================================================================
+STEP 1 — MIGRAZIONE DATABASE (supabase/migrations)
+================================================================
+
+Crea file: supabase/migrations/20260320100000_user_availability.sql
+
+```sql
+-- Tabella principale disponibilità utente (una riga per utente)
+CREATE TABLE IF NOT EXISTS user_availability (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  company_id  uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  timezone    text NOT NULL DEFAULT 'Europe/Rome',
+  created_at  timestamptz DEFAULT now(),
+  updated_at  timestamptz DEFAULT now(),
+  UNIQUE(user_id)
+);
+
+-- Slot orari per giorno della settimana
+-- day_of_week: 1=Lunedì, 2=Martedì, ..., 7=Domenica (ISO: 1=Mon, 7=Sun)
+CREATE TABLE IF NOT EXISTS user_availability_slots (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  availability_id  uuid NOT NULL REFERENCES user_availability(id) ON DELETE CASCADE,
+  day_of_week      smallint NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+  start_time       time NOT NULL,
+  end_time         time NOT NULL,
+  CHECK (end_time > start_time)
+);
+
+-- Eccezioni (date specifiche: giorno libero o orari custom)
+CREATE TABLE IF NOT EXISTS user_availability_exceptions (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  availability_id  uuid NOT NULL REFERENCES user_availability(id) ON DELETE CASCADE,
+  exception_date   date NOT NULL,
+  is_day_off       boolean NOT NULL DEFAULT true,
+  start_time       time,
+  end_time         time,
+  reason           text,
+  CHECK (
+    (is_day_off = true AND start_time IS NULL AND end_time IS NULL)
+    OR
+    (is_day_off = false AND start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time)
+  )
+);
+
+CREATE INDEX idx_user_availability_user_id ON user_availability(user_id);
+CREATE INDEX idx_user_availability_slots_avail_id ON user_availability_slots(availability_id);
+CREATE INDEX idx_user_availability_exceptions_avail_id ON user_availability_exceptions(availability_id);
+CREATE INDEX idx_user_availability_exceptions_date ON user_availability_exceptions(exception_date);
+
+-- RLS
+ALTER TABLE user_availability ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_availability_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_availability_exceptions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_access_availability" ON user_availability
+  FOR ALL USING (
+    company_id IN (
+      SELECT company_id FROM profiles WHERE id = auth.uid()
+    )
+  );
+
+CREATE POLICY "company_access_availability_slots" ON user_availability_slots
+  FOR ALL USING (
+    availability_id IN (
+      SELECT a.id FROM user_availability a
+      JOIN profiles p ON p.id = auth.uid()
+      WHERE a.company_id = p.company_id
+    )
+  );
+
+CREATE POLICY "company_access_availability_exceptions" ON user_availability_exceptions
+  FOR ALL USING (
+    availability_id IN (
+      SELECT a.id FROM user_availability a
+      JOIN profiles p ON p.id = auth.uid()
+      WHERE a.company_id = p.company_id
+    )
+  );
+```
+
+================================================================
+STEP 2 — HOOK: src/hooks/useUserAvailability.ts
+================================================================
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+export interface AvailabilitySlot {
+  id?: string;
+  day_of_week: number; // 1=Lun ... 7=Dom
+  start_time: string;  // "HH:MM"
+  end_time: string;
+}
+
+export interface AvailabilityException {
+  id?: string;
+  exception_date: string; // "YYYY-MM-DD"
+  is_day_off: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  reason?: string | null;
+}
+
+export interface UserAvailabilityData {
+  id?: string;
+  timezone: string;
+  slots: AvailabilitySlot[];
+  exceptions: AvailabilityException[];
+}
+
+export function useUserAvailability(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["user-availability", userId],
+    queryFn: async (): Promise<UserAvailabilityData> => {
+      if (!userId) throw new Error("userId required");
+
+      const { data: avail } = await supabase
+        .from("user_availability")
+        .select("id, timezone")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!avail) {
+        // Return default (Mon-Fri 9-18) without saving yet
+        return {
+          timezone: "Europe/Rome",
+          slots: [1, 2, 3, 4, 5].flatMap((day) => [
+            { day_of_week: day, start_time: "09:00", end_time: "13:00" },
+            { day_of_week: day, start_time: "14:00", end_time: "18:00" },
+          ]),
+          exceptions: [],
+        };
+      }
+
+      const [slotsRes, exceptionsRes] = await Promise.all([
+        supabase
+          .from("user_availability_slots")
+          .select("id, day_of_week, start_time, end_time")
+          .eq("availability_id", avail.id)
+          .order("day_of_week")
+          .order("start_time"),
+        supabase
+          .from("user_availability_exceptions")
+          .select("id, exception_date, is_day_off, start_time, end_time, reason")
+          .eq("availability_id", avail.id)
+          .order("exception_date"),
+      ]);
+
+      return {
+        id: avail.id,
+        timezone: avail.timezone,
+        slots: slotsRes.data || [],
+        exceptions: exceptionsRes.data || [],
+      };
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useSaveUserAvailability(userId: string | undefined, companyId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UserAvailabilityData) => {
+      if (!userId || !companyId) throw new Error("userId e companyId richiesti");
+
+      // Upsert user_availability
+      const { data: avail, error: availError } = await supabase
+        .from("user_availability")
+        .upsert(
+          { user_id: userId, company_id: companyId, timezone: data.timezone, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        )
+        .select("id")
+        .single();
+
+      if (availError) throw availError;
+      const availId = avail.id;
+
+      // Delete and re-insert slots (simpler than diffing)
+      await supabase.from("user_availability_slots").delete().eq("availability_id", availId);
+      if (data.slots.length > 0) {
+        const { error: slotsError } = await supabase.from("user_availability_slots").insert(
+          data.slots.map((s) => ({
+            availability_id: availId,
+            day_of_week: s.day_of_week,
+            start_time: s.start_time,
+            end_time: s.end_time,
+          }))
+        );
+        if (slotsError) throw slotsError;
+      }
+
+      // Delete and re-insert exceptions
+      await supabase.from("user_availability_exceptions").delete().eq("availability_id", availId);
+      if (data.exceptions.length > 0) {
+        const { error: excError } = await supabase.from("user_availability_exceptions").insert(
+          data.exceptions.map((e) => ({
+            availability_id: availId,
+            exception_date: e.exception_date,
+            is_day_off: e.is_day_off,
+            start_time: e.is_day_off ? null : e.start_time,
+            end_time: e.is_day_off ? null : e.end_time,
+            reason: e.reason || null,
+          }))
+        );
+        if (excError) throw excError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-availability", userId] });
+    },
+  });
+}
+```
+
+================================================================
+STEP 3 — COMPONENTE: src/components/users/UserAvailabilityTab.tsx
+================================================================
+
+Sostituisci completamente il file stub esistente con:
+
+```typescript
+import { useState } from "react";
+import { useParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { useUserAvailability, useSaveUserAvailability } from "@/hooks/useUserAvailability";
+import type { AvailabilitySlot, AvailabilityException } from "@/hooks/useUserAvailability";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Plus, Trash2, Clock, CalendarOff, Globe, Zap } from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+
+const DAYS = [
+  { id: 1, label: "Lunedì", short: "Lun" },
+  { id: 2, label: "Martedì", short: "Mar" },
+  { id: 3, label: "Mercoledì", short: "Mer" },
+  { id: 4, label: "Giovedì", short: "Gio" },
+  { id: 5, label: "Venerdì", short: "Ven" },
+  { id: 6, label: "Sabato", short: "Sab" },
+  { id: 7, label: "Domenica", short: "Dom" },
+];
+
+const TIMEZONES = [
+  { value: "Europe/Rome", label: "Roma (UTC+1/+2)" },
+  { value: "Europe/London", label: "Londra (UTC+0/+1)" },
+  { value: "Europe/Paris", label: "Parigi (UTC+1/+2)" },
+  { value: "Europe/Berlin", label: "Berlino (UTC+1/+2)" },
+  { value: "America/New_York", label: "New York (UTC-5/-4)" },
+  { value: "America/Los_Angeles", label: "Los Angeles (UTC-8/-7)" },
+  { value: "America/Chicago", label: "Chicago (UTC-6/-5)" },
+  { value: "Asia/Dubai", label: "Dubai (UTC+4)" },
+  { value: "Asia/Tokyo", label: "Tokyo (UTC+9)" },
+  { value: "UTC", label: "UTC" },
+];
+
+const PRESETS = [
+  {
+    label: "Lun–Ven 9–18",
+    slots: [1, 2, 3, 4, 5].flatMap((d) => [
+      { day_of_week: d, start_time: "09:00", end_time: "13:00" },
+      { day_of_week: d, start_time: "14:00", end_time: "18:00" },
+    ]),
+  },
+  {
+    label: "Lun–Sab 9–18",
+    slots: [1, 2, 3, 4, 5, 6].flatMap((d) => [
+      { day_of_week: d, start_time: "09:00", end_time: "13:00" },
+      { day_of_week: d, start_time: "14:00", end_time: "18:00" },
+    ]),
+  },
+  {
+    label: "Lun–Ven 8–17",
+    slots: [1, 2, 3, 4, 5].map((d) => ({
+      day_of_week: d,
+      start_time: "08:00",
+      end_time: "17:00",
+    })),
+  },
+  {
+    label: "24/7",
+    slots: [1, 2, 3, 4, 5, 6, 7].map((d) => ({
+      day_of_week: d,
+      start_time: "00:00",
+      end_time: "23:59",
+    })),
+  },
+];
+
+export function UserAvailabilityTab() {
+  const { userId } = useParams<{ userId: string }>();
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id as string | undefined;
+  const { toast } = useToast();
+
+  const { data, isLoading } = useUserAvailability(userId);
+  const saveMutation = useSaveUserAvailability(userId, companyId);
+
+  const [timezone, setTimezone] = useState(data?.timezone || "Europe/Rome");
+  const [slots, setSlots] = useState<AvailabilitySlot[]>(data?.slots || []);
+  const [exceptions, setExceptions] = useState<AvailabilityException[]>(data?.exceptions || []);
+
+  // Sync local state when data loads
+  useState(() => {
+    if (data) {
+      setTimezone(data.timezone);
+      setSlots(data.slots);
+      setExceptions(data.exceptions);
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // --- Slot helpers ---
+  const getSlotsForDay = (day: number) => slots.filter((s) => s.day_of_week === day);
+  const isDayEnabled = (day: number) => getSlotsForDay(day).length > 0;
+
+  const toggleDay = (day: number, enabled: boolean) => {
+    if (enabled) {
+      setSlots((prev) => [
+        ...prev,
+        { day_of_week: day, start_time: "09:00", end_time: "18:00" },
+      ]);
+    } else {
+      setSlots((prev) => prev.filter((s) => s.day_of_week !== day));
+    }
+  };
+
+  const addSlotToDay = (day: number) => {
+    const existing = getSlotsForDay(day);
+    const lastEnd = existing[existing.length - 1]?.end_time || "09:00";
+    setSlots((prev) => [
+      ...prev,
+      { day_of_week: day, start_time: lastEnd, end_time: "18:00" },
+    ]);
+  };
+
+  const updateSlot = (day: number, index: number, field: "start_time" | "end_time", value: string) => {
+    const daySlots = getSlotsForDay(day);
+    const slotToUpdate = daySlots[index];
+    setSlots((prev) =>
+      prev.map((s) =>
+        s === slotToUpdate ? { ...s, [field]: value } : s
+      )
+    );
+  };
+
+  const removeSlotFromDay = (day: number, index: number) => {
+    const daySlots = getSlotsForDay(day);
+    const slotToRemove = daySlots[index];
+    setSlots((prev) => prev.filter((s) => s !== slotToRemove));
+  };
+
+  const applyPreset = (presetSlots: AvailabilitySlot[]) => {
+    setSlots(presetSlots);
+  };
+
+  // --- Exception helpers ---
+  const addException = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setExceptions((prev) => [
+      ...prev,
+      { exception_date: tomorrow.toISOString().split("T")[0], is_day_off: true },
+    ]);
+  };
+
+  const updateException = (index: number, updates: Partial<AvailabilityException>) => {
+    setExceptions((prev) => prev.map((e, i) => (i === index ? { ...e, ...updates } : e)));
+  };
+
+  const removeException = (index: number) => {
+    setExceptions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSave = async () => {
+    try {
+      await saveMutation.mutateAsync({ timezone, slots, exceptions });
+      toast({ title: "Disponibilità salvata", description: "Gli orari sono stati aggiornati." });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile salvare la disponibilità.", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Timezone */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Fuso Orario</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Select value={timezone} onValueChange={setTimezone}>
+            <SelectTrigger className="w-72">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIMEZONES.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {/* Presets */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Preset Rapidi</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {PRESETS.map((preset) => (
+              <Button
+                key={preset.label}
+                variant="outline"
+                size="sm"
+                onClick={() => applyPreset(preset.slots)}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Weekly Schedule */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Orari Settimanali</CardTitle>
+          </div>
+          <CardDescription>Configura gli orari di disponibilità per ogni giorno.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-0">
+          {DAYS.map((day, idx) => {
+            const dayEnabled = isDayEnabled(day.id);
+            const daySlots = getSlotsForDay(day.id);
+            return (
+              <div key={day.id}>
+                {idx > 0 && <Separator />}
+                <div className="py-4">
+                  <div className="flex items-start gap-4">
+                    {/* Day label + toggle */}
+                    <div className="flex items-center gap-3 w-28 pt-0.5 shrink-0">
+                      <Switch
+                        checked={dayEnabled}
+                        onCheckedChange={(v) => toggleDay(day.id, v)}
+                      />
+                      <span className={`text-sm font-medium ${dayEnabled ? "" : "text-muted-foreground"}`}>
+                        {day.label}
+                      </span>
+                    </div>
+
+                    {/* Slots or "Non disponibile" */}
+                    {!dayEnabled ? (
+                      <span className="text-sm text-muted-foreground pt-0.5">Non disponibile</span>
+                    ) : (
+                      <div className="flex-1 space-y-2">
+                        {daySlots.map((slot, slotIdx) => (
+                          <div key={slotIdx} className="flex items-center gap-2">
+                            <Input
+                              type="time"
+                              value={slot.start_time}
+                              onChange={(e) => updateSlot(day.id, slotIdx, "start_time", e.target.value)}
+                              className="w-32"
+                            />
+                            <span className="text-muted-foreground text-sm">–</span>
+                            <Input
+                              type="time"
+                              value={slot.end_time}
+                              onChange={(e) => updateSlot(day.id, slotIdx, "end_time", e.target.value)}
+                              className="w-32"
+                            />
+                            {daySlots.length > 1 && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground"
+                                onClick={() => removeSlotFromDay(day.id, slotIdx)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-muted-foreground h-7"
+                          onClick={() => addSlotToDay(day.id)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Aggiungi pausa
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Exceptions */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarOff className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <CardTitle className="text-base">Eccezioni</CardTitle>
+                <CardDescription className="mt-0.5">
+                  Giorni liberi o orari speciali per date specifiche.
+                </CardDescription>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={addException}>
+              <Plus className="h-4 w-4 mr-1" />
+              Aggiungi
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {exceptions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nessuna eccezione configurata.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {exceptions.map((exc, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3 bg-muted/40 rounded-lg">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <Input
+                        type="date"
+                        value={exc.exception_date}
+                        onChange={(e) => updateException(idx, { exception_date: e.target.value })}
+                        className="w-40"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={exc.is_day_off}
+                          onCheckedChange={(v) => updateException(idx, { is_day_off: v })}
+                        />
+                        <Label className="text-sm">{exc.is_day_off ? "Giorno libero" : "Orari custom"}</Label>
+                      </div>
+                      {!exc.is_day_off && (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={exc.start_time || ""}
+                            onChange={(e) => updateException(idx, { start_time: e.target.value })}
+                            className="w-32"
+                          />
+                          <span className="text-muted-foreground text-sm">–</span>
+                          <Input
+                            type="time"
+                            value={exc.end_time || ""}
+                            onChange={(e) => updateException(idx, { end_time: e.target.value })}
+                            className="w-32"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <Input
+                      placeholder="Motivo (opzionale)"
+                      value={exc.reason || ""}
+                      onChange={(e) => updateException(idx, { reason: e.target.value })}
+                      className="max-w-xs h-8 text-sm"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground shrink-0"
+                    onClick={() => removeException(idx)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Save */}
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saveMutation.isPending}>
+          {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Salva Disponibilità
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+================================================================
+NOTE FINALI
+================================================================
+
+- Assicurati che il tipo Database in src/integrations/supabase/types.ts venga rigenerato
+  dopo la migrazione (npx supabase gen types typescript --local)
+- Il componente usa useParams() per leggere userId — funziona perché è dentro SettingsUserDetail
+  che monta la rotta /azienda/impostazioni/utenti/:userId
+- Non serve passare userId come prop grazie al routing esistente
+- I slot con start_time >= end_time mostrano un warning visivo (aggiungibile con
+  una classe text-destructive se start_time >= end_time)

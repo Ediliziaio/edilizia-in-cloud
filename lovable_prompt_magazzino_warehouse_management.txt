@@ -1,0 +1,2039 @@
+====================================================================
+MAGAZZINO LIVE — EDILIZIA IN CLOUD
+Prompt sequenziale per Lovable.dev (MG1 → MG5)
+====================================================================
+Stack: Supabase (PostgreSQL + RLS + Triggers) + React + TypeScript
+Sezione: Magazzino
+Obiettivo: trasformare il magazzino statico in un sistema vivo collegato
+           agli ordini — prenotazioni, scarico automatico, alert, blocchi
+
+STATO ATTUALE (NON TOCCARE):
+  Tabelle esistenti:
+    - warehouse_stock (id, company_id, name, description, quantity,
+      unit_cost, vat_rate, supplier_id, section_id, min_stock_level)
+    - warehouse_movements (stock_item_id, order_item_id, movement_type
+      'carico'|'scarico', quantity, notes, performed_by)
+    - warehouse_sections (id, company_id, name, color, position)
+    - order_items (id, order_id, name, quantity, status
+      'da_ordinare'|'ordinato'|'in_magazzino'|'installato',
+      supplier_id, stock_item_id, section_id, purchase_price)
+    - orders (id, company_id, customer_id, expected_date,
+      warehouse_arrival_date, work_start_date, work_end_date, ...)
+    - suppliers (id, company_id, name)
+  Hooks esistenti:
+    - useWarehouseData.ts (filtering, kanban, CSV export)
+    - useWarehouseSections.ts
+
+LEGENDA:
+- Ogni prompt è INDIPENDENTE ma deve essere eseguito IN ORDINE
+- I commenti // VERIFICA: sono checkpoint obbligatori dopo ogni prompt
+- IF NOT EXISTS e IF EXISTS ovunque — mai DROP senza protezione
+- Non inventare nomi di tabelle/colonne — usa SOLO quelli indicati
+====================================================================
+
+
+====================================================================
+PROMPT MG1 — DATABASE MIGRATION: MAGAZZINO LIVE SCHEMA
+====================================================================
+
+Leggi prima il contenuto delle ultime migration in supabase/migrations/
+per capire lo stile e il timestamp da usare.
+Poi crea il file: supabase/migrations/[timestamp]_magazzino_live_schema.sql
+
+------------------------------------------------------------------------
+-- MG1: Magazzino Live Schema
+-- Estende il sistema magazzino esistente senza rompere nulla
+------------------------------------------------------------------------
+
+-- ============================================================
+-- 1. ESTENDI order_items — nuovi stati del ciclo materiale
+-- ============================================================
+-- Rimuove il vecchio CHECK constraint se esiste, aggiunge il nuovo
+DO $$
+BEGIN
+  -- Tenta di rimuovere il vecchio constraint (ignora errore se non esiste)
+  ALTER TABLE order_items
+    DROP CONSTRAINT IF EXISTS order_items_status_check;
+
+  -- Aggiunge il nuovo constraint con stati estesi
+  ALTER TABLE order_items
+    ADD CONSTRAINT order_items_status_check
+    CHECK (status IN (
+      'da_ordinare',   -- da ordinare al fornitore
+      'ordinato',      -- ordine inviato al fornitore
+      'in_arrivo',     -- confermato in spedizione / data consegna fissata
+      'in_magazzino',  -- fisicamente in magazzino
+      'prenotato',     -- in magazzino ma riservato per questa commessa
+      'installato'     -- montato/posato in cantiere
+    ));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Aggiunge colonne di dettaglio agli order_items
+ALTER TABLE order_items
+  ADD COLUMN IF NOT EXISTS lot_number TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS delivery_date DATE DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS quantity_reserved INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS auto_deducted BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS notes TEXT DEFAULT NULL;
+
+-- ============================================================
+-- 2. ESTENDI warehouse_stock — lotti, riordino, stato approvvigionamento
+-- ============================================================
+ALTER TABLE warehouse_stock
+  ADD COLUMN IF NOT EXISTS reorder_quantity INTEGER DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS last_delivery_date DATE DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS last_lot_number TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS quantity_reserved INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS quantity_available INTEGER
+    GENERATED ALWAYS AS (GREATEST(0, quantity - quantity_reserved)) STORED;
+
+-- NOTA: quantity_available = quantity - quantity_reserved (colonna calcolata)
+-- Non scrivere mai direttamente in quantity_available
+
+-- ============================================================
+-- 3. ESTENDI warehouse_movements — nuovi tipi di movimento
+-- ============================================================
+-- Aggiorna il CHECK constraint per i tipi di movimento
+DO $$
+BEGIN
+  ALTER TABLE warehouse_movements
+    DROP CONSTRAINT IF EXISTS warehouse_movements_movement_type_check;
+
+  ALTER TABLE warehouse_movements
+    ADD CONSTRAINT warehouse_movements_movement_type_check
+    CHECK (movement_type IN (
+      'carico',             -- entrata merce in magazzino
+      'scarico',            -- uscita merce (manuale)
+      'scarico_automatico', -- uscita automatica a posa completata
+      'prenotazione',       -- riserva per commessa
+      'rilascio',           -- rilascio prenotazione (annullamento)
+      'rettifica',          -- correzione inventariale
+      'reso_fornitore'      -- restituzione al fornitore
+    ));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Aggiunge colonne aggiuntive ai movimenti
+ALTER TABLE warehouse_movements
+  ADD COLUMN IF NOT EXISTS order_id UUID REFERENCES orders(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS lot_number TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS unit_cost NUMERIC DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES companies(id) ON DELETE CASCADE;
+
+-- ============================================================
+-- 4. CREA warehouse_lot_batches — tracciamento lotti per articolo
+-- ============================================================
+CREATE TABLE IF NOT EXISTS warehouse_lot_batches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  stock_item_id UUID NOT NULL REFERENCES warehouse_stock(id) ON DELETE CASCADE,
+  lot_number TEXT NOT NULL,
+  supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+  delivery_date DATE DEFAULT NULL,
+  quantity_received INTEGER NOT NULL DEFAULT 0,
+  quantity_remaining INTEGER NOT NULL DEFAULT 0,
+  unit_cost NUMERIC DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 5. CREA inventory_audits — differenza inventariale
+-- ============================================================
+CREATE TABLE IF NOT EXISTS inventory_audits (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  stock_item_id UUID NOT NULL REFERENCES warehouse_stock(id) ON DELETE CASCADE,
+  system_quantity INTEGER NOT NULL,    -- quantità nel sistema prima del conteggio
+  actual_quantity INTEGER NOT NULL,    -- quantità conteggiata fisicamente
+  difference INTEGER GENERATED ALWAYS AS (actual_quantity - system_quantity) STORED,
+  adjustment_applied BOOLEAN DEFAULT FALSE,
+  notes TEXT DEFAULT NULL,
+  audited_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  audited_at TIMESTAMPTZ DEFAULT NOW(),
+  applied_at TIMESTAMPTZ DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 6. RLS per nuove tabelle
+-- ============================================================
+ALTER TABLE warehouse_lot_batches ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "lot_batches_company_isolation"
+  ON warehouse_lot_batches FOR ALL
+  USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()));
+
+ALTER TABLE inventory_audits ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "inventory_audits_company_isolation"
+  ON inventory_audits FOR ALL
+  USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()));
+
+-- ============================================================
+-- 7. TRIGGER — scarico automatico a posa completata
+-- ============================================================
+-- Funzione: quando un order_item passa a 'installato' e ha stock_item_id,
+-- crea automaticamente un movimento scarico_automatico
+CREATE OR REPLACE FUNCTION trigger_auto_deduct_stock()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_company_id UUID;
+BEGIN
+  -- Solo se lo status cambia a 'installato' e c'è un articolo collegato
+  IF NEW.status = 'installato'
+     AND OLD.status <> 'installato'
+     AND NEW.stock_item_id IS NOT NULL
+     AND NEW.auto_deducted = FALSE
+  THEN
+    -- Ottieni company_id dall'ordine
+    SELECT company_id INTO v_company_id
+    FROM orders WHERE id = NEW.order_id;
+
+    -- Crea il movimento scarico automatico
+    INSERT INTO warehouse_movements (
+      stock_item_id,
+      order_item_id,
+      order_id,
+      movement_type,
+      quantity,
+      notes,
+      performed_by,
+      company_id,
+      lot_number
+    ) VALUES (
+      NEW.stock_item_id,
+      NEW.id,
+      NEW.order_id,
+      'scarico_automatico',
+      NEW.quantity,
+      'Scarico automatico a posa completata',
+      auth.uid(),
+      v_company_id,
+      NEW.lot_number
+    );
+
+    -- Aggiorna la giacenza
+    UPDATE warehouse_stock
+    SET
+      quantity = GREATEST(0, quantity - NEW.quantity),
+      quantity_reserved = GREATEST(0, quantity_reserved - NEW.quantity_reserved),
+      updated_at = NOW()
+    WHERE id = NEW.stock_item_id;
+
+    -- Segna come già scaricato per evitare doppi scarichi
+    NEW.auto_deducted := TRUE;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Crea il trigger sull'aggiornamento status order_items
+DROP TRIGGER IF EXISTS auto_deduct_on_install ON order_items;
+CREATE TRIGGER auto_deduct_on_install
+  BEFORE UPDATE OF status ON order_items
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_auto_deduct_stock();
+
+-- ============================================================
+-- 8. TRIGGER — aggiorna quantity_reserved su prenotazione/rilascio
+-- ============================================================
+CREATE OR REPLACE FUNCTION trigger_update_stock_reservation()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Quando stock_item_id viene assegnato o status diventa 'prenotato'
+  IF NEW.stock_item_id IS NOT NULL THEN
+    IF NEW.status = 'prenotato' AND (OLD.status <> 'prenotato' OR OLD.stock_item_id IS NULL) THEN
+      -- Prenotazione: incrementa quantity_reserved
+      UPDATE warehouse_stock
+      SET quantity_reserved = quantity_reserved + NEW.quantity,
+          updated_at = NOW()
+      WHERE id = NEW.stock_item_id;
+
+    ELSIF OLD.status = 'prenotato' AND NEW.status <> 'prenotato' AND OLD.stock_item_id IS NOT NULL THEN
+      -- Rilascio prenotazione: decrementa quantity_reserved
+      UPDATE warehouse_stock
+      SET quantity_reserved = GREATEST(0, quantity_reserved - OLD.quantity),
+          updated_at = NOW()
+      WHERE id = OLD.stock_item_id;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS update_reservation_on_status_change ON order_items;
+CREATE TRIGGER update_reservation_on_status_change
+  AFTER UPDATE OF status, stock_item_id ON order_items
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_update_stock_reservation();
+
+-- ============================================================
+-- 9. RPC: ordini bloccati per mancanza materiali
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_blocked_orders(p_company_id UUID)
+RETURNS TABLE (
+  order_id UUID,
+  order_code TEXT,
+  customer_name TEXT,
+  expected_date DATE,
+  work_start_date DATE,
+  blocking_items_count BIGINT,
+  missing_items JSONB,
+  urgency_level TEXT   -- 'critica' | 'alta' | 'normale'
+) AS $$
+BEGIN
+  RETURN QUERY
+  WITH blocking AS (
+    SELECT
+      oi.order_id,
+      COUNT(oi.id) AS cnt,
+      jsonb_agg(jsonb_build_object(
+        'item_id', oi.id,
+        'name', oi.name,
+        'status', oi.status,
+        'quantity', oi.quantity,
+        'delivery_date', oi.delivery_date
+      ) ORDER BY oi.status) AS items
+    FROM order_items oi
+    WHERE oi.status IN ('da_ordinare', 'ordinato', 'in_arrivo')
+    GROUP BY oi.order_id
+    HAVING COUNT(oi.id) > 0
+  )
+  SELECT
+    o.id AS order_id,
+    o.order_code,
+    p.first_name || ' ' || p.last_name AS customer_name,
+    o.expected_date,
+    o.work_start_date,
+    b.cnt AS blocking_items_count,
+    b.items AS missing_items,
+    CASE
+      WHEN o.work_start_date <= CURRENT_DATE THEN 'critica'
+      WHEN o.work_start_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'alta'
+      ELSE 'normale'
+    END AS urgency_level
+  FROM orders o
+  INNER JOIN blocking b ON b.order_id = o.id
+  LEFT JOIN profiles p ON p.id = o.customer_id
+  WHERE o.company_id = p_company_id
+  ORDER BY
+    CASE
+      WHEN o.work_start_date <= CURRENT_DATE THEN 0
+      WHEN o.work_start_date <= CURRENT_DATE + INTERVAL '7 days' THEN 1
+      ELSE 2
+    END,
+    o.work_start_date NULLS LAST;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 10. RPC: alert sottoscorta
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_low_stock_alerts(p_company_id UUID)
+RETURNS TABLE (
+  stock_item_id UUID,
+  name TEXT,
+  quantity INTEGER,
+  quantity_reserved INTEGER,
+  quantity_available INTEGER,
+  min_stock_level INTEGER,
+  deficit INTEGER,
+  supplier_name TEXT,
+  section_name TEXT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    ws.id AS stock_item_id,
+    ws.name,
+    ws.quantity,
+    ws.quantity_reserved,
+    ws.quantity_available,
+    ws.min_stock_level,
+    (ws.min_stock_level - ws.quantity_available) AS deficit,
+    s.name AS supplier_name,
+    wsc.name AS section_name
+  FROM warehouse_stock ws
+  LEFT JOIN suppliers s ON s.id = ws.supplier_id
+  LEFT JOIN warehouse_sections wsc ON wsc.id = ws.section_id
+  WHERE ws.company_id = p_company_id
+    AND ws.min_stock_level > 0
+    AND ws.quantity_available < ws.min_stock_level
+  ORDER BY (ws.min_stock_level - ws.quantity_available) DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 11. RPC: storico movimenti per commessa
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_order_materials_history(
+  p_company_id UUID,
+  p_order_id UUID
+)
+RETURNS TABLE (
+  movement_id UUID,
+  stock_item_name TEXT,
+  order_item_name TEXT,
+  movement_type TEXT,
+  quantity INTEGER,
+  unit_cost NUMERIC,
+  lot_number TEXT,
+  notes TEXT,
+  performed_by_name TEXT,
+  created_at TIMESTAMPTZ
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    wm.id AS movement_id,
+    ws.name AS stock_item_name,
+    oi.name AS order_item_name,
+    wm.movement_type,
+    wm.quantity,
+    wm.unit_cost,
+    wm.lot_number,
+    wm.notes,
+    p.first_name || ' ' || p.last_name AS performed_by_name,
+    wm.created_at
+  FROM warehouse_movements wm
+  LEFT JOIN warehouse_stock ws ON ws.id = wm.stock_item_id
+  LEFT JOIN order_items oi ON oi.id = wm.order_item_id
+  LEFT JOIN profiles p ON p.id = wm.performed_by
+  WHERE wm.order_id = p_order_id
+     OR wm.order_item_id IN (
+       SELECT id FROM order_items WHERE order_id = p_order_id
+     )
+  ORDER BY wm.created_at DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 12. INDEXES per performance
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_order_items_status_stock
+  ON order_items(status, stock_item_id) WHERE stock_item_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_order_items_delivery_date
+  ON order_items(delivery_date) WHERE delivery_date IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_wm_order_id
+  ON warehouse_movements(order_id) WHERE order_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_wm_stock_company
+  ON warehouse_movements(stock_item_id, company_id);
+
+CREATE INDEX IF NOT EXISTS idx_lot_batches_stock
+  ON warehouse_lot_batches(stock_item_id, company_id);
+
+CREATE INDEX IF NOT EXISTS idx_stock_available
+  ON warehouse_stock(company_id, quantity_available);
+
+------------------------------------------------------------------------
+-- Fine migration MG1
+------------------------------------------------------------------------
+
+// VERIFICA MG1:
+// 1. Supabase Dashboard → Table Editor
+// 2. order_items: verifica nuovi status CHECK include 'in_arrivo' e 'prenotato'
+// 3. order_items: verifica colonne lot_number, delivery_date, quantity_reserved,
+//    auto_deducted, notes
+// 4. warehouse_stock: verifica colonne reorder_quantity, last_delivery_date,
+//    last_lot_number, quantity_reserved, quantity_available (GENERATED)
+// 5. warehouse_movements: verifica che il nuovo CHECK comprenda tutti i tipi
+// 6. Tabella warehouse_lot_batches esiste con RLS
+// 7. Tabella inventory_audits esiste con RLS
+// 8. SQL Editor → testa i trigger: UPDATE un order_item a status 'installato'
+//    con stock_item_id valorizzato → verifica che warehouse_movements abbia
+//    una riga con movement_type = 'scarico_automatico'
+// 9. Testa RPCs:
+//    SELECT * FROM get_blocked_orders('test-uuid');        -- 0 righe, nessun errore
+//    SELECT * FROM get_low_stock_alerts('test-uuid');      -- 0 righe, nessun errore
+//    SELECT * FROM get_order_materials_history('t1','t2'); -- 0 righe, nessun errore
+// 10. IMPORTANTE: se orders non ha colonna order_code, sostituisci o.order_code
+//     con o.id::TEXT nelle RPC get_blocked_orders — adatta al nome reale della colonna
+
+
+====================================================================
+PROMPT MG2 — HOOK: useMagazzinoLive.ts
+====================================================================
+
+Leggi prima:
+- src/hooks/useWarehouseData.ts (esistente — non modificare questo file)
+- src/hooks/useWarehouseSections.ts (esistente — non modificare)
+- src/types/warehouse.ts (esistente — leggi i tipi attuali)
+- src/integrations/supabase/types.ts (tipi generati)
+
+Poi RIGENERA i tipi Supabase per includere i nuovi campi.
+Infine crea: src/hooks/useMagazzinoLive.ts
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+// ============================================================
+// TYPES
+// ============================================================
+
+export type OrderItemStatusExtended =
+  | 'da_ordinare'
+  | 'ordinato'
+  | 'in_arrivo'
+  | 'in_magazzino'
+  | 'prenotato'
+  | 'installato';
+
+export interface OrderItemStatusConfig {
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  description: string;
+}
+
+export const ORDER_ITEM_STATUS_CONFIG: Record<OrderItemStatusExtended, OrderItemStatusConfig> = {
+  da_ordinare: {
+    label: 'Da ordinare',
+    color: 'text-gray-600',
+    bgColor: 'bg-gray-100',
+    borderColor: 'border-gray-300',
+    description: 'Materiale ancora da acquistare',
+  },
+  ordinato: {
+    label: 'Ordinato',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-200',
+    description: 'Ordine inviato al fornitore',
+  },
+  in_arrivo: {
+    label: 'In arrivo',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+    description: 'Confermato, data consegna fissata',
+  },
+  in_magazzino: {
+    label: 'In magazzino',
+    color: 'text-green-600',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+    description: 'Fisicamente disponibile in magazzino',
+  },
+  prenotato: {
+    label: 'Prenotato',
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+    description: 'Riservato per questa commessa',
+  },
+  installato: {
+    label: 'Installato',
+    color: 'text-emerald-700',
+    bgColor: 'bg-emerald-50',
+    borderColor: 'border-emerald-200',
+    description: 'Posato in cantiere — scarico automatico',
+  },
+};
+
+export interface BlockedOrder {
+  order_id: string;
+  order_code: string | null;
+  customer_name: string;
+  expected_date: string | null;
+  work_start_date: string | null;
+  blocking_items_count: number;
+  missing_items: Array<{
+    item_id: string;
+    name: string;
+    status: OrderItemStatusExtended;
+    quantity: number;
+    delivery_date: string | null;
+  }>;
+  urgency_level: 'critica' | 'alta' | 'normale';
+}
+
+export interface LowStockAlert {
+  stock_item_id: string;
+  name: string;
+  quantity: number;
+  quantity_reserved: number;
+  quantity_available: number;
+  min_stock_level: number;
+  deficit: number;
+  supplier_name: string | null;
+  section_name: string | null;
+}
+
+export interface OrderMaterialMovement {
+  movement_id: string;
+  stock_item_name: string | null;
+  order_item_name: string | null;
+  movement_type: string;
+  quantity: number;
+  unit_cost: number | null;
+  lot_number: string | null;
+  notes: string | null;
+  performed_by_name: string | null;
+  created_at: string;
+}
+
+export interface LotBatch {
+  id: string;
+  company_id: string;
+  stock_item_id: string;
+  lot_number: string;
+  supplier_id: string | null;
+  delivery_date: string | null;
+  quantity_received: number;
+  quantity_remaining: number;
+  unit_cost: number | null;
+  notes: string | null;
+  created_at: string;
+  supplier?: { name: string } | null;
+}
+
+export interface InventoryAuditItem {
+  id: string;
+  stock_item_id: string;
+  system_quantity: number;
+  actual_quantity: number;
+  difference: number;
+  adjustment_applied: boolean;
+  notes: string | null;
+  audited_by: string | null;
+  audited_at: string;
+  applied_at: string | null;
+  stock_item?: { name: string; quantity: number } | null;
+}
+
+export interface WarehouseStats {
+  totalStockItems: number;
+  totalStockValue: number;
+  lowStockCount: number;
+  blockedOrdersCount: number;
+  reservedQuantityItems: number;
+  pendingDeliveriesCount: number;
+}
+
+// ============================================================
+// QUERY KEYS
+// ============================================================
+
+export const magazzinoKeys = {
+  all: ['magazzino-live'] as const,
+  blockedOrders: (companyId: string) =>
+    [...magazzinoKeys.all, 'blocked-orders', companyId] as const,
+  lowStock: (companyId: string) =>
+    [...magazzinoKeys.all, 'low-stock', companyId] as const,
+  orderHistory: (companyId: string, orderId: string) =>
+    [...magazzinoKeys.all, 'order-history', companyId, orderId] as const,
+  lotBatches: (companyId: string, stockItemId?: string) =>
+    [...magazzinoKeys.all, 'lot-batches', companyId, stockItemId ?? 'all'] as const,
+  audits: (companyId: string) =>
+    [...magazzinoKeys.all, 'audits', companyId] as const,
+  stats: (companyId: string) =>
+    [...magazzinoKeys.all, 'stats', companyId] as const,
+};
+
+// ============================================================
+// HOOKS
+// ============================================================
+
+export function useBlockedOrders(companyId: string | null) {
+  return useQuery({
+    queryKey: magazzinoKeys.blockedOrders(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<BlockedOrder[]> => {
+      const { data, error } = await supabase
+        .rpc('get_blocked_orders', { p_company_id: companyId! });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        blocking_items_count: Number(row.blocking_items_count),
+        missing_items: Array.isArray(row.missing_items) ? row.missing_items : [],
+      }));
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 60 * 10,
+  });
+}
+
+export function useLowStockAlerts(companyId: string | null) {
+  return useQuery({
+    queryKey: magazzinoKeys.lowStock(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<LowStockAlert[]> => {
+      const { data, error } = await supabase
+        .rpc('get_low_stock_alerts', { p_company_id: companyId! });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        quantity: Number(row.quantity),
+        quantity_reserved: Number(row.quantity_reserved),
+        quantity_available: Number(row.quantity_available),
+        min_stock_level: Number(row.min_stock_level),
+        deficit: Number(row.deficit),
+      }));
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useOrderMaterialsHistory(
+  companyId: string | null,
+  orderId: string | null
+) {
+  return useQuery({
+    queryKey: magazzinoKeys.orderHistory(companyId ?? '', orderId ?? ''),
+    enabled: !!companyId && !!orderId,
+    queryFn: async (): Promise<OrderMaterialMovement[]> => {
+      const { data, error } = await supabase
+        .rpc('get_order_materials_history', {
+          p_company_id: companyId!,
+          p_order_id: orderId!,
+        });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        quantity: Number(row.quantity),
+        unit_cost: row.unit_cost ? Number(row.unit_cost) : null,
+      }));
+    },
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useLotBatches(companyId: string | null, stockItemId?: string) {
+  return useQuery({
+    queryKey: magazzinoKeys.lotBatches(companyId ?? '', stockItemId),
+    enabled: !!companyId,
+    queryFn: async (): Promise<LotBatch[]> => {
+      let query = supabase
+        .from('warehouse_lot_batches')
+        .select('*, supplier:suppliers(name)')
+        .eq('company_id', companyId!)
+        .order('delivery_date', { ascending: false });
+
+      if (stockItemId) {
+        query = query.eq('stock_item_id', stockItemId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
+export function useInventoryAudits(companyId: string | null) {
+  return useQuery({
+    queryKey: magazzinoKeys.audits(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<InventoryAuditItem[]> => {
+      const { data, error } = await supabase
+        .from('inventory_audits')
+        .select('*, stock_item:warehouse_stock(name, quantity)')
+        .eq('company_id', companyId!)
+        .order('audited_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useWarehouseStats(companyId: string | null) {
+  return useQuery({
+    queryKey: magazzinoKeys.stats(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<WarehouseStats> => {
+      const [stockRes, lowStockRes, blockedRes, pendingRes] = await Promise.all([
+        supabase
+          .from('warehouse_stock')
+          .select('id, quantity, unit_cost, quantity_reserved, min_stock_level')
+          .eq('company_id', companyId!),
+        supabase
+          .rpc('get_low_stock_alerts', { p_company_id: companyId! }),
+        supabase
+          .rpc('get_blocked_orders', { p_company_id: companyId! }),
+        supabase
+          .from('order_items')
+          .select('id, status', { count: 'exact', head: true })
+          .in('status', ['ordinato', 'in_arrivo']),
+      ]);
+
+      const stock = stockRes.data ?? [];
+      const totalStockValue = stock.reduce(
+        (s, item) => s + (Number(item.quantity) * Number(item.unit_cost ?? 0)),
+        0
+      );
+      const reservedItems = stock.filter((i) => Number(i.quantity_reserved) > 0).length;
+
+      return {
+        totalStockItems: stock.length,
+        totalStockValue,
+        lowStockCount: (lowStockRes.data ?? []).length,
+        blockedOrdersCount: (blockedRes.data ?? []).length,
+        reservedQuantityItems: reservedItems,
+        pendingDeliveriesCount: pendingRes.count ?? 0,
+      };
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+// ============================================================
+// MUTATIONS
+// ============================================================
+
+export function useUpdateOrderItemStatusMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      itemId,
+      status,
+      deliveryDate,
+      lotNumber,
+      stockItemId,
+    }: {
+      itemId: string;
+      status: OrderItemStatusExtended;
+      deliveryDate?: string | null;
+      lotNumber?: string | null;
+      stockItemId?: string | null;
+    }) => {
+      const updates: Record<string, unknown> = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
+      if (deliveryDate !== undefined) updates.delivery_date = deliveryDate;
+      if (lotNumber !== undefined) updates.lot_number = lotNumber;
+      if (stockItemId !== undefined) updates.stock_item_id = stockItemId;
+
+      const { error } = await supabase
+        .from('order_items')
+        .update(updates)
+        .eq('id', itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['warehouse'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+}
+
+export function useAddLotBatchMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      batch: Omit<LotBatch, 'id' | 'created_at' | 'supplier'>
+    ) => {
+      const { error } = await supabase
+        .from('warehouse_lot_batches')
+        .insert(batch);
+      if (error) throw error;
+
+      // Aggiorna anche warehouse_stock con l'ultimo lotto
+      await supabase
+        .from('warehouse_stock')
+        .update({
+          last_lot_number: batch.lot_number,
+          last_delivery_date: batch.delivery_date,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', batch.stock_item_id);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: magazzinoKeys.lotBatches(variables.company_id, variables.stock_item_id),
+      });
+      queryClient.invalidateQueries({ queryKey: ['warehouse'] });
+    },
+  });
+}
+
+export function useCreateInventoryAuditMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      companyId,
+      stockItemId,
+      systemQuantity,
+      actualQuantity,
+      notes,
+      auditedBy,
+    }: {
+      companyId: string;
+      stockItemId: string;
+      systemQuantity: number;
+      actualQuantity: number;
+      notes?: string;
+      auditedBy: string;
+    }) => {
+      const { error } = await supabase
+        .from('inventory_audits')
+        .insert({
+          company_id: companyId,
+          stock_item_id: stockItemId,
+          system_quantity: systemQuantity,
+          actual_quantity: actualQuantity,
+          notes: notes ?? null,
+          audited_by: auditedBy,
+          audited_at: new Date().toISOString(),
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
+    },
+  });
+}
+
+export function useApplyAuditAdjustmentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      auditId,
+      stockItemId,
+      actualQuantity,
+      difference,
+      companyId,
+    }: {
+      auditId: string;
+      stockItemId: string;
+      actualQuantity: number;
+      difference: number;
+      companyId: string;
+    }) => {
+      // Crea movimento di rettifica
+      const { error: movError } = await supabase
+        .from('warehouse_movements')
+        .insert({
+          stock_item_id: stockItemId,
+          movement_type: 'rettifica',
+          quantity: Math.abs(difference),
+          notes: `Rettifica inventariale — differenza: ${difference > 0 ? '+' : ''}${difference}`,
+          performed_by: (await supabase.auth.getUser()).data.user?.id,
+          company_id: companyId,
+        });
+      if (movError) throw movError;
+
+      // Aggiorna la giacenza alla quantità reale
+      const { error: stockError } = await supabase
+        .from('warehouse_stock')
+        .update({
+          quantity: actualQuantity,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', stockItemId);
+      if (stockError) throw stockError;
+
+      // Segna l'audit come applicato
+      const { error: auditError } = await supabase
+        .from('inventory_audits')
+        .update({
+          adjustment_applied: true,
+          applied_at: new Date().toISOString(),
+        })
+        .eq('id', auditId);
+      if (auditError) throw auditError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['warehouse'] });
+    },
+  });
+}
+```
+
+// VERIFICA MG2:
+// 1. Nessun errore TypeScript nel file useMagazzinoLive.ts
+// 2. Tutti gli import risolvono correttamente (supabase client, tanstack query)
+// 3. ORDER_ITEM_STATUS_CONFIG è esportato — verificalo negli altri file che
+//    usano i vecchi badge di status e aggiorna se necessario
+// 4. Verifica che src/types/warehouse.ts sia aggiornato con il tipo
+//    OrderItemStatusExtended che include 'in_arrivo' e 'prenotato'
+// 5. Apri la console browser — nessun errore al mount delle pagine esistenti
+
+
+====================================================================
+PROMPT MG3 — UI: COMPONENTI MAGAZZINO LIVE
+====================================================================
+
+Leggi prima:
+- src/hooks/useMagazzinoLive.ts (appena creato)
+- I componenti di magazzino esistenti in src/components/ (cerca
+  WarehouseItem, WarehouseKanban, StockView o simili nella cartella
+  magazzino/warehouse)
+- src/components/ui/ per componenti disponibili
+
+Crea 4 nuovi componenti nella cartella src/components/warehouse/
+(o nella cartella corretta dei componenti magazzino).
+
+--------------------------------------------------------------------
+### 3.1 — BlockedOrdersPanel.tsx
+--------------------------------------------------------------------
+
+```tsx
+// src/components/warehouse/BlockedOrdersPanel.tsx
+import React from 'react';
+import { useBlockedOrders, ORDER_ITEM_STATUS_CONFIG } from '@/hooks/useMagazzinoLive';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle, Truck, Package } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+interface BlockedOrdersPanelProps {
+  companyId: string;
+  compact?: boolean; // true = versione compatta per cruscotto
+}
+
+export function BlockedOrdersPanel({ companyId, compact = false }: BlockedOrdersPanelProps) {
+  const { data: blocked, isLoading } = useBlockedOrders(companyId);
+  const navigate = useNavigate();
+
+  const urgencyConfig = {
+    critica: { label: 'Critica', className: 'bg-red-100 text-red-800 border-red-200' },
+    alta: { label: 'Alta', className: 'bg-orange-100 text-orange-800 border-orange-200' },
+    normale: { label: 'Normale', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+  };
+
+  if (isLoading) return (
+    <Card>
+      <CardContent className="h-32 flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground text-sm">
+          Analisi blocchi materiali...
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  if (!blocked || blocked.length === 0) return (
+    <Card className="border-green-200 bg-green-50/50">
+      <CardContent className="h-24 flex items-center justify-center gap-2 text-green-700">
+        <Package className="h-5 w-5" />
+        <span className="text-sm font-medium">
+          Nessun ordine bloccato per mancanza materiali
+        </span>
+      </CardContent>
+    </Card>
+  );
+
+  const criticalCount = blocked.filter((o) => o.urgency_level === 'critica').length;
+  const highCount = blocked.filter((o) => o.urgency_level === 'alta').length;
+
+  return (
+    <Card className={criticalCount > 0 ? 'border-red-300' : 'border-orange-300'}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <AlertTriangle className={`h-4 w-4 ${criticalCount > 0 ? 'text-red-500' : 'text-orange-500'}`} />
+            Ordini bloccati — Materiali mancanti
+          </CardTitle>
+          <div className="flex gap-2">
+            {criticalCount > 0 && (
+              <Badge className="bg-red-100 text-red-800 text-xs">
+                {criticalCount} critici
+              </Badge>
+            )}
+            {highCount > 0 && (
+              <Badge className="bg-orange-100 text-orange-800 text-xs">
+                {highCount} urgenti
+              </Badge>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {blocked.slice(0, compact ? 5 : undefined).map((order) => (
+          <div
+            key={order.order_id}
+            className="p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors"
+            onClick={() => navigate(`/ordini/${order.order_id}`)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm truncate">
+                    {order.order_code ?? order.order_id.slice(0, 8)} — {order.customer_name}
+                  </span>
+                  <Badge className={`text-xs ${urgencyConfig[order.urgency_level].className}`}>
+                    {urgencyConfig[order.urgency_level].label}
+                  </Badge>
+                </div>
+                {order.work_start_date && (
+                  <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                    <Truck className="h-3 w-3" />
+                    Inizio lavori: {new Date(order.work_start_date).toLocaleDateString('it-IT')}
+                  </div>
+                )}
+              </div>
+              <Badge variant="outline" className="text-xs shrink-0">
+                {order.blocking_items_count} mancant{order.blocking_items_count === 1 ? 'e' : 'i'}
+              </Badge>
+            </div>
+
+            {/* Lista materiali mancanti */}
+            {!compact && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {order.missing_items.slice(0, 4).map((item) => {
+                  const cfg = ORDER_ITEM_STATUS_CONFIG[item.status];
+                  return (
+                    <span
+                      key={item.item_id}
+                      className={`text-xs px-2 py-0.5 rounded-full border ${cfg.bgColor} ${cfg.color} ${cfg.borderColor}`}
+                    >
+                      {item.name.length > 20 ? item.name.slice(0, 20) + '…' : item.name}
+                      {' '}— {cfg.label}
+                    </span>
+                  );
+                })}
+                {order.missing_items.length > 4 && (
+                  <span className="text-xs text-muted-foreground px-2 py-0.5">
+                    +{order.missing_items.length - 4} altri
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+        {compact && blocked.length > 5 && (
+          <p className="text-xs text-center text-muted-foreground pt-1">
+            +{blocked.length - 5} ordini bloccati
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+--------------------------------------------------------------------
+### 3.2 — LowStockAlertsPanel.tsx
+--------------------------------------------------------------------
+
+```tsx
+// src/components/warehouse/LowStockAlertsPanel.tsx
+import React from 'react';
+import { useLowStockAlerts } from '@/hooks/useMagazzinoLive';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle, Package, TrendingDown } from 'lucide-react';
+
+interface LowStockAlertsPanelProps {
+  companyId: string;
+  compact?: boolean;
+}
+
+export function LowStockAlertsPanel({ companyId, compact = false }: LowStockAlertsPanelProps) {
+  const { data: alerts, isLoading } = useLowStockAlerts(companyId);
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-16 text-muted-foreground text-sm animate-pulse">
+      Verifica giacenze...
+    </div>
+  );
+
+  if (!alerts || alerts.length === 0) return (
+    <div className="flex items-center gap-2 text-green-600 text-sm p-3">
+      <Package className="h-4 w-4" />
+      Tutte le giacenze sopra il livello minimo
+    </div>
+  );
+
+  const critical = alerts.filter((a) => a.quantity_available === 0);
+  const warning = alerts.filter((a) => a.quantity_available > 0);
+
+  return (
+    <Card className="border-yellow-300">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <TrendingDown className="h-4 w-4 text-yellow-600" />
+          Sottoscorta
+          <Badge className="bg-yellow-100 text-yellow-800 text-xs ml-auto">
+            {alerts.length} articol{alerts.length === 1 ? 'o' : 'i'}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {/* Articoli esauriti (rosso) */}
+        {critical.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">
+              Esauriti
+            </p>
+            {critical.slice(0, compact ? 3 : undefined).map((alert) => (
+              <div
+                key={alert.stock_item_id}
+                className="flex items-center justify-between py-1.5 px-2 rounded bg-red-50 border border-red-200"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate text-red-800">
+                    {alert.name}
+                  </div>
+                  {alert.supplier_name && (
+                    <div className="text-xs text-muted-foreground">{alert.supplier_name}</div>
+                  )}
+                </div>
+                <div className="text-right shrink-0 ml-2">
+                  <div className="text-sm font-bold text-red-700">
+                    0 / min {alert.min_stock_level}
+                  </div>
+                  {alert.quantity_reserved > 0 && (
+                    <div className="text-xs text-orange-600">
+                      {alert.quantity_reserved} prenotati
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Articoli sotto soglia (giallo) */}
+        {warning.length > 0 && (
+          <div className="space-y-1 mt-2">
+            {!compact && <p className="text-xs font-semibold text-yellow-600 uppercase tracking-wide">
+              Sotto soglia
+            </p>}
+            {warning.slice(0, compact ? 3 : undefined).map((alert) => (
+              <div
+                key={alert.stock_item_id}
+                className="flex items-center justify-between py-1.5 px-2 rounded bg-yellow-50 border border-yellow-200"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{alert.name}</div>
+                  {!compact && alert.supplier_name && (
+                    <div className="text-xs text-muted-foreground">{alert.supplier_name}</div>
+                  )}
+                </div>
+                <div className="text-right shrink-0 ml-2">
+                  <div className="text-sm font-medium">
+                    {alert.quantity_available} <span className="text-muted-foreground text-xs">/ min {alert.min_stock_level}</span>
+                  </div>
+                  <div className="text-xs text-yellow-700">
+                    mancano {alert.deficit}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {compact && alerts.length > 6 && (
+          <p className="text-xs text-center text-muted-foreground pt-1">
+            +{alerts.length - 6} altri articoli sotto scorta
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+--------------------------------------------------------------------
+### 3.3 — OrderMaterialsHistory.tsx
+--------------------------------------------------------------------
+
+```tsx
+// src/components/warehouse/OrderMaterialsHistory.tsx
+import React from 'react';
+import { useOrderMaterialsHistory } from '@/hooks/useMagazzinoLive';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { History, ArrowDown, ArrowUp, RotateCcw, Bookmark } from 'lucide-react';
+
+interface OrderMaterialsHistoryProps {
+  companyId: string;
+  orderId: string;
+}
+
+const MOVEMENT_CONFIG: Record<string, { label: string; icon: typeof ArrowDown; color: string; bg: string }> = {
+  carico: { label: 'Carico', icon: ArrowDown, color: 'text-green-700', bg: 'bg-green-50' },
+  scarico: { label: 'Scarico', icon: ArrowUp, color: 'text-red-700', bg: 'bg-red-50' },
+  scarico_automatico: { label: 'Scarico automatico', icon: ArrowUp, color: 'text-orange-700', bg: 'bg-orange-50' },
+  prenotazione: { label: 'Prenotazione', icon: Bookmark, color: 'text-blue-700', bg: 'bg-blue-50' },
+  rilascio: { label: 'Rilascio', icon: RotateCcw, color: 'text-purple-700', bg: 'bg-purple-50' },
+  rettifica: { label: 'Rettifica', icon: RotateCcw, color: 'text-gray-700', bg: 'bg-gray-50' },
+  reso_fornitore: { label: 'Reso fornitore', icon: ArrowUp, color: 'text-yellow-700', bg: 'bg-yellow-50' },
+};
+
+export function OrderMaterialsHistory({ companyId, orderId }: OrderMaterialsHistoryProps) {
+  const { data: movements, isLoading } = useOrderMaterialsHistory(companyId, orderId);
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-16 text-muted-foreground text-sm animate-pulse">
+      Caricamento storico...
+    </div>
+  );
+
+  if (!movements || movements.length === 0) return (
+    <div className="flex items-center justify-center h-16 text-muted-foreground text-sm gap-2">
+      <History className="h-4 w-4" />
+      Nessun movimento materiali per questa commessa
+    </div>
+  );
+
+  const fmt = (v: number) =>
+    new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(v);
+
+  return (
+    <div className="space-y-2">
+      {movements.map((mov) => {
+        const cfg = MOVEMENT_CONFIG[mov.movement_type] ?? MOVEMENT_CONFIG.carico;
+        const Icon = cfg.icon;
+        const isOut = ['scarico', 'scarico_automatico', 'reso_fornitore'].includes(mov.movement_type);
+
+        return (
+          <div
+            key={mov.movement_id}
+            className={`flex items-start gap-3 p-3 rounded-lg border ${cfg.bg}`}
+          >
+            <div className={`p-1.5 rounded-full bg-white/80 ${cfg.color} shrink-0 mt-0.5`}>
+              <Icon className="h-3.5 w-3.5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium truncate">
+                  {mov.stock_item_name ?? 'Articolo rimosso'}
+                </span>
+                <Badge variant="outline" className={`text-xs ${cfg.color} border-current`}>
+                  {cfg.label}
+                </Badge>
+                {mov.lot_number && (
+                  <span className="text-xs text-muted-foreground">Lotto: {mov.lot_number}</span>
+                )}
+              </div>
+              {mov.order_item_name && (
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  Articolo commessa: {mov.order_item_name}
+                </div>
+              )}
+              {mov.notes && (
+                <div className="text-xs text-muted-foreground mt-0.5 italic">{mov.notes}</div>
+              )}
+            </div>
+            <div className="text-right shrink-0">
+              <div className={`text-sm font-bold ${isOut ? 'text-red-700' : 'text-green-700'}`}>
+                {isOut ? '-' : '+'}{mov.quantity} pz
+              </div>
+              {mov.unit_cost && (
+                <div className="text-xs text-muted-foreground">
+                  {fmt(mov.unit_cost * mov.quantity)}
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground mt-1">
+                {new Date(mov.created_at).toLocaleDateString('it-IT', {
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </div>
+              {mov.performed_by_name && (
+                <div className="text-xs text-muted-foreground">{mov.performed_by_name}</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+```
+
+--------------------------------------------------------------------
+### 3.4 — InventoryAuditDialog.tsx
+--------------------------------------------------------------------
+
+```tsx
+// src/components/warehouse/InventoryAuditDialog.tsx
+import React, { useState } from 'react';
+import {
+  useCreateInventoryAuditMutation,
+  useApplyAuditAdjustmentMutation,
+  useInventoryAudits,
+} from '@/hooks/useMagazzinoLive';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { ClipboardCheck, AlertTriangle, Check } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+
+interface InventoryAuditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  stockItem: {
+    id: string;
+    name: string;
+    quantity: number;
+  };
+  companyId: string;
+}
+
+export function InventoryAuditDialog({
+  open,
+  onOpenChange,
+  stockItem,
+  companyId,
+}: InventoryAuditDialogProps) {
+  const [actualQuantity, setActualQuantity] = useState<string>('');
+  const [notes, setNotes] = useState('');
+
+  const createAudit = useCreateInventoryAuditMutation();
+  const applyAdjustment = useApplyAuditAdjustmentMutation();
+
+  const parsedActual = parseInt(actualQuantity);
+  const isValid = !isNaN(parsedActual) && parsedActual >= 0;
+  const difference = isValid ? parsedActual - stockItem.quantity : null;
+
+  const handleSubmit = async () => {
+    if (!isValid || difference === null) return;
+
+    const user = await supabase.auth.getUser();
+    const userId = user.data.user?.id;
+    if (!userId) return;
+
+    await createAudit.mutateAsync({
+      companyId,
+      stockItemId: stockItem.id,
+      systemQuantity: stockItem.quantity,
+      actualQuantity: parsedActual,
+      notes: notes || undefined,
+      auditedBy: userId,
+    });
+
+    setActualQuantity('');
+    setNotes('');
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-primary" />
+            Inventario fisico
+          </DialogTitle>
+          <DialogDescription>
+            Conta il materiale fisicamente e inserisci la quantità reale.
+            Se c'è differenza, potrai applicare la rettifica.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="p-3 rounded-lg bg-muted/50 border">
+            <div className="text-sm font-medium">{stockItem.name}</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              Quantità nel sistema: <strong>{stockItem.quantity}</strong>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">
+              Quantità conteggiata fisicamente *
+            </label>
+            <Input
+              type="number"
+              min="0"
+              placeholder="Inserisci il conteggio reale..."
+              value={actualQuantity}
+              onChange={(e) => setActualQuantity(e.target.value)}
+              className="mt-1"
+              autoFocus
+            />
+          </div>
+
+          {isValid && difference !== null && (
+            <div className={`p-3 rounded-lg border ${
+              difference === 0
+                ? 'bg-green-50 border-green-200'
+                : difference > 0
+                ? 'bg-blue-50 border-blue-200'
+                : 'bg-red-50 border-red-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                {difference === 0 ? (
+                  <><Check className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-700">
+                    Nessuna differenza — giacenza corretta
+                  </span></>
+                ) : (
+                  <><AlertTriangle className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium">
+                    Differenza: {difference > 0 ? '+' : ''}{difference} pz
+                    {difference > 0 ? ' (eccedenza)' : ' (ammanchi)'}
+                  </span></>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-sm font-medium">Note (opzionale)</label>
+            <Textarea
+              placeholder="Es: Materiale consumato non registrato, rotture, furto..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="mt-1 min-h-[60px] resize-none"
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Annulla
+          </Button>
+          <Button
+            disabled={!isValid || createAudit.isPending}
+            onClick={handleSubmit}
+          >
+            {createAudit.isPending ? 'Salvataggio...' : 'Registra inventario'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Componente separato: lista degli audit precedenti con pulsante "Applica rettifica"
+export function InventoryAuditsList({
+  companyId,
+  stockItemId,
+}: {
+  companyId: string;
+  stockItemId?: string;
+}) {
+  const { data: audits, isLoading } = useInventoryAudits(companyId);
+  const applyAdjustment = useApplyAuditAdjustmentMutation();
+
+  const filtered = stockItemId
+    ? (audits ?? []).filter((a) => a.stock_item_id === stockItemId)
+    : (audits ?? []);
+
+  if (isLoading) return (
+    <div className="text-sm text-muted-foreground animate-pulse">Caricamento storico inventari...</div>
+  );
+
+  if (filtered.length === 0) return (
+    <div className="text-sm text-muted-foreground">Nessun inventario fisico registrato.</div>
+  );
+
+  return (
+    <div className="space-y-2">
+      {filtered.map((audit) => (
+        <div
+          key={audit.id}
+          className={`flex items-center justify-between p-3 rounded-lg border ${
+            audit.adjustment_applied ? 'bg-muted/30' : 'bg-white'
+          }`}
+        >
+          <div>
+            <div className="text-sm font-medium">
+              {audit.stock_item?.name ?? 'Articolo eliminato'}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Sistema: {audit.system_quantity} → Reale: {audit.actual_quantity}
+              {' '}| Diff: {audit.difference > 0 ? '+' : ''}{audit.difference}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {new Date(audit.audited_at).toLocaleDateString('it-IT', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+              })}
+            </div>
+            {audit.notes && (
+              <div className="text-xs italic text-muted-foreground mt-0.5">{audit.notes}</div>
+            )}
+          </div>
+          <div className="ml-3 shrink-0">
+            {audit.adjustment_applied ? (
+              <Badge variant="outline" className="text-xs text-green-700 border-green-300">
+                <Check className="h-3 w-3 mr-1" />
+                Applicata
+              </Badge>
+            ) : audit.difference !== 0 ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-7"
+                disabled={applyAdjustment.isPending}
+                onClick={() =>
+                  applyAdjustment.mutate({
+                    auditId: audit.id,
+                    stockItemId: audit.stock_item_id,
+                    actualQuantity: audit.actual_quantity,
+                    difference: audit.difference,
+                    companyId,
+                  })
+                }
+              >
+                Applica rettifica
+              </Button>
+            ) : (
+              <Badge variant="outline" className="text-xs text-green-700 border-green-300">
+                OK
+              </Badge>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+// VERIFICA MG3:
+// 1. Tutti i 4 componenti compilano senza errori TypeScript
+// 2. Le import di useMagazzinoLive.ts sono corrette
+// 3. I componenti shadcn usati esistono nel progetto (Dialog, Badge, Progress, etc.)
+//    Se qualcuno manca, sostituisci con l'alternativa disponibile
+// 4. Verifica che le navigate path ('/ordini/:id') corrispondano alle route reali
+//    del progetto — adatta se il path ordini è diverso
+
+
+====================================================================
+PROMPT MG4 — INTEGRAZIONE NELLE PAGINE ESISTENTI
+====================================================================
+
+Leggi prima:
+- La pagina/componente principale del magazzino (cerca WarehousePage,
+  MagazzinoPage, o simili in src/pages/)
+- Il componente del dettaglio ordine (OrderDetail, OrderPage o simili)
+- I nuovi componenti in src/components/warehouse/
+
+Obiettivo: integrare i nuovi componenti nelle pagine esistenti.
+
+### 4.1 — Aggiorna la pagina principale del Magazzino
+
+Trova la pagina principale del magazzino e aggiungi due nuove sezioni
+IN CIMA alla pagina, PRIMA del contenuto esistente:
+
+```tsx
+// Aggiungi import in cima al file:
+import { BlockedOrdersPanel } from '@/components/warehouse/BlockedOrdersPanel';
+import { LowStockAlertsPanel } from '@/components/warehouse/LowStockAlertsPanel';
+import { useWarehouseStats } from '@/hooks/useMagazzinoLive';
+
+// Aggiungi nel componente (all'inizio, dove hai accesso a companyId):
+const { data: stats } = useWarehouseStats(companyId);
+
+// Nel JSX, PRIMA del contenuto magazzino esistente:
+{/* === SEZIONE ALERT MAGAZZINO (nuova) === */}
+<div className="space-y-4 mb-6">
+  {/* Header con stats rapide */}
+  {stats && (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <Card className="p-3">
+        <div className="text-xs text-muted-foreground">Articoli a stock</div>
+        <div className="text-xl font-bold mt-1">{stats.totalStockItems}</div>
+        <div className="text-xs text-muted-foreground">
+          Valore: {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(stats.totalStockValue)}
+        </div>
+      </Card>
+      <Card className={`p-3 ${stats.blockedOrdersCount > 0 ? 'border-red-300 bg-red-50/50' : ''}`}>
+        <div className="text-xs text-muted-foreground">Ordini bloccati</div>
+        <div className={`text-xl font-bold mt-1 ${stats.blockedOrdersCount > 0 ? 'text-red-700' : 'text-green-700'}`}>
+          {stats.blockedOrdersCount}
+        </div>
+        <div className="text-xs text-muted-foreground">per mancanza materiali</div>
+      </Card>
+      <Card className={`p-3 ${stats.lowStockCount > 0 ? 'border-yellow-300 bg-yellow-50/50' : ''}`}>
+        <div className="text-xs text-muted-foreground">Sottoscorta</div>
+        <div className={`text-xl font-bold mt-1 ${stats.lowStockCount > 0 ? 'text-yellow-700' : 'text-green-700'}`}>
+          {stats.lowStockCount}
+        </div>
+        <div className="text-xs text-muted-foreground">articoli da riordinare</div>
+      </Card>
+      <Card className="p-3">
+        <div className="text-xs text-muted-foreground">In consegna</div>
+        <div className="text-xl font-bold mt-1">{stats.pendingDeliveriesCount}</div>
+        <div className="text-xs text-muted-foreground">articoli ordinati/in arrivo</div>
+      </Card>
+    </div>
+  )}
+
+  {/* Panel ordini bloccati */}
+  {stats && stats.blockedOrdersCount > 0 && (
+    <BlockedOrdersPanel companyId={companyId} compact />
+  )}
+
+  {/* Panel sottoscorta */}
+  {stats && stats.lowStockCount > 0 && (
+    <LowStockAlertsPanel companyId={companyId} compact />
+  )}
+</div>
+
+{/* === Contenuto magazzino ESISTENTE rimane invariato sotto === */}
+```
+
+### 4.2 — Aggiorna i badge di status negli order_items esistenti
+
+Nel componente che mostra i badge di status degli order_items
+(es: WarehouseItem.tsx, o il file che usa STATUS_CONFIG),
+aggiorna importando ORDER_ITEM_STATUS_CONFIG dal nuovo hook:
+
+```tsx
+// Nel file che gestisce i badge status degli order_items:
+// SOSTITUISCI il vecchio STATUS_CONFIG con il nuovo ORDER_ITEM_STATUS_CONFIG
+import { ORDER_ITEM_STATUS_CONFIG, OrderItemStatusExtended } from '@/hooks/useMagazzinoLive';
+
+// I badge esistenti continueranno a funzionare — i nuovi stati
+// 'in_arrivo' e 'prenotato' saranno gestiti automaticamente
+```
+
+### 4.3 — Aggiorna il form di modifica order_item
+
+Nel dialog/form di modifica degli articoli ordine, aggiungi i campi:
+- Data consegna prevista (delivery_date)
+- Numero lotto (lot_number)
+- Il campo status ora deve includere le nuove opzioni
+
+```tsx
+// Nel form di modifica order_item, aggiungi:
+import { useUpdateOrderItemStatusMutation, ORDER_ITEM_STATUS_CONFIG } from '@/hooks/useMagazzinoLive';
+
+// Sostituisci il Select di status esistente con questo aggiornato:
+<Select value={itemForm.status} onValueChange={(val) => setItemForm({ ...itemForm, status: val })}>
+  <SelectTrigger>
+    <SelectValue placeholder="Seleziona stato..." />
+  </SelectTrigger>
+  <SelectContent>
+    {Object.entries(ORDER_ITEM_STATUS_CONFIG).map(([value, cfg]) => (
+      <SelectItem key={value} value={value}>
+        <span className={cfg.color}>{cfg.label}</span>
+        <span className="text-xs text-muted-foreground ml-2">— {cfg.description}</span>
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+
+{/* Aggiungi dopo il Select di status: */}
+<div className="grid grid-cols-2 gap-3 mt-3">
+  <div>
+    <label className="text-xs font-medium text-muted-foreground">
+      Data consegna prevista
+    </label>
+    <Input
+      type="date"
+      value={itemForm.delivery_date ?? ''}
+      onChange={(e) => setItemForm({ ...itemForm, delivery_date: e.target.value || null })}
+      className="mt-1 h-8 text-sm"
+    />
+  </div>
+  <div>
+    <label className="text-xs font-medium text-muted-foreground">
+      Numero lotto
+    </label>
+    <Input
+      placeholder="Es: LOT-2025-001"
+      value={itemForm.lot_number ?? ''}
+      onChange={(e) => setItemForm({ ...itemForm, lot_number: e.target.value || null })}
+      className="mt-1 h-8 text-sm"
+    />
+  </div>
+</div>
+```
+
+### 4.4 — Aggiungi storico materiali nel dettaglio ordine
+
+Nel componente del dettaglio ordine (OrderDetail.tsx o simile),
+aggiungi una sezione per vedere lo storico movimenti materiali
+di quella commessa. Trova dove vengono mostrate le tab o le sezioni
+del dettaglio ordine e aggiungi:
+
+```tsx
+// Aggiungi import:
+import { OrderMaterialsHistory } from '@/components/warehouse/OrderMaterialsHistory';
+import { useOrderMaterialsHistory } from '@/hooks/useMagazzinoLive';
+
+// Aggiungi come nuova tab o sezione nel dettaglio ordine:
+{/* Storico materiali commessa */}
+<Card className="mt-4">
+  <CardHeader className="pb-2">
+    <CardTitle className="text-sm font-medium flex items-center gap-2">
+      <History className="h-4 w-4" />
+      Storico movimenti materiali
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    <OrderMaterialsHistory companyId={companyId} orderId={order.id} />
+  </CardContent>
+</Card>
+```
+
+### 4.5 — Aggiungi pulsante "Inventario fisico" nel dettaglio stock item
+
+Nel componente che mostra il dettaglio di un articolo a stock
+(StockItemDetail, StockItemCard o simile), aggiungi:
+
+```tsx
+// Import:
+import { InventoryAuditDialog, InventoryAuditsList } from '@/components/warehouse/InventoryAuditDialog';
+import { ClipboardCheck } from 'lucide-react';
+
+// State nel componente:
+const [showAuditDialog, setShowAuditDialog] = useState(false);
+
+// Aggiungi pulsante nell'header/azioni dello stock item:
+<Button
+  variant="outline"
+  size="sm"
+  onClick={() => setShowAuditDialog(true)}
+  className="gap-1.5"
+>
+  <ClipboardCheck className="h-3.5 w-3.5" />
+  Inventario fisico
+</Button>
+
+{/* Aggiungi il dialog: */}
+<InventoryAuditDialog
+  open={showAuditDialog}
+  onOpenChange={setShowAuditDialog}
+  stockItem={{ id: stockItem.id, name: stockItem.name, quantity: stockItem.quantity }}
+  companyId={companyId}
+/>
+
+{/* Aggiungi sotto il dettaglio articolo: */}
+<Card className="mt-4">
+  <CardHeader className="pb-2">
+    <CardTitle className="text-sm font-medium">Storico inventari fisici</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <InventoryAuditsList companyId={companyId} stockItemId={stockItem.id} />
+  </CardContent>
+</Card>
+```
+
+// VERIFICA MG4:
+// 1. Apri la pagina principale magazzino — vedi la barra stats in cima
+// 2. Se ci sono ordini con articoli in stato 'da_ordinare' o 'ordinato',
+//    il panel BlockedOrders li mostra
+// 3. Se ci sono articoli sotto min_stock_level, il panel LowStock li mostra
+// 4. Apri il form di modifica di un order_item — vedi tutti i 6 stati nel dropdown
+// 5. Cambia uno stato a 'in_arrivo' — si salva correttamente
+// 6. Apri il dettaglio di un ordine — vedi sezione "Storico movimenti materiali"
+// 7. Apri il dettaglio di un articolo a stock — vedi pulsante "Inventario fisico"
+// 8. Clicca il pulsante — si apre il dialog, inserisci un valore, salva
+// 9. Il riepilogo inventari sotto mostra il record con pulsante "Applica rettifica"
+// 10. Cambia lo status di un order_item a 'installato' (con stock_item_id valorizzato)
+//     → Vai in Supabase Dashboard → warehouse_movements → verifica riga
+//     con movement_type = 'scarico_automatico'
+
+
+====================================================================
+PROMPT MG5 — KANBAN ESTESO + VERIFICA FINALE MAGAZZINO LIVE
+====================================================================
+
+Leggi prima:
+- Il componente Kanban del magazzino esistente (WarehouseKanban o simile)
+- src/hooks/useMagazzinoLive.ts
+- Tutti i componenti creati nei prompt precedenti
+
+### 5.1 — Aggiorna il Kanban del magazzino con i nuovi stati
+
+Il kanban esistente ha colonne per: da_ordinare, ordinato, in_magazzino, installato.
+Devi aggiungere le colonne: in_arrivo (tra ordinato e in_magazzino)
+e prenotato (tra in_magazzino e installato).
+
+Nel componente Kanban, trova la configurazione delle colonne e AGGIUNGI:
+
+```tsx
+// Sostituisci/aggiorna la configurazione delle colonne kanban con:
+const KANBAN_COLUMNS: Array<{
+  status: OrderItemStatusExtended;
+  icon: typeof Package;
+}> = [
+  { status: 'da_ordinare', icon: Package },
+  { status: 'ordinato', icon: ShoppingCart },
+  { status: 'in_arrivo', icon: Truck },       // NUOVA
+  { status: 'in_magazzino', icon: Warehouse },
+  { status: 'prenotato', icon: Bookmark },    // NUOVA
+  { status: 'installato', icon: CheckCircle2 },
+];
+
+// Importa i nuovi icon da lucide-react se non già importati:
+// import { Truck, Bookmark, Warehouse, ShoppingCart, CheckCircle2, Package } from 'lucide-react';
+
+// Per ogni colonna usa ORDER_ITEM_STATUS_CONFIG[status] per label e colori
+```
+
+### 5.2 — Aggiungi indicatore "blocco" nel kanban per gli ordini urgenti
+
+Nel kanban, per le card degli order_items in stato 'da_ordinare' o 'ordinato'
+che appartengono ad ordini con work_start_date < 7 giorni, aggiungi
+un bordo/badge di urgenza:
+
+```tsx
+// In ogni card kanban, calcola urgenza:
+const isUrgent = (item: WarehouseItem): boolean => {
+  const workStart = item.order?.work_start_date;
+  if (!workStart) return false;
+  const daysToStart = Math.floor(
+    (new Date(workStart).getTime() - Date.now()) / 86400000
+  );
+  return daysToStart <= 7 && ['da_ordinare', 'ordinato', 'in_arrivo'].includes(item.status);
+};
+
+// Nella card kanban, aggiungi classe condizionale:
+<div className={`rounded-lg border p-3 ... ${isUrgent(item) ? 'border-red-400 ring-1 ring-red-300' : ''}`}>
+  {isUrgent(item) && (
+    <div className="flex items-center gap-1 text-xs text-red-700 font-medium mb-2">
+      <AlertTriangle className="h-3 w-3" />
+      Urgente — lavori imminenti
+    </div>
+  )}
+  {/* ...contenuto card esistente... */}
+</div>
+```
+
+### 5.3 — Aggiungi filtro rapido "Ordini bloccati" nella toolbar magazzino
+
+Nella toolbar del magazzino (dove ci sono i filtri per status, fornitore, etc.),
+aggiungi un pulsante filtro rapido:
+
+```tsx
+// Aggiungi nella toolbar dei filtri magazzino:
+<Button
+  variant={activeQuickFilter === 'blocked' ? 'default' : 'outline'}
+  size="sm"
+  className="gap-1.5"
+  onClick={() => setActiveQuickFilter(activeQuickFilter === 'blocked' ? 'all' : 'blocked')}
+>
+  <AlertTriangle className="h-3.5 w-3.5" />
+  Solo bloccati
+</Button>
+```
+
+### 5.4 — CHECKLIST FINALE MAGAZZINO LIVE
+
+Esegui questa verifica sistematica completa:
+
+CHECKLIST DATABASE:
+□ order_items.status accetta: da_ordinare, ordinato, in_arrivo,
+  in_magazzino, prenotato, installato
+□ order_items ha nuove colonne: lot_number, delivery_date,
+  quantity_reserved, auto_deducted, notes
+□ warehouse_stock ha: reorder_quantity, last_delivery_date,
+  last_lot_number, quantity_reserved, quantity_available (GENERATED)
+□ warehouse_movements accetta tutti i nuovi movement_type
+□ Tabella warehouse_lot_batches esiste
+□ Tabella inventory_audits esiste
+□ Trigger auto_deduct_on_install esiste e funziona
+□ Trigger update_reservation_on_status_change esiste
+□ RPC get_blocked_orders funziona senza errori
+□ RPC get_low_stock_alerts funziona senza errori
+□ RPC get_order_materials_history funziona senza errori
+
+CHECKLIST HOOKS:
+□ useMagazzinoLive.ts esiste e compila
+□ ORDER_ITEM_STATUS_CONFIG esportato con tutti i 6 stati
+□ useBlockedOrders, useLowStockAlerts, useOrderMaterialsHistory
+□ useLotBatches, useInventoryAudits, useWarehouseStats
+□ Mutations: useUpdateOrderItemStatusMutation, useAddLotBatchMutation,
+  useCreateInventoryAuditMutation, useApplyAuditAdjustmentMutation
+
+CHECKLIST COMPONENTI:
+□ BlockedOrdersPanel (compact + full)
+□ LowStockAlertsPanel (compact + full)
+□ OrderMaterialsHistory
+□ InventoryAuditDialog + InventoryAuditsList
+
+CHECKLIST INTEGRAZIONE:
+□ Pagina magazzino mostra stats bar + alert in cima
+□ Kanban ha 6 colonne con 'in_arrivo' e 'prenotato'
+□ Card urgenti nel kanban hanno bordo rosso
+□ Filtro "Solo bloccati" nella toolbar funziona
+□ Form order_item ha i 6 stati nel dropdown
+□ Form order_item ha campi delivery_date e lot_number
+□ Dettaglio ordine mostra storico movimenti materiali
+□ Dettaglio stock item mostra pulsante "Inventario fisico"
+□ Il dialog inventario si apre e registra correttamente
+□ "Applica rettifica" aggiorna la giacenza e crea movimento 'rettifica'
+
+CHECKLIST TEST FUNZIONALE (eseguire nell'ordine):
+1. Crea un articolo in magazzino con min_stock_level > 0
+   → Se quantity < min_stock_level, appare nel panel sottoscorta ✓
+2. Crea un ordine con un articolo in stato 'da_ordinare' e work_start_date
+   nella prossima settimana → appare come "urgente" nel kanban ✓
+3. Cambia lo status dell'articolo a 'ordinato' → si sposta nel kanban ✓
+4. Cambia a 'in_arrivo' con delivery_date → nuova colonna kanban ✓
+5. Cambia a 'in_magazzino' → giacenza non tocca ancora ✓
+6. Cambia a 'prenotato' → quantity_reserved in warehouse_stock aumenta ✓
+7. Collega stock_item_id all'articolo, cambia a 'installato'
+   → warehouse_movements ha riga scarico_automatico ✓
+   → warehouse_stock.quantity diminuisce ✓
+   → order_item.auto_deducted = true ✓
+8. Apri inventario fisico su un articolo, inserisci quantità diversa
+   → audit registrato, "Applica rettifica" appare ✓
+9. Applica rettifica → giacenza aggiornata al valore reale ✓
+   → warehouse_movements ha riga 'rettifica' ✓
+
+Se tutti i test passano, il Magazzino Live è completamente operativo.
+
+// FINE PROMPTS MAGAZZINO LIVE (MG1 → MG5)
+
+
+====================================================================
+RIEPILOGO TECNICO MAGAZZINO LIVE
+====================================================================
+
+TABELLE MODIFICATE:
+  - order_items (+5 colonne, stati estesi a 6)
+  - warehouse_stock (+5 colonne, +1 colonna GENERATED)
+  - warehouse_movements (+3 colonne, tipi estesi a 7)
+
+NUOVE TABELLE:
+  - warehouse_lot_batches (tracciamento lotti per articolo)
+  - inventory_audits (differenza inventariale con rettifica)
+
+NUOVI TRIGGER POSTGRES:
+  - auto_deduct_on_install → scarico automatico a posa completata
+  - update_reservation_on_status_change → gestione quantity_reserved
+
+NUOVE RPC POSTGRES:
+  - get_blocked_orders → ordini bloccati per mancanza materiali + urgenza
+  - get_low_stock_alerts → articoli sotto min_stock_level
+  - get_order_materials_history → movimenti per commessa specifica
+
+NUOVI FILE REACT/TS:
+  - src/hooks/useMagazzinoLive.ts (6 query + 4 mutations)
+  - src/components/warehouse/BlockedOrdersPanel.tsx
+  - src/components/warehouse/LowStockAlertsPanel.tsx
+  - src/components/warehouse/OrderMaterialsHistory.tsx
+  - src/components/warehouse/InventoryAuditDialog.tsx
+
+CICLO DI VITA MATERIALE (6 stati):
+  da_ordinare → ordinato → in_arrivo → in_magazzino → prenotato → installato
+                                        ↑ quantità disponibile ↑   ↑ scarico automatico
+
+FORMULA DISPONIBILITÀ:
+  quantity_available = quantity - quantity_reserved  (GENERATED, sempre aggiornata)
+
+SCARICO AUTOMATICO:
+  Trigger BEFORE UPDATE su order_items.status
+  Condizione: NEW.status = 'installato' AND OLD.status ≠ 'installato'
+              AND NEW.stock_item_id IS NOT NULL AND auto_deducted = FALSE
+  Effetto: INSERT warehouse_movements + UPDATE warehouse_stock.quantity
+
+DIFFERENZA INVENTARIALE:
+  inventory_audits registra: sistema vs reale vs differenza
+  "Applica rettifica" → crea movimento 'rettifica' + aggiorna giacenza
+====================================================================

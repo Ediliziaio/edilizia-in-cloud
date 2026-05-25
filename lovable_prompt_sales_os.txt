@@ -1,0 +1,2275 @@
+====================================================================
+SALES OS — EDILIZIA IN CLOUD
+Prompt sequenziale per Lovable.dev (SO1 → SO6)
+====================================================================
+Stack: Supabase (PostgreSQL + RLS + Edge Functions) + React + TypeScript
+Sezione: Marketing & Vendite
+Obiettivo: trasformare il CRM esistente in un Sales OS completo
+
+LEGENDA IMPORTANTE:
+- Ogni prompt è INDIPENDENTE ma deve essere eseguito IN ORDINE
+- Ogni prompt inizia con "Leggi il codice di [file]" — Lovable deve leggere
+  prima di toccare qualsiasi cosa
+- I commenti // VERIFICA: sono checkpoint obbligatori dopo ogni prompt
+- Non inventare nomi di tabelle/colonne — usa SOLO quelli indicati
+====================================================================
+
+
+====================================================================
+PROMPT SO1 — DATABASE MIGRATION: SALES OS SCHEMA
+====================================================================
+
+Leggi prima il contenuto attuale di supabase/migrations/ per capire
+l'ultima migration disponibile. Poi crea una nuova migration SQL.
+
+Crea il file: supabase/migrations/[timestamp]_sales_os_schema.sql
+
+Il file deve contenere ESATTAMENTE questo SQL (usa IF NOT EXISTS
+ovunque per sicurezza, mai DROP o ALTER senza IF EXISTS):
+
+------------------------------------------------------------------------
+-- SO1: Sales OS Schema Migration
+-- Aggiunge campi necessari alle tabelle esistenti e crea nuove tabelle
+------------------------------------------------------------------------
+
+-- ============================================================
+-- 1. ESTENDI marketing_opportunities
+-- ============================================================
+-- Probabilità personalizzata per opportunità (override stage default)
+ALTER TABLE marketing_opportunities
+  ADD COLUMN IF NOT EXISTS probability INTEGER DEFAULT NULL
+    CHECK (probability IS NULL OR (probability >= 0 AND probability <= 100)),
+  ADD COLUMN IF NOT EXISTS expected_close_date DATE DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS next_action TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS next_action_date DATE DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS lost_reason TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS lost_reason_category TEXT DEFAULT NULL
+    CHECK (lost_reason_category IS NULL OR lost_reason_category IN (
+      'prezzo', 'concorrente', 'budget_non_disponibile', 'timing',
+      'prodotto_non_adatto', 'nessuna_risposta', 'altro'
+    )),
+  ADD COLUMN IF NOT EXISTS competitor_won TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS stalled_notified_at TIMESTAMPTZ DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS sales_velocity_snapshot JSONB DEFAULT NULL;
+
+-- ============================================================
+-- 2. ESTENDI marketing_pipeline_stages
+-- ============================================================
+ALTER TABLE marketing_pipeline_stages
+  ADD COLUMN IF NOT EXISTS win_probability INTEGER DEFAULT NULL
+    CHECK (win_probability IS NULL OR (win_probability >= 0 AND win_probability <= 100)),
+  ADD COLUMN IF NOT EXISTS expected_duration_days INTEGER DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS stalled_threshold_days INTEGER DEFAULT 14,
+  ADD COLUMN IF NOT EXISTS playbook JSONB DEFAULT '[]'::jsonb;
+
+-- NOTA: win_probability NULL = usa calcolo lineare automatico
+-- NOTA: playbook è un array JSON di step: [{id, description, is_required, order_position}]
+
+-- ============================================================
+-- 3. ESTENDI marketing_contacts
+-- ============================================================
+ALTER TABLE marketing_contacts
+  ADD COLUMN IF NOT EXISTS lead_score INTEGER DEFAULT 0
+    CHECK (lead_score >= 0 AND lead_score <= 100),
+  ADD COLUMN IF NOT EXISTS icp_score INTEGER DEFAULT 0
+    CHECK (icp_score >= 0 AND icp_score <= 100),
+  ADD COLUMN IF NOT EXISTS last_score_update TIMESTAMPTZ DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS icp_tier TEXT DEFAULT NULL
+    CHECK (icp_tier IS NULL OR icp_tier IN ('A', 'B', 'C', 'D'));
+
+-- ============================================================
+-- 4. CREA sales_targets (quota commerciale per venditore)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sales_targets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  assigned_to UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  year INTEGER NOT NULL,
+  month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+  target_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  target_deals INTEGER DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(company_id, assigned_to, year, month)
+);
+
+-- ============================================================
+-- 5. CREA sales_playbook_completions (traccia step completati)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sales_playbook_completions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  opportunity_id UUID NOT NULL REFERENCES marketing_opportunities(id) ON DELETE CASCADE,
+  stage_id UUID NOT NULL REFERENCES marketing_pipeline_stages(id) ON DELETE CASCADE,
+  step_order INTEGER NOT NULL,
+  step_description TEXT NOT NULL,
+  completed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  completed_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(opportunity_id, stage_id, step_order)
+);
+
+-- ============================================================
+-- 6. RLS POLICIES per nuove tabelle
+-- ============================================================
+ALTER TABLE sales_targets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "sales_targets_company_isolation"
+  ON sales_targets FOR ALL
+  USING (company_id = (
+    SELECT company_id FROM profiles WHERE id = auth.uid()
+  ));
+
+ALTER TABLE sales_playbook_completions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "playbook_completions_company_isolation"
+  ON sales_playbook_completions FOR ALL
+  USING (company_id = (
+    SELECT company_id FROM profiles WHERE id = auth.uid()
+  ));
+
+-- ============================================================
+-- 7. INDEXES per performance
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_opp_expected_close
+  ON marketing_opportunities(company_id, expected_close_date)
+  WHERE status = 'open';
+
+CREATE INDEX IF NOT EXISTS idx_opp_stalled
+  ON marketing_opportunities(company_id, stalled_notified_at)
+  WHERE status = 'open';
+
+CREATE INDEX IF NOT EXISTS idx_opp_next_action_date
+  ON marketing_opportunities(company_id, next_action_date)
+  WHERE status = 'open' AND next_action_date IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_contacts_lead_score
+  ON marketing_contacts(company_id, lead_score DESC);
+
+CREATE INDEX IF NOT EXISTS idx_sales_targets_lookup
+  ON sales_targets(company_id, year, month);
+
+-- ============================================================
+-- 8. AGGIORNA RPC: weighted pipeline con probabilità custom
+-- ============================================================
+-- Sostituisce la funzione esistente get_pipeline_stats (o simile)
+-- Controlla prima il nome esatto della funzione RPC nel codice
+
+CREATE OR REPLACE FUNCTION get_weighted_pipeline(p_company_id UUID)
+RETURNS TABLE (
+  pipeline_id UUID,
+  pipeline_name TEXT,
+  stage_id UUID,
+  stage_name TEXT,
+  stage_position INTEGER,
+  opportunity_count BIGINT,
+  total_value DECIMAL,
+  weighted_value DECIMAL,
+  avg_probability INTEGER
+) AS $$
+DECLARE
+  v_max_position INTEGER;
+BEGIN
+  -- Trova la posizione massima per il calcolo lineare
+  SELECT MAX(ps.position) INTO v_max_position
+  FROM marketing_pipeline_stages ps
+  WHERE ps.company_id = p_company_id;
+
+  RETURN QUERY
+  SELECT
+    p.id AS pipeline_id,
+    p.name AS pipeline_name,
+    ps.id AS stage_id,
+    ps.name AS stage_name,
+    ps.position AS stage_position,
+    COUNT(o.id) AS opportunity_count,
+    COALESCE(SUM(o.value), 0) AS total_value,
+    COALESCE(SUM(
+      o.value * (
+        COALESCE(
+          o.probability,           -- 1. probabilità custom sull'opportunità
+          ps.win_probability,      -- 2. probabilità configurata sullo stage
+          -- 3. fallback: calcolo lineare (0.1 + 0.8 * posizione/max)
+          ROUND(
+            (0.1 + 0.8 * COALESCE(
+              CAST(ps.position AS DECIMAL) /
+              NULLIF(CAST(v_max_position AS DECIMAL), 0),
+              0.5
+            )) * 100
+          )
+        ) / 100.0
+      )
+    ), 0) AS weighted_value,
+    ROUND(AVG(
+      COALESCE(
+        o.probability,
+        ps.win_probability,
+        ROUND((0.1 + 0.8 * COALESCE(
+          CAST(ps.position AS DECIMAL) /
+          NULLIF(CAST(v_max_position AS DECIMAL), 0),
+          0.5
+        )) * 100)
+      )
+    ))::INTEGER AS avg_probability
+  FROM marketing_pipelines p
+  INNER JOIN marketing_pipeline_stages ps ON ps.pipeline_id = p.id
+    AND ps.company_id = p_company_id
+  LEFT JOIN marketing_opportunities o ON o.stage_id = ps.id
+    AND o.company_id = p_company_id
+    AND o.status = 'open'
+  WHERE p.company_id = p_company_id
+  GROUP BY p.id, p.name, ps.id, ps.name, ps.position
+  ORDER BY p.name, ps.position;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 9. RPC: sales forecast pesato per mese
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_sales_forecast(
+  p_company_id UUID,
+  p_months_ahead INTEGER DEFAULT 3
+)
+RETURNS TABLE (
+  forecast_month DATE,
+  expected_revenue DECIMAL,
+  weighted_revenue DECIMAL,
+  opportunity_count BIGINT
+) AS $$
+DECLARE
+  v_max_position INTEGER;
+BEGIN
+  SELECT MAX(ps.position) INTO v_max_position
+  FROM marketing_pipeline_stages ps
+  WHERE ps.company_id = p_company_id;
+
+  RETURN QUERY
+  SELECT
+    DATE_TRUNC('month', o.expected_close_date)::DATE AS forecast_month,
+    SUM(o.value) AS expected_revenue,
+    SUM(
+      o.value * (
+        COALESCE(
+          o.probability,
+          ps.win_probability,
+          ROUND((0.1 + 0.8 * COALESCE(
+            CAST(ps.position AS DECIMAL) /
+            NULLIF(CAST(v_max_position AS DECIMAL), 0),
+            0.5
+          )) * 100)
+        ) / 100.0
+      )
+    ) AS weighted_revenue,
+    COUNT(o.id) AS opportunity_count
+  FROM marketing_opportunities o
+  INNER JOIN marketing_pipeline_stages ps ON ps.id = o.stage_id
+  WHERE o.company_id = p_company_id
+    AND o.status = 'open'
+    AND o.expected_close_date IS NOT NULL
+    AND o.expected_close_date >= DATE_TRUNC('month', NOW())
+    AND o.expected_close_date < DATE_TRUNC('month', NOW()) + INTERVAL '1 month' * p_months_ahead
+  GROUP BY DATE_TRUNC('month', o.expected_close_date)
+  ORDER BY forecast_month;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 10. RPC: stalled opportunities detection
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_stalled_opportunities(p_company_id UUID)
+RETURNS TABLE (
+  opportunity_id UUID,
+  opportunity_name TEXT,
+  contact_name TEXT,
+  stage_name TEXT,
+  assigned_to UUID,
+  last_activity_at TIMESTAMPTZ,
+  days_stalled INTEGER,
+  stalled_threshold INTEGER,
+  value DECIMAL
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    o.id AS opportunity_id,
+    o.name AS opportunity_name,
+    mc.full_name AS contact_name,
+    ps.name AS stage_name,
+    o.assigned_to,
+    COALESCE(
+      (SELECT MAX(mca.created_at)
+       FROM marketing_contact_activities mca
+       WHERE mca.company_id = p_company_id
+         AND (mca.contact_id = o.contact_id OR mca.opportunity_id = o.id)),
+      o.updated_at,
+      o.created_at
+    ) AS last_activity_at,
+    EXTRACT(DAY FROM NOW() - COALESCE(
+      (SELECT MAX(mca.created_at)
+       FROM marketing_contact_activities mca
+       WHERE mca.company_id = p_company_id
+         AND (mca.contact_id = o.contact_id OR mca.opportunity_id = o.id)),
+      o.updated_at,
+      o.created_at
+    ))::INTEGER AS days_stalled,
+    COALESCE(ps.stalled_threshold_days, 14) AS stalled_threshold,
+    o.value
+  FROM marketing_opportunities o
+  INNER JOIN marketing_pipeline_stages ps ON ps.id = o.stage_id
+  LEFT JOIN marketing_contacts mc ON mc.id = o.contact_id
+  WHERE o.company_id = p_company_id
+    AND o.status = 'open'
+  HAVING
+    EXTRACT(DAY FROM NOW() - COALESCE(
+      (SELECT MAX(mca.created_at)
+       FROM marketing_contact_activities mca
+       WHERE mca.company_id = p_company_id
+         AND (mca.contact_id = o.contact_id OR mca.opportunity_id = o.id)),
+      o.updated_at,
+      o.created_at
+    )) >= COALESCE(ps.stalled_threshold_days, 14)
+  ORDER BY days_stalled DESC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 11. RPC: sales velocity
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_sales_velocity(
+  p_company_id UUID,
+  p_days_back INTEGER DEFAULT 90
+)
+RETURNS TABLE (
+  open_opportunities BIGINT,
+  win_rate DECIMAL,
+  avg_deal_size DECIMAL,
+  avg_cycle_days DECIMAL,
+  sales_velocity DECIMAL
+) AS $$
+DECLARE
+  v_period_start TIMESTAMPTZ := NOW() - (p_days_back || ' days')::INTERVAL;
+  v_won_count BIGINT;
+  v_lost_count BIGINT;
+  v_open_count BIGINT;
+  v_win_rate DECIMAL;
+  v_avg_size DECIMAL;
+  v_avg_days DECIMAL;
+BEGIN
+  SELECT COUNT(*) INTO v_won_count
+  FROM marketing_opportunities
+  WHERE company_id = p_company_id AND status = 'won'
+    AND updated_at >= v_period_start;
+
+  SELECT COUNT(*) INTO v_lost_count
+  FROM marketing_opportunities
+  WHERE company_id = p_company_id AND status IN ('lost', 'abandoned')
+    AND updated_at >= v_period_start;
+
+  SELECT COUNT(*) INTO v_open_count
+  FROM marketing_opportunities
+  WHERE company_id = p_company_id AND status = 'open';
+
+  v_win_rate := CASE
+    WHEN (v_won_count + v_lost_count) > 0
+    THEN v_won_count::DECIMAL / (v_won_count + v_lost_count)
+    ELSE 0
+  END;
+
+  SELECT COALESCE(AVG(value), 0) INTO v_avg_size
+  FROM marketing_opportunities
+  WHERE company_id = p_company_id AND status = 'won'
+    AND updated_at >= v_period_start;
+
+  SELECT COALESCE(AVG(
+    EXTRACT(DAY FROM (updated_at - created_at))
+  ), 30) INTO v_avg_days
+  FROM marketing_opportunities
+  WHERE company_id = p_company_id AND status = 'won'
+    AND updated_at >= v_period_start;
+
+  RETURN QUERY SELECT
+    v_open_count,
+    ROUND(v_win_rate * 100, 1),
+    ROUND(v_avg_size, 2),
+    ROUND(v_avg_days, 1),
+    CASE
+      WHEN v_avg_days > 0
+      THEN ROUND((v_open_count * v_win_rate * v_avg_size) / v_avg_days, 2)
+      ELSE 0
+    END;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+------------------------------------------------------------------------
+-- Fine migration SO1
+------------------------------------------------------------------------
+
+// VERIFICA SO1:
+// 1. Apri Supabase Dashboard → Table Editor
+// 2. Verifica che marketing_opportunities abbia: probability, expected_close_date,
+//    next_action, next_action_date, lost_reason, lost_reason_category, competitor_won,
+//    stalled_notified_at, sales_velocity_snapshot
+// 3. Verifica che marketing_pipeline_stages abbia: win_probability,
+//    expected_duration_days, stalled_threshold_days, playbook
+// 4. Verifica che marketing_contacts abbia: lead_score, icp_score,
+//    last_score_update, icp_tier
+// 5. Verifica che esistano le tabelle: sales_targets, sales_playbook_completions
+// 6. Vai in SQL Editor e testa: SELECT * FROM get_weighted_pipeline('test-uuid');
+//    (deve restituire 0 righe, non errori)
+// 7. Testa: SELECT * FROM get_sales_forecast('test-uuid', 3);
+// 8. Testa: SELECT * FROM get_stalled_opportunities('test-uuid');
+// 9. Testa: SELECT * FROM get_sales_velocity('test-uuid', 90);
+// Se qualsiasi test dà errori di sintassi SQL, correggili PRIMA di procedere.
+
+
+====================================================================
+PROMPT SO2 — HOOK: useSalesOS.ts
+====================================================================
+
+Leggi prima:
+- src/hooks/useMarketingData.ts (se esiste) o il hook marketing esistente
+- src/hooks/useCruscottoData.ts (per capire lo stile architetturale)
+- src/integrations/supabase/types.ts (per i tipi aggiornati dopo SO1)
+
+Poi RIGENERA i tipi Supabase. In Lovable puoi farlo tramite il comando
+"Regenerate Supabase types" oppure aggiornando manualmente src/integrations/supabase/types.ts
+aggiungendo i nuovi campi alle interfacce esistenti.
+
+Dopo aver aggiornato i tipi, crea il file:
+src/hooks/useSalesOS.ts
+
+Il contenuto deve essere:
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+// ============================================================
+// TYPES
+// ============================================================
+
+export interface WeightedPipelineStage {
+  pipeline_id: string;
+  pipeline_name: string;
+  stage_id: string;
+  stage_name: string;
+  stage_position: number;
+  opportunity_count: number;
+  total_value: number;
+  weighted_value: number;
+  avg_probability: number;
+}
+
+export interface SalesForecastMonth {
+  forecast_month: string; // ISO date string
+  expected_revenue: number;
+  weighted_revenue: number;
+  opportunity_count: number;
+}
+
+export interface StalledOpportunity {
+  opportunity_id: string;
+  opportunity_name: string;
+  contact_name: string | null;
+  stage_name: string;
+  assigned_to: string | null;
+  last_activity_at: string;
+  days_stalled: number;
+  stalled_threshold: number;
+  value: number;
+}
+
+export interface SalesVelocity {
+  open_opportunities: number;
+  win_rate: number;
+  avg_deal_size: number;
+  avg_cycle_days: number;
+  sales_velocity: number;
+}
+
+export interface SalesTarget {
+  id: string;
+  company_id: string;
+  assigned_to: string | null;
+  year: number;
+  month: number;
+  target_amount: number;
+  target_deals: number | null;
+  notes: string | null;
+}
+
+export interface SellerPerformance {
+  assigned_to: string | null;
+  display_name: string;
+  won_count: number;
+  won_value: number;
+  open_count: number;
+  open_value: number;
+  lost_count: number;
+  win_rate: number;
+  avg_deal_size: number;
+  target_amount: number;
+  target_achievement: number; // percentuale 0-100
+}
+
+export interface ConversionBySource {
+  source: string;
+  total_contacts: number;
+  total_opportunities: number;
+  won_opportunities: number;
+  win_rate: number;
+  total_won_value: number;
+  avg_deal_size: number;
+}
+
+export interface LeadScoreContact {
+  id: string;
+  full_name: string;
+  company_name: string | null;
+  lead_score: number;
+  icp_score: number;
+  icp_tier: string | null;
+  source: string | null;
+  city: string | null;
+  assigned_to: string | null;
+  last_activity_at: string | null;
+  open_opportunities_count: number;
+}
+
+// ============================================================
+// QUERY KEYS
+// ============================================================
+
+export const salesOSKeys = {
+  all: ['sales-os'] as const,
+  weightedPipeline: (companyId: string) =>
+    [...salesOSKeys.all, 'weighted-pipeline', companyId] as const,
+  forecast: (companyId: string, months: number) =>
+    [...salesOSKeys.all, 'forecast', companyId, months] as const,
+  stalled: (companyId: string) =>
+    [...salesOSKeys.all, 'stalled', companyId] as const,
+  velocity: (companyId: string) =>
+    [...salesOSKeys.all, 'velocity', companyId] as const,
+  targets: (companyId: string, year: number) =>
+    [...salesOSKeys.all, 'targets', companyId, year] as const,
+  sellerPerformance: (companyId: string, year: number, month: number) =>
+    [...salesOSKeys.all, 'seller-perf', companyId, year, month] as const,
+  conversionBySource: (companyId: string) =>
+    [...salesOSKeys.all, 'conversion-source', companyId] as const,
+  topLeads: (companyId: string) =>
+    [...salesOSKeys.all, 'top-leads', companyId] as const,
+};
+
+// ============================================================
+// HOOKS
+// ============================================================
+
+export function useWeightedPipeline(companyId: string | null) {
+  return useQuery({
+    queryKey: salesOSKeys.weightedPipeline(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<WeightedPipelineStage[]> => {
+      const { data, error } = await supabase
+        .rpc('get_weighted_pipeline', { p_company_id: companyId! });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        opportunity_count: Number(row.opportunity_count),
+        total_value: Number(row.total_value),
+        weighted_value: Number(row.weighted_value),
+        avg_probability: Number(row.avg_probability),
+      }));
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useSalesForecast(companyId: string | null, monthsAhead = 3) {
+  return useQuery({
+    queryKey: salesOSKeys.forecast(companyId ?? '', monthsAhead),
+    enabled: !!companyId,
+    queryFn: async (): Promise<SalesForecastMonth[]> => {
+      const { data, error } = await supabase
+        .rpc('get_sales_forecast', {
+          p_company_id: companyId!,
+          p_months_ahead: monthsAhead,
+        });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        expected_revenue: Number(row.expected_revenue),
+        weighted_revenue: Number(row.weighted_revenue),
+        opportunity_count: Number(row.opportunity_count),
+      }));
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
+export function useStalledOpportunities(companyId: string | null) {
+  return useQuery({
+    queryKey: salesOSKeys.stalled(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<StalledOpportunity[]> => {
+      const { data, error } = await supabase
+        .rpc('get_stalled_opportunities', { p_company_id: companyId! });
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        ...row,
+        days_stalled: Number(row.days_stalled),
+        stalled_threshold: Number(row.stalled_threshold),
+        value: Number(row.value),
+      }));
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useSalesVelocity(companyId: string | null, daysBack = 90) {
+  return useQuery({
+    queryKey: salesOSKeys.velocity(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<SalesVelocity | null> => {
+      const { data, error } = await supabase
+        .rpc('get_sales_velocity', {
+          p_company_id: companyId!,
+          p_days_back: daysBack,
+        });
+      if (error) throw error;
+      if (!data || data.length === 0) return null;
+      const row = data[0];
+      return {
+        open_opportunities: Number(row.open_opportunities),
+        win_rate: Number(row.win_rate),
+        avg_deal_size: Number(row.avg_deal_size),
+        avg_cycle_days: Number(row.avg_cycle_days),
+        sales_velocity: Number(row.sales_velocity),
+      };
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
+export function useSalesTargets(companyId: string | null, year: number) {
+  return useQuery({
+    queryKey: salesOSKeys.targets(companyId ?? '', year),
+    enabled: !!companyId,
+    queryFn: async (): Promise<SalesTarget[]> => {
+      const { data, error } = await supabase
+        .from('sales_targets')
+        .select('*')
+        .eq('company_id', companyId!)
+        .eq('year', year)
+        .order('month', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useSellerPerformance(
+  companyId: string | null,
+  year: number,
+  month: number
+) {
+  return useQuery({
+    queryKey: salesOSKeys.sellerPerformance(companyId ?? '', year, month),
+    enabled: !!companyId,
+    queryFn: async (): Promise<SellerPerformance[]> => {
+      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+      const monthEnd = new Date(year, month, 1).toISOString().split('T')[0];
+
+      // Opportunità per venditore nel mese
+      const { data: opps, error: oppsError } = await supabase
+        .from('marketing_opportunities')
+        .select('assigned_to, status, value, created_at')
+        .eq('company_id', companyId!)
+        .gte('updated_at', monthStart)
+        .lt('updated_at', monthEnd);
+      if (oppsError) throw oppsError;
+
+      // Target per venditore nel mese
+      const { data: targets, error: targetsError } = await supabase
+        .from('sales_targets')
+        .select('assigned_to, target_amount')
+        .eq('company_id', companyId!)
+        .eq('year', year)
+        .eq('month', month);
+      if (targetsError) throw targetsError;
+
+      // Profili utenti per i nomi
+      const sellerIds = [...new Set((opps ?? []).map((o) => o.assigned_to).filter(Boolean))];
+      let profiles: Array<{ id: string; full_name: string | null }> = [];
+      if (sellerIds.length > 0) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', sellerIds as string[]);
+        profiles = profileData ?? [];
+      }
+
+      // Aggrega per venditore
+      const sellerMap = new Map<string | null, SellerPerformance>();
+
+      (opps ?? []).forEach((opp) => {
+        const key = opp.assigned_to ?? 'unassigned';
+        if (!sellerMap.has(key)) {
+          const profile = profiles.find((p) => p.id === opp.assigned_to);
+          sellerMap.set(key, {
+            assigned_to: opp.assigned_to,
+            display_name: profile?.full_name ?? (opp.assigned_to ? 'Venditore' : 'Non assegnato'),
+            won_count: 0,
+            won_value: 0,
+            open_count: 0,
+            open_value: 0,
+            lost_count: 0,
+            win_rate: 0,
+            avg_deal_size: 0,
+            target_amount: 0,
+            target_achievement: 0,
+          });
+        }
+        const seller = sellerMap.get(key)!;
+        const value = Number(opp.value ?? 0);
+        if (opp.status === 'won') {
+          seller.won_count++;
+          seller.won_value += value;
+        } else if (opp.status === 'open') {
+          seller.open_count++;
+          seller.open_value += value;
+        } else {
+          seller.lost_count++;
+        }
+      });
+
+      // Applica target e calcola metriche derivate
+      (targets ?? []).forEach((t) => {
+        const key = t.assigned_to ?? 'unassigned';
+        const seller = sellerMap.get(key);
+        if (seller) {
+          seller.target_amount = Number(t.target_amount);
+        }
+      });
+
+      return Array.from(sellerMap.values()).map((s) => {
+        const closedCount = s.won_count + s.lost_count;
+        return {
+          ...s,
+          win_rate: closedCount > 0 ? (s.won_count / closedCount) * 100 : 0,
+          avg_deal_size: s.won_count > 0 ? s.won_value / s.won_count : 0,
+          target_achievement:
+            s.target_amount > 0 ? (s.won_value / s.target_amount) * 100 : 0,
+        };
+      }).sort((a, b) => b.won_value - a.won_value);
+    },
+    staleTime: 1000 * 60 * 15,
+  });
+}
+
+export function useConversionBySource(companyId: string | null) {
+  return useQuery({
+    queryKey: salesOSKeys.conversionBySource(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<ConversionBySource[]> => {
+      const { data, error } = await supabase
+        .from('marketing_opportunities')
+        .select('source, status, value')
+        .eq('company_id', companyId!)
+        .not('source', 'is', null);
+      if (error) throw error;
+
+      const sourceMap = new Map<string, ConversionBySource>();
+      (data ?? []).forEach((opp) => {
+        const src = opp.source ?? 'Sconosciuto';
+        if (!sourceMap.has(src)) {
+          sourceMap.set(src, {
+            source: src,
+            total_contacts: 0,
+            total_opportunities: 0,
+            won_opportunities: 0,
+            win_rate: 0,
+            total_won_value: 0,
+            avg_deal_size: 0,
+          });
+        }
+        const s = sourceMap.get(src)!;
+        s.total_opportunities++;
+        if (opp.status === 'won') {
+          s.won_opportunities++;
+          s.total_won_value += Number(opp.value ?? 0);
+        }
+      });
+
+      return Array.from(sourceMap.values()).map((s) => ({
+        ...s,
+        win_rate:
+          s.total_opportunities > 0
+            ? (s.won_opportunities / s.total_opportunities) * 100
+            : 0,
+        avg_deal_size:
+          s.won_opportunities > 0
+            ? s.total_won_value / s.won_opportunities
+            : 0,
+      })).sort((a, b) => b.total_won_value - a.total_won_value);
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
+export function useTopLeads(companyId: string | null, limit = 20) {
+  return useQuery({
+    queryKey: salesOSKeys.topLeads(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<LeadScoreContact[]> => {
+      const { data, error } = await supabase
+        .from('marketing_contacts')
+        .select(`
+          id,
+          full_name,
+          company_name,
+          lead_score,
+          icp_score,
+          icp_tier,
+          source,
+          city,
+          assigned_to,
+          last_activity_at,
+          marketing_opportunities!inner(id, status)
+        `)
+        .eq('company_id', companyId!)
+        .order('lead_score', { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+
+      return (data ?? []).map((c: any) => ({
+        id: c.id,
+        full_name: c.full_name,
+        company_name: c.company_name,
+        lead_score: c.lead_score ?? 0,
+        icp_score: c.icp_score ?? 0,
+        icp_tier: c.icp_tier,
+        source: c.source,
+        city: c.city,
+        assigned_to: c.assigned_to,
+        last_activity_at: c.last_activity_at,
+        open_opportunities_count: (c.marketing_opportunities ?? []).filter(
+          (o: any) => o.status === 'open'
+        ).length,
+      }));
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
+// ============================================================
+// MUTATIONS
+// ============================================================
+
+export function useUpdateOpportunityMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<{
+        probability: number | null;
+        expected_close_date: string | null;
+        next_action: string | null;
+        next_action_date: string | null;
+        lost_reason: string | null;
+        lost_reason_category: string | null;
+        competitor_won: string | null;
+        status: string;
+      }>;
+    }) => {
+      const { error } = await supabase
+        .from('marketing_opportunities')
+        .update({ ...data, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: salesOSKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['marketing'] });
+    },
+  });
+}
+
+export function useUpsertSalesTargetMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (target: Omit<SalesTarget, 'id'>) => {
+      const { error } = await supabase
+        .from('sales_targets')
+        .upsert(target, { onConflict: 'company_id,assigned_to,year,month' });
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: salesOSKeys.targets(variables.company_id, variables.year),
+      });
+      queryClient.invalidateQueries({ queryKey: salesOSKeys.sellerPerformance });
+    },
+  });
+}
+```
+
+// VERIFICA SO2:
+// 1. Nessun errore TypeScript nel file useSalesOS.ts
+// 2. Tutti gli import sono corretti (supabase client, tanstack query)
+// 3. Apri la console browser — nessun errore al mount
+// 4. Tutti i tipi esportati sono accessibili dagli altri file
+// 5. Verifica che 'profiles' table abbia colonna 'full_name' — se il nome
+//    è diverso (es: first_name + last_name) adatta la query useSellerPerformance
+
+
+====================================================================
+PROMPT SO3 — UI: OPPORTUNITY DETAIL — SALES OS FIELDS
+====================================================================
+
+Leggi prima:
+- Il file/componente esistente per il dettaglio opportunità
+  (cerca: OpportunityDetail, OpportunityCard, OpportunityModal o simili
+   in src/components/ o src/pages/ nelle cartelle marketing o vendite)
+- src/hooks/useSalesOS.ts (appena creato)
+
+Obiettivo: aggiungere al dettaglio opportunità tutti i nuovi campi Sales OS
+senza riscrivere la struttura esistente — solo aggiungere sezioni.
+
+Identifica il componente corretto (es: OpportunityDetail.tsx) e:
+
+### 3.1 — Aggiungi sezione "Avanzamento Commerciale"
+
+Trova il punto nel JSX dove vengono mostrati i dati principali
+dell'opportunità (nome, valore, stage, contatto) e DOPO quell'area,
+aggiungi questa nuova sezione usando il componente Card di shadcn:
+
+```tsx
+// Import aggiuntivi necessari (aggiungi in cima al file):
+import { useUpdateOpportunityMutation } from '@/hooks/useSalesOS';
+import { Calendar, Target, AlertTriangle, Trophy } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+// --- Sezione da aggiungere nel JSX ---
+
+{/* SALES OS: Avanzamento Commerciale */}
+<Card className="mt-4">
+  <CardHeader className="pb-3">
+    <CardTitle className="text-sm font-medium flex items-center gap-2">
+      <Target className="h-4 w-4 text-primary" />
+      Avanzamento Commerciale
+    </CardTitle>
+  </CardHeader>
+  <CardContent className="space-y-4">
+
+    {/* Riga 1: Data chiusura prevista + Probabilità custom */}
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">
+          Data chiusura prevista
+          {!opportunity.expected_close_date && (
+            <span className="text-destructive ml-1">*</span>
+          )}
+        </label>
+        <Input
+          type="date"
+          defaultValue={opportunity.expected_close_date ?? ''}
+          className="mt-1 h-8 text-sm"
+          onChange={(e) =>
+            updateOpportunity.mutate({
+              id: opportunity.id,
+              data: { expected_close_date: e.target.value || null },
+            })
+          }
+        />
+      </div>
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">
+          Probabilità (% override)
+        </label>
+        <Input
+          type="number"
+          min="0"
+          max="100"
+          placeholder="Auto da stage"
+          defaultValue={opportunity.probability ?? ''}
+          className="mt-1 h-8 text-sm"
+          onChange={(e) => {
+            const val = e.target.value ? parseInt(e.target.value) : null;
+            updateOpportunity.mutate({
+              id: opportunity.id,
+              data: { probability: val },
+            });
+          }}
+        />
+      </div>
+    </div>
+
+    {/* Riga 2: Prossima azione + Data */}
+    <div>
+      <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+        <AlertTriangle className="h-3 w-3 text-yellow-500" />
+        Prossima azione
+        {!opportunity.next_action && (
+          <span className="text-destructive">*</span>
+        )}
+      </label>
+      <Textarea
+        placeholder="Es: Inviare preventivo revisionato, Chiamare per follow-up..."
+        defaultValue={opportunity.next_action ?? ''}
+        className="mt-1 text-sm min-h-[60px] resize-none"
+        onBlur={(e) =>
+          updateOpportunity.mutate({
+            id: opportunity.id,
+            data: { next_action: e.target.value || null },
+          })
+        }
+      />
+      <Input
+        type="date"
+        defaultValue={opportunity.next_action_date ?? ''}
+        placeholder="Data scadenza azione"
+        className="mt-1 h-8 text-sm"
+        onChange={(e) =>
+          updateOpportunity.mutate({
+            id: opportunity.id,
+            data: { next_action_date: e.target.value || null },
+          })
+        }
+      />
+    </div>
+
+  </CardContent>
+</Card>
+```
+
+### 3.2 — Dialog "Motivo Perdita" obbligatorio
+
+Quando il campo `status` dell'opportunità viene cambiato a `'lost'` o `'abandoned'`,
+intercetta il cambiamento e mostra un Dialog obbligatorio.
+
+Trova il punto nel codice dove viene gestito il cambio di status
+(es: un Select, un menu a tendina, un bottone "Persa") e aggiungi:
+
+```tsx
+// State nel componente (aggiungi con gli altri useState/useRef):
+const [showLostDialog, setShowLostDialog] = React.useState(false);
+const [pendingLostStatus, setPendingLostStatus] = React.useState<string | null>(null);
+const [lostReason, setLostReason] = React.useState('');
+const [lostCategory, setLostCategory] = React.useState('');
+const [competitorWon, setCompetitorWon] = React.useState('');
+const updateOpportunity = useUpdateOpportunityMutation();
+
+// Funzione da chiamare INVECE di aggiornare direttamente status a 'lost':
+const handleStatusChange = (newStatus: string) => {
+  if (newStatus === 'lost' || newStatus === 'abandoned') {
+    setPendingLostStatus(newStatus);
+    setShowLostDialog(true);
+  } else {
+    updateOpportunity.mutate({
+      id: opportunity.id,
+      data: { status: newStatus },
+    });
+  }
+};
+
+// Dialog da aggiungere nel JSX (fuori da Card, dentro il return):
+<Dialog open={showLostDialog} onOpenChange={setShowLostDialog}>
+  <DialogContent className="max-w-md">
+    <DialogHeader>
+      <DialogTitle className="flex items-center gap-2">
+        <Trophy className="h-5 w-5 text-destructive" />
+        Perché hai perso questa opportunità?
+      </DialogTitle>
+      <DialogDescription>
+        Queste informazioni migliorano le previsioni e aiutano il team.
+      </DialogDescription>
+    </DialogHeader>
+    <div className="space-y-4 py-2">
+      <div>
+        <label className="text-sm font-medium">Categoria motivo *</label>
+        <Select value={lostCategory} onValueChange={setLostCategory}>
+          <SelectTrigger className="mt-1">
+            <SelectValue placeholder="Seleziona categoria..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="prezzo">Prezzo troppo alto</SelectItem>
+            <SelectItem value="concorrente">Scelta concorrente</SelectItem>
+            <SelectItem value="budget_non_disponibile">Budget non disponibile</SelectItem>
+            <SelectItem value="timing">Timing non giusto</SelectItem>
+            <SelectItem value="prodotto_non_adatto">Prodotto non adatto</SelectItem>
+            <SelectItem value="nessuna_risposta">Nessuna risposta del cliente</SelectItem>
+            <SelectItem value="altro">Altro</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className="text-sm font-medium">Dettaglio (opzionale)</label>
+        <Textarea
+          placeholder="Descrivi cosa è successo..."
+          value={lostReason}
+          onChange={(e) => setLostReason(e.target.value)}
+          className="mt-1 text-sm min-h-[80px] resize-none"
+        />
+      </div>
+      <div>
+        <label className="text-sm font-medium">Concorrente che ha vinto (opzionale)</label>
+        <Input
+          placeholder="Es: Competitor SpA, nessuno, cliente interno..."
+          value={competitorWon}
+          onChange={(e) => setCompetitorWon(e.target.value)}
+          className="mt-1"
+        />
+      </div>
+    </div>
+    <DialogFooter>
+      <Button variant="outline" onClick={() => setShowLostDialog(false)}>
+        Annulla
+      </Button>
+      <Button
+        variant="destructive"
+        disabled={!lostCategory || updateOpportunity.isPending}
+        onClick={() => {
+          if (!lostCategory) return;
+          updateOpportunity.mutate({
+            id: opportunity.id,
+            data: {
+              status: pendingLostStatus as 'lost' | 'abandoned',
+              lost_reason: lostReason || null,
+              lost_reason_category: lostCategory,
+              competitor_won: competitorWon || null,
+            },
+          });
+          setShowLostDialog(false);
+        }}
+      >
+        Conferma perdita
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+```
+
+### 3.3 — Badge "Opportunità ferma"
+
+Nella card/header dell'opportunità, aggiungi un badge visivo se
+l'opportunità è ferma da più giorni dello threshold:
+
+```tsx
+// Calcola giorni ferma (aggiungi come variabile derivata nel componente):
+const daysSinceActivity = opportunity.updated_at
+  ? Math.floor((Date.now() - new Date(opportunity.updated_at).getTime()) / 86400000)
+  : 0;
+const stalledThreshold = 14; // default, idealmente preso dallo stage
+
+// Nel JSX vicino al titolo/nome dell'opportunità:
+{daysSinceActivity >= stalledThreshold && (
+  <Badge variant="destructive" className="text-xs">
+    ⚠ Ferma da {daysSinceActivity}gg
+  </Badge>
+)}
+```
+
+// VERIFICA SO3:
+// 1. Apri il dettaglio di un'opportunità esistente
+// 2. Verifica che la sezione "Avanzamento Commerciale" sia visibile
+// 3. Modifica la data chiusura prevista — verifica che si salvi senza ricaricare
+// 4. Cambia lo status a "Persa" — verifica che appaia il Dialog
+// 5. Il Dialog non si chiude senza selezionare una categoria
+// 6. Dopo conferma, l'opportunità mostra status aggiornato
+// 7. Se l'opportunità non ha next_action, il campo mostra asterisco rosso *
+// 8. Nessun errore TypeScript
+
+
+====================================================================
+PROMPT SO4 — NUOVA PAGINA: SalesOSDashboard.tsx
+====================================================================
+
+Leggi prima:
+- src/hooks/useSalesOS.ts
+- Il routing esistente in src/App.tsx (o equivalente)
+- src/components/ui/ per capire componenti disponibili (Card, Table, Badge, etc.)
+- Un esempio di pagina esistente in Marketing & Vendite per capire il layout
+
+Crea il file: src/pages/marketing/SalesOSDashboard.tsx
+(o nella cartella corretta per le pagine marketing)
+
+Questo è il "centro di comando commerciale" — una singola pagina con
+tutto il necessario per gestire le vendite.
+
+```tsx
+import React, { useState } from 'react';
+import { useCompanyData } from '@/hooks/useCompanyData'; // o hook equivalente per ottenere companyId
+import {
+  useWeightedPipeline,
+  useSalesForecast,
+  useStalledOpportunities,
+  useSalesVelocity,
+  useSellerPerformance,
+  useConversionBySource,
+  useTopLeads,
+  useUpsertSalesTargetMutation,
+} from '@/hooks/useSalesOS';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  Legend,
+} from 'recharts';
+import {
+  TrendingUp,
+  AlertTriangle,
+  Users,
+  Target,
+  Zap,
+  PieChart,
+  Clock,
+} from 'lucide-react';
+
+// Utility: formatta valuta €
+const fmt = (v: number) =>
+  new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+
+// Utility: formatta percentuale
+const pct = (v: number) => `${v.toFixed(1)}%`;
+
+// ============================================================
+// COMPONENTE: SalesVelocityCard
+// ============================================================
+function SalesVelocityCard({ companyId }: { companyId: string }) {
+  const { data: velocity, isLoading } = useSalesVelocity(companyId);
+
+  if (isLoading) return (
+    <Card>
+      <CardContent className="p-6 flex items-center justify-center h-32">
+        <div className="animate-pulse text-muted-foreground text-sm">Calcolo velocità...</div>
+      </CardContent>
+    </Card>
+  );
+
+  if (!velocity) return null;
+
+  return (
+    <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />
+          Sales Velocity
+          <span className="text-xs text-muted-foreground font-normal">(ultimi 90gg)</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold text-primary">
+          {fmt(velocity.sales_velocity)}<span className="text-sm font-normal text-muted-foreground">/giorno</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="text-center">
+            <div className="text-lg font-semibold">{velocity.open_opportunities}</div>
+            <div className="text-xs text-muted-foreground">Opp. aperte</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold">{pct(velocity.win_rate)}</div>
+            <div className="text-xs text-muted-foreground">Win rate</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold">{velocity.avg_cycle_days.toFixed(0)}gg</div>
+            <div className="text-xs text-muted-foreground">Ciclo medio</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
+// COMPONENTE: WeightedPipelineChart
+// ============================================================
+function WeightedPipelineChart({ companyId }: { companyId: string }) {
+  const { data: pipeline, isLoading } = useWeightedPipeline(companyId);
+
+  if (isLoading) return (
+    <Card>
+      <CardContent className="h-64 flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground text-sm">Caricamento pipeline...</div>
+      </CardContent>
+    </Card>
+  );
+
+  const totalWeighted = (pipeline ?? []).reduce((s, r) => s + r.weighted_value, 0);
+  const totalExpected = (pipeline ?? []).reduce((s, r) => s + r.total_value, 0);
+
+  const chartData = (pipeline ?? []).map((stage) => ({
+    name: stage.stage_name.length > 12 ? stage.stage_name.slice(0, 12) + '…' : stage.stage_name,
+    'Valore totale': stage.total_value,
+    'Forecast pesato': stage.weighted_value,
+    count: stage.opportunity_count,
+    probability: stage.avg_probability,
+  }));
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <PieChart className="h-4 w-4 text-primary" />
+            Pipeline Pesata per Stage
+          </CardTitle>
+          <div className="text-right">
+            <div className="text-xs text-muted-foreground">Forecast pesato</div>
+            <div className="text-lg font-bold text-primary">{fmt(totalWeighted)}</div>
+            <div className="text-xs text-muted-foreground">su {fmt(totalExpected)} totali</div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+            <Tooltip
+              formatter={(value: number, name: string) => [fmt(value), name]}
+              labelFormatter={(label) => `Stage: ${label}`}
+            />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="Valore totale" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[2, 2, 0, 0]} />
+            <Bar dataKey="Forecast pesato" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
+// COMPONENTE: SalesForecastChart
+// ============================================================
+function SalesForecastChart({ companyId }: { companyId: string }) {
+  const { data: forecast, isLoading } = useSalesForecast(companyId, 3);
+
+  if (isLoading) return (
+    <Card>
+      <CardContent className="h-48 flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground text-sm">Caricamento forecast...</div>
+      </CardContent>
+    </Card>
+  );
+
+  if (!forecast || forecast.length === 0) return (
+    <Card>
+      <CardContent className="h-48 flex items-center justify-center flex-col gap-2">
+        <Target className="h-8 w-8 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground text-center">
+          Nessun forecast disponibile.<br />
+          Aggiungi date di chiusura prevista alle opportunità aperte.
+        </p>
+      </CardContent>
+    </Card>
+  );
+
+  const chartData = forecast.map((f) => ({
+    mese: new Date(f.forecast_month).toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }),
+    'Atteso': f.expected_revenue,
+    'Pesato': f.weighted_revenue,
+    opps: f.opportunity_count,
+  }));
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-green-500" />
+          Forecast Commerciale Pesato (3 mesi)
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+            <Tooltip formatter={(value: number, name: string) => [fmt(value), name]} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line type="monotone" dataKey="Atteso" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" dot={false} />
+            <Line type="monotone" dataKey="Pesato" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
+// COMPONENTE: StalledOpportunitiesPanel
+// ============================================================
+function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
+  const { data: stalled, isLoading } = useStalledOpportunities(companyId);
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-24 text-muted-foreground text-sm animate-pulse">
+      Analisi opportunità ferme...
+    </div>
+  );
+
+  if (!stalled || stalled.length === 0) return (
+    <div className="flex items-center justify-center h-24 gap-2 text-green-600">
+      <TrendingUp className="h-5 w-5" />
+      <span className="text-sm font-medium">Nessuna opportunità ferma. Pipeline attiva!</span>
+    </div>
+  );
+
+  return (
+    <div className="space-y-2">
+      {stalled.slice(0, 8).map((opp) => (
+        <div
+          key={opp.opportunity_id}
+          className="flex items-center justify-between p-3 rounded-lg border bg-destructive/5 border-destructive/20"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-sm truncate">{opp.opportunity_name}</div>
+            <div className="text-xs text-muted-foreground">
+              {opp.contact_name} • Stage: {opp.stage_name}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 ml-3">
+            <div className="text-right">
+              <div className="text-sm font-medium">{fmt(opp.value)}</div>
+              <div className="text-xs text-muted-foreground">{fmt(opp.value)}</div>
+            </div>
+            <Badge variant="destructive" className="text-xs whitespace-nowrap">
+              <Clock className="h-3 w-3 mr-1" />
+              {opp.days_stalled}gg ferma
+            </Badge>
+          </div>
+        </div>
+      ))}
+      {stalled.length > 8 && (
+        <p className="text-xs text-center text-muted-foreground">
+          +{stalled.length - 8} altre opportunità ferme
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: SellerComparisonTable
+// ============================================================
+function SellerComparisonTable({ companyId }: { companyId: string }) {
+  const now = new Date();
+  const { data: sellers, isLoading } = useSellerPerformance(
+    companyId,
+    now.getFullYear(),
+    now.getMonth() + 1
+  );
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-24 text-muted-foreground text-sm animate-pulse">
+      Caricamento performance...
+    </div>
+  );
+
+  if (!sellers || sellers.length === 0) return (
+    <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+      Nessun dato venditore disponibile per questo mese.
+    </div>
+  );
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Venditore</TableHead>
+          <TableHead className="text-right">Chiuse</TableHead>
+          <TableHead className="text-right">Fatturato</TableHead>
+          <TableHead className="text-right">Win Rate</TableHead>
+          <TableHead className="text-right">Target</TableHead>
+          <TableHead className="text-right">Raggiungimento</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {sellers.map((s, i) => (
+          <TableRow key={s.assigned_to ?? `unassigned-${i}`}>
+            <TableCell className="font-medium">
+              <div className="flex items-center gap-2">
+                {i === 0 && <span title="Miglior venditore del mese">🥇</span>}
+                {i === 1 && <span>🥈</span>}
+                {i === 2 && <span>🥉</span>}
+                {s.display_name}
+              </div>
+            </TableCell>
+            <TableCell className="text-right">
+              <Badge variant={s.won_count > 0 ? 'default' : 'secondary'}>
+                {s.won_count}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-right font-medium">{fmt(s.won_value)}</TableCell>
+            <TableCell className="text-right">
+              <span className={s.win_rate >= 50 ? 'text-green-600 font-medium' : 'text-muted-foreground'}>
+                {pct(s.win_rate)}
+              </span>
+            </TableCell>
+            <TableCell className="text-right text-muted-foreground">
+              {s.target_amount > 0 ? fmt(s.target_amount) : '—'}
+            </TableCell>
+            <TableCell className="text-right">
+              {s.target_amount > 0 ? (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className={s.target_achievement >= 100 ? 'text-green-600 font-bold' : ''}>
+                      {pct(s.target_achievement)}
+                    </span>
+                  </div>
+                  <Progress
+                    value={Math.min(s.target_achievement, 100)}
+                    className="h-1.5"
+                  />
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">No target</span>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+// ============================================================
+// COMPONENTE: ConversionBySourceChart
+// ============================================================
+function ConversionBySourceChart({ companyId }: { companyId: string }) {
+  const { data: sources, isLoading } = useConversionBySource(companyId);
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-24 text-muted-foreground text-sm animate-pulse">
+      Analisi fonti...
+    </div>
+  );
+
+  if (!sources || sources.length === 0) return (
+    <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+      Nessun dato fonte lead disponibile.
+    </div>
+  );
+
+  const chartData = sources.slice(0, 8).map((s) => ({
+    fonte: s.source.length > 15 ? s.source.slice(0, 15) + '…' : s.source,
+    'Opportunità': s.total_opportunities,
+    'Chiuse vinte': s.won_opportunities,
+    'Win rate %': s.win_rate,
+    valore: s.total_won_value,
+  }));
+
+  return (
+    <div className="space-y-4">
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={chartData} layout="vertical">
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis type="number" tick={{ fontSize: 11 }} />
+          <YAxis type="category" dataKey="fonte" tick={{ fontSize: 11 }} width={90} />
+          <Tooltip
+            formatter={(value: number, name: string) =>
+              name === 'Win rate %' ? [`${value.toFixed(1)}%`, name] : [value, name]
+            }
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar dataKey="Opportunità" fill="hsl(var(--muted-foreground))" opacity={0.5} radius={[0, 2, 2, 0]} />
+          <Bar dataKey="Chiuse vinte" fill="hsl(var(--primary))" radius={[0, 2, 2, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="grid grid-cols-2 gap-2">
+        {sources.slice(0, 4).map((s) => (
+          <div key={s.source} className="flex items-center justify-between p-2 rounded border text-xs">
+            <span className="font-medium truncate">{s.source}</span>
+            <span className="text-muted-foreground ml-2">{fmt(s.total_won_value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COMPONENTE: TopLeadsTable
+// ============================================================
+function TopLeadsTable({ companyId }: { companyId: string }) {
+  const { data: leads, isLoading } = useTopLeads(companyId, 10);
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-24 text-muted-foreground text-sm animate-pulse">
+      Calcolo lead score...
+    </div>
+  );
+
+  if (!leads || leads.length === 0) return (
+    <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+      Nessun lead con score disponibile.
+    </div>
+  );
+
+  const tierColor = {
+    A: 'bg-green-100 text-green-800',
+    B: 'bg-blue-100 text-blue-800',
+    C: 'bg-yellow-100 text-yellow-800',
+    D: 'bg-gray-100 text-gray-800',
+  };
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Lead</TableHead>
+          <TableHead className="text-center">Tier ICP</TableHead>
+          <TableHead className="text-center">Score</TableHead>
+          <TableHead>Fonte</TableHead>
+          <TableHead className="text-center">Opp. aperte</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {leads.map((lead) => (
+          <TableRow key={lead.id}>
+            <TableCell>
+              <div className="font-medium text-sm">{lead.full_name}</div>
+              {lead.company_name && (
+                <div className="text-xs text-muted-foreground">{lead.company_name}</div>
+              )}
+            </TableCell>
+            <TableCell className="text-center">
+              {lead.icp_tier ? (
+                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${tierColor[lead.icp_tier as keyof typeof tierColor] ?? 'bg-gray-100 text-gray-800'}`}>
+                  {lead.icp_tier}
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">—</span>
+              )}
+            </TableCell>
+            <TableCell>
+              <div className="flex items-center gap-1 justify-center">
+                <div className="w-16">
+                  <Progress value={lead.lead_score} className="h-1.5" />
+                </div>
+                <span className="text-xs font-medium w-8 text-right">{lead.lead_score}</span>
+              </div>
+            </TableCell>
+            <TableCell className="text-xs text-muted-foreground">{lead.source ?? '—'}</TableCell>
+            <TableCell className="text-center">
+              {lead.open_opportunities_count > 0 ? (
+                <Badge variant="default" className="text-xs">{lead.open_opportunities_count}</Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground">0</span>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+// ============================================================
+// COMPONENTE PRINCIPALE: SalesOSDashboard
+// ============================================================
+export default function SalesOSDashboard() {
+  // ATTENZIONE: sostituisci useCompanyData con il hook effettivo
+  // che nel progetto ritorna il companyId dell'utente loggato.
+  // Cerca negli altri componenti marketing come ottengono companyId.
+  const { companyId } = useCompanyData();
+  const [activeTab, setActiveTab] = React.useState('pipeline');
+
+  if (!companyId) return (
+    <div className="flex items-center justify-center h-64 text-muted-foreground">
+      Caricamento dati azienda...
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Sales OS</h1>
+          <p className="text-muted-foreground text-sm">Centro di comando commerciale</p>
+        </div>
+      </div>
+
+      {/* KPI Bar — sempre visibile */}
+      <SalesVelocityCard companyId={companyId} />
+
+      {/* Tabs principali */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-4 w-full max-w-lg">
+          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+          <TabsTrigger value="stalled">
+            <span className="flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Ferme
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="team">
+            <span className="flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" />
+              Team
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="analisi">Analisi</TabsTrigger>
+        </TabsList>
+
+        {/* TAB: Pipeline & Forecast */}
+        <TabsContent value="pipeline" className="space-y-4 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <WeightedPipelineChart companyId={companyId} />
+            <SalesForecastChart companyId={companyId} />
+          </div>
+        </TabsContent>
+
+        {/* TAB: Opportunità ferme */}
+        <TabsContent value="stalled" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                Opportunità Ferme — Richiede Attenzione
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StalledOpportunitiesPanel companyId={companyId} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB: Team / Venditori */}
+        <TabsContent value="team" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Confronto Venditori — Mese Corrente
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SellerComparisonTable companyId={companyId} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Target className="h-4 w-4 text-yellow-500" />
+                Top Lead per Score
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TopLeadsTable companyId={companyId} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB: Analisi conversione */}
+        <TabsContent value="analisi" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                Conversione per Fonte Lead
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ConversionBySourceChart companyId={companyId} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+```
+
+// VERIFICA SO4:
+// 1. Il file compila senza errori TypeScript
+// 2. Tutte le import sono risolte (se manca qualche UI component, installalo o usa alternativo)
+// 3. CRITICO: trova come gli altri componenti marketing ottengono companyId e usa
+//    lo stesso hook/context. Se non esiste useCompanyData, cerca:
+//    - useProfile, useAuth, useCurrentUser, useCompany
+//    - oppure companyId passato come prop dal parent
+//    Aggiorna l'import e l'utilizzo di conseguenza
+// 4. Aggiungi il route in App.tsx (o il router del progetto):
+//    <Route path="/marketing/sales-os" element={<SalesOSDashboard />} />
+//    La route deve essere DENTRO l'AuthGuard
+// 5. Aggiungi il link nel menu/sidebar della sezione Marketing & Vendite
+// 6. Apri /marketing/sales-os nel browser
+// 7. Tutti e 4 i tab caricano senza errori di console
+// 8. La tab "Ferme" mostra la lista (può essere vuota se non ci sono opp. ferme)
+// 9. La tab "Team" mostra la tabella venditori (può essere vuota se non ci sono dati)
+
+
+====================================================================
+PROMPT SO5 — LEAD SCORING ENGINE
+====================================================================
+
+Leggi prima:
+- src/hooks/useSalesOS.ts
+- Il componente di dettaglio contatto (ContactDetail.tsx o simile)
+- Come viene gestita la creazione/modifica di un contatto
+
+Obiettivo: implementare un sistema di lead scoring manuale + semi-automatico.
+
+### 5.1 — Crea src/utils/leadScoring.ts
+
+```typescript
+// Lead Scoring Engine
+// Il punteggio è diviso in due parti:
+// - ICP Score (0-50): quanto il contatto è il cliente ideale
+// - Behavioral Score (0-50): quanto è attivo/pronto
+// Lead Score totale = ICP Score + Behavioral Score (0-100)
+
+export interface LeadScoringInput {
+  // ICP factors
+  hasCompanyName: boolean;           // +5
+  hasPhone: boolean;                 // +5
+  hasAddress: boolean;               // +3
+  source?: string | null;            // fino a +15 dipende da fonte
+  city?: string | null;              // +5 se compilata
+  icpOverride?: number | null;       // override manuale da 0-50
+
+  // Behavioral factors
+  activitiesCount: number;           // +2 per attività, max +20
+  hasOpenOpportunity: boolean;       // +15
+  hasRecentActivity: boolean;        // attività negli ultimi 14gg: +10
+  opportunitiesCount: number;        // +1 per opportunità storica, max +5
+}
+
+const SOURCE_SCORES: Record<string, number> = {
+  'referral': 15,
+  'passaparola': 15,
+  'cliente_esistente': 12,
+  'fiera': 10,
+  'linkedin': 8,
+  'sito_web': 8,
+  'campagna': 7,
+  'email': 5,
+  'social': 5,
+  'chiamata_fredda': 3,
+  'cold_call': 3,
+};
+
+export function calculateLeadScore(input: LeadScoringInput): {
+  leadScore: number;
+  icpScore: number;
+  behavioralScore: number;
+  breakdown: Record<string, number>;
+} {
+  const breakdown: Record<string, number> = {};
+
+  // --- ICP Score (0-50) ---
+  let icpScore = 0;
+
+  if (input.icpOverride !== null && input.icpOverride !== undefined) {
+    icpScore = Math.min(50, Math.max(0, input.icpOverride));
+    breakdown['ICP manuale'] = icpScore;
+  } else {
+    if (input.hasCompanyName) { icpScore += 5; breakdown['Azienda compilata'] = 5; }
+    if (input.hasPhone) { icpScore += 5; breakdown['Telefono compilato'] = 5; }
+    if (input.hasAddress) { icpScore += 3; breakdown['Indirizzo compilato'] = 3; }
+    if (input.city) { icpScore += 5; breakdown['Città compilata'] = 5; }
+
+    const sourceScore = SOURCE_SCORES[input.source?.toLowerCase() ?? ''] ?? 0;
+    if (sourceScore > 0) {
+      icpScore += sourceScore;
+      breakdown[`Fonte: ${input.source}`] = sourceScore;
+    }
+
+    icpScore = Math.min(50, icpScore);
+  }
+
+  // --- Behavioral Score (0-50) ---
+  let behavioralScore = 0;
+
+  const activityPoints = Math.min(20, input.activitiesCount * 2);
+  if (activityPoints > 0) {
+    behavioralScore += activityPoints;
+    breakdown[`Attività (${input.activitiesCount})`] = activityPoints;
+  }
+
+  if (input.hasOpenOpportunity) {
+    behavioralScore += 15;
+    breakdown['Opportunità aperta'] = 15;
+  }
+
+  if (input.hasRecentActivity) {
+    behavioralScore += 10;
+    breakdown['Attività recente (14gg)'] = 10;
+  }
+
+  const historyPoints = Math.min(5, input.opportunitiesCount);
+  if (historyPoints > 0) {
+    behavioralScore += historyPoints;
+    breakdown[`Storico opportunità (${input.opportunitiesCount})`] = historyPoints;
+  }
+
+  behavioralScore = Math.min(50, behavioralScore);
+
+  const leadScore = icpScore + behavioralScore;
+
+  return { leadScore, icpScore, behavioralScore, breakdown };
+}
+
+export function getIcpTier(icpScore: number): 'A' | 'B' | 'C' | 'D' {
+  if (icpScore >= 40) return 'A';
+  if (icpScore >= 25) return 'B';
+  if (icpScore >= 10) return 'C';
+  return 'D';
+}
+```
+
+### 5.2 — Crea hook useRecalculateLeadScore
+
+Aggiungi in src/hooks/useSalesOS.ts questa mutation (APPEND al file,
+non riscrivere quello che c'è già):
+
+```typescript
+import { calculateLeadScore, getIcpTier } from '@/utils/leadScoring';
+
+export function useRecalculateLeadScore(companyId: string | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (contactId: string) => {
+      // 1. Carica i dati del contatto
+      const { data: contact, error: contactError } = await supabase
+        .from('marketing_contacts')
+        .select('id, full_name, company_name, phone, city, source, address')
+        .eq('id', contactId)
+        .single();
+      if (contactError) throw contactError;
+
+      // 2. Conta attività
+      const { count: activitiesCount } = await supabase
+        .from('marketing_contact_activities')
+        .select('id', { count: 'exact', head: true })
+        .eq('contact_id', contactId)
+        .eq('company_id', companyId!);
+
+      // 3. Attività recenti (14gg)
+      const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000).toISOString();
+      const { count: recentCount } = await supabase
+        .from('marketing_contact_activities')
+        .select('id', { count: 'exact', head: true })
+        .eq('contact_id', contactId)
+        .eq('company_id', companyId!)
+        .gte('created_at', fourteenDaysAgo);
+
+      // 4. Opportunità
+      const { data: opps } = await supabase
+        .from('marketing_opportunities')
+        .select('id, status')
+        .eq('contact_id', contactId)
+        .eq('company_id', companyId!);
+
+      const openOpps = (opps ?? []).filter((o) => o.status === 'open');
+
+      // 5. Calcola score
+      const { leadScore, icpScore, behavioralScore } = calculateLeadScore({
+        hasCompanyName: !!contact.company_name,
+        hasPhone: !!contact.phone,
+        hasAddress: !!contact.address,
+        source: contact.source,
+        city: contact.city,
+        activitiesCount: activitiesCount ?? 0,
+        hasOpenOpportunity: openOpps.length > 0,
+        hasRecentActivity: (recentCount ?? 0) > 0,
+        opportunitiesCount: (opps ?? []).length,
+      });
+
+      const icpTier = getIcpTier(icpScore);
+
+      // 6. Aggiorna il contatto
+      const { error: updateError } = await supabase
+        .from('marketing_contacts')
+        .update({
+          lead_score: leadScore,
+          icp_score: icpScore,
+          icp_tier: icpTier,
+          last_score_update: new Date().toISOString(),
+        })
+        .eq('id', contactId);
+      if (updateError) throw updateError;
+
+      return { leadScore, icpScore, behavioralScore, icpTier };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: salesOSKeys.topLeads(companyId ?? '') });
+      queryClient.invalidateQueries({ queryKey: ['marketing', 'contacts'] });
+    },
+  });
+}
+```
+
+### 5.3 — Aggiungi Lead Score al dettaglio contatto
+
+Nel componente ContactDetail (o equivalente), aggiungi una sezione
+"Lead Score" che mostra:
+- Il punteggio visuale (progress bar 0-100)
+- Il tier ICP (badge A/B/C/D)
+- Un bottone "Ricalcola Score"
+
+```tsx
+// Aggiungi al ContactDetail.tsx (leggi prima il file esistente):
+import { useRecalculateLeadScore } from '@/hooks/useSalesOS';
+
+// Dentro il componente (dove hai accesso a contact e companyId):
+const recalcScore = useRecalculateLeadScore(companyId);
+
+// Nel JSX (aggiungi come nuova Card dopo i dati principali):
+<Card className="mt-4">
+  <CardHeader className="pb-2">
+    <CardTitle className="text-sm font-medium flex items-center justify-between">
+      <span>Lead Score</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs"
+        disabled={recalcScore.isPending}
+        onClick={() => recalcScore.mutate(contact.id)}
+      >
+        {recalcScore.isPending ? 'Calcolo...' : '↻ Ricalcola'}
+      </Button>
+    </CardTitle>
+  </CardHeader>
+  <CardContent className="space-y-3">
+    <div className="flex items-center gap-3">
+      <div className="flex-1">
+        <div className="flex justify-between text-xs mb-1">
+          <span className="text-muted-foreground">Score totale</span>
+          <span className="font-bold">{contact.lead_score ?? 0}/100</span>
+        </div>
+        <Progress value={contact.lead_score ?? 0} className="h-2" />
+      </div>
+      {contact.icp_tier && (
+        <Badge
+          className={
+            contact.icp_tier === 'A' ? 'bg-green-100 text-green-800 border-green-200' :
+            contact.icp_tier === 'B' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+            contact.icp_tier === 'C' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+            'bg-gray-100 text-gray-800 border-gray-200'
+          }
+        >
+          Tier {contact.icp_tier}
+        </Badge>
+      )}
+    </div>
+    {contact.last_score_update && (
+      <p className="text-xs text-muted-foreground">
+        Aggiornato: {new Date(contact.last_score_update).toLocaleDateString('it-IT')}
+      </p>
+    )}
+  </CardContent>
+</Card>
+```
+
+// VERIFICA SO5:
+// 1. leadScoring.ts compila senza errori (nessun import esterno — è pura logica)
+// 2. La mutation useRecalculateLeadScore usa SOLO tabelle esistenti:
+//    marketing_contacts, marketing_contact_activities, marketing_opportunities
+//    Se un nome tabella non esiste nel progetto, correggilo prima di procedere
+// 3. Apri un contatto → vedi sezione Lead Score con Progress bar
+// 4. Clicca "Ricalcola" → dopo 1-2 secondi il punteggio si aggiorna
+// 5. Apri SalesOSDashboard → tab Team → Top Lead mostra i punteggi aggiornati
+// 6. I contatti con opportunità aperte hanno score più alto
+
+
+====================================================================
+PROMPT SO6 — CONFIGURAZIONE STAGE E VERIFICA INTEGRAZIONE
+====================================================================
+
+Leggi prima:
+- Il componente di gestione pipeline esistente (PipelineSettings, StageConfig o simile)
+- src/hooks/useSalesOS.ts
+
+Questo prompt aggiunge la configurazione avanzata degli stage e
+verifica l'integrazione completa del Sales OS.
+
+### 6.1 — Aggiungi configurazione stage al pannello pipeline
+
+Nel componente di gestione pipeline (dove l'admin configura gli stage),
+aggiungi i nuovi campi per stage. Trova il form/dialog di edit stage
+e aggiungi questi campi:
+
+```tsx
+// Aggiungi al form di modifica stage esistente:
+
+{/* Probabilità win personalizzata */}
+<div>
+  <label className="text-sm font-medium">
+    Probabilità win (%)
+    <span className="ml-1 text-xs text-muted-foreground">
+      — Lascia vuoto per calcolo automatico
+    </span>
+  </label>
+  <Input
+    type="number"
+    min="0"
+    max="100"
+    placeholder="Es: 80 (automatico se vuoto)"
+    value={stageForm.win_probability ?? ''}
+    onChange={(e) =>
+      setStageForm({
+        ...stageForm,
+        win_probability: e.target.value ? parseInt(e.target.value) : null,
+      })
+    }
+    className="mt-1"
+  />
+</div>
+
+{/* Giorni prima di alert "Ferma" */}
+<div>
+  <label className="text-sm font-medium">
+    Alert opportunità ferma dopo (giorni)
+  </label>
+  <Input
+    type="number"
+    min="1"
+    max="365"
+    placeholder="Default: 14 giorni"
+    value={stageForm.stalled_threshold_days ?? ''}
+    onChange={(e) =>
+      setStageForm({
+        ...stageForm,
+        stalled_threshold_days: e.target.value ? parseInt(e.target.value) : null,
+      })
+    }
+    className="mt-1"
+  />
+</div>
+```
+
+Assicurati che il salvataggio dello stage aggiorni anche
+`win_probability` e `stalled_threshold_days` nella tabella
+`marketing_pipeline_stages`.
+
+### 6.2 — Aggiungi link Sales OS nella sidebar
+
+Trova il componente sidebar/nav della sezione Marketing & Vendite
+(cerca: Sidebar, Navigation, MarketingNav, o simili in src/components/).
+
+Aggiungi il link alla nuova pagina Sales OS:
+
+```tsx
+// Aggiungere nella navigazione Marketing & Vendite,
+// DOPO il link Pipeline o Opportunità:
+{
+  label: 'Sales OS',
+  path: '/marketing/sales-os',
+  icon: Zap, // from lucide-react
+}
+```
+
+### 6.3 — Checklist finale integrazione Sales OS
+
+Esegui questa verifica manuale sistematica:
+
+CHECKLIST DATABASE:
+□ marketing_opportunities ha tutti i nuovi campi (probability, expected_close_date,
+  next_action, next_action_date, lost_reason, lost_reason_category, competitor_won,
+  stalled_notified_at, sales_velocity_snapshot)
+□ marketing_pipeline_stages ha: win_probability, stalled_threshold_days, playbook
+□ marketing_contacts ha: lead_score, icp_score, icp_tier, last_score_update
+□ Tabella sales_targets esiste con RLS abilitato
+□ Tabella sales_playbook_completions esiste con RLS abilitato
+□ Tutte e 4 le funzioni RPC esistono: get_weighted_pipeline, get_sales_forecast,
+  get_stalled_opportunities, get_sales_velocity
+
+CHECKLIST FRONTEND:
+□ useSalesOS.ts esiste e non ha errori TypeScript
+□ leadScoring.ts esiste in src/utils/
+□ SalesOSDashboard.tsx è raggiungibile alla route /marketing/sales-os
+□ Il dettaglio opportunità mostra la sezione "Avanzamento Commerciale"
+□ Il campo "Data chiusura prevista" è visibile e modificabile
+□ Il campo "Prossima azione" è visibile e modificabile
+□ Cambiare status a "Persa" mostra il Dialog motivo perdita
+□ Il dettaglio contatto mostra la sezione "Lead Score" con bottone Ricalcola
+□ Sales OS Dashboard — tab Pipeline mostra il grafico pipeline pesata
+□ Sales OS Dashboard — tab Ferme mostra opportunità ferme
+□ Sales OS Dashboard — tab Team mostra confronto venditori
+□ Sales OS Dashboard — tab Analisi mostra conversione per fonte
+□ Il link "Sales OS" è visibile nel menu Marketing & Vendite
+
+CHECKLIST FUNZIONALE:
+□ Apri un'opportunità → modifica "Data chiusura prevista" → si salva (nessun errore console)
+□ Apri un'opportunità → modifica "Prossima azione" → si salva
+□ Cambia status opportunità a "Persa" → appare dialog → richiede categoria → salva
+□ Ricalcola lead score su un contatto → score si aggiorna
+□ Imposta win_probability su uno stage → il forecast pesato si aggiorna
+
+Se qualcosa non funziona, correggi PRIMA di considerare completo il Sales OS.
+
+// FINE PROMPTS SALES OS (SO1 → SO6)
+
+
+====================================================================
+RIEPILOGO TECNICO SALES OS
+====================================================================
+
+NUOVE TABELLE AGGIUNTE:
+  - sales_targets (quota per venditore/mese)
+  - sales_playbook_completions (traccia step playbook)
+
+TABELLE MODIFICATE:
+  - marketing_opportunities (+9 colonne)
+  - marketing_pipeline_stages (+4 colonne)
+  - marketing_contacts (+4 colonne)
+
+NUOVE RPC POSTGRES:
+  - get_weighted_pipeline → pipeline con probabilità gerarchica
+  - get_sales_forecast → forecast pesato per mese (3 mesi avanti)
+  - get_stalled_opportunities → opportunità ferme oltre threshold stage
+  - get_sales_velocity → (opps × win_rate × avg_size) / cycle_days
+
+NUOVI FILE REACT/TS:
+  - src/hooks/useSalesOS.ts (8 hooks + 2 mutations)
+  - src/utils/leadScoring.ts (engine di scoring puro)
+  - src/pages/marketing/SalesOSDashboard.tsx (4 tab: Pipeline, Ferme, Team, Analisi)
+
+LOGICA PROBABILITÀ (ordine priorità):
+  1. opportunity.probability (override manuale)
+  2. pipeline_stage.win_probability (configurazione stage)
+  3. Calcolo lineare: 0.1 + 0.8 × (posizione / max_posizione)
+
+LEAD SCORE FORMULA:
+  ICP Score (0-50):  completezza anagrafica + fonte lead + zona
+  Behavioral (0-50): n° attività + opportunità aperta + attività recente
+  Total (0-100):     ICP + Behavioral
+  Tier:              A≥40 | B≥25 | C≥10 | D<10
+
+====================================================================

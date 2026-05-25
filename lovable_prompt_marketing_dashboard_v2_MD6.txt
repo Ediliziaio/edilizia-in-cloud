@@ -1,0 +1,467 @@
+====================================================================
+MARKETING DASHBOARD V2 — AGGIORNAMENTO MD6
+Call Center Stats + Soglie Colorizzate + Drop-off Funnel
+====================================================================
+Questo prompt aggiorna la dashboard esistente (MD1-MD5 già implementati).
+NON riscrivere componenti interi — solo le sezioni indicate.
+
+PROP ESATTE DashboardCallCenter (NON inventare):
+  interface Props {
+    callCenter: CallCenterRow[] | undefined;
+    isLoading: boolean;
+  }
+  CallCenterRow: { user_id, name, calls_total, calls_answered,
+                   avg_duration_sec, appointments_set }
+  KpiData (call center fields): calls_total, calls_answered, contact_rate
+
+FILE DA MODIFICARE:
+  src/components/marketing/dashboard/tabs/TabPanoramica.tsx
+  src/components/marketing/dashboard/tabs/TabAttivita.tsx
+  src/components/marketing/dashboard/tabs/TabTeam.tsx
+====================================================================
+
+
+====================================================================
+PARTE A — TabPanoramica.tsx: aggiungi call center nella KPI strip
+====================================================================
+
+Leggi prima TabPanoramica.tsx attuale.
+
+La KPI strip attuale ha 6 chip. Aggiungi a destra altri 2 chip
+per le metriche call center, rendendola 8 chip totali su 2 "mini-gruppi"
+separati da un divisore verticale sottile:
+
+PRIMA (6 chip):
+  [Lead Totali] [Nuovi Lead] [App.Fissati] [Chiusura%] [Show Rate] [Ticket Medio]
+
+DOPO (6 + separatore + 2 call center):
+  [Lead Totali] [Nuovi Lead] [App.Fissati] [Chiusura%] [Show Rate] [Ticket Medio]
+  | (divisore)
+  [📞 Chiamate] [Tasso Risp.]
+
+Nel JSX della strip, dopo il chip "Ticket Medio", aggiungi:
+
+```tsx
+{/* Divisore verticale */}
+<div className="w-px bg-border shrink-0 mx-1 self-stretch" />
+
+{/* Call Center KPI */}
+<KpiChip
+  label="Chiamate"
+  value={kpi.calls_total ?? 0}
+  prevValue={kpi_prev?.calls_total}
+  format="number"
+/>
+<KpiChip
+  label="Tasso Risp."
+  value={kpi.contact_rate ?? 0}
+  prevValue={kpi_prev?.contact_rate}
+  format="percent"
+/>
+```
+
+CONTESTUALMENTE — aggiungi colorizzazione soglie ai chip.
+
+Nel componente KpiChip esistente, aggiungi il supporto per soglie:
+
+```tsx
+// Aggiorna la firma di KpiChip aggiungendo thresholds opzionale:
+function KpiChip({
+  label,
+  value,
+  prevValue,
+  format = 'number',
+  thresholds,       // NUOVO: { warning: number; critical: number; higherIsBetter?: boolean }
+}: {
+  label: string;
+  value: number;
+  prevValue?: number;
+  format?: 'number' | 'currency' | 'percent';
+  thresholds?: { warning: number; critical: number; higherIsBetter?: boolean };
+}) {
+  // ... codice esistente ...
+
+  // Calcola stato basato su soglie
+  const chipStatus = (() => {
+    if (!thresholds) return 'neutral';
+    const { warning, critical, higherIsBetter = true } = thresholds;
+    if (higherIsBetter) {
+      if (value >= warning) return 'good';
+      if (value >= critical) return 'warning';
+      return 'critical';
+    } else {
+      // Per metriche dove valori alti sono negativi
+      if (value <= warning) return 'good';
+      if (value <= critical) return 'warning';
+      return 'critical';
+    }
+  })();
+
+  const statusBg = {
+    good: '',                                    // nessun colore: normale
+    neutral: '',
+    warning: 'bg-yellow-50 border-yellow-200',
+    critical: 'bg-red-50 border-red-200',
+  }[chipStatus];
+
+  const statusText = {
+    good: '',
+    neutral: '',
+    warning: 'text-yellow-700',
+    critical: 'text-red-700 font-bold',
+  }[chipStatus];
+
+  return (
+    <div className={`flex items-center gap-2 rounded-md border px-3 py-1.5 flex-1 min-w-0 ${statusBg}`}>
+      <div className="min-w-0">
+        <div className={`text-xs truncate ${chipStatus === 'critical' ? 'text-red-600' : 'text-muted-foreground'}`}>
+          {label}
+        </div>
+        <div className={`text-sm font-semibold leading-tight ${statusText}`}>
+          {displayValue}
+        </div>
+      </div>
+      {delta && (
+        <DeltaIcon className={`h-3.5 w-3.5 shrink-0 ${deltaColor}`} />
+      )}
+    </div>
+  );
+}
+```
+
+Poi aggiorna la chiamata a KpiChip nella strip per passare le soglie
+ai chip critici. Modifica solo questi chip (gli altri rimangono senza soglie):
+
+```tsx
+{/* MODIFICA: aggiungi thresholds a Show Rate e Chiusura% */}
+<KpiChip
+  label="Tasso Chiusura"
+  value={kpi.close_rate}
+  prevValue={kpi_prev?.close_rate}
+  format="percent"
+  thresholds={{ warning: 20, critical: 10, higherIsBetter: true }}
+/>
+<KpiChip
+  label="Show Rate"
+  value={kpi.show_rate}
+  prevValue={kpi_prev?.show_rate}
+  format="percent"
+  thresholds={{ warning: 60, critical: 40, higherIsBetter: true }}
+/>
+<KpiChip
+  label="Tasso Risp."
+  value={kpi.contact_rate ?? 0}
+  prevValue={kpi_prev?.contact_rate}
+  format="percent"
+  thresholds={{ warning: 50, critical: 30, higherIsBetter: true }}
+/>
+```
+
+// VERIFICA PARTE A:
+// 1. La strip mostra 8 chip con divisore verticale tra 6 e 2
+// 2. Se Show Rate < 40%: chip rosso + testo in grassetto rosso
+// 3. Se Show Rate 40-60%: chip giallo
+// 4. Se Show Rate > 60%: nessun colore speciale (neutral)
+// 5. Stesso comportamento per Tasso Chiusura e Tasso Risposta
+// 6. I chip colorizzati si vedono anche quando il valore è 0%
+
+
+====================================================================
+PARTE B — TabAttivita.tsx: sezione call center completa e ricca
+====================================================================
+
+Leggi prima TabAttivita.tsx attuale.
+
+Il file attuale mostra già DashboardCallCenter in fondo.
+Aggiungi in CIMA, PRIMA della tabella call center, una sezione
+con i KPI aggregati del call center:
+
+```tsx
+// Aggiungi import se non già presente:
+// import { formatDuration } from '@/components/marketing/dashboard/utils';
+// Se formatDuration non esiste in utils, usa questa funzione inline:
+const formatDuration = (seconds: number) => {
+  if (!seconds || seconds === 0) return '—';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+};
+
+// Calcola statistiche aggregate del call center dai dati per operatore:
+const callCenterSummary = data.call_center && data.call_center.length > 0
+  ? {
+      totalCalls: data.call_center.reduce((s, r) => s + r.calls_total, 0),
+      totalAnswered: data.call_center.reduce((s, r) => s + r.calls_answered, 0),
+      totalAppSet: data.call_center.reduce((s, r) => s + r.appointments_set, 0),
+      avgDuration: data.call_center.reduce((s, r) => s + r.avg_duration_sec, 0) /
+                   data.call_center.filter((r) => r.avg_duration_sec > 0).length || 0,
+      operatorsCount: data.call_center.length,
+      contactRate: data.call_center.reduce((s, r) => s + r.calls_total, 0) > 0
+        ? (data.call_center.reduce((s, r) => s + r.calls_answered, 0) /
+           data.call_center.reduce((s, r) => s + r.calls_total, 0)) * 100
+        : 0,
+    }
+  : null;
+```
+
+Poi SOSTITUISCI i 5 KPI card generici in cima a TabAttivita con questa
+struttura divisa in 2 blocchi: Appuntamenti | Call Center:
+
+```tsx
+{/* === SEZIONE APPUNTAMENTI === */}
+<div>
+  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+    Appuntamenti
+  </h3>
+  <div className="grid grid-cols-4 gap-3">
+    {[
+      {
+        label: 'App. Fissati',
+        value: fmt(kpi.appointments_set),
+        sub: kpi_prev ? `${calcDelta(kpi.appointments_set, kpi_prev.appointments_set).value > 0 ? '+' : ''}${calcDelta(kpi.appointments_set, kpi_prev.appointments_set).value.toFixed(0)}% vs prec.` : null,
+        status: 'neutral',
+      },
+      {
+        label: 'App. Svolti',
+        value: fmt(kpi.appointments_done),
+        sub: null,
+        status: 'neutral',
+      },
+      {
+        label: 'Show Rate',
+        value: `${kpi.show_rate.toFixed(1)}%`,
+        sub: 'Soglia: 60%',
+        status: kpi.show_rate >= 60 ? 'good' : kpi.show_rate >= 40 ? 'warning' : 'critical',
+      },
+      {
+        label: 'Contatti Lavorati',
+        value: fmt(kpi.contacts_worked),
+        sub: null,
+        status: 'neutral',
+      },
+    ].map((item) => {
+      const cardColors = {
+        good: 'border-green-200 bg-green-50/50',
+        warning: 'border-yellow-200 bg-yellow-50/50',
+        critical: 'border-red-200 bg-red-50/50',
+        neutral: '',
+      }[item.status];
+      const valueColors = {
+        good: 'text-green-700',
+        warning: 'text-yellow-700',
+        critical: 'text-red-700',
+        neutral: '',
+      }[item.status];
+      return (
+        <div key={item.label} className={`rounded-lg border bg-card p-3 ${cardColors}`}>
+          <div className="text-xs text-muted-foreground">{item.label}</div>
+          <div className={`text-xl font-bold mt-1 ${valueColors}`}>{item.value}</div>
+          {item.sub && (
+            <div className="text-xs text-muted-foreground mt-0.5">{item.sub}</div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+</div>
+
+{/* === SEZIONE CALL CENTER (solo se dati presenti) === */}
+{callCenterSummary && (
+  <div>
+    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+      Call Center
+    </h3>
+    <div className="grid grid-cols-5 gap-3">
+      {[
+        {
+          label: 'Chiamate Totali',
+          value: fmt(callCenterSummary.totalCalls),
+          sub: `${callCenterSummary.operatorsCount} operator${callCenterSummary.operatorsCount === 1 ? 'e' : 'i'}`,
+          status: 'neutral',
+        },
+        {
+          label: 'Risposte',
+          value: fmt(callCenterSummary.totalAnswered),
+          sub: null,
+          status: 'neutral',
+        },
+        {
+          label: 'Tasso Risposta',
+          value: `${callCenterSummary.contactRate.toFixed(1)}%`,
+          sub: 'Soglia: 50%',
+          status: callCenterSummary.contactRate >= 50 ? 'good'
+                : callCenterSummary.contactRate >= 30 ? 'warning' : 'critical',
+        },
+        {
+          label: 'Durata Media',
+          value: formatDuration(callCenterSummary.avgDuration),
+          sub: null,
+          status: 'neutral',
+        },
+        {
+          label: 'App. da Chiamate',
+          value: fmt(callCenterSummary.totalAppSet),
+          sub: callCenterSummary.totalCalls > 0
+            ? `${((callCenterSummary.totalAppSet / callCenterSummary.totalCalls) * 100).toFixed(1)}% conv.`
+            : null,
+          status: 'neutral',
+        },
+      ].map((item) => {
+        const cardColors = {
+          good: 'border-green-200 bg-green-50/50',
+          warning: 'border-yellow-200 bg-yellow-50/50',
+          critical: 'border-red-200 bg-red-50/50',
+          neutral: '',
+        }[item.status];
+        const valueColors = {
+          good: 'text-green-700',
+          warning: 'text-yellow-700',
+          critical: 'text-red-700',
+          neutral: '',
+        }[item.status];
+        return (
+          <div key={item.label} className={`rounded-lg border bg-card p-3 ${cardColors}`}>
+            <div className="text-xs text-muted-foreground">{item.label}</div>
+            <div className={`text-xl font-bold mt-1 ${valueColors}`}>{item.value}</div>
+            {item.sub && (
+              <div className="text-xs text-muted-foreground mt-0.5">{item.sub}</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+
+    {/* Tabella per operatore */}
+    <div className="rounded-lg border bg-card p-4 mt-3">
+      <h4 className="text-xs font-medium text-muted-foreground mb-3">
+        Dettaglio per Operatore
+      </h4>
+      <DashboardCallCenter
+        callCenter={data.call_center}
+        isLoading={false}
+      />
+    </div>
+  </div>
+)}
+
+{/* Se call center vuoto: messaggio neutro */}
+{(!data.call_center || data.call_center.length === 0) && (
+  <div className="rounded-lg border bg-card/50 p-6 text-center">
+    <p className="text-sm text-muted-foreground">
+      Nessun dato call center per il periodo selezionato.
+    </p>
+    <p className="text-xs text-muted-foreground mt-1">
+      I dati appaiono quando vengono registrate chiamate nel sistema.
+    </p>
+  </div>
+)}
+```
+
+Aggiungi anche questi import in cima al file se non presenti:
+```tsx
+import { DashboardCallCenter } from '@/components/marketing/dashboard/DashboardCallCenter';
+import { fmt, calcDelta } from '@/components/marketing/dashboard/utils';
+```
+
+// VERIFICA PARTE B:
+// 1. Tab Attività mostra 2 sezioni: "Appuntamenti" (4 card) e "Call Center" (5 card)
+// 2. Se Show Rate < 40%: card Show Rate rossa con valore rosso
+// 3. Se dati call center presenti: mostra 5 card + tabella per operatore
+// 4. Se call center vuoto: mostra solo sezione Appuntamenti + messaggio neutro
+// 5. "App. da Chiamate" mostra la % di conversione chiamata→appuntamento
+// 6. Tasso Risposta ha la stessa colorizzazione di soglia (50% warning, 30% critical)
+
+
+====================================================================
+PARTE C — TabTeam.tsx: aggiungi mini call center per operatori
+====================================================================
+
+Leggi prima TabTeam.tsx attuale.
+
+Dopo la tabella DashboardSalesTable, se ci sono dati call center,
+aggiungi una tabella compatta che mostra il call center per operatore
+IN VERSIONE COMPATTA (non la tabella piena, solo le colonne chiave):
+
+```tsx
+// Aggiungi alla fine del return di TabTeam, dopo DashboardSalesTable:
+
+{data.call_center && data.call_center.length > 0 && (
+  <div className="rounded-lg border bg-card p-4">
+    <div className="flex items-center justify-between mb-3">
+      <h3 className="text-sm font-medium">Attività Call Center per Operatore</h3>
+      <span className="text-xs text-muted-foreground">
+        Totale: {data.call_center.reduce((s, r) => s + r.calls_total, 0)} chiamate
+      </span>
+    </div>
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b">
+          <th className="text-left text-xs font-medium text-muted-foreground py-1.5">Operatore</th>
+          <th className="text-right text-xs font-medium text-muted-foreground py-1.5">Chiamate</th>
+          <th className="text-right text-xs font-medium text-muted-foreground py-1.5">Risposte</th>
+          <th className="text-right text-xs font-medium text-muted-foreground py-1.5">Tasso%</th>
+          <th className="text-right text-xs font-medium text-muted-foreground py-1.5">App. Fissati</th>
+          <th className="text-right text-xs font-medium text-muted-foreground py-1.5">Conv. Call→App</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.call_center.map((row) => {
+          const contactRate = row.calls_total > 0
+            ? (row.calls_answered / row.calls_total) * 100
+            : 0;
+          const convRate = row.calls_total > 0
+            ? (row.appointments_set / row.calls_total) * 100
+            : 0;
+          return (
+            <tr key={row.user_id} className="border-b last:border-0 hover:bg-muted/30">
+              <td className="py-1.5 font-medium">{row.name}</td>
+              <td className="py-1.5 text-right">{row.calls_total}</td>
+              <td className="py-1.5 text-right">{row.calls_answered}</td>
+              <td className={`py-1.5 text-right font-medium ${
+                contactRate >= 50 ? 'text-green-600' :
+                contactRate >= 30 ? 'text-yellow-600' : 'text-red-600'
+              }`}>
+                {contactRate.toFixed(1)}%
+              </td>
+              <td className="py-1.5 text-right">{row.appointments_set}</td>
+              <td className="py-1.5 text-right text-muted-foreground">
+                {convRate.toFixed(1)}%
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+)}
+```
+
+Aggiungi import se mancante:
+```tsx
+// Nessun import aggiuntivo necessario per questa parte — usa solo dati già disponibili
+```
+
+// VERIFICA PARTE C:
+// 1. Tab Team mostra: summary row (4 card) + tabella venditori + tabella call center
+// 2. La tabella call center appare SOLO se data.call_center.length > 0
+// 3. Tasso% colorizzato: verde ≥50%, giallo ≥30%, rosso <30%
+// 4. "Conv. Call→App" mostra quante chiamate diventano appuntamenti (%)
+// 5. Se nessun dato call center: tabella team viene mostrata normalmente senza sezione call center
+
+
+====================================================================
+VERIFICA FINALE MD6
+====================================================================
+
+□ Tab Panoramica strip: 8 chip (6 + divisore + 2 call center)
+□ Show Rate chip: rosso se < 40%, giallo 40-60%, neutro se > 60%
+□ Tasso Chiusura chip: rosso se < 10%, giallo 10-20%, neutro se > 20%
+□ Tasso Risposta chip: rosso se < 30%, giallo 30-50%, neutro se > 50%
+□ Tab Attività: sezione "Appuntamenti" (4 card colorate) + sezione "Call Center" (5 card)
+□ Tab Attività call center card "Tasso Risposta": colore basato su soglia
+□ Tab Attività: DashboardCallCenter con prop isLoading={false} e callCenter corretto
+□ Tab Team: tabella venditori + tabella call center per operatore (se dati)
+□ Tab Team call center: colonna Tasso% colorizzata
+□ Nessun errore TypeScript in tutti e 3 i file modificati
+□ Console browser: 0 errori
+====================================================================

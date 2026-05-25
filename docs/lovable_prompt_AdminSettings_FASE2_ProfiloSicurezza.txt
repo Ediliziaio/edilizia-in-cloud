@@ -1,0 +1,886 @@
+================================================================================
+PROMPT LOVABLE — SUPER ADMIN SETTINGS FASE 2: PROFILO & SICUREZZA
+================================================================================
+Implementa le sezioni "Profilo" e "Sicurezza" del Super Admin completamente:
+- Profilo: upload avatar, dati personali, ruolo visualizzato
+- Sicurezza: cambio password con quality indicator, lista sessioni attive
+  con possibilità di revoca, ultimo accesso visibile
+
+Segui ESATTAMENTE i 5 step qui sotto nell'ordine indicato.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1 — Migrazione SQL: tabella admin_sessions
+────────────────────────────────────────────────────────────────────────────────
+
+Esegui questa migrazione nel SQL Editor di Supabase:
+
+```sql
+-- Tabella sessioni attive per i super admin
+-- Viene aggiornata all'ogni login e svuotata al logout
+CREATE TABLE IF NOT EXISTS public.admin_sessions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  session_token TEXT NOT NULL UNIQUE,  -- token random univoco per sessione
+  device_hint   TEXT,                   -- es. "Chrome su macOS"
+  ip_address    TEXT,
+  last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.admin_sessions ENABLE ROW LEVEL SECURITY;
+
+-- Ogni admin vede solo le proprie sessioni
+CREATE POLICY "admin_own_sessions"
+  ON public.admin_sessions
+  FOR ALL
+  USING (user_id = auth.uid());
+
+-- Index per performance
+CREATE INDEX idx_admin_sessions_user ON public.admin_sessions(user_id, last_seen_at DESC);
+
+-- Aggiunta colonna avatar_url alla tabella profiles se non esiste
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2 — Sostituisci src/components/admin/settings/ProfileTab.tsx
+────────────────────────────────────────────────────────────────────────────────
+
+Sostituisci COMPLETAMENTE `src/components/admin/settings/ProfileTab.tsx`:
+
+```tsx
+import { useState, useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Camera, User, Save, Loader2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+
+export function ProfileTab() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // ── Dati profilo ──────────────────────────────────────────────────────────
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ["admin-profile", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, avatar_url")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
+  // Inizializza i campi quando i dati arrivano
+  const [initialized, setInitialized] = useState(false);
+  if (profile && !initialized) {
+    setFirstName(profile.first_name ?? "");
+    setLastName(profile.last_name ?? "");
+    setInitialized(true);
+  }
+
+  // ── Avatar upload ─────────────────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    // Validazione
+    if (!file.type.startsWith("image/")) {
+      toast.error("Carica un file immagine valido");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("L'immagine deve essere inferiore a 2 MB");
+      return;
+    }
+
+    // Preview locale
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+
+    setIsUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `admin-avatars/${user.id}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("company-logos")          // riusa il bucket già esistente
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("company-logos")
+        .getPublicUrl(path);
+
+      await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", user.id);
+
+      queryClient.invalidateQueries({ queryKey: ["admin-profile"] });
+      toast.success("Avatar aggiornato");
+    } catch (err: any) {
+      toast.error("Errore upload avatar", { description: err.message });
+      setAvatarPreview(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // ── Salva profilo ─────────────────────────────────────────────────────────
+  const updateProfile = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ first_name: firstName.trim(), last_name: lastName.trim() })
+        .eq("id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-profile"] });
+      toast.success("Profilo aggiornato");
+    },
+    onError: (err: any) => toast.error("Errore aggiornamento", { description: err.message }),
+  });
+
+  const avatarUrl = avatarPreview ?? profile?.avatar_url ?? null;
+  const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-6 w-32 bg-muted animate-pulse rounded" />
+        <div className="h-40 w-full bg-muted animate-pulse rounded-lg" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold">Profilo</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Gestisci le tue informazioni personali visibili nella piattaforma.
+        </p>
+      </div>
+
+      {/* Avatar card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Foto profilo</CardTitle>
+          <CardDescription>
+            Formati supportati: JPG, PNG, GIF. Dimensione massima: 2 MB.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-5">
+            <div className="relative">
+              <Avatar className="h-20 w-20 border-2 border-muted">
+                <AvatarImage src={avatarUrl ?? undefined} alt={firstName} />
+                <AvatarFallback className="text-xl bg-primary/10 text-primary">
+                  {initials || <User className="h-8 w-8" />}
+                </AvatarFallback>
+              </Avatar>
+              {isUploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
+                  <Loader2 className="h-5 w-5 text-white animate-spin" />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="gap-2"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                {isUploading ? "Caricamento..." : "Cambia foto"}
+              </Button>
+              {profile?.avatar_url && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={async () => {
+                    await supabase
+                      .from("profiles")
+                      .update({ avatar_url: null })
+                      .eq("id", user!.id);
+                    setAvatarPreview(null);
+                    queryClient.invalidateQueries({ queryKey: ["admin-profile"] });
+                  }}
+                >
+                  Rimuovi foto
+                </Button>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Dati personali */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Informazioni personali</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="firstName">Nome</Label>
+              <Input
+                id="firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Mario"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lastName">Cognome</Label>
+              <Input
+                id="lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Rossi"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <div className="flex items-center gap-2">
+              <Input value={user?.email ?? ""} disabled className="bg-muted" />
+              <Badge variant="secondary" className="flex-shrink-0">Non modificabile</Badge>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Ruolo</Label>
+            <div className="flex items-center gap-2">
+              <Input value="Super Admin" disabled className="bg-muted" />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex justify-end">
+            <Button
+              onClick={() => updateProfile.mutate()}
+              disabled={updateProfile.isPending}
+              className="gap-2"
+            >
+              {updateProfile.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Salva modifiche
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3 — Crea src/hooks/useAdminSessions.ts
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/hooks/useAdminSessions.ts`:
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+export interface AdminSession {
+  id: string;
+  deviceHint: string | null;
+  ipAddress: string | null;
+  lastSeenAt: string;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
+// Legge il session token dal localStorage (Supabase lo memorizza)
+function getCurrentSessionToken(): string | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.includes("supabase.auth")) {
+        const val = localStorage.getItem(key);
+        if (val) {
+          const parsed = JSON.parse(val);
+          return parsed?.access_token ?? null;
+        }
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+export function useAdminSessions() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["admin-sessions", user?.id],
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    queryFn: async (): Promise<AdminSession[]> => {
+      const { data, error } = await supabase
+        .from("admin_sessions")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("last_seen_at", { ascending: false });
+      if (error) throw error;
+
+      const currentToken = getCurrentSessionToken();
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        deviceHint: row.device_hint,
+        ipAddress: row.ip_address,
+        lastSeenAt: row.last_seen_at,
+        createdAt: row.created_at,
+        // La sessione corrente non ha il session_token nel select (sicurezza)
+        // Usiamo il created_at più recente come euristica
+        isCurrent: row === data?.[0],
+      }));
+    },
+  });
+}
+
+export function useRevokeSession() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      const { error } = await supabase
+        .from("admin_sessions")
+        .delete()
+        .eq("id", sessionId)
+        .eq("user_id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-sessions"] });
+      toast.success("Sessione revocata");
+    },
+    onError: (err: any) =>
+      toast.error("Errore revoca sessione", { description: err.message }),
+  });
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4 — Crea src/components/admin/settings/SecurityTab.tsx
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/components/admin/settings/SecurityTab.tsx`:
+
+```tsx
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAdminSessions, useRevokeSession } from "@/hooks/useAdminSessions";
+import { toast } from "sonner";
+import {
+  Lock, Eye, EyeOff, Shield, Monitor, Trash2, Loader2,
+  RefreshCw, AlertTriangle, CheckCircle2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatDistanceToNow } from "date-fns";
+import { it } from "date-fns/locale";
+
+// ─── STRENGTH INDICATOR ───────────────────────────────────────────────────────
+
+function getPasswordStrength(pwd: string): { level: number; label: string; color: string } {
+  if (pwd.length < 6) return { level: 0, label: "Troppo corta", color: "bg-destructive" };
+  let score = 0;
+  if (pwd.length >= 8)  score++;
+  if (pwd.length >= 12) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+
+  const levels = [
+    { level: 1, label: "Debole",   color: "bg-destructive" },
+    { level: 2, label: "Scarsa",   color: "bg-orange-400" },
+    { level: 3, label: "Media",    color: "bg-yellow-400" },
+    { level: 4, label: "Buona",    color: "bg-blue-400" },
+    { level: 5, label: "Ottima",   color: "bg-green-500" },
+  ];
+  return levels[Math.min(score - 1, 4)] ?? levels[0];
+}
+
+// ─── SESSIONI CARD ─────────────────────────────────────────────────────────────
+
+function SessionsCard() {
+  const { data: sessions, isLoading, refetch, isFetching } = useAdminSessions();
+  const { mutate: revoke, isPending: isRevoking } = useRevokeSession();
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Monitor className="h-4 w-4" />
+              Sessioni attive
+            </CardTitle>
+            <CardDescription>
+              Dispositivi con accesso al tuo account Super Admin
+            </CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : !sessions || sessions.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Nessuna sessione attiva registrata
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {sessions.map((session) => (
+              <div
+                key={session.id}
+                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                    <Monitor className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">
+                        {session.deviceHint ?? "Dispositivo sconosciuto"}
+                      </p>
+                      {session.isCurrent && (
+                        <Badge className="h-4 px-1.5 text-[10px]">
+                          Sessione corrente
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {session.ipAddress ?? "IP sconosciuto"} •{" "}
+                      {formatDistanceToNow(new Date(session.lastSeenAt), {
+                        addSuffix: true,
+                        locale: it,
+                      })}
+                    </p>
+                  </div>
+                </div>
+                {!session.isCurrent && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => revoke(session.id)}
+                    disabled={isRevoking}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            {sessions.length > 1 && (
+              <>
+                <Separator />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10 w-full"
+                  onClick={() => {
+                    const others = sessions.filter((s) => !s.isCurrent);
+                    others.forEach((s) => revoke(s.id));
+                  }}
+                  disabled={isRevoking}
+                >
+                  Revoca tutte le altre sessioni
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── PASSWORD CARD ─────────────────────────────────────────────────────────────
+
+function PasswordCard() {
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const strength = getPasswordStrength(newPwd);
+  const canSubmit = currentPwd.length >= 1 && newPwd.length >= 8 && newPwd === confirmPwd;
+
+  const handleSubmit = async () => {
+    setError(null);
+    if (newPwd !== confirmPwd) {
+      setError("Le password non coincidono");
+      return;
+    }
+    if (newPwd.length < 8) {
+      setError("La password deve essere almeno 8 caratteri");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Prima verifica la password corrente tentando un re-auth
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: (await supabase.auth.getUser()).data.user?.email ?? "",
+        password: currentPwd,
+      });
+      if (signInError) {
+        setError("Password attuale non corretta");
+        return;
+      }
+
+      // Poi aggiorna
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPwd,
+      });
+      if (updateError) throw updateError;
+
+      toast.success("Password aggiornata con successo");
+      setCurrentPwd("");
+      setNewPwd("");
+      setConfirmPwd("");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Lock className="h-4 w-4" />
+          Cambia password
+        </CardTitle>
+        <CardDescription>
+          Usa una password forte e unica per proteggere il tuo account.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-1.5">
+          <Label htmlFor="currentPwd">Password attuale</Label>
+          <div className="relative">
+            <Input
+              id="currentPwd"
+              type={showCurrent ? "text" : "password"}
+              value={currentPwd}
+              onChange={(e) => setCurrentPwd(e.target.value)}
+              placeholder="La tua password attuale"
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowCurrent(!showCurrent)}
+              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+            >
+              {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="newPwd">Nuova password</Label>
+          <div className="relative">
+            <Input
+              id="newPwd"
+              type={showNew ? "text" : "password"}
+              value={newPwd}
+              onChange={(e) => setNewPwd(e.target.value)}
+              placeholder="Minimo 8 caratteri"
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowNew(!showNew)}
+              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+            >
+              {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {/* Strength bar */}
+          {newPwd.length > 0 && (
+            <div className="space-y-1">
+              <div className="flex gap-1 h-1.5">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className={`flex-1 rounded-full transition-all ${
+                      i <= strength.level ? strength.color : "bg-muted"
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className={`text-xs ${
+                strength.level >= 4 ? "text-green-600" :
+                strength.level >= 3 ? "text-yellow-600" : "text-destructive"
+              }`}>
+                Password {strength.label}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="confirmPwd">Conferma nuova password</Label>
+          <div className="relative">
+            <Input
+              id="confirmPwd"
+              type="password"
+              value={confirmPwd}
+              onChange={(e) => setConfirmPwd(e.target.value)}
+              placeholder="Ripeti la nuova password"
+              className={confirmPwd && newPwd !== confirmPwd ? "border-destructive" : ""}
+            />
+            {confirmPwd && newPwd === confirmPwd && (
+              <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-green-500" />
+            )}
+          </div>
+          {confirmPwd && newPwd !== confirmPwd && (
+            <p className="text-xs text-destructive">Le password non coincidono</p>
+          )}
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit || isLoading}
+            className="gap-2"
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Shield className="h-4 w-4" />
+            )}
+            Aggiorna password
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── PAGINA SICUREZZA ─────────────────────────────────────────────────────────
+
+export function SecurityTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold">Sicurezza</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Gestisci la tua password e controlla i dispositivi connessi al tuo account.
+        </p>
+      </div>
+
+      <PasswordCard />
+      <SessionsCard />
+    </div>
+  );
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 5 — Edge Function: upsert-admin-session (chiamata al login)
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `supabase/functions/upsert-admin-session/index.ts`:
+
+```typescript
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) throw new Error("Missing auth");
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Verifica che sia super_admin
+    const { data: role } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+    if (role?.role !== "super_admin") throw new Error("Not super admin");
+
+    const { device_hint, ip_address } = await req.json().catch(() => ({}));
+
+    // Genera token univoco per questa sessione
+    const sessionToken = crypto.randomUUID();
+
+    await supabaseAdmin
+      .from("admin_sessions")
+      .insert({
+        user_id: user.id,
+        session_token: sessionToken,
+        device_hint: device_hint ?? null,
+        ip_address: ip_address ?? req.headers.get("x-forwarded-for") ?? null,
+        last_seen_at: new Date().toISOString(),
+      });
+
+    // Mantieni max 5 sessioni per admin
+    const { data: allSessions } = await supabaseAdmin
+      .from("admin_sessions")
+      .select("id, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if ((allSessions?.length ?? 0) > 5) {
+      const toDelete = (allSessions ?? []).slice(5).map((s: any) => s.id);
+      await supabaseAdmin
+        .from("admin_sessions")
+        .delete()
+        .in("id", toDelete);
+    }
+
+    return new Response(
+      JSON.stringify({ ok: true }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+```
+
+Chiama questa Edge Function all'interno del componente `QuickLoginReturnBanner.tsx`
+oppure nel flusso di autenticazione, dopo che il super admin ha fatto login:
+
+```typescript
+// Da chiamare una volta dopo il login del super admin
+await supabase.functions.invoke("upsert-admin-session", {
+  body: {
+    device_hint: navigator.userAgent.slice(0, 100),
+    ip_address: null, // il server la legge dall'header
+  },
+});
+```
+
+
+================================================================================
+NOTE IMPORTANTI
+================================================================================
+
+- AVATAR: viene salvato nel bucket "company-logos" già esistente sotto la path
+  `admin-avatars/{user.id}.{ext}` — nessun nuovo bucket necessario
+- SESSIONI: la tabella admin_sessions è separata da auth.sessions di Supabase
+  (non possiamo revocare le vere JWT session, ma possiamo tener traccia di
+  quelle "registrate" manualmente e mostrare info utili)
+- PASSWORD CHANGE: usa il doppio approccio: prima verifica current pwd con
+  signInWithPassword, poi aggiorna con updateUser — più sicuro
+- STRENGTH INDICATOR: 5 livelli basati su lunghezza + maiuscole + numeri + simboli
+- AUTH PATTERN: usa useAuth() → user?.id (non company)
+- NON serve colonna full_name — usa sempre first_name + last_name separati
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+1. Vai su Impostazioni → Profilo → carica un avatar → deve apparire
+2. Modifica nome/cognome → salva → toast di successo
+3. Vai su Sicurezza → inserisci password errata → errore "Password attuale non corretta"
+4. Inserisci password valida (>8 chars, maiuscola, numero) → barra verde "Ottima"
+5. Sessioni attive → deve comparire almeno 1 sessione (quella corrente)
+================================================================================

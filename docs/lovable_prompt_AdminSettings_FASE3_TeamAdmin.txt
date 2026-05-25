@@ -1,0 +1,999 @@
+================================================================================
+PROMPT LOVABLE — SUPER ADMIN SETTINGS FASE 3: TEAM MANAGEMENT
+================================================================================
+Ridisegna completamente la gestione del team Super Admin in stile GHL:
+- Matrix visiva dei permessi (tabella con toggle inline)
+- Preset permessi (Accesso Completo, Solo Lettura, Gestore Aziende, Supporto)
+- Invite via email con link one-time
+- Indicatori ultimo accesso e sessioni attive
+- Ricerca/filtro nella lista admin
+
+Questo step risolve anche:
+  BUG #4: NotificationsTab usa "as any" sulle operazioni DB
+  DISCONN #4: impersonation banner non affidabile (aggiunge last_login_at a profiles)
+Segui ESATTAMENTE i 5 step nell'ordine indicato.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1 — Migrazione SQL: admin_invites + last_login_at su profiles
+────────────────────────────────────────────────────────────────────────────────
+
+```sql
+-- Tabella inviti per nuovi super admin (link one-time)
+CREATE TABLE IF NOT EXISTS public.admin_invites (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email       TEXT NOT NULL,
+  token       TEXT NOT NULL UNIQUE DEFAULT gen_random_uuid()::text,
+  invited_by  UUID REFERENCES auth.users(id),
+  permissions JSONB NOT NULL DEFAULT '{
+    "can_manage_companies": false,
+    "can_manage_plans": false,
+    "can_manage_tickets": false,
+    "can_manage_referrals": false,
+    "can_manage_admins": false,
+    "can_view_platform_stats": true
+  }',
+  accepted_at  TIMESTAMPTZ,
+  expires_at   TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '7 days',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.admin_invites ENABLE ROW LEVEL SECURITY;
+
+-- Solo service_role gestisce gli inviti
+CREATE POLICY "service_role_admin_invites"
+  ON public.admin_invites FOR ALL
+  USING (auth.role() = 'service_role');
+
+-- Colonna per tracciare ultimo accesso
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2 — Tipi e hook: src/hooks/useAdminTeam.ts
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/hooks/useAdminTeam.ts`:
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+// ─── TIPI ─────────────────────────────────────────────────────────────────────
+
+export interface AdminPermissions {
+  can_manage_companies:     boolean;
+  can_manage_plans:         boolean;
+  can_manage_tickets:       boolean;
+  can_manage_referrals:     boolean;
+  can_manage_admins:        boolean;
+  can_view_platform_stats:  boolean;
+  allowed_company_ids:      string[] | null;
+}
+
+export const DEFAULT_PERMISSIONS: AdminPermissions = {
+  can_manage_companies:    false,
+  can_manage_plans:        false,
+  can_manage_tickets:      false,
+  can_manage_referrals:    false,
+  can_manage_admins:       false,
+  can_view_platform_stats: true,
+  allowed_company_ids:     null,
+};
+
+export const PERMISSION_PRESETS: { label: string; icon: string; value: Partial<AdminPermissions> }[] = [
+  {
+    label: "Accesso Completo",
+    icon: "🔑",
+    value: {
+      can_manage_companies: true, can_manage_plans: true,
+      can_manage_tickets: true,  can_manage_referrals: true,
+      can_manage_admins: true,   can_view_platform_stats: true,
+    },
+  },
+  {
+    label: "Solo Lettura",
+    icon: "👁",
+    value: {
+      can_manage_companies: false, can_manage_plans: false,
+      can_manage_tickets: false,   can_manage_referrals: false,
+      can_manage_admins: false,    can_view_platform_stats: true,
+    },
+  },
+  {
+    label: "Gestore Aziende",
+    icon: "🏢",
+    value: {
+      can_manage_companies: true,  can_manage_plans: false,
+      can_manage_tickets: true,    can_manage_referrals: false,
+      can_manage_admins: false,    can_view_platform_stats: true,
+    },
+  },
+  {
+    label: "Supporto",
+    icon: "🎧",
+    value: {
+      can_manage_companies: false, can_manage_plans: false,
+      can_manage_tickets: true,    can_manage_referrals: false,
+      can_manage_admins: false,    can_view_platform_stats: true,
+    },
+  },
+];
+
+export const PERMISSION_LABELS: { key: keyof AdminPermissions; label: string; description: string }[] = [
+  { key: "can_view_platform_stats",  label: "Statistiche",   description: "Dashboard e analytics" },
+  { key: "can_manage_companies",     label: "Aziende",       description: "Crea, modifica, sospendi" },
+  { key: "can_manage_plans",         label: "Piani",         description: "Gestisci piani e prezzi" },
+  { key: "can_manage_tickets",       label: "Ticket",        description: "Gestisci supporto" },
+  { key: "can_manage_referrals",     label: "Referral",      description: "Programma referral" },
+  { key: "can_manage_admins",        label: "Admin Team",    description: "Gestisci altri admin" },
+];
+
+export interface AdminMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl: string | null;
+  lastLoginAt: string | null;
+  createdAt: string;
+  permissions: AdminPermissions | null;
+  activeSessions: number;
+}
+
+// ─── HOOK: LISTA ADMIN ────────────────────────────────────────────────────────
+
+export function useAdminTeam() {
+  return useQuery({
+    queryKey: ["admin-team"],
+    staleTime: 60_000,
+    queryFn: async (): Promise<AdminMember[]> => {
+      // Recupera tutti i super_admin dalla tabella user_roles
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+      if (rolesError) throw rolesError;
+
+      const userIds = (roles ?? []).map((r: any) => r.user_id);
+      if (userIds.length === 0) return [];
+
+      // Recupera profili
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, avatar_url, last_login_at, created_at")
+        .in("id", userIds);
+      if (profilesError) throw profilesError;
+
+      // Recupera permessi
+      const { data: perms } = await supabase
+        .from("super_admin_permissions")
+        .select("*")
+        .in("user_id", userIds);
+
+      // Recupera sessioni attive
+      const { data: sessions } = await supabase
+        .from("admin_sessions")
+        .select("user_id")
+        .in("user_id", userIds);
+
+      const permMap = new Map((perms ?? []).map((p: any) => [p.user_id, p]));
+      const sessionCount = (sessions ?? []).reduce((acc: Map<string, number>, s: any) => {
+        acc.set(s.user_id, (acc.get(s.user_id) ?? 0) + 1);
+        return acc;
+      }, new Map<string, number>());
+
+      // Recupera email da auth (solo service_role — usiamo Edge Function per email)
+      // In alternativa, l'email è in profiles se la copiamo lì. Per semplicità,
+      // recuperiamo l'email dalla tabella profiles se disponibile, altrimenti placeholder
+      return (profiles ?? []).map((p: any): AdminMember => {
+        const perm = permMap.get(p.id);
+        return {
+          id: p.id,
+          firstName: p.first_name ?? "",
+          lastName:  p.last_name ?? "",
+          email:     p.email ?? "",     // se c'è la colonna email in profiles
+          avatarUrl: p.avatar_url ?? null,
+          lastLoginAt: p.last_login_at ?? null,
+          createdAt: p.created_at,
+          activeSessions: sessionCount.get(p.id) ?? 0,
+          permissions: perm
+            ? {
+                can_manage_companies:    perm.can_manage_companies,
+                can_manage_plans:        perm.can_manage_plans,
+                can_manage_tickets:      perm.can_manage_tickets,
+                can_manage_referrals:    perm.can_manage_referrals,
+                can_manage_admins:       perm.can_manage_admins,
+                can_view_platform_stats: perm.can_view_platform_stats,
+                allowed_company_ids:     perm.allowed_company_ids ?? null,
+              }
+            : null,
+        };
+      });
+    },
+  });
+}
+
+// ─── HOOK: AGGIORNA PERMESSI (inline) ────────────────────────────────────────
+
+export function useUpdateAdminPermission() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      key,
+      value,
+    }: {
+      userId: string;
+      key: keyof AdminPermissions;
+      value: boolean;
+    }) => {
+      const { error } = await supabase.functions.invoke("update-admin-permissions", {
+        body: { target_user_id: userId, permissions: { [key]: value } },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-team"] }),
+    onError: (err: any) =>
+      toast.error("Errore aggiornamento permesso", { description: err.message }),
+  });
+}
+
+// ─── HOOK: APPLICA PRESET ─────────────────────────────────────────────────────
+
+export function useApplyPermissionPreset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      preset,
+    }: {
+      userId: string;
+      preset: Partial<AdminPermissions>;
+    }) => {
+      const { error } = await supabase.functions.invoke("update-admin-permissions", {
+        body: { target_user_id: userId, permissions: preset },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-team"] });
+      toast.success("Permessi aggiornati");
+    },
+    onError: (err: any) =>
+      toast.error("Errore", { description: err.message }),
+  });
+}
+
+// ─── HOOK: INVITA ADMIN ───────────────────────────────────────────────────────
+
+export function useInviteAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      email,
+      permissions,
+    }: {
+      email: string;
+      permissions: AdminPermissions;
+    }) => {
+      const { error } = await supabase.functions.invoke("invite-admin", {
+        body: { email, permissions },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-team"] });
+      toast.success("Invito inviato", {
+        description: "Il link di accesso è stato inviato via email.",
+      });
+    },
+    onError: (err: any) =>
+      toast.error("Errore invito", { description: err.message }),
+  });
+}
+
+// ─── HOOK: ELIMINA ADMIN ──────────────────────────────────────────────────────
+
+export function useDeleteAdmin() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      if (userId === user?.id) throw new Error("Non puoi eliminare te stesso");
+      const { error } = await supabase.functions.invoke("delete-admin-user", {
+        body: { target_user_id: userId },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-team"] });
+      toast.success("Admin eliminato");
+    },
+    onError: (err: any) =>
+      toast.error("Errore eliminazione", { description: err.message }),
+  });
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3 — Edge Function: invite-admin/index.ts
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `supabase/functions/invite-admin/index.ts`:
+
+```typescript
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) throw new Error("Missing auth");
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Verifica che chi invita sia super_admin con can_manage_admins
+    const { data: perm } = await supabaseAdmin
+      .from("super_admin_permissions")
+      .select("can_manage_admins")
+      .eq("user_id", user.id)
+      .single();
+    if (!(perm?.can_manage_admins ?? true)) throw new Error("Missing permission");
+
+    const { email, permissions } = await req.json();
+    if (!email) throw new Error("Email required");
+
+    // Crea il record di invito
+    const token = crypto.randomUUID();
+    const { error: insertError } = await supabaseAdmin
+      .from("admin_invites")
+      .insert({
+        email,
+        token,
+        invited_by: user.id,
+        permissions,
+        expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+      });
+    if (insertError) throw insertError;
+
+    // Costruisci link di invito
+    const inviteUrl =
+      `${Deno.env.get("SITE_URL") ?? "https://app.example.com"}/admin/accept-invite?token=${token}`;
+
+    // Invia email tramite provider configurato
+    // (riusa la logica del send-dunning-email o simile)
+    // Per semplicità inviamo con Resend se la chiave è configurata
+    const resendKey = Deno.env.get("RESEND_API_KEY");
+    if (resendKey) {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${resendKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "no-reply@ediliziaincloud.it",
+          to: [email],
+          subject: "Sei stato invitato come Super Admin",
+          html: `
+            <h2>Invito Super Admin</h2>
+            <p>Sei stato invitato ad accedere al pannello di amministrazione.</p>
+            <p>Clicca il link qui sotto per accettare (valido 7 giorni):</p>
+            <a href="${inviteUrl}" style="display:inline-block;padding:12px 24px;background:#0f172a;color:white;border-radius:8px;text-decoration:none;">
+              Accetta invito
+            </a>
+            <p style="margin-top:16px;color:#64748b;font-size:14px;">
+              Se non ti aspettavi questo invito, ignora questa email.
+            </p>
+          `,
+        }),
+      });
+    }
+
+    return new Response(
+      JSON.stringify({ ok: true, inviteUrl }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4 — Sostituisci src/components/admin/settings/SuperAdminUsersTab.tsx
+────────────────────────────────────────────────────────────────────────────────
+
+Sostituisci COMPLETAMENTE `src/components/admin/settings/SuperAdminUsersTab.tsx`:
+
+```tsx
+import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  useAdminTeam, useUpdateAdminPermission, useApplyPermissionPreset,
+  useDeleteAdmin, useInviteAdmin, AdminMember, AdminPermissions,
+  PERMISSION_LABELS, PERMISSION_PRESETS, DEFAULT_PERMISSIONS,
+} from "@/hooks/useAdminTeam";
+import { ResetPasswordDialog } from "./ResetPasswordDialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Card, CardContent, CardHeader, CardTitle, CardDescription,
+} from "@/components/ui/card";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Search, MoreVertical, Plus, Trash2, Key, Mail, UserPlus,
+  Monitor, Clock, CheckCircle2, XCircle, Loader2,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { it } from "date-fns/locale";
+import { toast } from "sonner";
+
+// ─── PERMISSION MATRIX ROW ────────────────────────────────────────────────────
+
+function PermissionRow({ member }: { member: AdminMember }) {
+  const { user } = useAuth();
+  const isSelf = member.id === user?.id;
+  const { mutate: updatePerm, isPending } = useUpdateAdminPermission();
+  const { mutate: applyPreset } = useApplyPermissionPreset();
+
+  const perms: AdminPermissions = member.permissions ?? {
+    can_manage_companies: true, can_manage_plans: true,
+    can_manage_tickets: true,   can_manage_referrals: true,
+    can_manage_admins: true,    can_view_platform_stats: true,
+    allowed_company_ids: null,
+  };
+
+  return (
+    <TableRow className="group">
+      {/* Admin info */}
+      <TableCell className="min-w-[200px]">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={member.avatarUrl ?? undefined} />
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+              {member.firstName[0]}{member.lastName[0]}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium truncate">
+                {member.firstName} {member.lastName}
+              </p>
+              {isSelf && (
+                <Badge variant="outline" className="h-4 px-1.5 text-[10px]">Tu</Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground truncate">{member.email || "—"}</p>
+          </div>
+        </div>
+      </TableCell>
+
+      {/* Permission toggles */}
+      {PERMISSION_LABELS.filter(p => p.key !== "allowed_company_ids").map(({ key, label }) => (
+        <TableCell key={key} className="text-center px-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex justify-center">
+                  <Switch
+                    checked={perms[key as keyof AdminPermissions] as boolean}
+                    disabled={isSelf || isPending}
+                    onCheckedChange={(val) =>
+                      updatePerm({ userId: member.id, key: key as keyof AdminPermissions, value: val })
+                    }
+                    className="scale-75"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {perms[key as keyof AdminPermissions] ? `Revoca "${label}"` : `Concedi "${label}"`}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </TableCell>
+      ))}
+
+      {/* Preset rapido */}
+      <TableCell className="px-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost" size="sm"
+              className="h-7 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+              disabled={isSelf}
+            >
+              Preset
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {PERMISSION_PRESETS.map((p) => (
+              <DropdownMenuItem
+                key={p.label}
+                onClick={() => applyPreset({ userId: member.id, preset: p.value })}
+              >
+                <span className="mr-2">{p.icon}</span>
+                {p.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+
+      {/* Info sessioni/ultimo accesso */}
+      <TableCell className="text-xs text-muted-foreground text-right">
+        <div className="flex flex-col items-end gap-0.5">
+          {member.activeSessions > 0 && (
+            <span className="flex items-center gap-1">
+              <Monitor className="h-3 w-3" />
+              {member.activeSessions} sessioni
+            </span>
+          )}
+          {member.lastLoginAt && (
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatDistanceToNow(new Date(member.lastLoginAt), { addSuffix: true, locale: it })}
+            </span>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// ─── DIALOGO INVITO ───────────────────────────────────────────────────────────
+
+function InviteAdminDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { mutate: invite, isPending } = useInviteAdmin();
+  const [email, setEmail] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState(0);
+
+  const handleInvite = () => {
+    if (!email.trim()) { toast.error("Inserisci l'email"); return; }
+    const preset = PERMISSION_PRESETS[selectedPreset];
+    invite(
+      { email: email.trim(), permissions: { ...DEFAULT_PERMISSIONS, ...preset.value } },
+      { onSuccess: () => { onClose(); setEmail(""); } }
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Invita Super Admin</DialogTitle>
+          <DialogDescription>
+            Invia un link di invito via email. Il link è valido per 7 giorni.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="mario@example.com"
+              onKeyDown={(e) => e.key === "Enter" && handleInvite()}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Livello di accesso</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {PERMISSION_PRESETS.map((p, i) => (
+                <button
+                  key={p.label}
+                  onClick={() => setSelectedPreset(i)}
+                  className={`p-3 rounded-lg border text-left transition-colors ${
+                    selectedPreset === i
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <span className="text-lg">{p.icon}</span>
+                  <p className="text-sm font-medium mt-1">{p.label}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button onClick={handleInvite} disabled={isPending} className="gap-2">
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            Invia invito
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── DIALOGO CONFERMA ELIMINAZIONE ───────────────────────────────────────────
+
+function DeleteConfirmDialog({
+  member,
+  onClose,
+}: {
+  member: AdminMember | null;
+  onClose: () => void;
+}) {
+  const { mutate: deleteAdmin, isPending } = useDeleteAdmin();
+  if (!member) return null;
+
+  return (
+    <Dialog open={!!member} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Elimina Admin</DialogTitle>
+          <DialogDescription>
+            Stai per eliminare{" "}
+            <strong>{member.firstName} {member.lastName}</strong>.
+            L'account verrà rimosso definitivamente. Sei sicuro?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annulla</Button>
+          <Button
+            variant="destructive"
+            disabled={isPending}
+            onClick={() => deleteAdmin(member.id, { onSuccess: onClose })}
+            className="gap-2"
+          >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            Elimina definitivamente
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── COMPONENTE PRINCIPALE ────────────────────────────────────────────────────
+
+export function SuperAdminUsersTab() {
+  const { data: members, isLoading } = useAdminTeam();
+  const [search, setSearch] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+  const [toDelete, setToDelete] = useState<AdminMember | null>(null);
+  const [resetTarget, setResetTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const { user } = useAuth();
+
+  const filtered = (members ?? []).filter(
+    (m) =>
+      search === "" ||
+      `${m.firstName} ${m.lastName}`.toLowerCase().includes(search.toLowerCase()) ||
+      m.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Team Super Admin</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Gestisci gli amministratori e i loro permessi.
+          </p>
+        </div>
+        <Button onClick={() => setShowInvite(true)} className="gap-2">
+          <UserPlus className="h-4 w-4" />
+          Invita Admin
+        </Button>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Totale Admin</p>
+            <p className="text-2xl font-semibold">{members?.length ?? 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Sessioni attive</p>
+            <p className="text-2xl font-semibold">
+              {(members ?? []).reduce((s, m) => s + m.activeSessions, 0)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Accesso completo</p>
+            <p className="text-2xl font-semibold">
+              {
+                (members ?? []).filter((m) =>
+                  !m.permissions ||
+                  Object.values(m.permissions).every((v) =>
+                    typeof v === "boolean" ? v : true
+                  )
+                ).length
+              }
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Ricerca */}
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Cerca admin per nome o email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Matrix dei permessi */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Matrix permessi</CardTitle>
+          <CardDescription>
+            Abilita/disabilita permessi direttamente dalla tabella. Passa il mouse
+            su una riga per applicare un preset rapido.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
+              <p className="text-sm">Nessun admin trovato</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[200px]">Admin</TableHead>
+                    {PERMISSION_LABELS.filter(p => p.key !== "allowed_company_ids").map(({ key, label, description }) => (
+                      <TableHead key={key} className="text-center px-2 min-w-[80px]">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help text-xs">{label}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>{description}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableHead>
+                    ))}
+                    <TableHead className="px-2">Preset</TableHead>
+                    <TableHead className="text-right">Attività</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((member) => (
+                    <PermissionRow key={member.id} member={member} />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Azioni per admin */}
+      {!isLoading && filtered.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Azioni individuali</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {filtered.map((member) => {
+              const isSelf = member.id === user?.id;
+              return (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between py-2 border-b last:border-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={member.avatarUrl ?? undefined} />
+                      <AvatarFallback className="text-xs">
+                        {member.firstName[0]}{member.lastName[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm">
+                      {member.firstName} {member.lastName}
+                      {isSelf && (
+                        <Badge variant="outline" className="ml-2 h-4 px-1.5 text-[10px]">Tu</Badge>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1 text-xs h-7"
+                      onClick={() =>
+                        setResetTarget({ id: member.id, name: `${member.firstName} ${member.lastName}` })
+                      }
+                    >
+                      <Key className="h-3 w-3" />
+                      Reset password
+                    </Button>
+                    {!isSelf && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 text-xs h-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setToDelete(member)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Elimina
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialogs */}
+      <InviteAdminDialog open={showInvite} onClose={() => setShowInvite(false)} />
+      <DeleteConfirmDialog member={toDelete} onClose={() => setToDelete(null)} />
+      {resetTarget && (
+        <ResetPasswordDialog
+          open={!!resetTarget}
+          onClose={() => setResetTarget(null)}
+          targetUserId={resetTarget.id}
+          targetName={resetTarget.name}
+        />
+      )}
+    </div>
+  );
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 5 — Fix BUG: NotificationsTab "as any"
+────────────────────────────────────────────────────────────────────────────────
+
+Nel file `src/components/admin/settings/NotificationsTab.tsx`, rimuovi tutti
+i cast `as any` e aggiungi il tipo corretto per admin_notification_prefs.
+
+Trova il tipo che si aspetta Supabase per `admin_notification_prefs` e
+aggiungilo come interfaccia locale:
+
+```tsx
+// Aggiungi in cima al file, PRIMA del componente:
+
+interface AdminNotifPrefs {
+  user_id: string;
+  new_company_registration: boolean;
+  trial_expiring_alert: boolean;
+  new_support_ticket: boolean;
+  // aggiungi altri campi se esistono nella tabella
+}
+
+// Poi, sostituisci TUTTE le occorrenze di "(... as any)" con il tipo corretto:
+// Prima (errato):
+//   supabase.from("admin_notification_prefs").upsert({...} as any)
+// Dopo (corretto):
+//   supabase.from("admin_notification_prefs").upsert<AdminNotifPrefs>({
+//     user_id: userId,
+//     new_company_registration: prefs.newCompanyRegistration,
+//     trial_expiring_alert: prefs.trialExpiringAlert,
+//     new_support_ticket: prefs.newSupportTicket,
+//   })
+```
+
+Aggiungi anche queste 3 notifiche mancanti alle opzioni disponibili:
+
+```tsx
+// Aggiungi in fondo all'array di opzioni nella NotificationsTab:
+{
+  key: "payment_failed_alert",
+  label: "Pagamento fallito",
+  description: "Avvisa quando un'azienda ha un pagamento non riuscito",
+},
+{
+  key: "company_suspended_alert",
+  label: "Azienda sospesa",
+  description: "Avvisa quando un'azienda viene sospesa automaticamente",
+},
+{
+  key: "new_referral_signup",
+  label: "Nuovo referral",
+  description: "Avvisa quando un referrer porta una nuova registrazione",
+},
+```
+
+Esegui anche questa migrazione per aggiungere le colonne mancanti:
+
+```sql
+ALTER TABLE public.admin_notification_prefs
+  ADD COLUMN IF NOT EXISTS payment_failed_alert    BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS company_suspended_alert BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS new_referral_signup      BOOLEAN NOT NULL DEFAULT false;
+```
+
+
+================================================================================
+NOTE IMPORTANTI
+================================================================================
+
+- PERMISSION MATRIX: le modifiche ai permessi avvengono inline tramite il toggle
+  direttamente nella tabella — nessun dialog separato necessario per i toggle
+- PRESET: i preset si applicano tramite dropdown "Preset" visibile al hover sulla riga
+- INVITO: la Edge Function `invite-admin` salva in admin_invites e manda email
+  tramite Resend (stesso provider usato per dunning emails)
+- La pagina accept-invite (`/admin/accept-invite?token=...`) non è in scope di
+  questo prompt — è un miglioramento futuro; per ora l'admin può essere creato
+  manualmente con CreateSuperAdminDialog
+- BUG FIX NotificationsTab: rimuovere `as any` è critico per evitare errori
+  silenziosi nelle query Supabase
+- COLONNA email in profiles: se non esiste, l'email degli admin non è visibile
+  nella matrix. In quel caso, aggiungi:
+  ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT;
+  E copiala al momento del signup: INSERT INTO profiles(id, email, ...) VALUES (...)
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+1. Apri Impostazioni → Super Admin → vedi la matrix con tutti gli admin
+2. Clicca un toggle di permesso → cambia senza aprire dialog
+3. Hover su una riga → appare il bottone "Preset" → click → seleziona preset
+4. Clicca "Invita Admin" → inserisci email → seleziona livello → "Invia invito"
+5. Notifiche: apri Impostazioni → Notifiche → 6 toggle disponibili (invece di 3)
+6. Nessun errore TypeScript su NotificationsTab
+================================================================================

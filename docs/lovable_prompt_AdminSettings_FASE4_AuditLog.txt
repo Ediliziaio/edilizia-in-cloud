@@ -1,0 +1,777 @@
+================================================================================
+PROMPT LOVABLE — SUPER ADMIN SETTINGS FASE 4: AUDIT LOG REALE (DB-BASED)
+================================================================================
+Risolve BUG #3 CRITICO: AuditLogTab filtra solo i 20 record in memoria.
+Implementa un Audit Log completo con:
+- Server-side pagination (50 record/pagina)
+- Filtri su DB: per tipo azione, admin, range date, ricerca full-text
+- CSV export client-side
+- Detail sheet con payload JSON completo
+- Auto-refresh ogni 60s
+
+Segui ESATTAMENTE i 4 step qui sotto nell'ordine indicato.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1 — Migrazione SQL: ottimizzazione tabella audit_logs
+────────────────────────────────────────────────────────────────────────────────
+
+Esegui questa migrazione nel SQL Editor di Supabase:
+
+```sql
+-- Aggiungi colonne mancanti alla tabella audit_logs se non esistono
+ALTER TABLE public.audit_logs
+  ADD COLUMN IF NOT EXISTS admin_user_id UUID REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS search_vector TSVECTOR;
+
+-- Popola admin_user_id dai dati esistenti se c'è un campo simile
+-- (adatta il nome della colonna se diverso nel tuo schema)
+UPDATE public.audit_logs
+  SET admin_user_id = (
+    SELECT id FROM auth.users
+    WHERE email = audit_logs.admin_email
+    LIMIT 1
+  )
+WHERE admin_user_id IS NULL
+  AND admin_email IS NOT NULL;
+
+-- Crea indici per performance delle query filtrate
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+  ON public.audit_logs (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_user_id
+  ON public.audit_logs (admin_user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action
+  ON public.audit_logs (action, created_at DESC);
+
+-- Funzione RPC per audit log paginato con filtri server-side
+CREATE OR REPLACE FUNCTION public.get_audit_logs_paginated(
+  p_limit        INT      DEFAULT 50,
+  p_offset       INT      DEFAULT 0,
+  p_action       TEXT     DEFAULT NULL,
+  p_admin_id     UUID     DEFAULT NULL,
+  p_date_from    DATE     DEFAULT NULL,
+  p_date_to      DATE     DEFAULT NULL,
+  p_search       TEXT     DEFAULT NULL
+)
+RETURNS TABLE (
+  id            UUID,
+  action        TEXT,
+  admin_email   TEXT,
+  admin_name    TEXT,
+  admin_user_id UUID,
+  details       JSONB,
+  created_at    TIMESTAMPTZ,
+  total_count   BIGINT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    al.id,
+    al.action,
+    al.admin_email,
+    al.admin_name,
+    al.admin_user_id,
+    al.details,
+    al.created_at,
+    COUNT(*) OVER() AS total_count
+  FROM public.audit_logs al
+  WHERE
+    (p_action   IS NULL OR al.action = p_action)
+    AND (p_admin_id  IS NULL OR al.admin_user_id = p_admin_id)
+    AND (p_date_from IS NULL OR al.created_at >= p_date_from::TIMESTAMPTZ)
+    AND (p_date_to   IS NULL OR al.created_at <  (p_date_to + INTERVAL '1 day')::TIMESTAMPTZ)
+    AND (p_search    IS NULL OR
+         al.admin_email ILIKE '%' || p_search || '%' OR
+         al.admin_name  ILIKE '%' || p_search || '%' OR
+         al.action      ILIKE '%' || p_search || '%' OR
+         al.details::TEXT ILIKE '%' || p_search || '%')
+  ORDER BY al.created_at DESC
+  LIMIT p_limit
+  OFFSET p_offset;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_audit_logs_paginated TO authenticated;
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2 — Hook: src/hooks/useAuditLogs.ts
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/hooks/useAuditLogs.ts`:
+
+```typescript
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+// ─── TIPI ─────────────────────────────────────────────────────────────────────
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  adminEmail: string;
+  adminName: string;
+  adminUserId: string | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AuditLogFilters {
+  action:   string | null;
+  adminId:  string | null;
+  dateFrom: string | null;  // YYYY-MM-DD
+  dateTo:   string | null;  // YYYY-MM-DD
+  search:   string;
+}
+
+export interface AuditLogPage {
+  entries:    AuditLogEntry[];
+  totalCount: number;
+}
+
+// Azioni audit note (per il dropdown filtro)
+export const AUDIT_ACTIONS = [
+  { value: "company_created",      label: "Azienda creata" },
+  { value: "company_updated",      label: "Azienda aggiornata" },
+  { value: "company_suspended",    label: "Azienda sospesa" },
+  { value: "company_reactivated",  label: "Azienda riattivata" },
+  { value: "plan_changed",         label: "Piano cambiato" },
+  { value: "trial_extended",       label: "Trial esteso" },
+  { value: "admin_created",        label: "Admin creato" },
+  { value: "admin_deleted",        label: "Admin eliminato" },
+  { value: "permissions_updated",  label: "Permessi aggiornati" },
+  { value: "impersonation_started","label": "Impersonazione avviata" },
+  { value: "impersonation_ended",  label: "Impersonazione terminata" },
+  { value: "password_reset",       label: "Password reset" },
+  { value: "announcement_created", label: "Annuncio creato" },
+  { value: "plan_created",         label: "Piano creato" },
+  { value: "plan_updated",         label: "Piano aggiornato" },
+] as const;
+
+export type AuditAction = (typeof AUDIT_ACTIONS)[number]["value"];
+
+// Badge colori per tipo azione
+export const ACTION_COLORS: Record<string, string> = {
+  company_created:     "bg-green-100 text-green-700",
+  company_updated:     "bg-blue-100 text-blue-700",
+  company_suspended:   "bg-red-100 text-red-700",
+  company_reactivated: "bg-emerald-100 text-emerald-700",
+  plan_changed:        "bg-purple-100 text-purple-700",
+  trial_extended:      "bg-yellow-100 text-yellow-700",
+  admin_created:       "bg-blue-100 text-blue-700",
+  admin_deleted:       "bg-red-100 text-red-700",
+  permissions_updated: "bg-orange-100 text-orange-700",
+  impersonation_started:"bg-rose-100 text-rose-700",
+  impersonation_ended: "bg-gray-100 text-gray-600",
+  password_reset:      "bg-slate-100 text-slate-700",
+};
+
+// ─── HOOK PRINCIPALE ──────────────────────────────────────────────────────────
+
+export function useAuditLogs(
+  filters: AuditLogFilters,
+  page: number,
+  pageSize: number = 50
+) {
+  const offset = (page - 1) * pageSize;
+
+  return useQuery({
+    queryKey: ["audit-logs", filters, page, pageSize],
+    staleTime: 30_000,
+    refetchInterval: 60_000,   // auto-refresh ogni 60s
+    queryFn: async (): Promise<AuditLogPage> => {
+      const { data, error } = await supabase.rpc("get_audit_logs_paginated", {
+        p_limit:     pageSize,
+        p_offset:    offset,
+        p_action:    filters.action   ?? null,
+        p_admin_id:  filters.adminId  ?? null,
+        p_date_from: filters.dateFrom ?? null,
+        p_date_to:   filters.dateTo   ?? null,
+        p_search:    filters.search   || null,
+      });
+
+      if (error) throw error;
+      if (!data || data.length === 0) return { entries: [], totalCount: 0 };
+
+      const totalCount = Number(data[0].total_count ?? 0);
+      const entries: AuditLogEntry[] = data.map((row: any) => ({
+        id:          row.id,
+        action:      row.action,
+        adminEmail:  row.admin_email  ?? "",
+        adminName:   row.admin_name   ?? "",
+        adminUserId: row.admin_user_id ?? null,
+        details:     row.details      ?? null,
+        createdAt:   row.created_at,
+      }));
+
+      return { entries, totalCount };
+    },
+  });
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3 — Utility: CSV export in-browser
+────────────────────────────────────────────────────────────────────────────────
+
+Aggiungi questa funzione in `src/lib/exportCsv.ts` (creala se non esiste):
+
+```typescript
+export function exportToCsv(
+  filename: string,
+  headers: string[],
+  rows: (string | number | null | undefined)[][]
+): void {
+  const escape = (val: string | number | null | undefined): string => {
+    if (val == null) return "";
+    const str = String(val).replace(/"/g, '""');
+    return str.includes(",") || str.includes("\n") || str.includes('"')
+      ? `"${str}"`
+      : str;
+  };
+
+  const csvContent = [
+    headers.map(escape).join(","),
+    ...rows.map((row) => row.map(escape).join(",")),
+  ].join("\n");
+
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${filename}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4 — Sostituisci src/components/admin/settings/AuditLogTab.tsx
+────────────────────────────────────────────────────────────────────────────────
+
+Sostituisci COMPLETAMENTE `src/components/admin/settings/AuditLogTab.tsx`:
+
+```tsx
+import { useState, useCallback } from "react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import {
+  useAuditLogs, AuditLogFilters, AUDIT_ACTIONS,
+  ACTION_COLORS, AuditLogEntry,
+} from "@/hooks/useAuditLogs";
+import { exportToCsv } from "@/lib/exportCsv";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Search, Download, RefreshCw, ChevronLeft, ChevronRight,
+  Calendar, Filter, Info, X, Eye,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Card, CardContent, CardHeader, CardTitle, CardDescription,
+} from "@/components/ui/card";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+
+const PAGE_SIZE = 50;
+
+// ─── BADGE AZIONE ─────────────────────────────────────────────────────────────
+
+function ActionBadge({ action }: { action: string }) {
+  const label =
+    AUDIT_ACTIONS.find((a) => a.value === action)?.label ?? action.replace(/_/g, " ");
+  const color = ACTION_COLORS[action] ?? "bg-gray-100 text-gray-600";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${color}`}>
+      {label}
+    </span>
+  );
+}
+
+// ─── DETAIL SHEET ─────────────────────────────────────────────────────────────
+
+function DetailSheet({
+  entry,
+  onClose,
+}: {
+  entry: AuditLogEntry | null;
+  onClose: () => void;
+}) {
+  if (!entry) return null;
+  return (
+    <Sheet open={!!entry} onOpenChange={onClose}>
+      <SheetContent className="w-[480px] sm:max-w-[480px] overflow-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <ActionBadge action={entry.action} />
+          </SheetTitle>
+        </SheetHeader>
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-muted-foreground">Admin</p>
+              <p className="font-medium">{entry.adminName || entry.adminEmail}</p>
+              <p className="text-xs text-muted-foreground">{entry.adminEmail}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Data e ora</p>
+              <p className="font-medium">
+                {format(new Date(entry.createdAt), "d MMMM yyyy", { locale: it })}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {format(new Date(entry.createdAt), "HH:mm:ss")}
+              </p>
+            </div>
+          </div>
+
+          {entry.details && Object.keys(entry.details).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2">
+                DETTAGLI
+              </p>
+              <pre className="text-xs bg-muted rounded-lg p-3 overflow-auto max-h-80 whitespace-pre-wrap break-words">
+                {JSON.stringify(entry.details, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2">
+              ID EVENTO
+            </p>
+            <code className="text-xs text-muted-foreground font-mono">{entry.id}</code>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── FILTRI POPOVER ───────────────────────────────────────────────────────────
+
+function FiltersPopover({
+  filters,
+  onChange,
+  onReset,
+}: {
+  filters: AuditLogFilters;
+  onChange: (f: Partial<AuditLogFilters>) => void;
+  onReset: () => void;
+}) {
+  const hasActiveFilters =
+    filters.action || filters.adminId || filters.dateFrom || filters.dateTo;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2 relative">
+          <Filter className="h-3.5 w-3.5" />
+          Filtri
+          {hasActiveFilters && (
+            <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 space-y-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Tipo azione</Label>
+          <Select
+            value={filters.action ?? "all"}
+            onValueChange={(v) => onChange({ action: v === "all" ? null : v })}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Tutte le azioni" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutte le azioni</SelectItem>
+              {AUDIT_ACTIONS.map((a) => (
+                <SelectItem key={a.value} value={a.value}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs flex items-center gap-1">
+              <Calendar className="h-3 w-3" /> Da
+            </Label>
+            <Input
+              type="date"
+              value={filters.dateFrom ?? ""}
+              onChange={(e) => onChange({ dateFrom: e.target.value || null })}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">A</Label>
+            <Input
+              type="date"
+              value={filters.dateTo ?? ""}
+              onChange={(e) => onChange({ dateTo: e.target.value || null })}
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" className="w-full text-xs" onClick={onReset}>
+            <X className="h-3 w-3 mr-1" /> Reimposta filtri
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── COMPONENTE PRINCIPALE ────────────────────────────────────────────────────
+
+export function AuditLogTab() {
+  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState<AuditLogFilters>({
+    action:   null,
+    adminId:  null,
+    dateFrom: null,
+    dateTo:   null,
+    search:   "",
+  });
+  const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const { data, isLoading, isFetching, refetch } = useAuditLogs(filters, page, PAGE_SIZE);
+
+  const entries    = data?.entries    ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+  const updateFilter = useCallback(
+    (partial: Partial<AuditLogFilters>) => {
+      setFilters((prev) => ({ ...prev, ...partial }));
+      setPage(1);
+    },
+    []
+  );
+
+  const resetFilters = useCallback(() => {
+    setFilters({ action: null, adminId: null, dateFrom: null, dateTo: null, search: "" });
+    setPage(1);
+  }, []);
+
+  // CSV export: carica TUTTI i dati senza paginazione
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const { data: allData, error } = await supabase.rpc("get_audit_logs_paginated", {
+        p_limit:     10_000,
+        p_offset:    0,
+        p_action:    filters.action   ?? null,
+        p_admin_id:  filters.adminId  ?? null,
+        p_date_from: filters.dateFrom ?? null,
+        p_date_to:   filters.dateTo   ?? null,
+        p_search:    filters.search   || null,
+      });
+      if (error) throw error;
+
+      exportToCsv(
+        `audit-log-${format(new Date(), "yyyy-MM-dd")}`,
+        ["Data", "Ora", "Admin", "Email", "Azione", "Dettagli"],
+        (allData ?? []).map((row: any) => [
+          format(new Date(row.created_at), "dd/MM/yyyy"),
+          format(new Date(row.created_at), "HH:mm:ss"),
+          row.admin_name ?? "",
+          row.admin_email ?? "",
+          row.action ?? "",
+          JSON.stringify(row.details ?? {}),
+        ])
+      );
+      toast.success("Export CSV completato");
+    } catch (err: any) {
+      toast.error("Errore export", { description: err.message });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Registro Attività</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Log di tutte le azioni eseguite dagli amministratori.
+            {totalCount > 0 && (
+              <span className="ml-1 font-medium">
+                {totalCount.toLocaleString("it-IT")} eventi totali.
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            Aggiorna
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            disabled={isExporting || totalCount === 0}
+            className="gap-1.5"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {isExporting ? "Export..." : "CSV"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Toolbar: ricerca + filtri */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Cerca per admin, email o azione..."
+            value={filters.search}
+            onChange={(e) => updateFilter({ search: e.target.value })}
+            className="pl-9"
+          />
+          {filters.search && (
+            <button
+              onClick={() => updateFilter({ search: "" })}
+              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <FiltersPopover
+          filters={filters}
+          onChange={updateFilter}
+          onReset={resetFilters}
+        />
+      </div>
+
+      {/* Badge filtri attivi */}
+      {(filters.action || filters.dateFrom || filters.dateTo) && (
+        <div className="flex flex-wrap gap-2">
+          {filters.action && (
+            <Badge variant="secondary" className="gap-1">
+              Azione: {AUDIT_ACTIONS.find((a) => a.value === filters.action)?.label}
+              <button onClick={() => updateFilter({ action: null })}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+          {(filters.dateFrom || filters.dateTo) && (
+            <Badge variant="secondary" className="gap-1">
+              {filters.dateFrom ?? "inizio"} → {filters.dateTo ?? "oggi"}
+              <button onClick={() => updateFilter({ dateFrom: null, dateTo: null })}>
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {/* Tabella */}
+      <Card>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <Info className="h-10 w-10 text-muted-foreground/30" />
+              <p className="text-sm font-medium">Nessun evento trovato</p>
+              <p className="text-xs text-muted-foreground">
+                {filters.search || filters.action || filters.dateFrom
+                  ? "Prova a cambiare i filtri di ricerca."
+                  : "Non ci sono ancora eventi nel registro attività."}
+              </p>
+              {(filters.search || filters.action || filters.dateFrom) && (
+                <Button variant="outline" size="sm" onClick={resetFilters}>
+                  Reimposta filtri
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[140px]">Data / Ora</TableHead>
+                  <TableHead>Admin</TableHead>
+                  <TableHead>Azione</TableHead>
+                  <TableHead className="text-right w-[80px]">Dettaglio</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entries.map((entry) => (
+                  <TableRow
+                    key={entry.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setSelectedEntry(entry)}
+                  >
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      <div>{format(new Date(entry.createdAt), "dd/MM/yyyy")}</div>
+                      <div>{format(new Date(entry.createdAt), "HH:mm:ss")}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm font-medium">
+                        {entry.adminName || entry.adminEmail}
+                      </div>
+                      {entry.adminName && (
+                        <div className="text-xs text-muted-foreground">{entry.adminEmail}</div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <ActionBadge action={entry.action} />
+                      {entry.details?.company_name && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {String(entry.details.company_name)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedEntry(entry);
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Paginazione */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground">
+            Pagina {page} di {totalPages} ·{" "}
+            {totalCount.toLocaleString("it-IT")} eventi
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {/* Pagine visibili */}
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+              const p = start + i;
+              return p <= totalPages ? (
+                <Button
+                  key={p}
+                  variant={p === page ? "default" : "outline"}
+                  size="icon"
+                  className="h-8 w-8 text-xs"
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </Button>
+              ) : null;
+            })}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Detail sheet */}
+      <DetailSheet
+        entry={selectedEntry}
+        onClose={() => setSelectedEntry(null)}
+      />
+    </div>
+  );
+}
+```
+
+
+================================================================================
+NOTE IMPORTANTI
+================================================================================
+
+- BUG FIX #3: il vecchio AuditLogTab filtrava SOLO i 20 record caricati in memoria.
+  Ora la funzione RPC `get_audit_logs_paginated` fa tutto server-side con ILIKE,
+  paginazione e COUNT(*) OVER() per il totale senza query separate
+- CSV EXPORT: carica max 10.000 righe in un'unica chiamata; per archivi più grandi
+  si può aggiungere uno streaming in futuro
+- AUTO-REFRESH: `refetchInterval: 60_000` aggiorna automaticamente ogni 60 secondi
+- DETAIL SHEET: clic su qualsiasi riga apre il Sheet con il payload JSON completo
+- ADATTAMENTI SCHEMA: la migrazione in STEP 1 usa nomi colonna "admin_email",
+  "admin_name" — controlla che coincidano con le colonne effettive della tabella
+  audit_logs nel tuo progetto. Se i nomi sono diversi, adatta la funzione RPC.
+- INDICI: i 3 CREATE INDEX migliorano drasticamente le performance su tabelle
+  con milioni di righe
+- exportToCsv usa \uFEFF (BOM) per garantire che Excel apra correttamente il CSV
+  in italiano senza problemi di encoding
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+1. Vai su Impostazioni → Registro Attività
+2. Deve mostrare 50 record (non 20) con paginazione in basso
+3. Digita nella ricerca → risultati aggiornati server-side (non solo in-memoria)
+4. Seleziona "Piano cambiato" nel filtro azioni → filtra correttamente
+5. Seleziona range date → filtra correttamente
+6. Clicca export CSV → file scaricato con tutti i record (non solo pagina corrente)
+7. Clicca su una riga → si apre lo sheet con i dettagli JSON
+8. Il badge in alto mostra il totale eventi corretto (es. "1.234 eventi totali")
+================================================================================

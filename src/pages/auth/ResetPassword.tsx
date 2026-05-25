@@ -56,11 +56,11 @@ export default function ResetPassword() {
       return;
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "La password deve essere di almeno 6 caratteri.",
+        description: "La password deve essere di almeno 8 caratteri.",
       });
       return;
     }

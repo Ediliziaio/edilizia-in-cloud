@@ -1,0 +1,706 @@
+================================================================================
+PROMPT — WHITE LABEL COME FUNZIONE A PAGAMENTO (ADDON SUPERADMIN)
+================================================================================
+Progetto: Gestionale SaaS multi-tenant (Supabase + React + TypeScript)
+Obiettivo: Trasformare il white-label in un ADDON a pagamento, attivabile
+           SOLO dal SuperAdmin per singola azienda, con configurazione
+           completa di branding (colori, logo, nome piattaforma).
+
+Stato attuale: esiste solo logo_url su companies. Nessun sistema white-label.
+Pattern esistente da seguire: messaging_beta_enabled (boolean su companies,
+                               toggle nel CompanyDetail del SuperAdmin).
+
+Implementa i 4 prompt IN SEQUENZA.
+
+================================================================================
+PROMPT 1 — DATABASE: COLONNE WHITE-LABEL + ADDON TRACKING
+================================================================================
+
+Crea la seguente migrazione SQL:
+
+```sql
+-- ============================================================
+-- AGGIUNTE ALLA TABELLA companies
+-- ============================================================
+
+-- Flag principale (solo SuperAdmin può attivarlo)
+ALTER TABLE public.companies
+  ADD COLUMN IF NOT EXISTS white_label_enabled BOOLEAN NOT NULL DEFAULT false;
+
+-- Branding personalizzato (usato solo se white_label_enabled = true)
+ALTER TABLE public.companies
+  ADD COLUMN IF NOT EXISTS brand_primary_color TEXT DEFAULT '#1E40AF',
+  ADD COLUMN IF NOT EXISTS brand_secondary_color TEXT DEFAULT '#3B82F6',
+  ADD COLUMN IF NOT EXISTS brand_accent_color TEXT DEFAULT '#DBEAFE',
+  ADD COLUMN IF NOT EXISTS brand_text_on_primary TEXT DEFAULT '#FFFFFF',
+  ADD COLUMN IF NOT EXISTS brand_platform_name TEXT DEFAULT NULL,
+  -- Nome mostrato nella navbar/sidebar al posto del default della piattaforma
+  -- es. "GestionaleProX" invece di "EdiliziaInCloud"
+  ADD COLUMN IF NOT EXISTS brand_favicon_url TEXT DEFAULT NULL,
+  -- URL favicon personalizzata
+  ADD COLUMN IF NOT EXISTS brand_login_bg_url TEXT DEFAULT NULL,
+  -- Immagine di sfondo della pagina di login
+  ADD COLUMN IF NOT EXISTS brand_hide_powered_by BOOLEAN DEFAULT false;
+  -- Se true, nasconde "Powered by [piattaforma]" nel footer
+
+-- Tracking addon (per storico e billing)
+ALTER TABLE public.companies
+  ADD COLUMN IF NOT EXISTS white_label_enabled_at TIMESTAMPTZ DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS white_label_enabled_by UUID REFERENCES auth.users(id) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS white_label_monthly_price NUMERIC(8,2) DEFAULT 0;
+  -- Prezzo mensile personalizzato per questo addon (es. 49.00)
+
+-- ============================================================
+-- TABELLA: company_addons_log
+-- Storico di attivazione/disattivazione addon per le aziende
+-- ============================================================
+CREATE TABLE IF NOT EXISTS company_addons_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  addon_key TEXT NOT NULL,
+  -- 'white_label' | 'messaging_beta' | future addons
+  action TEXT NOT NULL,
+  -- 'enabled' | 'disabled' | 'price_changed' | 'branding_updated'
+  performed_by UUID REFERENCES auth.users(id),
+  performed_by_email TEXT,
+  old_value JSONB,
+  new_value JSONB,
+  notes TEXT,
+  -- Note interne del SuperAdmin (es. "Cliente ha pagato €49/mese")
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE company_addons_log ENABLE ROW LEVEL SECURITY;
+
+-- Solo SuperAdmin può leggere il log
+CREATE POLICY "super_admins_manage_addons_log"
+ON company_addons_log FOR ALL
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM user_roles
+    WHERE user_id = auth.uid() AND role = 'super_admin'
+  )
+);
+
+-- ============================================================
+-- STORAGE BUCKET per assets white-label
+-- ============================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('white-label-assets', 'white-label-assets', true)
+-- public = true perché favicon e bg login devono essere accessibili
+-- senza autenticazione (pagina di login pubblica)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "company_members_upload_wl_assets"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'white-label-assets' AND
+  (storage.foldername(name))[1] = (
+    SELECT company_id::text FROM profiles WHERE id = auth.uid()
+  )
+);
+
+CREATE POLICY "public_read_wl_assets"
+ON storage.objects FOR SELECT TO anon, authenticated
+USING (bucket_id = 'white-label-assets');
+
+-- ============================================================
+-- RLS AGGIORNATA PER companies (aggiunge white_label_enabled)
+-- I campi white-label sono leggibili dall'azienda stessa
+-- ma modificabili SOLO da super_admin
+-- ============================================================
+-- (Le policy esistenti già coprono SELECT per company members)
+-- Aggiungi funzione helper per verifica superadmin:
+CREATE OR REPLACE FUNCTION is_super_admin(p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM user_roles
+    WHERE user_id = p_user_id AND role = 'super_admin'
+  );
+$$ LANGUAGE SQL SECURITY DEFINER STABLE;
+```
+
+================================================================================
+PROMPT 2 — SUPERADMIN: GESTIONE ADDON WHITE-LABEL PER AZIENDA
+================================================================================
+
+Modifica: src/pages/admin/CompanyDetail.tsx
+
+Nel tab "SaaS" (dove già esistono i toggle dei moduli), aggiungi una nuova
+sezione separata chiamata **"Addon a Pagamento"** SOPRA i moduli standard.
+
+---
+
+### SEZIONE "ADDON A PAGAMENTO" nel tab SaaS
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  💎  ADDON A PAGAMENTO                                              │
+│                                                                    │
+│  Funzionalità premium attivabili manualmente per questa azienda.   │
+│  Ogni addon ha un prezzo mensile personalizzabile.                 │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  🎨  WHITE LABEL                                              │  │
+│  │  Personalizzazione completa del brand: logo, colori,         │  │
+│  │  nome piattaforma, favicon.                                  │  │
+│  │                                                              │  │
+│  │  Prezzo mensile: € [____49,00____]                          │  │
+│  │                                                              │  │
+│  │  Stato:  ● ATTIVO dal 09/03/2026 (attivato da admin@...)    │  │
+│  │          oppure ○ NON ATTIVO                                 │  │
+│  │                                                              │  │
+│  │  [Toggle ON/OFF]     Note interne: [___________________]    │  │
+│  │                                                              │  │
+│  │  [📋 Storico attivazioni]                                   │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                    │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  💬  MESSAGGISTICA BETA                                      │  │
+│  │  Accesso anticipato alla messaggistica interna.              │  │
+│  │  (già gestita da messaging_beta_enabled)                    │  │
+│  │  Stato:  ● ATTIVO / ○ NON ATTIVO   [Toggle]                │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Logica del toggle WHITE LABEL:**
+
+Quando il SuperAdmin attiva il toggle (OFF → ON):
+1. Mostra un Dialog di conferma:
+   ```
+   ┌─────────────────────────────────────────────┐
+   │  Attivare White Label per [Nome Azienda]?   │
+   │                                             │
+   │  Prezzo mensile:  € [49,00         ]        │
+   │  Note interne:    [                 ]        │
+   │                   Es: "Pagamento ricevuto"   │
+   │                                             │
+   │  [Annulla]          [✓ Attiva White Label]  │
+   └─────────────────────────────────────────────┘
+   ```
+2. Al confirm → esegui:
+   ```typescript
+   // Aggiorna companies
+   await supabase.from('companies').update({
+     white_label_enabled: true,
+     white_label_enabled_at: new Date().toISOString(),
+     white_label_enabled_by: currentUser.id,
+     white_label_monthly_price: price,
+   }).eq('id', company.id);
+
+   // Registra nel log
+   await supabase.from('company_addons_log').insert({
+     company_id: company.id,
+     addon_key: 'white_label',
+     action: 'enabled',
+     performed_by: currentUser.id,
+     performed_by_email: currentUser.email,
+     new_value: { price, notes },
+     notes: notes,
+   });
+   ```
+3. Toast di successo: "White Label attivato per [Nome Azienda]"
+4. Invalida la query del company detail
+
+Quando il SuperAdmin disattiva (ON → OFF):
+1. Mostra Dialog conferma con avviso:
+   ```
+   Disattivare White Label per [Nome Azienda]?
+   L'azienda perderà le personalizzazioni di branding.
+   Il logo personalizzato rimarrà salvato.
+   ```
+2. Al confirm → update white_label_enabled = false, salva log con action='disabled'
+
+**Quando il prezzo viene modificato:**
+- Campo input numerico editabile inline accanto al toggle
+- Salva automaticamente on blur
+- Logga action='price_changed' con old_value e new_value
+
+---
+
+### MODAL "Storico Attivazioni"
+
+Quando si clicca [📋 Storico attivazioni], apri un Dialog con una timeline:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Storico White Label — Domus Group S.r.l.           │
+│                                                     │
+│  ● 09/03/2026 12:30  ATTIVATO                       │
+│    da superadmin@piattaforma.it                     │
+│    Prezzo: €49/mese — Note: "Pagamento ricevuto"    │
+│                                                     │
+│  ○ 01/02/2026 09:00  DISATTIVATO                    │
+│    da superadmin@piattaforma.it                     │
+│                                                     │
+│  ● 15/01/2026 14:00  ATTIVATO                       │
+│    da superadmin@piattaforma.it                     │
+│    Prezzo: €39/mese                                 │
+└─────────────────────────────────────────────────────┘
+```
+
+Query:
+```typescript
+const { data: logs } = await supabase
+  .from('company_addons_log')
+  .select('*')
+  .eq('company_id', companyId)
+  .eq('addon_key', 'white_label')
+  .order('created_at', { ascending: false });
+```
+
+---
+
+### DASHBOARD SUPERADMIN — RIEPILOGO ADDON ATTIVI
+
+In AdminDashboard.tsx (o in una nuova sezione dell'admin), aggiungi una card:
+
+```
+┌─────────────────────────────────────────────┐
+│  💎 Addon Attivi                            │
+│                                             │
+│  White Label:    8 aziende  →  €392/mese    │
+│  Messaging Beta: 12 aziende →  (gratuito)   │
+│                                             │
+│  [Vedi tutte le aziende con addon]          │
+└─────────────────────────────────────────────┘
+```
+
+Query per il totale:
+```typescript
+const { data } = await supabase
+  .from('companies')
+  .select('id, name, white_label_monthly_price')
+  .eq('white_label_enabled', true);
+
+const totalRevenue = data?.reduce((sum, c) => sum + (c.white_label_monthly_price ?? 0), 0);
+```
+
+================================================================================
+PROMPT 3 — COMPANY SETTINGS: CONFIGURAZIONE BRANDING
+================================================================================
+
+Modifica: src/pages/azienda/settings/SettingsProfile.tsx
+(o crea una nuova tab/sezione "Branding" all'interno delle impostazioni)
+
+---
+
+### COMPORTAMENTO IN BASE allo stato white_label_enabled
+
+**Se white_label_enabled = FALSE:**
+
+Mostra un banner "funzione bloccata" nella sezione branding:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  🔒  WHITE LABEL — FUNZIONE PREMIUM                             │
+│                                                                  │
+│  Personalizza completamente il tuo brand:                       │
+│  colori, nome piattaforma, favicon e sfondo login.              │
+│                                                                  │
+│  Contatta il supporto per attivare questa funzione.             │
+│                                                                  │
+│  [✉ Contatta il Supporto]                                       │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+Il logo rimane modificabile anche senza white-label (funzione base gratuita).
+
+---
+
+**Se white_label_enabled = TRUE:**
+
+Mostra la sezione completa di personalizzazione brand:
+
+### SEZIONE: Personalizzazione Brand
+
+Header: "🎨 Brand Personalizzato" con badge verde "ATTIVO"
+
+---
+
+**A — LOGO AZIENDALE** (già esistente, da mantenere)
+- Upload logo (PNG, JPG, SVG, max 2MB)
+- Preview circolare o rettangolare
+- Bottone rimuovi
+
+---
+
+**B — NOME PIATTAFORMA**
+
+```
+Nome piattaforma personalizzato
+[GestionaleProX                                    ]
+Verrà mostrato nella navbar e nel browser al posto di "EdiliziaInCloud".
+Lascia vuoto per usare il nome predefinito.
+```
+
+---
+
+**C — PALETTE COLORI**
+
+```
+Colore primario        [████] #1E40AF  [color picker]
+Colore secondario      [████] #3B82F6  [color picker]
+Sfondo leggero         [████] #DBEAFE  [color picker]
+Testo su colore scuro  [████] #FFFFFF  [color picker]
+```
+
+Sotto i color picker: bottoni palette predefinite (stesse 8 del modulo preventivi):
+```
+[Blu Professionale] [Verde Fiducia] [Rosso Energia] [Grigio Elegante]
+[Viola Premium]     [Arancio]       [Teal Moderno]  [Nero Lusso]
+```
+
+**Preview live inline** (piccola strip di colori applicati):
+```
+┌─ Anteprima ──────────────────────────────────────────────────────┐
+│ [████ Navbar con colore primario         Logo  Utente ▼]         │
+│ [█] Dashboard    → Testo su sfondo scuro                        │
+│ [█] Ordini       → Colore secondario per hover                  │
+│ Bottone primario: [   Salva   ]  Badge: [Attivo]                │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+**D — FAVICON**
+
+```
+Favicon (icona browser)
+[Dropzone 32x32 o 64x64 ICO/PNG]
+Dimensioni raccomandate: 64x64px
+```
+
+---
+
+**E — SFONDO PAGINA DI LOGIN**
+
+```
+Immagine sfondo login (opzionale)
+[Dropzone JPG/PNG max 5MB]
+Dimensioni raccomandate: 1920x1080px
+[Preview miniatura]
+```
+
+---
+
+**F — OPZIONI AVANZATE**
+
+```
+[ ] Nascondi "Powered by [piattaforma]" nel footer
+    Rimuove il riferimento alla piattaforma originale.
+```
+
+---
+
+**G — BOTTONE SALVA**
+
+```
+[Annulla modifiche]         [💾 Salva Brand]
+```
+
+Al salvataggio:
+1. Upload favicon e bg_login su storage `white-label-assets/{company_id}/`
+2. Aggiorna companies con tutti i campi brand_*
+3. Logga in company_addons_log con action='branding_updated'
+4. Toast: "Brand aggiornato con successo"
+
+---
+
+### HOOK: useBrandSettings.ts
+
+Crea: src/hooks/useBrandSettings.ts
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+
+export interface BrandSettings {
+  white_label_enabled: boolean;
+  brand_primary_color: string;
+  brand_secondary_color: string;
+  brand_accent_color: string;
+  brand_text_on_primary: string;
+  brand_platform_name: string | null;
+  brand_favicon_url: string | null;
+  brand_login_bg_url: string | null;
+  brand_hide_powered_by: boolean;
+  logo_url: string | null;
+}
+
+export function useBrandSettings(companyId?: string) {
+  const { company } = useAuth();
+  const id = companyId ?? company?.id;
+  const queryClient = useQueryClient();
+
+  const { data: brand } = useQuery({
+    queryKey: ['brand-settings', id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('companies')
+        .select(`
+          white_label_enabled,
+          brand_primary_color,
+          brand_secondary_color,
+          brand_accent_color,
+          brand_text_on_primary,
+          brand_platform_name,
+          brand_favicon_url,
+          brand_login_bg_url,
+          brand_hide_powered_by,
+          logo_url
+        `)
+        .eq('id', id!)
+        .single();
+      return data as BrandSettings;
+    },
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // cache 5 minuti
+  });
+
+  const saveBrand = useMutation({
+    mutationFn: async (updates: Partial<BrandSettings>) => {
+      const { error } = await supabase
+        .from('companies')
+        .update(updates)
+        .eq('id', id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['brand-settings', id] });
+      queryClient.invalidateQueries({ queryKey: ['company', id] });
+    },
+  });
+
+  // Shortcut: colori effettivi (fallback se non white-label)
+  const effectiveBrand = {
+    primaryColor: brand?.white_label_enabled ? (brand.brand_primary_color ?? '#1E40AF') : '#1E40AF',
+    secondaryColor: brand?.white_label_enabled ? (brand.brand_secondary_color ?? '#3B82F6') : '#3B82F6',
+    accentColor: brand?.white_label_enabled ? (brand.brand_accent_color ?? '#DBEAFE') : '#DBEAFE',
+    textOnPrimary: brand?.white_label_enabled ? (brand.brand_text_on_primary ?? '#FFFFFF') : '#FFFFFF',
+    platformName: brand?.white_label_enabled ? (brand.brand_platform_name ?? null) : null,
+    logoUrl: brand?.logo_url ?? null,
+    faviconUrl: brand?.white_label_enabled ? (brand.brand_favicon_url ?? null) : null,
+    loginBgUrl: brand?.white_label_enabled ? (brand.brand_login_bg_url ?? null) : null,
+    hidePoweredBy: brand?.white_label_enabled ? (brand.brand_hide_powered_by ?? false) : false,
+    isWhiteLabel: brand?.white_label_enabled ?? false,
+  };
+
+  return { brand, effectiveBrand, saveBrand };
+}
+```
+
+================================================================================
+PROMPT 4 — APPLICAZIONE DEL BRAND NELL'APP
+================================================================================
+
+Questo prompt applica i colori e le personalizzazioni del white-label
+in tutta l'interfaccia quando l'azienda ha il white-label attivo.
+
+---
+
+### A — CSS VARIABLES DINAMICHE (CompanyLayout.tsx)
+
+In src/components/layouts/CompanyLayout.tsx, nel componente principale,
+aggiungi un useEffect che inietta i colori come CSS variables nell'elemento :root:
+
+```typescript
+import { useBrandSettings } from '@/hooks/useBrandSettings';
+
+// All'interno del componente:
+const { effectiveBrand } = useBrandSettings();
+
+useEffect(() => {
+  if (effectiveBrand.isWhiteLabel) {
+    const root = document.documentElement;
+    root.style.setProperty('--brand-primary', effectiveBrand.primaryColor);
+    root.style.setProperty('--brand-secondary', effectiveBrand.secondaryColor);
+    root.style.setProperty('--brand-accent', effectiveBrand.accentColor);
+    root.style.setProperty('--brand-text-on-primary', effectiveBrand.textOnPrimary);
+  } else {
+    // Rimuovi le variabili custom se white-label disattivato
+    const root = document.documentElement;
+    root.style.removeProperty('--brand-primary');
+    root.style.removeProperty('--brand-secondary');
+    root.style.removeProperty('--brand-accent');
+    root.style.removeProperty('--brand-text-on-primary');
+  }
+}, [effectiveBrand]);
+```
+
+---
+
+### B — SIDEBAR / NAVBAR — NOME E COLORI
+
+In CompanyLayout.tsx, aggiorna la sidebar per usare il brand:
+
+```tsx
+// Nome piattaforma (usa brand_platform_name se white-label, altrimenti nome fisso)
+const platformName = effectiveBrand.platformName ?? 'EdiliziaInCloud';
+
+// Header sidebar con colore primario brand
+<div
+  className="sidebar-header"
+  style={effectiveBrand.isWhiteLabel ? {
+    backgroundColor: effectiveBrand.primaryColor,
+    color: effectiveBrand.textOnPrimary,
+  } : undefined}
+>
+  {effectiveBrand.logoUrl ? (
+    <img src={effectiveBrand.logoUrl} alt={platformName} className="h-8 max-h-8 object-contain" />
+  ) : (
+    <span className="font-bold text-lg">{platformName}</span>
+  )}
+</div>
+
+// Menu item attivo: usa colore primario brand
+// Aggiungi inline style condizionale agli item attivi della sidebar:
+style={isActive && effectiveBrand.isWhiteLabel ? {
+  backgroundColor: effectiveBrand.accentColor,
+  color: effectiveBrand.primaryColor,
+  borderLeft: `3px solid ${effectiveBrand.primaryColor}`,
+} : undefined}
+```
+
+---
+
+### C — FAVICON DINAMICA
+
+In src/App.tsx o in un componente che si carica all'avvio, aggiungi:
+
+```typescript
+// Applica favicon dinamica se white-label attivo
+useEffect(() => {
+  if (effectiveBrand?.faviconUrl) {
+    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
+      || document.createElement('link');
+    link.rel = 'icon';
+    link.href = effectiveBrand.faviconUrl;
+    document.head.appendChild(link);
+  }
+}, [effectiveBrand?.faviconUrl]);
+
+// Applica titolo dinamico
+useEffect(() => {
+  if (effectiveBrand?.platformName) {
+    document.title = effectiveBrand.platformName;
+  }
+}, [effectiveBrand?.platformName]);
+```
+
+---
+
+### D — PAGINA DI LOGIN — SFONDO PERSONALIZZATO
+
+In src/pages/auth/Login.tsx (o il componente di login):
+
+```tsx
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+
+// Cerca di capire l'azienda dal subdomain o dall'URL
+// Se il dominio è personalizzato, carica il branding prima del login
+// Per ora: usa un approccio semplice — background dinamico solo se
+// l'utente è già loggato (cambio password ecc.)
+
+// Oppure: permetti all'azienda di condividere un link di login personalizzato
+// tipo /login?company=domus-group che carica il brand
+
+const loginBgUrl = brandSettings?.login_bg_url;
+
+<div
+  className="min-h-screen flex"
+  style={loginBgUrl ? {
+    backgroundImage: `url(${loginBgUrl})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  } : undefined}
+>
+  {/* Contenuto form di login */}
+</div>
+```
+
+---
+
+### E — FOOTER "POWERED BY" (opzionale)
+
+In tutti i layout, nel footer in basso, aggiungi condizionalmente:
+
+```tsx
+{!effectiveBrand.hidePoweredBy && (
+  <div className="text-xs text-gray-400 text-center py-2">
+    Powered by <a href="#" className="underline">EdiliziaInCloud</a>
+  </div>
+)}
+```
+
+---
+
+### F — CUSTOMER LAYOUT (ClientLayout.tsx)
+
+Applica lo stesso brand anche nella vista del cliente finale
+(CustomerLayout.tsx) — il cliente vede il brand dell'azienda, non quello
+della piattaforma:
+
+```tsx
+// Stesso hook useBrandSettings con companyId dell'azienda corrente
+const { effectiveBrand } = useBrandSettings(company?.id);
+
+// Applica CSS variables e nome piattaforma come per CompanyLayout
+```
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+1. **SuperAdmin attiva White Label:**
+   - Vai in admin → CompanyDetail → tab "SaaS" → sezione "Addon a Pagamento"
+   - Attiva toggle White Label per "Domus Group S.r.l." con prezzo €49/mese
+   - Verifica che appaia nel log e che white_label_enabled = true nel DB
+
+2. **Azienda configura il brand:**
+   - Accedi come utente admin di Domus Group
+   - Vai in Impostazioni → Profilo (o sezione Branding)
+   - Verifica che la sezione "Brand Personalizzato" sia visibile (badge ATTIVO)
+   - Imposta colore primario rosso (#991B1B) + nome "DomusGestionale"
+   - Salva e verifica che la sidebar diventi rossa con il nuovo nome
+
+3. **Azienda SENZA white-label:**
+   - Accedi come admin di un'altra azienda senza white-label attivo
+   - Verifica che la sezione branding mostri il banner "FUNZIONE PREMIUM"
+   - Verifica che la sidebar mostri i colori di default della piattaforma
+
+4. **Dashboard SuperAdmin:**
+   - Verifica la card "Addon Attivi" con il totale ricavi mensili
+
+5. **Disattivazione:**
+   - Dal SuperAdmin, disattiva il white-label per Domus Group
+   - Verifica che l'app torni ai colori di default immediatamente
+
+================================================================================
+NOTE IMPORTANTI
+================================================================================
+
+- La modifica dei colori tramite CSS variables è SOLO per elementi
+  che usano var(--brand-primary) nel CSS. Non cambierà i componenti
+  shadcn/ui che usano classi Tailwind hardcoded come `bg-blue-600`.
+  Usa inline style per gli elementi principali (sidebar header, active items,
+  bottoni principali, badge).
+
+- Se il progetto usa Tailwind CSS con JIT, non è possibile generare classi
+  dinamiche come `bg-[#991B1B]`. Usa SEMPRE inline style per i colori brand.
+
+- Il logo rimane funzionante anche senza white-label (logo_url è gratuito).
+  Il white-label sblocca SOLO: colori, nome piattaforma, favicon, bg login,
+  rimozione "Powered by".
+
+- Gestisci sempre il caso in cui effectiveBrand sia undefined/null durante
+  il caricamento (usa i colori di default come fallback).
+
+- NON modificare la logica di autenticazione, permessi o ordini.
+  Modifica SOLO: CompanyDetail admin, SettingsProfile azienda, layout components.
+
+================================================================================

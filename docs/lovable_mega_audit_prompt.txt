@@ -1,0 +1,696 @@
+================================================================================
+MEGA PROMPT — AUDIT COMPLETO, BUG FIX E OTTIMIZZAZIONE
+================================================================================
+Questo prompt è diviso in FASI. Esegui UNA FASE ALLA VOLTA, nell'ordine indicato.
+Prima di ogni fase, LEGGI i file specificati. Poi identifica bug, fix e ottimizzazioni.
+Applica SOLO i fix sicuri. Per quelli dubbi, commenta con // TODO: [spiegazione]
+================================================================================
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 1 — AUTH, CONTESTO E SICUREZZA                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/contexts/AuthContext.tsx
+  - src/components/auth/ProtectedRoute.tsx
+  - src/components/auth/RoleBasedRedirect.tsx
+  - src/hooks/usePermissions.ts
+  - src/hooks/useSubscriptionLimits.ts
+
+Analizza e correggi i seguenti problemi noti in sistemi di questo tipo:
+
+1. RACE CONDITION nell'auth:
+   - Il componente figlio può fare render prima che il profilo Supabase sia caricato
+   - Verifica che ci sia un isLoading guard PRIMA di rendere qualsiasi route protetta
+   - Se isLoading è true, il ProtectedRoute deve restituire solo il loader, mai null
+
+2. IMPERSONATION LEAK:
+   - Quando un super_admin impersona un'azienda e poi naviga su una pagina che
+     usa useAuth().company (anzichè effectiveCompany), vede dati sbagliati
+   - Cerca TUTTI i punti nell'app dove viene usato `company` diretto invece di
+     `effectiveCompany` e sostituiscili
+   - Eccezione: la logica di impersonazione stessa può usare `company`
+
+3. SESSION REFRESH:
+   - Verifica che l'event listener onAuthStateChange non crei memory leak
+   - Deve avere cleanup nella return del useEffect
+
+4. MISSING ROLE GUARD:
+   - Verifica che ogni pagina sotto /admin/* controlli effettivamente il ruolo
+     super_admin e non solo che l'utente sia autenticato
+
+5. TIPO AppRole:
+   - Verifica che tutte le stringhe di ruolo usate nell'app corrispondano
+     esattamente all'enum definito in src/types/auth.ts
+   - Cerca stringhe hardcoded come "admin", "staff" che potrebbero non matchare
+
+Ottimizzazioni aggiuntive:
+- Aggiungi un hook `useEffectiveCompanyId()` che restituisce `effectiveCompany?.id ?? null`
+  e usalo in tutti gli hook che ne hanno bisogno (così il pattern è uniforme)
+- Memoizza il valore del context con useMemo per evitare re-render inutili
+  sui consumatori del context
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 2 — REACT QUERY: PATTERN, CACHE E DIPENDENZE                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/hooks/useMarginData.ts
+  - src/hooks/useBreakEvenHistorical.ts
+  - src/hooks/useCruscottoData.ts
+  - src/hooks/useMarketingDashboard.ts
+  - src/hooks/useCompanyDashboardData.ts
+  - src/hooks/useCashFlowData.ts
+
+Problemi comuni da cercare e correggere:
+
+1. QUERY DIPENDENTI MALFORMATE:
+   - Pattern pericoloso: query con `enabled: !!ordersRaw && ordersRaw.length > 0`
+     che usa dati di un'altra query nell'array .map() DENTRO queryFn
+   - Quando ordersRaw è stale e la seconda query riutilizza il closure,
+     i dati possono desincronizzarsi
+   - SOLUZIONE: assicurarsi che il queryKey includa un hash degli IDs,
+     oppure usare `select` di React Query per derivare i dati
+
+2. QUERYKEY INCOMPLETO:
+   - Ogni queryKey che dipende da filtri, date, o parametri variabili DEVE
+     includere quei valori nella key
+   - Esempio: ["margin-orders", companyId] — OK
+   - Esempio: ["margin-orders"] senza companyId — BUG (cross-tenant data leak)
+   - Verifica TUTTI i queryKey negli hook e aggiungi eventuali parametri mancanti
+
+3. ENABLED FLAG MANCANTE:
+   - Ogni query che dipende da companyId deve avere `enabled: !!companyId`
+   - Cerca query senza il flag enabled che potrebbero girare con companyId null
+
+4. STALE TIME INCOERENTE:
+   - Allinea staleTime in tutto il codebase: usa 5 * 60 * 1000 (5 min) come default
+   - Per dati critici (auth, profile): 0 o Infinity solo se intenzionale
+   - Per dati amministrativi che cambiano raramente: 10 * 60 * 1000 (10 min)
+
+5. MISSING ERROR HANDLING:
+   - Ogni queryFn che fa `if (error) throw error` è corretto
+   - Ma verifica che i componenti consumatori gestiscano lo stato `isError`
+     mostrando almeno un Alert o un fallback invece di crashare
+
+6. MEMORY LEAK nelle query annidate:
+   - Il pattern "query A che abilita query B tramite .map()" in useBreakEvenHistorical
+     e useMarginData: verifica che quando orderIds è un array vuoto [], la query
+     non parta comunque (in("order_id", []) in Supabase genera una query invalida)
+   - Aggiungi `enabled: orderIds.length > 0` (non solo `> 0` ma controllo esplicito)
+
+Ottimizzazione:
+- Crea src/lib/queryKeys.ts con costanti per tutti i queryKey dell'app, es:
+  ```
+  export const QUERY_KEYS = {
+    marginOrders: (companyId: string | null) => ["margin-orders", companyId],
+    employees: (companyId: string | null) => ["margin-employees", companyId],
+    // ... tutti gli altri
+  }
+  ```
+  Questo previene typo nei queryKey e facilita l'invalidation
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 3 — MODULO ORDINI (le pagine più complesse)                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/azienda/CreateOrder.tsx
+  - src/pages/azienda/EditOrder.tsx
+  - src/pages/azienda/OrderDetail.tsx
+  - src/hooks/useOrderDraft.ts
+  - src/components/orders/ (tutti i file)
+
+Problemi da cercare:
+
+1. CALCOLI IVA INCOERENTI:
+   - Verifica che tutti i calcoli di imponibile/IVA usino vatUtils.ts
+     e NON calcoli inline sparsi nel codice
+   - Cerca pattern come `price * 1.22` o `price * (1 + 0.22)` hardcoded
+     e sostituiscili con `calculateNetFromGross()` o `calculateGrossFromNet()`
+
+2. FORM STATE PERDUTO:
+   - In CreateOrder e EditOrder: verifica che il form non si resetti
+     quando l'utente naviga via e torna (se useOrderDraft usa localStorage,
+     verifica che il clear avvenga al submit ma non alla navigazione)
+
+3. RACE CONDITION nel SALVATAGGIO:
+   - Se l'utente clicca "Salva" due volte rapidamente si crea un ordine duplicato
+   - Verifica che il bottone submit sia disabilitato (isSubmitting) durante la mutation
+   - Pattern: `disabled={isSubmitting || mutation.isPending}`
+
+4. ORDER ITEMS - CALCOLO TOTALE:
+   - Verifica che il totale ordine si aggiorni REATTIVAMENTE quando si
+     aggiunge/rimuove/modifica un item (non solo al submit)
+   - Il totale deve essere un valore derivato (useMemo) non uno stato separato
+
+5. MISSING OPTIMISTIC UPDATE:
+   - Quando si cambia lo stato di un ordine (es. da "in lavorazione" a "completato")
+     il UI non si aggiorna fino al prossimo fetch
+   - Aggiungi optimistic update nella mutation per il cambio stato:
+     ```
+     onMutate: async (newStatus) => {
+       await queryClient.cancelQueries({ queryKey: ['orders', companyId] })
+       const previous = queryClient.getQueryData(['orders', companyId])
+       queryClient.setQueryData(['orders', companyId], (old) =>
+         old.map(o => o.id === orderId ? {...o, status: newStatus} : o)
+       )
+       return { previous }
+     }
+     onError: (err, vars, context) => {
+       queryClient.setQueryData(['orders', companyId], context.previous)
+     }
+     ```
+
+6. CURRENCY INPUT:
+   - Verifica che i campi importo accettino solo numeri e non causino NaN
+     quando l'utente svuota il campo (parseFloat("") === NaN)
+   - Usa `parseFloat(value) || 0` o gestisci il caso stringa vuota
+
+7. INVALIDAZIONE CACHE POST-SAVE:
+   - Dopo il salvataggio di un ordine, verifica che vengano invalidate TUTTE
+     le query correlate: orders list, order detail, dashboard data, margin data
+   - Cerca `queryClient.invalidateQueries` e verifica che i key corrispondano
+
+Ottimizzazioni:
+- Sposta la logica di calcolo dei totali in una funzione pura in src/lib/orderUtils.ts
+- Aggiungi un debounce di 300ms sul ricalcolo totale durante l'input
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 4 — CRM E OPPORTUNITÀ                                                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/azienda/marketing/MarketingOpportunities.tsx
+  - src/components/opportunities/ (tutti i file)
+  - src/hooks/useOpportunitiesData.ts
+  - src/hooks/useOpportunityDetailData.ts
+  - src/lib/leadScoring.ts
+  - src/hooks/useSalesOS.ts
+
+Problemi da cercare:
+
+1. KANBAN DRAG & DROP:
+   - Verifica che dopo un drag-and-drop tra stage il dato venga salvato su Supabase
+     e non sia solo un aggiornamento locale dello stato React
+   - Se il salvataggio fallisce, la card deve ritornare allo stage originale (rollback)
+   - Verifica presenza di onDragEnd handler con mutation + error rollback
+
+2. FILTRI PERSI ALLA NAVIGAZIONE:
+   - Se l'utente filtra le opportunità e poi va al dettaglio e torna,
+     i filtri vengono resettati
+   - SOLUZIONE: persistere i filtri in URL query params (?stage=&source=)
+     o in sessionStorage
+
+3. LEAD SCORE NON AGGIORNATO:
+   - Il lead score viene calcolato in calculateLeadScore() in src/lib/leadScoring.ts
+   - Verifica che venga ricalcolato ogni volta che cambiano i dati rilevanti
+     (non solo alla creazione del lead)
+   - Aggiungere trigger di ricalcolo dopo: cambio stage, aggiunta nota, cambio valore
+
+4. STALLED OPPORTUNITY DETECTION:
+   - Il badge "Ferma da X giorni" deve usare la data dell'ultimo cambio di stage,
+     non la data di creazione dell'opportunità
+   - Verifica che il campo `last_stage_change_at` (o equivalente) esista e
+     venga aggiornato correttamente ad ogni cambio stage
+
+5. LOST DIALOG:
+   - Quando un'opportunità viene marcata come persa, verifica che il motivo
+     sia obbligatorio (validazione Zod o required nel form)
+   - I dati del motivo devono essere salvati in un campo dedicato, non in un
+     campo note generico
+
+6. MISSING PAGINATION:
+   - Se ci sono molte opportunità, la query potrebbe restituire migliaia di righe
+   - Verifica che ci sia .limit() o paginazione server-side nelle query Supabase
+
+Ottimizzazioni:
+- Aggiungi un indicatore visivo di "last activity" su ogni card del kanban
+- Ordina le card per urgency score dentro ogni stage
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 5 — FINANZA: CASH FLOW, MARGINI E COSTI                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/azienda/CashFlowForecast.tsx
+  - src/pages/azienda/CompanyCosts.tsx
+  - src/hooks/useCashFlowData.ts
+  - src/hooks/useCompanyCostsData.ts
+  - src/hooks/useCompanyCostsMutations.ts
+  - src/hooks/useMarginData.ts
+  - src/components/forecast/ (tutti i file)
+
+Problemi da cercare:
+
+1. RICORRENZA COSTI — CALCOLO ERRATO:
+   - La funzione recurrenceMultiplier() in src/lib/forecastTypes.ts converte
+     la ricorrenza in moltiplicatore mensile
+   - Verifica che tutti i casi siano coperti: monthly, quarterly, annual,
+     weekly, daily, one_time
+   - Un costo "one_time" NON deve essere moltiplicato — deve apparire solo
+     nel mese in cui è stato inserito, non in tutti i mesi del forecast
+
+2. FORECAST NEGATIVO:
+   - Se i costi superano le entrate, il cash flow diventa negativo
+   - Verifica che il grafico gestisca valori negativi (asse Y con zero visibile,
+     barre rosse per valori negativi)
+
+3. DUPLICAZIONE COSTI:
+   - Se useMarginData.ts e useCompanyCostsData.ts fanno entrambi query su
+     company_costs, verificare che usino gli stessi filtri (cost_type, company_id)
+     per non includere o escludere categorie diverse
+
+4. FORM COSTO — VALIDAZIONE:
+   - Verifica che il campo `amount` non accetti valori negativi
+   - Verifica che `recurrence` sia un campo obbligatorio con valore default
+
+5. DELETE SENZA CONFERMA:
+   - La cancellazione di un costo fisso dovrebbe richiedere una dialog di conferma,
+     specialmente se il costo è usato nel calcolo del break-even
+   - Verifica che ci sia AlertDialog prima di ogni delete mutation
+
+6. FORECAST ROLLING 12 MESI:
+   - Il forecast deve mostrare sempre i prossimi 12 mesi dalla data corrente,
+     non un anno solare fisso
+   - Verifica che la generazione dei mesi usi `addMonths(new Date(), i)` non
+     hardcoded [Jan, Feb, ...]
+
+Ottimizzazioni:
+- Aggiungi export CSV per i dati del forecast
+- Evidenzia i mesi in cui il cash flow previsto è negativo con sfondo rosso
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 6 — MAGAZZINO, DIPENDENTI E TASK                                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/azienda/Warehouse.tsx
+  - src/hooks/useWarehouseData.ts
+  - src/hooks/useWarehouseSections.ts
+  - src/components/warehouse/ (tutti i file)
+  - src/pages/azienda/Tasks.tsx
+  - src/components/tasks/ (tutti i file)
+  - src/components/employees/ (tutti i file)
+
+Problemi da cercare:
+
+1. STOCK NEGATIVO:
+   - Quando si esegue un'uscita di magazzino, il sistema deve prevenire
+     che lo stock scenda sotto 0
+   - Verifica che ci sia una validazione: `if (quantity > currentStock) throw error`
+   - Sia lato frontend (validazione form) che lato Supabase (constraint o check)
+
+2. CONCURRENCY nel MAGAZZINO:
+   - Due utenti che scaricano lo stesso articolo simultaneamente possono
+     causare stock negativo (race condition)
+   - SOLUZIONE: usare una RPC Supabase atomica per i movimenti di magazzino
+     invece di un semplice UPDATE
+
+3. TASK ASSIGNEE:
+   - Verifica che quando si assegna un task a un dipendente, il campo
+     assignee_id sia salvato correttamente come UUID del profilo
+   - Cerca pattern dove si salva il nome invece dell'ID
+
+4. TASK OVERDUE:
+   - Le task scadute devono essere evidenziate visivamente
+   - Verifica che ci sia un calcolo `isOverdue = dueDate < now && !completed`
+     e che venga mostrato un badge rosso
+
+5. TIMESHEET OVERLAP:
+   - In TimeEntry.tsx, verifica che non sia possibile registrare due
+     time entries sovrapposte per lo stesso dipendente nello stesso giorno
+   - Validazione: fetch entries esistenti del giorno, controlla overlap
+
+Ottimizzazioni:
+- Aggiungi un grafico a barre per visualizzare lo stock level vs soglia minima
+- Per le task: aggiungi filtro rapido "Solo le mie task" / "Tutte"
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 7 — PERFORMANCE E BUNDLE OPTIMIZATION                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/App.tsx
+  - vite.config.ts (se presente)
+  - src/components/layouts/ (tutti i file)
+  - src/pages/azienda/OrdersList.tsx
+  - src/pages/azienda/CustomersList.tsx
+
+Ottimizzazioni critiche da implementare:
+
+1. VIRTUALIZATION per LISTE LUNGHE:
+   - OrdersList, CustomersList, WarehouseTable possono avere centinaia di righe
+   - Implementa paginazione server-side se non presente:
+     ```
+     const { data } = useQuery({
+       queryFn: async () => {
+         return supabase
+           .from("orders")
+           .select("*", { count: "exact" })
+           .range(page * pageSize, (page + 1) * pageSize - 1)
+       }
+     })
+     ```
+   - Oppure usa react-window o TanStack Virtual per virtualization lato client
+
+2. COMPONENT SPLITTING ECCESSIVO:
+   - Verifica che i componenti dentro le pagine più grandi (OrderDetail ~32KB)
+     usino React.memo() dove appropriato per evitare re-render a cascata
+   - Identifica i componenti foglia che ricevono props complesse e
+     aggiungi memo() + confronto props stabile
+
+3. LAZY LOADING IMAGES:
+   - Logo azienda e avatar profilo devono usare `loading="lazy"` se sono `<img>`
+   - O usare `LazyLoadImage` da react-lazy-load-image-component
+
+4. SUSPENSE BOUNDARIES:
+   - L'attuale Suspense in App.tsx è solo uno per tutta l'app
+   - Aggiungi Suspense boundaries locali nelle sezioni che caricano dati pesanti
+     (es. il tab "Analisi" in SalesOSDashboard, "Storico" nel PuntoDiPareggio)
+   - Questo evita che tutta la pagina mostri il loader per un solo sotto-modulo
+
+5. PREFETCHING INTELLIGENTE:
+   - Quando l'utente fa hover su un link di navigazione (es. "Ordini"),
+     prefetch i dati con queryClient.prefetchQuery
+   - Implementalo nei componenti di sidebar/navbar
+
+6. DEBOUNCE SULLE RICERCHE:
+   - Tutti i campi di ricerca/filtro che scatenano una query Supabase
+     devono avere un debounce di almeno 300ms
+   - Cerca `onChange={e => setSearch(e.target.value)}` accoppiati a query
+     e aggiungi `useDebounce(search, 300)`
+
+7. CONSOLE.LOG IN PRODUZIONE:
+   - Rimuovi tutti i console.log, console.error, console.warn che non sono
+     parte del sistema di error logging strutturato
+   - Sostituisci con chiamate all'ErrorBoundary o con un logger condizionale:
+     ```
+     const log = process.env.NODE_ENV === 'development' ? console.log : () => {}
+     ```
+
+Ottimizzazione bundle:
+- Verifica che recharts sia importato con tree-shaking:
+  ```
+  // SBAGLIATO: import Recharts from 'recharts'
+  // CORRETTO: import { BarChart, Bar } from 'recharts'
+  ```
+- Verifica lo stesso per lucide-react, date-fns
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 8 — ERROR HANDLING E RESILIENZA                                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/components/error/ErrorBoundary.tsx
+  - src/App.tsx
+  - Qualsiasi hook che fa chiamate Supabase
+
+Problemi da cercare e implementare:
+
+1. ERROR BOUNDARY GRANULARI:
+   - L'ErrorBoundary in App.tsx cattura TUTTO l'app se qualcosa crasha
+   - Aggiungi ErrorBoundary locali per sezioni isolate:
+     * Cruscotto (ogni tab separato)
+     * SalesOS (ogni sezione)
+     * Forecast (ogni grafico)
+   - Un grafico che crasha non deve abbattere tutta la pagina
+
+2. SUPABASE ERROR CODES:
+   - Quando Supabase restituisce errore, il codice può essere:
+     * 42501: row level security violation (utente non ha permessi)
+     * 23503: foreign key violation
+     * 23505: unique constraint violation (duplicato)
+   - Verifica che questi errori vengano tradotti in messaggi user-friendly
+     invece di mostrare il codice tecnico
+   - Aggiungi in src/lib/supabaseErrors.ts una funzione `formatSupabaseError(error)`
+
+3. NETWORK OFFLINE:
+   - Se l'utente perde la connessione, le mutation falliscono silenziosamente
+   - Aggiungi un hook `useOnlineStatus` e mostra un banner quando offline:
+     ```
+     const isOnline = useOnlineStatus()
+     if (!isOnline) return <Alert>Connessione assente — i dati potrebbero non essere aggiornati</Alert>
+     ```
+
+4. TOAST DI ERRORE MANCANTI:
+   - Ogni mutation (create/update/delete) deve avere:
+     * onSuccess: toast di conferma
+     * onError: toast di errore con messaggio comprensibile
+   - Cerca mutation senza onError handler e aggiungile
+
+5. LOADING STATES INCOMPLETI:
+   - Ogni pagina che carica dati deve mostrare Skeleton durante isLoading
+   - Verifica che non ci siano pagine che mostrano contenuto vuoto durante il fetch
+     invece di skeleton/spinner
+
+6. TIMEOUT SUPABASE:
+   - Le query Supabase non hanno timeout di default
+   - Per query critiche, aggiungi un AbortSignal con timeout:
+     ```
+     const controller = new AbortController()
+     const timeout = setTimeout(() => controller.abort(), 10000)
+     const { data } = await supabase.from('orders').select('*')
+       .abortSignal(controller.signal)
+     clearTimeout(timeout)
+     ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 9 — TYPE SAFETY E TYPESCRIPT                                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/types/ (tutti i file)
+  - src/integrations/supabase/types.ts
+  - src/hooks/ (cerca utilizzi di `any`)
+
+Problemi da cercare:
+
+1. TIPO `any` ESPLICITI:
+   - Cerca tutti i casi di `: any` o `as any` nel codice
+   - Ogni `any` è un potenziale runtime bug nascosto
+   - Sostituisci con tipi specifici o con `unknown` + type guard
+
+2. NON-NULL ASSERTION AZZARDATA:
+   - Cerca tutti i `!` non-null assertion (es. `user!.id`, `company!.name`)
+   - Ogni `!` senza un controllo precedente è un potenziale crash
+   - SOLUZIONE: sostituisci con optional chaining `?.` + fallback `?? defaultValue`
+   - Eccezione OK: `enabled: !!companyId` nelle query (questo è corretto)
+
+3. TYPE GUARD MANCANTI:
+   - In useMarginData.ts: `const customer = order.customer as { first_name: string; last_name: string } | null`
+   - Questo cast "fiducioso" può fallire se lo schema Supabase cambia
+   - SOLUZIONE: aggiungi una type guard:
+     ```
+     function isCustomerProfile(obj: unknown): obj is { first_name: string; last_name: string } {
+       return typeof obj === 'object' && obj !== null && 'first_name' in obj
+     }
+     ```
+
+4. ENUM vs UNION TYPE:
+   - Verifica che AppRole sia usato come union type (non enum TypeScript)
+     perché gli enum generano codice JS extra inutile
+   - `type AppRole = "super_admin" | "company_admin" | ...` ✓ CORRETTO
+   - `enum AppRole { super_admin = "super_admin", ... }` ✗ DA CAMBIARE
+
+5. DATABASE TYPES:
+   - In src/integrations/supabase/types.ts ci sono i tipi auto-generati
+   - Verifica che gli hook usino i tipi database (`Database['public']['Tables']['orders']['Row']`)
+     invece di tipi ridefiniti manualmente che potrebbero disallinearsi
+
+6. RETURN TYPE ESPLICITI:
+   - Tutti gli hook custom devono avere return type esplicito
+   - Questo previene che modifiche interne cambino silenziosamente l'interfaccia
+   - Esempio: `export function useMarginData(): MarginData { ... }` ✓
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 10 — UI/UX: ACCESSIBILITÀ E FORM EXPERIENCE                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/components/ui/ (tutti i file wrapper Shadcn)
+  - src/pages/azienda/CreateOrder.tsx
+  - src/pages/azienda/CustomersList.tsx
+  - src/components/cruscotto/PuntoDiPareggio.tsx
+
+Miglioramenti da implementare:
+
+1. LABEL MANCANTI SUI FORM:
+   - Ogni <Input> deve avere un <Label htmlFor="..."> corrispondente
+   - Ogni <Select> deve avere aria-label o label visibile
+   - Cerca input senza label e aggiungile
+
+2. KEYBOARD NAVIGATION:
+   - Il kanban delle opportunità deve essere navigabile da tastiera
+   - I dialog devono chiudersi con ESC (Radix lo gestisce, ma verifica)
+   - Le tabelle devono supportare navigazione con frecce
+
+3. EMPTY STATES:
+   - Ogni lista/tabella vuota deve mostrare un empty state descrittivo
+   - NON mostrare una tabella vuota senza spiegazione
+   - Esempio: "Nessun ordine trovato. Crea il tuo primo ordine →"
+   - Verifica che ci sia un empty state in: OrdersList, CustomersList,
+     OpportunitiesList, WarehouseTable, TasksList
+
+4. LOADING SKELETONS CONSISTENTI:
+   - Usa sempre lo stesso pattern di skeleton per le card KPI:
+     `<Skeleton className="h-28 rounded-xl" />`
+   - Verifica consistenza tra le diverse sezioni
+
+5. MOBILE RESPONSIVE:
+   - Verifica che le tabelle su mobile abbiano scroll orizzontale
+   - `<div className="overflow-x-auto"><Table>...</Table></div>`
+   - Verifica che i dialog non siano troppo larghi su mobile (max-w-full su sm)
+
+6. CONFIRM DIALOG MANCANTI:
+   - Operazioni distruttive senza conferma:
+     * Cancellazione ordine
+     * Cancellazione cliente
+     * Cancellazione costo fisso
+     * Reset password utente
+   - Aggiungi AlertDialog di conferma per TUTTE queste azioni
+
+7. CURRENCY DISPLAY LOCALE:
+   - Tutti i valori monetari devono usare `formatCurrency()` da src/lib/formatters.ts
+   - Cerca valori monetari formattati inline (es. `€${value.toFixed(2)}`)
+     e sostituisci con la funzione centralizzata
+
+8. DATE DISPLAY LOCALE:
+   - Tutti i campi data devono usare `formatDate()` da src/lib/formatters.ts
+   - Verifica consistenza: alcune date potrebbero usare `.toLocaleDateString()`
+     inline invece della funzione centralizzata
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 11 — MARKETING, EMAIL BUILDER E AUTOMAZIONI                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/azienda/marketing/MarketingAutomations.tsx
+  - src/pages/azienda/marketing/MarketingAutomationBuilder.tsx
+  - src/hooks/useAutomationBuilder.ts
+  - src/components/email-builder/ (tutti i file)
+  - src/components/email-marketing/ (tutti i file)
+
+Problemi specifici:
+
+1. AUTOMATION BUILDER — STATO NON SALVATO:
+   - Se l'utente sta costruendo un'automazione e naviga via accidentalmente,
+     perde tutto il lavoro
+   - Implementa un autosave su localStorage ogni 30 secondi
+   - Mostra un banner "Hai modifiche non salvate" quando l'utente tenta di uscire
+   - Usa `useBeforeUnload` hook per intercettare la navigazione
+
+2. EMAIL BUILDER — PREVIEW MOBILE:
+   - L'email builder deve permettere di visualizzare il preview in modalità mobile
+   - Aggiungi un toggle "Desktop / Mobile" che cambia la larghezza del preview
+     tra 600px (desktop email) e 375px (mobile)
+
+3. CONTATTI DUPLICATI:
+   - Prima di creare un contatto marketing, verifica che non esista già
+     un contatto con lo stesso email
+   - Query: `supabase.from('marketing_contacts').select('id').eq('email', email).eq('company_id', companyId)`
+   - Se esiste, mostra un warning con link al contatto esistente
+
+4. CAMPAGNA — STATO BLOCCATO:
+   - Una campagna "in corso" non deve poter essere modificata nei contenuti
+   - Verifica che il form campagna sia in readOnly quando status = 'sending' | 'sent'
+
+5. UNSUBSCRIBE COMPLIANCE:
+   - Verifica che tutte le email inviate includano un link di unsubscribe
+   - Il template email builder deve avere un blocco "Unsubscribe" non rimuovibile
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE 12 — DASHBOARD ADMIN E METRICHE GLOBALI                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/AdminDashboard.tsx
+  - src/hooks/useAdminDashboardData.ts
+  - src/hooks/useAdminRevenueData.ts
+  - src/components/admin/ (tutti i file)
+
+Problemi da cercare:
+
+1. N+1 QUERY PROBLEM:
+   - Se per ogni azienda viene fatta una query separata per ottenere i KPI,
+     con 100 aziende si fanno 100 query
+   - SOLUZIONE: una singola query con JOIN o aggregazione in Supabase:
+     ```
+     supabase.from('companies')
+       .select('*, orders(count), contacts(count)')
+     ```
+
+2. DATA STALE IN ADMIN:
+   - I dati di revenue e KPI admin devono avere staleTime più lungo
+     (sono aggregazioni, non cambiano ogni minuto)
+   - Usa staleTime: 15 * 60 * 1000 (15 minuti) per dati admin aggregati
+
+3. IMPERSONATION AUDIT:
+   - Quando un super_admin impersona un'azienda, l'azione deve essere loggata
+   - Verifica che ci sia un INSERT nella tabella audit_log:
+     ```
+     {
+       action: 'impersonation_start',
+       target_company_id: companyId,
+       performed_by: superAdminId
+     }
+     ```
+
+4. COMPANY LIFECYCLE:
+   - Verifica che le transizioni di stato (trial → active → suspended)
+     abbiano validazioni: non si può tornare da suspended ad active
+     senza un pagamento registrato
+
+5. REVENUE CHART ACCURACY:
+   - Il grafico MRR deve usare date di effettivo pagamento,
+     non date di creazione ordine
+   - Verifica quale campo viene usato per raggruppare il revenue per mese
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  RIEPILOGO FINALE — CHECKLIST POST-AUDIT                                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Dopo aver completato tutte le fasi, esegui questi controlli finali:
+
+□ Tutti i queryKey includono companyId dove necessario
+□ Nessuna query parte con companyId null (enabled flag presente)
+□ Tutti i bottoni submit sono disabilitati durante isPending
+□ Tutti i delete hanno AlertDialog di conferma
+□ Tutti gli empty state sono presenti
+□ Tutti i valori monetari usano formatCurrency()
+□ Tutti i campi data usano formatDate() / formatDateTime()
+□ Nessun console.log rimasto in codice di produzione
+□ Tutti gli hook hanno return type esplicito
+□ Nessun `any` esplicito rimasto
+□ Tutte le mutation hanno onError con toast
+□ ErrorBoundary locale attorno ai componenti critici
+□ Tutte le liste con dati potenzialmente grandi hanno paginazione
+
+================================================================================
+NOTE GENERALI PER LOVABLE
+================================================================================
+
+- NON riscrivere componenti funzionanti da zero: applica fix chirurgici
+- NON cambiare la logica economica del break-even (già corretta)
+- NON cambiare la struttura dei tipi in src/types/auth.ts
+- NON modificare src/integrations/supabase/client.ts
+- USA SEMPRE `effectiveCompany?.id` (mai `company?.id` diretto) negli hook
+- USA SEMPRE `first_name` + `last_name` separati (mai `full_name`)
+- Gli import devono essere auto-risolti da Lovable (non aggiungere import manuali)
+- Se una fix richiede una migrazione Supabase (es. aggiunta colonna),
+  indica il SQL necessario in un commento ma NON eseguirlo
+
+================================================================================

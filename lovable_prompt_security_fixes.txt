@@ -1,0 +1,317 @@
+================================================================================
+PROMPT — SECURITY FIX & ROUTE PROTECTION
+================================================================================
+Progetto: Gestionale SaaS multi-tenant (Supabase + React + TypeScript)
+Priorità: ALTA — problemi di sicurezza da correggere prima del go-live
+
+Analizzando il codice ho trovato 3 bug di sicurezza e 2 problemi funzionali.
+Implementa TUTTI i punti nell'ordine indicato senza modificare altro.
+
+================================================================================
+1. [CRITICO] STRIPE WEBHOOK — MANCA VERIFICA FIRMA
+================================================================================
+
+File: supabase/functions/stripe-webhook/index.ts
+
+Il webhook accetta qualsiasi richiesta POST senza verificare che provenga
+davvero da Stripe. Questo permette a chiunque di inviare eventi fake
+e manipolare abbonamenti/pagamenti.
+
+COSA FARE: aggiungi verifica della firma Stripe all'inizio dell'handler.
+
+```typescript
+// Aggiungi import in cima al file
+import Stripe from 'npm:stripe@14';
+
+// All'inizio dell'handler, PRIMA di qualsiasi altra logica:
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
+  apiVersion: '2024-12-18.acacia',
+});
+
+const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
+if (!webhookSecret) {
+  return new Response(JSON.stringify({ error: 'Webhook secret not configured' }), {
+    status: 500,
+    headers: corsHeaders,
+  });
+}
+
+// Leggi il body come testo (necessario per la verifica firma)
+const body = await req.text();
+const signature = req.headers.get('stripe-signature');
+
+if (!signature) {
+  return new Response(JSON.stringify({ error: 'Missing stripe-signature header' }), {
+    status: 400,
+    headers: corsHeaders,
+  });
+}
+
+let event: Stripe.Event;
+try {
+  event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+} catch (err) {
+  console.error('Stripe webhook signature verification failed:', err);
+  return new Response(JSON.stringify({ error: 'Invalid webhook signature' }), {
+    status: 400,
+    headers: corsHeaders,
+  });
+}
+
+// Ora usa `event` invece di fare JSON.parse(body)
+// Tutto il codice successivo che fa `const { type, data } = await req.json()`
+// va sostituito con `const { type, data } = event;`
+```
+
+IMPORTANTE: rimuovi qualsiasi `await req.json()` dopo questo blocco e usa
+direttamente `event.type` e `event.data`.
+
+================================================================================
+2. [ALTO] PROTEZIONE ROUTE ADMIN — AGGIUNGERE GUARD LEVEL-PAGINA
+================================================================================
+
+Attualmente le pagine settings admin-only sono protette SOLO a livello sidebar
+(l'utente non vede il link). Ma se l'utente digita l'URL direttamente,
+accede comunque alla pagina.
+
+Le pagine NON protette a livello di route che DEVONO esserlo:
+- src/pages/azienda/settings/SettingsSuppliers.tsx
+- src/pages/azienda/settings/SettingsSalespeople.tsx
+- src/pages/azienda/settings/SettingsStaff.tsx
+- src/pages/azienda/settings/SettingsActivityLog.tsx
+- src/pages/azienda/settings/SettingsTags.tsx
+- src/pages/azienda/settings/SettingsCustomFields.tsx
+- src/pages/azienda/settings/SettingsPipelines.tsx
+- src/pages/azienda/settings/SettingsOrderStatus.tsx
+
+Per ognuna di queste pagine, aggiungi in cima al componente:
+
+```typescript
+import { useNavigate } from 'react-router-dom';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useEffect } from 'react';
+
+// All'interno del componente, PRIMA del return:
+const { isAdmin, isLoading } = usePermissions();
+const navigate = useNavigate();
+
+useEffect(() => {
+  if (!isLoading && !isAdmin) {
+    navigate('/azienda', { replace: true });
+  }
+}, [isAdmin, isLoading, navigate]);
+
+if (isLoading) return null;
+if (!isAdmin) return null;
+```
+
+Verifica che `usePermissions` esponga `isAdmin` — se no, usare:
+```typescript
+const { canManageUsers } = usePermissions();
+// oppure
+const { role } = useAuth();
+const isAdmin = role === 'company_admin' || role === 'super_admin';
+```
+
+NOTA: Le pagine SettingsUsers.tsx e SettingsUserDetail.tsx hanno già questa
+protezione — usale come riferimento.
+
+================================================================================
+3. [MEDIO] TYPE SAFETY — SettingsCredits.tsx usa `as never`
+================================================================================
+
+File: src/pages/azienda/settings/SettingsCredits.tsx
+
+Problema: la query usa `.from("ai_credits" as never)` che bypassa TypeScript.
+Questo indica che la tabella `ai_credits` non è nei tipi generati.
+
+COSA FARE:
+a) Verifica se la tabella `ai_credits` esiste nel database Supabase.
+   Se SÌ → rigenera i tipi con `npx supabase gen types typescript`
+   Se NO → crea una migrazione per la tabella
+
+b) Se la tabella esiste ma i tipi non sono aggiornati, aggiungi
+   manualmente il tipo in `src/integrations/supabase/types.ts`:
+
+```typescript
+ai_credits: {
+  Row: {
+    id: string;
+    company_id: string;
+    amount: number;
+    transaction_type: string;
+    description: string | null;
+    created_at: string;
+  };
+  Insert: {
+    company_id: string;
+    amount: number;
+    transaction_type: string;
+    description?: string | null;
+  };
+  Update: {
+    amount?: number;
+    description?: string | null;
+  };
+};
+```
+
+c) Dopo aver aggiornato i tipi, rimuovi il cast `as never` dal file.
+
+================================================================================
+4. [MEDIO] VARIABILI D'AMBIENTE — AGGIORNARE .env.example
+================================================================================
+
+File: .env.example (attualmente ha solo 3 variabili, ne mancano molte)
+
+Sostituisci il contenuto con questo elenco completo:
+
+```env
+# ============================================================
+# FRONTEND — Supabase
+# ============================================================
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGci...
+
+# ============================================================
+# EDGE FUNCTIONS — Supabase (server-side, non esporre al frontend)
+# ============================================================
+SUPABASE_URL=https://xxxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
+SUPABASE_ANON_KEY=eyJhbGci...
+
+# ============================================================
+# STRIPE (pagamenti e abbonamenti)
+# ============================================================
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+
+# ============================================================
+# EMAIL (scegli uno dei provider)
+# ============================================================
+# Mailgun
+MAILGUN_API_KEY=
+MAILGUN_DOMAIN=
+# SendGrid
+SENDGRID_API_KEY=
+# SMTP generico
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+
+# ============================================================
+# META / FACEBOOK LEAD ADS
+# ============================================================
+META_APP_ID=
+META_APP_SECRET=
+META_VERIFY_TOKEN=
+
+# ============================================================
+# WHATSAPP (se integrato)
+# ============================================================
+WHATSAPP_API_KEY=
+WHATSAPP_PHONE_NUMBER_ID=
+
+# ============================================================
+# GOOGLE CALENDAR
+# ============================================================
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# ============================================================
+# ELEVENLABS VOICE (se integrato)
+# ============================================================
+ELEVENLABS_API_KEY=
+
+# ============================================================
+# BANKING / GOCARDLESS (da implementare — vedi manuale_banking_integration.txt)
+# ============================================================
+# GOCARDLESS_SECRET_ID=  (salvare in platform_settings, non qui)
+# GOCARDLESS_SECRET_KEY= (salvare in platform_settings, non qui)
+```
+
+================================================================================
+5. [BASSO] RIMUOVI console.error DAL CODICE DI PRODUZIONE
+================================================================================
+
+I seguenti file hanno `console.error()` che non dovrebbero essere in produzione.
+Sostituiscili con un logger centralizzato o rimuovili dove non necessari.
+
+File da correggere:
+- src/pages/azienda/CreateOrder.tsx (2 occorrenze)
+- src/pages/azienda/EditOrder.tsx (1 occorrenza)
+- src/pages/azienda/CompanyCustomerDetail.tsx (2 occorrenze)
+- src/pages/azienda/CreateCustomer.tsx (1 occorrenza)
+
+Crea il file: src/utils/logger.ts
+
+```typescript
+const isDev = import.meta.env.DEV;
+
+export const logger = {
+  error: (message: string, error?: unknown) => {
+    if (isDev) {
+      console.error(`[ERROR] ${message}`, error);
+    }
+    // In production: qui potresti inviare a un servizio di monitoring
+    // es: Sentry.captureException(error)
+  },
+  warn: (message: string, data?: unknown) => {
+    if (isDev) {
+      console.warn(`[WARN] ${message}`, data);
+    }
+  },
+  info: (message: string, data?: unknown) => {
+    if (isDev) {
+      console.info(`[INFO] ${message}`, data);
+    }
+  },
+};
+```
+
+Poi nei file sopra sostituisci:
+```typescript
+// PRIMA:
+console.error('Errore generico:', error);
+
+// DOPO:
+import { logger } from '@/utils/logger';
+logger.error('Errore generico', error);
+```
+
+================================================================================
+VERIFICA FINALE DOPO L'IMPLEMENTAZIONE
+================================================================================
+
+1. Testa il Stripe webhook:
+   - Usa Stripe CLI: `stripe listen --forward-to localhost:54321/functions/v1/stripe-webhook`
+   - Invia un evento test: `stripe trigger customer.subscription.created`
+   - Verifica che venga accettato (firma valida)
+   - Invia una richiesta senza firma → deve restituire 400
+
+2. Testa la protezione route admin:
+   - Accedi con un utente company_staff (non admin)
+   - Vai direttamente a /azienda/impostazioni/fornitori
+   - Verifica che venga reindirizzato a /azienda
+
+3. Verifica TypeScript:
+   - Esegui: npx tsc --noEmit
+   - Nessun errore di tipo deve essere presente
+
+4. Verifica che i 5 file con console.error ora usino logger.error
+
+================================================================================
+NOTA IMPORTANTE
+================================================================================
+
+NON modificare:
+- La logica del wizard StaffUserDialog (è corretta)
+- Il sistema di permessi usePermissions (è corretto)
+- Le edge functions già sicure (create-company-staff, delete-company-user, sign-in-as-user)
+- Il sistema di ErrorBoundary (è già ben implementato)
+- Le route e la navigazione (sono corrette)
+- Il sistema di autenticazione (è corretto)
+
+================================================================================

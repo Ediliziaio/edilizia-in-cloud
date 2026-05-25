@@ -1,0 +1,954 @@
+================================================================================
+PROMPT LOVABLE — SEZIONE FATTURAZIONE AZIENDALE
+================================================================================
+Implementa la sezione "Fatturazione" nell'area impostazioni dell'azienda.
+Questa pagina consente al company admin di vedere il piano corrente, lo storico
+fatture, aggiornare il metodo di pagamento, fare upgrade/downgrade, e gestire
+eventuali situazioni di pagamento in ritardo.
+Segui ESATTAMENTE i 7 step qui sotto, nell'ordine indicato.
+NON importare nulla manualmente — tutto è specificato nei file.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1 — Migrazione SQL: tabella subscription_invoices
+────────────────────────────────────────────────────────────────────────────────
+
+Esegui questa migrazione nel SQL Editor di Supabase:
+
+```sql
+-- Tabella per salvare lo storico fatture sincronizzato da Stripe
+CREATE TABLE IF NOT EXISTS public.subscription_invoices (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id          UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  stripe_invoice_id   TEXT NOT NULL UNIQUE,
+  stripe_customer_id  TEXT,
+  amount_paid         INTEGER NOT NULL DEFAULT 0,   -- centesimi
+  amount_due          INTEGER NOT NULL DEFAULT 0,   -- centesimi
+  currency            TEXT NOT NULL DEFAULT 'eur',
+  status              TEXT NOT NULL DEFAULT 'draft', -- draft | open | paid | void | uncollectible
+  invoice_url         TEXT,                          -- link Stripe hosted invoice
+  invoice_pdf         TEXT,                          -- link PDF diretto
+  period_start        TIMESTAMPTZ,
+  period_end          TIMESTAMPTZ,
+  paid_at             TIMESTAMPTZ,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.subscription_invoices ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_see_own_invoices"
+  ON public.subscription_invoices
+  FOR SELECT
+  USING (
+    company_id IN (
+      SELECT company_id FROM public.user_roles
+      WHERE user_id = auth.uid()
+    )
+  );
+
+-- Solo service_role può inserire/aggiornare (dal webhook Stripe)
+CREATE POLICY "service_role_manage_invoices"
+  ON public.subscription_invoices
+  FOR ALL
+  USING (auth.role() = 'service_role');
+
+-- Index per performance
+CREATE INDEX idx_subscription_invoices_company ON public.subscription_invoices(company_id, created_at DESC);
+CREATE INDEX idx_subscription_invoices_stripe ON public.subscription_invoices(stripe_invoice_id);
+
+-- Trigger updated_at
+CREATE TRIGGER subscription_invoices_updated_at
+  BEFORE UPDATE ON public.subscription_invoices
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2 — Estendere stripe-webhook/index.ts: sincronizzare le fatture
+────────────────────────────────────────────────────────────────────────────────
+
+Nel file `supabase/functions/stripe-webhook/index.ts`, all'interno del switch
+degli eventi Stripe, aggiungi i seguenti 3 nuovi case (DOPO il case
+`customer.subscription.deleted` già esistente):
+
+```typescript
+case 'invoice.paid': {
+  const invoice = event.data.object as Stripe.Invoice;
+  const customerId = invoice.customer as string;
+
+  // Trova company da stripe_customer_id
+  const { data: company } = await supabaseAdmin
+    .from('companies')
+    .select('id')
+    .eq('stripe_customer_id', customerId)
+    .single();
+
+  if (company) {
+    // Upsert fattura nel DB
+    await supabaseAdmin
+      .from('subscription_invoices')
+      .upsert({
+        company_id: company.id,
+        stripe_invoice_id: invoice.id,
+        stripe_customer_id: customerId,
+        amount_paid: invoice.amount_paid,
+        amount_due: invoice.amount_due,
+        currency: invoice.currency,
+        status: invoice.status ?? 'paid',
+        invoice_url: invoice.hosted_invoice_url ?? null,
+        invoice_pdf: invoice.invoice_pdf ?? null,
+        period_start: invoice.period_start
+          ? new Date(invoice.period_start * 1000).toISOString()
+          : null,
+        period_end: invoice.period_end
+          ? new Date(invoice.period_end * 1000).toISOString()
+          : null,
+        paid_at: invoice.status_transitions?.paid_at
+          ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+          : null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'stripe_invoice_id' });
+
+    // Risolvi anche eventuale dunning record
+    await supabaseAdmin
+      .from('company_dunning')
+      .update({
+        is_resolved: true,
+        resolved_reason: 'payment_succeeded',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('company_id', company.id)
+      .eq('is_resolved', false);
+
+    // Riporta lo status a 'active'
+    await supabaseAdmin
+      .from('companies')
+      .update({ status: 'active' })
+      .eq('id', company.id);
+  }
+  break;
+}
+
+case 'invoice.payment_failed': {
+  const invoice = event.data.object as Stripe.Invoice;
+  const customerId = invoice.customer as string;
+
+  const { data: company } = await supabaseAdmin
+    .from('companies')
+    .select('id')
+    .eq('stripe_customer_id', customerId)
+    .single();
+
+  if (company) {
+    // Salva la fattura fallita
+    await supabaseAdmin
+      .from('subscription_invoices')
+      .upsert({
+        company_id: company.id,
+        stripe_invoice_id: invoice.id,
+        stripe_customer_id: customerId,
+        amount_paid: 0,
+        amount_due: invoice.amount_due,
+        currency: invoice.currency,
+        status: 'open',
+        invoice_url: invoice.hosted_invoice_url ?? null,
+        invoice_pdf: invoice.invoice_pdf ?? null,
+        period_start: invoice.period_start
+          ? new Date(invoice.period_start * 1000).toISOString()
+          : null,
+        period_end: invoice.period_end
+          ? new Date(invoice.period_end * 1000).toISOString()
+          : null,
+        paid_at: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'stripe_invoice_id' });
+  }
+  break;
+}
+
+case 'invoice.created': {
+  const invoice = event.data.object as Stripe.Invoice;
+  const customerId = invoice.customer as string;
+
+  const { data: company } = await supabaseAdmin
+    .from('companies')
+    .select('id')
+    .eq('stripe_customer_id', customerId)
+    .single();
+
+  if (company && invoice.status === 'draft') {
+    await supabaseAdmin
+      .from('subscription_invoices')
+      .upsert({
+        company_id: company.id,
+        stripe_invoice_id: invoice.id,
+        stripe_customer_id: customerId,
+        amount_paid: 0,
+        amount_due: invoice.amount_due,
+        currency: invoice.currency,
+        status: 'draft',
+        invoice_url: invoice.hosted_invoice_url ?? null,
+        invoice_pdf: invoice.invoice_pdf ?? null,
+        period_start: invoice.period_start
+          ? new Date(invoice.period_start * 1000).toISOString()
+          : null,
+        period_end: invoice.period_end
+          ? new Date(invoice.period_end * 1000).toISOString()
+          : null,
+        paid_at: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'stripe_invoice_id' });
+  }
+  break;
+}
+```
+
+Aggiungi anche questi eventi nell'array `relevantEvents` all'inizio del file
+(se non già presenti):
+```typescript
+'invoice.paid',
+'invoice.payment_failed',
+'invoice.created',
+```
+
+Registra questi eventi nella Dashboard Stripe → Webhooks → abilita:
+- invoice.paid
+- invoice.payment_failed
+- invoice.created
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3 — Edge Function: create-billing-portal
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `supabase/functions/create-billing-portal/index.ts`:
+
+```typescript
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
+  apiVersion: "2023-10-16",
+});
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) throw new Error("Missing authorization header");
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    // Verifica identità utente
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) throw new Error("Unauthorized");
+
+    // Verifica ruolo: solo company_admin
+    const { data: role } = await supabase
+      .from("user_roles")
+      .select("role, company_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!role || role.role !== "company_admin") {
+      throw new Error("Only company admins can access billing portal");
+    }
+
+    // Recupera stripe_customer_id dalla company
+    const { data: company } = await supabaseAdmin
+      .from("companies")
+      .select("stripe_customer_id, name")
+      .eq("id", role.company_id)
+      .single();
+
+    if (!company?.stripe_customer_id) {
+      throw new Error("No Stripe customer found for this company");
+    }
+
+    const { return_url } = await req.json().catch(() => ({ return_url: null }));
+
+    // Crea sessione Customer Portal Stripe
+    const session = await stripe.billingPortal.sessions.create({
+      customer: company.stripe_customer_id,
+      return_url: return_url ?? `${req.headers.get("origin")}/azienda/impostazioni/fatturazione`,
+    });
+
+    return new Response(
+      JSON.stringify({ url: session.url }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4 — Hook: src/hooks/useBilling.ts
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/hooks/useBilling.ts`:
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { formatCurrency } from "@/lib/formatters";
+
+// ─── TIPI ─────────────────────────────────────────────────────────────────────
+
+export interface SubscriptionInvoice {
+  id: string;
+  stripeInvoiceId: string;
+  amountPaid: number;   // centesimi
+  amountDue: number;    // centesimi
+  currency: string;
+  status: "draft" | "open" | "paid" | "void" | "uncollectible";
+  invoiceUrl: string | null;
+  invoicePdf: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface BillingInfo {
+  // Piano corrente
+  planName: string;
+  planPrice: number;          // €/mese (da subscription_plans)
+  planInterval: "monthly" | "annual";
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  status: string;             // trial | active | suspended | expired
+  cancelAtPeriodEnd: boolean;
+  // Dunning
+  isInGracePeriod: boolean;
+  gracePeriodEndsAt: string | null;
+  gracePeriodDaysLeft: number;
+  failedInvoiceUrl: string | null;  // link alla fattura Stripe da pagare
+  // Stripe IDs
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+}
+
+// ─── HOOK: INFO PIANO CORRENTE ─────────────────────────────────────────────────
+
+export function useBillingInfo() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: ["billing-info", companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<BillingInfo> => {
+      const { data: company, error } = await supabase
+        .from("companies")
+        .select(`
+          status,
+          trial_ends_at,
+          stripe_customer_id,
+          stripe_subscription_id,
+          subscription_plans (
+            name,
+            price,
+            billing_interval
+          ),
+          company_dunning (
+            grace_ends_at,
+            is_resolved
+          )
+        `)
+        .eq("id", companyId!)
+        .single();
+
+      if (error) throw error;
+
+      // Grace period
+      const dunning = Array.isArray(company.company_dunning)
+        ? company.company_dunning.find((d: any) => !d.is_resolved)
+        : null;
+      const gracePeriodEndsAt = dunning?.grace_ends_at ?? null;
+      const isInGracePeriod = !!gracePeriodEndsAt &&
+        new Date(gracePeriodEndsAt) > new Date();
+      const gracePeriodDaysLeft = gracePeriodEndsAt
+        ? Math.max(0, Math.ceil(
+            (new Date(gracePeriodEndsAt).getTime() - Date.now()) / 86400000
+          ))
+        : 0;
+
+      // Fattura aperta Stripe per il pagamento in ritardo
+      let failedInvoiceUrl: string | null = null;
+      if (isInGracePeriod) {
+        const { data: failedInvoice } = await supabase
+          .from("subscription_invoices")
+          .select("invoice_url")
+          .eq("company_id", companyId!)
+          .eq("status", "open")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        failedInvoiceUrl = failedInvoice?.invoice_url ?? null;
+      }
+
+      const plan = Array.isArray(company.subscription_plans)
+        ? company.subscription_plans[0]
+        : company.subscription_plans;
+
+      return {
+        planName: plan?.name ?? "Piano sconosciuto",
+        planPrice: plan?.price ?? 0,
+        planInterval: plan?.billing_interval ?? "monthly",
+        trialEndsAt: company.trial_ends_at ?? null,
+        currentPeriodEnd: null, // da Stripe in futuro se necessario
+        status: company.status ?? "active",
+        cancelAtPeriodEnd: false,
+        isInGracePeriod,
+        gracePeriodEndsAt,
+        gracePeriodDaysLeft,
+        failedInvoiceUrl,
+        stripeCustomerId: company.stripe_customer_id ?? null,
+        stripeSubscriptionId: company.stripe_subscription_id ?? null,
+      };
+    },
+  });
+}
+
+// ─── HOOK: STORICO FATTURE ─────────────────────────────────────────────────────
+
+export function useInvoices() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
+  return useQuery({
+    queryKey: ["invoices", companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<SubscriptionInvoice[]> => {
+      const { data, error } = await supabase
+        .from("subscription_invoices")
+        .select("*")
+        .eq("company_id", companyId!)
+        .order("created_at", { ascending: false })
+        .limit(24); // max 2 anni
+
+      if (error) throw error;
+
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        stripeInvoiceId: row.stripe_invoice_id,
+        amountPaid: row.amount_paid,
+        amountDue: row.amount_due,
+        currency: row.currency,
+        status: row.status as SubscriptionInvoice["status"],
+        invoiceUrl: row.invoice_url,
+        invoicePdf: row.invoice_pdf,
+        periodStart: row.period_start,
+        periodEnd: row.period_end,
+        paidAt: row.paid_at,
+        createdAt: row.created_at,
+      }));
+    },
+  });
+}
+
+// ─── HOOK: APRIRE IL CUSTOMER PORTAL STRIPE ───────────────────────────────────
+
+export function useOpenBillingPortal() {
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke(
+        "create-billing-portal",
+        {
+          body: {
+            return_url: `${window.location.origin}/azienda/impostazioni/fatturazione`,
+          },
+        }
+      );
+      if (error) throw error;
+      return data as { url: string };
+    },
+    onSuccess: ({ url }) => {
+      window.location.href = url;
+    },
+    onError: (error: Error) => {
+      toast.error("Errore nell'apertura del portale fatturazione", {
+        description: error.message,
+      });
+    },
+  });
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 5 — Componente principale: src/pages/azienda/impostazioni/Fatturazione.tsx
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/pages/azienda/impostazioni/Fatturazione.tsx`:
+
+```tsx
+import { ExternalLink, Download, AlertTriangle, CheckCircle2,
+         CreditCard, FileText, RefreshCw, Clock, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useBillingInfo, useInvoices, useOpenBillingPortal } from "@/hooks/useBilling";
+import { formatCurrency } from "@/lib/formatters";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+
+// ─── UTILITY ──────────────────────────────────────────────────────────────────
+
+function formatEur(centesimi: number, currency = "eur"): string {
+  return new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(centesimi / 100);
+}
+
+function formatPeriod(start: string | null, end: string | null): string {
+  if (!start || !end) return "—";
+  const s = format(new Date(start), "d MMM yyyy", { locale: it });
+  const e = format(new Date(end), "d MMM yyyy", { locale: it });
+  return `${s} → ${e}`;
+}
+
+function statusBadge(status: string) {
+  const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    paid:           { label: "Pagata",       variant: "default" },
+    open:           { label: "In scadenza",  variant: "secondary" },
+    draft:          { label: "Bozza",        variant: "outline" },
+    void:           { label: "Annullata",    variant: "outline" },
+    uncollectible:  { label: "Non riscossa", variant: "destructive" },
+  };
+  const cfg = map[status] ?? { label: status, variant: "outline" };
+  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+}
+
+function companyStatusBadge(status: string) {
+  const map: Record<string, { label: string; className: string }> = {
+    trial:      { label: "Periodo di prova",   className: "bg-blue-100 text-blue-700 border-blue-200" },
+    active:     { label: "Attivo",             className: "bg-green-100 text-green-700 border-green-200" },
+    suspended:  { label: "Sospeso",            className: "bg-red-100 text-red-700 border-red-200" },
+    expired:    { label: "Scaduto",            className: "bg-gray-100 text-gray-600 border-gray-200" },
+  };
+  const cfg = map[status] ?? { label: status, className: "" };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── SKELETONS ────────────────────────────────────────────────────────────────
+
+function PlanCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-4 w-60 mt-1" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-48" />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── CARD: PIANO CORRENTE ─────────────────────────────────────────────────────
+
+function CurrentPlanCard() {
+  const { data: billing, isLoading } = useBillingInfo();
+  const { mutate: openPortal, isPending } = useOpenBillingPortal();
+
+  if (isLoading) return <PlanCardSkeleton />;
+
+  const priceLabel =
+    billing!.planPrice === 0
+      ? "Gratuito"
+      : `${formatEur(billing!.planPrice * 100)} / ${billing!.planInterval === "annual" ? "anno" : "mese"}`;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Piano corrente</CardTitle>
+          {companyStatusBadge(billing!.status)}
+        </div>
+        <CardDescription>
+          Gestisci il tuo abbonamento e i metodi di pagamento
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Piano + prezzo */}
+        <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30">
+          <div>
+            <p className="font-semibold text-lg">{billing!.planName}</p>
+            <p className="text-sm text-muted-foreground">{priceLabel}</p>
+          </div>
+          <CreditCard className="h-8 w-8 text-muted-foreground" />
+        </div>
+
+        {/* Trial banner */}
+        {billing!.status === "trial" && billing!.trialEndsAt && (
+          <Alert>
+            <Clock className="h-4 w-4" />
+            <AlertDescription>
+              Il periodo di prova termina il{" "}
+              <strong>
+                {format(new Date(billing!.trialEndsAt), "d MMMM yyyy", { locale: it })}
+              </strong>
+              . Aggiungi un metodo di pagamento per continuare senza interruzioni.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Grace period / pagamento fallito */}
+        {billing!.isInGracePeriod && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex flex-col gap-2">
+              <span>
+                <strong>Pagamento non riuscito.</strong> Hai ancora{" "}
+                <strong>{billing!.gracePeriodDaysLeft} giorni</strong> per
+                aggiornare il metodo di pagamento prima della sospensione.
+              </span>
+              {billing!.failedInvoiceUrl && (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => window.open(billing!.failedInvoiceUrl!, "_blank")}
+                  className="w-fit"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  Paga ora
+                </Button>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Sospeso */}
+        {billing!.status === "suspended" && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Il tuo account è sospeso. Contatta il supporto o aggiorna il
+              metodo di pagamento per riattivare il servizio.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* CTA Portale Stripe */}
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            onClick={() => openPortal()}
+            disabled={isPending}
+            className="gap-2"
+          >
+            {isPending ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <CreditCard className="h-4 w-4" />
+            )}
+            Gestisci abbonamento e pagamenti
+          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-xs">
+                  Verrai reindirizzato al portale sicuro Stripe dove puoi
+                  aggiornare la carta, cambiare piano, o scaricare le fatture.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── CARD: STORICO FATTURE ────────────────────────────────────────────────────
+
+function InvoiceHistoryCard() {
+  const { data: invoices, isLoading } = useInvoices();
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          Storico fatture
+        </CardTitle>
+        <CardDescription>
+          Le ultime 24 fatture del tuo abbonamento
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : !invoices || invoices.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
+            <FileText className="h-10 w-10 opacity-30" />
+            <p className="text-sm">Nessuna fattura ancora disponibile.</p>
+            <p className="text-xs">
+              Le fatture appariranno qui dopo il primo rinnovo o pagamento.
+            </p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Periodo</TableHead>
+                <TableHead>Importo</TableHead>
+                <TableHead>Stato</TableHead>
+                <TableHead className="text-right">Azioni</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {invoices.map((inv) => (
+                <TableRow key={inv.id}>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatPeriod(inv.periodStart, inv.periodEnd)}
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {inv.status === "paid"
+                      ? formatEur(inv.amountPaid, inv.currency)
+                      : formatEur(inv.amountDue, inv.currency)}
+                  </TableCell>
+                  <TableCell>{statusBadge(inv.status)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {inv.invoicePdf && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => window.open(inv.invoicePdf!, "_blank")}
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Scarica PDF</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      {inv.invoiceUrl && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => window.open(inv.invoiceUrl!, "_blank")}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Apri su Stripe</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      {inv.status === "open" && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => inv.invoiceUrl && window.open(inv.invoiceUrl, "_blank")}
+                        >
+                          Paga
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── PAGINA PRINCIPALE ────────────────────────────────────────────────────────
+
+export default function Fatturazione() {
+  return (
+    <div className="space-y-6 max-w-4xl">
+      {/* Header */}
+      <div>
+        <h2 className="text-xl font-semibold">Fatturazione</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Gestisci il tuo piano, i metodi di pagamento e visualizza lo storico fatture.
+        </p>
+      </div>
+
+      <Separator />
+
+      {/* Piano corrente */}
+      <CurrentPlanCard />
+
+      {/* Storico fatture */}
+      <InvoiceHistoryCard />
+
+      {/* Note legali */}
+      <p className="text-xs text-muted-foreground">
+        I pagamenti sono gestiti in modo sicuro da{" "}
+        <a
+          href="https://stripe.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-foreground"
+        >
+          Stripe
+        </a>
+        . Non memorizziamo i dati della tua carta di credito.
+      </p>
+    </div>
+  );
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 6 — Aggiungere la rotta al router
+────────────────────────────────────────────────────────────────────────────────
+
+Nel file di routing principale (di solito `src/App.tsx` o
+`src/routes/aziendaRoutes.tsx` o simile — cerca il file che contiene le route
+per l'area `/azienda/impostazioni`), aggiungi la rotta per la pagina Fatturazione.
+
+Cerca il blocco che contiene le altre route di impostazioni (es. "profilo",
+"sicurezza", "team", "abbonamento") e aggiungici:
+
+```tsx
+// In cima al file (import):
+import Fatturazione from "@/pages/azienda/impostazioni/Fatturazione";
+
+// Nella lista delle Route, DOPO l'ultima route impostazioni esistente:
+<Route path="/azienda/impostazioni/fatturazione" element={<Fatturazione />} />
+```
+
+Se le rotte impostazioni sono annidate (es. con layout), segui lo stesso
+pattern delle route già esistenti.
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 7 — Aggiungere il link nel menu impostazioni
+────────────────────────────────────────────────────────────────────────────────
+
+Cerca il file che contiene la navigazione laterale (sidebar) dell'area
+impostazioni aziendali. Tipicamente si chiama `SettingsSidebar.tsx`,
+`AziendaSettings.tsx`, o simile. Oppure cerca il componente che renderizza
+i link "Profilo", "Sicurezza", "Team", ecc.
+
+Aggiungi la voce Fatturazione DOPO la voce abbonamento/piano:
+
+```tsx
+// In cima al file (import, se non già presente):
+import { CreditCard } from "lucide-react";
+
+// Nella lista dei link di navigazione:
+{
+  label: "Fatturazione",
+  href: "/azienda/impostazioni/fatturazione",
+  icon: CreditCard,
+  description: "Piano, pagamenti e fatture",
+}
+```
+
+Se la navigazione usa un array di oggetti, aggiungi un elemento con la stessa
+struttura degli altri. Se usa `<NavLink>` o `<Link>` diretti, duplica un link
+esistente e modifica l'href, la label e l'icona.
+
+Nota: se esiste già una voce "Abbonamento" o "Piano" nel menu, valuta se
+sostituirla con "Fatturazione" oppure tenerle entrambe (Abbonamento per
+upgrade/downgrade, Fatturazione per lo storico pagamenti).
+
+
+================================================================================
+NOTE TECNICHE IMPORTANTI
+================================================================================
+
+- AUTH PATTERN: usa SEMPRE `effectiveCompany?.id` da `useAuth()`, MAI `company?.id` direttamente
+- FORMATTERS: usa `formatCurrency` da `@/lib/formatters` per gli importi in euro (o `formatEur` locale per centesimi Stripe)
+- QUERY KEYS: ["billing-info", companyId] e ["invoices", companyId]
+- STRIPE PORTAL: il redirect al Customer Portal è il modo più sicuro/veloce per gestire carte, upgrade e download PDF — non reimplementare in-app ciò che Stripe gestisce già
+- FATTURE VUOTE: normale nella prima configurazione — appariranno dopo il primo rinnovo o pagamento
+- CURRENCY: Stripe restituisce sempre gli importi in centesimi (integer); dividi per 100 prima di mostrare
+- GRACE PERIOD: il banner rosso appare solo se `isInGracePeriod = true` (dalla tabella company_dunning); si risolve automaticamente quando `invoice.paid` arriva dal webhook
+- PDF/URL: `invoice_pdf` = link diretto al PDF; `invoice_url` = pagina Stripe hosted (include anche il form di pagamento per fatture "open")
+- RLS: la policy `company_see_own_invoices` limita ogni company ai propri record; il service_role del webhook può scrivere senza limitazioni
+- WEBHOOKS STRIPE: assicurati di registrare nella Dashboard Stripe anche `invoice.created`, `invoice.paid`, `invoice.payment_failed` oltre a quelli già presenti
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+1. Vai su /azienda/impostazioni → deve comparire la voce "Fatturazione" nel menu
+2. Apri la pagina → deve mostrare il piano corrente con badge di stato
+3. Clicca "Gestisci abbonamento e pagamenti" → deve aprire il Customer Portal Stripe
+4. Se c'è un company_dunning attivo → deve comparire il banner rosso con giorni rimasti e bottone "Paga ora"
+5. Sezione storico: se ci sono fatture in DB → mostra la tabella; altrimenti placeholder vuoto
+6. Bottone Download (PDF) e link Stripe funzionano su ogni riga
+7. Testa il webhook locale con `stripe listen --forward-to localhost:54321/functions/v1/stripe-webhook` e triggera un `invoice.paid` → la fattura deve apparire nel DB e nella UI
+
+================================================================================

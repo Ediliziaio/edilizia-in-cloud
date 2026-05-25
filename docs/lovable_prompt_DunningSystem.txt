@@ -1,0 +1,859 @@
+====================================================================
+PROMPT LOVABLE — SISTEMA DUNNING COMPLETO
+Gestione mancati pagamenti: grace period, sospensione progressiva,
+email automatiche, cron job scadenza trial, dashboard admin
+====================================================================
+
+CONTESTO TECNICO
+- Stack: React 18 + TypeScript + Vite + Supabase + TanStack React Query v5
+- Edge Function esistente: supabase/functions/stripe-webhook/index.ts
+  → gestisce: checkout.session.completed, invoice.paid, customer.subscription.deleted
+  → MANCA: invoice.payment_failed, customer.subscription.updated (past_due)
+- Hook useSubscriptionLimits.ts: controlla accesso funzionalità lato frontend
+- Tabella companies: status enum ('trial'|'active'|'suspended'|'expired')
+- Tabella lifecycle_notifications: notifiche in-app per aziende
+- Edge Function check-lifecycle-events: già lancia notifiche trial
+- CompanyStatus già mostrato in SubscriptionBanner.tsx
+
+OBIETTIVO
+Implementare un sistema dunning completo:
+1. Gestione invoice.payment_failed in stripe-webhook (con grace period)
+2. Sospensione automatica dopo grace period scaduto
+3. Email automatiche di recupero (D+0, D+3, D+7)
+4. Cron job per scadenza trial lato DB (non solo frontend)
+5. Cron job per sospensione aziende in grace period scaduto
+6. Dashboard admin "Pagamenti a rischio" con azioni rapide
+7. Banner avanzato per aziende in grace period
+
+LEGGI PRIMA:
+- supabase/functions/stripe-webhook/index.ts (da estendere)
+- supabase/functions/check-lifecycle-events/index.ts (pattern da seguire)
+- src/components/layouts/SubscriptionBanner.tsx (da estendere)
+- src/hooks/useSubscriptionLimits.ts (da aggiornare)
+- src/components/admin/dashboard/AdminDunning.tsx (da migliorare)
+
+================================================================
+STEP 1 — MIGRAZIONE DATABASE
+================================================================
+
+Crea: supabase/migrations/20260323000000_dunning_system.sql
+
+```sql
+-- Grace period tracking per aziende con pagamento fallito
+CREATE TABLE IF NOT EXISTS company_dunning (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id           uuid NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+  stripe_invoice_id    text,                     -- ID fattura Stripe fallita
+  first_failure_at     timestamptz NOT NULL DEFAULT now(),
+  grace_period_days    integer NOT NULL DEFAULT 7,
+  grace_ends_at        timestamptz NOT NULL,      -- first_failure_at + grace_period_days
+  attempt_count        integer NOT NULL DEFAULT 1,-- numero tentativi Stripe falliti
+  last_attempt_at      timestamptz NOT NULL DEFAULT now(),
+  next_retry_at        timestamptz,               -- prossimo tentativo Stripe
+  amount_due_cents     integer,                   -- importo in centesimi
+  currency             text DEFAULT 'eur',
+  email_d0_sent        boolean NOT NULL DEFAULT false,
+  email_d3_sent        boolean NOT NULL DEFAULT false,
+  email_d7_sent        boolean NOT NULL DEFAULT false,
+  is_resolved          boolean NOT NULL DEFAULT false,
+  resolved_at          timestamptz,
+  resolved_reason      text,                      -- 'payment_succeeded'|'manually_resolved'|'suspended'
+  created_at           timestamptz DEFAULT now(),
+  updated_at           timestamptz DEFAULT now()
+);
+
+CREATE INDEX idx_dunning_company     ON company_dunning(company_id);
+CREATE INDEX idx_dunning_grace_ends  ON company_dunning(grace_ends_at) WHERE is_resolved = false;
+CREATE INDEX idx_dunning_active      ON company_dunning(is_resolved) WHERE is_resolved = false;
+
+ALTER TABLE company_dunning ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "super_admin_dunning" ON company_dunning
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'super_admin')
+  );
+
+-- Aggiungi colonna dunning_status a companies per lettura rapida
+ALTER TABLE companies
+  ADD COLUMN IF NOT EXISTS dunning_status text
+    CHECK (dunning_status IN ('none','grace_period','suspended_for_payment'))
+    DEFAULT 'none';
+
+-- Estendi subscription_logs per eventi dunning
+-- (usa la tabella esistente, aggiunge event_type values)
+-- event_type già supporta testo libero quindi non serve migrazione
+
+-- Aggiungi trial_expired_at per tracciare quando il trial è scaduto lato DB
+ALTER TABLE companies
+  ADD COLUMN IF NOT EXISTS trial_expired_notified boolean DEFAULT false;
+```
+
+================================================================
+STEP 2 — ESTENDI stripe-webhook: gestione payment_failed
+================================================================
+
+FILE DA MODIFICARE: supabase/functions/stripe-webhook/index.ts
+
+Aggiungi questi handler DOPO l'handler esistente di customer.subscription.deleted:
+
+```typescript
+// =============================================
+// NUOVO: invoice.payment_failed
+// Triggered da Stripe quando un pagamento fallisce
+// =============================================
+case "invoice.payment_failed": {
+  const invoice = event.data.object as Stripe.Invoice;
+  const customerId = invoice.customer as string;
+  const attemptCount = invoice.attempt_count || 1;
+
+  // Trova l'azienda dal stripe_customer_id
+  const { data: company } = await supabase
+    .from("companies")
+    .select("id, name, email, status, dunning_status")
+    .eq("stripe_customer_id", customerId)
+    .maybeSingle();
+
+  if (!company) {
+    console.warn("invoice.payment_failed: company not found for customer", customerId);
+    break;
+  }
+
+  // Non processare se già sospesa o expired
+  if (company.status === "suspended" || company.status === "expired") break;
+
+  const gracePeriodDays = 7;
+  const now = new Date();
+  const graceEndsAt = new Date(now.getTime() + gracePeriodDays * 24 * 60 * 60 * 1000);
+
+  // Upsert record dunning
+  const { data: existing } = await supabase
+    .from("company_dunning")
+    .select("id, first_failure_at, attempt_count")
+    .eq("company_id", company.id)
+    .eq("is_resolved", false)
+    .maybeSingle();
+
+  if (existing) {
+    // Aggiorna tentativo esistente
+    await supabase.from("company_dunning").update({
+      attempt_count: attemptCount,
+      last_attempt_at: now.toISOString(),
+      stripe_invoice_id: invoice.id,
+      amount_due_cents: invoice.amount_due,
+      next_retry_at: invoice.next_payment_attempt
+        ? new Date(invoice.next_payment_attempt * 1000).toISOString()
+        : null,
+      updated_at: now.toISOString(),
+    }).eq("id", existing.id);
+  } else {
+    // Primo fallimento → crea record dunning
+    await supabase.from("company_dunning").insert({
+      company_id: company.id,
+      stripe_invoice_id: invoice.id,
+      first_failure_at: now.toISOString(),
+      grace_period_days: gracePeriodDays,
+      grace_ends_at: graceEndsAt.toISOString(),
+      attempt_count: attemptCount,
+      last_attempt_at: now.toISOString(),
+      amount_due_cents: invoice.amount_due,
+      currency: invoice.currency,
+      next_retry_at: invoice.next_payment_attempt
+        ? new Date(invoice.next_payment_attempt * 1000).toISOString()
+        : null,
+    });
+
+    // Aggiorna dunning_status su companies
+    await supabase.from("companies").update({
+      dunning_status: "grace_period",
+    }).eq("id", company.id);
+
+    // Notifica in-app all'azienda
+    await supabase.from("lifecycle_notifications").upsert({
+      company_id: company.id,
+      notification_type: "payment_failed",
+      title: "Pagamento non riuscito",
+      message: `Il pagamento dell'abbonamento non è andato a buon fine. Hai ${gracePeriodDays} giorni per aggiornare il metodo di pagamento prima della sospensione.`,
+      is_read: false,
+      is_dismissed: false,
+    }, { onConflict: "company_id,notification_type,notification_date" });
+
+    // Log evento
+    await supabase.from("subscription_logs").insert({
+      company_id: company.id,
+      event_type: "payment_failed",
+      notes: `Pagamento fallito (tentativo ${attemptCount}). Grace period fino al ${graceEndsAt.toLocaleDateString("it-IT")}`,
+    });
+
+    // Invia email D+0 tramite edge function
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-dunning-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        company_id: company.id,
+        email_type: "d0",
+        amount_due: invoice.amount_due,
+        currency: invoice.currency,
+        grace_ends_at: graceEndsAt.toISOString(),
+      }),
+    });
+  }
+  break;
+}
+
+// =============================================
+// NUOVO: invoice.paid → risolve dunning attivo
+// =============================================
+// AGGIORNA l'handler invoice.paid esistente per aggiungere:
+// Dopo il codice esistente che aggiorna company_subscriptions:
+
+// Risolvi eventuale dunning attivo
+await supabase.from("company_dunning").update({
+  is_resolved: true,
+  resolved_at: new Date().toISOString(),
+  resolved_reason: "payment_succeeded",
+  updated_at: new Date().toISOString(),
+}).eq("company_id", companyId).eq("is_resolved", false);
+
+// Reset dunning_status
+await supabase.from("companies").update({
+  dunning_status: "none",
+  status: "active", // riattiva se era sospesa per pagamento
+}).eq("id", companyId);
+
+// Rimuovi notifica pagamento fallito
+await supabase.from("lifecycle_notifications").delete()
+  .eq("company_id", companyId)
+  .eq("notification_type", "payment_failed");
+
+// Log recupero
+await supabase.from("subscription_logs").insert({
+  company_id: companyId,
+  event_type: "payment_recovered",
+  notes: "Pagamento recuperato con successo. Dunning chiuso.",
+});
+```
+
+================================================================
+STEP 3 — EDGE FUNCTION: invio email dunning
+================================================================
+
+Crea: supabase/functions/send-dunning-email/index.ts
+
+```typescript
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+const EMAIL_TEMPLATES = {
+  d0: {
+    subject: "⚠️ Pagamento non riuscito — azione richiesta",
+    getBody: (data: EmailData) => `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">Pagamento non riuscito</h2>
+        <p>Gentile ${data.companyName},</p>
+        <p>Il pagamento del tuo abbonamento di <strong>€${(data.amountDueCents / 100).toFixed(2)}</strong>
+        non è andato a buon fine.</p>
+        <p>Hai tempo fino al <strong>${new Date(data.graceEndsAt).toLocaleDateString("it-IT")}</strong>
+        per aggiornare il metodo di pagamento. Dopo questa data, il tuo account verrà sospeso.</p>
+        <a href="${data.billingUrl}" style="display:inline-block; background:#2563eb; color:white;
+        padding:12px 24px; border-radius:8px; text-decoration:none; margin-top:16px;">
+          Aggiorna metodo di pagamento
+        </a>
+        <p style="color:#6b7280; font-size:14px; margin-top:24px;">
+          Se hai già aggiornato il pagamento, ignora questa email.
+        </p>
+      </div>
+    `,
+  },
+  d3: {
+    subject: "🔴 Abbonamento a rischio — 4 giorni rimanenti",
+    getBody: (data: EmailData) => `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">Il tuo abbonamento verrà sospeso presto</h2>
+        <p>Gentile ${data.companyName},</p>
+        <p>Il pagamento di <strong>€${(data.amountDueCents / 100).toFixed(2)}</strong> è ancora in sospeso.
+        L'account verrà <strong>sospeso il ${new Date(data.graceEndsAt).toLocaleDateString("it-IT")}</strong>.</p>
+        <p>Dopo la sospensione non potrai accedere a ordini, clienti e dati finché non regolarizzi il pagamento.</p>
+        <a href="${data.billingUrl}" style="display:inline-block; background:#dc2626; color:white;
+        padding:12px 24px; border-radius:8px; text-decoration:none; margin-top:16px;">
+          Regolarizza ora
+        </a>
+      </div>
+    `,
+  },
+  d7: {
+    subject: "🚫 Account sospeso per mancato pagamento",
+    getBody: (data: EmailData) => `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">Account sospeso</h2>
+        <p>Gentile ${data.companyName},</p>
+        <p>Il tuo account è stato <strong>sospeso</strong> per mancato pagamento di
+        <strong>€${(data.amountDueCents / 100).toFixed(2)}</strong>.</p>
+        <p>I tuoi dati sono al sicuro. Per riattivare l'accesso, aggiorna il metodo di pagamento.</p>
+        <a href="${data.billingUrl}" style="display:inline-block; background:#2563eb; color:white;
+        padding:12px 24px; border-radius:8px; text-decoration:none; margin-top:16px;">
+          Riattiva account
+        </a>
+        <p style="color:#6b7280; font-size:14px; margin-top:24px;">
+          Hai bisogno di aiuto? Contatta il supporto: supporto@tuapiattaforma.com
+        </p>
+      </div>
+    `,
+  },
+};
+
+interface EmailData {
+  companyName: string;
+  amountDueCents: number;
+  graceEndsAt: string;
+  billingUrl: string;
+}
+
+Deno.serve(async (req) => {
+  const { company_id, email_type, amount_due, currency, grace_ends_at } = await req.json();
+
+  // Carica dati azienda
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name, email")
+    .eq("id", company_id)
+    .single();
+
+  if (!company) return Response.json({ error: "Company not found" }, { status: 404 });
+
+  const APP_URL = Deno.env.get("APP_URL") || "https://tuapiattaforma.com";
+  const template = EMAIL_TEMPLATES[email_type as keyof typeof EMAIL_TEMPLATES];
+  if (!template) return Response.json({ error: "Invalid email_type" }, { status: 400 });
+
+  const emailData: EmailData = {
+    companyName: company.name,
+    amountDueCents: amount_due,
+    graceEndsAt: grace_ends_at,
+    billingUrl: `${APP_URL}/azienda/impostazioni/fatturazione`,
+  };
+
+  // Invia email via provider configurato (Resend, SendGrid, ecc.)
+  // Adatta questo blocco al tuo provider email
+  const emailResp = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: `${Deno.env.get("EMAIL_FROM_NAME") || "Piattaforma"} <${Deno.env.get("EMAIL_FROM")}>`,
+      to: [company.email],
+      subject: template.subject,
+      html: template.getBody(emailData),
+    }),
+  });
+
+  if (!emailResp.ok) {
+    console.error("Email send failed:", await emailResp.text());
+    return Response.json({ error: "Email send failed" }, { status: 500 });
+  }
+
+  // Segna email come inviata nel dunning record
+  const fieldMap: Record<string, string> = { d0: "email_d0_sent", d3: "email_d3_sent", d7: "email_d7_sent" };
+  if (fieldMap[email_type]) {
+    await supabase.from("company_dunning")
+      .update({ [fieldMap[email_type]]: true, updated_at: new Date().toISOString() })
+      .eq("company_id", company_id)
+      .eq("is_resolved", false);
+  }
+
+  return Response.json({ success: true });
+});
+```
+
+================================================================
+STEP 4 — EDGE FUNCTION: cron job dunning (ogni ora)
+================================================================
+
+Crea: supabase/functions/process-dunning/index.ts
+
+Questa funzione viene chiamata ogni ora da pg_cron (o da un cron esterno).
+Fa 3 cose: manda email D+3, sospende aziende con grace scaduto, scade i trial.
+
+```typescript
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+Deno.serve(async (_req) => {
+  const now = new Date();
+  const results = { emailsD3: 0, emailsD7: 0, suspended: 0, trialsExpired: 0 };
+
+  // ─── 1. Invia email D+3 (dopo 3 giorni dal primo fallimento) ───
+  const d3Threshold = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  const { data: d3Candidates } = await supabase
+    .from("company_dunning")
+    .select("id, company_id, amount_due_cents, currency, grace_ends_at")
+    .eq("is_resolved", false)
+    .eq("email_d3_sent", false)
+    .lte("first_failure_at", d3Threshold.toISOString());
+
+  for (const dunning of d3Candidates || []) {
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-dunning-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        company_id: dunning.company_id,
+        email_type: "d3",
+        amount_due: dunning.amount_due_cents,
+        currency: dunning.currency,
+        grace_ends_at: dunning.grace_ends_at,
+      }),
+    });
+    results.emailsD3++;
+  }
+
+  // ─── 2. Sospendi aziende con grace period scaduto ───
+  const { data: toSuspend } = await supabase
+    .from("company_dunning")
+    .select("id, company_id, amount_due_cents, currency, grace_ends_at")
+    .eq("is_resolved", false)
+    .lte("grace_ends_at", now.toISOString());
+
+  for (const dunning of toSuspend || []) {
+    // Sospendi l'azienda
+    await supabase.from("companies").update({
+      status: "suspended",
+      dunning_status: "suspended_for_payment",
+    }).eq("id", dunning.company_id);
+
+    // Log sospensione
+    await supabase.from("subscription_logs").insert({
+      company_id: dunning.company_id,
+      event_type: "suspended_payment",
+      notes: "Sospeso automaticamente per mancato pagamento dopo grace period.",
+    });
+
+    // Notifica in-app
+    await supabase.from("lifecycle_notifications").upsert({
+      company_id: dunning.company_id,
+      notification_type: "account_suspended",
+      title: "Account sospeso",
+      message: "Il tuo account è stato sospeso per mancato pagamento. Aggiorna il metodo di pagamento per riattivarlo.",
+      is_read: false,
+      is_dismissed: false,
+    }, { onConflict: "company_id,notification_type,notification_date" });
+
+    // Email D+7 (di sospensione)
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-dunning-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        company_id: dunning.company_id,
+        email_type: "d7",
+        amount_due: dunning.amount_due_cents,
+        currency: dunning.currency,
+        grace_ends_at: dunning.grace_ends_at,
+      }),
+    });
+
+    // Chiudi il record dunning (è resolved perché ha portato alla sospensione)
+    await supabase.from("company_dunning").update({
+      is_resolved: true,
+      resolved_at: now.toISOString(),
+      resolved_reason: "suspended",
+      email_d7_sent: true,
+      updated_at: now.toISOString(),
+    }).eq("id", dunning.id);
+
+    results.suspended++;
+  }
+
+  // ─── 3. Scadenza trial lato DB ───
+  // Cambia status a 'expired' per trial con trial_ends_at nel passato
+  const { data: expiredTrials } = await supabase
+    .from("companies")
+    .update({ status: "expired" })
+    .eq("status", "trial")
+    .lt("trial_ends_at", now.toISOString())
+    .select("id");
+
+  results.trialsExpired = expiredTrials?.length || 0;
+
+  // Log del run
+  console.log("process-dunning completed:", results);
+  return Response.json({ success: true, ...results });
+});
+```
+
+================================================================
+STEP 5 — CONFIGURA pg_cron per il cron job
+================================================================
+
+Crea: supabase/migrations/20260323001000_dunning_cron.sql
+
+```sql
+-- Abilita pg_cron se non già abilitato
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Esegui process-dunning ogni ora alle :00
+SELECT cron.schedule(
+  'process-dunning-hourly',
+  '0 * * * *',
+  $$
+  SELECT net.http_post(
+    url := current_setting('app.supabase_url') || '/functions/v1/process-dunning',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.service_role_key')
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+```
+
+ALTERNATIVA se pg_cron non è disponibile:
+Usa un cron job esterno (GitHub Actions, Vercel Cron, Render Cron) che chiama:
+POST https://tuoprogetto.supabase.co/functions/v1/process-dunning
+Headers: Authorization: Bearer SUPABASE_SERVICE_ROLE_KEY
+
+================================================================
+STEP 6 — BANNER AZIENDA: aggiorna SubscriptionBanner.tsx
+================================================================
+
+FILE DA MODIFICARE: src/components/layouts/SubscriptionBanner.tsx
+
+Aggiungi il caso dunning/grace_period:
+
+```typescript
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, CreditCard, XCircle } from "lucide-react";
+
+// In SubscriptionBanner, aggiungi dopo le query esistenti:
+const { data: dunning } = useQuery({
+  queryKey: ["company-dunning", effectiveCompany?.id],
+  queryFn: async () => {
+    if (!effectiveCompany?.id) return null;
+    const { data } = await supabase
+      .from("company_dunning")
+      .select("grace_ends_at, amount_due_cents, currency, attempt_count")
+      .eq("company_id", effectiveCompany.id)
+      .eq("is_resolved", false)
+      .maybeSingle();
+    return data;
+  },
+  enabled: !!effectiveCompany?.id,
+  refetchInterval: 5 * 60 * 1000, // ogni 5 minuti
+});
+
+// Calcola giorni rimanenti di grace period
+const graceDaysLeft = dunning
+  ? Math.max(0, Math.ceil(
+      (new Date(dunning.grace_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    ))
+  : null;
+
+// Nel JSX — aggiungi PRIMA dei banner esistenti (ha priorità):
+if (dunning && graceDaysLeft !== null && graceDaysLeft > 0) {
+  return (
+    <div className="bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between gap-4">
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <span className="text-sm font-medium">
+          Pagamento non riuscito — hai {graceDaysLeft} giorn{graceDaysLeft === 1 ? "o" : "i"} per aggiornare
+          il metodo di pagamento prima della sospensione.
+        </span>
+      </div>
+      <Button
+        size="sm"
+        variant="secondary"
+        className="bg-white text-amber-700 hover:bg-amber-50 shrink-0"
+        onClick={() => navigate("/azienda/impostazioni/fatturazione")}
+      >
+        <CreditCard className="h-3.5 w-3.5 mr-1.5" />
+        Aggiorna pagamento
+      </Button>
+    </div>
+  );
+}
+
+if (dunning && graceDaysLeft === 0) {
+  return (
+    <div className="bg-red-600 text-white px-4 py-2.5 flex items-center justify-between gap-4">
+      <div className="flex items-center gap-2">
+        <XCircle className="h-4 w-4 shrink-0" />
+        <span className="text-sm font-medium">
+          Pagamento scaduto — il tuo account sarà sospeso a breve.
+          Aggiorna subito il metodo di pagamento.
+        </span>
+      </div>
+      <Button
+        size="sm"
+        variant="secondary"
+        className="bg-white text-red-700 hover:bg-red-50 shrink-0"
+        onClick={() => navigate("/azienda/impostazioni/fatturazione")}
+      >
+        <CreditCard className="h-3.5 w-3.5 mr-1.5" />
+        Aggiorna ora
+      </Button>
+    </div>
+  );
+}
+```
+
+================================================================
+STEP 7 — useSubscriptionLimits.ts: aggiorna per grace period
+================================================================
+
+FILE DA MODIFICARE: src/hooks/useSubscriptionLimits.ts
+
+```typescript
+// Aggiungi dopo le query esistenti:
+const { data: dunning } = useQuery({
+  queryKey: ["dunning-status", effectiveCompany?.id],
+  queryFn: async () => {
+    if (!effectiveCompany?.id) return null;
+    const { data } = await supabase
+      .from("company_dunning")
+      .select("grace_ends_at, is_resolved")
+      .eq("company_id", effectiveCompany.id)
+      .eq("is_resolved", false)
+      .maybeSingle();
+    return data;
+  },
+  enabled: !!effectiveCompany?.id,
+});
+
+// Aggiungi al return object:
+return {
+  // ... valori esistenti ...
+  isInGracePeriod: !!dunning && !dunning.is_resolved,
+  gracePeriodEndsAt: dunning?.grace_ends_at || null,
+  // Durante grace period l'accesso rimane pieno (non bloccare durante il grace)
+  // isFullyOperational già gestisce suspended/expired
+};
+```
+
+================================================================
+STEP 8 — DASHBOARD ADMIN: AdminDunning.tsx migliorato
+================================================================
+
+FILE DA SOSTITUIRE: src/components/admin/dashboard/AdminDunning.tsx
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { AlertTriangle, XCircle, CheckCircle2, CreditCard, Loader2, RefreshCw } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
+import { formatDistanceToNow, differenceInDays } from "date-fns";
+import { it } from "date-fns/locale";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+
+export function AdminDunning() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const { data: activeDunning = [], isLoading } = useQuery({
+    queryKey: ["admin-dunning-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("company_dunning")
+        .select(`
+          *,
+          company:companies(id, name, email, status, dunning_status)
+        `)
+        .eq("is_resolved", false)
+        .order("grace_ends_at", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    refetchInterval: 2 * 60 * 1000, // aggiorna ogni 2 minuti
+  });
+
+  const resolveManuallyMutation = useMutation({
+    mutationFn: async (dunningId: string) => {
+      const { error } = await supabase
+        .from("company_dunning")
+        .update({
+          is_resolved: true,
+          resolved_at: new Date().toISOString(),
+          resolved_reason: "manually_resolved",
+        })
+        .eq("id", dunningId);
+      if (error) throw error;
+      // Reset dunning status company
+      const dunning = activeDunning.find(d => d.id === dunningId);
+      if (dunning?.company?.id) {
+        await supabase.from("companies").update({ dunning_status: "none" })
+          .eq("id", dunning.company.id);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-dunning-active"] });
+      toast.success("Dunning risolto manualmente");
+    },
+  });
+
+  const totalAtRisk = activeDunning.reduce((sum, d) => sum + (d.amount_due_cents || 0), 0) / 100;
+
+  if (isLoading) return (
+    <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <CardTitle className="text-base">Pagamenti a Rischio</CardTitle>
+          </div>
+          {activeDunning.length > 0 && (
+            <Badge variant="destructive">{activeDunning.length} in sospeso</Badge>
+          )}
+        </div>
+        {activeDunning.length > 0 && (
+          <CardDescription>
+            Totale a rischio: <strong className="text-destructive">{formatCurrency(totalAtRisk)}</strong>
+          </CardDescription>
+        )}
+      </CardHeader>
+      <CardContent>
+        {activeDunning.length === 0 ? (
+          <div className="flex items-center gap-2 text-sm text-green-600 py-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Nessun pagamento in sospeso. Ottimo!
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {activeDunning.map((dunning) => {
+              const graceEnds = new Date(dunning.grace_ends_at);
+              const daysLeft = differenceInDays(graceEnds, new Date());
+              const isExpired = daysLeft <= 0;
+              const progressPct = Math.max(0, Math.min(100, (daysLeft / dunning.grace_period_days) * 100));
+
+              return (
+                <div
+                  key={dunning.id}
+                  className={`p-3 rounded-lg border ${isExpired ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => navigate(`/admin/aziende/${dunning.company?.id}`)}
+                          className="font-medium text-sm hover:underline truncate"
+                        >
+                          {dunning.company?.name}
+                        </button>
+                        <Badge
+                          variant={isExpired ? "destructive" : "secondary"}
+                          className="text-xs shrink-0"
+                        >
+                          {isExpired ? "Grace scaduto" : `${daysLeft}g rimanenti`}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          Tentativo {dunning.attempt_count}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{dunning.company?.email}</p>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <span className="text-sm font-semibold">
+                          {formatCurrency((dunning.amount_due_cents || 0) / 100)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Scade: {graceEnds.toLocaleDateString("it-IT")}
+                        </span>
+                      </div>
+                      {/* Progress bar grace period */}
+                      {!isExpired && (
+                        <Progress
+                          value={progressPct}
+                          className="h-1.5 mt-2"
+                        />
+                      )}
+                      {/* Email sent indicators */}
+                      <div className="flex gap-2 mt-1.5">
+                        <span className={`text-xs ${dunning.email_d0_sent ? "text-green-600" : "text-muted-foreground"}`}>
+                          D+0 {dunning.email_d0_sent ? "✓" : "○"}
+                        </span>
+                        <span className={`text-xs ${dunning.email_d3_sent ? "text-green-600" : "text-muted-foreground"}`}>
+                          D+3 {dunning.email_d3_sent ? "✓" : "○"}
+                        </span>
+                        <span className={`text-xs ${dunning.email_d7_sent ? "text-green-600" : "text-muted-foreground"}`}>
+                          Sospeso {dunning.email_d7_sent ? "✓" : "○"}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs shrink-0"
+                      onClick={() => resolveManuallyMutation.mutate(dunning.id)}
+                      disabled={resolveManuallyMutation.isPending}
+                    >
+                      {resolveManuallyMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      Risolvi
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+================================================================
+CHECKLIST IMPLEMENTAZIONE
+================================================================
+
+[ ] STEP 1: Esegui migrazione SQL (company_dunning + dunning_status su companies)
+[ ] STEP 2: Estendi stripe-webhook con invoice.payment_failed + aggiorna invoice.paid
+[ ] STEP 3: Deploy Edge Function send-dunning-email (configura RESEND_API_KEY, EMAIL_FROM)
+[ ] STEP 4: Deploy Edge Function process-dunning
+[ ] STEP 5: Configura pg_cron OPPURE GitHub Actions/cron esterno
+[ ] STEP 6: Aggiorna SubscriptionBanner.tsx con banner grace period
+[ ] STEP 7: Aggiorna useSubscriptionLimits.ts con isInGracePeriod
+[ ] STEP 8: Sostituisci AdminDunning.tsx con versione migliorata
+[ ] Test: simula invoice.payment_failed da Stripe Dashboard (test mode)
+[ ] Test: verifica che dopo 7 giorni l'azienda venga sospesa
+[ ] Test: verifica che il pagamento riuscito chiuda il dunning
+[ ] Test: verifica che le 3 email vengano inviate nei tempi giusti
+[ ] Aggiungi variabile d'ambiente APP_URL in Supabase Dashboard
+
+================================================================
+VARIABILI D'AMBIENTE NECESSARIE (Supabase → Settings → Edge Functions)
+================================================================
+
+RESEND_API_KEY=re_xxxxxxxxxxxx
+EMAIL_FROM=noreply@tuapiattaforma.com
+EMAIL_FROM_NAME=Edilizia in Cloud
+APP_URL=https://tuapiattaforma.com

@@ -46,9 +46,10 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
         .from("support_messages")
         .select("*")
         .eq("company_id", companyId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(300);
       if (error) throw error;
-      return (data ?? []) as SupportMessage[];
+      return ((data ?? []) as SupportMessage[]).reverse();
     },
     enabled: open && !!companyId,
     staleTime: 30 * 1000,
@@ -111,11 +112,17 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
   }, [messages]);
 
   const updateConversation = async (updates: Record<string, unknown>) => {
-    await supabase
+    const { error } = await supabase
       .from("support_conversations")
       .update(updates)
       .eq("company_id", companyId);
+    if (error) {
+      toast.error("Impossibile aggiornare la conversazione");
+      return false;
+    }
     queryClient.invalidateQueries({ queryKey: ["admin-support-conv", companyId] });
+    queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
+    return true;
   };
 
   const handleStatusChange = async (status: string) => {
@@ -123,7 +130,8 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
     if (status === "resolved") {
       updates.resolved_at = new Date().toISOString();
     }
-    await updateConversation(updates);
+    const updated = await updateConversation(updates);
+    if (!updated) return;
 
     if (status === "resolved" && user) {
       await supabase.from("support_messages").insert({
@@ -149,18 +157,23 @@ export function AdminSupportChatSheet({ open, onOpenChange, companyId, companyNa
   const handleSend = async () => {
     if (!newMessage.trim() || !user) return;
     setSending(true);
-    const { error } = await supabase.from("support_messages").insert({
-      company_id: companyId,
-      sender_id: user.id,
-      sender_role: "super_admin",
-      message: newMessage.trim(),
-    });
-    if (error) {
-      toast.error("Errore nell'invio del messaggio");
-    } else {
-      setNewMessage("");
+    try {
+      const { error } = await supabase.from("support_messages").insert({
+        company_id: companyId,
+        sender_id: user.id,
+        sender_role: "super_admin",
+        message: newMessage.trim(),
+      });
+      if (error) {
+        toast.error("Errore nell'invio del messaggio");
+      } else {
+        setNewMessage("");
+        queryClient.invalidateQueries({ queryKey: ["admin-support-messages"] });
+        queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
+      }
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

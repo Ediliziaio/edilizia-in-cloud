@@ -1,0 +1,1166 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║   CRUSCOTTO AZIENDALE V2 — Edilizia in Cloud                               ║
+║   Da dashboard "bella" a CENTRO DI COMANDO per il titolare                 ║
+║   Sequenza obbligatoria: CR1 → CR2 → CR3 → CR4                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+CONTESTO TECNICO (NON MODIFICARE)
+──────────────────────────────────
+Hook principale: src/hooks/useCruscottoData.ts
+  Return attuale: { marketing, operations, finance, weeklyAgenda,
+                    isLoading, error, filters, updateFilters }
+
+Tipi ESATTI già definiti:
+  FinanceData    → revenueThisMonth, revenuePrevMonth, marginThisMonth,
+                   marginPrevMonth, cashFlowNet, thisMonthIncome,
+                   thisMonthOutflow, pendingRevenue, supplierDebt
+  OperationsData → activeOrders, lateOrders, openTickets,
+                   overduePayments, overdueAmount
+  WeeklyAgendaData → incomingPayments, incomingPaymentsCount, dueCosts,
+                     dueCostsCount, deliveries, appointments
+  KpiData (da marketing.kpi) → leads_new, appointments_set, show_rate,
+                               close_rate, contracts_won, avg_ticket,
+                               sales_velocity, weighted_pipeline
+
+Tabelle DB reali: orders, order_installments, marketing_contacts,
+                  appointments (colonna: appointment_date DATE),
+                  company_costs (colonne: amount, due_date, is_paid, company_id, name)
+
+Componenti esistenti (NON toccare le loro props attuali):
+  CompanyHealthScore   → props: { kpi, finance, operations, isLoading }
+  ExecutiveOverview    → props: { kpi, kpiPrev, finance, operations, isLoading }
+  CruscottoAlerts      → SOSTITUITO da AlertPanel (vedi CR2)
+  FinanzaCashFlow      → props: { finance, isLoading }
+  MarketingControl     → props: { sources, funnel, isLoading }
+  SalesControl         → props: { sales: marketing?.sales_performance, kpi, isLoading }
+  PipelineForecast     → props: { kpi, funnel, isLoading }
+  OperationsDelivery   → props: { operations, weeklyAgenda, isLoading }
+  WeeklySnapshot       → props: { weeklyAgenda, isLoading }
+  HRPerformance        → props: { sales: marketing?.sales_performance, isLoading }
+  CruscottoTrend       → props: { trend: marketing?.trend, isLoading }
+
+OBIETTIVO: quando il titolare apre l'app la mattina, in 5 secondi vede:
+  1. Come sto finanziariamente (mese/trim/anno + cash flow)?
+  2. Cosa devo fare ADESSO (alert + focus oggi)?
+  3. Le vendite vanno bene o male (pipeline + chiusura)?
+  4. Qualcosa si sta rompendo nelle operazioni?
+  → Niente tab. Singolo scroll verticale ordinato per urgenza.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [CR1] — ESPANDI useCruscottoData.ts
+              2 nuove query + aggiorna il return
+════════════════════════════════════════════════════════════════════════════════
+
+Apri il file src/hooks/useCruscottoData.ts.
+
+Aggiunge questa definizione di tipo all'inizio del file (dopo le import esistenti):
+
+```typescript
+// ─── NUOVI TIPI ──────────────────────────────────────────────────────────────
+
+export interface TodayData {
+  leadsToday:         number;
+  appointmentsToday:  number;
+  overdueAmount:      number;
+  overdueCount:       number;
+  suppliersDueAmount: number;
+  suppliersDue: Array<{ id: string; name: string; amount: number; due_date: string; category?: string }>;
+}
+
+export interface CashFlowForecastData {
+  incoming30:      number;  // incassi attesi entro 30gg
+  incoming60:      number;  // incassi attesi entro 60gg
+  incoming90:      number;  // incassi attesi entro 90gg
+  monthRevenue:    number;  // fatturato mese corrente (da orders)
+  quarterRevenue:  number;  // fatturato trimestre corrente
+  ytdRevenue:      number;  // fatturato anno corrente (YTD)
+}
+```
+
+Aggiungi le 2 nuove query DENTRO la funzione del hook, dopo le query esistenti:
+
+```typescript
+// ─── QUERY: DATI DI OGGI ──────────────────────────────────────────────────
+// Sempre aggiornati sull'oggi, ignorano il filtro dateRange globale.
+const { data: todayData, isLoading: todayLoading } = useQuery<TodayData>({
+  queryKey: ["cruscotto-today", companyId],
+  enabled: !!companyId,
+  staleTime: 60_000, // si ricarica ogni minuto
+  queryFn: async () => {
+    const todayStr = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+    const in7Days  = new Date(Date.now() + 7 * 86_400_000).toISOString().split("T")[0];
+
+    // Lead nuovi oggi (marketing_contacts)
+    const { count: leadsToday } = await supabase
+      .from("marketing_contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .gte("created_at", `${todayStr}T00:00:00`)
+      .lte("created_at", `${todayStr}T23:59:59`);
+
+    // Appuntamenti fissati per oggi (tabella: appointments, colonna: appointment_date DATE)
+    const { count: appointmentsToday } = await supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("appointment_date", todayStr)
+      .eq("is_blocked_slot", false);
+
+    // Crediti scaduti: rate non pagate con expected_date passata
+    const { data: overdueRows } = await supabase
+      .from("order_installments")
+      .select("id, amount, expected_date, order:orders!inner(company_id)")
+      .eq("order.company_id", companyId)
+      .eq("is_paid", false)
+      .lt("expected_date", todayStr);
+
+    const overdueCount  = overdueRows?.length ?? 0;
+    const overdueAmount = overdueRows?.reduce((s, r) => s + (r.amount ?? 0), 0) ?? 0;
+
+    // Fornitori da pagare nei prossimi 7 giorni (tabella: company_costs)
+    const { data: suppliersDue } = await supabase
+      .from("company_costs")
+      .select("id, name, amount, due_date, category")
+      .eq("company_id", companyId)
+      .eq("is_paid", false)
+      .gte("due_date", todayStr)
+      .lte("due_date", in7Days)
+      .order("due_date", { ascending: true });
+
+    const suppliersDueAmount = suppliersDue?.reduce((s, c) => s + (c.amount ?? 0), 0) ?? 0;
+
+    return {
+      leadsToday:         leadsToday ?? 0,
+      appointmentsToday:  appointmentsToday ?? 0,
+      overdueAmount,
+      overdueCount,
+      suppliersDueAmount,
+      suppliersDue: suppliersDue ?? [],
+    };
+  },
+});
+
+// ─── QUERY: CASH FLOW FORECAST + FATTURATO PER PERIODO ──────────────────
+const { data: cashFlowForecast, isLoading: forecastLoading } = useQuery<CashFlowForecastData>({
+  queryKey: ["cruscotto-cashflow-forecast", companyId],
+  enabled: !!companyId,
+  staleTime: 300_000, // 5 minuti
+  queryFn: async () => {
+    const now      = new Date();
+    const todayStr = now.toISOString().split("T")[0];
+
+    const in30 = new Date(now.getTime() + 30 * 86_400_000).toISOString().split("T")[0];
+    const in60 = new Date(now.getTime() + 60 * 86_400_000).toISOString().split("T")[0];
+    const in90 = new Date(now.getTime() + 90 * 86_400_000).toISOString().split("T")[0];
+
+    // Incassi attesi dai piani di pagamento degli ordini (order_installments)
+    const { data: futureInstallments } = await supabase
+      .from("order_installments")
+      .select("amount, expected_date, order:orders!inner(company_id)")
+      .eq("order.company_id", companyId)
+      .eq("is_paid", false)
+      .gte("expected_date", todayStr)
+      .lte("expected_date", in90);
+
+    const all = futureInstallments ?? [];
+    const incoming30 = all.filter(i => i.expected_date <= in30).reduce((s, i) => s + (i.amount ?? 0), 0);
+    const incoming60 = all.filter(i => i.expected_date <= in60).reduce((s, i) => s + (i.amount ?? 0), 0);
+    const incoming90 = all.reduce((s, i) => s + (i.amount ?? 0), 0);
+
+    // Fatturato per periodo (da orders.total_amount)
+    const yearStart    = `${now.getFullYear()}-01-01T00:00:00`;
+    const monthStart   = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01T00:00:00`;
+    const quarter      = Math.floor(now.getMonth() / 3);
+    const quarterStart = `${now.getFullYear()}-${String(quarter * 3 + 1).padStart(2, "0")}-01T00:00:00`;
+
+    const [{ data: ytdOrders }, { data: monthOrders }, { data: qOrders }] = await Promise.all([
+      supabase.from("orders").select("total_amount").eq("company_id", companyId).gte("created_at", yearStart),
+      supabase.from("orders").select("total_amount").eq("company_id", companyId).gte("created_at", monthStart),
+      supabase.from("orders").select("total_amount").eq("company_id", companyId).gte("created_at", quarterStart),
+    ]);
+
+    const sum = (rows: Array<{ total_amount?: number }> | null) =>
+      (rows ?? []).reduce((s, r) => s + (r.total_amount ?? 0), 0);
+
+    return {
+      incoming30,
+      incoming60,
+      incoming90,
+      ytdRevenue:     sum(ytdOrders),
+      monthRevenue:   sum(monthOrders),
+      quarterRevenue: sum(qOrders),
+    };
+  },
+});
+```
+
+Aggiorna il return finale dell'hook aggiungendo i 2 nuovi campi e l'isLoading aggiornato:
+
+```typescript
+return {
+  // ── campi già presenti (NON MODIFICARE) ──────────────────────────────
+  marketing: marketingData || null,
+  operations: opsData || { activeOrders: 0, lateOrders: 0, openTickets: 0, overduePayments: 0, overdueAmount: 0 },
+  finance: financeData || { revenueThisMonth: 0, revenuePrevMonth: 0, marginThisMonth: 0, marginPrevMonth: 0, cashFlowNet: 0, thisMonthIncome: 0, thisMonthOutflow: 0, pendingRevenue: 0, supplierDebt: 0 },
+  weeklyAgenda: weeklyData || { incomingPayments: 0, incomingPaymentsCount: 0, dueCosts: 0, dueCostsCount: 0, deliveries: 0, appointments: 0 },
+  filters,
+  updateFilters,
+  error: marketingError as Error | null,
+  // ── nuovi campi ───────────────────────────────────────────────────────
+  todayData:        todayData        ?? null,
+  cashFlowForecast: cashFlowForecast ?? null,
+  // ── isLoading aggiornato ──────────────────────────────────────────────
+  isLoading: marketingLoading || opsLoading || financeLoading || weeklyLoading || todayLoading || forecastLoading,
+};
+```
+
+════════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [CR2] — CREA 4 NUOVI COMPONENTI
+              CruscottoHero · AlertPanel · TodayFocus · CashFlowForecast
+════════════════════════════════════════════════════════════════════════════════
+
+Crea questi 4 file nella cartella src/components/cruscotto/.
+Tutti i tipi importati (FinanceData, OperationsData, KpiData, ecc.)
+esistono già in src/hooks/useCruscottoData.ts — importali da lì.
+
+────────────────────────────────────────────────────────────────────────────
+FILE 1: src/components/cruscotto/CruscottoHero.tsx
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+import React, { useMemo } from "react";
+import { TrendingUp, TrendingDown, Minus, AlertCircle } from "lucide-react";
+import type { FinanceData, OperationsData, KpiData } from "@/hooks/useCruscottoData";
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function fmtEur(n: number): string {
+  if (n >= 1_000_000) return `€${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `€${(n / 1_000).toFixed(0)}k`;
+  return `€${Math.round(n)}`;
+}
+
+function pctDelta(curr: number, prev: number): number | null {
+  if (!prev) return null;
+  return ((curr - prev) / prev) * 100;
+}
+
+// ─── Health Score (stessa logica di CompanyHealthScore.tsx) ─────────────────
+
+function calcHealth(kpi: KpiData | undefined, finance: FinanceData, ops: OperationsData) {
+  const margin    = finance.marginThisMonth ?? 0;
+  const cf        = finance.cashFlowNet ?? 0;
+  const closeRate = kpi?.close_rate ?? 0;
+  const showRate  = kpi?.show_rate  ?? 0;
+  const late      = (ops.lateOrders ?? 0) + (ops.overduePayments ?? 0);
+
+  const scores = [
+    margin >= 30 ? 100 : margin >= 15 ? 60 : margin >= 0 ? 30 : 0,
+    cf > 5000    ? 100 : cf >= 0      ? 70 : cf > -5000  ? 30 : 0,
+    closeRate >= 30 ? 100 : closeRate >= 15 ? 60 : closeRate > 0 ? 30 : 0,
+    showRate  >= 70 ? 100 : showRate  >= 50 ? 60 : showRate  > 0 ? 20 : 0,
+    late === 0 ? 100 : late <= 2 ? 60 : late <= 5 ? 30 : 0,
+  ];
+  const weights = [0.25, 0.25, 0.20, 0.15, 0.15];
+  const total   = Math.round(scores.reduce((s, v, i) => s + v * weights[i], 0));
+  const status  = total >= 70 ? "green" : total >= 40 ? "yellow" : "red";
+  return { score: total, status } as const;
+}
+
+// ─── Props ───────────────────────────────────────────────────────────────────
+
+interface Props {
+  finance:         FinanceData;
+  operations:      OperationsData;
+  kpi:             KpiData | undefined;
+  monthRevenue:    number;  // da cashFlowForecast.monthRevenue
+  quarterRevenue:  number;
+  ytdRevenue:      number;
+  isLoading?:      boolean;
+}
+
+// ─── Skeleton ────────────────────────────────────────────────────────────────
+
+function HeroSkeleton() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 animate-pulse">
+          <div className="h-3 bg-gray-200 rounded w-24 mb-3" />
+          <div className="h-8 bg-gray-200 rounded w-32 mb-2" />
+          <div className="h-3 bg-gray-100 rounded w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export function CruscottoHero({ finance, operations, kpi, monthRevenue, quarterRevenue, ytdRevenue, isLoading }: Props) {
+  if (isLoading) return <HeroSkeleton />;
+
+  const { score, status } = useMemo(
+    () => calcHealth(kpi, finance, operations),
+    [kpi, finance, operations]
+  );
+
+  const scoreColor = status === "green" ? "#22c55e" : status === "yellow" ? "#f59e0b" : "#ef4444";
+  const cfPositive = finance.cashFlowNet >= 0;
+  const posNet     = finance.pendingRevenue - finance.supplierDebt;
+  const delta      = pctDelta(monthRevenue, finance.revenuePrevMonth);
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
+      {/* ── 1. FATTURATO ── */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Fatturato</p>
+        <p className="text-3xl font-bold text-gray-900 leading-none mb-1">{fmtEur(monthRevenue)}</p>
+        <div className="flex items-center gap-1 mb-3 text-xs">
+          {delta === null   ? <Minus className="w-3 h-3 text-gray-300" /> :
+           delta > 0  ? <><TrendingUp className="w-3 h-3 text-green-500" /><span className="text-green-600">+{delta.toFixed(0)}%</span></> :
+                        <><TrendingDown className="w-3 h-3 text-red-500" /><span className="text-red-500">{delta.toFixed(0)}%</span></>}
+          <span className="text-gray-400">vs mese prec.</span>
+        </div>
+        <div className="border-t border-gray-50 pt-2 space-y-1">
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Trimestre</span><span className="font-semibold">{fmtEur(quarterRevenue)}</span>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Anno (YTD)</span><span className="font-semibold">{fmtEur(ytdRevenue)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2. CASH FLOW MESE ── */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Cash Flow Mese</p>
+        <p className={`text-3xl font-bold leading-none mb-1 ${cfPositive ? "text-green-600" : "text-red-600"}`}>
+          {cfPositive ? "+" : ""}{fmtEur(finance.cashFlowNet)}
+        </p>
+        <div className="flex items-center gap-1 mb-3 text-xs">
+          {cfPositive
+            ? <span className="text-green-500 font-medium">● Positivo</span>
+            : <span className="text-red-500 font-medium flex items-center gap-1"><AlertCircle className="w-3 h-3" />Negativo</span>}
+        </div>
+        <div className="border-t border-gray-50 pt-2 space-y-1">
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Entrate</span><span className="font-semibold text-green-600">{fmtEur(finance.thisMonthIncome)}</span>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Uscite</span><span className="font-semibold text-red-500">{fmtEur(finance.thisMonthOutflow)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. POSIZIONE NETTA ── */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Posizione Netta</p>
+        <p className={`text-3xl font-bold leading-none mb-1 ${posNet >= 0 ? "text-green-600" : "text-red-600"}`}>
+          {posNet >= 0 ? "+" : ""}{fmtEur(posNet)}
+        </p>
+        <p className="text-xs text-gray-400 mb-3">crediti – debiti</p>
+        <div className="border-t border-gray-50 pt-2 space-y-1">
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Da incassare</span><span className="font-semibold text-blue-600">{fmtEur(finance.pendingRevenue)}</span>
+          </div>
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Debiti fornitori</span><span className="font-semibold text-red-500">{fmtEur(finance.supplierDebt)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 4. SALUTE AZIENDALE ── */}
+      <div className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Salute Aziendale</p>
+        <div className="flex items-center gap-3 mb-2">
+          {/* SVG cerchio radiale */}
+          <div className="relative w-14 h-14 flex-shrink-0">
+            <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" strokeWidth="3" />
+              <circle
+                cx="18" cy="18" r="15.9"
+                fill="none"
+                stroke={scoreColor}
+                strokeWidth="3"
+                strokeDasharray={`${score} ${100 - score}`}
+                strokeLinecap="round"
+                style={{ transition: "stroke-dasharray 0.5s ease" }}
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-base font-bold"
+                  style={{ color: scoreColor }}>
+              {score}
+            </span>
+          </div>
+          <div>
+            <p className="font-bold text-gray-800" style={{ color: scoreColor }}>
+              {status === "green" ? "Ottimo" : status === "yellow" ? "Attenzione" : "Critico"}
+            </p>
+            <p className="text-xs text-gray-400">su 100 punti</p>
+          </div>
+        </div>
+        <p className="text-[10px] text-gray-400 border-t border-gray-50 pt-2">
+          Margine · Cash flow · Vendite · Show rate · Operazioni
+        </p>
+      </div>
+
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+FILE 2: src/components/cruscotto/AlertPanel.tsx
+(SOSTITUISCE CruscottoAlerts.tsx — più impattante, con bottone CTA diretto)
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+import React, { useMemo, useState } from "react";
+import { AlertTriangle, XCircle, Info, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import type { FinanceData, OperationsData, TodayData } from "@/hooks/useCruscottoData";
+
+// ─── Tipi ────────────────────────────────────────────────────────────────────
+
+interface AlertsData {
+  stale_leads?:               number;
+  stale_leads_2h?:            number;
+  pending_appointments?:      number;
+  stale_opportunities?:       number;
+  show_rate_below_threshold?: boolean;
+  pipeline_declining?:        boolean;
+}
+
+interface AlertItem {
+  id:      string;
+  level:   "critical" | "warning" | "info";
+  title:   string;
+  body:    string;
+  cta:     string;
+  link:    string;
+}
+
+interface Props {
+  marketingAlerts: AlertsData | undefined;
+  operations:      OperationsData;
+  finance:         FinanceData;
+  todayData:       TodayData | null;
+  isLoading?:      boolean;
+}
+
+// ─── Funzione costruttore alert ───────────────────────────────────────────────
+
+function buildAlerts(
+  ma: AlertsData | undefined,
+  ops: OperationsData,
+  fin: FinanceData,
+  today: TodayData | null
+): AlertItem[] {
+  const alerts: AlertItem[] = [];
+
+  const fmtEur = (n: number) =>
+    new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+
+  // ── MARKETING ALERTS (da RPC esistente) ──────────────────────────────────
+  if ((ma?.stale_leads ?? 0) > 0)
+    alerts.push({ id: "stale-leads", level: "critical",
+      title: `${ma!.stale_leads} lead non contattati da 48h+`,
+      body:  "Ogni ora persa riduce la probabilità di chiusura. Assegna un follow-up immediato.",
+      cta: "Vai ai contatti", link: "/azienda/marketing/contatti" });
+
+  if ((ma?.pending_appointments ?? 0) > 0)
+    alerts.push({ id: "pending-appointments", level: "warning",
+      title: `${ma!.pending_appointments} appuntamenti passati non completati`,
+      body:  "Aggiorna lo stato o riprogramma per non perdere traccia delle trattative.",
+      cta: "Vedi calendario", link: "/azienda/marketing/calendario" });
+
+  if ((ma?.stale_opportunities ?? 0) > 0)
+    alerts.push({ id: "stale-opps", level: "warning",
+      title: `${ma!.stale_opportunities} opportunità ferme da 7+ giorni`,
+      body:  "Le trattative inattive si raffreddano. Riattiva o archivia.",
+      cta: "Vedi opportunità", link: "/azienda/marketing/opportunita" });
+
+  if (ma?.show_rate_below_threshold)
+    alerts.push({ id: "show-rate", level: "warning",
+      title: "Show rate sotto il 60%",
+      body:  "Troppi appuntamenti non si presentano. Verifica la qualità dei lead e la fase di conferma.",
+      cta: "Analizza marketing", link: "/azienda/marketing" });
+
+  if (ma?.pipeline_declining)
+    alerts.push({ id: "pipeline-declining", level: "warning",
+      title: "Pipeline commerciale in calo",
+      body:  "Il valore delle opportunità attive è diminuito rispetto al periodo precedente.",
+      cta: "Vedi pipeline", link: "/azienda/marketing/opportunita" });
+
+  // ── OPERATIONS ALERTS ────────────────────────────────────────────────────
+  if (ops.overduePayments > 0)
+    alerts.push({ id: "overdue-payments", level: "critical",
+      title: `${ops.overduePayments} pagamenti scaduti — ${fmtEur(ops.overdueAmount)}`,
+      body:  "Clienti con rate non pagate. Sollecita prima che si allunghino i tempi.",
+      cta: "Vai agli ordini", link: "/azienda/ordini" });
+
+  if (ops.lateOrders > 0)
+    alerts.push({ id: "late-orders", level: "warning",
+      title: `${ops.lateOrders} ordini in ritardo sulla data prevista`,
+      body:  "Verifica lo stato avanzamento e aggiorna il cliente prima che si lamenti.",
+      cta: "Vedi ordini", link: "/azienda/ordini" });
+
+  // ── FINANCE ALERTS ───────────────────────────────────────────────────────
+  if (fin.cashFlowNet < 0)
+    alerts.push({ id: "negative-cashflow", level: "critical",
+      title: `Cash flow negativo questo mese: ${fmtEur(fin.cashFlowNet)}`,
+      body:  "Le uscite superano le entrate. Sollecita incassi o posticipa uscite non urgenti.",
+      cta: "Analizza costi", link: "/azienda/costi" });
+
+  // ── NUOVI ALERT DA TODAYDATA ──────────────────────────────────────────────
+  if ((today?.overdueCount ?? 0) > 0)
+    alerts.push({ id: "overdue-receivables", level: "critical",
+      title: `${today!.overdueCount} rate non incassate — ${fmtEur(today!.overdueAmount)}`,
+      body:  "Rate di pagamento con data già scaduta non ancora incassate. Contatta i clienti.",
+      cta: "Gestisci ordini", link: "/azienda/ordini" });
+
+  if ((today?.suppliersDue?.length ?? 0) > 0)
+    alerts.push({ id: "suppliers-due", level: "warning",
+      title: `${today!.suppliersDue!.length} fornitori da pagare nei prossimi 7 giorni`,
+      body:  `${fmtEur(today!.suppliersDueAmount)} di uscite programmate. Verifica la liquidità disponibile.`,
+      cta: "Vedi costi", link: "/azienda/costi" });
+
+  // Ordina: critical → warning → info
+  return alerts.sort((a, b) =>
+    a.level === "critical" && b.level !== "critical" ? -1 :
+    b.level === "critical" && a.level !== "critical" ?  1 :
+    a.level === "warning"  && b.level === "info"     ? -1 :
+    b.level === "warning"  && a.level === "info"     ?  1 : 0
+  );
+}
+
+// ─── Componente ───────────────────────────────────────────────────────────────
+
+export function AlertPanel({ marketingAlerts, operations, finance, todayData, isLoading }: Props) {
+  const navigate   = useNavigate();
+  const [showAll, setShowAll] = useState(false);
+
+  const alerts = useMemo(
+    () => buildAlerts(marketingAlerts, operations, finance, todayData),
+    [marketingAlerts, operations, finance, todayData]
+  );
+
+  if (isLoading) return (
+    <div className="space-y-2">
+      {[...Array(2)].map((_, i) => (
+        <div key={i} className="h-14 bg-gray-100 rounded-xl animate-pulse" />
+      ))}
+    </div>
+  );
+
+  if (!alerts.length) return (
+    <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-3 flex items-center gap-3">
+      <div className="w-7 h-7 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-bold text-sm">✓</div>
+      <p className="text-green-700 text-sm font-medium">Tutto sotto controllo — nessun alert critico</p>
+    </div>
+  );
+
+  const criticals = alerts.filter(a => a.level === "critical").length;
+  const visible   = showAll ? alerts : alerts.slice(0, 3);
+
+  const bg   = { critical: "bg-red-50 border-red-200",    warning: "bg-amber-50 border-amber-200",    info: "bg-blue-50 border-blue-200"    } as const;
+  const icon = { critical: <XCircle className="w-5 h-5 text-red-500" />,
+                 warning:  <AlertTriangle className="w-5 h-5 text-amber-500" />,
+                 info:     <Info className="w-5 h-5 text-blue-500" /> } as const;
+  const txt  = { critical: "text-red-800", warning: "text-amber-800", info: "text-blue-800" } as const;
+  const btn  = { critical: "bg-red-600 hover:bg-red-700 text-white",
+                 warning:  "bg-amber-500 hover:bg-amber-600 text-white",
+                 info:     "bg-blue-600 hover:bg-blue-700 text-white" } as const;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between px-1">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+          {alerts.length} Alert attivi
+          {criticals > 0 && <span className="ml-2 text-red-500">({criticals} critici)</span>}
+        </p>
+        {alerts.length > 3 && (
+          <button onClick={() => setShowAll(!showAll)}
+                  className="text-[11px] text-gray-400 hover:text-gray-600 flex items-center gap-1">
+            {showAll ? <><ChevronUp className="w-3 h-3" />Meno</> : <><ChevronDown className="w-3 h-3" />Tutti ({alerts.length})</>}
+          </button>
+        )}
+      </div>
+
+      {visible.map(alert => (
+        <div key={alert.id} className={`border rounded-xl p-4 flex items-start justify-between gap-4 ${bg[alert.level]}`}>
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="flex-shrink-0 mt-0.5">{icon[alert.level]}</div>
+            <div>
+              <p className={`font-semibold text-sm ${txt[alert.level]}`}>{alert.title}</p>
+              <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{alert.body}</p>
+            </div>
+          </div>
+          <Button size="sm" onClick={() => navigate(alert.link)}
+                  className={`flex-shrink-0 text-xs h-8 px-3 ${btn[alert.level]}`}>
+            {alert.cta} <ArrowRight className="w-3 h-3 ml-1" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+FILE 3: src/components/cruscotto/TodayFocus.tsx
+(Lead oggi · Appuntamenti oggi · Crediti scaduti · Fornitori in scadenza)
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { Users, Calendar, AlertCircle, CreditCard } from "lucide-react";
+import type { TodayData } from "@/hooks/useCruscottoData";
+
+function fmtEur(n: number) {
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
+}
+
+interface Props {
+  todayData: TodayData | null;
+  isLoading?: boolean;
+}
+
+function SkeletonCard() {
+  return <div className="bg-white border border-gray-100 rounded-xl p-4 animate-pulse"><div className="h-3 bg-gray-200 rounded w-20 mb-3" /><div className="h-7 bg-gray-200 rounded w-12" /></div>;
+}
+
+export function TodayFocus({ todayData, isLoading }: Props) {
+  const navigate = useNavigate();
+  const today    = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
+  const todayCap = today.charAt(0).toUpperCase() + today.slice(1);
+
+  if (isLoading) return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Focus · {todayCap}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
+      </div>
+    </div>
+  );
+
+  const data = todayData ?? { leadsToday: 0, appointmentsToday: 0, overdueAmount: 0, overdueCount: 0, suppliersDueAmount: 0, suppliersDue: [] };
+
+  const tiles = [
+    {
+      icon: <Users className="w-4 h-4 text-blue-600" />,
+      iconBg: "bg-blue-100",
+      label: "Lead oggi",
+      value: data.leadsToday,
+      sub: "nuovi contatti",
+      activeClass: "hover:border-blue-200",
+      valueColor: data.leadsToday > 0 ? "text-blue-600" : "text-gray-300",
+      link: "/azienda/marketing/contatti",
+      alert: false,
+    },
+    {
+      icon: <Calendar className="w-4 h-4 text-purple-600" />,
+      iconBg: "bg-purple-100",
+      label: "Appuntamenti oggi",
+      value: data.appointmentsToday,
+      sub: "in agenda",
+      activeClass: "hover:border-purple-200",
+      valueColor: data.appointmentsToday > 0 ? "text-purple-600" : "text-gray-300",
+      link: "/azienda/marketing/calendario",
+      alert: false,
+    },
+    {
+      icon: <AlertCircle className={`w-4 h-4 ${data.overdueCount > 0 ? "text-red-600" : "text-gray-400"}`} />,
+      iconBg: data.overdueCount > 0 ? "bg-red-100" : "bg-gray-100",
+      label: "Crediti scaduti",
+      value: data.overdueCount > 0 ? fmtEur(data.overdueAmount) : "0",
+      sub: data.overdueCount > 0 ? `${data.overdueCount} rate non incassate` : "tutto in regola",
+      activeClass: data.overdueCount > 0 ? "bg-red-50 border-red-200 hover:border-red-300" : "hover:border-gray-200",
+      valueColor: data.overdueCount > 0 ? "text-red-600" : "text-gray-300",
+      link: "/azienda/ordini",
+      alert: data.overdueCount > 0,
+    },
+    {
+      icon: <CreditCard className={`w-4 h-4 ${data.suppliersDue.length > 0 ? "text-amber-600" : "text-gray-400"}`} />,
+      iconBg: data.suppliersDue.length > 0 ? "bg-amber-100" : "bg-gray-100",
+      label: "Fornitori 7gg",
+      value: data.suppliersDue.length > 0 ? fmtEur(data.suppliersDueAmount) : "0",
+      sub: data.suppliersDue.length > 0 ? `${data.suppliersDue.length} scadenze` : "nessuna scadenza",
+      activeClass: data.suppliersDue.length > 0 ? "bg-amber-50 border-amber-200 hover:border-amber-300" : "hover:border-gray-200",
+      valueColor: data.suppliersDue.length > 0 ? "text-amber-600" : "text-gray-300",
+      link: "/azienda/costi",
+      alert: data.suppliersDue.length > 0,
+    },
+  ];
+
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
+        Focus · {todayCap}
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {tiles.map((t, i) => (
+          <button key={i} onClick={() => navigate(t.link)}
+                  className={`border rounded-xl p-4 text-left hover:shadow-sm transition-all bg-white border-gray-100 ${t.activeClass}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${t.iconBg}`}>{t.icon}</div>
+              <span className="text-xs text-gray-400 font-medium">{t.label}</span>
+            </div>
+            <p className={`text-2xl font-bold ${t.valueColor}`}>{t.value}</p>
+            <p className="text-xs text-gray-400 mt-1">{t.sub}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Lista fornitori in scadenza (se presenti) */}
+      {data.suppliersDue.length > 0 && (
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-sm font-semibold text-amber-800 mb-2">Prossimi pagamenti fornitori</p>
+          <div className="space-y-1">
+            {data.suppliersDue.slice(0, 4).map(c => (
+              <div key={c.id} className="flex justify-between text-sm">
+                <span className="text-gray-700 truncate max-w-48">{c.name}</span>
+                <span className="font-semibold text-amber-700 ml-2 flex-shrink-0">
+                  {fmtEur(c.amount)} · {new Date(c.due_date).toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+FILE 4: src/components/cruscotto/CashFlowForecast.tsx
+(Barre incassi 30/60/90gg · Burn rate · Finanza sintetica)
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { TrendingUp, TrendingDown } from "lucide-react";
+import type { FinanceData, CashFlowForecastData } from "@/hooks/useCruscottoData";
+
+function fmtEur(n: number) {
+  if (n >= 1_000_000) return `€${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `€${(n / 1_000).toFixed(1)}k`;
+  return `€${Math.round(n)}`;
+}
+
+interface Props {
+  finance:          FinanceData;
+  cashFlowForecast: CashFlowForecastData | null;
+  isLoading?:       boolean;
+}
+
+export function CashFlowForecast({ finance, cashFlowForecast, isLoading }: Props) {
+  const navigate   = useNavigate();
+  const cfPositive = finance.cashFlowNet >= 0;
+
+  // Burn rate calcolato inline (stessa logica di ExecutiveOverview.tsx)
+  const dayOfMonth = new Date().getDate();
+  const burnRate   = dayOfMonth > 0 ? finance.thisMonthOutflow / dayOfMonth : 0;
+
+  const maxBar = Math.max(cashFlowForecast?.incoming90 ?? 1, 1);
+
+  if (isLoading) return (
+    <div className="bg-white border border-gray-100 rounded-xl p-5 animate-pulse">
+      <div className="h-4 bg-gray-200 rounded w-32 mb-4" />
+      <div className="h-20 bg-gray-100 rounded mb-4" />
+      {[...Array(3)].map((_, i) => <div key={i} className="h-6 bg-gray-100 rounded mb-2" />)}
+    </div>
+  );
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Finanza & Cash Flow</p>
+        <button onClick={() => navigate("/azienda/costi")} className="text-xs text-blue-600 hover:text-blue-800">Dettaglio →</button>
+      </div>
+
+      {/* Cash flow netto mese */}
+      <div className={`rounded-lg p-4 mb-5 ${cfPositive ? "bg-green-50" : "bg-red-50"}`}>
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">Cash Flow Netto (mese)</p>
+            <p className={`text-2xl font-bold ${cfPositive ? "text-green-600" : "text-red-600"}`}>
+              {cfPositive ? "+" : ""}{fmtEur(finance.cashFlowNet)}
+            </p>
+          </div>
+          <div className="text-right space-y-1">
+            <div className="flex items-center justify-end gap-1 text-sm">
+              <TrendingUp className="w-4 h-4 text-green-500" />
+              <span className="text-green-600 font-medium">{fmtEur(finance.thisMonthIncome)}</span>
+            </div>
+            <div className="flex items-center justify-end gap-1 text-sm">
+              <TrendingDown className="w-4 h-4 text-red-500" />
+              <span className="text-red-500 font-medium">{fmtEur(finance.thisMonthOutflow)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-6 mt-3 pt-3 border-t border-white/60">
+          <div>
+            <p className="text-xs text-gray-500">Burn rate</p>
+            <p className="text-sm font-semibold text-gray-700">{fmtEur(burnRate)}/gg</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Margine lordo</p>
+            <p className={`text-sm font-semibold ${
+              finance.marginThisMonth >= 20 ? "text-green-600"
+              : finance.marginThisMonth >= 10 ? "text-amber-600" : "text-red-600"
+            }`}>
+              {finance.marginThisMonth.toFixed(1)}%
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Barre incassi attesi 30/60/90gg */}
+      <div>
+        <p className="text-xs text-gray-400 font-medium mb-3">Incassi attesi (rate di pagamento programmate)</p>
+        {cashFlowForecast ? (
+          <div className="space-y-3">
+            {([
+              { label: "Entro 30gg", value: cashFlowForecast.incoming30, color: "bg-blue-600" },
+              { label: "Entro 60gg", value: cashFlowForecast.incoming60, color: "bg-blue-400" },
+              { label: "Entro 90gg", value: cashFlowForecast.incoming90, color: "bg-blue-200" },
+            ] as const).map(({ label, value, color }) => (
+              <div key={label}>
+                <div className="flex justify-between mb-1">
+                  <span className="text-xs text-gray-500">{label}</span>
+                  <span className="text-sm font-semibold text-gray-800">{fmtEur(value)}</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${color}`}
+                       style={{ width: `${Math.min((value / maxBar) * 100, 100)}%`, transition: "width 0.4s ease" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">Nessuna rata di pagamento pianificata nei prossimi 90 giorni.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+════════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [CR3] — RISTRUTTURA CruscottoAziendale.tsx
+              Singolo scroll · Niente tab · Integra tutti i nuovi componenti
+════════════════════════════════════════════════════════════════════════════════
+
+Apri il file: src/pages/azienda/CruscottoAziendale.tsx
+
+STEP 1 — Aggiorna gli import. Aggiungi i 4 nuovi import e rimuovi CruscottoAlerts:
+
+```typescript
+// AGGIUNGI questi import (i 4 nuovi componenti):
+import { CruscottoHero }       from "@/components/cruscotto/CruscottoHero";
+import { AlertPanel }          from "@/components/cruscotto/AlertPanel";
+import { TodayFocus }          from "@/components/cruscotto/TodayFocus";
+import { CashFlowForecast }    from "@/components/cruscotto/CashFlowForecast";
+
+// RIMUOVI questo import (sostituito da AlertPanel):
+// import { CruscottoAlerts } from "@/components/cruscotto/CruscottoAlerts";
+```
+
+STEP 2 — Aggiorna il destructuring da useCruscottoData (riga ~20):
+
+```typescript
+const {
+  marketing,
+  operations,
+  finance,
+  weeklyAgenda,
+  isLoading,
+  error,
+  filters,
+  updateFilters,
+  todayData,        // ← NUOVO
+  cashFlowForecast, // ← NUOVO
+} = useCruscottoData();
+```
+
+STEP 3 — Sostituisci TUTTO il contenuto del return con questo layout a singolo scroll.
+Mantieni la stessa logica condizionale già esistente (error banner, empty state):
+
+```tsx
+return (
+  <div className="min-h-screen bg-gray-50/60">
+
+    {/* ── HEADER sticky ──────────────────────────────────────────── */}
+    <div className="bg-white border-b border-gray-100 sticky top-0 z-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-sm font-bold text-gray-900 leading-none">Cruscotto Aziendale</h1>
+          <p className="text-[11px] text-gray-400 mt-0.5">Centro di comando — {new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+        </div>
+        {/* Filtri globali — COMPONENTE ESISTENTE invariato */}
+        <CruscottoFilters filters={filters} onUpdate={updateFilters} />
+      </div>
+    </div>
+
+    {/* ── CORPO PRINCIPALE ──────────────────────────────────────── */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+      {/* Error banner — logica ESISTENTE invariata */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+          Errore nel caricamento dei dati. Riprova tra qualche secondo.
+        </div>
+      )}
+
+      {/* ── SEZIONE 1: I 4 NUMERI CHIAVE + HEALTH SCORE ─────────── */}
+      <CruscottoHero
+        finance={finance}
+        operations={operations}
+        kpi={marketing?.kpi}
+        monthRevenue={cashFlowForecast?.monthRevenue ?? finance.revenueThisMonth}
+        quarterRevenue={cashFlowForecast?.quarterRevenue ?? 0}
+        ytdRevenue={cashFlowForecast?.ytdRevenue ?? 0}
+        isLoading={isLoading}
+      />
+
+      {/* ── SEZIONE 2: ALERT CRITICI ─────────────────────────────── */}
+      <AlertPanel
+        marketingAlerts={marketing?.alerts}
+        operations={operations}
+        finance={finance}
+        todayData={todayData}
+        isLoading={isLoading}
+      />
+
+      {/* ── SEZIONE 3: FOCUS DI OGGI ─────────────────────────────── */}
+      <TodayFocus
+        todayData={todayData}
+        isLoading={isLoading}
+      />
+
+      {/* ── SEZIONE 4: FINANZA & CASH FLOW ───────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <CashFlowForecast
+          finance={finance}
+          cashFlowForecast={cashFlowForecast}
+          isLoading={isLoading}
+        />
+        {/* FinanzaCashFlow esistente — props INVARIATE */}
+        <FinanzaCashFlow
+          finance={finance}
+          isLoading={isLoading}
+        />
+      </div>
+
+      {/* ── SEZIONE 5: VENDITE & PIPELINE ────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Mini-tabella KPI commerciali — componente inline */}
+        <div className="bg-white border border-gray-100 rounded-xl p-5">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">Performance Commerciale</p>
+          <div className="space-y-3">
+            {[
+              { label: "Lead nuovi",      value: marketing?.kpi?.leads_new,       fmt: "n" },
+              { label: "Appuntamenti",    value: marketing?.kpi?.appointments_set, fmt: "n" },
+              { label: "Show rate",       value: marketing?.kpi?.show_rate,        fmt: "%" },
+              { label: "Tasso chiusura",  value: marketing?.kpi?.close_rate,       fmt: "%" },
+              { label: "Contratti vinti", value: marketing?.kpi?.contracts_won,    fmt: "n" },
+              { label: "Ticket medio",    value: marketing?.kpi?.avg_ticket,       fmt: "€" },
+              { label: "Pipeline pesata", value: marketing?.kpi?.weighted_pipeline, fmt: "€€" },
+            ].map(({ label, value, fmt }) => (
+              <div key={label} className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">{label}</span>
+                <span className="text-sm font-bold text-gray-900">
+                  {value == null ? "—"
+                   : fmt === "€€" ? (value >= 1000 ? `€${(value / 1000).toFixed(0)}k` : `€${value}`)
+                   : fmt === "€"  ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(value)
+                   : fmt === "%"  ? `${Number(value).toFixed(1)}%`
+                   : String(value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* PipelineForecast esistente — props INVARIATE */}
+        <div className="lg:col-span-2">
+          <PipelineForecast
+            kpi={marketing?.kpi}
+            funnel={marketing?.funnel}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
+
+      {/* ── SEZIONE 6: OPERAZIONI ────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* OperationsDelivery esistente — props INVARIATE */}
+        <OperationsDelivery
+          operations={operations}
+          weeklyAgenda={weeklyAgenda}
+          isLoading={isLoading}
+        />
+        {/* WeeklySnapshot esistente — props INVARIATE */}
+        <WeeklySnapshot
+          weeklyAgenda={weeklyAgenda}
+          isLoading={isLoading}
+        />
+      </div>
+
+      {/* ── SEZIONE 7: PERFORMANCE TEAM & TREND ─────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* HRPerformance esistente — props INVARIATE */}
+        <HRPerformance
+          sales={marketing?.sales_performance}
+          isLoading={isLoading}
+        />
+        {/* CruscottoTrend esistente — props INVARIATE */}
+        <div className="lg:col-span-2">
+          <CruscottoTrend
+            trend={marketing?.trend}
+            isLoading={isLoading}
+          />
+        </div>
+      </div>
+
+      {/* ── SEZIONE 8: ANALISI FONTI & MARKETING ────────────────── */}
+      <MarketingControl
+        sources={marketing?.sources}
+        funnel={marketing?.funnel}
+        isLoading={isLoading}
+      />
+
+    </div>
+  </div>
+);
+```
+
+════════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════════
+PROMPT [CR4] — VERIFICA FINALE E FIX INTEGRAZIONE
+              Controlla che tutto sia collegato correttamente
+════════════════════════════════════════════════════════════════════════════════
+
+Dopo aver implementato CR1→CR2→CR3, fai queste verifiche:
+
+─────────────────────────────────────────────────────────────────────────────
+VERIFICA A — Tipi esportati da useCruscottoData.ts
+─────────────────────────────────────────────────────────────────────────────
+Assicurati che tutti i tipi usati nei nuovi componenti siano ESPORTATI
+dal file src/hooks/useCruscottoData.ts con la keyword `export`:
+
+```typescript
+export interface FinanceData { ... }          // già esistente → aggiungi export se manca
+export interface OperationsData { ... }       // già esistente → aggiungi export se manca
+export interface WeeklyAgendaData { ... }     // già esistente → aggiungi export se manca
+export interface TodayData { ... }            // NUOVO da CR1
+export interface CashFlowForecastData { ... } // NUOVO da CR1
+```
+
+─────────────────────────────────────────────────────────────────────────────
+VERIFICA B — KpiData esportato
+─────────────────────────────────────────────────────────────────────────────
+Il tipo KpiData (usato in CruscottoHero e nelle kpi card) viene definito
+nel file DashboardStats o simile. Verificane il path e aggiorna l'import
+in CruscottoHero.tsx se necessario:
+
+```typescript
+// Se KpiData è in un file separato tipo src/types/dashboard.ts:
+import type { KpiData } from "@/types/dashboard";
+
+// Se è inline in useCruscottoData.ts già come export:
+import type { KpiData } from "@/hooks/useCruscottoData";
+```
+
+─────────────────────────────────────────────────────────────────────────────
+VERIFICA C — AlertsData interface in AlertPanel.tsx
+─────────────────────────────────────────────────────────────────────────────
+La prop `marketingAlerts` in AlertPanel.tsx usa l'interfaccia AlertsData.
+Questa corrisponde al tipo `marketing?.alerts` della RPC. Verifica che
+i campi combacino con ciò che ritorna la RPC `get_marketing_dashboard_stats`.
+Se la RPC ritorna il campo con nome diverso, adatta AlertsData o usa `as any`.
+
+─────────────────────────────────────────────────────────────────────────────
+VERIFICA D — Niente import di CruscottoAlerts rimasto
+─────────────────────────────────────────────────────────────────────────────
+Cerca in CruscottoAziendale.tsx che NON ci siano più riferimenti a
+`CruscottoAlerts`. Il componente è stato sostituito da AlertPanel.
+Il file CruscottoAlerts.tsx può rimanere su disco (non eliminare),
+ma non deve essere importato.
+
+─────────────────────────────────────────────────────────────────────────────
+VERIFICA E — Route di navigazione in TodayFocus e AlertPanel
+─────────────────────────────────────────────────────────────────────────────
+I link usati nei componenti nuovi sono:
+  /azienda/marketing/contatti         ← marketing_contacts
+  /azienda/marketing/calendario       ← appointments
+  /azienda/ordini                     ← orders + installments
+  /azienda/costi                      ← company_costs
+  /azienda/marketing/opportunita      ← marketing_opportunities
+
+Verifica che queste route esistano in App.tsx. Se una route ha un path
+leggermente diverso (es. /azienda/marketing/opportunità con accento),
+adatta il link nel componente corrispondente.
+
+─────────────────────────────────────────────────────────────────────────────
+VERIFICA F — Test integrazione dati (apri il cruscotto dopo il deploy)
+─────────────────────────────────────────────────────────────────────────────
+Controlla nella console del browser che:
+  1. Non ci siano errori TypeScript o runtime
+  2. Le query "cruscotto-today" e "cruscotto-cashflow-forecast" appaiono
+     nel React Query DevTools (se attivo) senza errori
+  3. I 4 KPI hero (fatturato, cash flow, posizione netta, health score)
+     mostrano i valori corretti e coerenti con ExecutiveOverview esistente
+  4. AlertPanel mostra gli stessi alert di CruscottoAlerts originale
+     (più i nuovi alert da TodayData)
+  5. Le barre 30/60/90gg mostrano valori crescenti (incoming90 >= incoming60 >= incoming30)
+  6. I 4 tile di TodayFocus mostrano dati live di oggi
+
+================================================================================
+RIEPILOGO: COSA CAMBIA VS COSA RIMANE
+================================================================================
+
+FILE NUOVI:
+  src/components/cruscotto/CruscottoHero.tsx       ← 4 KPI grandi + Health Score
+  src/components/cruscotto/AlertPanel.tsx           ← sostituisce CruscottoAlerts
+  src/components/cruscotto/TodayFocus.tsx           ← dati live di OGGI
+  src/components/cruscotto/CashFlowForecast.tsx     ← incassi 30/60/90gg
+
+FILE MODIFICATI:
+  src/hooks/useCruscottoData.ts                     ← +2 query +2 tipi +return aggiornato
+  src/pages/azienda/CruscottoAziendale.tsx          ← layout singolo scroll senza tab
+
+FILE ESISTENTI RIUTILIZZATI SENZA MODIFICHE:
+  CompanyHealthScore, ExecutiveOverview (rimangono nel codice ma non nel layout)
+  FinanzaCashFlow, PipelineForecast, MarketingControl, SalesControl
+  OperationsDelivery, WeeklySnapshot, HRPerformance, CruscottoTrend
+  CruscottoFilters
+
+NUOVI DATI IN PRODUZIONE:
+  → Lead nuovi OGGI (live, non filtrato da dateRange)
+  → Appuntamenti OGGI (da tabella `appointments`, colonna `appointment_date`)
+  → Crediti scaduti (rate con expected_date passata non pagate)
+  → Fornitori in scadenza 7gg (da tabella `company_costs`)
+  → Cash flow forecast 30/60/90gg (da `order_installments`)
+  → Fatturato mese / trimestre / anno YTD (da `orders.total_amount`)
+  → Posizione netta = pendingRevenue - supplierDebt
+
+================================================================================

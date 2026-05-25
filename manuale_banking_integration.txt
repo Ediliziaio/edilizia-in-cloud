@@ -1,0 +1,1261 @@
+================================================================================
+MANUALE SVILUPPO — BANKING INTEGRATION SERVICE (Tesoreria Open Banking)
+Stile AGICAP · PSD2 · GoCardless Bank Account Data API
+Versione 2.0 — Bug-verified, production-ready
+================================================================================
+
+VISIONE DEL PRODOTTO
+────────────────────
+Il modulo Tesoreria permette alle aziende di collegare i propri conti bancari
+tramite Open Banking (PSD2) e avere su un'unica piattaforma:
+  • Saldo in tempo reale di tutti i conti
+  • Feed unificato di transazioni categorizzate automaticamente
+  • Cash flow mensile (entrate/uscite/netto) con grafico storico
+  • (futuro) Riconciliazione con fatture e costi registrati
+
+PROVIDER API: GoCardless Bank Account Data (ex Nordigen)
+  • 2.400+ banche in 30+ paesi EU, incluse tutte le principali italiane
+    (Intesa SanPaolo, UniCredit, Banco BPM, BPER, Fineco, Mediolanum, Widiba…)
+  • PSD2-compliant · Sola lettura · Non può eseguire pagamenti
+  • Free tier: 50 requisizioni/giorno · poi pay-per-use
+  • Documentazione: https://developer.gocardless.com/bank-account-data/overview
+  • Registrazione: https://bankaccountdata.gocardless.com/overview/
+  • Sandbox per test: usa istituto "SANDBOXFINANCE_SFIN0000", credenziali "test"/"test"
+
+ARCHITETTURA SICUREZZA
+──────────────────────
+  SuperAdmin → configura credenziali GoCardless in platform_settings (server-only)
+  ↓
+  Azienda → seleziona banca → redirect sicuro a pagina login banca (GoCardless)
+  ↓
+  GoCardless → callback con requisition_id → edge function completa la connessione
+  ↓
+  Edge functions (service role) → sincronizzano saldi e transazioni (token MAI esposti)
+  ↓
+  Dashboard Tesoreria → KPI, conti, feed transazioni, cash flow
+
+REGOLE DI SICUREZZA (NON NEGOZIABILI):
+  ✗ Le credenziali GoCardless NON toccano mai il frontend
+  ✗ I token bancari sono gestiti SOLO dalle edge functions (service role)
+  ✗ RLS garantisce isolamento completo tra aziende
+  ✓ redirect_url validato server-side per prevenire XSS/SSRF
+  ✓ Token GoCardless (24h) con retry automatico se scaduto durante sync
+
+SEQUENZA DI SVILUPPO (dare i 7 prompt a Lovable in QUESTO ORDINE)
+──────────────────────────────────────────────────────────────────
+  PROMPT 1 → Database: tabelle, RLS (incluso service_role), RPC corrette
+  PROMPT 2 → SuperAdmin: configurazione API GoCardless
+  PROMPT 3 → Routing + Navigazione: nuova sezione Tesoreria
+  PROMPT 4 → Edge Functions: 6 funzioni (incluse list-institutions e get-platform-settings)
+  PROMPT 5 → UI Connessioni + Conti bancari
+  PROMPT 6 → UI Overview + Transazioni + Cash Flow
+  PROMPT 7 → Edge function: sincronizzazione automatica schedulata
+
+================================================================================
+PROMPT 1 — DATABASE SCHEMA (tabelle, RLS completo, RPC corrette)
+================================================================================
+
+Crea una nuova migration SQL per il modulo "Tesoreria / Open Banking".
+NON modificare tabelle esistenti. Solo nuove tabelle e un ALTER TABLE companies.
+
+--- MIGRATION SQL ---
+
+-- ================================================================
+-- 1. bank_provider_configs (metadati provider — gestita da SuperAdmin)
+--    Le credenziali vanno in platform_settings, mai qui.
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.bank_provider_configs (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider_slug       text UNIQUE NOT NULL,
+  provider_name       text NOT NULL,
+  logo_url            text,
+  description         text,
+  is_enabled          boolean NOT NULL DEFAULT false,
+  supported_countries text[] DEFAULT ARRAY['IT','FR','DE','ES','NL','BE','AT','PT'],
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO public.bank_provider_configs
+  (provider_slug, provider_name, description, is_enabled, supported_countries)
+VALUES (
+  'gocardless',
+  'GoCardless Bank Account Data',
+  'Open Banking PSD2 — 2.400+ banche EU. Accesso in sola lettura, conforme PSD2.',
+  false,
+  ARRAY['IT','FR','DE','ES','NL','BE','AT','PT','GB','SE','NO','DK','FI','IE','PL','CZ','HU']
+) ON CONFLICT (provider_slug) DO NOTHING;
+
+-- ================================================================
+-- 2. Aggiunta colonna tesoreria_enabled a companies
+--    Permette al SuperAdmin di abilitare il modulo per singola azienda
+-- ================================================================
+ALTER TABLE public.companies
+  ADD COLUMN IF NOT EXISTS tesoreria_enabled boolean NOT NULL DEFAULT false;
+
+-- ================================================================
+-- 3. bank_connections (connessioni banca per azienda)
+--    expires_at: GoCardless revoca accesso dopo 90 giorni
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.bank_connections (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id           uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  provider_slug        text NOT NULL DEFAULT 'gocardless',
+  institution_id       text NOT NULL,
+  institution_name     text NOT NULL,
+  institution_logo     text,
+  institution_country  text DEFAULT 'IT',
+  requisition_id       text UNIQUE,
+  status               text NOT NULL DEFAULT 'pending',
+  -- 'pending'|'authenticating'|'active'|'expired'|'error'|'disconnected'
+  error_message        text,
+  last_sync_at         timestamptz,
+  accounts_count       int NOT NULL DEFAULT 0,
+  expires_at           timestamptz,  -- scadenza accesso GoCardless (90gg da creazione)
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  created_by           uuid REFERENCES auth.users(id),
+  updated_at           timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_bank_connections_company  ON public.bank_connections(company_id);
+CREATE INDEX idx_bank_connections_status   ON public.bank_connections(status);
+CREATE INDEX idx_bank_connections_expires  ON public.bank_connections(expires_at);
+
+-- ================================================================
+-- 4. bank_accounts (conti bancari per azienda)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.bank_accounts (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id            uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  connection_id         uuid NOT NULL REFERENCES public.bank_connections(id) ON DELETE CASCADE,
+  external_account_id   text NOT NULL,
+  iban                  text,
+  bban                  text,
+  account_name          text,
+  account_owner_name    text,
+  account_type          text NOT NULL DEFAULT 'checking',
+  currency              text NOT NULL DEFAULT 'EUR',
+  current_balance       numeric(15,2),
+  available_balance     numeric(15,2),
+  balance_updated_at    timestamptz,
+  is_active             boolean NOT NULL DEFAULT true,
+  display_name          text,
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(company_id, external_account_id)
+);
+CREATE INDEX idx_bank_accounts_company    ON public.bank_accounts(company_id);
+CREATE INDEX idx_bank_accounts_connection ON public.bank_accounts(connection_id);
+CREATE INDEX idx_bank_accounts_active     ON public.bank_accounts(is_active) WHERE is_active = true;
+
+-- ================================================================
+-- 5. bank_transactions (transazioni sincronizzate)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.bank_transactions (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id              uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  account_id              uuid NOT NULL REFERENCES public.bank_accounts(id) ON DELETE CASCADE,
+  external_transaction_id text NOT NULL,
+  booking_date            date,
+  value_date              date,
+  amount                  numeric(15,2) NOT NULL,
+  currency                text NOT NULL DEFAULT 'EUR',
+  description             text,
+  creditor_name           text,
+  debtor_name             text,
+  creditor_iban           text,
+  debtor_iban             text,
+  merchant_name           text,
+  reference               text,
+  transaction_type        text NOT NULL DEFAULT 'debit',  -- 'credit' | 'debit'
+  -- NOTA: amount > 0 → credit (entrata), amount < 0 → debit (uscita)
+  -- transaction_type è derivato da amount: amount > 0 = 'credit', amount <= 0 = 'debit'
+  status                  text NOT NULL DEFAULT 'booked', -- 'booked' | 'pending'
+  category                text,
+  category_icon           text,
+  note                    text,
+  linked_invoice_id       uuid,
+  linked_cost_id          uuid,
+  metadata                jsonb NOT NULL DEFAULT '{}',
+  synced_at               timestamptz NOT NULL DEFAULT now(),
+  created_at              timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(company_id, external_transaction_id)
+);
+CREATE INDEX idx_bank_transactions_company  ON public.bank_transactions(company_id);
+CREATE INDEX idx_bank_transactions_account  ON public.bank_transactions(account_id);
+CREATE INDEX idx_bank_transactions_date     ON public.bank_transactions(booking_date DESC);
+CREATE INDEX idx_bank_transactions_type     ON public.bank_transactions(transaction_type);
+CREATE INDEX idx_bank_transactions_category ON public.bank_transactions(category);
+CREATE INDEX idx_bank_transactions_status   ON public.bank_transactions(status);
+
+-- ================================================================
+-- 6. bank_sync_logs (storico sincronizzazioni)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.bank_sync_logs (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id           uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  connection_id        uuid REFERENCES public.bank_connections(id) ON DELETE SET NULL,
+  sync_type            text NOT NULL DEFAULT 'manual',  -- 'manual'|'scheduled'|'reconnect'
+  status               text NOT NULL DEFAULT 'running', -- 'running'|'success'|'error'|'partial'
+  accounts_synced      int NOT NULL DEFAULT 0,
+  transactions_fetched int NOT NULL DEFAULT 0,
+  error_message        text,
+  started_at           timestamptz NOT NULL DEFAULT now(),
+  completed_at         timestamptz,
+  triggered_by         uuid REFERENCES auth.users(id)
+);
+CREATE INDEX idx_bank_sync_logs_company ON public.bank_sync_logs(company_id);
+CREATE INDEX idx_bank_sync_logs_status  ON public.bank_sync_logs(status);
+
+-- ================================================================
+-- 7. bank_categorization_rules (regole auto-categorizzazione)
+-- ================================================================
+CREATE TABLE IF NOT EXISTS public.bank_categorization_rules (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id  uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  priority    int NOT NULL DEFAULT 0,
+  match_field text NOT NULL DEFAULT 'description',
+  match_value text NOT NULL,
+  match_type  text NOT NULL DEFAULT 'contains',  -- 'contains'|'starts_with'|'equals'|'regex'
+  is_case_sensitive boolean NOT NULL DEFAULT false,
+  category    text NOT NULL,
+  category_icon text,
+  auto_apply  boolean NOT NULL DEFAULT true,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_bank_rules_company ON public.bank_categorization_rules(company_id, priority);
+
+-- ================================================================
+-- RLS POLICIES
+-- IMPORTANTE: include policies per service_role (edge functions)
+--             Il service_role bypassa RLS per default in Supabase.
+--             Teniamo RLS abilitate ma le edge functions usano service_role
+--             che bypassa automaticamente. Non servono policy extra.
+-- ================================================================
+ALTER TABLE public.bank_provider_configs        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_connections             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_accounts                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_transactions            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_sync_logs              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bank_categorization_rules    ENABLE ROW LEVEL SECURITY;
+
+-- bank_provider_configs: lettura pubblica (autenticati), scrittura solo super_admin
+CREATE POLICY "Anyone authenticated can read bank providers"
+  ON public.bank_provider_configs FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Super admins manage bank providers"
+  ON public.bank_provider_configs FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'super_admin'::public.app_role))
+  WITH CHECK (public.has_role(auth.uid(), 'super_admin'::public.app_role));
+
+-- bank_connections: company isolation
+CREATE POLICY "Company users can view own bank connections"
+  ON public.bank_connections FOR SELECT TO authenticated
+  USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
+CREATE POLICY "Company admins can manage bank connections"
+  ON public.bank_connections FOR ALL TO authenticated
+  USING (
+    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())
+    AND (public.has_role(auth.uid(), 'company_admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'super_admin'::public.app_role))
+  )
+  WITH CHECK (
+    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())
+    AND (public.has_role(auth.uid(), 'company_admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'super_admin'::public.app_role))
+  );
+
+-- bank_accounts: company isolation
+CREATE POLICY "Company users can view own bank accounts"
+  ON public.bank_accounts FOR SELECT TO authenticated
+  USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
+CREATE POLICY "Company admins can manage bank accounts"
+  ON public.bank_accounts FOR ALL TO authenticated
+  USING (
+    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())
+    AND (public.has_role(auth.uid(), 'company_admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'super_admin'::public.app_role))
+  )
+  WITH CHECK (
+    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())
+    AND (public.has_role(auth.uid(), 'company_admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'super_admin'::public.app_role))
+  );
+
+-- bank_transactions: lettura a tutti company users, scrittura a company_admin
+CREATE POLICY "Company users can view own bank transactions"
+  ON public.bank_transactions FOR SELECT TO authenticated
+  USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
+CREATE POLICY "Company admins can manage bank transactions"
+  ON public.bank_transactions FOR ALL TO authenticated
+  USING (
+    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())
+    AND (public.has_role(auth.uid(), 'company_admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'super_admin'::public.app_role))
+  )
+  WITH CHECK (
+    company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid())
+    AND (public.has_role(auth.uid(), 'company_admin'::public.app_role)
+      OR public.has_role(auth.uid(), 'super_admin'::public.app_role))
+  );
+
+-- bank_sync_logs: sola lettura company users, le edge functions scrivono via service_role
+CREATE POLICY "Company users can view own sync logs"
+  ON public.bank_sync_logs FOR SELECT TO authenticated
+  USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
+
+-- bank_categorization_rules: gestite da company users
+CREATE POLICY "Company users manage own categorization rules"
+  ON public.bank_categorization_rules FOR ALL TO authenticated
+  USING (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()))
+  WITH CHECK (company_id IN (SELECT company_id FROM public.profiles WHERE id = auth.uid()));
+
+-- ================================================================
+-- RPC FUNCTIONS
+-- NOTA: CORRETTE — nessun GROUP BY errato
+-- ================================================================
+
+-- get_treasury_summary: KPI aggregati per la dashboard Overview
+-- CORRETTO: WHERE filtra già per company_id, nessun GROUP BY necessario
+CREATE OR REPLACE FUNCTION public.get_treasury_summary(p_company_id uuid)
+RETURNS TABLE (
+  total_balance      numeric,
+  accounts_count     bigint,
+  connections_count  bigint,
+  monthly_income     numeric,
+  monthly_expenses   numeric,
+  monthly_net        numeric,
+  last_sync_at       timestamptz
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT
+    COALESCE((
+      SELECT SUM(ba.current_balance)
+      FROM public.bank_accounts ba
+      WHERE ba.company_id = p_company_id AND ba.is_active = true
+    ), 0) AS total_balance,
+
+    (SELECT COUNT(*) FROM public.bank_accounts ba
+     WHERE ba.company_id = p_company_id AND ba.is_active = true
+    ) AS accounts_count,
+
+    (SELECT COUNT(*) FROM public.bank_connections bc
+     WHERE bc.company_id = p_company_id AND bc.status = 'active'
+    ) AS connections_count,
+
+    COALESCE((
+      SELECT SUM(t.amount)
+      FROM public.bank_transactions t
+      WHERE t.company_id = p_company_id
+        AND t.transaction_type = 'credit'
+        AND t.booking_date >= date_trunc('month', CURRENT_DATE)
+        AND t.status = 'booked'
+    ), 0) AS monthly_income,
+
+    COALESCE((
+      SELECT SUM(ABS(t.amount))
+      FROM public.bank_transactions t
+      WHERE t.company_id = p_company_id
+        AND t.transaction_type = 'debit'
+        AND t.booking_date >= date_trunc('month', CURRENT_DATE)
+        AND t.status = 'booked'
+    ), 0) AS monthly_expenses,
+
+    COALESCE((
+      SELECT SUM(t.amount)
+      FROM public.bank_transactions t
+      WHERE t.company_id = p_company_id
+        AND t.booking_date >= date_trunc('month', CURRENT_DATE)
+        AND t.status = 'booked'
+    ), 0) AS monthly_net,
+
+    (SELECT MAX(bc.last_sync_at) FROM public.bank_connections bc
+     WHERE bc.company_id = p_company_id
+    ) AS last_sync_at;
+$$;
+
+-- get_cash_flow_by_month: dati mensili per il grafico
+CREATE OR REPLACE FUNCTION public.get_cash_flow_by_month(
+  p_company_id uuid,
+  p_months     int DEFAULT 6
+)
+RETURNS TABLE (
+  month    text,
+  income   numeric,
+  expenses numeric,
+  net      numeric
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT
+    TO_CHAR(date_trunc('month', t.booking_date), 'YYYY-MM') AS month,
+    COALESCE(SUM(t.amount) FILTER (WHERE t.transaction_type = 'credit'), 0)     AS income,
+    COALESCE(SUM(ABS(t.amount)) FILTER (WHERE t.transaction_type = 'debit'), 0) AS expenses,
+    COALESCE(SUM(t.amount), 0)                                                   AS net
+  FROM public.bank_transactions t
+  WHERE t.company_id = p_company_id
+    AND t.booking_date >= date_trunc('month', CURRENT_DATE)
+      - make_interval(months => p_months - 1)
+    AND t.status = 'booked'
+  GROUP BY date_trunc('month', t.booking_date)
+  ORDER BY 1 ASC;
+$$;
+
+-- Trigger updated_at (usa funzione esistente del progetto se presente,
+-- altrimenti crea update_updated_at_column)
+CREATE OR REPLACE FUNCTION public.banking_set_updated_at()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
+
+CREATE TRIGGER trg_bank_connections_updated_at
+  BEFORE UPDATE ON public.bank_connections
+  FOR EACH ROW EXECUTE FUNCTION public.banking_set_updated_at();
+
+CREATE TRIGGER trg_bank_accounts_updated_at
+  BEFORE UPDATE ON public.bank_accounts
+  FOR EACH ROW EXECUTE FUNCTION public.banking_set_updated_at();
+
+CREATE TRIGGER trg_bank_provider_configs_updated_at
+  BEFORE UPDATE ON public.bank_provider_configs
+  FOR EACH ROW EXECUTE FUNCTION public.banking_set_updated_at();
+
+--- FINE MIGRATION ---
+
+================================================================================
+PROMPT 2 — SUPERADMIN: CONFIGURAZIONE API BANCARIE
+================================================================================
+
+Aggiungi un tab "Banking" alla pagina `src/pages/admin/AdminSettings.tsx`.
+NON modificare i tab esistenti. Segui ESATTAMENTE il pattern attuale.
+
+MODIFICA AdminSettings.tsx:
+  - Aggiungi import: `import { Landmark } from "lucide-react";`
+  - Aggiungi import: `import BankingSettingsTab from "@/components/admin/settings/BankingSettingsTab";`
+  - Aggiungi TabsTrigger (visibile solo se permissions.can_manage_admins):
+      <TabsTrigger value="banking" className="gap-2">
+        <Landmark className="h-4 w-4" /> Banking
+      </TabsTrigger>
+  - Aggiungi TabsContent:
+      {permissions.can_manage_admins && (
+        <TabsContent value="banking"><BankingSettingsTab /></TabsContent>
+      )}
+
+CREA: `src/components/admin/settings/BankingSettingsTab.tsx`
+
+Questo componente NON legge direttamente da platform_settings (RLS non lo permette).
+Legge tramite l'edge function `bank-get-admin-config` e scrive tramite direct Supabase
+upsert (i super_admin hanno accesso a platform_settings tramite le loro policy).
+
+VERIFICA: esiste una policy su platform_settings che permette ai super_admin di leggere
+e scrivere? Se sì, usa Supabase direttamente. Se no, usa l'edge function.
+Controlla le policy su platform_settings e adatta di conseguenza.
+
+STRUTTURA DEL COMPONENTE:
+
+  SEZIONE 1 — Card "GoCardless Bank Account Data":
+    - Header: badge "Open Banking PSD2" e badge status (verde "Configurato" / grigio "Non configurato")
+    - Icona Landmark grande
+    - Testo: "Connetti le banche europee dei tuoi clienti tramite PSD2.
+      Registrati gratuitamente su bankaccountdata.gocardless.com per ottenere le credenziali."
+    - Link: <a href="https://bankaccountdata.gocardless.com/overview/" target="_blank">
+        Apri dashboard GoCardless →
+      </a>
+    - Input "GoCardless Secret ID":
+        type="text", placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        Al caricamento: se già salvato mostra "••••••••" con pulsante "Modifica" che pulisce
+    - Input "GoCardless Secret Key":
+        type="password" con toggle show/hide
+        Al caricamento: se già salvato mostra "••••••••" con pulsante "Modifica"
+    - Switch "Abilita modulo Tesoreria sulla piattaforma":
+        Quando OFF: nessuna azienda può usare la Tesoreria
+        Salva in platform_settings chiave: "bank_gocardless_enabled" value: "true"/"false"
+    - Pulsante "Salva Configurazione":
+        Fa upsert su platform_settings per le 3 chiavi:
+          bank_gocardless_secret_id, bank_gocardless_secret_key, bank_gocardless_enabled
+        Formato: { key: '...', value: '...' } ON CONFLICT (key) DO UPDATE SET value, updated_at
+    - Pulsante "Testa Connessione":
+        Chiama `supabase.functions.invoke('bank-test-connection')`
+        Mostra toast verde "✓ GoCardless OK — Connessione verificata" o toast rosso con errore
+
+  SEZIONE 2 — Card "Aziende con Tesoreria":
+    Query:
+      SELECT c.id, c.name, c.tesoreria_enabled,
+        COUNT(bc.id) FILTER (WHERE bc.status='active') as active_connections,
+        MAX(bc.last_sync_at) as last_sync
+      FROM companies c
+      LEFT JOIN bank_connections bc ON bc.company_id = c.id
+      GROUP BY c.id, c.name, c.tesoreria_enabled
+      ORDER BY c.name
+
+    Per ogni azienda:
+      - Nome azienda
+      - Badge connessioni attive ("N banche collegate")
+      - Timestamp ultima sync
+      - Switch per abilitare/disabilitare tesoreria:
+          UPDATE companies SET tesoreria_enabled = !current WHERE id = company_id
+          Dopo update: invalidate query e toast
+
+================================================================================
+PROMPT 3 — ROUTING + NAVIGAZIONE
+================================================================================
+
+Segui ESATTAMENTE i pattern esistenti in App.tsx e nel sidebar/navigation.
+
+STEP 1 — src/App.tsx:
+  Aggiungi dopo la riga di CashFlowForecast:
+    const Tesoreria = lazy(() => import("@/pages/azienda/Tesoreria"));
+  Aggiungi route sotto /azienda, accanto a "previsionale":
+    <Route path="tesoreria" element={<Tesoreria />} />
+
+STEP 2 — Sidebar Navigation:
+  Trova il file che definisce le voci di navigazione per la sezione azienda
+  (cerca component/navigation con NavItem, sidebar item, o simile).
+  Aggiungi voce "Tesoreria" con:
+    - path: "/azienda/tesoreria"
+    - icon: Landmark (da lucide-react)
+    - label: "Tesoreria"
+    - Posizione: DOPO "Previsionale" e PRIMA di "Impostazioni"
+    - Condition: SOLO visibile se `effectiveCompany?.tesoreria_enabled === true`
+      E (isAdmin O permissions.canViewDashboard)
+
+STEP 3 — Crea scheletro: `src/pages/azienda/Tesoreria.tsx`
+
+  import { useEffect } from "react";
+  import { useSearchParams } from "react-router-dom";
+  import { useAuth } from "@/contexts/AuthContext";
+  import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  import { Landmark, LayoutDashboard, CreditCard, ArrowLeftRight, Link, RefreshCw } from "lucide-react";
+  import { Button } from "@/components/ui/button";
+  import { Badge } from "@/components/ui/badge";
+
+  export default function Tesoreria() {
+    const { effectiveCompany } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const isBankCallback = searchParams.get("bank_callback") === "1";
+
+    // Controlla se il modulo è abilitato per questa company
+    if (!(effectiveCompany as any)?.tesoreria_enabled) {
+      return (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+          <Landmark className="h-12 w-12 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">Modulo Tesoreria non attivo</h2>
+          <p className="text-muted-foreground max-w-sm">
+            Contatta il tuo amministratore di sistema per abilitare
+            il modulo Tesoreria Open Banking.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Landmark className="h-6 w-6 text-primary" />
+            <div>
+              <h1 className="text-2xl font-bold">Tesoreria</h1>
+              <p className="text-sm text-muted-foreground">
+                Gestisci i tuoi conti bancari e monitora il cash flow in tempo reale
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs ml-2">
+              Open Banking · PSD2
+            </Badge>
+          </div>
+          <Button variant="outline" size="sm" className="gap-2">
+            <RefreshCw className="h-4 w-4" /> Sincronizza
+          </Button>
+        </div>
+
+        <Tabs defaultValue={isBankCallback ? "connections" : "overview"}>
+          <TabsList>
+            <TabsTrigger value="overview" className="gap-2">
+              <LayoutDashboard className="h-4 w-4" /> Overview
+            </TabsTrigger>
+            <TabsTrigger value="accounts" className="gap-2">
+              <CreditCard className="h-4 w-4" /> Conti
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className="gap-2">
+              <ArrowLeftRight className="h-4 w-4" /> Transazioni
+            </TabsTrigger>
+            <TabsTrigger value="connections" className="gap-2">
+              <Link className="h-4 w-4" /> Connessioni
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview">
+            {/* Implementato nel PROMPT 6 */}
+            <div className="text-muted-foreground text-sm p-8 text-center">Overview in costruzione</div>
+          </TabsContent>
+          <TabsContent value="accounts">
+            {/* Implementato nel PROMPT 5 */}
+            <div className="text-muted-foreground text-sm p-8 text-center">Conti in costruzione</div>
+          </TabsContent>
+          <TabsContent value="transactions">
+            {/* Implementato nel PROMPT 6 */}
+            <div className="text-muted-foreground text-sm p-8 text-center">Transazioni in costruzione</div>
+          </TabsContent>
+          <TabsContent value="connections">
+            {/* Implementato nel PROMPT 5 */}
+            <div className="text-muted-foreground text-sm p-8 text-center">Connessioni in costruzione</div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    );
+  }
+
+================================================================================
+PROMPT 4 — EDGE FUNCTIONS (6 funzioni, ordine di creazione)
+================================================================================
+
+Crea 6 edge functions. Leggi e segui ESATTAMENTE il pattern di:
+  - supabase/functions/_shared/getPlatformSetting.ts
+  - supabase/functions/meta-oauth-start/index.ts
+Ogni funzione: corsHeaders identici, serve(), OPTIONS handler, auth check.
+
+HELPER CONDIVISO: crea `supabase/functions/_shared/goCardless.ts`
+
+  import { getPlatformSetting } from "./getPlatformSetting.ts";
+
+  const GC_BASE = "https://bankaccountdata.gocardless.com/api/v2";
+
+  // Ottieni un token GoCardless (valido 24h)
+  // IMPORTANTE: token ottenuto fresh ad ogni invocazione per semplicità.
+  // In produzione si può cachare su platform_settings per 23h.
+  export async function getGoCardlessToken(): Promise<string> {
+    const secretId  = await getPlatformSetting("bank_gocardless_secret_id");
+    const secretKey = await getPlatformSetting("bank_gocardless_secret_key");
+
+    if (!secretId || !secretKey) {
+      throw new Error("GoCardless non configurato. Contatta il SuperAdmin.");
+    }
+
+    const res = await fetch(`${GC_BASE}/token/new/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ secret_id: secretId, secret_key: secretKey }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`GoCardless auth fallita: ${err.detail || res.status}`);
+    }
+
+    const { access } = await res.json();
+    return access;
+  }
+
+  // Chiamata API GoCardless con retry automatico su 401 (token scaduto)
+  export async function gcFetch(
+    path: string,
+    token: string,
+    options: RequestInit = {},
+    retry = true
+  ): Promise<any> {
+    const res = await fetch(`${GC_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+
+    if (res.status === 401 && retry) {
+      // Token scaduto: rigenera e riprova UNA volta
+      console.warn("[GoCardless] Token scaduto, rigenerazione...");
+      const newToken = await getGoCardlessToken();
+      return gcFetch(path, newToken, options, false);  // no retry the second time
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`GoCardless ${path} → ${res.status}: ${JSON.stringify(err)}`);
+    }
+
+    return res.json();
+  }
+
+  // Auto-categorizzazione transazione (regex case-insensitive, priority ordering)
+  export function categorizeTransaction(description: string, creditorName: string, amount: number): { category: string; icon: string } {
+    const text = `${description || ""} ${creditorName || ""}`.toUpperCase();
+
+    const rules = [
+      { pattern: /STIPEND|SALARIO|PAGA\b|RETRIBUZ/,             category: "Stipendi",        icon: "👥" },
+      { pattern: /AFFITT|LOCAZIONE|FITTO|CANONE IMMOB/,         category: "Affitti",         icon: "🏠" },
+      { pattern: /F24|IRPEF|IVA|INPS|INAIL|TRIB|IMPOST|ERARIO/, category: "Tasse",           icon: "📄" },
+      { pattern: /FORNI|SUPPLIER|VENDOR|ACQUISTO MERCE/,         category: "Fornitori",       icon: "📦" },
+      { pattern: /LUCE|ENERGIA|GAS|ACQUA|TELEF|INTERNET|TIM\b|WIND|ENEL|ENI/, category: "Utenze", icon: "⚡" },
+      { pattern: /ASSICURAZ|INSURANCE|ALLIANZ|GENERALI|UNIPOL/, category: "Assicurazioni",   icon: "🛡️" },
+      { pattern: /BANCA|COMMISSIONE|SPESE BANCA|INTERESSI|MUTUO/, category: "Bancario",      icon: "🏦" },
+      { pattern: /AMAZON|GOOGLE|MICROSOFT|ABBONAMENTO|SUBSCRIPTION/, category: "Servizi",    icon: "💼" },
+      { pattern: /RISTORANTE|BAR|CAFFE|PRANZO|CENA|MENSA/,      category: "Ristorazione",   icon: "🍽️" },
+      { pattern: /VIAGGIO|HOTEL|AEREO|TRENO|AUTONOLEGGIO|UBER/, category: "Trasferte",       icon: "✈️" },
+    ];
+
+    for (const rule of rules) {
+      if (rule.pattern.test(text)) {
+        return { category: rule.category, icon: rule.icon };
+      }
+    }
+
+    // Default basato sul tipo
+    return amount > 0
+      ? { category: "Entrata", icon: "💰" }
+      : { category: "Non categorizzata", icon: "❓" };
+  }
+
+────────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 1: `supabase/functions/bank-test-connection/index.ts`
+────────────────────────────────────────────────────────────────────────────────
+
+Testa le credenziali GoCardless. Accessibile solo a super_admin.
+
+LOGICA:
+  1. Auth check (deve essere super_admin o company_admin)
+  2. Chiama getGoCardlessToken() da _shared/goCardless.ts
+  3. Se successo: return { success: true, message: "GoCardless OK" }
+  4. Se errore: return { success: false, error: messaggio }
+
+────────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 2: `supabase/functions/bank-list-institutions/index.ts`
+────────────────────────────────────────────────────────────────────────────────
+
+Restituisce lista banche disponibili per un paese. Accessibile a company_admin.
+
+INPUT (query param): ?country=IT (default IT)
+
+LOGICA:
+  1. Auth check (deve essere autenticato)
+  2. Verifica tesoreria_enabled per la company del caller
+  3. token = await getGoCardlessToken()
+  4. GET /institutions/?country={country}&limit=100
+     Headers: Authorization Bearer token
+  5. Return lista mappata:
+     { institutions: results.map(i => ({
+         id: i.id, name: i.name, logo: i.logo, country: i.country,
+         transaction_total_days: i.transaction_total_days
+     })) }
+
+NOTA SICUREZZA: il token GoCardless è usato server-side e non è MAI inviato al frontend.
+
+────────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 3: `supabase/functions/bank-connect-start/index.ts`
+────────────────────────────────────────────────────────────────────────────────
+
+Inizia il collegamento di una banca. Crea la requisition GoCardless.
+
+INPUT (body JSON):
+  {
+    institution_id:   string,   // es. "INTESA_SANPAOLO_BCITITM1"
+    institution_name: string,
+    institution_logo: string,
+    redirect_url:     string    // calcolato dal frontend: window.location.origin + '/azienda/tesoreria?bank_callback=1'
+  }
+
+LOGICA:
+  1. Auth check → leggi company_id del caller dal profilo
+  2. Verifica tesoreria_enabled:
+       SELECT tesoreria_enabled FROM companies WHERE id = company_id → se false: return 403
+  3. Valida redirect_url (SICUREZZA — previene XSS/SSRF):
+       const reqOrigin = req.headers.get('origin') || '';
+       const parsed = new URL(redirect_url);
+       if (parsed.origin !== reqOrigin || !parsed.pathname.startsWith('/azienda/tesoreria')) {
+         return json({ error: 'redirect_url non valido' }, { status: 400 });
+       }
+  4. token = await getGoCardlessToken()
+  5. Crea requisition GoCardless:
+       POST /requisitions/
+       Body: {
+         redirect: redirect_url,
+         institution_id: institution_id,
+         reference: crypto.randomUUID(),
+         user_language: "IT"
+       }
+       → risposta: { id: requisition_id, link: auth_url }
+  6. INSERT bank_connections:
+       { company_id, institution_id, institution_name, institution_logo,
+         requisition_id, status: 'authenticating', created_by: caller.id,
+         expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString() }
+  7. Return { success: true, requisition_id, auth_url: requisition.link }
+
+────────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 4: `supabase/functions/bank-connect-complete/index.ts`
+────────────────────────────────────────────────────────────────────────────────
+
+Completa la connessione dopo autenticazione dell'utente sulla banca.
+
+INPUT: { requisition_id: string }
+
+LOGICA:
+  1. Auth check → company_id dal profilo
+  2. Trova bank_connection WHERE requisition_id = ? AND company_id = ? → se non trovata: 404
+  3. token = await getGoCardlessToken()
+  4. Fetch requisition: GET /requisitions/{requisition_id}/
+     Se status 401: aggiorna connection status='expired', return errore
+     → { id, status, accounts: ["acc_id_1", "acc_id_2", ...] }
+  5. Se requisition.accounts.length === 0:
+     → Aggiorna connection status='error', error_message='Nessun conto trovato'
+     → Return { success: false, error: 'Nessun conto trovato' }
+  6. Per OGNI account_id in requisition.accounts (in parallelo con Promise.allSettled):
+     a. details = await gcFetch(`/accounts/${account_id}/details/`, token)
+        → { account: { iban, bban, name, ownerName, currency, product } }
+     b. balances = await gcFetch(`/accounts/${account_id}/balances/`, token)
+        → { balances: [...] }
+        Prendi closingBooked o interimAvailable (il primo disponibile)
+     c. UPSERT bank_accounts:
+        { company_id, connection_id, external_account_id: account_id,
+          iban: details.account.iban, account_name: details.account.name,
+          account_owner_name: details.account.ownerName,
+          currency: details.account.currency || 'EUR',
+          current_balance: parsed_balance,
+          available_balance: parsed_available,
+          balance_updated_at: now() }
+        ON CONFLICT (company_id, external_account_id) DO UPDATE SET ...
+  7. Conta account_count (solo quelli riusciti)
+  8. UPDATE bank_connections SET status='active', accounts_count=N, last_sync_at=now()
+  9. INSERT bank_sync_logs { sync_type:'reconnect', status:'success', accounts_synced:N }
+  10. Return { success: true, accounts_count: N }
+
+NOTA: I balance di GoCardless arrivano come:
+  { balanceAmount: { amount: "1234.56", currency: "EUR" }, balanceType: "closingBooked" }
+  Parsa con: parseFloat(balance.balanceAmount.amount)
+
+────────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 5: `supabase/functions/bank-sync/index.ts`
+────────────────────────────────────────────────────────────────────────────────
+
+Sincronizza saldi e transazioni. Chiamata manualmente o da scheduler.
+
+INPUT: { company_id?: string }  ← se omesso usa quello del caller
+
+LOGICA:
+  1. Auth check → company_id (dal profilo, o dal body se super_admin)
+  2. INSERT bank_sync_logs { sync_type:'manual', status:'running', triggered_by }
+     → salva syncLogId
+  3. token = await getGoCardlessToken()
+  4. Fetch tutte bank_connections WHERE company_id = ? AND status = 'active'
+  5. Per ogni connessione, fetch bank_accounts WHERE connection_id = ? AND is_active = true
+  6. Per ogni account (sequential per rispettare rate limits GoCardless):
+     a. BALANCES:
+        balances = await gcFetch(`/accounts/${external_account_id}/balances/`, token)
+        UPDATE bank_accounts SET current_balance, available_balance, balance_updated_at=now()
+
+     b. TRANSAZIONI:
+        // Calcola date_from: last_sync_at della connection - 1 giorno (per overlapping sicuro)
+        const dateFrom = lastSyncAt
+          ? new Date(lastSyncAt.getTime() - 86400000).toISOString().split('T')[0]
+          : new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];  // 90 gg se prima sync
+
+        txData = await gcFetch(
+          `/accounts/${external_account_id}/transactions/?date_from=${dateFrom}&date_to=${today}`,
+          token
+        )
+        → { transactions: { booked: [...], pending: [...] } }
+
+        Per ogni transazione in booked + pending:
+          - amount = parseFloat(tx.transactionAmount.amount)  // può essere negativo
+          - txType = amount > 0 ? 'credit' : 'debit'
+          - cat = categorizeTransaction(tx.remittanceInformationUnstructured, tx.creditorName, amount)
+          - INSERT bank_transactions ON CONFLICT (company_id, external_transaction_id) DO NOTHING
+            { company_id, account_id, external_transaction_id: tx.transactionId || tx.internalTransactionId,
+              booking_date: tx.bookingDate, value_date: tx.valueDate,
+              amount, currency: tx.transactionAmount.currency || 'EUR',
+              description: tx.remittanceInformationUnstructured,
+              creditor_name: tx.creditorName, debtor_name: tx.debtorName,
+              creditor_iban: tx.creditorAccount?.iban, debtor_iban: tx.debtorAccount?.iban,
+              reference: tx.entryReference,
+              transaction_type: txType, status: txStatus,
+              category: cat.category, category_icon: cat.icon,
+              metadata: { raw: tx } }
+          - Incrementa transactions_fetched
+
+     c. GESTIONE ERRORI PER SINGOLO ACCOUNT:
+        Se un account fallisce (catch), logga l'errore ma continua con gli altri.
+        Accumula errori in un array, poi inserisci nel sync log come partial error.
+
+  7. UPDATE bank_connections SET last_sync_at=now() per ogni connessione processata
+  8. UPDATE bank_sync_logs SET status='success', accounts_synced, transactions_fetched, completed_at=now()
+     (se ci sono stati errori su alcuni account: status='partial')
+  9. Return { success: true, accounts_synced, transactions_fetched }
+
+RATE LIMITS:
+  - Attendi 500ms tra un account e l'altro (avoid 429 Too Many Requests)
+  - Se ricevi 429: attendi 60 secondi e riprova una volta
+  - Non sincronizzare lo stesso account più di 4 volte al giorno
+
+────────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 6: `supabase/functions/bank-disconnect/index.ts`
+────────────────────────────────────────────────────────────────────────────────
+
+Disconnette una connessione bancaria.
+
+INPUT: { connection_id: string }
+
+LOGICA:
+  1. Auth check → deve essere company_admin o super_admin
+  2. Trova bank_connection, verifica appartenga alla company del caller
+  3. UPDATE bank_connections SET status='disconnected', updated_at=now()
+  4. UPDATE bank_accounts SET is_active=false WHERE connection_id=?
+  5. Prova DELETE requisition su GoCardless (non critico se fallisce):
+     DELETE /requisitions/{requisition_id}/
+     catch e ignora errori
+  6. Return { success: true }
+  NOTA: le transazioni storiche NON vengono cancellate. Restano per storico.
+
+================================================================================
+PROMPT 5 — UI: TAB CONNESSIONI + TAB CONTI
+================================================================================
+
+Implementa i tab "Connessioni" e "Conti" nella pagina Tesoreria.
+Usa i componenti shadcn/ui esistenti nel progetto (Card, Badge, Dialog,
+AlertDialog, Switch, Sheet, Skeleton, Button, Input, etc.).
+
+────────────────────────────────────────────────────────────────────────────────
+TAB CONNESSIONI
+────────────────────────────────────────────────────────────────────────────────
+
+CREA: `src/components/tesoreria/BankConnectionsList.tsx`
+
+Props: { onSyncComplete: () => void }
+
+QUERY: bank_connections per la company, join con bank_connections.institution_name
+
+STATE LOCALE:
+  - isConnectDialogOpen: boolean
+  - selectedInstitution: Institution | null
+  - pendingRequisitionId: string | null  ← per il flow di completamento callback
+  - isAuthenticating: boolean
+
+GESTIONE CALLBACK BANCARIO:
+  All'entrata nel componente, controlla searchParams.get("bank_callback") === "1".
+  Se sì: cerca la connessione più recente in stato 'authenticating' per questa company.
+  Se trovata: mostra automaticamente il dialog "Completa la connessione" con pulsante
+  "Ho completato l'autenticazione" → chiama bank-connect-complete.
+  Dopo completamento: rimuovi ?bank_callback=1 dall'URL e invalida query bank_connections.
+
+LISTA CONNESSIONI:
+  Skeleton loading durante fetch.
+  Per ogni bank_connection:
+    Card con:
+    - Sinistra: logo banca (institution_logo o fallback <Landmark>) + nome + badge status
+      Status colors: active=green, authenticating=yellow, error=red, expired=gray, disconnected=gray
+    - Centro: "N conti" · "Scade il: {expires_at formatdata}" · "Sync: {last_sync_at relativa}"
+    - Destra: DropdownMenu (⋮) con:
+        - "Sincronizza ora" → invoke bank-sync → toast + invalidate queries
+        - Separator
+        - "Disconnetti" → AlertDialog conferma ("Questa azione rimuoverà la connessione.
+          Le transazioni storiche verranno conservate.") → invoke bank-disconnect
+
+BANNER SCADENZA:
+  Se una connessione ha expires_at < oggi + 15 giorni (scadenza imminente):
+  Mostra banner arancione: "⚠ La connessione con {banca} scade tra N giorni. Ricollegati."
+  Se expires_at < oggi: banner rosso: "Connessione scaduta. Ricollegati per continuare la sync."
+
+PULSANTE "Collega Nuova Banca":
+  Apre Dialog di SELEZIONE BANCA.
+
+DIALOG SELEZIONE BANCA:
+  - Header: "Seleziona la tua banca"
+  - Sub: "Connessione sicura tramite Open Banking PSD2 — sola lettura"
+  - Input di ricerca (filtra lista in tempo reale per nome)
+  - Lista caricata da supabase.functions.invoke('bank-list-institutions', { body: { country: 'IT' } })
+  - Skeleton durante caricamento (6 skeleton cards)
+  - Per ogni istituto: logo + nome + badge paese
+  - Click su istituto → chiudi dialog selezione + apri DIALOG CONFERMA
+
+DIALOG CONFERMA CONNESSIONE:
+  - Header: "Collega {nome banca}"
+  - Corpo:
+      Badge verde "PSD2 Sicuro · Sola lettura"
+      "GoCardless si collegherà alla tua banca per leggere saldi e transazioni.
+      Non può effettuare pagamenti o trasferimenti."
+      "Sarai reindirizzato alla pagina di login della tua banca."
+  - Footer:
+      Pulsante "Annulla"
+      Pulsante "Connetti con {nome banca}" →
+        1. invoke bank-connect-start con { institution_id, institution_name, institution_logo,
+           redirect_url: window.location.origin + '/azienda/tesoreria?bank_callback=1' }
+        2. Apri auth_url in nuova finestra: window.open(auth_url, '_blank', 'noopener')
+        3. Salva requisition_id nello state locale
+        4. Mostra view "In attesa di autenticazione":
+            Spinner + "Autenticati nella finestra della banca, poi torna qui."
+            Pulsante "Ho completato l'autenticazione" →
+              invoke bank-connect-complete con { requisition_id }
+              Mostra loading → poi toast "✓ N conti collegati" → chiudi dialog → invalida query
+
+EMPTY STATE (nessuna connessione):
+  Icona Landmark grande, "Nessuna banca collegata"
+  "Collega il tuo conto aziendale per vedere saldi e transazioni in tempo reale."
+  Pulsante "Collega la tua prima banca"
+
+────────────────────────────────────────────────────────────────────────────────
+TAB CONTI
+────────────────────────────────────────────────────────────────────────────────
+
+CREA: `src/components/tesoreria/BankAccountsList.tsx`
+
+QUERY: bank_accounts WHERE company_id = ? AND is_active = true
+       JOIN bank_connections ON bank_connections.id = connection_id
+       ORDER BY current_balance DESC
+
+HEADER:
+  - "Saldo Totale: € XX.XXX,XX" (somma current_balance, grande)
+  - "N conti su M banche collegate" (piccolo, grigio)
+  - Switch "Mostra IBAN": toggle globale (state locale)
+
+GRIGLIA CONTI (grid-cols-1 md:grid-cols-2 lg:grid-cols-3):
+  Per ogni conto: Card con:
+    - Header card: logo banca (institution_logo dal join) + nome banca (piccolo, grigio)
+    - Nome conto: display_name || account_name || "Conto {account_type}"
+      Accanto al nome: icona matita → click apre Input inline per modificare display_name
+      (UPDATE bank_accounts SET display_name = ? WHERE id = ?)
+    - IBAN: se showIban=true mostra IBAN completo, altrimenti "IT60 •••• •••• •••• •••• 12"
+      (ultimi 4 cifre dell'IBAN sempre visibili)
+    - Saldo disponibile: "€ X.XXX,XX" — grande, bold
+      Verde se > 0, rosso se < 0 (scoperto)
+    - Saldo corrente sotto (se diverso dal disponibile): "Contabile: € X.XXX,XX" piccolo
+    - "Aggiornato: X minuti fa" (balance_updated_at in formato relativo)
+    - Badge tipo: "Conto Corrente" / "Risparmio" / "Credito" / "Business"
+
+FORMATTAZIONE IMPORTI (usare sempre):
+  new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(amount)
+
+EMPTY STATE: Icona CreditCard, "Nessun conto collegato"
+  Link/pulsante → passa al tab "Connessioni"
+
+================================================================================
+PROMPT 6 — UI: OVERVIEW + TRANSAZIONI + CASH FLOW
+================================================================================
+
+Implementa i tab "Overview" e "Transazioni" nella pagina Tesoreria.
+
+────────────────────────────────────────────────────────────────────────────────
+TAB OVERVIEW
+────────────────────────────────────────────────────────────────────────────────
+
+CREA: `src/components/tesoreria/TreasuryOverview.tsx`
+
+Chiama RPC `rpc('get_treasury_summary', { p_company_id: companyId })`.
+Chiama RPC `rpc('get_cash_flow_by_month', { p_company_id: companyId, p_months: 6 })`.
+
+FORMATTAZIONE: usa sempre `new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })`
+
+SEZIONE 1 — KPI CARDS (4 card in griglia 2×2 su mobile, 4 colonne su desktop):
+  1. "Liquidità Totale" → total_balance · icona Wallet · colore primario
+     Sottotitolo: "{accounts_count} conti su {connections_count} banche"
+  2. "Entrate Mese" → monthly_income · icona TrendingUp · verde (#10b981)
+     Sottotitolo: "Questo mese"
+  3. "Uscite Mese" → monthly_expenses · icona TrendingDown · rosso (#ef4444)
+     Sottotitolo: "Questo mese"
+  4. "Cash Flow Netto" → monthly_net · icona BarChart2
+     Colore dinamico: verde se ≥ 0, rosso se < 0
+     Badge: "Positivo ↑" verde o "Negativo ↓" rosso
+
+ALERT LIQUIDITÀ (sopra le KPI cards, se necessario):
+  - total_balance < 0:     Banner rosso:    "🔴 Saldo negativo — Verifica i tuoi conti"
+  - total_balance < 1000:  Banner arancione: "⚠ Liquidità bassa"
+  - Nessun dato:           Banner grigio:   "Collega una banca per vedere i dati"
+
+SEZIONE 2 — GRAFICO CASH FLOW (usa recharts, già presente nel progetto):
+  BarChart + Line sovrapposta.
+  Dati: output di get_cash_flow_by_month (6 mesi).
+  Serie:
+    - "Entrate" → ResponsiveContainer → BarChart · fill="#10b981"
+    - "Uscite"  → barre rosse · fill="#ef4444"
+    - "Netto"   → linea blu sovrapposta · stroke="#3b82f6" · type="monotone"
+  Asse X: mesi abbreviati (Gen, Feb, Mar…) — converti da "YYYY-MM"
+  Tooltip: mostra valori formattati in EUR
+  Legenda: in basso (Entrate · Uscite · Netto)
+  Se dati mancanti → placeholder "Collega una banca e sincronizza per vedere il cash flow"
+
+SEZIONE 3 — ULTIME 5 TRANSAZIONI:
+  Query: bank_transactions WHERE company_id = ? ORDER BY booking_date DESC LIMIT 5
+  Lista compatta:
+    - Icona tipo (ArrowUp verde per credit, ArrowDown rosso per debit)
+    - Descrizione (troncata a 40 chars) + creditor_name/debtor_name in grigio
+    - Data (formato DD/MM/YYYY)
+    - Importo (formattato EUR, verde/rosso)
+  In fondo: link "Vedi tutte le transazioni →" che cambia tab a "transactions"
+
+────────────────────────────────────────────────────────────────────────────────
+TAB TRANSAZIONI
+────────────────────────────────────────────────────────────────────────────────
+
+CREA: `src/components/tesoreria/TransactionsFeed.tsx`
+
+QUERY con filtri: bank_transactions WHERE company_id = ?
+  + JOIN bank_accounts per account_name
+  + filtri: account_id, transaction_type, category, booking_date range, text search
+
+TOOLBAR FILTRI (compact, su una riga o due righe su mobile):
+  - Search: Input con SearchIcon, ricerca su (description, creditor_name, debtor_name)
+  - Conto: Select con ["Tutti i conti", ...lista conti]
+  - Tipo: ToggleGroup ["Tutti", "Entrate", "Uscite"]
+  - Categoria: Select con tutte le categorie presenti
+  - Data: due DatePicker (Da / A)
+  - Pulsante "Reset" (X icon, visibile solo se filtri attivi)
+
+TABELLA TRANSAZIONI (paginazione: 50 per pagina):
+  Colonne:
+  1. Data (booking_date, DD/MM/YYYY)
+  2. Descrizione (description · sotto: creditor_name o debtor_name in grigio xs)
+  3. Conto (account display_name || account_name)
+  4. Categoria (Badge colorato con emoji icon: "📦 Fornitori", "🏠 Affitti", ecc.)
+  5. Tipo (Badge verde "↑ Entrata" o rosso "↓ Uscita")
+  6. Importo (allineato destra · bold · verde se credit, rosso se debit · formattato EUR)
+
+  Click su riga → apre Sheet laterale (Sheet da shadcn/ui, side="right"):
+    Titolo: "Dettaglio Transazione"
+    Campi: tutti i dati (booking_date, value_date, amount, description,
+           creditor_name, debtor_name, creditor_iban, debtor_iban, reference, status)
+    Campo categoria editabile:
+      Select con categorie predefinite + "Personalizzata"
+      Al cambio: UPDATE bank_transactions SET category = ? WHERE id = ?
+    Campo nota:
+      Textarea, al blur: UPDATE bank_transactions SET note = ? WHERE id = ?
+    (Future) Pulsante placeholder "Collega a Fattura" (disabled, tooltip "In arrivo")
+    (Future) Pulsante placeholder "Collega a Costo" (disabled, tooltip "In arrivo")
+
+SUMMARY FOOTER (sticky in basso, sopra la paginazione):
+  "N transazioni trovate · Entrate: €X · Uscite: €Y · Netto: €Z"
+  (calcolato sulle transazioni filtrate, max 50 per performance)
+
+EXPORT CSV:
+  Pulsante "Esporta CSV" (icona Download):
+  Scarica tutte le transazioni filtrate (non solo la pagina corrente) in CSV.
+  Colonne CSV:
+    Data,Valuta,Descrizione,Intestatario,IBAN,Tipo,Importo,Valuta,Categoria,Nota
+
+COLORI BADGE CATEGORIE:
+  "Stipendi"        → bg-indigo-100 text-indigo-700
+  "Fornitori"       → bg-orange-100 text-orange-700
+  "Affitti"         → bg-amber-100 text-amber-700
+  "Tasse"           → bg-red-100 text-red-700
+  "Bancario"        → bg-slate-100 text-slate-700
+  "Entrata"         → bg-green-100 text-green-700
+  "Utenze"          → bg-yellow-100 text-yellow-700
+  "Servizi"         → bg-purple-100 text-purple-700
+  "Assicurazioni"   → bg-blue-100 text-blue-700
+  "Ristorazione"    → bg-pink-100 text-pink-700
+  "Trasferte"       → bg-cyan-100 text-cyan-700
+  "Non categorizzata"→ bg-gray-100 text-gray-500
+
+================================================================================
+PROMPT 7 — SINCRONIZZAZIONE SCHEDULATA (opzionale, fase 2)
+================================================================================
+
+Dopo aver completato e testato i prompt 1-6, implementa la sync automatica.
+
+OPZIONE A — Supabase pg_cron (se il piano lo supporta):
+  SELECT cron.schedule(
+    'bank-sync-nightly',
+    '0 3 * * *',  -- ogni notte alle 3:00 UTC
+    $$
+    SELECT net.http_post(
+      url := 'https://{PROJECT_REF}.supabase.co/functions/v1/bank-sync-all-companies',
+      headers := '{"Authorization": "Bearer {SERVICE_ROLE_KEY}"}'::jsonb,
+      body := '{}'::jsonb
+    );
+    $$
+  );
+
+OPZIONE B — Crea edge function `bank-sync-all-companies` chiamata da cron esterno:
+  1. Autenticazione tramite header Authorization con service role key
+  2. SELECT DISTINCT company_id FROM bank_connections WHERE status = 'active'
+  3. Per ogni company_id: invoke bank-sync con { company_id }
+  4. Log risultati
+
+================================================================================
+CHECKLIST FINALE — VERIFICA FUNZIONAMENTO
+================================================================================
+
+SETUP SUPERADMIN:
+  [ ] Migration applicata senza errori in Supabase Dashboard
+  [ ] SuperAdmin vede tab "Banking" in AdminSettings
+  [ ] SuperAdmin inserisce Secret ID e Secret Key GoCardless
+  [ ] "Testa Connessione" → toast verde "GoCardless OK"
+  [ ] SuperAdmin abilita tesoreria per azienda di test (tesoreria_enabled = true)
+
+VERIFICA NAVIGAZIONE:
+  [ ] Voce "Tesoreria" appare nel sidebar SOLO per aziende con tesoreria_enabled=true
+  [ ] Pagina /azienda/tesoreria si carica correttamente
+  [ ] Per aziende senza tesoreria_enabled: messaggio "Modulo non attivo"
+
+CONNESSIONE BANCA:
+  [ ] Tab "Connessioni" → "Collega Nuova Banca" → Dialog si apre
+  [ ] Lista banche italiane si carica (Skeleton → lista)
+  [ ] Ricerca banche funziona
+  [ ] Click banca → Dialog conferma con disclaimer PSD2
+  [ ] "Connetti" → Nuova finestra aperta con URL GoCardless
+  [ ] "Ho completato l'autenticazione" → N conti sincronizzati → toast success
+  [ ] bank_connections STATUS = 'active' in DB
+  [ ] bank_accounts creati con saldo
+  [ ] expires_at impostato a today + 90 giorni
+
+SINCRONIZZAZIONE:
+  [ ] Pulsante "Sincronizza" in header → bank-sync invocata → toast success
+  [ ] bank_transactions create nel DB
+  [ ] transaction_type = 'credit' per amount > 0, 'debit' per amount ≤ 0
+  [ ] category auto-assegnata correttamente
+  [ ] bank_sync_logs aggiornato con status='success'
+
+OVERVIEW:
+  [ ] KPI cards mostrano total_balance, monthly_income, monthly_expenses, monthly_net
+  [ ] Valori formattati in EUR con localizzazione italiana (punto migliaia, virgola decimali)
+  [ ] Grafico recharts mostra 6 mesi di entrate/uscite/netto
+  [ ] Ultimi 5 transazioni visibili
+  [ ] Alert liquidità appare se balance < 1000
+
+CONTI:
+  [ ] Griglia conti mostra saldi aggiornati
+  [ ] Switch "Mostra IBAN" funziona
+  [ ] IBAN mascherato di default
+  [ ] Rinomina conto (click matita → input → save)
+
+TRANSAZIONI:
+  [ ] Tabella paginata (50 per pagina)
+  [ ] Filtri text, conto, tipo, categoria, data funzionano
+  [ ] Click riga → Sheet laterale con dettaglio
+  [ ] Modifica categoria → aggiornata nel DB
+  [ ] Aggiunta nota → salvata nel DB
+  [ ] Export CSV funziona e scarica file
+
+SICUREZZA:
+  [ ] Utente azienda A NON vede dati azienda B (RLS)
+  [ ] Token GoCardless NON appare mai nelle risposte al frontend
+  [ ] redirect_url con dominio diverso → errore 400
+  [ ] Super admin può vedere e gestire tutte le connessioni
+
+================================================================================
+NOTE TECNICHE, TROUBLESHOOTING E BANCHE ITALIANE
+================================================================================
+
+SANDBOX GOCARDLESS (test senza banca reale):
+  Istituto sandbox: "SANDBOXFINANCE_SFIN0000"
+  Credenziali login banca sandbox: user="123456789" password="12345678" OTP="123456"
+  Restituisce transazioni fittizie preconfigurate
+
+SERVICE ROLE E RLS:
+  Il service_role di Supabase bypassa RLS automaticamente.
+  Le edge functions che usano createClient(url, SERVICE_ROLE_KEY) possono scrivere
+  su tutte le tabelle senza policies aggiuntive. ✓
+
+BANCHE ITALIANE (institution_id GoCardless):
+  FINECO_CRFIIT2F          → FinecoBank
+  UNICREDIT_UNCRITMM       → UniCredit
+  INTESA_SANPAOLO_BCITITM1 → Intesa SanPaolo
+  BANCO_BPM_BAPPIT21       → Banco BPM
+  BPER_BANCA_BPMOIT22      → BPER Banca
+  BANCA_SELLA_SELBIT2B     → Banca Sella
+  MEDIOLANUM_BFIVIT3B      → Banca Mediolanum
+  WIDIBA_ICRAITRR          → Widiba
+
+FUTURE INTEGRAZIONI FATTURAZIONE (non sviluppare ora, design per dopo):
+  Tabella: invoice_connections (simile a bank_connections)
+  Provider: Fatture in Cloud, Aruba Fattura, Xero (OAuth 2.0)
+  RPC futura: reconcile_transaction_with_invoice(transaction_id, invoice_id)
+  Principio: collegare manualmente o automaticamente una transazione bancaria
+  a una fattura emessa o ricevuta per la riconciliazione bancaria completa.
+
+================================================================================

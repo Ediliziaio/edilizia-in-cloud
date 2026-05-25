@@ -1,0 +1,952 @@
+================================================================================
+PROMPT LOVABLE — AUDIT COMPLETO AREA SUPER ADMIN
+================================================================================
+Esegui ogni FASE in ordine. Per ogni fase: LEGGI i file → ANALIZZA → CORREGGI.
+Applica solo fix sicuri. Commenta con // TODO dove la fix richiede DB migration.
+================================================================================
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A1 — TYPE SAFETY: RPC FUNCTIONS E QUERY SENZA TIPI                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/hooks/useAdminDashboardData.ts
+  - src/hooks/useAdminRevenueData.ts
+  - src/pages/admin/CompaniesList.tsx
+
+PROBLEMA CRITICO: Tutte le RPC Supabase usate nell'area admin non hanno tipi
+definiti, generando `any` impliciti che mascherano potenziali runtime crash.
+
+1. CREA il file `src/types/adminRpc.ts` con le seguenti interfacce:
+
+```typescript
+// ─── Tipi di ritorno delle RPC Supabase (area admin) ────────────────────────
+
+export interface CompanyOrderStats {
+  company_id: string;
+  order_count: number;
+  total_value: number;
+  last_order_date: string | null;
+}
+
+export interface CompanyUserCount {
+  company_id: string;
+  user_count: number;
+  admin_count: number;
+  staff_count: number;
+}
+
+export interface CompanyHealthData {
+  company_id: string;
+  health_score: number;             // 0-100
+  has_orders: boolean;
+  has_recent_orders: boolean;       // ordini negli ultimi 30 giorni
+  has_customers: boolean;
+  has_staff: boolean;
+  last_activity_days: number | null;
+}
+
+export interface CompanyLastAccess {
+  company_id: string;
+  last_access_at: string | null;    // ISO string
+  access_user_id: string | null;
+}
+
+export interface PlanCompanyCount {
+  plan_id: string;
+  company_count: number;
+  active_count: number;
+  trial_count: number;
+}
+
+export interface TotalOrdersValue {
+  total_value: number;
+  order_count: number;
+}
+```
+
+2. In `useAdminDashboardData.ts` e `useAdminRevenueData.ts`:
+   - Aggiungi i tipi alle query RPC:
+     ```typescript
+     const { data: healthRes } = await supabase
+       .rpc('get_company_health_data')
+       .returns<CompanyHealthData[]>()
+     ```
+   - Per tutti i `(data as any[])` → sostituisci con il tipo corretto
+
+3. In `CompaniesList.tsx`:
+   - `companyCounts![plan.id]` → `companyCounts?.[plan.id] ?? 0`
+   - `lastAccessData[a.id]!` → `lastAccessData[a.id] ?? null`
+   - Aggiungi null-check prima di qualsiasi `.getTime()` su date
+
+4. Cerca e sostituisci tutti i pattern `as any` nell'area admin:
+   - `healthRes.data as any[]` → `healthRes.data as CompanyHealthData[]`
+   - `orderStats.data as any[]` → `orderStats.data as CompanyOrderStats[]`
+   - `userCounts.data as any[]` → `userCounts.data as CompanyUserCount[]`
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A2 — SICUREZZA: PERMISSION SYSTEM E GUARD                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/hooks/useSuperAdminPermissions.ts
+  - src/components/layouts/AdminLayout.tsx
+  - src/components/auth/ProtectedRoute.tsx
+  - src/pages/admin/settings/AdminSettingsSuperAdmins.tsx
+
+PROBLEMA: Il sistema di permessi ha tre vulnerabilità da correggere.
+
+1. DEFAULT ALL_TRUE È TROPPO PERMISSIVO:
+   Attualmente se il record `super_admin_permissions` non esiste per un utente,
+   viene usato un oggetto con tutti i permessi a `true`.
+
+   In `useSuperAdminPermissions.ts`, cambia il default:
+   ```typescript
+   // PRIMA (insicuro):
+   const DEFAULT_PERMISSIONS = {
+     can_manage_companies: true,
+     can_manage_plans: true,
+     // ... tutti true
+   }
+
+   // DOPO (sicuro — verifica esplicita):
+   const DEFAULT_PERMISSIONS = {
+     can_manage_companies: false,
+     can_manage_plans: false,
+     can_manage_tickets: false,
+     can_manage_referrals: false,
+     can_manage_admins: false,
+     can_view_platform_stats: false,
+     allowed_company_ids: null,
+   }
+   // Nota: aggiungi un commento che spiega che il primo super_admin
+   // deve avere il record creato manualmente in Supabase
+   ```
+
+2. DOUBLE-CHECK RUOLO NELLA GUARD:
+   In `useSuperAdminPermissions.ts`, prima di leggere la tabella dei permessi,
+   verifica che il profilo dell'utente abbia effettivamente ruolo `super_admin`:
+   ```typescript
+   const { profile, role } = useAuth()
+
+   // Guard: se non è super_admin, ritorna permessi vuoti immediatamente
+   if (role !== 'super_admin') {
+     return { permissions: DEFAULT_PERMISSIONS, isLoading: false }
+   }
+   ```
+
+3. ALLOWED_COMPANY_IDS NON APPLICATO OVUNQUE:
+   Il campo `allowed_company_ids` limita le aziende visibili a un super_admin.
+   Verifica che venga applicato come filtro in:
+   - La query `companies` in `AdminLayout.tsx` (search aziende nella sidebar)
+   - La query `companies` in `CompaniesList.tsx`
+   - La query in `useAdminDashboardData.ts` (recent companies)
+
+   Pattern da applicare dove mancante:
+   ```typescript
+   let query = supabase.from('companies').select('*')
+   if (permissions.allowed_company_ids && permissions.allowed_company_ids.length > 0) {
+     query = query.in('id', permissions.allowed_company_ids)
+   }
+   const { data } = await query
+   ```
+
+4. AUDIT LOG PER IMPERSONATION:
+   In `QuickLoginPopover.tsx` (o dove viene chiamato `impersonateCompany()`),
+   aggiungi un INSERT nella tabella di audit ogni volta che un admin impersona:
+   ```typescript
+   // Prima di chiamare impersonateCompany():
+   await supabase.from('audit_log').insert({
+     action: 'admin_impersonation_start',
+     target_entity: 'company',
+     target_id: companyId,
+     metadata: { company_name: company.name }
+   })
+   // Supabase aggiunge automaticamente user_id via auth.uid()
+   ```
+
+   Stessa cosa in `exitImpersonation()` nel AuthContext:
+   ```typescript
+   await supabase.from('audit_log').insert({
+     action: 'admin_impersonation_end',
+     target_entity: 'company',
+     target_id: previousCompanyId,
+   })
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A3 — DASHBOARD ADMIN: BUG E OTTIMIZZAZIONI                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/AdminDashboard.tsx
+  - src/hooks/useAdminDashboardData.ts
+  - src/hooks/useAdminRevenueData.ts
+  - src/components/admin/dashboard/ (tutti i file)
+
+1. N+1 QUERY PROBLEM — CRITICO:
+   In `useAdminRevenueData.ts`, viene calcolato l'health score con una logica
+   che unisce le RPC in memoria. Se le RPC non sono atomiche, i dati possono
+   essere incoerenti. Verifica che le RPC vengano chiamate con Promise.all:
+   ```typescript
+   // PRIMA (sequenziale - lento):
+   const healthRes = await supabase.rpc('get_company_health_data')
+   const orderStats = await supabase.rpc('get_company_order_stats')
+
+   // DOPO (parallelo - corretto):
+   const [healthRes, orderStats, userCounts, lastAccess] = await Promise.all([
+     supabase.rpc('get_company_health_data'),
+     supabase.rpc('get_company_order_stats'),
+     supabase.rpc('get_company_user_counts'),
+     supabase.rpc('get_company_last_access'),
+   ])
+   ```
+
+2. HEALTH SCORE — CALCOLO PIÙ ROBUSTO:
+   L'attuale calcolo Health Score in useAdminRevenueData assegna punti basati
+   su soglie fisse. Aggiungi gestione del caso `last_activity_days === null`:
+   ```typescript
+   // Se last_activity_days è null, l'azienda non ha mai avuto attività
+   const activityPoints = healthData.last_activity_days === null
+     ? 0
+     : healthData.last_activity_days <= 7 ? 20
+     : healthData.last_activity_days <= 30 ? 15
+     : healthData.last_activity_days <= 60 ? 5
+     : 0
+   ```
+
+3. MRR CHART — DATI MANCANTI:
+   Il grafico MRR mostra gli ultimi 6 mesi. Se un mese non ha nuove iscrizioni,
+   quel mese viene omesso dal chart invece di mostrare 0.
+
+   In `AdminMrrChart.tsx`, dopo aver ricevuto i dati, riempi i mesi mancanti:
+   ```typescript
+   // Genera array degli ultimi 6 mesi
+   const last6Months = Array.from({ length: 6 }, (_, i) => {
+     const date = subMonths(new Date(), 5 - i)
+     return format(date, 'yyyy-MM')
+   })
+
+   // Merge con dati reali, mesi mancanti = 0
+   const chartData = last6Months.map(month => ({
+     month,
+     mrr: mrrByMonth[month] ?? 0,
+   }))
+   ```
+
+4. FORECAST — CRESCITA NEGATIVA NON GESTITA:
+   In `AdminRevenueForecast.tsx`, se il growth rate è negativo (churn >
+   new subscriptions), il forecast può mostrare valori negativi.
+   Aggiungi un clamp a 0:
+   ```typescript
+   const forecastedMrr = Math.max(0, currentMrr * Math.pow(1 + monthlyGrowthRate, months))
+   ```
+
+5. COHORT ANALYSIS — LABEL MESI:
+   Il componente `AdminCohortAnalysis.tsx` mostra le label dei mesi in formato
+   tecnico (es. "2024-01"). Mostralo in formato leggibile:
+   ```typescript
+   import { format, parseISO } from 'date-fns'
+   import { it } from 'date-fns/locale'
+
+   const formatCohortMonth = (yearMonth: string) =>
+     format(parseISO(`${yearMonth}-01`), 'MMM yy', { locale: it })
+   ```
+
+6. UPSELL ALERTS — SOGLIA CONFIGURABILE:
+   Attualmente la soglia per gli alert "company vicina al limite" è hardcoded
+   all'80%. Leggi questa soglia da `platform_settings` o rendi configurabile
+   tramite una costante in cima al file:
+   ```typescript
+   const UPSELL_THRESHOLD_PERCENT = 80 // TODO: rendere configurabile da AdminSettingsPlatform
+   ```
+
+7. TRIAL INTELLIGENCE — CONVERSION RATE ERRATO:
+   Il calcolo `Conversion Rate` divide i converted per (trial + converted).
+   Se ci sono trial scaduti (expired) che non hanno mai convertito, questi
+   vengono ignorati, gonfiando il tasso di conversione.
+
+   Formula corretta:
+   ```typescript
+   const allTrialsEver = companies.filter(c =>
+     c.status === 'active' ||
+     c.status === 'trial' ||
+     c.status === 'expired'  // ← includi i trial scaduti!
+   ).length
+
+   const converted = companies.filter(c => c.status === 'active').length
+   const conversionRate = allTrialsEver > 0 ? (converted / allTrialsEver) * 100 : 0
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A4 — GESTIONE AZIENDE: CompaniesList E CompanyDetail                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/CompaniesList.tsx
+  - src/pages/admin/CompanyDetail.tsx
+  - src/components/admin/company/ (tutti i file)
+
+1. SORT PER LAST ACCESS — BUG:
+   In `CompaniesList.tsx`, il sort delle aziende per "ultimo accesso" usa:
+   ```typescript
+   new Date(lastAccessData[a.id]!).getTime()
+   ```
+   Questo crasha se `lastAccessData[a.id]` è undefined o null.
+
+   FIX:
+   ```typescript
+   const getLastAccess = (id: string) => {
+     const val = lastAccessData?.[id]
+     return val ? new Date(val).getTime() : 0
+   }
+   // Poi usa:
+   companies.sort((a, b) => getLastAccess(b.id) - getLastAccess(a.id))
+   ```
+
+2. FILTRO SEARCH — DEBOUNCE MANCANTE IN QUERY:
+   La search nella sidebar dell'admin ha debounce, ma la tabella `CompaniesList`
+   ha un proprio campo di ricerca. Verifica che anche questo abbia debounce 300ms:
+   ```typescript
+   const [searchInput, setSearchInput] = useState('')
+   const debouncedSearch = useDebounce(searchInput, 300)
+   // usa debouncedSearch nella query, non searchInput diretto
+   ```
+
+3. CHANGE PLAN — CONFERMA MANCANTE:
+   In `CompanySubscriptionTab.tsx`, quando si cambia piano a un'azienda,
+   non c'è dialog di conferma. Un click accidentale cambia immediatamente il piano.
+
+   Aggiungi AlertDialog di conferma:
+   ```typescript
+   <AlertDialog>
+     <AlertDialogTrigger asChild>
+       <Button variant="outline">Cambia Piano</Button>
+     </AlertDialogTrigger>
+     <AlertDialogContent>
+       <AlertDialogHeader>
+         <AlertDialogTitle>Conferma cambio piano</AlertDialogTitle>
+         <AlertDialogDescription>
+           Stai per cambiare il piano di {company.name} da{' '}
+           <strong>{currentPlan.name}</strong> a <strong>{newPlan.name}</strong>.
+           Questa azione ha effetto immediato.
+         </AlertDialogDescription>
+       </AlertDialogHeader>
+       <AlertDialogFooter>
+         <AlertDialogCancel>Annulla</AlertDialogCancel>
+         <AlertDialogAction onClick={handleChangePlan}>Conferma</AlertDialogAction>
+       </AlertDialogFooter>
+     </AlertDialogContent>
+   </AlertDialog>
+   ```
+
+4. SUSPEND COMPANY — EFFETTI NON COMUNICATI:
+   Quando si sospende un'azienda, gli utenti dell'azienda vengono bloccati?
+   La UI deve comunicare chiaramente le conseguenze PRIMA della conferma:
+
+   Nel dialog di sospensione, aggiungi:
+   ```
+   "Sospendendo {company.name}:
+   • Tutti gli utenti non potranno accedere
+   • I dati vengono conservati
+   • L'azienda riceverà una notifica email
+   • Puoi riattivare in qualsiasi momento"
+   ```
+
+5. EXTEND TRIAL — LIMITE MASSIMO:
+   In `CompanyLifecycle.tsx` e `CompanySubscriptionTab.tsx`, l'estensione del
+   trial non ha un limite hard. Un'azienda potrebbe ricevere estensioni infinite.
+
+   Aggiungi una guard:
+   ```typescript
+   const MAX_TRIAL_EXTENSIONS = 3
+
+   const canExtendTrial = company.trial_extensions_count < MAX_TRIAL_EXTENSIONS
+
+   // Nel bottone:
+   <Button
+     disabled={!canExtendTrial || isExtending}
+     title={!canExtendTrial ? `Limite massimo di ${MAX_TRIAL_EXTENSIONS} estensioni raggiunto` : ''}
+   >
+     Estendi Trial
+   </Button>
+
+   // Mostra contatore:
+   <p className="text-xs text-muted-foreground">
+     Estensioni usate: {company.trial_extensions_count} / {MAX_TRIAL_EXTENSIONS}
+   </p>
+   ```
+
+6. COMPANY NOTES — AUTORE MANCANTE:
+   Le note aziendali mostrano l'`author_id` ma non il nome dell'autore.
+   Verifica che `CompanyNotes.tsx` faccia join con `profiles` per mostrare
+   `first_name + last_name` dell'autore invece dell'UUID.
+
+7. EXPANDED ROW — DATI DUPLICATI:
+   `CompanyExpandedRow.tsx` fa le stesse query di `CompanyDetail.tsx`.
+   Se l'utente apre l'expanded row e poi entra nel dettaglio, ci sono
+   richieste duplicate a Supabase.
+   Verifica che il queryKey sia identico tra i due in modo che la cache
+   venga condivisa:
+   ```typescript
+   // CompanyExpandedRow e CompanyDetail DEVONO usare lo stesso queryKey:
+   queryKey: ['company-detail', companyId]
+   ```
+
+8. TAGS AZIENDA — CREAZIONE SENZA FEEDBACK:
+   In `CompanyTagsCell.tsx`, quando si crea un nuovo tag, non c'è feedback
+   visivo di caricamento. Il bottone deve mostrare uno spinner durante l'INSERT.
+
+9. PIPELINE VIEW — STATI HARDCODED:
+   In `CompanyPipelineView.tsx`, i stage della pipeline potrebbero essere
+   hardcoded invece di venire da Supabase. Verifica che vengano caricati
+   dinamicamente dalla tabella `pipeline_stages` dell'azienda.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A5 — REFERRAL SYSTEM                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/ReferralDashboard.tsx
+  - src/components/admin/referral/ (tutti i file)
+
+1. REFERRAL CODE — UNICITÀ NON VERIFICATA LATO CLIENT:
+   Quando si crea un nuovo referrer, il codice referral deve essere unico.
+   Attualmente la validazione è solo a DB level (constraint Supabase).
+   Aggiungi una pre-validazione client-side nel form:
+   ```typescript
+   const checkCodeUnique = async (code: string): Promise<boolean> => {
+     const { data } = await supabase
+       .from('referrers')
+       .select('id')
+       .eq('referral_code', code.toUpperCase())
+       .maybeSingle()
+     return !data // true = disponibile
+   }
+
+   // Nel resolver Zod/react-hook-form:
+   .refine(async (code) => checkCodeUnique(code), {
+     message: 'Questo codice referral è già in uso'
+   })
+   ```
+
+2. PAYOUT SENZA STORICO DETTAGLIATO:
+   Il `PayoutDialog.tsx` mostra i pagamenti ma non c'è modo di vedere
+   per quale azienda è stato generato ogni payout. Aggiungi join con companies:
+   ```typescript
+   supabase
+     .from('referral_payouts')
+     .select('*, company:companies(name, status)')
+     .eq('referrer_id', referrerId)
+     .order('paid_at', { ascending: false })
+   ```
+
+3. ANALYTICS — TASSO DI CONVERSIONE REFERRAL:
+   In `ReferralAnalytics.tsx`, aggiungi la metrica "tasso di conversione
+   dei referral" = (aziende active via referral) / (totale aziende via referral).
+
+   Questa metrica manca ed è la più importante per valutare il programma.
+
+4. REFERRER DISATTIVATO — AZIENDE ESISTENTI:
+   Quando si disattiva un referrer, le aziende già acquisite tramite quel
+   referrer non devono essere impattate. Verifica che il toggle `is_active`
+   del referrer NON impatti i dati delle aziende esistenti (solo impedisce
+   nuovi signup con quel codice).
+
+   Aggiungi una nota esplicativa nel UI del toggle:
+   ```typescript
+   "Disattivare il referrer impedirà nuovi signup con il suo codice.
+    Le aziende già acquisite non vengono modificate."
+   ```
+
+5. CODICE REFERRAL — CASE INSENSITIVE:
+   Normalizza sempre il codice referral in UPPERCASE sia in scrittura che lettura:
+   ```typescript
+   // Al salvataggio:
+   referral_code: code.toUpperCase().trim()
+
+   // Nella ricerca:
+   .eq('referral_code', searchCode.toUpperCase().trim())
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A6 — PIANI DI ABBONAMENTO                                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/SubscriptionPlans.tsx
+
+1. MODIFICA PIANO ATTIVO — AZIENDE IMPATTATE:
+   Se si modifica un piano già in uso da aziende, i limiti cambiano
+   immediatamente per quelle aziende senza preavviso.
+
+   Prima di salvare un piano con aziende attive, mostra un warning:
+   ```typescript
+   const companiesOnPlan = planCounts?.[plan.id]?.company_count ?? 0
+
+   if (companiesOnPlan > 0) {
+     // Mostra AlertDialog:
+     `Questo piano è attualmente usato da ${companiesOnPlan} aziende.
+      Modificare i limiti avrà effetto immediato su tutte.
+      Vuoi procedere?`
+   }
+   ```
+
+2. FEATURES ARRAY — VALIDAZIONE MANCANTE:
+   In `SubscriptionPlans.tsx`, il campo `features` è un array libero.
+   Le features non hanno un'unicità garantita:
+   ```typescript
+   // Evita features duplicate:
+   const addFeature = (feature: string) => {
+     const trimmed = feature.trim()
+     if (!trimmed || features.includes(trimmed)) return
+     setFeatures(prev => [...prev, trimmed])
+   }
+   ```
+
+3. ORDINE PIANI — DRAG AND DROP:
+   Il campo `position` nei piani determina l'ordine di visualizzazione,
+   ma l'interfaccia non permette di riordinare con drag-and-drop.
+   Usa `@dnd-kit/sortable` (già in progetto) per rendere riordinabile
+   la lista dei piani, con auto-save dell'ordine via UPDATE position.
+
+4. PIANO ELIMINABILE SOLO SE NON USATO:
+   Il bottone delete di un piano deve essere disabilitato se ci sono
+   aziende che lo usano:
+   ```typescript
+   <Button
+     variant="destructive"
+     disabled={companiesOnPlan > 0}
+     title={companiesOnPlan > 0 ? `${companiesOnPlan} aziende usano questo piano` : ''}
+     onClick={() => handleDelete(plan.id)}
+   >
+     Elimina
+   </Button>
+   ```
+
+5. PRICE DISPLAY — FORMATO:
+   I prezzi dei piani devono usare `formatCurrency()` da `src/lib/formatters.ts`
+   invece di template literals inline tipo `€${plan.price_monthly}`.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A7 — IMPLEMENTATIONS E FEATURE FLAGS                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/Implementations.tsx
+
+1. BULK UPDATE — OPERAZIONE PERICOLOSA SENZA CONFERMA:
+   Il pulsante "Abilita per tutte" esegue un UPDATE su TUTTE le aziende
+   usando il filtro `neq("id", "00000000-0000-0000-0000-000000000000")`.
+
+   Questo è potenzialmente distruttivo. Aggiungi SEMPRE un AlertDialog:
+   ```typescript
+   <AlertDialog>
+     <AlertDialogTrigger asChild>
+       <Button variant="outline" size="sm">Abilita per tutte</Button>
+     </AlertDialogTrigger>
+     <AlertDialogContent>
+       <AlertDialogHeader>
+         <AlertDialogTitle>Operazione massiva</AlertDialogTitle>
+         <AlertDialogDescription>
+           Stai per abilitare "{featureName}" per TUTTE le{' '}
+           {companies.length} aziende registrate.
+           Questa operazione non può essere annullata facilmente.
+         </AlertDialogDescription>
+       </AlertDialogHeader>
+       <AlertDialogFooter>
+         <AlertDialogCancel>Annulla</AlertDialogCancel>
+         <AlertDialogAction
+           className="bg-destructive text-destructive-foreground"
+           onClick={() => handleBulkEnable(featureKey)}
+         >
+           Abilita per tutte ({companies.length} aziende)
+         </AlertDialogAction>
+       </AlertDialogFooter>
+     </AlertDialogContent>
+   </AlertDialog>
+   ```
+
+2. FEATURE FLAG — STATO MIXED:
+   Se alcune aziende hanno il flag attivo e altre no, lo switch nella riga
+   deve mostrare uno stato visivo "mixed" (non solo on/off).
+   Aggiungi un Tooltip che mostra il count:
+   ```typescript
+   const enabledCount = companies.filter(c => c[featureKey]).length
+   const label = enabledCount === 0 ? 'Nessuna'
+     : enabledCount === companies.length ? 'Tutte'
+     : `${enabledCount} di ${companies.length}`
+   ```
+
+3. AUDIT DEI TOGGLE:
+   Ogni toggle di feature per un'azienda specifica deve essere loggato
+   con INSERT in `audit_log`:
+   ```typescript
+   onSuccess: async () => {
+     await supabase.from('audit_log').insert({
+       action: 'feature_flag_toggle',
+       target_entity: 'company',
+       target_id: companyId,
+       metadata: { feature: featureKey, enabled: newValue }
+     })
+   }
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A8 — COMPANY LIFECYCLE E TRIAL MANAGEMENT                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/CompanyLifecycle.tsx
+  - src/hooks/useAdminRevenueData.ts (sezione healthScores)
+
+1. LIFECYCLE VIEW — RAGGRUPPAMENTO VISIVO:
+   La pagina Lifecycle mostra le aziende per stato (trial, at_risk, critical, ecc.)
+   Verifica che ci sia un raggruppamento visivo chiaro con header per ogni gruppo
+   e il count di aziende in quel gruppo.
+
+2. TRANSIZIONI DI STATO INVALIDE:
+   Non tutte le transizioni di stato sono valide. Implementa una state machine:
+   ```typescript
+   const VALID_TRANSITIONS: Record<CompanyStatus, CompanyStatus[]> = {
+     trial: ['active', 'expired', 'suspended'],
+     active: ['suspended', 'expired'],
+     suspended: ['active'],           // solo con pagamento
+     expired: ['trial', 'active'],    // solo con pagamento o nuova trial
+   }
+
+   const canTransitionTo = (from: CompanyStatus, to: CompanyStatus) =>
+     VALID_TRANSITIONS[from]?.includes(to) ?? false
+   ```
+
+   Disabilita i bottoni di transizione invalida nella UI.
+
+3. TRIAL SCADUTO — NOTIFICA AUTOMATICA:
+   Aggiungi una sezione "Azioni Richieste" che elenca i trial scaduti
+   nelle ultime 48 ore che non sono stati ancora contattati:
+   ```typescript
+   const recentlyExpired = companies.filter(c =>
+     c.status === 'expired' &&
+     differenceInHours(new Date(), new Date(c.trial_ends_at)) <= 48
+   )
+   ```
+
+4. HEALTH SCORE — STORICO NON PRESENTE:
+   La pagina Lifecycle mostra l'health score attuale ma non il trend.
+   Aggiungi un piccolo trend indicator (+/- rispetto alla settimana scorsa)
+   se il dato è disponibile. Se non è disponibile, aggiungi
+   `// TODO: richiederebbe storico health_score_snapshots in DB`.
+
+5. DAYS IN TRIAL — CALCOLO ROBUSTO:
+   Il calcolo dei "giorni rimanenti al trial" può diventare negativo
+   per i trial scaduti. Aggiorna il display:
+   ```typescript
+   const daysLeft = differenceInDays(new Date(trial_ends_at), new Date())
+   const displayDays = daysLeft >= 0
+     ? `${daysLeft} giorni rimanenti`
+     : `Scaduto ${Math.abs(daysLeft)} giorni fa`
+   const displayClass = daysLeft >= 0
+     ? daysLeft <= 3 ? 'text-destructive font-bold'
+     : daysLeft <= 7 ? 'text-amber-600'
+     : 'text-muted-foreground'
+     : 'text-destructive line-through'
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A9 — SUPPORT GLOBALE E TICKETS                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/GlobalTickets.tsx
+  - src/components/admin/support/ (tutti i file)
+
+1. TICKET NON ASSEGNATI — ALERT VISIVO:
+   I ticket senza assignee devono essere evidenziati con un badge "Non assegnato"
+   in rosso nella lista. Aggiungi filtro rapido "Solo non assegnati".
+
+2. SLA TRACKING MANCANTE:
+   I ticket hanno una data di creazione ma non un SLA target.
+   Aggiungi un calcolo di "ore aperto":
+   ```typescript
+   const hoursOpen = differenceInHours(new Date(), new Date(ticket.created_at))
+   const slaStatus = hoursOpen <= 4 ? 'ok'
+     : hoursOpen <= 24 ? 'warning'
+     : 'breach'
+   ```
+
+   Mostra un badge colorato (verde/giallo/rosso) su ogni ticket.
+
+3. FILTRO PER AZIENDA — MANCANTE O INCOMPLETO:
+   Verifica che ci sia un filtro per filtrare i ticket per azienda specifica
+   nella lista globale. Se manca, aggiungilo come Select con lista aziende.
+
+4. RISPOSTA RAPIDA — TEMPLATE:
+   Aggiungi un menu a tendina di risposte predefinite nel form di risposta:
+   ```typescript
+   const QUICK_REPLIES = [
+     { label: 'In lavorazione', text: 'Abbiamo preso in carico la sua richiesta...' },
+     { label: 'Risolto', text: 'Il problema è stato risolto. Può verificare...' },
+     { label: 'Serve più info', text: 'Per procedere, abbiamo bisogno di...' },
+   ]
+   ```
+
+5. CONVERSAZIONI REAL-TIME:
+   Se il supporto usa Supabase Realtime, verifica che ci sia una
+   subscription ai nuovi messaggi per aggiornare il counter in tempo reale.
+   Se manca, aggiungi:
+   ```typescript
+   useEffect(() => {
+     const channel = supabase
+       .channel('support_messages')
+       .on('postgres_changes', {
+         event: 'INSERT',
+         schema: 'public',
+         table: 'support_messages'
+       }, (payload) => {
+         queryClient.invalidateQueries({ queryKey: ['support-tickets'] })
+       })
+       .subscribe()
+
+     return () => { supabase.removeChannel(channel) }
+   }, [])
+   ```
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A10 — IMPOSTAZIONI ADMIN                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/settings/AdminSettingsSuperAdmins.tsx
+  - src/pages/admin/settings/AdminSettingsAuditLog.tsx
+  - src/pages/admin/settings/AdminSettingsEmail.tsx
+  - src/pages/admin/settings/AdminSettingsPlatform.tsx
+  - src/components/admin/settings/ (tutti i file)
+
+1. CREAZIONE SUPER ADMIN — DOPPIA CONFERMA:
+   In `CreateSuperAdminDialog.tsx`, la creazione di un super admin è
+   un'operazione ad alto rischio. Aggiungi una doppia conferma:
+   - Step 1: form con email e permessi
+   - Step 2: conferma riepilogo "Stai creando un super admin con accesso a..."
+   Usa un pattern multi-step con Stepper o due dialog in sequenza.
+
+2. PERMESSI SUPER ADMIN — SELF-EDIT BLOCCATO:
+   Un super admin non deve poter modificare i propri permessi.
+   In `SuperAdminPermissionsDialog.tsx`:
+   ```typescript
+   const { profile } = useAuth()
+   const isSelf = targetUserId === profile?.id
+
+   // Disabilita tutti i toggle se è se stesso:
+   <Switch disabled={isSelf} ... />
+
+   // Mostra nota:
+   {isSelf && (
+     <p className="text-xs text-amber-600">
+       Non puoi modificare i tuoi stessi permessi.
+     </p>
+   )}
+   ```
+
+3. AUDIT LOG — EXPORT MANCANTE:
+   Il log di audit deve essere esportabile in CSV per compliance/reporting.
+   In `AuditLogTab.tsx`, aggiungi un bottone "Esporta CSV":
+   ```typescript
+   const exportAuditLog = () => {
+     const csv = auditLogs.map(log => ({
+       data: formatDateTime(log.created_at),
+       utente: log.user_name,
+       azione: log.action,
+       entità: log.target_entity,
+       dettagli: JSON.stringify(log.metadata),
+     }))
+     downloadCsv(csv, `audit-log-${format(new Date(), 'yyyy-MM-dd')}.csv`)
+   }
+   ```
+
+4. AUDIT LOG — FILTRI AVANZATI:
+   Il log di audit deve permettere filtri per:
+   - Range di date (da/a)
+   - Tipo di azione (impersonation, feature_toggle, plan_change, ecc.)
+   - Utente specifico
+
+   Aggiungi questi filtri sopra la tabella.
+
+5. EMAIL CONFIG — TEST INVIO MANCANTE:
+   In `EmailSettingsTab.tsx` / `EmailProviderConfig.tsx`, dopo aver
+   configurato un provider email, ci deve essere un bottone "Invia email di test"
+   che verifica che la configurazione funzioni prima di salvare.
+
+6. PLATFORM INFO — VERSIONE APP:
+   In `AdminSettingsPlatform.tsx`, aggiungi una sezione "Versione corrente"
+   che mostra la versione dell'app (da package.json o da una env variable):
+   ```typescript
+   const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? '1.0.0'
+   ```
+
+7. ANNUNCI — TARGET AUDIENCE:
+   In `Announcements.tsx`, gli annunci vengono mostrati a tutti.
+   Aggiungi un campo "Destinatari" con opzioni:
+   - Tutti
+   - Solo trial
+   - Solo active
+   - Solo company_admin
+   - Solo company_staff
+
+   Questo permette annunci mirati senza modifiche al codice.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A11 — ADMIN LAYOUT E NAVIGAZIONE                                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/components/layouts/AdminLayout.tsx
+  - src/components/admin/QuickLoginPopover.tsx
+  - src/components/admin/QuickLoginReturnBanner.tsx
+
+1. SEARCH AZIENDE — RISULTATI LIMITATI:
+   La ricerca aziende nella sidebar non ha limite di risultati mostrati.
+   Con molte aziende, la dropdown può diventare enorme.
+   Limita a max 10 risultati con un "Vedi tutti in Aziende →" in fondo.
+
+2. QUICK LOGIN — LOADING STATE:
+   In `QuickLoginPopover.tsx`, durante il processo di impersonation,
+   non c'è feedback visivo. L'utente potrebbe cliccare più volte.
+   Aggiungi `isLoading` state con spinner sul bottone durante l'impersonation.
+
+3. RETURN BANNER — SEMPRE VISIBILE:
+   Il `QuickLoginReturnBanner.tsx` (banner "Stai visualizzando come...")
+   deve essere sempre visibile durante l'impersonation, anche se l'utente
+   scrolla la pagina (posizione sticky top-0 con z-index alto).
+   Verifica che abbia: `className="sticky top-0 z-50 ..."`.
+
+4. SIDEBAR PERMISSIONS — CACHE:
+   I permessi del super admin vengono ricaricati ogni volta che il layout
+   si monta. Questo causa un flash di voci di menu che spariscono.
+
+   Aumenta staleTime per i permessi a 30 minuti (cambiano raramente):
+   ```typescript
+   staleTime: 30 * 60 * 1000,
+   gcTime: 60 * 60 * 1000,
+   ```
+
+5. BREADCRUMB — MANCANTE NELL'ADMIN:
+   Le pagine admin non hanno breadcrumb. Un admin che è dentro
+   `/admin/aziende/123/` non vede facilmente dove si trova.
+   Aggiungi un componente `AdminBreadcrumb` nel layout che mostra:
+   `Admin > Aziende > [Nome Azienda]`
+
+6. KEYBOARD SHORTCUT — RICERCA RAPIDA:
+   Aggiungi una keyboard shortcut `Cmd+K` (Mac) / `Ctrl+K` (Windows)
+   per aprire la ricerca aziende nella sidebar senza dover cliccare.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  FASE A12 — SYNC LOGS E MONITORAGGIO                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Leggi i file:
+  - src/pages/admin/SyncLogs.tsx
+
+1. FILTRO PER AZIENDA — AGGIUNGERE:
+   I sync logs mostrano tutti i log di tutte le aziende. Aggiungi un filtro
+   per azienda specifica (Select con lista companies).
+
+2. ERRORI — DETTAGLIO ESPANDIBILE:
+   Le righe con status "error" devono mostrare il messaggio di errore completo
+   in un elemento espandibile (accordion o tooltip):
+   ```typescript
+   {log.error_message && (
+     <details className="mt-1">
+       <summary className="text-xs text-destructive cursor-pointer">
+         Mostra errore
+       </summary>
+       <pre className="text-xs mt-1 p-2 bg-destructive/10 rounded overflow-auto">
+         {log.error_message}
+       </pre>
+     </details>
+   )}
+   ```
+
+3. RETRY MANUALE — BOTTONE:
+   Per i sync falliti, aggiungi un bottone "Riprova" che triggera
+   manualmente una nuova sincronizzazione per quella company:
+   ```typescript
+   const retrySync = async (companyId: string, syncType: string) => {
+     await supabase.functions.invoke(`sync-${syncType}`, {
+       body: { company_id: companyId }
+     })
+     toast.success('Sync avviato')
+     queryClient.invalidateQueries({ queryKey: ['sync-logs'] })
+   }
+   ```
+
+4. METRICHE AGGREGATE:
+   In cima alla pagina, aggiungi 3 KPI cards:
+   - Sync completati nelle ultime 24h
+   - Sync falliti nelle ultime 24h
+   - Percentuale di successo
+
+   Calcolali dai dati già fetchati, senza query aggiuntive.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  CHECKLIST FINALE — AREA SUPER ADMIN                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Dopo aver completato tutte le fasi, verifica:
+
+SICUREZZA:
+□ DEFAULT_PERMISSIONS sono tutti false (non true)
+□ Ruolo super_admin verificato PRIMA di leggere la tabella permessi
+□ allowed_company_ids applicato in TUTTE le query companies
+□ Audit log su: impersonation, feature toggle, plan change, extend trial
+□ Self-edit dei propri permessi bloccato
+
+TYPE SAFETY:
+□ Nessun `any` nelle query RPC
+□ Nessun `!` non-null assertion senza guard precedente
+□ File src/types/adminRpc.ts creato con tutti i tipi RPC
+□ Tutte le funzioni hook hanno return type esplicito
+
+UX/OPERATIVA:
+□ Bulk enable feature → AlertDialog con count aziende
+□ Change piano → AlertDialog con nome piano precedente e nuovo
+□ Suspend company → Alert con lista conseguenze
+□ Delete piano attivo → disabilitato se ci sono aziende
+□ Extend trial → limite 3 estensioni con contatore visivo
+□ Impersonation → loading state sul bottone
+
+PERFORMANCE:
+□ RPC chiamate in parallelo con Promise.all
+□ staleTime permessi = 30 min
+□ Ricerca aziende con debounce 300ms
+□ Risultati ricerca sidebar limitati a 10
+
+ACCESSIBILITÀ:
+□ Breadcrumb in tutte le pagine admin
+□ Empty state in tutti i tab vuoti
+□ Return banner sticky durante impersonation
+
+================================================================================
+NOTE GENERALI
+================================================================================
+
+- NON modificare lo schema del DB Supabase — indica le SQL necessarie
+  in commenti // TODO: SQL MIGRATION NEEDED: ...
+- NON cambiare la struttura dei ruoli in src/types/auth.ts
+- USA SEMPRE effectiveCompany nell'impersonation, MAI company diretto
+- Il sistema di permessi (super_admin_permissions) è già funzionante:
+  modificalo solo per il bug del default ALL_TRUE
+- Per le RPC Supabase: aggiungi i tipi ma NON modificare le RPC stesse
+================================================================================

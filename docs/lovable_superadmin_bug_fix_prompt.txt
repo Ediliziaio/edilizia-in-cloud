@@ -1,0 +1,755 @@
+====================================================================
+PROMPT LOVABLE — SUPERADMIN: AUDIT COMPLETO BUG, STRUTTURE MANCANTI
+E PIANO DI INTEGRAZIONE PER GO-LIVE (priorità 3 giorni)
+====================================================================
+
+CONTESTO TECNICO
+- Stack: React 18 + TypeScript + Vite + Supabase + TanStack React Query v5
+- Auth: useAuth() → effectiveCompany?.id · role === "super_admin"
+- Permissions: useSuperAdminPermissions() hook
+- Edge Function principale: manage-super-admins
+- DB: Supabase Postgres con RLS
+- Obiettivo: render il superadmin pronto per il go-live in 3 giorni
+
+Leggi TUTTI i file prima di iniziare:
+- src/pages/admin/*.tsx
+- src/components/admin/**/*.tsx
+- src/hooks/useAdminDashboardData.ts
+- src/hooks/useAdminRevenueData.ts
+- supabase/functions/manage-super-admins/index.ts
+
+================================================================
+🔴 BLOCCO 1 — BUG CRITICI (da fixare PRIMA di andare online)
+================================================================
+
+------------------------------------------------------------------------
+BUG #1 — Implementations.tsx: UUID hardcodato nel bulk update
+------------------------------------------------------------------------
+FILE: src/pages/admin/Implementations.tsx
+
+PROBLEMA:
+La mutazione bulkMutation usa questo pattern per "seleziona tutti":
+  .neq('id', '00000000-0000-0000-0000-000000000000')
+Questo è un hack non sicuro. Se in futuro esiste una company con quell'ID
+(unlikely ma possibile), verrebbe esclusa. Inoltre confonde chi legge il codice.
+
+FIX:
+Sostituisci il bulk update con una query corretta senza filtro finto:
+
+```typescript
+// Prima (sbagliato):
+const bulkMutation = useMutation({
+  mutationFn: async (enable: boolean) => {
+    const { error } = await supabase
+      .from("companies")
+      .update({ messaging_beta_enabled: enable })
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // ← RIMUOVI
+    if (error) throw error;
+  },
+});
+
+// Dopo (corretto):
+const bulkMutation = useMutation({
+  mutationFn: async (enable: boolean) => {
+    // Aggiorna tutte le aziende (senza filtro = tutte le righe)
+    const { error } = await supabase
+      .from("companies")
+      .update({ messaging_beta_enabled: enable })
+      .gte('created_at', '2000-01-01'); // filtro sempre true, oppure usa .not('id', 'is', null)
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['impl-companies'] });
+    toast.success(enable ? 'Modulo attivato per tutte le aziende' : 'Modulo disattivato per tutte le aziende');
+  },
+  onError: (err) => {
+    toast.error('Errore durante l\'aggiornamento: ' + String(err));
+  }
+});
+```
+
+Alternativa più corretta: ottieni prima tutti gli ID con .select('id') poi fai
+l'update in batch su quegli ID specifici.
+
+------------------------------------------------------------------------
+BUG #2 — AdminSupportChatList.tsx: stesso UUID hack
+------------------------------------------------------------------------
+FILE: src/components/admin/support/AdminSupportChatList.tsx
+
+PROBLEMA: Stessa problematica di Implementations.tsx, se presente (cerca
+.neq('id', '00000000...') nel file e rimuovilo con lo stesso fix sopra).
+
+------------------------------------------------------------------------
+BUG #3 — AuditLogTab.tsx: ricerca solo sulla pagina corrente
+------------------------------------------------------------------------
+FILE: src/components/admin/settings/AuditLogTab.tsx
+
+PROBLEMA:
+Il filtro `searchQuery` filtra SOLO i 20 record caricati in memoria:
+```typescript
+const filtered = logs?.filter(l =>
+  l.target_id?.includes(searchQuery) || ...
+);
+```
+Con un audit log di migliaia di record, questo è inutile.
+
+FIX: Sposta il filtro di ricerca nel queryKey e nella query Supabase:
+```typescript
+const { data: logs } = useQuery({
+  queryKey: ["admin-audit-log", page, actionFilter, searchQuery, dateRange],
+  queryFn: async () => {
+    let query = supabase
+      .from("admin_audit_log")
+      .select("*, profiles(first_name, last_name)", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(page * 20, page * 20 + 19);
+
+    if (actionFilter && actionFilter !== "all") query = query.eq("action", actionFilter);
+    if (dateRange.from) query = query.gte("created_at", dateRange.from);
+    if (dateRange.to) query = query.lte("created_at", dateRange.to);
+    // AGGIUNTO: ricerca nel DB, non in memoria
+    if (searchQuery) query = query.ilike("action", `%${searchQuery}%`);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+    return { data, count };
+  },
+});
+```
+Rimuovi il `.filter()` in memoria e usa direttamente `logs?.data`.
+
+------------------------------------------------------------------------
+BUG #4 — NotificationsTab.tsx: `as any` su operazioni DB
+------------------------------------------------------------------------
+FILE: src/components/admin/settings/NotificationsTab.tsx
+
+PROBLEMA:
+```typescript
+const { data } = await supabase
+  .from("admin_notification_prefs")
+  .select("*")
+  .eq("user_id", user?.id)
+  .maybeSingle() as any; // ← RIMUOVI
+```
+Questo nasconde type errors reali. Se la tabella `admin_notification_prefs`
+non esiste nel types.ts generato, il problema è che i tipi non sono stati
+rigenerati dopo la migrazione.
+
+FIX:
+1. Rigenera i tipi Supabase: npx supabase gen types typescript --local
+2. Rimuovi tutti i `as any` in NotificationsTab.tsx
+3. Aggiungi error handling esplicito:
+```typescript
+const { data, error } = await supabase
+  .from("admin_notification_prefs")
+  .select("new_company, trial_expiring, new_ticket")
+  .eq("user_id", user?.id)
+  .maybeSingle();
+if (error) throw error;
+```
+
+------------------------------------------------------------------------
+BUG #5 — SyncLogs.tsx: nessun error state UI
+------------------------------------------------------------------------
+FILE: src/pages/admin/SyncLogs.tsx
+
+PROBLEMA: Il componente non gestisce il caso in cui la query fallisce.
+L'utente vede una pagina vuota senza capire perché.
+
+FIX: Aggiungi error state dopo l'useQuery:
+```typescript
+const { data: logs, isLoading, error } = useQuery({ ... });
+
+// Nel JSX, prima del rendering:
+if (error) {
+  return (
+    <Alert variant="destructive">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>Errore caricamento log</AlertTitle>
+      <AlertDescription>
+        Impossibile caricare i log di sincronizzazione. Riprova tra qualche secondo.
+        <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Riprova
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
+```
+
+------------------------------------------------------------------------
+BUG #6 — useAdminRevenueData.ts: expansionMrr e contractionMrr hardcodati a 0
+------------------------------------------------------------------------
+FILE: src/hooks/useAdminRevenueData.ts — circa linea 279-280
+
+PROBLEMA:
+```typescript
+expansionMrr: 0,    // ← hardcodato
+contractionMrr: 0,  // ← hardcodato
+```
+Il grafico AdminMrrMovements mostra sempre 0 per expansion/contraction.
+Questo è parzialmente corretto (manca storico cambi piano), ma va comunicato.
+
+FIX PARZIALE (per go-live):
+Aggiungi un commento visivo nel grafico che spieghi i dati parziali:
+
+In AdminMrrMovements.tsx, aggiungi sotto il titolo:
+```tsx
+<p className="text-xs text-muted-foreground">
+  * Expansion e contraction MRR richiedono lo storico cambi piano (in sviluppo).
+</p>
+```
+
+FIX COMPLETO (post go-live):
+Traccia i cambi piano in una tabella `company_plan_changes`:
+```sql
+CREATE TABLE company_plan_changes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid REFERENCES companies(id) ON DELETE CASCADE,
+  old_plan_id uuid REFERENCES subscription_plans(id),
+  new_plan_id uuid REFERENCES subscription_plans(id),
+  old_price_monthly decimal(10,2),
+  new_price_monthly decimal(10,2),
+  changed_at timestamptz DEFAULT now(),
+  changed_by uuid REFERENCES profiles(id)
+);
+```
+E aggiorna `useAdminRevenueData.ts` per calcolare expansion = upgrade di piano,
+contraction = downgrade di piano.
+
+------------------------------------------------------------------------
+BUG #7 — GlobalTickets.tsx: pagina quasi VUOTA (solo 20 righe)
+------------------------------------------------------------------------
+FILE: src/pages/admin/GlobalTickets.tsx
+
+PROBLEMA CRITICO: Il file contiene solo un wrapper di 20 righe che carica
+AdminSupportChatList. Non c'è:
+- Possibilità per l'admin di creare un ticket proattivamente
+- Gestione SLA (tempo di risposta)
+- Escalation / priorità manuale
+- Notifica quando arriva un nuovo ticket
+
+FIX MINIMO PER GO-LIVE:
+In GlobalTickets.tsx, aggiungi almeno:
+1. Un contatore di ticket non letti in evidenza
+2. Un filtro per priorità e status
+3. Il pulsante per marcare come risolto direttamente dalla lista
+
+```typescript
+// GlobalTickets.tsx — versione migliorata
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { AccessDenied } from "@/components/admin/AccessDenied";
+import { AdminSupportChatList } from "@/components/admin/support/AdminSupportChatList";
+import { Badge } from "@/components/ui/badge";
+import { MessageSquare } from "lucide-react";
+
+export default function GlobalTickets() {
+  const perms = useSuperAdminPermissions();
+  if (!perms.can_manage_tickets) return <AccessDenied />;
+
+  // Conta messaggi non letti totali per il badge header
+  const { data: unreadCount } = useQuery({
+    queryKey: ["admin-unread-count"],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from("support_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("sender_type", "company")
+        .is("read_at", null);
+      return count || 0;
+    },
+    refetchInterval: 30000,
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold">Assistenza</h1>
+        {unreadCount ? (
+          <Badge variant="destructive">{unreadCount} non letti</Badge>
+        ) : null}
+      </div>
+      <AdminSupportChatList />
+    </div>
+  );
+}
+```
+
+================================================================
+🟡 BLOCCO 2 — STRUTTURE DISCONNESSE (funzionalità non collegate)
+================================================================
+
+------------------------------------------------------------------------
+DISCONNESSIONE #1 — Stripe non è collegato al cambio piano admin
+------------------------------------------------------------------------
+FILE: src/pages/admin/CompanyDetail.tsx + src/pages/admin/SubscriptionPlans.tsx
+
+PROBLEMA:
+- SubscriptionPlans.tsx ha campi stripe_product_id, stripe_price_id_monthly, yearly
+- MA quando l'admin cambia piano a un'azienda (dialog "Cambia Piano" in CompanyDetail),
+  cambia SOLO il DB (subscription_plan_id su companies), NON Stripe
+- Risultato: l'azienda nel DB ha piano Premium ma Stripe continua a fatturare Basic
+
+FIX — Crea Edge Function per cambio piano con sync Stripe:
+
+```typescript
+// supabase/functions/admin-change-plan/index.ts
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+import Stripe from "npm:stripe@14";
+
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!);
+
+Deno.serve(async (req) => {
+  const { company_id, new_plan_id, admin_user_id } = await req.json();
+
+  // 1. Verifica l'admin è super_admin
+  const { data: roleData } = await supabase
+    .from("user_roles").select("role").eq("user_id", admin_user_id).single();
+  if (roleData?.role !== "super_admin") {
+    return Response.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
+  // 2. Carica company e nuovo piano
+  const { data: company } = await supabase
+    .from("companies").select("stripe_customer_id, subscription_plan_id").eq("id", company_id).single();
+  const { data: newPlan } = await supabase
+    .from("subscription_plans").select("*").eq("id", new_plan_id).single();
+
+  // 3. Aggiorna DB
+  await supabase.from("companies").update({ subscription_plan_id: new_plan_id }).eq("id", company_id);
+
+  // 4. Se Stripe è configurato, aggiorna subscription Stripe
+  if (company?.stripe_customer_id && newPlan?.stripe_price_id_monthly) {
+    const subscriptions = await stripe.subscriptions.list({
+      customer: company.stripe_customer_id, status: "active", limit: 1
+    });
+    if (subscriptions.data.length > 0) {
+      const sub = subscriptions.data[0];
+      await stripe.subscriptions.update(sub.id, {
+        items: [{ id: sub.items.data[0].id, price: newPlan.stripe_price_id_monthly }],
+        proration_behavior: "create_prorations",
+      });
+    }
+  }
+
+  // 5. Audit log
+  await supabase.from("admin_audit_log").insert({
+    user_id: admin_user_id, action: "change_company_plan",
+    target_type: "company", target_id: company_id,
+    details: { new_plan_id, new_plan_name: newPlan?.name }
+  });
+
+  return Response.json({ success: true });
+});
+```
+
+In CompanyDetail.tsx, chiama questa edge function invece di fare .update() diretto.
+
+------------------------------------------------------------------------
+DISCONNESSIONE #2 — Feature Flags non esiste come modulo
+------------------------------------------------------------------------
+PROBLEMA:
+Implementations.tsx gestisce SOLO `messaging_beta_enabled` (un campo boolean
+su companies). Non esiste una vera infrastruttura di feature flags.
+
+FIX — Migrazione + pagina Feature Flags:
+
+Crea: supabase/migrations/20260321000000_feature_flags.sql
+```sql
+CREATE TABLE IF NOT EXISTS feature_flags (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  key         text NOT NULL UNIQUE,  -- es. "messaging_beta", "ai_agent", "new_dashboard"
+  name        text NOT NULL,
+  description text,
+  is_global   boolean NOT NULL DEFAULT false,  -- attivo per tutte le aziende
+  created_at  timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS company_feature_flags (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  flag_key   text NOT NULL REFERENCES feature_flags(key) ON DELETE CASCADE,
+  is_enabled boolean NOT NULL DEFAULT false,
+  enabled_at timestamptz,
+  enabled_by uuid REFERENCES profiles(id),
+  UNIQUE(company_id, flag_key)
+);
+
+CREATE INDEX idx_cff_company ON company_feature_flags(company_id);
+CREATE INDEX idx_cff_flag    ON company_feature_flags(flag_key);
+
+ALTER TABLE feature_flags          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE company_feature_flags  ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "super_admin_feature_flags" ON feature_flags
+  FOR ALL USING (EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'super_admin'));
+CREATE POLICY "super_admin_company_flags" ON company_feature_flags
+  FOR ALL USING (EXISTS (SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'super_admin'));
+
+-- Insert default flags (migra il campo legacy)
+INSERT INTO feature_flags (key, name, description) VALUES
+  ('messaging_beta', 'Messaging Beta', 'Funzionalità di messaggistica avanzata'),
+  ('ai_agent', 'AI Agent', 'Agente AI per la gestione automatica dei lead'),
+  ('new_dashboard', 'Nuovo Dashboard', 'Nuovo layout del cruscotto aziendale'),
+  ('whatsapp_advanced', 'WhatsApp Avanzato', 'Funzionalità WhatsApp avanzate')
+ON CONFLICT DO NOTHING;
+```
+
+Poi trasforma Implementations.tsx in una vera pagina Feature Flags che:
+1. Carica tutti i flag dalla tabella feature_flags
+2. Per ogni flag mostra quante aziende ce l'hanno attivo
+3. Permette attivazione/disattivazione per singola azienda O bulk
+4. Log dell'operazione in admin_audit_log
+
+------------------------------------------------------------------------
+DISCONNESSIONE #3 — Trial extension senza limite hard
+------------------------------------------------------------------------
+FILE: src/pages/admin/CompanyLifecycle.tsx — TrialExtensionButton
+
+PROBLEMA:
+Il componente mostra un WARNING dopo 3 estensioni MA non blocca l'azione.
+Un admin distratto potrebbe fare 10+ estensioni senza accorgersene.
+
+FIX: Blocca il pulsante dopo N estensioni (default 3) con un override esplicito:
+
+```typescript
+// In CompanyLifecycle.tsx, funzione TrialExtensionButton:
+const MAX_EXTENSIONS = 3;
+const isBlocked = (company.trial_extensions_count || 0) >= MAX_EXTENSIONS;
+
+return (
+  <div>
+    {isBlocked ? (
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" size="sm" className="border-destructive text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+            Estendi (limite raggiunto)
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limite estensioni raggiunto</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azienda ha già ricevuto {company.trial_extensions_count} estensioni.
+              Il limite massimo è {MAX_EXTENSIONS}. Procedere comunque?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={handleExtend} className="bg-destructive">
+              Estendi comunque
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    ) : (
+      <Button onClick={handleExtend} variant="outline" size="sm" disabled={isLoading}>
+        {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+        +14 giorni
+      </Button>
+    )}
+  </div>
+);
+```
+
+------------------------------------------------------------------------
+DISCONNESSIONE #4 — Impersonation banner non affidabile al reload
+------------------------------------------------------------------------
+FILE: src/contexts/AuthContext.tsx + src/components/admin/QuickLoginReturnBanner.tsx
+
+PROBLEMA:
+L'impersonation usa sessionStorage. Se l'admin apre una nuova tab o fa
+hard-reload, il sessionStorage persiste MA il banner potrebbe non apparire
+se il componente non è montato nel layout corretto.
+
+FIX: Verifica che QuickLoginReturnBanner sia montato nel CompanyLayout
+(non solo nell'AdminLayout), e che legga sessionStorage all'avvio:
+
+```typescript
+// In CompanyLayout.tsx (o dove è montato il layout delle aziende):
+// Assicurati che QuickLoginReturnBanner sia SEMPRE presente:
+import { QuickLoginReturnBanner } from "@/components/admin/QuickLoginReturnBanner";
+
+// Nel JSX del layout:
+<QuickLoginReturnBanner />  {/* ← deve essere qui, non solo in AdminLayout */}
+<Outlet />
+```
+
+Verifica anche che QuickLoginReturnBanner faccia:
+```typescript
+const isImpersonating = !!sessionStorage.getItem("impersonated_company_id");
+if (!isImpersonating) return null;
+```
+
+------------------------------------------------------------------------
+DISCONNESSIONE #5 — Email Settings non collegate all'email sender reale
+------------------------------------------------------------------------
+FILE: src/components/admin/settings/email/EmailDashboard.tsx, EmailProviderConfig.tsx
+
+PROBLEMA:
+La configurazione email provider (SMTP, Resend, etc.) viene salvata nelle
+platform_settings MA non è chiaro se l'Edge Function che invia email
+(send-email o simile) legga da quelle settings in tempo reale o abbia
+variabili d'ambiente hardcodate.
+
+FIX — Aggiungi bottone "Test Email" in EmailProviderConfig:
+```typescript
+const testEmailMutation = useMutation({
+  mutationFn: async () => {
+    const { data, error } = await supabase.functions.invoke("send-email", {
+      body: {
+        to: adminEmail,  // email dell'admin loggato
+        subject: "Test configurazione email",
+        html: "<p>Questo è un messaggio di test della piattaforma.</p>",
+        is_test: true,
+      },
+    });
+    if (error) throw error;
+    return data;
+  },
+  onSuccess: () => toast.success("Email di test inviata! Controlla la casella."),
+  onError: (err) => toast.error("Test fallito: " + String(err)),
+});
+
+// Nel JSX:
+<Button variant="outline" onClick={() => testEmailMutation.mutate()} disabled={testEmailMutation.isPending}>
+  {testEmailMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+  Invia email di test
+</Button>
+```
+
+------------------------------------------------------------------------
+DISCONNESSIONE #6 — AuditLog senza export CSV
+------------------------------------------------------------------------
+FILE: src/components/admin/settings/AuditLogTab.tsx
+
+PROBLEMA: Nessun modo per esportare i log come CSV.
+
+FIX: Aggiungi pulsante Export CSV:
+```typescript
+const handleExportCsv = async () => {
+  // Carica TUTTI i log (non paginati) per l'export
+  const { data } = await supabase
+    .from("admin_audit_log")
+    .select("action, target_type, target_id, details, created_at")
+    .order("created_at", { ascending: false })
+    .limit(1000);
+
+  if (!data) return;
+
+  const csvRows = [
+    ["Data", "Azione", "Tipo Target", "ID Target", "Dettagli"],
+    ...data.map(row => [
+      new Date(row.created_at).toLocaleString("it-IT"),
+      row.action,
+      row.target_type || "",
+      row.target_id || "",
+      JSON.stringify(row.details || {}),
+    ])
+  ];
+
+  const csvContent = csvRows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url;
+  a.download = `audit_log_${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// Nel JSX (accanto al titolo):
+<Button variant="outline" size="sm" onClick={handleExportCsv}>
+  <Download className="h-4 w-4 mr-2" />
+  Esporta CSV
+</Button>
+```
+
+========================================================
+🟢 BLOCCO 3 — OTTIMIZZAZIONI (post go-live ma consigliate)
+========================================================
+
+------------------------------------------------------------------------
+OPT #1 — RPC non tipizzate nel dashboard
+------------------------------------------------------------------------
+FILE: src/pages/admin/CompaniesList.tsx
+
+Le RPC functions `get_company_order_stats`, `get_company_user_counts`,
+`get_company_health_data`, `get_company_last_access` ritornano `unknown`.
+
+Crea: src/types/adminRpc.ts
+```typescript
+export interface CompanyOrderStat {
+  company_id: string;
+  order_count: number;
+  total_value: number;
+}
+export interface CompanyUserCount {
+  company_id: string;
+  user_count: number;
+}
+export interface CompanyHealthData {
+  company_id: string;
+  health_score: number;
+  last_order_date: string | null;
+}
+export interface CompanyLastAccess {
+  company_id: string;
+  last_access: string | null;
+}
+```
+
+Usa queste interfacce al posto di `as any` nelle query:
+```typescript
+const { data: orderStats } = useQuery({
+  queryKey: [...],
+  queryFn: async () => {
+    const { data } = await supabase.rpc("get_company_order_stats");
+    return (data || []) as CompanyOrderStat[];
+  },
+});
+```
+
+------------------------------------------------------------------------
+OPT #2 — AdminSupportChatSheet: Realtime può fare memory leak
+------------------------------------------------------------------------
+FILE: src/components/admin/support/AdminSupportChatSheet.tsx
+
+Il subscription Realtime va pulito correttamente:
+```typescript
+useEffect(() => {
+  if (!companyId) return;
+  const channel = supabase
+    .channel(`admin-support-${companyId}`)
+    .on("postgres_changes", {
+      event: "INSERT", schema: "public", table: "support_messages",
+      filter: `company_id=eq.${companyId}`,
+    }, (payload) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-support-chat", companyId] });
+    })
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel); // ← FONDAMENTALE
+  };
+}, [companyId, queryClient]);
+```
+
+Verifica che il cleanup sia presente. Se manca, aggiungilo.
+
+------------------------------------------------------------------------
+OPT #3 — CompanyDetail: password mostrata in chiaro
+------------------------------------------------------------------------
+FILE: src/pages/admin/CompanyDetail.tsx — PasswordDialog
+
+Il dialog che mostra la password temporanea a un nuovo utente la mostra
+in chiaro. Miglioramento UX:
+
+```typescript
+const [passwordVisible, setPasswordVisible] = useState(false);
+
+// Nel JSX:
+<div className="flex items-center gap-2">
+  <Input
+    type={passwordVisible ? "text" : "password"}
+    value={tempPassword}
+    readOnly
+    className="font-mono"
+  />
+  <Button variant="ghost" size="icon" onClick={() => setPasswordVisible(v => !v)}>
+    {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+  </Button>
+  <Button variant="ghost" size="icon" onClick={() => {
+    navigator.clipboard.writeText(tempPassword);
+    toast.success("Password copiata");
+  }}>
+    <Copy className="h-4 w-4" />
+  </Button>
+</div>
+<p className="text-xs text-muted-foreground mt-1">
+  ⚠️ Questa password è mostrata una sola volta. Salvala ora.
+</p>
+```
+
+------------------------------------------------------------------------
+OPT #4 — Announcements: aggiungi preview
+------------------------------------------------------------------------
+FILE: src/pages/admin/Announcements.tsx
+
+Il form di creazione announcement non ha un preview di come apparirà
+all'utente finale. Aggiungi un tab "Anteprima" nel dialog di creazione
+che mostra un Banner mockup con i dati inseriti.
+
+------------------------------------------------------------------------
+OPT #5 — ReferralDashboard: commissione su piano, non su pagato reale
+------------------------------------------------------------------------
+FILE: src/pages/admin/ReferralDashboard.tsx
+
+La commissione % viene calcolata su plan.price. Se Stripe non è attivo,
+questo è l'unico modo. Aggiungi una nota:
+
+```typescript
+<p className="text-xs text-muted-foreground mt-1">
+  * Il calcolo è basato sul prezzo del piano. Per commissioni su incassato
+  reale, collega Stripe alla piattaforma.
+</p>
+```
+
+================================================================
+CHECKLIST GO-LIVE (ordine esatto da seguire)
+================================================================
+
+Giorno 1 — Bug critici:
+[ ] Fix BUG #1: Implementations.tsx — rimuovi UUID hardcodato
+[ ] Fix BUG #2: AdminSupportChatList.tsx — se presente stesso problema
+[ ] Fix BUG #3: AuditLogTab.tsx — ricerca lato DB, non in memoria
+[ ] Fix BUG #4: NotificationsTab.tsx — rimuovi as any, rigenera tipi Supabase
+[ ] Fix BUG #5: SyncLogs.tsx — aggiungi error state con pulsante retry
+[ ] Fix BUG #6: useAdminRevenueData.ts — nota visiva su dati parziali
+
+Giorno 2 — Strutture disconnesse:
+[ ] Fix DISCONN #1: Crea Edge Function admin-change-plan con sync Stripe
+[ ] Fix DISCONN #2: Migrazione feature_flags + riscrive Implementations.tsx
+[ ] Fix DISCONN #3: Trial extension con limite hard + AlertDialog override
+[ ] Fix DISCONN #4: Verifica QuickLoginReturnBanner nel CompanyLayout
+[ ] Fix DISCONN #5: Aggiungi Test Email in EmailProviderConfig
+[ ] Fix DISCONN #6: Export CSV in AuditLogTab
+
+Giorno 3 — Test e ottimizzazioni:
+[ ] OPT #1: Crea adminRpc.ts con tipi per le 4 RPC functions
+[ ] OPT #2: Verifica cleanup Realtime in AdminSupportChatSheet
+[ ] OPT #3: Password dialog con show/hide + copy button
+[ ] OPT #4: Verifica impersonation banner in CompanyLayout
+[ ] Test end-to-end: login superadmin → impersona azienda → torna
+[ ] Test: crea nuovo admin, assegna permessi limitati, verifica che veda solo ciò che deve
+[ ] Test: crea piano → assegna ad azienda → verifica cambio nel DB
+[ ] Test: crea referrer → aggiungi azienda referral → verifica calcolo commissione
+[ ] Test: invia messaggio support → verifica in real-time nel pannello admin
+[ ] Verifica Rate Limiting edge function (30 richieste / 5 minuti non blocca il normale utilizzo)
+
+================================================================
+RIEPILOGO PRIORITÀ PER GO-LIVE
+================================================================
+
+🔴 BLOCCANTI (fixare PRIMA del lancio):
+- BUG #1: UUID hardcodato → può causare comportamenti imprevedibili
+- BUG #3: Ricerca audit log → inutilizzabile con log grandi
+- BUG #5: SyncLogs senza error handling → white screen silenzioso
+- DISCONN #4: Banner impersonation non affidabile → admin si perde nelle sessioni
+
+🟡 IMPORTANTI (fixare nel weekend post-lancio):
+- BUG #6: MRR parziale → dashboard fuorviante
+- DISCONN #1: Stripe non sincronizzato → fatturazioni inconsistenti
+- DISCONN #2: Feature Flags mancanti → gestione moduli manuale e fragile
+- DISCONN #3: Trial extension illimitata → rischio abuso
+
+🟢 NICE-TO-HAVE (sprint successivo):
+- OPT #1: Tipi RPC → code quality
+- OPT #3: Password UI → UX
+- OPT #4: Announcements preview → UX
+- OPT #5: Commissione Stripe reale → dati accurati

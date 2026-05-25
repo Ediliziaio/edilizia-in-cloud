@@ -1,0 +1,512 @@
+====================================================================
+PROMPT LOVABLE — UserNotificationsTab: Matrice Notifiche per Utente
+====================================================================
+
+CONTESTO TECNICO
+- Stack: React 18 + TypeScript + Vite + Supabase + TanStack React Query v5
+- UI: Shadcn/ui + Radix UI + Tailwind CSS + Lucide Icons
+- Pattern auth: useAuth() → effectiveCompany?.id (MAI company?.id)
+- Il file src/components/users/UserNotificationsTab.tsx è uno stub vuoto — da sostituire
+- Modello ispirato a GHL: matrice eventi × canali con toggle per cella
+
+OBIETTIVO
+Implementare il tab "Notifiche" nel dettaglio utente con:
+- Matrice tabellare: righe = eventi, colonne = canali (In-app / Email / SMS)
+- Sezioni raggruppate per area applicativa
+- "Abilita tutti" / "Disabilita tutti" per sezione
+- Indicatore canale SMS disabilitato se l'utente non ha numero di telefono
+- Salvataggio ottimistico
+
+================================================================
+STEP 1 — MIGRAZIONE DATABASE
+================================================================
+
+Crea file: supabase/migrations/20260320120000_user_notification_preferences.sql
+
+```sql
+CREATE TABLE IF NOT EXISTS user_notification_preferences (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  company_id  uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- LEAD / CRM
+  lead_new_in_app            boolean NOT NULL DEFAULT true,
+  lead_new_email             boolean NOT NULL DEFAULT false,
+  lead_new_sms               boolean NOT NULL DEFAULT false,
+  lead_assigned_in_app       boolean NOT NULL DEFAULT true,
+  lead_assigned_email        boolean NOT NULL DEFAULT true,
+  lead_assigned_sms          boolean NOT NULL DEFAULT false,
+  lead_stage_changed_in_app  boolean NOT NULL DEFAULT true,
+  lead_stage_changed_email   boolean NOT NULL DEFAULT false,
+  lead_stage_changed_sms     boolean NOT NULL DEFAULT false,
+  lead_won_in_app            boolean NOT NULL DEFAULT true,
+  lead_won_email             boolean NOT NULL DEFAULT true,
+  lead_won_sms               boolean NOT NULL DEFAULT false,
+
+  -- ORDINI
+  order_new_in_app             boolean NOT NULL DEFAULT true,
+  order_new_email              boolean NOT NULL DEFAULT true,
+  order_new_sms                boolean NOT NULL DEFAULT false,
+  order_assigned_in_app        boolean NOT NULL DEFAULT true,
+  order_assigned_email         boolean NOT NULL DEFAULT true,
+  order_assigned_sms           boolean NOT NULL DEFAULT false,
+  order_status_changed_in_app  boolean NOT NULL DEFAULT true,
+  order_status_changed_email   boolean NOT NULL DEFAULT false,
+  order_status_changed_sms     boolean NOT NULL DEFAULT false,
+  order_completed_in_app       boolean NOT NULL DEFAULT true,
+  order_completed_email        boolean NOT NULL DEFAULT true,
+  order_completed_sms          boolean NOT NULL DEFAULT false,
+
+  -- APPUNTAMENTI
+  appointment_new_in_app          boolean NOT NULL DEFAULT true,
+  appointment_new_email           boolean NOT NULL DEFAULT true,
+  appointment_new_sms             boolean NOT NULL DEFAULT false,
+  appointment_reminder_in_app     boolean NOT NULL DEFAULT true,
+  appointment_reminder_email      boolean NOT NULL DEFAULT true,
+  appointment_reminder_sms        boolean NOT NULL DEFAULT false,
+  appointment_cancelled_in_app    boolean NOT NULL DEFAULT true,
+  appointment_cancelled_email     boolean NOT NULL DEFAULT true,
+  appointment_cancelled_sms       boolean NOT NULL DEFAULT false,
+  appointment_rescheduled_in_app  boolean NOT NULL DEFAULT true,
+  appointment_rescheduled_email   boolean NOT NULL DEFAULT false,
+  appointment_rescheduled_sms     boolean NOT NULL DEFAULT false,
+
+  -- TASK
+  task_assigned_in_app  boolean NOT NULL DEFAULT true,
+  task_assigned_email   boolean NOT NULL DEFAULT false,
+  task_assigned_sms     boolean NOT NULL DEFAULT false,
+  task_due_soon_in_app  boolean NOT NULL DEFAULT true,
+  task_due_soon_email   boolean NOT NULL DEFAULT false,
+  task_due_soon_sms     boolean NOT NULL DEFAULT false,
+  task_overdue_in_app   boolean NOT NULL DEFAULT true,
+  task_overdue_email    boolean NOT NULL DEFAULT true,
+  task_overdue_sms      boolean NOT NULL DEFAULT false,
+  task_completed_in_app boolean NOT NULL DEFAULT false,
+  task_completed_email  boolean NOT NULL DEFAULT false,
+  task_completed_sms    boolean NOT NULL DEFAULT false,
+
+  -- MESSAGGI
+  message_whatsapp_in_app        boolean NOT NULL DEFAULT true,
+  message_whatsapp_email         boolean NOT NULL DEFAULT false,
+  message_whatsapp_sms           boolean NOT NULL DEFAULT false,
+  message_email_received_in_app  boolean NOT NULL DEFAULT true,
+  message_email_received_email   boolean NOT NULL DEFAULT false,
+  message_email_received_sms     boolean NOT NULL DEFAULT false,
+
+  -- REPORT
+  report_daily_in_app    boolean NOT NULL DEFAULT false,
+  report_daily_email     boolean NOT NULL DEFAULT true,
+  report_daily_sms       boolean NOT NULL DEFAULT false,
+  report_weekly_in_app   boolean NOT NULL DEFAULT false,
+  report_weekly_email    boolean NOT NULL DEFAULT true,
+  report_weekly_sms      boolean NOT NULL DEFAULT false,
+  report_monthly_in_app  boolean NOT NULL DEFAULT false,
+  report_monthly_email   boolean NOT NULL DEFAULT true,
+  report_monthly_sms     boolean NOT NULL DEFAULT false,
+
+  created_at  timestamptz DEFAULT now(),
+  updated_at  timestamptz DEFAULT now(),
+  UNIQUE(user_id)
+);
+
+CREATE INDEX idx_user_notif_prefs_user_id ON user_notification_preferences(user_id);
+
+ALTER TABLE user_notification_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_access_notif_prefs" ON user_notification_preferences
+  FOR ALL USING (
+    company_id IN (
+      SELECT company_id FROM profiles WHERE id = auth.uid()
+    )
+  );
+```
+
+================================================================
+STEP 2 — HOOK: src/hooks/useUserNotificationPrefs.ts
+================================================================
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+// Questo tipo corrisponde esattamente alle colonne della tabella
+export type NotifPrefs = {
+  // LEAD
+  lead_new_in_app: boolean; lead_new_email: boolean; lead_new_sms: boolean;
+  lead_assigned_in_app: boolean; lead_assigned_email: boolean; lead_assigned_sms: boolean;
+  lead_stage_changed_in_app: boolean; lead_stage_changed_email: boolean; lead_stage_changed_sms: boolean;
+  lead_won_in_app: boolean; lead_won_email: boolean; lead_won_sms: boolean;
+  // ORDINI
+  order_new_in_app: boolean; order_new_email: boolean; order_new_sms: boolean;
+  order_assigned_in_app: boolean; order_assigned_email: boolean; order_assigned_sms: boolean;
+  order_status_changed_in_app: boolean; order_status_changed_email: boolean; order_status_changed_sms: boolean;
+  order_completed_in_app: boolean; order_completed_email: boolean; order_completed_sms: boolean;
+  // APPUNTAMENTI
+  appointment_new_in_app: boolean; appointment_new_email: boolean; appointment_new_sms: boolean;
+  appointment_reminder_in_app: boolean; appointment_reminder_email: boolean; appointment_reminder_sms: boolean;
+  appointment_cancelled_in_app: boolean; appointment_cancelled_email: boolean; appointment_cancelled_sms: boolean;
+  appointment_rescheduled_in_app: boolean; appointment_rescheduled_email: boolean; appointment_rescheduled_sms: boolean;
+  // TASK
+  task_assigned_in_app: boolean; task_assigned_email: boolean; task_assigned_sms: boolean;
+  task_due_soon_in_app: boolean; task_due_soon_email: boolean; task_due_soon_sms: boolean;
+  task_overdue_in_app: boolean; task_overdue_email: boolean; task_overdue_sms: boolean;
+  task_completed_in_app: boolean; task_completed_email: boolean; task_completed_sms: boolean;
+  // MESSAGGI
+  message_whatsapp_in_app: boolean; message_whatsapp_email: boolean; message_whatsapp_sms: boolean;
+  message_email_received_in_app: boolean; message_email_received_email: boolean; message_email_received_sms: boolean;
+  // REPORT
+  report_daily_in_app: boolean; report_daily_email: boolean; report_daily_sms: boolean;
+  report_weekly_in_app: boolean; report_weekly_email: boolean; report_weekly_sms: boolean;
+  report_monthly_in_app: boolean; report_monthly_email: boolean; report_monthly_sms: boolean;
+};
+
+// Defaults corrispondenti ai DEFAULT del database
+export const DEFAULT_NOTIF_PREFS: NotifPrefs = {
+  lead_new_in_app: true, lead_new_email: false, lead_new_sms: false,
+  lead_assigned_in_app: true, lead_assigned_email: true, lead_assigned_sms: false,
+  lead_stage_changed_in_app: true, lead_stage_changed_email: false, lead_stage_changed_sms: false,
+  lead_won_in_app: true, lead_won_email: true, lead_won_sms: false,
+  order_new_in_app: true, order_new_email: true, order_new_sms: false,
+  order_assigned_in_app: true, order_assigned_email: true, order_assigned_sms: false,
+  order_status_changed_in_app: true, order_status_changed_email: false, order_status_changed_sms: false,
+  order_completed_in_app: true, order_completed_email: true, order_completed_sms: false,
+  appointment_new_in_app: true, appointment_new_email: true, appointment_new_sms: false,
+  appointment_reminder_in_app: true, appointment_reminder_email: true, appointment_reminder_sms: false,
+  appointment_cancelled_in_app: true, appointment_cancelled_email: true, appointment_cancelled_sms: false,
+  appointment_rescheduled_in_app: true, appointment_rescheduled_email: false, appointment_rescheduled_sms: false,
+  task_assigned_in_app: true, task_assigned_email: false, task_assigned_sms: false,
+  task_due_soon_in_app: true, task_due_soon_email: false, task_due_soon_sms: false,
+  task_overdue_in_app: true, task_overdue_email: true, task_overdue_sms: false,
+  task_completed_in_app: false, task_completed_email: false, task_completed_sms: false,
+  message_whatsapp_in_app: true, message_whatsapp_email: false, message_whatsapp_sms: false,
+  message_email_received_in_app: true, message_email_received_email: false, message_email_received_sms: false,
+  report_daily_in_app: false, report_daily_email: true, report_daily_sms: false,
+  report_weekly_in_app: false, report_weekly_email: true, report_weekly_sms: false,
+  report_monthly_in_app: false, report_monthly_email: true, report_monthly_sms: false,
+};
+
+export function useUserNotifPrefs(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["user-notif-prefs", userId],
+    queryFn: async (): Promise<NotifPrefs> => {
+      if (!userId) return DEFAULT_NOTIF_PREFS;
+      const { data } = await supabase
+        .from("user_notification_preferences")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!data) return DEFAULT_NOTIF_PREFS;
+      // Strip non-pref columns
+      const { id, user_id, company_id, created_at, updated_at, ...prefs } = data as any;
+      return prefs as NotifPrefs;
+    },
+    enabled: !!userId,
+  });
+}
+
+export function useSaveUserNotifPrefs(userId: string | undefined, companyId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (prefs: NotifPrefs) => {
+      if (!userId || !companyId) throw new Error("userId e companyId richiesti");
+      const { error } = await supabase
+        .from("user_notification_preferences")
+        .upsert(
+          { user_id: userId, company_id: companyId, ...prefs, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-notif-prefs", userId] });
+    },
+  });
+}
+```
+
+================================================================
+STEP 3 — COMPONENTE: src/components/users/UserNotificationsTab.tsx
+================================================================
+
+Sostituisci completamente il file stub esistente:
+
+```typescript
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useUserNotifPrefs, useSaveUserNotifPrefs, DEFAULT_NOTIF_PREFS } from "@/hooks/useUserNotificationPrefs";
+import type { NotifPrefs } from "@/hooks/useUserNotificationPrefs";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Bell, Smartphone, Mail, MonitorSmartphone, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+type Channel = "in_app" | "email" | "sms";
+
+interface NotifEvent {
+  key: string; // prefix: e.g. "lead_new"
+  label: string;
+}
+
+interface NotifSection {
+  id: string;
+  title: string;
+  description: string;
+  events: NotifEvent[];
+}
+
+const SECTIONS: NotifSection[] = [
+  {
+    id: "lead",
+    title: "Lead & Opportunità",
+    description: "Notifiche relative ai contatti e alle opportunità nel CRM.",
+    events: [
+      { key: "lead_new", label: "Nuovo lead creato" },
+      { key: "lead_assigned", label: "Lead assegnato a te" },
+      { key: "lead_stage_changed", label: "Cambio di stage" },
+      { key: "lead_won", label: "Opportunità vinta" },
+    ],
+  },
+  {
+    id: "order",
+    title: "Ordini",
+    description: "Notifiche relative agli ordini e al loro avanzamento.",
+    events: [
+      { key: "order_new", label: "Nuovo ordine creato" },
+      { key: "order_assigned", label: "Ordine assegnato a te" },
+      { key: "order_status_changed", label: "Cambio di stato ordine" },
+      { key: "order_completed", label: "Ordine completato" },
+    ],
+  },
+  {
+    id: "appointment",
+    title: "Appuntamenti",
+    description: "Notifiche relative al calendario e agli appuntamenti.",
+    events: [
+      { key: "appointment_new", label: "Nuovo appuntamento" },
+      { key: "appointment_reminder", label: "Promemoria appuntamento" },
+      { key: "appointment_cancelled", label: "Appuntamento cancellato" },
+      { key: "appointment_rescheduled", label: "Appuntamento spostato" },
+    ],
+  },
+  {
+    id: "task",
+    title: "Task & Attività",
+    description: "Notifiche relative ai compiti assegnati e alle scadenze.",
+    events: [
+      { key: "task_assigned", label: "Task assegnata a te" },
+      { key: "task_due_soon", label: "Scadenza imminente (24h)" },
+      { key: "task_overdue", label: "Task scaduta" },
+      { key: "task_completed", label: "Task completata" },
+    ],
+  },
+  {
+    id: "message",
+    title: "Messaggi",
+    description: "Notifiche per i messaggi in arrivo.",
+    events: [
+      { key: "message_whatsapp", label: "Messaggio WhatsApp ricevuto" },
+      { key: "message_email_received", label: "Email ricevuta" },
+    ],
+  },
+  {
+    id: "report",
+    title: "Report",
+    description: "Digest periodici con statistiche e KPI.",
+    events: [
+      { key: "report_daily", label: "Report giornaliero" },
+      { key: "report_weekly", label: "Report settimanale" },
+      { key: "report_monthly", label: "Report mensile" },
+    ],
+  },
+];
+
+const CHANNELS: { id: Channel; label: string; icon: typeof Bell }[] = [
+  { id: "in_app", label: "In-app", icon: MonitorSmartphone },
+  { id: "email", label: "Email", icon: Mail },
+  { id: "sms", label: "SMS", icon: Smartphone },
+];
+
+function prefKey(eventKey: string, channel: Channel): keyof NotifPrefs {
+  return `${eventKey}_${channel}` as keyof NotifPrefs;
+}
+
+export function UserNotificationsTab() {
+  const { userId } = useParams<{ userId: string }>();
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id as string | undefined;
+  const { toast } = useToast();
+
+  const { data: prefsData, isLoading } = useUserNotifPrefs(userId);
+  const saveMutation = useSaveUserNotifPrefs(userId, companyId);
+
+  // Check if user has phone number (for SMS warning)
+  const { data: userProfile } = useQuery({
+    queryKey: ["user-phone-check", userId],
+    queryFn: async () => {
+      if (!userId) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("phone")
+        .eq("id", userId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!userId,
+  });
+
+  const [prefs, setPrefs] = useState<NotifPrefs>(DEFAULT_NOTIF_PREFS);
+
+  useEffect(() => {
+    if (prefsData) setPrefs(prefsData);
+  }, [prefsData]);
+
+  const hasSmsPhone = !!(userProfile?.phone);
+
+  const toggle = (eventKey: string, channel: Channel, value: boolean) => {
+    const key = prefKey(eventKey, channel);
+    setPrefs((p) => ({ ...p, [key]: value }));
+  };
+
+  const toggleAll = (section: NotifSection, channel: Channel, value: boolean) => {
+    setPrefs((p) => {
+      const updates: Partial<NotifPrefs> = {};
+      section.events.forEach((evt) => {
+        updates[prefKey(evt.key, channel)] = value;
+      });
+      return { ...p, ...updates };
+    });
+  };
+
+  const isSectionAllEnabled = (section: NotifSection, channel: Channel) =>
+    section.events.every((evt) => prefs[prefKey(evt.key, channel)]);
+
+  const handleSave = async () => {
+    try {
+      await saveMutation.mutateAsync(prefs);
+      toast({ title: "Preferenze salvate", description: "Le impostazioni di notifica sono state aggiornate." });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile salvare le preferenze.", variant: "destructive" });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* SMS warning */}
+      {!hasSmsPhone && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Le notifiche SMS sono disabilitate perché questo utente non ha un numero di telefono configurato.
+            Aggiungilo nel tab <strong>Informazioni Utente</strong>.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Matrix per section */}
+      {SECTIONS.map((section) => (
+        <Card key={section.id}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{section.title}</CardTitle>
+            <CardDescription>{section.description}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Header row: channel labels + "toggle all" */}
+            <div className="grid grid-cols-[1fr_80px_80px_80px] gap-2 items-center mb-3">
+              <div /> {/* empty for event label column */}
+              {CHANNELS.map((ch) => {
+                const Icon = ch.icon;
+                const allOn = isSectionAllEnabled(section, ch.id);
+                return (
+                  <div key={ch.id} className="flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-1">
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground">{ch.label}</span>
+                    </div>
+                    <button
+                      onClick={() => toggleAll(section, ch.id, !allOn)}
+                      className={`text-xs underline ${
+                        ch.id === "sms" && !hasSmsPhone
+                          ? "opacity-30 cursor-not-allowed"
+                          : "hover:text-foreground text-muted-foreground"
+                      }`}
+                      disabled={ch.id === "sms" && !hasSmsPhone}
+                    >
+                      {allOn ? "Disattiva" : "Attiva"} tutti
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Event rows */}
+            <div className="space-y-0 divide-y divide-border/50">
+              {section.events.map((evt) => (
+                <div
+                  key={evt.key}
+                  className="grid grid-cols-[1fr_80px_80px_80px] gap-2 items-center py-2.5"
+                >
+                  <span className="text-sm">{evt.label}</span>
+                  {CHANNELS.map((ch) => {
+                    const key = prefKey(evt.key, ch.id);
+                    const checked = prefs[key] as boolean;
+                    const disabled = ch.id === "sms" && !hasSmsPhone;
+                    return (
+                      <div key={ch.id} className="flex justify-center">
+                        <Switch
+                          checked={checked}
+                          onCheckedChange={(v) => toggle(evt.key, ch.id, v)}
+                          disabled={disabled}
+                          className={disabled ? "opacity-30" : ""}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+
+      {/* Save */}
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saveMutation.isPending}>
+          {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Salva Preferenze
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+================================================================
+NOTE FINALI
+================================================================
+
+- Il grid è 4 colonne: [label evento | In-app | Email | SMS]. Su mobile
+  si potrebbe collassare in layout verticale — aggiungere responsive
+  breakpoint se necessario: md:grid-cols-[1fr_80px_80px_80px]
+- La logica di INVIO delle notifiche (email sender, in-app notification
+  system, SMS provider) va implementata separatamente nel backend:
+  - In-app: tabella notifications + realtime subscription
+  - Email: edge function o trigger Supabase → Resend/SendGrid
+  - SMS: twilio / infobip / vonage via edge function
+- Questo prompt implementa SOLO il frontend delle preferenze.
+- La migrazione crea la tabella con tutti i default già corretti.
+  La prima volta che l'utente apre il tab, vede i default (non salvati).
+  Al primo "Salva" viene fatto un upsert che crea la riga.

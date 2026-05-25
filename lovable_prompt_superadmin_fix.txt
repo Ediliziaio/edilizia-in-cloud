@@ -1,0 +1,1204 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║   SUPERADMIN FIX — Edilizia in Cloud · Sicurezza, Performance, UX      ║
+║   Sequenza: 7 prompt · Marzo 2026                                        ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+Questa sequenza corregge tutti i problemi trovati nell'area superadmin:
+  1. Sicurezza critica  → permission fallback, check assenti, impersonazione
+  2. Backend enforcement → RLS policies per company restrictions
+  3. Performance        → N+1, query non paginate, staleTime mancanti
+  4. Funzionalità       → alert accessi, audit migliorato, UI hardening
+
+Ogni prompt è AUTONOMO e va eseguito in ordine. Non saltare passaggi.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [SA1] — FIX CRITICI DI SICUREZZA
+             Permission fallback + check mancanti + dead code
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+FIX 1 — useSuperAdminPermissions.ts: inverti il fallback di default
+────────────────────────────────────────────────────────────────────────────
+
+In src/hooks/useSuperAdminPermissions.ts il fallback quando non esiste
+un record in super_admin_permissions è attualmente impostato su ALL_TRUE
+(accesso totale). Questo è un grave problema di sicurezza: record mancante
+o cancellato = accesso illimitato.
+
+CAMBIA il fallback da ALL_TRUE a un oggetto NO_ACCESS:
+
+```ts
+// PRIMA (pericoloso):
+const DEFAULT_PERMISSIONS: SuperAdminPermissions = {
+  can_manage_companies: true,
+  can_manage_plans: true,
+  can_manage_tickets: true,
+  can_manage_referrals: true,
+  can_manage_admins: true,
+  can_view_platform_stats: true,
+  allowed_company_ids: null,
+};
+
+// DOPO (sicuro — deny by default):
+const NO_ACCESS_PERMISSIONS: SuperAdminPermissions = {
+  can_manage_companies: false,
+  can_manage_plans: false,
+  can_manage_tickets: false,
+  can_manage_referrals: false,
+  can_manage_admins: false,
+  can_view_platform_stats: false,
+  allowed_company_ids: [],
+};
+```
+
+Il return del hook diventa:
+```ts
+return {
+  permissions: data ?? NO_ACCESS_PERMISSIONS,
+  isLoading,
+};
+```
+
+ECCEZIONE: aggiungi una costante separata per il primo superadmin del
+sistema (bootstrapping). Crea una funzione di utilità:
+```ts
+// Solo se il ruolo è super_admin E il record non esiste (prima configurazione),
+// concedi accesso completo TEMPORANEO con un flag isBootstrap: true
+// che mostra un banner "Configura i tuoi permessi" nel pannello settings.
+// Usa questo pattern solo per il PRIMO superadmin creato nel sistema.
+```
+
+Aggiorna il commento nel codice:
+```ts
+// SECURITY: Deny by default — missing record = no access.
+// A super_admin must have an explicit permissions record.
+// Run the migration in SA2 to auto-create records on new admin creation.
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 2 — SubscriptionPlans.tsx: aggiungi il check permission mancante
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/admin/SubscriptionPlans.tsx il file dichiara
+`const { permissions: saPermissions } = useSuperAdminPermissions()`
+ma non usa mai `saPermissions`. Aggiungi il check AccessDenied:
+
+```tsx
+// Subito dopo i hook, prima del return principale:
+const { permissions: saPermissions, isLoading: permLoading } = useSuperAdminPermissions();
+
+if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+if (!saPermissions.can_manage_plans) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+      <ShieldX className="h-12 w-12 opacity-30" />
+      <p className="text-lg font-medium">Accesso non autorizzato</p>
+      <p className="text-sm">Non hai i permessi per gestire i piani abbonamento.</p>
+    </div>
+  );
+}
+```
+
+Importa `ShieldX` da lucide-react.
+
+Applica lo stesso check anche nelle mutation `saveMutation` e `deleteMutation`:
+```ts
+onMutate: () => {
+  if (!saPermissions.can_manage_plans) {
+    throw new Error("Permesso negato");
+  }
+},
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 3 — ReferralDashboard.tsx: aggiungi il check permission mancante
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/admin/ReferralDashboard.tsx stesso problema: `saPermissions`
+dichiarata ma non usata. Aggiungi:
+
+```tsx
+const { permissions: saPermissions, isLoading: permLoading } = useSuperAdminPermissions();
+
+if (permLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+if (!saPermissions.can_manage_referrals) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+      <ShieldX className="h-12 w-12 opacity-30" />
+      <p className="text-lg font-medium">Accesso non autorizzato</p>
+      <p className="text-sm">Non hai i permessi per gestire i referral.</p>
+    </div>
+  );
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 4 — SuperAdminUsersTab.tsx: verifica permesso can_manage_admins
+────────────────────────────────────────────────────────────────────────────
+
+In src/components/admin/settings/SuperAdminUsersTab.tsx le funzioni
+createAdmin, deleteAdmin, resetPassword non verificano il permesso
+`can_manage_admins`. Aggiorna:
+
+```tsx
+// Aggiungi in cima al componente:
+const { permissions } = useSuperAdminPermissions();
+
+// Disabilita pulsante "Aggiungi Admin" se non ha il permesso:
+<Button
+  onClick={() => setShowCreateDialog(true)}
+  disabled={!permissions.can_manage_admins}
+  title={!permissions.can_manage_admins ? "Non hai i permessi per gestire gli admin" : undefined}
+>
+  <Plus className="h-4 w-4 mr-2" />
+  Aggiungi Admin
+</Button>
+
+// Prima di ogni chiamata mutation (createAdmin, deleteAdmin, resetPassword):
+if (!permissions.can_manage_admins) {
+  toast.error("Non hai i permessi per questa operazione");
+  return;
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 5 — CompanyDetail.tsx: valida che la company sia nelle allowed_company_ids
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/admin/CompanyDetail.tsx aggiungi la verifica che il companyId
+dell'URL sia accessibile dall'admin corrente:
+
+```tsx
+const { id: companyId } = useParams();
+const { permissions, isLoading: permLoading } = useSuperAdminPermissions();
+
+// Controlla se questo admin può vedere questa specifica azienda
+const canAccessCompany = useMemo(() => {
+  if (!permissions.allowed_company_ids || permissions.allowed_company_ids.length === 0) {
+    // Nessuna restrizione → accesso a tutte
+    return true;
+  }
+  return permissions.allowed_company_ids.includes(companyId ?? "");
+}, [permissions.allowed_company_ids, companyId]);
+
+if (permLoading) return <div className="p-8 text-center">Caricamento...</div>;
+
+if (!permissions.can_manage_companies || !canAccessCompany) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+      <ShieldX className="h-12 w-12 opacity-30" />
+      <p className="text-lg font-medium">Accesso non autorizzato</p>
+      <p className="text-sm">Non hai i permessi per visualizzare questa azienda.</p>
+    </div>
+  );
+}
+```
+
+Applica la stessa logica anche a `handleImpersonate`:
+```tsx
+const handleImpersonate = async () => {
+  if (!canAccessCompany) {
+    toast.error("Non puoi impersonare questa azienda");
+    return;
+  }
+  await h.handleImpersonate();
+  navigate("/azienda");
+};
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [SA2] — MIGRATION SUPABASE: AUTO-RECORD + RLS ENFORCEMENT
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Crea record permessi automaticamente per ogni nuovo super_admin
+────────────────────────────────────────────────────────────────────────────
+
+Esegui in Supabase SQL Editor:
+
+```sql
+-- Migration: superadmin_auto_permissions_record
+
+-- 1. Funzione trigger: crea record permessi con NO_ACCESS quando viene
+--    creato un nuovo profilo con role = 'super_admin'
+CREATE OR REPLACE FUNCTION create_superadmin_permissions_on_role_assign()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Solo se il ruolo cambia a super_admin (o è già super_admin su INSERT)
+  IF NEW.role = 'super_admin' AND (TG_OP = 'INSERT' OR OLD.role IS DISTINCT FROM 'super_admin') THEN
+    INSERT INTO super_admin_permissions (
+      user_id,
+      can_manage_companies,
+      can_manage_plans,
+      can_manage_tickets,
+      can_manage_referrals,
+      can_manage_admins,
+      can_view_platform_stats,
+      allowed_company_ids
+    ) VALUES (
+      NEW.id,
+      false,   -- NO_ACCESS by default
+      false,
+      false,
+      false,
+      false,
+      false,
+      NULL     -- NULL = nessuna restrizione (se abilitato sarà via UI)
+    )
+    ON CONFLICT (user_id) DO NOTHING;  -- non sovrascrivere se esiste già
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- Trigger su profiles
+DROP TRIGGER IF EXISTS trg_create_superadmin_permissions ON profiles;
+CREATE TRIGGER trg_create_superadmin_permissions
+  AFTER INSERT OR UPDATE OF role ON profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION create_superadmin_permissions_on_role_assign();
+
+-- 2. Retroattivo: crea record per tutti i super_admin esistenti senza record
+INSERT INTO super_admin_permissions (
+  user_id,
+  can_manage_companies,
+  can_manage_plans,
+  can_manage_tickets,
+  can_manage_referrals,
+  can_manage_admins,
+  can_view_platform_stats,
+  allowed_company_ids
+)
+SELECT
+  p.id,
+  true,  -- per gli admin già esistenti, mantieni accesso completo (migrazione non distruttiva)
+  true,
+  true,
+  true,
+  true,
+  true,
+  NULL
+FROM profiles p
+WHERE p.role = 'super_admin'
+  AND NOT EXISTS (
+    SELECT 1 FROM super_admin_permissions sap WHERE sap.user_id = p.id
+  );
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — RLS: companies visibili solo secondo allowed_company_ids
+────────────────────────────────────────────────────────────────────────────
+
+```sql
+-- Migration: superadmin_rls_company_restrictions
+
+-- Funzione helper: restituisce true se l'utente può vedere questa company
+CREATE OR REPLACE FUNCTION superadmin_can_access_company(p_company_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role text;
+  v_allowed_ids uuid[];
+BEGIN
+  -- Recupera ruolo utente
+  SELECT role INTO v_role FROM profiles WHERE id = auth.uid();
+
+  -- Non è un superadmin → usa le policy normali
+  IF v_role != 'super_admin' THEN
+    RETURN false;
+  END IF;
+
+  -- Recupera le restrizioni company del superadmin
+  SELECT allowed_company_ids INTO v_allowed_ids
+  FROM super_admin_permissions
+  WHERE user_id = auth.uid();
+
+  -- NULL o array vuoto = nessuna restrizione → accesso a tutto
+  IF v_allowed_ids IS NULL OR array_length(v_allowed_ids, 1) IS NULL THEN
+    RETURN true;
+  END IF;
+
+  -- Verifica che la company sia nella lista
+  RETURN p_company_id = ANY(v_allowed_ids);
+END;
+$$;
+
+-- RLS policy su companies per i superadmin con restrizioni
+-- (Aggiungi questa policy ACCANTO alle policy esistenti, non sostituirla)
+
+-- Prima controlla se c'è già una policy superadmin su companies:
+-- DROP POLICY IF EXISTS "superadmin_restricted_access" ON companies;
+
+CREATE POLICY "superadmin_restricted_company_access" ON companies
+  FOR SELECT
+  USING (
+    -- I membri normali della company vedono la propria (policy esistente gestisce questo)
+    -- I superadmin senza restrizioni vedono tutto
+    -- I superadmin con restrizioni vedono solo le proprie
+    (
+      SELECT role FROM profiles WHERE id = auth.uid()
+    ) = 'super_admin'
+    AND superadmin_can_access_company(id)
+  );
+
+-- Nota: questa policy si AGGIUNGE a quelle esistenti per i member normali.
+-- Supabase usa OR tra policies dello stesso tipo.
+-- Verifica che le policy esistenti usino ancora OR corretto.
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Audit log: traccia tentativi di accesso non autorizzati
+────────────────────────────────────────────────────────────────────────────
+
+```sql
+-- Migration: superadmin_audit_unauthorized_access
+
+-- Aggiungi tipo evento 'unauthorized_access' alla tabella audit_logs
+-- (o alla enum se esiste):
+
+-- Se audit_logs.action è text, nessuna modifica necessaria.
+-- Se è una enum:
+-- ALTER TYPE audit_action_type ADD VALUE IF NOT EXISTS 'unauthorized_access';
+
+-- Funzione per loggare tentativo non autorizzato
+CREATE OR REPLACE FUNCTION log_superadmin_unauthorized_attempt(
+  p_attempted_resource text,
+  p_resource_id text DEFAULT NULL
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO audit_logs (
+    user_id,
+    action,
+    resource_type,
+    resource_id,
+    details,
+    created_at
+  ) VALUES (
+    auth.uid(),
+    'unauthorized_access',
+    p_attempted_resource,
+    p_resource_id,
+    jsonb_build_object(
+      'ip', current_setting('request.headers', true)::jsonb->>'x-forwarded-for',
+      'attempted_at', now()
+    ),
+    now()
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION log_superadmin_unauthorized_attempt(text, text) TO authenticated;
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [SA3] — IMPERSONAZIONE SICURA + SESSION MANAGEMENT
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+FIX 1 — AuthContext.tsx: rendi l'impersonazione più sicura
+────────────────────────────────────────────────────────────────────────────
+
+In src/contexts/AuthContext.tsx l'impersonazione usa sessionStorage e
+il log è fire-and-forget. Migliora così:
+
+```tsx
+// 1. Usa una variabile React state invece di sessionStorage
+//    (si svuota automaticamente al refresh/logout, non manipolabile dalla console)
+const [impersonatedCompanyId, setImpersonatedCompanyId] = useState<string | null>(null);
+
+// RIMUOVI: sessionStorage.setItem("impersonated_company_id", companyId)
+// RIMUOVI: sessionStorage.getItem("impersonated_company_id") negli useEffect
+
+// 2. Nel logout, svuota esplicitamente:
+const signOut = async () => {
+  setImpersonatedCompanyId(null);           // resetta impersonazione
+  sessionStorage.removeItem("impersonated_company_id"); // per backward compat
+  await supabase.auth.signOut();
+};
+
+// 3. Nel handleImpersonate, verifica permesso PRIMA di loggare:
+const handleImpersonate = async (companyId: string) => {
+  if (state.role !== "super_admin") {
+    console.error("Tentativo impersonazione da non-superadmin");
+    return;
+  }
+
+  // Verifica can_manage_companies e company nelle allowed_company_ids
+  const { data: perms } = await supabase
+    .from("super_admin_permissions")
+    .select("can_manage_companies, allowed_company_ids")
+    .eq("user_id", state.userId)
+    .maybeSingle();
+
+  if (!perms?.can_manage_companies) {
+    toast.error("Non hai i permessi per impersonare aziende");
+    return;
+  }
+
+  if (perms.allowed_company_ids && perms.allowed_company_ids.length > 0) {
+    if (!perms.allowed_company_ids.includes(companyId)) {
+      toast.error("Non hai accesso a questa azienda");
+      // Log tentativo non autorizzato
+      await supabase.rpc("log_superadmin_unauthorized_attempt", {
+        p_attempted_resource: "company_impersonation",
+        p_resource_id: companyId,
+      });
+      return;
+    }
+  }
+
+  // Log BLOCCANTE (await) prima di procedere
+  try {
+    await supabase.functions.invoke("manage-super-admins", {
+      body: {
+        action: "log-impersonation",
+        companyId,
+        adminId: state.userId,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (e) {
+    // Log fallito: NON procedere (fail-safe)
+    toast.error("Impossibile registrare l'operazione. Riprovare.");
+    return;
+  }
+
+  setImpersonatedCompanyId(companyId);
+};
+
+// 4. Aggiungi banner visibile quando si è in modalità impersonazione:
+// In CompanyLayout.tsx o AdminLayout.tsx mostra:
+// <div className="bg-amber-500 text-white text-sm px-4 py-2 flex items-center gap-2">
+//   <AlertTriangle className="h-4 w-4" />
+//   Stai visualizzando l'azienda come superadmin.
+//   <button onClick={stopImpersonation} className="underline ml-auto">Esci</button>
+// </div>
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 2 — Banner impersonazione in CompanyLayout.tsx
+────────────────────────────────────────────────────────────────────────────
+
+In src/components/layouts/CompanyLayout.tsx aggiungi il banner visibile
+sopra il contenuto quando `isImpersonating` è true:
+
+```tsx
+// Leggi dallo stesso context o hook:
+const { isImpersonating, stopImpersonation, impersonatedCompanyName } = useAuth();
+
+// Subito prima del <main> o del contenuto principale:
+{isImpersonating && (
+  <div className="bg-amber-500 text-amber-950 text-sm px-4 py-2 flex items-center gap-2 sticky top-0 z-50">
+    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+    <span>
+      Modalità superadmin: stai visualizzando{" "}
+      <strong>{impersonatedCompanyName ?? "un'azienda"}</strong>
+    </span>
+    <Button
+      size="sm"
+      variant="outline"
+      className="ml-auto h-6 text-xs border-amber-700 text-amber-950 hover:bg-amber-600"
+      onClick={stopImpersonation}
+    >
+      Esci dalla modalità admin
+    </Button>
+  </div>
+)}
+```
+
+Il context deve esporre:
+- `isImpersonating: boolean`
+- `impersonatedCompanyName: string | null`
+- `stopImpersonation: () => void` (svuota impersonatedCompanyId e naviga a /admin)
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [SA4] — PERFORMANCE: QUERY, PAGINATION, N+1
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+FIX 1 — SuperAdminPermissionsDialog.tsx: paginazione nel dropdown companies
+────────────────────────────────────────────────────────────────────────────
+
+In src/components/admin/settings/SuperAdminPermissionsDialog.tsx il
+dropdown per selezionare le aziende fa una query senza LIMIT. Con migliaia
+di aziende causa timeout.
+
+Sostituisci la query con un sistema di ricerca incrementale:
+
+```tsx
+// PRIMA (pericoloso):
+const { data: companies } = useQuery({
+  queryKey: ["companies-for-permissions"],
+  queryFn: async () => {
+    const { data } = await supabase.from("companies").select("id, name").order("name");
+    return data ?? [];
+  },
+});
+
+// DOPO (sicuro con ricerca):
+const [companySearch, setCompanySearch] = useState("");
+const debouncedSearch = useDebounce(companySearch, 300);
+
+const { data: companies } = useQuery({
+  queryKey: ["companies-for-permissions", debouncedSearch],
+  queryFn: async () => {
+    let q = supabase
+      .from("companies")
+      .select("id, name")
+      .order("name")
+      .limit(50);                    // MAX 50 risultati
+
+    if (debouncedSearch.trim()) {
+      q = q.ilike("name", `%${debouncedSearch}%`);
+    }
+
+    const { data } = await q;
+    return data ?? [];
+  },
+  staleTime: 2 * 60 * 1000,
+});
+
+// Nel render, aggiungi una Input di ricerca prima della lista:
+<Input
+  placeholder="Cerca azienda..."
+  value={companySearch}
+  onChange={e => setCompanySearch(e.target.value)}
+  className="mb-2"
+/>
+
+// Mostra anche le aziende già selezionate (allowed_company_ids) anche se non
+// sono nei risultati di ricerca:
+const allVisibleCompanies = useMemo(() => {
+  const inSearch = new Set(companies.map(c => c.id));
+  const selected = (localPermissions.allowed_company_ids ?? [])
+    .filter(id => !inSearch.has(id));
+  // Carica i dati per le aziende selezionate ma non nei risultati
+  return [...companies];  // in un secondo momento si possono aggiungere le selected
+}, [companies, localPermissions.allowed_company_ids]);
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 2 — AdminLayout.tsx: limita query companies nel dropdown impersonazione
+────────────────────────────────────────────────────────────────────────────
+
+In src/components/layouts/AdminLayout.tsx la query per il popover di
+impersonazione carica fino a 50 aziende senza filtro. Aggiungi ricerca:
+
+```tsx
+// Stato ricerca nel popover impersonazione
+const [impersonateSearch, setImpersonateSearch] = useState("");
+const debouncedImpSearch = useDebounce(impersonateSearch, 300);
+
+const { data: companiesForImpersonation } = useQuery({
+  queryKey: ["admin-companies-impersonate", debouncedImpSearch],
+  queryFn: async () => {
+    let q = supabase
+      .from("companies")
+      .select("id, name, slug")
+      .eq("is_active", true)     // solo aziende attive
+      .order("name")
+      .limit(20);                 // max 20 risultati
+
+    if (debouncedImpSearch.trim()) {
+      q = q.ilike("name", `%${debouncedImpSearch}%`);
+    }
+
+    const { data } = await q;
+    return data ?? [];
+  },
+  enabled: impersonatePopoverOpen,   // carica solo quando il popover è aperto
+  staleTime: 5 * 60 * 1000,
+});
+
+// Nel popover aggiungi input ricerca:
+<Input
+  placeholder="Cerca azienda..."
+  value={impersonateSearch}
+  onChange={e => setImpersonateSearch(e.target.value)}
+  className="mb-2 h-8 text-sm"
+/>
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 3 — AuditLogTab.tsx: elimina il pattern N+1 sugli autori
+────────────────────────────────────────────────────────────────────────────
+
+In src/components/admin/settings/AuditLogTab.tsx la logica attuale:
+1. Fetch audit logs
+2. Estrai user IDs unici
+3. Fetch profiles separato
+
+Sostituisci con una singola query con JOIN:
+
+```tsx
+// PRIMA (N+1):
+const { data: logs } = useQuery({ ... }); // fetch logs
+const userIds = [...new Set(logs.map(l => l.user_id))];
+const { data: profiles } = useQuery({
+  enabled: userIds.length > 0,
+  queryFn: () => supabase.from("profiles").select("id, full_name, email").in("id", userIds)
+});
+
+// DOPO (single query con select annidato):
+const { data: logs } = useQuery({
+  queryKey: ["audit-logs", page, actionFilter, dateFrom, dateTo],
+  queryFn: async () => {
+    let q = supabase
+      .from("audit_logs")
+      .select(`
+        id,
+        action,
+        resource_type,
+        resource_id,
+        details,
+        created_at,
+        profiles!audit_logs_user_id_fkey (
+          id,
+          full_name,
+          email
+        )
+      `, { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    if (actionFilter && actionFilter !== "all") {
+      q = q.eq("action", actionFilter);
+    }
+    if (dateFrom) q = q.gte("created_at", dateFrom);
+    if (dateTo)   q = q.lte("created_at", dateTo + "T23:59:59Z");
+
+    const { data, count, error } = await q;
+    if (error) throw error;
+    return { logs: data ?? [], total: count ?? 0 };
+  },
+  staleTime: 60 * 1000,   // 1 minuto
+  placeholderData: (prev) => prev,
+});
+
+// Accedi all'autore con: log.profiles?.full_name ?? log.profiles?.email ?? "—"
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 4 — CompaniesList.tsx: consolida le 5 query parallele
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/admin/CompaniesList.tsx ci sono 5 query separate per
+companies, order stats, user counts, health data, last access. Sono
+eseguite con staleTime coerente ma causano 5 round-trip HTTP.
+
+Crea una query aggregata come RPC Supabase:
+
+```sql
+-- Migration: create_get_admin_companies_list_rpc
+
+CREATE OR REPLACE FUNCTION get_admin_companies_list(
+  p_search text DEFAULT NULL,
+  p_limit int DEFAULT 50,
+  p_offset int DEFAULT 0
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_result jsonb;
+BEGIN
+  -- Verifica che sia un superadmin
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'super_admin'
+  ) THEN
+    RAISE EXCEPTION 'Access denied';
+  END IF;
+
+  SELECT jsonb_build_object(
+    'companies', (
+      SELECT jsonb_agg(
+        jsonb_build_object(
+          'id',            c.id,
+          'name',          c.name,
+          'slug',          c.slug,
+          'is_active',     c.is_active,
+          'created_at',    c.created_at,
+          'plan',          c.plan,
+          'ordini_attivi', (
+            SELECT COUNT(*) FROM orders o
+            WHERE o.company_id = c.id AND o.stato NOT IN ('completato', 'annullato')
+          ),
+          'user_count', (
+            SELECT COUNT(*) FROM company_members cm WHERE cm.company_id = c.id
+          ),
+          'last_access', (
+            SELECT MAX(al.created_at) FROM audit_logs al
+            WHERE al.details->>'company_id' = c.id::text
+          )
+        )
+        ORDER BY c.name
+      )
+      FROM companies c
+      WHERE (p_search IS NULL OR c.name ILIKE '%' || p_search || '%')
+      LIMIT p_limit OFFSET p_offset
+    ),
+    'total', (
+      SELECT COUNT(*) FROM companies c
+      WHERE (p_search IS NULL OR c.name ILIKE '%' || p_search || '%')
+    )
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION get_admin_companies_list(text, int, int) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_admin_companies_list(text, int, int) TO authenticated;
+```
+
+Poi aggiorna CompaniesList.tsx per usare la RPC invece delle 5 query:
+
+```tsx
+const PAGE_SIZE = 25;
+
+const { data, isLoading } = useQuery({
+  queryKey: ["admin-companies-list", searchDebounced, page],
+  queryFn: async () => {
+    const { data, error } = await supabase.rpc("get_admin_companies_list", {
+      p_search: searchDebounced || null,
+      p_limit: PAGE_SIZE,
+      p_offset: page * PAGE_SIZE,
+    });
+    if (error) throw error;
+    return data as { companies: CompanyRow[]; total: number };
+  },
+  staleTime: 2 * 60 * 1000,
+  placeholderData: (prev) => prev,
+});
+
+const companies = data?.companies ?? [];
+const totalPages = Math.ceil((data?.total ?? 0) / PAGE_SIZE);
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [SA5] — AUDIT LOG MIGLIORATO + ALERT ACCESSI SOSPETTI
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+FIX 1 — AuditLogTab.tsx: filtro per tipo evento + evidenza accessi non auth
+────────────────────────────────────────────────────────────────────────────
+
+Aggiorna src/components/admin/settings/AuditLogTab.tsx con:
+
+1. Colora in ROSSO le righe con action = 'unauthorized_access'
+2. Mostra un badge alert se ci sono tentativi non autorizzati nelle ultime 24h
+3. Aggiungi filtro per "Solo accessi non autorizzati"
+
+```tsx
+// Badge alert in cima alla tab
+const { data: recentUnauthorized } = useQuery({
+  queryKey: ["audit-unauthorized-24h"],
+  queryFn: async () => {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from("audit_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("action", "unauthorized_access")
+      .gte("created_at", since);
+    return count ?? 0;
+  },
+  staleTime: 5 * 60 * 1000,
+  refetchInterval: 10 * 60 * 1000,  // ricontrolla ogni 10 minuti
+});
+
+// Mostra alert se > 0:
+{recentUnauthorized > 0 && (
+  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">
+    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+    <span>
+      <strong>{recentUnauthorized} tentativ{recentUnauthorized === 1 ? "o" : "i"} non autorizzat{recentUnauthorized === 1 ? "o" : "i"}</strong>{" "}
+      nelle ultime 24 ore.
+    </span>
+    <Button
+      size="sm"
+      variant="ghost"
+      className="ml-auto text-red-700 h-7"
+      onClick={() => setActionFilter("unauthorized_access")}
+    >
+      Mostra
+    </Button>
+  </div>
+)}
+
+// Nella lista log, colora le righe non autorizzate:
+<tr
+  key={log.id}
+  className={log.action === "unauthorized_access" ? "bg-red-50" : ""}
+>
+  ...
+  <td>
+    <Badge
+      variant={log.action === "unauthorized_access" ? "destructive" : "outline"}
+    >
+      {ACTION_LABELS[log.action] ?? log.action}
+    </Badge>
+  </td>
+</tr>
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 2 — Aggiungi 'sign_in_as_user' e 'unauthorized_access' a ACTION_LABELS
+────────────────────────────────────────────────────────────────────────────
+
+In src/lib/adminConstants.ts aggiorna l'oggetto con i label per gli
+eventi di audit. Aggiungi le voci mancanti:
+
+```ts
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  // ... eventi esistenti ...
+  sign_in:              "Accesso",
+  sign_out:             "Disconnessione",
+  sign_in_as_user:      "Impersonazione azienda",
+  unauthorized_access:  "⚠ Accesso non autorizzato",
+  create_company:       "Crea azienda",
+  update_company:       "Modifica azienda",
+  delete_company:       "Elimina azienda",
+  create_admin:         "Crea superadmin",
+  delete_admin:         "Elimina superadmin",
+  reset_password:       "Reset password admin",
+  update_permissions:   "Modifica permessi",
+  plan_change:          "Cambio piano",
+};
+
+export const AUDIT_ACTION_ICONS: Record<string, React.ElementType> = {
+  sign_in:              LogIn,
+  sign_out:             LogOut,
+  sign_in_as_user:      UserCog,
+  unauthorized_access:  ShieldX,
+  create_company:       Building,
+  delete_company:       Trash2,
+  update_permissions:   Shield,
+};
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [SA6] — UX HARDENING: URL GUARD + PERMISSION FEEDBACK
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+FIX 1 — ProtectedRoute.tsx: aggiungi log e redirect su accesso diretto
+────────────────────────────────────────────────────────────────────────────
+
+In src/components/auth/ProtectedRoute.tsx il redirect su permesso negato
+non logga il tentativo. Aggiorna:
+
+```tsx
+// PRIMA:
+if (role && !allowedRoles.includes(userRole)) {
+  return <Navigate to="/unauthorized" replace />;
+}
+
+// DOPO:
+if (role && !allowedRoles.includes(userRole)) {
+  // Log tentativo di accesso non autorizzato via URL diretto
+  if (userRole === "super_admin") {
+    // Un superadmin che accede a una route non permessa → log silenzioso
+    supabase.rpc("log_superadmin_unauthorized_attempt", {
+      p_attempted_resource: window.location.pathname,
+    }).catch(() => {}); // non bloccare il redirect
+  }
+  return <Navigate to="/unauthorized" replace />;
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 2 — AdminLayout.tsx: blocca navigazione diretta URL per sezioni vietate
+────────────────────────────────────────────────────────────────────────────
+
+In src/components/layouts/AdminLayout.tsx il sidebar nasconde le voci
+di menu non autorizzate ma non impedisce la navigazione via URL diretto.
+
+Aggiungi un `useEffect` che rileva la route corrente e reindirizza se
+non autorizzato:
+
+```tsx
+const location = useLocation();
+const { permissions, isLoading: permLoading } = useSuperAdminPermissions();
+
+// Mappa route → permesso richiesto
+const ROUTE_PERMISSIONS: Record<string, keyof SuperAdminPermissions> = {
+  "/admin/aziende":    "can_manage_companies",
+  "/admin/piani":      "can_manage_plans",
+  "/admin/ticket":     "can_manage_tickets",
+  "/admin/referral":   "can_manage_referrals",
+  "/admin/impostazioni": "can_manage_admins",
+};
+
+useEffect(() => {
+  if (permLoading) return;
+
+  const matchedRoute = Object.keys(ROUTE_PERMISSIONS).find(r =>
+    location.pathname.startsWith(r)
+  );
+
+  if (matchedRoute) {
+    const requiredPerm = ROUTE_PERMISSIONS[matchedRoute];
+    if (!permissions[requiredPerm]) {
+      // Log il tentativo
+      supabase.rpc("log_superadmin_unauthorized_attempt", {
+        p_attempted_resource: location.pathname,
+      }).catch(() => {});
+      // Redirect alla dashboard admin
+      navigate("/admin", { replace: true });
+    }
+  }
+}, [location.pathname, permissions, permLoading]);
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 3 — Crea componente AccessDenied riutilizzabile
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/components/admin/AccessDenied.tsx per uniformare tutti i check:
+
+```tsx
+import { ShieldX } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+
+interface AccessDeniedProps {
+  message?: string;
+  backTo?: string;
+}
+
+export function AccessDenied({
+  message = "Non hai i permessi per accedere a questa sezione.",
+  backTo = "/admin",
+}: AccessDeniedProps) {
+  const navigate = useNavigate();
+
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4 text-muted-foreground">
+      <ShieldX className="h-16 w-16 opacity-20" />
+      <div className="text-center">
+        <p className="text-lg font-semibold text-foreground">Accesso non autorizzato</p>
+        <p className="text-sm mt-1 max-w-sm">{message}</p>
+      </div>
+      <Button variant="outline" size="sm" onClick={() => navigate(backTo)}>
+        Torna alla dashboard
+      </Button>
+    </div>
+  );
+}
+```
+
+Sostituisci tutti i blocchi `return (<div>...Accesso non autorizzato...</div>)` nei
+file del superadmin con `<AccessDenied />` importando questo componente.
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [SA7] — FEATURE: NOTIFICHE ADMIN + GESTIONE PIANI MIGLIORATA
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+FIX 1 — AdminDashboard.tsx: aggiungi card "Accessi sospetti"
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/admin/AdminDashboard.tsx aggiungi una card riepilogativa
+per gli eventi di sicurezza recenti:
+
+```tsx
+// Aggiunta al useAdminDashboardData o query separata nella dashboard:
+const { data: securitySummary } = useQuery({
+  queryKey: ["admin-security-summary"],
+  queryFn: async () => {
+    const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from("audit_logs")
+      .select("action, created_at, profiles!inner(full_name)")
+      .in("action", ["unauthorized_access", "sign_in_as_user"])
+      .gte("created_at", since48h)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    return data ?? [];
+  },
+  staleTime: 5 * 60 * 1000,
+  enabled: !!permissions.can_view_platform_stats,
+});
+
+// Card da aggiungere nella dashboard:
+<Card className={securitySummary.some(e => e.action === "unauthorized_access")
+  ? "border-red-200 bg-red-50"
+  : "border-green-200 bg-green-50"
+}>
+  <CardHeader className="pb-2">
+    <CardTitle className="text-sm flex items-center gap-2">
+      <Shield className="h-4 w-4" />
+      Sicurezza (ultime 48h)
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    {securitySummary.length === 0 ? (
+      <p className="text-sm text-green-700">Nessun evento sospetto</p>
+    ) : (
+      <ul className="space-y-1">
+        {securitySummary.map(event => (
+          <li key={event.id} className="text-xs flex items-center gap-2">
+            {event.action === "unauthorized_access"
+              ? <AlertTriangle className="h-3 w-3 text-red-500" />
+              : <UserCog className="h-3 w-3 text-blue-500" />
+            }
+            <span className={event.action === "unauthorized_access" ? "text-red-700" : ""}>
+              {event.profiles?.full_name} — {AUDIT_ACTION_LABELS[event.action]}
+            </span>
+          </li>
+        ))}
+      </ul>
+    )}
+    <Button
+      variant="link"
+      size="sm"
+      className="p-0 h-auto text-xs mt-2"
+      onClick={() => navigate("/admin/impostazioni?tab=audit")}
+    >
+      Vedi log completo →
+    </Button>
+  </CardContent>
+</Card>
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 2 — SubscriptionPlans.tsx: mostra quante aziende usano ogni piano
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/admin/SubscriptionPlans.tsx aggiungi una colonna/badge
+che mostra il numero di aziende attive per piano. I dati sono già fetchati
+(companies_count per plan). Assicurati che siano visibili nell'UI:
+
+```tsx
+// Nella lista piani, aggiungi badge con count:
+<Badge variant="secondary">
+  {planCompanyCounts[plan.id] ?? 0} aziende
+</Badge>
+
+// Impedisci eliminazione piano se ha aziende associate:
+<Button
+  variant="destructive"
+  size="sm"
+  disabled={(planCompanyCounts[plan.id] ?? 0) > 0}
+  title={(planCompanyCounts[plan.id] ?? 0) > 0
+    ? `Non puoi eliminare: ${planCompanyCounts[plan.id]} aziende usano questo piano`
+    : "Elimina piano"
+  }
+  onClick={() => handleDeletePlan(plan.id)}
+>
+  <Trash2 className="h-4 w-4" />
+</Button>
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 3 — CompaniesList.tsx: colonna "Ultimo accesso" e tooltip health
+────────────────────────────────────────────────────────────────────────────
+
+Nella tabella aziende di CompaniesList.tsx (dati già disponibili dalla RPC):
+
+```tsx
+// Colonna "Ultimo accesso" con colore basato su recency:
+const getAccessColor = (lastAccess: string | null) => {
+  if (!lastAccess) return "text-gray-400";
+  const days = differenceInDays(new Date(), new Date(lastAccess));
+  if (days <= 7)  return "text-green-600";
+  if (days <= 30) return "text-yellow-600";
+  return "text-red-500";
+};
+
+<td className={getAccessColor(company.last_access)}>
+  {company.last_access
+    ? formatDistanceToNow(new Date(company.last_access), { locale: it, addSuffix: true })
+    : "Mai"}
+</td>
+
+// Badge piano con colori:
+const PLAN_COLORS: Record<string, string> = {
+  free:       "bg-gray-100 text-gray-700",
+  starter:    "bg-blue-100 text-blue-700",
+  pro:        "bg-purple-100 text-purple-700",
+  enterprise: "bg-amber-100 text-amber-700",
+};
+
+<Badge className={PLAN_COLORS[company.plan] ?? "bg-gray-100"}>
+  {company.plan ?? "—"}
+</Badge>
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║   RIEPILOGO SUPERADMIN FIX                                              ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║                                                                         ║
+║  PROMPT  AREA               COSA RISOLVE                                ║
+║  ──────  ─────────────────  ──────────────────────────────────────────  ║
+║  [SA1]   Sicurezza critica  Permission fallback → deny by default       ║
+║                             Check mancanti in Plans + Referral + Users  ║
+║                             Company access validation su URL diretto    ║
+║                                                                         ║
+║  [SA2]   Migration DB       Auto-record permessi su nuovo admin         ║
+║                             RLS backend per allowed_company_ids         ║
+║                             Funzione log_unauthorized_attempt()         ║
+║                                                                         ║
+║  [SA3]   Impersonazione     State in memoria (non sessionStorage)       ║
+║                             Log bloccante prima di procedere            ║
+║                             Banner visibile durante impersonazione      ║
+║                                                                         ║
+║  [SA4]   Performance        Dropdown companies: ricerca + limit 50      ║
+║                             AuditLog: JOIN vs N+1                       ║
+║                             CompaniesList: RPC aggregata                ║
+║                             Impersonazione popover: lazy load           ║
+║                                                                         ║
+║  [SA5]   Audit log          Alert accessi sospetti 24h                  ║
+║                             Badge rosso per unauthorized_access         ║
+║                             ACTION_LABELS completi                      ║
+║                                                                         ║
+║  [SA6]   UX Hardening       URL guard con redirect + log               ║
+║                             AccessDenied componente unico               ║
+║                             ProtectedRoute: log tentativi              ║
+║                                                                         ║
+║  [SA7]   Feature            Dashboard card sicurezza 48h               ║
+║                             Piani: blocco elimina se aziende attive     ║
+║                             Tabella aziende: colori accesso + piano     ║
+║                                                                         ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  ORDINE OBBLIGATORIO: SA1 → SA2 → SA3 → SA4 → SA5 → SA6 → SA7         ║
+║  SA2 (migration DB) DEVE precedere SA3+ che usano le nuove funzioni    ║
+╚══════════════════════════════════════════════════════════════════════════╝

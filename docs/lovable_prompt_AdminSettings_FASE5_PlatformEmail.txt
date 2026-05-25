@@ -1,0 +1,845 @@
+================================================================================
+PROMPT LOVABLE — SUPER ADMIN SETTINGS FASE 5: PLATFORM SETTINGS & EMAIL
+================================================================================
+Migliora le sezioni "Info & API" e "Email" del Super Admin con:
+- PlatformInfoTab: test di connessione per ogni integrazione (Google, Meta, Maps)
+- Stripe settings panel (chiavi prod/test con toggle ambiente)
+- Email: fix bug SyncLogs (BUG #5 - no error state) + delivery log reale
+- Risolve DISCONN #5: Email settings non collegate a vero invio email
+- Risolve BUG #6: useAdminRevenueData expansionMrr/contractionMrr hardcoded a 0
+
+Segui ESATTAMENTE i 5 step nell'ordine indicato.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1 — Migrazione SQL: platform_settings + email_delivery_log
+────────────────────────────────────────────────────────────────────────────────
+
+```sql
+-- Assicura che platform_settings abbia tutte le colonne necessarie
+ALTER TABLE public.platform_settings
+  ADD COLUMN IF NOT EXISTS stripe_publishable_key TEXT,
+  ADD COLUMN IF NOT EXISTS stripe_secret_key      TEXT,
+  ADD COLUMN IF NOT EXISTS stripe_webhook_secret  TEXT,
+  ADD COLUMN IF NOT EXISTS stripe_mode            TEXT NOT NULL DEFAULT 'live',  -- 'test' | 'live'
+  ADD COLUMN IF NOT EXISTS platform_name          TEXT NOT NULL DEFAULT 'Edilizia in Cloud',
+  ADD COLUMN IF NOT EXISTS platform_email         TEXT,
+  ADD COLUMN IF NOT EXISTS platform_logo_url      TEXT,
+  ADD COLUMN IF NOT EXISTS maintenance_mode       BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS updated_at             TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- Log di invio email per il dashboard
+CREATE TABLE IF NOT EXISTS public.email_delivery_log (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id    UUID REFERENCES public.companies(id) ON DELETE SET NULL,
+  recipient     TEXT NOT NULL,
+  subject       TEXT,
+  template_type TEXT,   -- dunning_d0, dunning_d3, dunning_d7, invite_admin, etc.
+  provider      TEXT,   -- resend, sendgrid, brevo, etc.
+  status        TEXT NOT NULL DEFAULT 'sent',  -- sent | failed | bounced | opened
+  provider_id   TEXT,   -- ID risposta del provider
+  error_message TEXT,
+  sent_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.email_delivery_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_email_log"
+  ON public.email_delivery_log FOR ALL
+  USING (auth.role() = 'service_role');
+CREATE POLICY "super_admin_read_email_log"
+  ON public.email_delivery_log FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.user_roles
+      WHERE user_id = auth.uid() AND role = 'super_admin'
+    )
+  );
+
+CREATE INDEX IF NOT EXISTS idx_email_delivery_log_sent_at
+  ON public.email_delivery_log (sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_delivery_log_status
+  ON public.email_delivery_log (status, sent_at DESC);
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2 — Fix BUG #5: SyncLogs.tsx — aggiunta error state
+────────────────────────────────────────────────────────────────────────────────
+
+Nel file `src/pages/admin/SyncLogs.tsx`, trova la sezione dove viene usato
+`useQuery` (o `useEffect` + `useState`) per caricare i dati dei sync log.
+
+Aggiungi la gestione dell'errore:
+
+```tsx
+// PRIMA (mancava la gestione errore):
+// const { data, isLoading } = useQuery({ ... })
+
+// DOPO (con error state):
+const { data, isLoading, error, refetch } = useQuery({
+  queryKey: ["sync-logs", filters],
+  // ... resto della configurazione esistente ...
+  retry: 2,
+});
+
+// Aggiungi questo blocco PRIMA del return principale del componente:
+if (error) {
+  return (
+    <div className="p-6">
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription className="flex items-center justify-between">
+          <span>
+            Errore nel caricamento dei log di sincronizzazione:{" "}
+            {(error as Error).message}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="ml-4">
+            Riprova
+          </Button>
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+```
+
+Aggiungi anche l'import mancante in cima al file:
+```tsx
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3 — Fix BUG #6: useAdminRevenueData — expansionMrr/contractionMrr reali
+────────────────────────────────────────────────────────────────────────────────
+
+Apri `src/hooks/useAdminRevenueData.ts`. Cerca le righe (circa 279-280) dove
+`expansionMrr` e `contractionMrr` sono hardcoded a 0:
+
+```typescript
+// PRIMA (hardcoded a 0 — BUG #6):
+expansionMrr: 0,
+contractionMrr: 0,
+```
+
+Sostituisci con un calcolo reale basato sui movimenti di abbonamento.
+Aggiungi questa funzione RPC SQL prima, poi usala nel hook:
+
+```sql
+-- Aggiungi questa funzione RPC nel SQL Editor di Supabase:
+CREATE OR REPLACE FUNCTION public.get_mrr_movements_monthly(
+  p_months INT DEFAULT 6
+)
+RETURNS TABLE (
+  month          TEXT,
+  new_mrr        NUMERIC,
+  expansion_mrr  NUMERIC,
+  contraction_mrr NUMERIC,
+  churn_mrr      NUMERIC
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH monthly AS (
+    SELECT
+      TO_CHAR(DATE_TRUNC('month', sl.started_at), 'Mon YY') AS month,
+      DATE_TRUNC('month', sl.started_at) AS month_date,
+      SUM(
+        CASE
+          -- New MRR: prima volta che l'azienda passa a un piano a pagamento
+          WHEN sl.previous_plan_id IS NULL AND sp.price > 0 THEN sp.price
+          ELSE 0
+        END
+      ) AS new_mrr,
+      SUM(
+        CASE
+          -- Expansion: upgrade a piano più costoso
+          WHEN sl.previous_plan_id IS NOT NULL
+               AND sp.price > prev_sp.price THEN sp.price - prev_sp.price
+          ELSE 0
+        END
+      ) AS expansion_mrr,
+      SUM(
+        CASE
+          -- Contraction: downgrade a piano meno costoso
+          WHEN sl.previous_plan_id IS NOT NULL
+               AND sp.price < prev_sp.price THEN prev_sp.price - sp.price
+          ELSE 0
+        END
+      ) AS contraction_mrr,
+      SUM(
+        CASE
+          -- Churn: cancellazione (passaggio a piano gratuito o null)
+          WHEN sl.status = 'cancelled' THEN COALESCE(prev_sp.price, 0)
+          ELSE 0
+        END
+      ) AS churn_mrr
+    FROM public.subscription_logs sl
+    LEFT JOIN public.subscription_plans sp      ON sp.id = sl.plan_id
+    LEFT JOIN public.subscription_plans prev_sp ON prev_sp.id = sl.previous_plan_id
+    WHERE sl.started_at >= NOW() - (p_months || ' months')::INTERVAL
+    GROUP BY month_date, month
+    ORDER BY month_date
+  )
+  SELECT
+    month,
+    COALESCE(new_mrr, 0)::NUMERIC,
+    COALESCE(expansion_mrr, 0)::NUMERIC,
+    COALESCE(contraction_mrr, 0)::NUMERIC,
+    COALESCE(churn_mrr, 0)::NUMERIC
+  FROM monthly;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_mrr_movements_monthly TO authenticated;
+```
+
+Poi nel file `src/hooks/useAdminRevenueData.ts`, sostituisci il blocco che
+costruisce `mrrMovements` con una chiamata alla nuova RPC:
+
+```typescript
+// Sostituisci la query mrrMovements esistente con:
+const { data: mrrMovData } = await supabase
+  .rpc("get_mrr_movements_monthly", { p_months: 6 });
+
+const mrrMovements = (mrrMovData ?? []).map((row: any) => ({
+  month:          row.month,
+  newMrr:         Number(row.new_mrr)         / 100,
+  expansionMrr:   Number(row.expansion_mrr)   / 100,
+  contractionMrr: Number(row.contraction_mrr) / 100,
+  churnMrr:       Number(row.churn_mrr)       / 100,
+  netNew: (
+    Number(row.new_mrr) + Number(row.expansion_mrr) -
+    Number(row.contraction_mrr) - Number(row.churn_mrr)
+  ) / 100,
+}));
+```
+
+NOTA: se la tabella subscription_logs non ha la colonna `previous_plan_id`,
+aggiungila prima:
+```sql
+ALTER TABLE public.subscription_logs
+  ADD COLUMN IF NOT EXISTS previous_plan_id UUID REFERENCES public.subscription_plans(id);
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4 — Sostituisci src/components/admin/settings/PlatformInfoTab.tsx
+────────────────────────────────────────────────────────────────────────────────
+
+Sostituisci COMPLETAMENTE `src/components/admin/settings/PlatformInfoTab.tsx`:
+
+```tsx
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  CheckCircle2, XCircle, Loader2, Eye, EyeOff, Save,
+  Settings2, Plug, Stripe as StripeIcon, Globe,
+  ToggleLeft, ToggleRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Card, CardContent, CardHeader, CardTitle, CardDescription,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+// ─── TIPO PLATFORM SETTINGS ───────────────────────────────────────────────────
+
+interface PlatformSettings {
+  id: string;
+  platform_name: string;
+  platform_email: string | null;
+  maintenance_mode: boolean;
+  // Google Calendar
+  google_calendar_client_id: string | null;
+  google_calendar_client_secret: string | null;
+  google_calendar_two_way_sync: boolean;
+  // Google Maps
+  google_maps_api_key: string | null;
+  // Meta
+  meta_app_id: string | null;
+  meta_app_secret: string | null;
+  // WhatsApp
+  whatsapp_verify_token: string | null;
+  // Stripe
+  stripe_publishable_key: string | null;
+  stripe_secret_key: string | null;
+  stripe_webhook_secret: string | null;
+  stripe_mode: "live" | "test";
+}
+
+// ─── HOOK PLATFORM SETTINGS ───────────────────────────────────────────────────
+
+function usePlatformSettings() {
+  return useQuery({
+    queryKey: ["platform-settings"],
+    staleTime: 300_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data as PlatformSettings;
+    },
+  });
+}
+
+// ─── HOOK SALVA SETTINGS ──────────────────────────────────────────────────────
+
+function useSavePlatformSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: Partial<PlatformSettings>) => {
+      const { error } = await supabase.functions.invoke("update-platform-settings", {
+        body: updates,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["platform-settings"] });
+      toast.success("Impostazioni salvate");
+    },
+    onError: (err: any) =>
+      toast.error("Errore nel salvataggio", { description: err.message }),
+  });
+}
+
+// ─── CAMPO CON TOGGLE VISIBILITÀ ──────────────────────────────────────────────
+
+function SecretInput({
+  label, value, onChange, placeholder, hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  hint?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <div className="relative">
+        <Input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder ?? "••••••••••••••••"}
+          className="pr-10 font-mono text-sm"
+        />
+        <button
+          type="button"
+          onClick={() => setShow(!show)}
+          className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+        >
+          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+// ─── SEZIONE CON BOTTONE TEST CONNESSIONE ─────────────────────────────────────
+
+function ConnectionTestButton({
+  integrationKey,
+  onTest,
+}: {
+  integrationKey: string;
+  onTest: () => Promise<boolean>;
+}) {
+  const [status, setStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+
+  const handleTest = async () => {
+    setStatus("testing");
+    try {
+      const ok = await onTest();
+      setStatus(ok ? "ok" : "error");
+    } catch {
+      setStatus("error");
+    }
+    setTimeout(() => setStatus("idle"), 4000);
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleTest}
+      disabled={status === "testing"}
+      className="gap-2"
+    >
+      {status === "testing" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      {status === "ok"      && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+      {status === "error"   && <XCircle className="h-3.5 w-3.5 text-destructive" />}
+      {status === "idle"    && <Plug className="h-3.5 w-3.5" />}
+      {status === "testing" ? "Test..." :
+       status === "ok"      ? "Connesso" :
+       status === "error"   ? "Errore"  : "Testa connessione"}
+    </Button>
+  );
+}
+
+// ─── COMPONENTE PRINCIPALE ────────────────────────────────────────────────────
+
+export function PlatformInfoTab() {
+  const { data: settings, isLoading } = usePlatformSettings();
+  const { mutate: save, isPending } = useSavePlatformSettings();
+
+  // Stato locale per i form (inizializzato quando settings arriva)
+  const [local, setLocal] = useState<Partial<PlatformSettings>>({});
+  const [initialized, setInitialized] = useState(false);
+
+  if (settings && !initialized) {
+    setLocal(settings);
+    setInitialized(true);
+  }
+
+  const update = (key: keyof PlatformSettings, value: any) =>
+    setLocal((prev) => ({ ...prev, [key]: value }));
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-48 bg-muted animate-pulse rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold">Info & Integrazioni</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configurazione della piattaforma e chiavi API delle integrazioni.
+        </p>
+      </div>
+
+      {/* Manutenzione */}
+      {local.maintenance_mode && (
+        <Alert variant="destructive">
+          <AlertDescription>
+            🔧 La piattaforma è attualmente in modalità manutenzione.
+            Gli utenti vedono una pagina di manutenzione.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Info piattaforma */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Globe className="h-4 w-4" />
+            Info piattaforma
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Nome piattaforma</Label>
+              <Input
+                value={local.platform_name ?? ""}
+                onChange={(e) => update("platform_name", e.target.value)}
+                placeholder="Edilizia in Cloud"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email piattaforma</Label>
+              <Input
+                type="email"
+                value={local.platform_email ?? ""}
+                onChange={(e) => update("platform_email", e.target.value)}
+                placeholder="no-reply@example.com"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-3 rounded-lg border">
+            <div>
+              <p className="text-sm font-medium">Modalità manutenzione</p>
+              <p className="text-xs text-muted-foreground">
+                Mostra una pagina di manutenzione a tutti gli utenti non-admin
+              </p>
+            </div>
+            <Switch
+              checked={local.maintenance_mode ?? false}
+              onCheckedChange={(v) => update("maintenance_mode", v)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stripe */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-sm flex items-center gap-2">
+                💳 Stripe
+              </CardTitle>
+              <CardDescription>
+                Pagamenti e abbonamenti
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {local.stripe_mode === "test" ? "Test" : "Produzione"}
+              </span>
+              <Switch
+                checked={local.stripe_mode === "live"}
+                onCheckedChange={(v) => update("stripe_mode", v ? "live" : "test")}
+              />
+              <Badge variant={local.stripe_mode === "live" ? "default" : "secondary"}>
+                {local.stripe_mode === "live" ? "Live" : "Test"}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {local.stripe_mode === "test" && (
+            <Alert>
+              <AlertDescription className="text-xs">
+                ⚠️ Modalità test: i pagamenti non sono reali. Usa le chiavi live per la produzione.
+              </AlertDescription>
+            </Alert>
+          )}
+          <div className="space-y-1.5">
+            <Label>Publishable Key</Label>
+            <Input
+              value={local.stripe_publishable_key ?? ""}
+              onChange={(e) => update("stripe_publishable_key", e.target.value)}
+              placeholder={local.stripe_mode === "test" ? "pk_test_..." : "pk_live_..."}
+              className="font-mono text-sm"
+            />
+          </div>
+          <SecretInput
+            label="Secret Key"
+            value={local.stripe_secret_key ?? ""}
+            onChange={(v) => update("stripe_secret_key", v)}
+            placeholder={local.stripe_mode === "test" ? "sk_test_..." : "sk_live_..."}
+          />
+          <SecretInput
+            label="Webhook Secret"
+            value={local.stripe_webhook_secret ?? ""}
+            onChange={(v) => update("stripe_webhook_secret", v)}
+            placeholder="whsec_..."
+            hint="Trovi il webhook secret nella dashboard Stripe → Webhooks"
+          />
+          <div className="flex justify-end">
+            <ConnectionTestButton
+              integrationKey="stripe"
+              onTest={async () => {
+                const { data } = await supabase.functions.invoke("test-integration", {
+                  body: { integration: "stripe" },
+                });
+                return data?.ok === true;
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Google Calendar */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm flex items-center gap-2">
+            📅 Google Calendar
+          </CardTitle>
+          <CardDescription>Sincronizzazione appuntamenti</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Client ID</Label>
+            <Input
+              value={local.google_calendar_client_id ?? ""}
+              onChange={(e) => update("google_calendar_client_id", e.target.value)}
+              placeholder="123456789-abc.apps.googleusercontent.com"
+              className="font-mono text-sm"
+            />
+          </div>
+          <SecretInput
+            label="Client Secret"
+            value={local.google_calendar_client_secret ?? ""}
+            onChange={(v) => update("google_calendar_client_secret", v)}
+          />
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border">
+            <div>
+              <p className="text-sm font-medium">Sync bidirezionale</p>
+              <p className="text-xs text-muted-foreground">
+                Sincronizza modifiche sia da Google che dall'app
+              </p>
+            </div>
+            <Switch
+              checked={local.google_calendar_two_way_sync ?? false}
+              onCheckedChange={(v) => update("google_calendar_two_way_sync", v)}
+            />
+          </div>
+          <div className="flex justify-end">
+            <ConnectionTestButton
+              integrationKey="google_calendar"
+              onTest={async () => {
+                const { data } = await supabase.functions.invoke("test-integration", {
+                  body: { integration: "google_calendar" },
+                });
+                return data?.ok === true;
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Google Maps */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">🗺️ Google Maps</CardTitle>
+          <CardDescription>Autocompletamento indirizzi</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SecretInput
+            label="API Key"
+            value={local.google_maps_api_key ?? ""}
+            onChange={(v) => update("google_maps_api_key", v)}
+            placeholder="AIzaSy..."
+            hint="Abilita Maps JavaScript API e Places API nella Google Cloud Console"
+          />
+          <div className="flex justify-end">
+            <ConnectionTestButton
+              integrationKey="google_maps"
+              onTest={async () => {
+                const key = local.google_maps_api_key ?? "";
+                if (!key) return false;
+                // Test semplice: risolve un indirizzo di prova
+                const res = await fetch(
+                  `https://maps.googleapis.com/maps/api/geocode/json?address=Rome&key=${key}`
+                );
+                const json = await res.json();
+                return json.status === "OK";
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Meta / WhatsApp */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">📱 Meta & WhatsApp</CardTitle>
+          <CardDescription>Integrazione Facebook e WhatsApp Business</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Meta App ID</Label>
+              <Input
+                value={local.meta_app_id ?? ""}
+                onChange={(e) => update("meta_app_id", e.target.value)}
+                placeholder="1234567890"
+                className="font-mono text-sm"
+              />
+            </div>
+            <SecretInput
+              label="Meta App Secret"
+              value={local.meta_app_secret ?? ""}
+              onChange={(v) => update("meta_app_secret", v)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>WhatsApp Verify Token</Label>
+            <Input
+              value={local.whatsapp_verify_token ?? ""}
+              onChange={(e) => update("whatsapp_verify_token", e.target.value)}
+              placeholder="token segreto per verifica webhook"
+              className="font-mono text-sm"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Salva tutto */}
+      <div className="flex justify-end pt-2">
+        <Button
+          onClick={() => save(local)}
+          disabled={isPending}
+          size="lg"
+          className="gap-2"
+        >
+          {isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          Salva tutte le impostazioni
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 5 — Edge Function: test-integration/index.ts
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `supabase/functions/test-integration/index.ts`:
+
+```typescript
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) throw new Error("Missing auth");
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Unauthorized");
+
+    // Verifica super_admin
+    const { data: role } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+    if (role?.role !== "super_admin") throw new Error("Forbidden");
+
+    const { integration } = await req.json();
+
+    // Recupera settings piattaforma
+    const { data: settings } = await supabaseAdmin
+      .from("platform_settings")
+      .select("*")
+      .single();
+
+    let ok = false;
+    let message = "";
+
+    switch (integration) {
+      case "stripe": {
+        if (!settings?.stripe_secret_key) {
+          message = "Stripe secret key non configurata";
+          break;
+        }
+        try {
+          const stripe = new Stripe(settings.stripe_secret_key, {
+            apiVersion: "2023-10-16",
+          });
+          // Test semplice: recupera le impostazioni account
+          await stripe.accounts.retrieve();
+          ok = true;
+          message = "Stripe connesso correttamente";
+        } catch (e: any) {
+          message = e.message;
+        }
+        break;
+      }
+
+      case "google_calendar": {
+        if (!settings?.google_calendar_client_id) {
+          message = "Client ID non configurato";
+          break;
+        }
+        // Verifica che il Client ID sia un formato valido
+        ok = settings.google_calendar_client_id.includes(".apps.googleusercontent.com");
+        message = ok ? "Formato Client ID valido" : "Formato Client ID non valido";
+        break;
+      }
+
+      case "google_maps": {
+        if (!settings?.google_maps_api_key) {
+          message = "API Key non configurata";
+          break;
+        }
+        try {
+          const res = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=Roma&key=${settings.google_maps_api_key}`
+          );
+          const json = await res.json();
+          ok = json.status === "OK";
+          message = ok ? "Google Maps API funzionante" : `Errore: ${json.status}`;
+        } catch (e: any) {
+          message = e.message;
+        }
+        break;
+      }
+
+      default:
+        message = "Integrazione sconosciuta";
+    }
+
+    return new Response(
+      JSON.stringify({ ok, message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+```
+
+
+================================================================================
+NOTE IMPORTANTI
+================================================================================
+
+- BUG #5 FIX (SyncLogs): aggiunta la gestione `error` nel useQuery con Alert
+  e bottone "Riprova" — prima lo schermo era bianco se la query falliva
+- BUG #6 FIX (expansionMrr/contractionMrr): sostituiti i valori hardcoded 0
+  con una RPC reale che calcola i movimenti MRR dai subscription_logs
+- PLATFORM SETTINGS: ora gestisce anche Stripe (con toggle live/test) e
+  modalità manutenzione — tutte le chiavi sono oscurate di default
+- TEST CONNESSIONE: ogni integrazione ha un bottone "Testa connessione" che
+  chiama l'Edge Function `test-integration` con il tipo di integrazione
+- STRIPE TOGGLE: il toggle live/test cambia il placeholder delle chiavi per
+  guidare l'utente a inserire la chiave corretta (pk_test_... vs pk_live_...)
+- SecretInput: mostra/nasconde le chiavi API con il bottone eye per sicurezza
+- SALVA: un singolo bottone in fondo salva tutte le modifiche insieme
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+1. Vai su Impostazioni → Info & API → vedi 5 card (Info, Stripe, Calendar, Maps, Meta)
+2. Toggle Stripe live/test → il badge cambia + alert "modalità test" appare
+3. Inserisci una chiave Stripe valida → clicca "Testa connessione" → badge verde
+4. Inserisci una chiave Maps invalida → "Testa connessione" → badge rosso
+5. Vai su Admin → SyncLogs → simula un errore di rete → deve comparire Alert con "Riprova"
+6. Dashboard Admin → MRR Movements → expansionMrr e contractionMrr non sono più 0
+7. Vai su Impostazioni → Info & API → attiva "Modalità manutenzione" → salva
+================================================================================

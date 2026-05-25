@@ -1,0 +1,1814 @@
+╔══════════════════════════════════════════════════════════════════╗
+║         MODULO FATTURAZIONE — PROMPT COMPLETO E DEFINITIVO      ║
+║              6 prompt sequenziali per Lovable.dev               ║
+╚══════════════════════════════════════════════════════════════════╝
+
+ARCHITETTURA GENERALE
+─────────────────────
+Questo modulo implementa un sistema di fatturazione completo per il gestionale,
+con integrazione a 4 software di fatturazione italiani via pattern Adapter.
+
+Provider supportati (tutti opzionali — il modulo funziona anche standalone):
+  ✅ Fatture in Cloud  — OAuth2 REST API v2       (mercato leader, consigliato)
+  ✅ Fattura24         — REST API con API Key      (alternativa diffusa)
+  ✅ Aruba e-Fattura   — REST API con Bearer token (per utenti Aruba)
+  ✅ Invoicetronic     — REST API con API Key      (middleware SDI, per Danea/altri)
+  ✅ Standalone        — Solo PDF, nessun SDI      (senza software esterno)
+
+Principio: il codice interno della fattura non conosce i provider.
+Una factory crea l'adapter corretto in base alla configurazione salvata.
+Aggiungere un nuovo provider in futuro = solo un nuovo Adapter class.
+
+File da creare (nell'ordine dei 6 prompt):
+  1. Migrazione DB SQL (tabelle + funzioni + trigger + RLS)
+  2. supabase/functions/_shared/billingAdapter.ts
+  3. supabase/functions/billing-connect/index.ts (OAuth2 + API key setup)
+  4. supabase/functions/billing-sync/index.ts    (push/pull/cancel)
+  5. supabase/functions/billing-webhook/index.ts (notifiche push dai provider)
+  6. supabase/functions/generate-invoice-pdf/index.ts
+  7. src/pages/azienda/billing/ (pagine React: lista, editor, impostazioni)
+  8. src/pages/azienda/Scadenzario.tsx
+  9. Integrazioni con Ordini, Preventivi, Contatti, Cruscotto
+
+════════════════════════════════════════════════════════════════════
+PROMPT 1 di 6 — DATABASE SCHEMA COMPLETO
+════════════════════════════════════════════════════════════════════
+
+Crea questa migrazione Supabase. Esegui tutto in una sola migrazione.
+
+```sql
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 1: Configurazione integrazione per company
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS billing_integrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  -- 'fattureincloud' | 'fattura24' | 'aruba' | 'invoicetronic' | 'standalone'
+  is_active   BOOLEAN DEFAULT true,
+  is_primary  BOOLEAN DEFAULT false, -- provider usato di default per nuovi invii
+
+  -- Credenziali (mai esposte al frontend)
+  access_token        TEXT,           -- OAuth2 access token (FIC)
+  refresh_token       TEXT,           -- OAuth2 refresh token (FIC)
+  token_expires_at    TIMESTAMPTZ,    -- scadenza token FIC
+  api_key             TEXT,           -- API key / Bearer token (Fattura24, Aruba, Invoicetronic)
+
+  -- Info azienda lette dal provider
+  company_external_id TEXT,           -- ID azienda sul provider
+  provider_company_name TEXT,
+  provider_vat_number TEXT,
+
+  -- Sync settings
+  auto_sync       BOOLEAN DEFAULT true,
+  sync_direction  TEXT DEFAULT 'both', -- 'push' | 'pull' | 'both'
+  last_sync_at    TIMESTAMPTZ,
+  last_sync_status TEXT,               -- 'success' | 'error'
+  last_sync_error TEXT,
+
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE(company_id, provider)
+);
+
+-- Al massimo 1 provider primario attivo per company
+CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_integrations_primary
+  ON billing_integrations(company_id)
+  WHERE is_primary = true AND is_active = true;
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 2: Fatture
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Numerazione
+  invoice_number     TEXT,            -- es. "FT-2025-0042"
+  invoice_year       INTEGER DEFAULT EXTRACT(YEAR FROM NOW()),
+  progressive_number INTEGER,         -- numero progressivo nell'anno
+
+  -- Tipo documento
+  document_type TEXT NOT NULL DEFAULT 'invoice',
+  -- 'invoice' | 'credit_note' | 'proforma' | 'receipt'
+
+  -- Stato ciclo di vita
+  status TEXT NOT NULL DEFAULT 'draft',
+  -- 'draft'     → Bozza (modificabile)
+  -- 'issued'    → Emessa (bloccata, numero definitivo assegnato)
+  -- 'sent'      → Inviata al provider/SDI
+  -- 'delivered' → Consegnata (confermata da SDI)
+  -- 'paid'      → Pagata
+  -- 'overdue'   → Scaduta non pagata
+  -- 'cancelled' → Annullata
+
+  -- Dati cliente
+  client_id           UUID REFERENCES contacts(id),
+  client_company_name TEXT NOT NULL,
+  client_vat_number   TEXT,
+  client_fiscal_code  TEXT,
+  client_address      TEXT,
+  client_city         TEXT,
+  client_zip          TEXT,
+  client_country      TEXT DEFAULT 'IT',
+  client_pec          TEXT,
+  client_sdi_code     TEXT,  -- Codice Destinatario SDI (7 caratteri)
+  client_email        TEXT,
+
+  -- Date
+  issue_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  due_date     DATE,
+  payment_date DATE,
+
+  -- Importi (calcolati automaticamente dai line items)
+  subtotal     NUMERIC(12,2) DEFAULT 0,   -- imponibile totale
+  tax_amount   NUMERIC(12,2) DEFAULT 0,   -- IVA totale
+  total        NUMERIC(12,2) DEFAULT 0,   -- totale fattura
+  paid_amount  NUMERIC(12,2) DEFAULT 0,   -- già pagato (acconti)
+
+  -- Condizioni pagamento
+  payment_method TEXT,  -- 'bank_transfer' | 'cash' | 'check' | 'credit_card'
+  payment_terms  TEXT,  -- es. "30 giorni data fattura"
+  payment_days   INTEGER,
+  bank_iban      TEXT,
+
+  -- Collegamento ad altri documenti
+  order_id            UUID REFERENCES orders(id),
+  quote_id            UUID,
+  credited_invoice_id UUID REFERENCES invoices(id),  -- per note di credito
+
+  -- Testo e note
+  notes       TEXT,        -- note interne (non visibili sulla fattura)
+  footer_text TEXT,        -- testo piè di pagina (visibile sulla fattura)
+
+  -- Integrazione provider esterno
+  external_id       TEXT,
+  external_provider TEXT,
+  external_sync_at  TIMESTAMPTZ,
+  external_status   TEXT,
+  external_sdi_id   TEXT,
+  external_xml_url  TEXT,
+
+  -- PDF generato
+  pdf_url          TEXT,
+  pdf_generated_at TIMESTAMPTZ,
+
+  -- Metadata
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 3: Righe fattura (line items)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS invoice_lines (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  sort_order INTEGER DEFAULT 0,
+
+  description  TEXT NOT NULL,
+  product_code TEXT,
+  unit         TEXT DEFAULT 'pz',
+
+  quantity          NUMERIC(10,3) NOT NULL DEFAULT 1,
+  unit_price        NUMERIC(12,4) NOT NULL DEFAULT 0,
+  discount_percent  NUMERIC(5,2)  DEFAULT 0,
+
+  -- IVA
+  tax_rate   NUMERIC(5,2) NOT NULL DEFAULT 22,  -- 22 | 10 | 4 | 0
+  tax_nature TEXT,                               -- N1..N7 se IVA 0%
+
+  -- Totali riga (calcolati e salvati per performance)
+  line_net   NUMERIC(12,2) NOT NULL DEFAULT 0,  -- imponibile riga (dopo sconto)
+  line_tax   NUMERIC(12,2) NOT NULL DEFAULT 0,  -- IVA riga
+  line_gross NUMERIC(12,2) NOT NULL DEFAULT 0,  -- totale riga (imponibile + IVA)
+
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 4: Pagamenti registrati sulla fattura
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS invoice_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id),
+
+  amount         NUMERIC(12,2) NOT NULL,
+  payment_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  payment_method TEXT,
+  reference      TEXT,  -- numero assegno, riferimento bonifico, ecc.
+  notes          TEXT,
+
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 5: Log sincronizzazione con provider
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS billing_sync_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id),
+  invoice_id UUID REFERENCES invoices(id),
+  provider  TEXT NOT NULL,
+  direction TEXT NOT NULL,  -- 'push' | 'pull'
+  action    TEXT NOT NULL,  -- 'create' | 'update' | 'send_sdi' | 'fetch_status' | 'webhook' | 'cancel'
+  status    TEXT NOT NULL,  -- 'success' | 'error'
+  request_payload  JSONB,
+  response_payload JSONB,
+  error_message    TEXT,
+  executed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: Genera numero fattura senza race conditions
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION generate_invoice_number(
+  p_company_id UUID,
+  p_year INTEGER DEFAULT EXTRACT(YEAR FROM NOW())::INTEGER
+)
+RETURNS TABLE(invoice_number TEXT, progressive_number INTEGER) AS $$
+DECLARE
+  v_next INTEGER;
+BEGIN
+  -- Lock esclusivo per company+anno → evita duplicati concorrenti
+  PERFORM pg_advisory_xact_lock(
+    hashtext(p_company_id::TEXT || p_year::TEXT)
+  );
+
+  SELECT COALESCE(MAX(i.progressive_number), 0) + 1
+  INTO v_next
+  FROM invoices i
+  WHERE i.company_id = p_company_id
+    AND i.invoice_year = p_year
+    AND i.document_type = 'invoice';
+
+  RETURN QUERY SELECT
+    ('FT-' || p_year || '-' || LPAD(v_next::TEXT, 4, '0'))::TEXT,
+    v_next;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: Ricalcola totali fattura
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION recalculate_invoice_totals(p_invoice_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE invoices SET
+    subtotal   = COALESCE((SELECT SUM(line_net)   FROM invoice_lines WHERE invoice_id = p_invoice_id), 0),
+    tax_amount = COALESCE((SELECT SUM(line_tax)   FROM invoice_lines WHERE invoice_id = p_invoice_id), 0),
+    total      = COALESCE((SELECT SUM(line_gross) FROM invoice_lines WHERE invoice_id = p_invoice_id), 0),
+    updated_at = NOW()
+  WHERE id = p_invoice_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger: ricalcola totali quando le righe cambiano
+CREATE OR REPLACE FUNCTION trg_recalculate_invoice()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM recalculate_invoice_totals(COALESCE(NEW.invoice_id, OLD.invoice_id));
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_invoice_lines_totals ON invoice_lines;
+CREATE TRIGGER trg_invoice_lines_totals
+  AFTER INSERT OR UPDATE OR DELETE ON invoice_lines
+  FOR EACH ROW EXECUTE FUNCTION trg_recalculate_invoice();
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: Aggiorna paid_amount e segna come pagata
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION trg_update_paid_amount()
+RETURNS TRIGGER AS $$
+DECLARE v_invoice_id UUID;
+BEGIN
+  v_invoice_id := COALESCE(NEW.invoice_id, OLD.invoice_id);
+
+  UPDATE invoices SET
+    paid_amount = COALESCE(
+      (SELECT SUM(amount) FROM invoice_payments WHERE invoice_id = v_invoice_id), 0
+    ),
+    status = CASE
+      WHEN COALESCE(
+        (SELECT SUM(amount) FROM invoice_payments WHERE invoice_id = v_invoice_id), 0
+      ) >= total THEN 'paid'
+      ELSE status
+    END,
+    updated_at = NOW()
+  WHERE id = v_invoice_id;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_invoice_payments_update ON invoice_payments;
+CREATE TRIGGER trg_invoice_payments_update
+  AFTER INSERT OR UPDATE OR DELETE ON invoice_payments
+  FOR EACH ROW EXECUTE FUNCTION trg_update_paid_amount();
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE RPC: Scadenzario
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION get_scadenzario(
+  p_company_id UUID,
+  p_from_date DATE DEFAULT CURRENT_DATE - INTERVAL '30 days',
+  p_to_date   DATE DEFAULT CURRENT_DATE + INTERVAL '90 days'
+)
+RETURNS TABLE (
+  invoice_id       UUID,
+  invoice_number   TEXT,
+  client_name      TEXT,
+  due_date         DATE,
+  total            NUMERIC,
+  paid_amount      NUMERIC,
+  remaining        NUMERIC,
+  status           TEXT,
+  days_until_due   INTEGER,
+  urgency          TEXT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    i.id,
+    i.invoice_number,
+    i.client_company_name,
+    i.due_date,
+    i.total,
+    i.paid_amount,
+    (i.total - i.paid_amount) AS remaining,
+    i.status,
+    (i.due_date - CURRENT_DATE)::INTEGER,
+    CASE
+      WHEN i.due_date < CURRENT_DATE           THEN 'overdue'
+      WHEN i.due_date <= CURRENT_DATE + 7      THEN 'critical'
+      WHEN i.due_date <= CURRENT_DATE + 30     THEN 'warning'
+      ELSE 'ok'
+    END
+  FROM invoices i
+  WHERE i.company_id = p_company_id
+    AND i.status NOT IN ('paid', 'cancelled', 'draft')
+    AND i.due_date BETWEEN p_from_date AND p_to_date
+  ORDER BY i.due_date ASC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ════════════════════════════════════════════════════════════════
+-- RLS POLICIES
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE billing_integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_lines         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_payments      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE billing_sync_log      ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_billing_integrations" ON billing_integrations
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_invoices" ON invoices
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_invoice_lines" ON invoice_lines
+  FOR ALL USING (
+    invoice_id IN (
+      SELECT id FROM invoices WHERE company_id = get_user_company_id(auth.uid())
+    )
+  );
+
+CREATE POLICY "company_invoice_payments" ON invoice_payments
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_billing_sync_log" ON billing_sync_log
+  FOR SELECT USING (company_id = get_user_company_id(auth.uid()));
+
+-- ════════════════════════════════════════════════════════════════
+-- INDICI
+-- ════════════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_invoices_company     ON invoices(company_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status      ON invoices(company_id, status);
+CREATE INDEX IF NOT EXISTS idx_invoices_client      ON invoices(company_id, client_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_due_date    ON invoices(company_id, due_date) WHERE due_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_invoices_year        ON invoices(company_id, invoice_year, progressive_number);
+CREATE INDEX IF NOT EXISTS idx_invoice_lines_inv    ON invoice_lines(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_payments_inv ON invoice_payments(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_billing_sync_log_inv ON billing_sync_log(invoice_id);
+```
+
+════════════════════════════════════════════════════════════════════
+PROMPT 2 di 6 — ADAPTER PATTERN (file condiviso tra le edge functions)
+════════════════════════════════════════════════════════════════════
+
+Crea il file `supabase/functions/_shared/billingAdapter.ts`.
+Questo file implementa il pattern Adapter: ogni provider ha la stessa interfaccia,
+il codice esterno non sa quale provider sta usando.
+
+```typescript
+// supabase/functions/_shared/billingAdapter.ts
+
+// ── TIPI COMUNI ────────────────────────────────────────────────
+
+export type BillingProvider =
+  | "fattureincloud"
+  | "fattura24"
+  | "aruba"
+  | "invoicetronic"
+  | "standalone";
+
+export interface ProviderInvoiceData {
+  documentType: "invoice" | "credit_note" | "proforma";
+  number: number;
+  date: string;        // YYYY-MM-DD
+  dueDate?: string;
+  client: {
+    name: string;
+    vatNumber?: string;
+    fiscalCode?: string;
+    address?: string;
+    city?: string;
+    zip?: string;
+    country?: string;
+    sdiCode?: string;  // 7 caratteri
+    pec?: string;
+  };
+  lines: Array<{
+    description: string;
+    productCode?: string;
+    quantity: number;
+    unit?: string;
+    unitPrice: number;
+    discountPercent?: number;
+    taxRate: number;   // 22 | 10 | 4 | 0
+    taxNature?: string;
+  }>;
+  paymentMethod?: string;
+  iban?: string;
+  notes?: string;
+  footerText?: string;
+}
+
+export interface ProviderSyncResult {
+  success: boolean;
+  externalId?: string;
+  externalStatus?: string;
+  sdiId?: string;
+  error?: string;
+  rawResponse?: unknown;
+}
+
+export interface ProviderStatusResult {
+  success: boolean;
+  internalStatus: "draft" | "issued" | "sent" | "delivered" | "paid" | "cancelled";
+  externalStatus?: string;
+  sdiId?: string;
+  error?: string;
+}
+
+// ── INTERFACCIA COMUNE ─────────────────────────────────────────
+
+export interface BillingProviderAdapter {
+  provider: BillingProvider;
+  testConnection(): Promise<{ success: boolean; companyName?: string; error?: string }>;
+  pushInvoice(invoice: ProviderInvoiceData): Promise<ProviderSyncResult>;
+  fetchStatus(externalId: string): Promise<ProviderStatusResult>;
+  cancelInvoice(externalId: string): Promise<{ success: boolean; error?: string }>;
+}
+
+// ── ADAPTER 1: FATTURE IN CLOUD ────────────────────────────────
+
+export class FattureInCloudAdapter implements BillingProviderAdapter {
+  provider: BillingProvider = "fattureincloud";
+  private token: string;
+  private ficCompanyId: string;
+
+  constructor(token: string, ficCompanyId: string) {
+    this.token = token;
+    this.ficCompanyId = ficCompanyId;
+  }
+
+  private get base() { return `https://api.fattureincloud.it/v2/c/${this.ficCompanyId}`; }
+  private get h() { return { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" }; }
+
+  async testConnection() {
+    try {
+      const r = await fetch("https://api.fattureincloud.it/v2/user/companies", { headers: this.h });
+      if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
+      const d = await r.json();
+      const co = d?.data?.companies?.find((c: Record<string,unknown>) => c.id?.toString() === this.ficCompanyId);
+      return { success: true, companyName: co?.name as string };
+    } catch (e) { return { success: false, error: String(e) }; }
+  }
+
+  async pushInvoice(inv: ProviderInvoiceData): Promise<ProviderSyncResult> {
+    const payload = {
+      data: {
+        type: inv.documentType === "credit_note" ? "credit_note" : "invoice",
+        number: { value: inv.number },
+        date: inv.date,
+        client: {
+          name: inv.client.name,
+          vat_number: inv.client.vatNumber,
+          fiscal_code: inv.client.fiscalCode,
+          address_street: inv.client.address,
+          address_city: inv.client.city,
+          address_postal_code: inv.client.zip,
+          address_country: inv.client.country || "IT",
+          e_invoice: !!(inv.client.pec || inv.client.sdiCode),
+          ei_code: inv.client.sdiCode,
+          certified_email: inv.client.pec,
+        },
+        items_list: inv.lines.map(l => ({
+          name: l.description,
+          product_id: null,
+          qty: l.quantity,
+          measure: l.unit || "pz",
+          net_price: l.unitPrice,
+          discount: l.discountPercent || 0,
+          vat: { value: l.taxRate },
+        })),
+        payment_method: { name: inv.paymentMethod || "Bonifico Bancario" },
+        notes: inv.notes,
+      },
+    };
+    const r = await fetch(`${this.base}/issued_documents`, {
+      method: "POST", headers: this.h, body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) return { success: false, error: JSON.stringify(d), rawResponse: d };
+    return { success: true, externalId: d.data?.id?.toString(), externalStatus: d.data?.status, rawResponse: d };
+  }
+
+  async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
+    const r = await fetch(`${this.base}/issued_documents/${externalId}`, { headers: this.h });
+    if (!r.ok) return { success: false, internalStatus: "sent", error: `HTTP ${r.status}` };
+    const d = await r.json();
+    const map: Record<string, ProviderStatusResult["internalStatus"]> = {
+      ok: "delivered", sending: "sent", not_sent: "issued", error: "issued",
+    };
+    return {
+      success: true,
+      internalStatus: map[d.data?.status] || "sent",
+      externalStatus: d.data?.status,
+      sdiId: d.data?.ei_data?.sdi_id?.toString(),
+    };
+  }
+
+  async cancelInvoice(_id: string) {
+    return { success: false, error: "FIC: emetti una nota di credito per annullare" };
+  }
+}
+
+// ── ADAPTER 2: FATTURA24 ───────────────────────────────────────
+
+export class Fattura24Adapter implements BillingProviderAdapter {
+  provider: BillingProvider = "fattura24";
+  private apiKey: string;
+  private base = "https://www.fattura24.com/api/v0";
+  private h = { "Content-Type": "application/json" };
+
+  constructor(apiKey: string) { this.apiKey = apiKey; }
+
+  async testConnection() {
+    try {
+      const r = await fetch(`${this.base}/getCustomers`, {
+        method: "POST", headers: this.h,
+        body: JSON.stringify({ apiKey: this.apiKey, limit: 1 }),
+      });
+      if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
+      const d = await r.json();
+      if (d.error) return { success: false, error: d.error };
+      return { success: true, companyName: "Account Fattura24" };
+    } catch (e) { return { success: false, error: String(e) }; }
+  }
+
+  async pushInvoice(inv: ProviderInvoiceData): Promise<ProviderSyncResult> {
+    const payload = {
+      apiKey: this.apiKey,
+      document: {
+        documentType: inv.documentType === "credit_note" ? "NC" : "FT",
+        name: inv.client.name,
+        vat: inv.client.vatNumber || "",
+        fiscalCode: inv.client.fiscalCode || "",
+        address: inv.client.address || "",
+        city: inv.client.city || "",
+        cap: inv.client.zip || "",
+        country: inv.client.country || "IT",
+        documentDate: inv.date,
+        sdiCode: inv.client.sdiCode || "0000000",
+        pec: inv.client.pec || "",
+        rows: inv.lines.map(l => ({
+          description: l.description,
+          qty: l.quantity,
+          price: l.unitPrice,
+          discount: l.discountPercent || 0,
+          vatCode: `${l.taxRate}%`,
+          um: l.unit || "pz",
+        })),
+        paymentMethod: inv.paymentMethod || "Bonifico Bancario",
+        iban: inv.iban || "",
+        footerNotes: inv.notes || "",
+      },
+    };
+    const r = await fetch(`${this.base}/saveDocument`, {
+      method: "POST", headers: this.h, body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) return { success: false, error: d.error || `HTTP ${r.status}`, rawResponse: d };
+    return { success: true, externalId: d.docId?.toString(), externalStatus: "sent", rawResponse: d };
+  }
+
+  async fetchStatus(_id: string): Promise<ProviderStatusResult> {
+    // Fattura24 non espone stato SDI via API
+    return { success: true, internalStatus: "sent", externalStatus: "unknown" };
+  }
+
+  async cancelInvoice(externalId: string) {
+    const r = await fetch(`${this.base}/deleteDocument`, {
+      method: "POST", headers: this.h,
+      body: JSON.stringify({ apiKey: this.apiKey, docId: externalId }),
+    });
+    const d = await r.json();
+    return { success: r.ok && !d.error, error: d.error };
+  }
+}
+
+// ── ADAPTER 3: ARUBA FATTURAZIONE ELETTRONICA ─────────────────
+
+export class ArubaAdapter implements BillingProviderAdapter {
+  provider: BillingProvider = "aruba";
+  private token: string;
+  private base = "https://fatturazioneelettronica.aruba.it/v1";
+
+  constructor(bearerToken: string) { this.token = bearerToken; }
+  private get h() { return { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" }; }
+
+  async testConnection() {
+    try {
+      const r = await fetch(`${this.base}/info`, { headers: this.h });
+      if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
+      const d = await r.json();
+      return { success: true, companyName: d?.company?.name || "Account Aruba" };
+    } catch (e) { return { success: false, error: String(e) }; }
+  }
+
+  async pushInvoice(inv: ProviderInvoiceData): Promise<ProviderSyncResult> {
+    // Costruisce payload FatturaPA JSON che Aruba converte in XML p7m
+    const linesByRate = inv.lines.reduce((acc: Record<number, number[]>, l) => {
+      const net = l.quantity * l.unitPrice * (1 - (l.discountPercent || 0) / 100);
+      if (!acc[l.taxRate]) acc[l.taxRate] = [];
+      acc[l.taxRate].push(net);
+      return acc;
+    }, {});
+
+    const payload = {
+      FatturaElettronicaHeader: {
+        DatiTrasmissione: {
+          CodiceDestinatario: inv.client.sdiCode || "0000000",
+          PECDestinatario: inv.client.pec,
+        },
+        CessionarioCommittente: {
+          DatiAnagrafici: {
+            Anagrafica: { Denominazione: inv.client.name },
+            IdFiscaleIVA: inv.client.vatNumber
+              ? { IdPaese: "IT", IdCodice: inv.client.vatNumber } : undefined,
+            CodiceFiscale: inv.client.fiscalCode,
+          },
+          Sede: {
+            Indirizzo: inv.client.address || "N/A",
+            CAP: inv.client.zip || "00000",
+            Comune: inv.client.city || "N/A",
+            Nazione: inv.client.country || "IT",
+          },
+        },
+      },
+      FatturaElettronicaBody: {
+        DatiGenerali: {
+          DatiGeneraliDocumento: {
+            TipoDocumento: inv.documentType === "credit_note" ? "TD04" : "TD01",
+            Data: inv.date,
+            Numero: inv.number.toString(),
+          },
+        },
+        DatiBeniServizi: {
+          DettaglioLinee: inv.lines.map((l, i) => ({
+            NumeroLinea: i + 1,
+            Descrizione: l.description,
+            Quantita: l.quantity,
+            UnitaMisura: l.unit || "PZ",
+            PrezzoUnitario: l.unitPrice,
+            ScontoMaggiorazione: l.discountPercent
+              ? { Tipo: "SC", Percentuale: l.discountPercent } : undefined,
+            PrezzoTotale: l.quantity * l.unitPrice * (1 - (l.discountPercent || 0) / 100),
+            AliquotaIVA: l.taxRate,
+            Natura: l.taxNature,
+          })),
+          DatiRiepilogo: Object.entries(linesByRate).map(([rate, amounts]) => ({
+            AliquotaIVA: Number(rate),
+            ImponibileImporto: amounts.reduce((a, b) => a + b, 0),
+            Imposta: (amounts.reduce((a, b) => a + b, 0) * Number(rate)) / 100,
+          })),
+        },
+        DatiPagamento: {
+          CondizioniPagamento: "TP02",
+          DettaglioPagamento: {
+            ModalitaPagamento: "MP05",
+            DataScadenzaPagamento: inv.dueDate,
+            ImportoPagamento: inv.lines.reduce((sum, l) => {
+              const net = l.quantity * l.unitPrice * (1 - (l.discountPercent || 0) / 100);
+              return sum + net + (net * l.taxRate) / 100;
+            }, 0),
+            IBAN: inv.iban,
+          },
+        },
+      },
+    };
+
+    const r = await fetch(`${this.base}/documents/send`, {
+      method: "POST", headers: this.h, body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) return { success: false, error: JSON.stringify(d), rawResponse: d };
+    return { success: true, externalId: d.documentId?.toString(), externalStatus: d.status || "sending", rawResponse: d };
+  }
+
+  async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
+    const r = await fetch(`${this.base}/documents/${externalId}`, { headers: this.h });
+    if (!r.ok) return { success: false, internalStatus: "sent", error: `HTTP ${r.status}` };
+    const d = await r.json();
+    const map: Record<string, ProviderStatusResult["internalStatus"]> = {
+      CONSEGNATA: "delivered", INVIATA: "sent", IN_ELABORAZIONE: "sent",
+      ERRORE: "issued", SCARTATA: "issued",
+    };
+    return { success: true, internalStatus: map[d.status] || "sent", externalStatus: d.status, sdiId: d.sdiId?.toString() };
+  }
+
+  async cancelInvoice(_id: string) {
+    return { success: false, error: "Aruba: annullamento non supportato via API" };
+  }
+}
+
+// ── ADAPTER 4: INVOICETRONIC ───────────────────────────────────
+
+export class InvoicetronicAdapter implements BillingProviderAdapter {
+  provider: BillingProvider = "invoicetronic";
+  private apiKey: string;
+  private base = "https://api.invoicetronic.com/invoice/v1";
+
+  constructor(apiKey: string) { this.apiKey = apiKey; }
+  private get h() { return { "x-api-key": this.apiKey, "Content-Type": "application/json" }; }
+
+  async testConnection() {
+    try {
+      const r = await fetch(`${this.base}/company`, { headers: this.h });
+      if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
+      const d = await r.json();
+      return { success: true, companyName: d?.name || "Account Invoicetronic" };
+    } catch (e) { return { success: false, error: String(e) }; }
+  }
+
+  async pushInvoice(inv: ProviderInvoiceData): Promise<ProviderSyncResult> {
+    const payload = {
+      cessionario_committente: {
+        denominazione: inv.client.name,
+        partita_iva: inv.client.vatNumber,
+        codice_fiscale: inv.client.fiscalCode,
+        indirizzo: inv.client.address,
+        cap: inv.client.zip,
+        comune: inv.client.city,
+        nazione: inv.client.country || "IT",
+      },
+      dati_generali_documento: {
+        tipo_documento: inv.documentType === "credit_note" ? "TD04" : "TD01",
+        data: inv.date,
+        numero: inv.number.toString(),
+      },
+      dettaglio_linee: inv.lines.map((l, i) => ({
+        numero_linea: i + 1,
+        descrizione: l.description,
+        quantita: l.quantity,
+        unita_misura: l.unit || "PZ",
+        prezzo_unitario: l.unitPrice,
+        sconto_percentuale: l.discountPercent,
+        aliquota_iva: l.taxRate,
+        natura: l.taxNature,
+      })),
+      dati_pagamento: {
+        condizioni_pagamento: "TP02",
+        dettaglio_pagamento: {
+          modalita_pagamento: "MP05",
+          data_scadenza_pagamento: inv.dueDate,
+          iban: inv.iban,
+        },
+      },
+      codice_destinatario: inv.client.sdiCode || "0000000",
+      pec_destinatario: inv.client.pec,
+    };
+    const r = await fetch(`${this.base}/send`, {
+      method: "POST", headers: this.h, body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) return { success: false, error: JSON.stringify(d), rawResponse: d };
+    return { success: true, externalId: d.id?.toString(), externalStatus: d.status, rawResponse: d };
+  }
+
+  async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
+    const r = await fetch(`${this.base}/send/${externalId}`, { headers: this.h });
+    if (!r.ok) return { success: false, internalStatus: "sent" };
+    const d = await r.json();
+    const map: Record<string, ProviderStatusResult["internalStatus"]> = {
+      Delivered: "delivered", Sent: "sent", Pending: "sent", Error: "issued",
+    };
+    return { success: true, internalStatus: map[d.status] || "sent", externalStatus: d.status, sdiId: d.sdi_id?.toString() };
+  }
+
+  async cancelInvoice(externalId: string) {
+    const r = await fetch(`${this.base}/send/${externalId}`, { method: "DELETE", headers: this.h });
+    return { success: r.ok, error: r.ok ? undefined : `HTTP ${r.status}` };
+  }
+}
+
+// ── ADAPTER 5: STANDALONE ─────────────────────────────────────
+
+export class StandaloneAdapter implements BillingProviderAdapter {
+  provider: BillingProvider = "standalone";
+  async testConnection() { return { success: true, companyName: "Modalità Standalone" }; }
+  async pushInvoice(_inv: ProviderInvoiceData): Promise<ProviderSyncResult> {
+    return { success: true, externalId: `standalone-${Date.now()}`, externalStatus: "local_only" };
+  }
+  async fetchStatus(_id: string): Promise<ProviderStatusResult> {
+    return { success: true, internalStatus: "issued", externalStatus: "local_only" };
+  }
+  async cancelInvoice(_id: string) { return { success: true }; }
+}
+
+// ── FACTORY ───────────────────────────────────────────────────
+
+export function createAdapter(integration: {
+  provider: string;
+  access_token?: string | null;
+  api_key?: string | null;
+  company_external_id?: string | null;
+}): BillingProviderAdapter {
+  switch (integration.provider as BillingProvider) {
+    case "fattureincloud":
+      if (!integration.access_token || !integration.company_external_id)
+        throw new Error("FIC: access_token e company_external_id richiesti");
+      return new FattureInCloudAdapter(integration.access_token, integration.company_external_id);
+    case "fattura24":
+      if (!integration.api_key) throw new Error("Fattura24: api_key richiesta");
+      return new Fattura24Adapter(integration.api_key);
+    case "aruba":
+      if (!integration.api_key) throw new Error("Aruba: bearer token richiesto");
+      return new ArubaAdapter(integration.api_key);
+    case "invoicetronic":
+      if (!integration.api_key) throw new Error("Invoicetronic: api_key richiesta");
+      return new InvoicetronicAdapter(integration.api_key);
+    default:
+      return new StandaloneAdapter();
+  }
+}
+
+// ── HELPER: mappa invoice DB → ProviderInvoiceData ─────────────
+
+export function mapInvoiceToProviderData(invoice: Record<string, unknown>): ProviderInvoiceData {
+  const lines = (invoice.invoice_lines as Array<Record<string, unknown>>) || [];
+  return {
+    documentType: invoice.document_type as "invoice" | "credit_note" | "proforma",
+    number: invoice.progressive_number as number,
+    date: invoice.issue_date as string,
+    dueDate: invoice.due_date as string | undefined,
+    client: {
+      name: invoice.client_company_name as string,
+      vatNumber: invoice.client_vat_number as string | undefined,
+      fiscalCode: invoice.client_fiscal_code as string | undefined,
+      address: invoice.client_address as string | undefined,
+      city: invoice.client_city as string | undefined,
+      zip: invoice.client_zip as string | undefined,
+      country: (invoice.client_country as string) || "IT",
+      sdiCode: invoice.client_sdi_code as string | undefined,
+      pec: invoice.client_pec as string | undefined,
+    },
+    lines: lines.map(l => ({
+      description: l.description as string,
+      productCode: l.product_code as string | undefined,
+      quantity: l.quantity as number,
+      unit: l.unit as string | undefined,
+      unitPrice: l.unit_price as number,
+      discountPercent: l.discount_percent as number | undefined,
+      taxRate: l.tax_rate as number,
+      taxNature: l.tax_nature as string | undefined,
+    })),
+    paymentMethod: invoice.payment_method as string | undefined,
+    iban: invoice.bank_iban as string | undefined,
+    notes: invoice.notes as string | undefined,
+    footerText: invoice.footer_text as string | undefined,
+  };
+}
+```
+
+════════════════════════════════════════════════════════════════════
+PROMPT 3 di 6 — EDGE FUNCTIONS: billing-connect, billing-sync, billing-webhook
+════════════════════════════════════════════════════════════════════
+
+Crea le tre edge functions seguenti.
+
+────────────────────────────────────────────────────────────────────
+FUNZIONE A: supabase/functions/billing-connect/index.ts
+────────────────────────────────────────────────────────────────────
+Gestisce: setup OAuth2 FIC, configurazione API key (Fattura24/Aruba/Invoicetronic),
+test connessione, disconnessione, selezione provider primario.
+
+```typescript
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createAdapter } from "../_shared/billingAdapter.ts";
+
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+const FIC_CLIENT_ID     = Deno.env.get("FIC_CLIENT_ID")!;
+const FIC_CLIENT_SECRET = Deno.env.get("FIC_CLIENT_SECRET")!;
+const FIC_REDIRECT_URI  = Deno.env.get("FIC_REDIRECT_URI")!;
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, GET",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  const url = new URL(req.url);
+  const action = url.searchParams.get("action");
+
+  // Auth utente
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!token) return new Response("Unauthorized", { status: 401 });
+  const { data: { user } } = await supabase.auth.getUser(token);
+  if (!user) return new Response("Unauthorized", { status: 401 });
+
+  const { data: cu } = await supabase
+    .from("company_users").select("company_id").eq("user_id", user.id).single();
+  if (!cu?.company_id) return new Response("Company not found", { status: 404 });
+  const companyId = cu.company_id;
+
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+
+  // ── OAuth2 FIC: ottieni URL autorizzazione ─────────────────
+  if (action === "get_fic_auth_url") {
+    const state = btoa(JSON.stringify({ company_id: companyId, ts: Date.now() }));
+    const authUrl = `https://api.fattureincloud.it/v2/oauth/authorize?` +
+      `client_id=${FIC_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(FIC_REDIRECT_URI)}` +
+      `&response_type=code` +
+      `&scope=issued_documents:r+issued_documents:w+clients:r+clients:w+info:r` +
+      `&state=${state}`;
+    return json({ auth_url: authUrl });
+  }
+
+  // ── OAuth2 FIC: scambia codice con token ───────────────────
+  if (action === "fic_oauth_callback" && req.method === "POST") {
+    const { code } = await req.json();
+    const tokenRes = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: FIC_CLIENT_ID,
+        client_secret: FIC_CLIENT_SECRET,
+        redirect_uri: FIC_REDIRECT_URI,
+        code,
+      }),
+    });
+    if (!tokenRes.ok) return json({ error: "Token exchange failed" }, 400);
+    const td = await tokenRes.json();
+
+    // Recupera info aziende FIC
+    const compRes = await fetch("https://api.fattureincloud.it/v2/user/companies", {
+      headers: { Authorization: `Bearer ${td.access_token}` },
+    });
+    const compData = compRes.ok ? await compRes.json() : null;
+    const ficCo = compData?.data?.companies?.[0];
+
+    await supabase.from("billing_integrations").upsert({
+      company_id: companyId,
+      provider: "fattureincloud",
+      is_active: true,
+      access_token: td.access_token,
+      refresh_token: td.refresh_token,
+      token_expires_at: new Date(Date.now() + td.expires_in * 1000).toISOString(),
+      company_external_id: ficCo?.id?.toString(),
+      provider_company_name: ficCo?.name,
+      provider_vat_number: ficCo?.vat_number,
+      auto_sync: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+
+    return json({ success: true, company_name: ficCo?.name, vat_number: ficCo?.vat_number });
+  }
+
+  // ── Configura provider con API key (Fattura24, Invoicetronic) ─
+  if (action === "configure_apikey" && req.method === "POST") {
+    const { provider, api_key } = await req.json();
+
+    // Testa la connessione prima di salvare
+    const adapter = createAdapter({ provider, api_key });
+    const test = await adapter.testConnection();
+    if (!test.success) return json({ error: test.error || "API key non valida" }, 400);
+
+    await supabase.from("billing_integrations").upsert({
+      company_id: companyId,
+      provider,
+      is_active: true,
+      api_key,
+      provider_company_name: test.companyName,
+      auto_sync: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+
+    return json({ success: true, company_name: test.companyName });
+  }
+
+  // ── Configura Aruba (Bearer token) ────────────────────────
+  if (action === "configure_aruba" && req.method === "POST") {
+    const { bearer_token } = await req.json();
+    const adapter = createAdapter({ provider: "aruba", api_key: bearer_token });
+    const test = await adapter.testConnection();
+    if (!test.success) return json({ error: "Bearer token Aruba non valido" }, 400);
+
+    await supabase.from("billing_integrations").upsert({
+      company_id: companyId,
+      provider: "aruba",
+      is_active: true,
+      api_key: bearer_token,
+      provider_company_name: test.companyName,
+      auto_sync: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+
+    return json({ success: true, company_name: test.companyName });
+  }
+
+  // ── Testa connessione provider esistente ──────────────────
+  if (action === "test_connection" && req.method === "POST") {
+    const { provider } = await req.json();
+    const { data: integ } = await supabase
+      .from("billing_integrations").select("*")
+      .eq("company_id", companyId).eq("provider", provider).single();
+    if (!integ) return json({ error: "Provider non configurato" }, 404);
+
+    const adapter = createAdapter(integ);
+    const result = await adapter.testConnection();
+
+    await supabase.from("billing_integrations").update({
+      last_sync_at: new Date().toISOString(),
+      last_sync_status: result.success ? "success" : "error",
+      last_sync_error: result.error || null,
+    }).eq("id", integ.id);
+
+    return json(result);
+  }
+
+  // ── Imposta provider primario ─────────────────────────────
+  if (action === "set_primary" && req.method === "POST") {
+    const { provider } = await req.json();
+    // Deseleziona tutti
+    await supabase.from("billing_integrations")
+      .update({ is_primary: false })
+      .eq("company_id", companyId);
+    // Seleziona il nuovo primario
+    await supabase.from("billing_integrations")
+      .update({ is_primary: true })
+      .eq("company_id", companyId).eq("provider", provider);
+    return json({ success: true });
+  }
+
+  // ── Toggle auto-sync ──────────────────────────────────────
+  if (action === "toggle_auto_sync" && req.method === "POST") {
+    const { provider, auto_sync } = await req.json();
+    await supabase.from("billing_integrations")
+      .update({ auto_sync })
+      .eq("company_id", companyId).eq("provider", provider);
+    return json({ success: true });
+  }
+
+  // ── Disconnetti provider ──────────────────────────────────
+  if (action === "disconnect" && req.method === "POST") {
+    const { provider } = await req.json();
+    await supabase.from("billing_integrations")
+      .update({ is_active: false, access_token: null, refresh_token: null, api_key: null, is_primary: false })
+      .eq("company_id", companyId).eq("provider", provider);
+    return json({ success: true });
+  }
+
+  return json({ error: "Unknown action" }, 404);
+});
+```
+
+────────────────────────────────────────────────────────────────────
+FUNZIONE B: supabase/functions/billing-sync/index.ts
+────────────────────────────────────────────────────────────────────
+Gestisce: push fattura al provider, fetch stato SDI, annullamento.
+Usa il provider primario se non specificato altrimenti.
+
+```typescript
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createAdapter, mapInvoiceToProviderData } from "../_shared/billingAdapter.ts";
+
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+
+  const { invoice_id, action, provider: preferredProvider } = await req.json();
+
+  // Recupera fattura
+  const { data: invoice } = await supabase
+    .from("invoices").select("*, invoice_lines(*)").eq("id", invoice_id).single();
+  if (!invoice) return json({ error: "Invoice not found" }, 404);
+
+  // Recupera integrazione: prima quella primaria, poi qualsiasi attiva, poi standalone
+  let query = supabase.from("billing_integrations").select("*")
+    .eq("company_id", invoice.company_id).eq("is_active", true);
+  if (preferredProvider) query = query.eq("provider", preferredProvider);
+  else query = query.eq("is_primary", true);
+
+  let { data: integration } = await query.maybeSingle();
+  if (!integration && !preferredProvider) {
+    // fallback: primo provider attivo disponibile
+    const { data: fallback } = await supabase
+      .from("billing_integrations").select("*")
+      .eq("company_id", invoice.company_id).eq("is_active", true).limit(1).maybeSingle();
+    integration = fallback;
+  }
+  const activeIntegration = integration || { provider: "standalone" };
+
+  // Refresh token FIC se scaduto
+  if (activeIntegration.provider === "fattureincloud" && activeIntegration.token_expires_at) {
+    const exp = new Date(activeIntegration.token_expires_at);
+    if (exp < new Date(Date.now() + 5 * 60 * 1000)) {
+      const r = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: Deno.env.get("FIC_CLIENT_ID")!,
+          client_secret: Deno.env.get("FIC_CLIENT_SECRET")!,
+          refresh_token: activeIntegration.refresh_token,
+        }),
+      });
+      if (r.ok) {
+        const td = await r.json();
+        activeIntegration.access_token = td.access_token;
+        await supabase.from("billing_integrations").update({
+          access_token: td.access_token,
+          token_expires_at: new Date(Date.now() + td.expires_in * 1000).toISOString(),
+        }).eq("id", activeIntegration.id);
+      }
+    }
+  }
+
+  let adapter;
+  try { adapter = createAdapter(activeIntegration); }
+  catch (e) { return json({ error: String(e) }, 400); }
+
+  const logSync = async (act: string, status: string, response: unknown, err?: string) => {
+    await supabase.from("billing_sync_log").insert({
+      company_id: invoice.company_id,
+      invoice_id: invoice.id,
+      provider: activeIntegration.provider,
+      direction: "push",
+      action: act,
+      status,
+      response_payload: response as Record<string, unknown>,
+      error_message: err || null,
+    });
+  };
+
+  // ── push_to_provider ──────────────────────────────────────
+  if (action === "push_to_provider") {
+    const result = await adapter.pushInvoice(mapInvoiceToProviderData(invoice));
+    await logSync("create", result.success ? "success" : "error", result.rawResponse, result.error);
+
+    if (!result.success) return json({ error: result.error }, 400);
+
+    await supabase.from("invoices").update({
+      external_id: result.externalId,
+      external_provider: activeIntegration.provider,
+      external_sync_at: new Date().toISOString(),
+      external_status: result.externalStatus,
+      status: "sent",
+    }).eq("id", invoice.id);
+
+    return json({ success: true, external_id: result.externalId });
+  }
+
+  // ── fetch_status ──────────────────────────────────────────
+  if (action === "fetch_status") {
+    if (!invoice.external_id) return json({ error: "Invoice not synced yet" }, 400);
+    const result = await adapter.fetchStatus(invoice.external_id);
+    if (result.success) {
+      await supabase.from("invoices").update({
+        external_status: result.externalStatus,
+        status: result.internalStatus,
+        external_sdi_id: result.sdiId,
+      }).eq("id", invoice.id);
+    }
+    return json(result);
+  }
+
+  // ── cancel ────────────────────────────────────────────────
+  if (action === "cancel") {
+    const result = await adapter.cancelInvoice(invoice.external_id || "");
+    await logSync("cancel", result.success ? "success" : "error", null, result.error);
+    if (result.success) {
+      await supabase.from("invoices").update({ status: "cancelled" }).eq("id", invoice.id);
+    }
+    return json(result);
+  }
+
+  return json({ error: "Unknown action" }, 400);
+});
+```
+
+────────────────────────────────────────────────────────────────────
+FUNZIONE C: supabase/functions/billing-webhook/index.ts
+────────────────────────────────────────────────────────────────────
+Riceve notifiche push dai provider (FIC, Invoicetronic) per aggiornamento
+automatico dello stato SDI senza polling.
+
+```typescript
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+Deno.serve(async (req) => {
+  const provider = new URL(req.url).searchParams.get("provider") || "fattureincloud";
+  const body = await req.json();
+
+  const ficStatusMap: Record<string, string> = {
+    ok: "delivered", sending: "sent", not_sent: "issued", error: "issued",
+  };
+  const itStatusMap: Record<string, string> = {
+    Delivered: "delivered", Sent: "sent", Pending: "sent", Error: "issued",
+  };
+
+  let externalId: string | undefined;
+  let newStatus: string | undefined;
+  let sdiId: string | undefined;
+
+  if (provider === "fattureincloud") {
+    externalId = body?.data?.id?.toString();
+    newStatus = ficStatusMap[body?.data?.status] || "sent";
+    sdiId = body?.data?.ei_data?.sdi_id?.toString();
+  } else if (provider === "invoicetronic") {
+    externalId = body?.id?.toString();
+    newStatus = itStatusMap[body?.status] || "sent";
+    sdiId = body?.sdi_id?.toString();
+  }
+
+  if (externalId) {
+    const { data: invoice } = await supabase
+      .from("invoices").select("id, company_id")
+      .eq("external_id", externalId).eq("external_provider", provider).single();
+
+    if (invoice) {
+      await supabase.from("invoices").update({
+        external_status: body?.data?.status || body?.status,
+        status: newStatus,
+        external_sdi_id: sdiId,
+        updated_at: new Date().toISOString(),
+      }).eq("id", invoice.id);
+
+      await supabase.from("billing_sync_log").insert({
+        company_id: invoice.company_id,
+        invoice_id: invoice.id,
+        provider,
+        direction: "pull",
+        action: "webhook",
+        status: "success",
+        response_payload: body,
+      });
+    }
+  }
+
+  return new Response("ok", { status: 200 });
+});
+```
+
+Configura i webhook URL nei portali dei provider:
+- Fatture in Cloud → Impostazioni → Webhook → `https://[progetto].supabase.co/functions/v1/billing-webhook?provider=fattureincloud`
+- Invoicetronic → Settings → Webhooks → `...?provider=invoicetronic`
+
+════════════════════════════════════════════════════════════════════
+PROMPT 4 di 6 — UI: LISTA FATTURE E EDITOR
+════════════════════════════════════════════════════════════════════
+
+Crea la sezione Fatturazione in Gestione Interna.
+Aggiungi la voce "Fatturazione" nella sidebar sotto la sotto-categoria "Finanza"
+(dopo Costi), con percorso `/azienda/fatturazione`.
+
+─── PAGINA LISTA `/azienda/fatturazione` ─────────────────────────
+
+Layout:
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 🧾 Fatturazione                            [+ Nuova Fattura]     │
+├──────────────────────────────────────────────────────────────────┤
+│  [Da incassare €12.400]  [Scadute €3.200]  [Pagate mese €8.900] │
+│  [Emesse mese: 14 fatture]                                       │
+├──────────────────────────────────────────────────────────────────┤
+│ [Tutte][Bozze][Emesse][Inviate SDI][Pagate][Scadute]            │
+│ 🔍 Cerca cliente...   Periodo: [Mar 2025 ▼]   [⬇ Esporta CSV]  │
+├───────────┬──────────────────┬────────┬──────────┬──────────────┤
+│ Numero    │ Cliente          │ Data   │ Importo  │ Stato        │
+├───────────┼──────────────────┼────────┼──────────┼──────────────┤
+│ FT-25-001 │ Mario Rossi Srl  │ 15/03  │ €1.220   │ 💰 Pagata   │
+│ FT-25-002 │ Bianchi SpA      │ 10/03  │ €4.800   │ 📨 Inv. SDI │
+│ FT-25-003 │ Verdi & Co       │ 01/03  │ €650     │ ⏰ Scaduta  │
+│ FT-25-004 │ Tech Innovate    │ 28/02  │ €2.100   │ 📝 Bozza    │
+└───────────┴──────────────────┴────────┴──────────┴──────────────┘
+```
+
+Ogni riga ha menu azioni (⋮):
+- Modifica → solo se Bozza
+- Duplica → sempre
+- Segna come pagata → se non già pagata
+- Invia / Risincronizza con [provider] → chiama billing-sync
+- Scarica PDF → chiama generate-invoice-pdf
+- Emetti nota di credito → apre editor pre-compilato
+- Elimina → solo se Bozza, con conferma dialog
+
+Badge stati con colori specifici:
+- 📝 Bozza → Badge grigio
+- 📤 Emessa → Badge blu
+- 📨 Inviata SDI → Badge arancione
+- ✅ Consegnata → Badge teal
+- 💰 Pagata → Badge verde
+- ⏰ Scaduta → Badge rosso
+
+KPI Cards in cima (4 cards orizzontali):
+- "Da incassare" = SUM(total - paid_amount) WHERE status IN ('issued','sent','delivered','overdue')
+- "Fatture scadute" = COUNT WHERE status = 'overdue' → card rossa se > 0
+- "Incassato questo mese" = SUM(payment_date nel mese corrente)
+- "Emesse questo mese" = COUNT WHERE issue_date nel mese corrente
+
+─── EDITOR FATTURA `/azienda/fatturazione/nuova` e `/:id` ─────────
+
+Layout desktop a 2 colonne: form a sinistra (60%), anteprima live a destra (40%).
+
+SEZIONE 1 — Intestazione:
+- Tipo documento: Select [Fattura / Proforma / Nota di credito]
+- Data emissione: DatePicker (default oggi)
+- Scadenza: DatePicker con chip rapidi [+30gg] [+60gg] [+90gg]
+- N° fattura: generato auto (modificabile solo in bozza)
+
+SEZIONE 2 — Cliente:
+- Campo ricerca Autocomplete collegato alla tabella `contacts`
+  → quando selezionato, pre-compila TUTTI i campi sottostanti
+- Campi: Ragione Sociale*, P.IVA, Cod. Fiscale, Indirizzo, Città, CAP, Paese
+- Campi fattura elettronica: Codice SDI (7 char) e/o PEC
+- Alert giallo se mancano sia Codice SDI che PEC: "⚠️ Necessari per la fattura elettronica"
+
+SEZIONE 3 — Righe:
+- Tabella: [Descrizione | Q.tà | U.M. | Prezzo unit. | Sconto% | IVA% | Totale | ×]
+- Ogni riga è editabile inline
+- Ricerca prodotti Autocomplete (se catalog prodotti esiste)
+- Totali calcolati live in fondo: Imponibile | IVA | TOTALE FATTURA
+- Dettaglio IVA per aliquota (22%, 10%, 4%, 0%) se aliquote miste
+
+SEZIONE 4 — Pagamento:
+- Metodo: Select [Bonifico / Contanti / Assegno / Carta di credito / RID]
+- IBAN: pre-compilato da impostazioni azienda, modificabile
+- Note interne: Textarea (non visibili sulla fattura)
+- Note piè di pagina: Textarea (visibili sulla fattura)
+
+PULSANTI AZIONE in fondo:
+- [Salva Bozza] → salva status = 'draft'
+- [Emetti Fattura] → genera numero definitivo (RPC), status = 'issued', blocca modifiche
+- [Emetti e Invia] → emetti + push automatico al provider primario
+
+ANTEPRIMA LIVE (colonna destra):
+- Rendering CSS della fattura mentre l'utente compila
+- Header: logo + dati azienda
+- Dati cliente
+- Tabella righe
+- Totali
+- Dati pagamento
+- Pulsante [Scarica PDF] (chiama generate-invoice-pdf)
+
+NOTA: Le fatture in stato 'issued', 'sent', 'delivered', 'paid' NON sono modificabili.
+Mostra banner "Fattura emessa — non modificabile" e disabilita tutti i campi.
+Unici campi modificabili dopo emissione: note interne, data/importo pagamento.
+
+════════════════════════════════════════════════════════════════════
+PROMPT 5 di 6 — PDF GENERATOR + SCADENZARIO
+════════════════════════════════════════════════════════════════════
+
+─── EDGE FUNCTION: supabase/functions/generate-invoice-pdf/index.ts ─
+
+Usa `pdf-lib` (già disponibile nel progetto) per generare il PDF.
+
+```typescript
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
+
+const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+Deno.serve(async (req) => {
+  const { invoice_id } = await req.json();
+
+  const { data: invoice } = await supabase
+    .from("invoices").select("*, invoice_lines(*)")
+    .eq("id", invoice_id).single();
+  if (!invoice) return new Response("Not found", { status: 404 });
+
+  const { data: company } = await supabase
+    .from("companies").select("name, vat_number, address, logo_url, email, phone")
+    .eq("id", invoice.company_id).single();
+
+  const pdfDoc = await PDFDocument.create();
+  const font      = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold  = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const page      = pdfDoc.addPage([595.28, 841.89]); // A4
+  const { width, height } = page.getSize();
+  let y = height - 50;
+
+  const drawText = (text: string, x: number, yPos: number, size = 10, bold = false, color = rgb(0.1, 0.1, 0.1)) => {
+    page.drawText(String(text || ""), { x, y: yPos, size, font: bold ? fontBold : font, color });
+  };
+
+  const drawLine = (yPos: number) => {
+    page.drawLine({ start: { x: 40, y: yPos }, end: { x: width - 40, y: yPos }, thickness: 0.5, color: rgb(0.8, 0.8, 0.8) });
+  };
+
+  // WATERMARK se bozza o annullata
+  if (invoice.status === "draft" || invoice.status === "cancelled") {
+    const label = invoice.status === "draft" ? "BOZZA" : "ANNULLATA";
+    page.drawText(label, {
+      x: 150, y: 400, size: 80, font: fontBold,
+      color: rgb(0.9, 0.9, 0.9), opacity: 0.4,
+      rotate: { type: "degrees", angle: 45 },
+    });
+  }
+
+  // HEADER azienda
+  drawText(company?.name || "Azienda", 40, y, 16, true);
+  y -= 18;
+  if (company?.vat_number) { drawText(`P.IVA: ${company.vat_number}`, 40, y, 9); y -= 14; }
+  if (company?.address)    { drawText(company.address, 40, y, 9);                y -= 14; }
+  if (company?.email)      { drawText(company.email, 40, y, 9);                  y -= 20; }
+
+  drawLine(y); y -= 20;
+
+  // TITOLO DOCUMENTO
+  const title = invoice.document_type === "credit_note" ? "NOTA DI CREDITO" :
+                invoice.document_type === "proforma"    ? "PROFORMA"         : "FATTURA";
+  drawText(title, 40, y, 18, true, rgb(0.1, 0.2, 0.5));
+  drawText(`N° ${invoice.invoice_number || "—"}`, width - 200, y, 12, true);
+  y -= 18;
+  drawText(`Data: ${invoice.issue_date}`, width - 200, y, 10);
+  if (invoice.due_date) drawText(`Scadenza: ${invoice.due_date}`, width - 200, y - 14, 10);
+  y -= 40;
+
+  drawLine(y); y -= 20;
+
+  // DATI CLIENTE
+  drawText("Destinatario", 40, y, 9, false, rgb(0.5, 0.5, 0.5)); y -= 14;
+  drawText(invoice.client_company_name, 40, y, 12, true); y -= 16;
+  if (invoice.client_vat_number) { drawText(`P.IVA: ${invoice.client_vat_number}`, 40, y, 9); y -= 14; }
+  if (invoice.client_address)    { drawText(invoice.client_address, 40, y, 9);                y -= 14; }
+  if (invoice.client_city)       { drawText(`${invoice.client_city} ${invoice.client_zip || ""}`, 40, y, 9); y -= 20; }
+
+  drawLine(y); y -= 20;
+
+  // TABELLA RIGHE
+  const colW = [200, 50, 60, 70, 50, 50, 70];
+  const colX = [40, 240, 290, 350, 420, 470, 510];
+  const headers = ["Descrizione", "Q.tà", "U.M.", "Prezzo", "Sc.%", "IVA%", "Totale"];
+
+  headers.forEach((h, i) => drawText(h, colX[i], y, 9, true, rgb(0.3, 0.3, 0.3)));
+  y -= 6; drawLine(y); y -= 14;
+
+  const lines = (invoice.invoice_lines || []).sort((a: Record<string,unknown>, b: Record<string,unknown>) =>
+    (a.sort_order as number) - (b.sort_order as number));
+
+  for (const line of lines as Array<Record<string,unknown>>) {
+    const desc = String(line.description || "").substring(0, 40);
+    drawText(desc, colX[0], y, 9);
+    drawText(String(line.quantity),         colX[1], y, 9);
+    drawText(String(line.unit || "pz"),     colX[2], y, 9);
+    drawText(`€${Number(line.unit_price).toFixed(2)}`, colX[3], y, 9);
+    drawText(String(line.discount_percent || 0), colX[4], y, 9);
+    drawText(`${line.tax_rate}%`,           colX[5], y, 9);
+    drawText(`€${Number(line.line_gross).toFixed(2)}`, colX[6], y, 9);
+    y -= 16;
+    if (y < 150) { /* TODO: nuova pagina se righe troppe */ break; }
+  }
+
+  y -= 10; drawLine(y); y -= 20;
+
+  // TOTALI
+  const totX = width - 200;
+  drawText("Imponibile:", totX - 80, y, 10); drawText(`€${Number(invoice.subtotal).toFixed(2)}`, totX + 20, y, 10); y -= 16;
+  drawText("IVA:",        totX - 80, y, 10); drawText(`€${Number(invoice.tax_amount).toFixed(2)}`, totX + 20, y, 10); y -= 16;
+  drawLine(y); y -= 14;
+  drawText("TOTALE:", totX - 80, y, 13, true); drawText(`€${Number(invoice.total).toFixed(2)}`, totX + 20, y, 13, true); y -= 30;
+
+  // PAGAMENTO
+  if (invoice.payment_method || invoice.bank_iban) {
+    drawLine(y); y -= 16;
+    drawText("Modalità di pagamento:", 40, y, 9, false, rgb(0.5,0.5,0.5)); y -= 14;
+    if (invoice.payment_method) { drawText(invoice.payment_method, 40, y, 10); y -= 14; }
+    if (invoice.bank_iban)      { drawText(`IBAN: ${invoice.bank_iban}`, 40, y, 10); y -= 14; }
+  }
+
+  // NOTE / FOOTER
+  if (invoice.footer_text) {
+    y -= 20; drawLine(y); y -= 14;
+    drawText(invoice.footer_text, 40, y, 8, false, rgb(0.4,0.4,0.4));
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  const pdfBuffer = new Uint8Array(pdfBytes);
+
+  // Salva su Storage
+  const pdfPath = `${invoice.company_id}/${invoice.invoice_year}/${invoice.invoice_number || invoice.id}.pdf`;
+  await supabase.storage.from("invoices-pdf").upload(pdfPath, pdfBuffer, {
+    contentType: "application/pdf", upsert: true,
+  });
+  const { data: urlData } = supabase.storage.from("invoices-pdf").getPublicUrl(pdfPath);
+
+  await supabase.from("invoices").update({
+    pdf_url: urlData.publicUrl,
+    pdf_generated_at: new Date().toISOString(),
+  }).eq("id", invoice_id);
+
+  return new Response(pdfBuffer, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="fattura-${invoice.invoice_number || invoice.id}.pdf"`,
+    },
+  });
+});
+```
+
+Crea il bucket Supabase Storage `invoices-pdf` con policy:
+```sql
+INSERT INTO storage.buckets (id, name, public) VALUES ('invoices-pdf', 'invoices-pdf', false);
+
+CREATE POLICY "company_invoices_pdf" ON storage.objects
+  FOR ALL USING (
+    bucket_id = 'invoices-pdf' AND
+    (storage.foldername(name))[1] = get_user_company_id(auth.uid())::TEXT
+  );
+```
+
+─── PAGINA SCADENZARIO `/azienda/scadenzario` ─────────────────────
+
+Aggiungi la voce "Scadenzario" nella sidebar, sotto-categoria "Finanza" (dopo Fatturazione).
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 📅 Scadenzario                   Vista: [Lista] [Calendario]     │
+│                                  Periodo: [Apr 2025 ▼]           │
+├──────────────────────────────────────────────────────────────────┤
+│ ❌ SCADUTE (3 fatture — €7.090 totale)                           │
+│ ─────────────────────────────────────────────────────────────── │
+│ FT-25-008 | Bianchi SpA    | €2.400 | scad. 01/03 | [Segna pag.]│
+│ FT-25-005 | Verdi Srl      | €890   | scad. 15/02 | [Segna pag.]│
+│ FT-25-003 | Rossi & Figli  | €3.800 | scad. 10/01 | [Segna pag.]│
+│                                                                  │
+│ ⚠️  QUESTA SETTIMANA (2 fatture — €4.300 totale)                │
+│ ─────────────────────────────────────────────────────────────── │
+│ FT-25-015 | Tech Innovate  | €1.100 | scad. 12/04              │
+│ FT-25-016 | Rossi SpA      | €3.200 | scad. 14/04              │
+│                                                                  │
+│ 🔵 PROSSIMI 30 GIORNI (5 fatture)                               │
+│ ...                                                              │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+Usa la RPC `get_scadenzario` già creata nel Prompt 1.
+Ogni riga ha un pulsante rapido [Segna come pagata] che apre un mini-dialog:
+importo pagamento, data, metodo → inserisce in `invoice_payments`.
+
+Aggiungi nel Cruscotto Aziendale:
+- Banner rosso se ci sono fatture scadute: "⚠️ Hai X fatture scadute per un totale di €Y"
+- Banner arancione se scadenze entro 7 giorni: "🔔 X fatture in scadenza nei prossimi 7 giorni"
+Entrambi con link diretto allo Scadenzario.
+
+════════════════════════════════════════════════════════════════════
+PROMPT 6 di 6 — IMPOSTAZIONI MULTI-PROVIDER + INTEGRAZIONI MODULI
+════════════════════════════════════════════════════════════════════
+
+─── PAGINA IMPOSTAZIONI `/azienda/fatturazione/impostazioni` ──────
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ ⚙️ Impostazioni Fatturazione                                     │
+├──────────────────────────────────────────────────────────────────┤
+│ ▌ INTEGRAZIONE SOFTWARE ESTERNO                                  │
+│ Collega il tuo software di fatturazione per inviare             │
+│ automaticamente le fatture all'SDI (Agenzia delle Entrate).     │
+│                                                                  │
+│ ┌─────────────────────────────────────────────────── CONSIGLIATO┐│
+│ │ ☁️ Fatture in Cloud                   ✅ Connesso             ││
+│ │ L'app di fatturazione più usata in Italia (500k+ utenti)      ││
+│ │ Account: Mario Rossi Srl • P.IVA 12345678901                  ││
+│ │ Ultima sync: 2 ore fa — ✅ Successo                           ││
+│ │ [Testa connessione] [Disconnetti]  Auto-sync: [●────── ON]    ││
+│ └───────────────────────────────────────────────────────────────┘│
+│                                                                  │
+│ ┌────────────────────────────────────────────────────────────────┐│
+│ │ 📄 Fattura24                          ○ Non connesso          ││
+│ │ Alternativa economica con API semplice                        ││
+│ │ API Key: [____________________________________]               ││
+│ │ ℹ️  Trovala in Fattura24 → Impostazioni → API                ││
+│ │                                            [Connetti]         ││
+│ └───────────────────────────────────────────────────────────────┘│
+│                                                                  │
+│ ┌────────────────────────────────────────────────────────────────┐│
+│ │ 🔐 Aruba Fatturazione Elettronica     ○ Non connesso          ││
+│ │ Per chi usa già i servizi Aruba                               ││
+│ │ Bearer Token: [____________________________]                  ││
+│ │ ℹ️  Ottieni il token dalla Dashboard Aruba → Integrazioni    ││
+│ │                                            [Connetti]         ││
+│ └───────────────────────────────────────────────────────────────┘│
+│                                                                  │
+│ ┌────────────────────────────────────────────────────────────────┐│
+│ │ 🔌 Invoicetronic                      ○ Non connesso          ││
+│ │ Middleware SDI universale. Funziona con Danea Easyfatt e      ││
+│ │ qualsiasi altro software senza REST API.                      ││
+│ │ API Key: [____________________________________]               ││
+│ │ ℹ️  Crea account su invoicetronic.com → Settings → API Keys  ││
+│ │                                            [Connetti]         ││
+│ └───────────────────────────────────────────────────────────────┘│
+│                                                                  │
+│ ┌────────────────────────────────────────────────────────────────┐│
+│ │ 📁 Nessuna integrazione (Solo PDF)    ● Attivo (predefinito)  ││
+│ │ Le fatture vengono generate come PDF. Nessun invio automatico ││
+│ │ all'SDI. Puoi scaricare il PDF e inviarlo manualmente.        ││
+│ └───────────────────────────────────────────────────────────────┘│
+│                                                                  │
+│ PROVIDER ATTIVO: [Fatture in Cloud ▼]   ← solo se > 1 connesso  │
+│                                                                  │
+│ ════════════════════════════════════════════════════════════════ │
+│ ▌ DATI AZIENDA (pre-compilano ogni nuova fattura)               │
+│ Ragione Sociale: [_____________]  P.IVA: [_______________]      │
+│ Indirizzo: [___________________]  Regime IVA: [Ordinario ▼]     │
+│ IBAN predefinito: [IT___________________________________________] │
+│ Logo: [Carica immagine]  ← usato nell'anteprima PDF             │
+│                                     [Salva impostazioni]        │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+Implementazione React key points:
+- `PROVIDER_CONFIG` array con id, name, description, icon, authType ('oauth2'|'apikey'|'bearer'|'none'), apiKeyLabel, apiKeyHelp, helpUrl, recommended
+- Per ogni provider: se connesso → mostra info + bottoni gestione; se non connesso → mostra form input
+- Toggle auto-sync chiama `billing-connect?action=toggle_auto_sync`
+- Bottone "Testa connessione" chiama `billing-connect?action=test_connection`
+- Dropdown provider attivo visibile solo se 2+ provider connessi
+- Sezione Dati Azienda salva su tabella `companies` i campi billing-related
+
+─── INTEGRAZIONI CON MODULI ESISTENTI ──────────────────────────────
+
+**A. Da Ordini → Fattura**
+
+Nella pagina dettaglio ordine, quando `status = 'completed'`, aggiungi:
+```
+[🧾 Genera Fattura]  ← visibile solo se non esiste già una fattura collegata
+```
+Al click → naviga a `/azienda/fatturazione/nuova?from_order={order_id}` pre-compilato con:
+- client_id, client_company_name, client_vat_number, client_* dall'ordine
+- Righe dall'ordine (prodotti/servizi, quantità, prezzi)
+- Note dall'ordine → notes fattura
+
+Dopo emissione fattura → aggiorna ordine con `invoice_id`.
+Nella lista ordini → badge "🧾 Fatturato" se `invoice_id` presente.
+
+**B. Da Preventivi → Fattura**
+
+Nella pagina dettaglio preventivo, quando `status = 'accepted'`, aggiungi:
+```
+[🧾 Converti in Fattura]
+```
+Stesso meccanismo: naviga a `/azienda/fatturazione/nuova?from_quote={quote_id}` pre-compilato.
+
+**C. In Contatti → Tab Fatture**
+
+Nel dettaglio contatto/cliente aggiungi un tab "Fatture" che mostra:
+- Lista fatture emesse a quel cliente
+- Totale fatturato, totale incassato, totale da incassare
+- Link diretto a ogni fattura
+
+**D. Aggiornamento Cruscotto Aziendale**
+
+Aggiorna il hook `useCruscottoData` per includere dati reali dalla tabella `invoices`:
+
+```typescript
+// Aggiungi questa query RPC al cruscotto:
+const { data: invoiceStats } = useQuery({
+  queryKey: ["cruscotto_invoice_stats", companyId, currentMonth],
+  queryFn: async () => {
+    const { data } = await supabase.rpc("get_cruscotto_invoice_stats", {
+      p_company_id: companyId,
+      p_month: currentMonth, // es. '2025-03'
+    });
+    return data;
+  },
+});
+```
+
+```sql
+-- Aggiungi questa funzione al DB:
+CREATE OR REPLACE FUNCTION get_cruscotto_invoice_stats(
+  p_company_id UUID,
+  p_month TEXT  -- formato 'YYYY-MM'
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  SELECT jsonb_build_object(
+    'receivables',
+      COALESCE((
+        SELECT SUM(total - paid_amount) FROM invoices
+        WHERE company_id = p_company_id
+          AND status IN ('issued','sent','delivered','overdue')
+      ), 0),
+    'overdue_count',
+      COALESCE((
+        SELECT COUNT(*) FROM invoices
+        WHERE company_id = p_company_id AND status = 'overdue'
+      ), 0),
+    'overdue_amount',
+      COALESCE((
+        SELECT SUM(total - paid_amount) FROM invoices
+        WHERE company_id = p_company_id AND status = 'overdue'
+      ), 0),
+    'paid_this_month',
+      COALESCE((
+        SELECT SUM(amount) FROM invoice_payments ip
+        JOIN invoices i ON i.id = ip.invoice_id
+        WHERE i.company_id = p_company_id
+          AND TO_CHAR(ip.payment_date, 'YYYY-MM') = p_month
+      ), 0),
+    'issued_this_month',
+      COALESCE((
+        SELECT COUNT(*) FROM invoices
+        WHERE company_id = p_company_id
+          AND TO_CHAR(issue_date, 'YYYY-MM') = p_month
+          AND document_type = 'invoice'
+          AND status != 'cancelled'
+      ), 0)
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+════════════════════════════════════════════════════════════════════
+VARIABILI AMBIENTE DA CONFIGURARE SU SUPABASE
+════════════════════════════════════════════════════════════════════
+
+Aggiungi questi secrets in Supabase Dashboard → Settings → Edge Functions:
+
+  FIC_CLIENT_ID      = (da developers.fattureincloud.it → Registra app OAuth2)
+  FIC_CLIENT_SECRET  = (stessa dashboard FIC)
+  FIC_REDIRECT_URI   = https://[tuo-dominio]/billing/oauth/callback
+
+Le credenziali degli altri provider (Fattura24, Aruba, Invoicetronic) vengono
+inserite direttamente dagli utenti nella pagina Impostazioni e salvate
+nella tabella `billing_integrations`. Non servono variabili d'ambiente aggiuntive.
+
+════════════════════════════════════════════════════════════════════
+TABELLA COMPARATIVA PROVIDER (riferimento rapido)
+════════════════════════════════════════════════════════════════════
+
+| Provider         | Auth      | SDI auto | Stato SDI | Annulla | Note                     |
+|------------------|-----------|----------|-----------|---------|--------------------------|
+| Fatture in Cloud | OAuth2    | ✅       | ✅        | ❌ NC   | Leader mercato, consigliato |
+| Fattura24        | API Key   | ✅       | ⚠️ parz.  | ✅      | Semplice, economico      |
+| Aruba            | Bearer    | ✅       | ✅        | ❌      | Per utenti Aruba         |
+| Invoicetronic    | API Key   | ✅       | ✅        | ✅      | Per Danea/altri sw       |
+| Standalone       | Nessuna   | ❌       | ❌        | N/A     | Solo PDF                 |
+
+REGOLA GENERALE:
+- Fatture in stato 'issued', 'sent', 'delivered', 'paid' → NON modificabili dal frontend
+- Il numero fattura viene SEMPRE generato server-side (RPC) per evitare buchi
+- Le credenziali non vengono MAI esposte al frontend o ai log leggibili
+- Il provider standalone è il fallback sicuro: funziona sempre, anche offline

@@ -1,0 +1,2227 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║   PREVENTIVO + FIRMA DIGITALE — Edilizia in Cloud                      ║
+║   PDF generation · Token pubblico · Firma canvas · Email/WhatsApp      ║
+║   Sequenza: 6 prompt · Marzo 2026                                       ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+CONTESTO TECNICO
+────────────────
+La tabella principale è `orders` (non esiste una tabella separata
+"preventivi" — gli ordini sono sia preventivi che ordini confermati).
+Le voci dell'ordine sono in `order_items`.
+I pagamenti sono in `order_installments`.
+L'allegato visibile al cliente usa `order_attachments.visible_to_customer`.
+
+NON ESISTE ancora:
+  - Generazione PDF
+  - Sistema firma digitale
+  - Pagina pubblica per il cliente
+  - Pulsanti invia via email/WhatsApp
+
+Tutto va costruito da zero seguendo questi prompt in ordine.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PF1] — MIGRATION DATABASE
+              Tabella signature_requests + colonne order
+════════════════════════════════════════════════════════════════════════════
+
+Esegui in Supabase SQL Editor:
+
+```sql
+-- Migration: preventivo_firma_digitale_setup
+
+-- 1. Aggiungi campo "tipo" agli ordini per distinguere preventivo da ordine
+--    confermato. Un ordine nasce come 'preventivo' e diventa 'confermato'
+--    quando il cliente firma o l'azienda lo conferma manualmente.
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS tipo text NOT NULL DEFAULT 'ordine'
+    CHECK (tipo IN ('preventivo', 'ordine'));
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS preventivo_number text;  -- es. "PREV-2026-0042"
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS preventivo_date date;    -- data emissione preventivo
+
+ALTER TABLE orders
+  ADD COLUMN IF NOT EXISTS validity_days int DEFAULT 30; -- giorni validità preventivo
+
+-- Indice per ricerca preventivi
+CREATE INDEX IF NOT EXISTS idx_orders_tipo ON orders(company_id, tipo);
+
+-- 2. Tabella richieste firma digitale
+CREATE TABLE IF NOT EXISTS signature_requests (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id        uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  company_id      uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Token pubblico (condiviso con il cliente via link)
+  token           text NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+
+  -- Stato
+  status          text NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'viewed', 'signed', 'expired', 'declined')),
+
+  -- Dati del firmatario
+  signer_name     text,
+  signer_email    text,
+  signer_notes    text,
+
+  -- Firma
+  signature_png_url  text,              -- URL Supabase Storage della firma PNG
+  signed_at          timestamptz,
+  signed_ip          text,
+  signed_user_agent  text,
+
+  -- Visione documento
+  first_viewed_at    timestamptz,
+  view_count         int NOT NULL DEFAULT 0,
+
+  -- Scadenza automatica
+  expires_at      timestamptz NOT NULL DEFAULT (now() + interval '30 days'),
+
+  -- Invio
+  sent_via        text CHECK (sent_via IN ('email', 'whatsapp', 'link', 'sms')),
+  sent_at         timestamptz,
+  sent_to         text,               -- email o telefono a cui è stato inviato
+
+  -- Meta
+  created_by      uuid REFERENCES auth.users(id),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_sig_requests_order   ON signature_requests(order_id);
+CREATE INDEX idx_sig_requests_company ON signature_requests(company_id, status);
+CREATE INDEX idx_sig_requests_token   ON signature_requests(token);
+
+-- Trigger updated_at
+CREATE OR REPLACE FUNCTION update_signature_request_timestamp()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
+
+CREATE TRIGGER trg_sig_request_updated
+  BEFORE UPDATE ON signature_requests
+  FOR EACH ROW EXECUTE FUNCTION update_signature_request_timestamp();
+
+-- Trigger: scade automaticamente le richieste pendenti oltre la data
+CREATE OR REPLACE FUNCTION expire_pending_signature_requests()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.status = 'pending' AND NEW.expires_at < now() THEN
+    NEW.status := 'expired';
+  END IF;
+  RETURN NEW;
+END; $$;
+
+CREATE TRIGGER trg_sig_auto_expire
+  BEFORE UPDATE ON signature_requests
+  FOR EACH ROW EXECUTE FUNCTION expire_pending_signature_requests();
+
+-- 3. RLS
+ALTER TABLE signature_requests ENABLE ROW LEVEL SECURITY;
+
+-- L'azienda vede le proprie richieste
+CREATE POLICY "sig_requests_company_access" ON signature_requests
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM company_members
+      WHERE company_id = signature_requests.company_id
+        AND user_id = auth.uid()
+    )
+  );
+
+-- 4. Policy Storage per le firme PNG
+-- Nel pannello Supabase → Storage → Bucket "attachments" → Policies,
+-- aggiungi questa policy per permettere l'upload anonimo firmato da token:
+-- (La edge function si occupa del controllo del token — vedi PF2)
+-- Bucket: "attachments", cartella: "signatures/"
+
+-- 5. Funzione per generare numero preventivo progressivo
+CREATE OR REPLACE FUNCTION generate_preventivo_number(p_company_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_year     int := EXTRACT(YEAR FROM now());
+  v_count    int;
+  v_number   text;
+BEGIN
+  SELECT COUNT(*) + 1 INTO v_count
+  FROM orders
+  WHERE company_id = p_company_id
+    AND tipo = 'preventivo'
+    AND EXTRACT(YEAR FROM COALESCE(preventivo_date, created_at)) = v_year;
+
+  v_number := 'PREV-' || v_year || '-' || LPAD(v_count::text, 4, '0');
+  RETURN v_number;
+END; $$;
+
+GRANT EXECUTE ON FUNCTION generate_preventivo_number(uuid) TO authenticated;
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PF2] — EDGE FUNCTIONS
+              get-signature-request · submit-signature · send-preventivo
+════════════════════════════════════════════════════════════════════════════
+
+Crea 3 Edge Functions in supabase/functions/. Queste funzioni NON
+richiedono JWT (verify_jwt: false) perché il cliente firma senza login.
+
+────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 1: get-signature-request
+────────────────────────────────────────────────────────────────────────────
+
+```ts
+// supabase/functions/get-signature-request/index.ts
+// Metodo: GET /get-signature-request?token=<TOKEN>
+// Ritorna i dati dell'ordine per la pagina pubblica di firma
+// verify_jwt: false (pubblica — autenticazione tramite token)
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+Deno.serve(async (req: Request) => {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const url = new URL(req.url);
+  const token = url.searchParams.get("token");
+
+  if (!token) {
+    return new Response(JSON.stringify({ error: "Token mancante" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  // Recupera la richiesta di firma
+  const { data: sigRequest, error } = await supabase
+    .from("signature_requests")
+    .select(`
+      id, token, status, signer_name, signer_email, expires_at,
+      signed_at, view_count, first_viewed_at,
+      order_id,
+      orders!inner(
+        id, order_code, preventivo_number, preventivo_date, validity_days,
+        description, total_amount, tipo, vat_rate,
+        created_at,
+        order_items(id, name, description, quantity, unit_price, discount_percent, vat_rate),
+        order_installments(id, label, type, amount, is_paid, expected_date, position),
+        companies!inner(id, name, email, phone, address, vat_number, logo_url, bank_iban, bank_name, payment_notes),
+        profiles!orders_customer_id_fkey(id, first_name, last_name, email, phone)
+      )
+    `)
+    .eq("token", token)
+    .maybeSingle();
+
+  if (error || !sigRequest) {
+    return new Response(JSON.stringify({ error: "Richiesta non trovata" }), {
+      status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Controlla scadenza
+  if (new Date(sigRequest.expires_at) < new Date()) {
+    // Aggiorna stato a 'expired' se non già fatto
+    if (sigRequest.status === "pending" || sigRequest.status === "viewed") {
+      await supabase
+        .from("signature_requests")
+        .update({ status: "expired" })
+        .eq("id", sigRequest.id);
+    }
+    return new Response(JSON.stringify({ error: "expired", status: "expired" }), {
+      status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Controlla se già firmato
+  if (sigRequest.status === "signed") {
+    return new Response(
+      JSON.stringify({ status: "signed", signed_at: sigRequest.signed_at }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Aggiorna "prima visualizzazione" e contatore
+  const updates: Record<string, unknown> = { view_count: (sigRequest.view_count ?? 0) + 1 };
+  if (!sigRequest.first_viewed_at) {
+    updates.first_viewed_at = new Date().toISOString();
+    updates.status = "viewed";
+  }
+  await supabase.from("signature_requests").update(updates).eq("id", sigRequest.id);
+
+  return new Response(JSON.stringify({ data: sigRequest }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+});
+```
+
+────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 2: submit-signature
+────────────────────────────────────────────────────────────────────────────
+
+```ts
+// supabase/functions/submit-signature/index.ts
+// Metodo: POST
+// Body: { token, signer_name, signer_email, signature_base64, notes? }
+// verify_jwt: false (pubblica)
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+Deno.serve(async (req: Request) => {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  const { token, signer_name, signer_email, signature_base64, notes } = await req.json();
+
+  if (!token || !signer_name || !signature_base64) {
+    return new Response(JSON.stringify({ error: "Campi obbligatori mancanti" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Recupera richiesta
+  const { data: sigReq } = await supabase
+    .from("signature_requests")
+    .select("id, status, expires_at, order_id, company_id")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (!sigReq) return new Response(JSON.stringify({ error: "Token non valido" }), { status: 404, headers: corsHeaders });
+  if (sigReq.status === "signed")   return new Response(JSON.stringify({ error: "Già firmato" }), { status: 409, headers: corsHeaders });
+  if (sigReq.status === "expired" || new Date(sigReq.expires_at) < new Date()) {
+    return new Response(JSON.stringify({ error: "expired" }), { status: 410, headers: corsHeaders });
+  }
+
+  // Converti base64 → Uint8Array e salva in Supabase Storage
+  const base64Data = signature_base64.replace(/^data:image\/png;base64,/, "");
+  const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  const storagePath = `signatures/${sigReq.order_id}/${sigReq.id}.png`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("attachments")
+    .upload(storagePath, binaryData, {
+      contentType: "image/png",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    return new Response(JSON.stringify({ error: "Errore upload firma" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Ottieni URL pubblico
+  const { data: { publicUrl } } = supabase.storage.from("attachments").getPublicUrl(storagePath);
+
+  // Recupera IP del firmatario
+  const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("cf-connecting-ip") ?? "unknown";
+  const userAgent = req.headers.get("user-agent") ?? "";
+
+  // Aggiorna signature_request
+  await supabase.from("signature_requests").update({
+    status:            "signed",
+    signer_name,
+    signer_email:      signer_email ?? null,
+    signer_notes:      notes ?? null,
+    signature_png_url: publicUrl,
+    signed_at:         new Date().toISOString(),
+    signed_ip:         ip,
+    signed_user_agent: userAgent,
+  }).eq("id", sigReq.id);
+
+  // Salva anche come allegato dell'ordine (visible_to_customer = true)
+  await supabase.from("order_attachments").insert({
+    order_id:           sigReq.order_id,
+    file_name:          `Firma_${signer_name}_${new Date().toISOString().slice(0,10)}.png`,
+    file_url:           publicUrl,
+    file_type:          "image/png",
+    visible_to_customer: true,
+  });
+
+  // Notifica all'azienda (usa create_notification se esiste)
+  try {
+    await supabase.rpc("create_notification", {
+      p_company_id:  sigReq.company_id,
+      p_type:        "order",
+      p_title:       "Preventivo firmato",
+      p_body:        `${signer_name} ha firmato il preventivo`,
+      p_link:        `/azienda/ordini/${sigReq.order_id}`,
+    });
+  } catch (_) { /* notifiche opzionali */ }
+
+  return new Response(JSON.stringify({ success: true, signed_at: new Date().toISOString() }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+});
+```
+
+────────────────────────────────────────────────────────────────────────────
+EDGE FUNCTION 3: send-preventivo
+────────────────────────────────────────────────────────────────────────────
+
+```ts
+// supabase/functions/send-preventivo/index.ts
+// Metodo: POST (richiede JWT — solo utenti autenticati)
+// Body: { order_id, send_via: "email"|"whatsapp", recipient, message?, expires_days? }
+// verify_jwt: true
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+Deno.serve(async (req: Request) => {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+
+  // Verifica JWT e ottieni utente
+  const authHeader = req.headers.get("authorization") ?? "";
+  const { data: { user }, error: authError } = await supabase.auth.getUser(
+    authHeader.replace("Bearer ", "")
+  );
+  if (authError || !user) {
+    return new Response(JSON.stringify({ error: "Non autorizzato" }), { status: 401, headers: corsHeaders });
+  }
+
+  const { order_id, send_via, recipient, message, expires_days = 30 } = await req.json();
+
+  if (!order_id || !send_via || !recipient) {
+    return new Response(JSON.stringify({ error: "Parametri mancanti" }), { status: 400, headers: corsHeaders });
+  }
+
+  // Verifica che l'utente abbia accesso all'ordine
+  const { data: order } = await supabase
+    .from("orders")
+    .select("id, company_id, order_code, preventivo_number, description, tipo")
+    .eq("id", order_id)
+    .maybeSingle();
+
+  if (!order) return new Response(JSON.stringify({ error: "Ordine non trovato" }), { status: 404, headers: corsHeaders });
+
+  // Verifica membership
+  const { data: member } = await supabase
+    .from("company_members")
+    .select("id")
+    .eq("company_id", order.company_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!member) return new Response(JSON.stringify({ error: "Accesso negato" }), { status: 403, headers: corsHeaders });
+
+  // Crea (o aggiorna) signature_request
+  // Prima verifica se esiste già una richiesta pending per questo ordine
+  const { data: existing } = await supabase
+    .from("signature_requests")
+    .select("id, token")
+    .eq("order_id", order_id)
+    .in("status", ["pending", "viewed"])
+    .maybeSingle();
+
+  let sigToken: string;
+
+  if (existing) {
+    // Aggiorna la richiesta esistente con nuovi dati di invio
+    await supabase.from("signature_requests").update({
+      sent_via: send_via,
+      sent_at:  new Date().toISOString(),
+      sent_to:  recipient,
+      expires_at: new Date(Date.now() + expires_days * 86400000).toISOString(),
+    }).eq("id", existing.id);
+    sigToken = existing.token;
+  } else {
+    // Crea nuova richiesta
+    const { data: newReq } = await supabase
+      .from("signature_requests")
+      .insert({
+        order_id,
+        company_id:  order.company_id,
+        sent_via:    send_via,
+        sent_at:     new Date().toISOString(),
+        sent_to:     recipient,
+        created_by:  user.id,
+        expires_at:  new Date(Date.now() + expires_days * 86400000).toISOString(),
+      })
+      .select("id, token")
+      .single();
+    sigToken = newReq!.token;
+  }
+
+  // URL pagina firma pubblica
+  const appUrl = Deno.env.get("APP_URL") ?? "https://app.ediliziacloud.it";
+  const signingUrl = `${appUrl}/firma/${sigToken}`;
+
+  const docName = order.preventivo_number ?? order.order_code ?? "il preventivo";
+  const defaultMessage = `Ciao, ti inviamo ${docName} da firmare digitalmente. Clicca il link qui sotto per visualizzarlo e firmarlo: ${signingUrl}`;
+
+  // Invia via email
+  if (send_via === "email") {
+    const emailBody = message
+      ? message.replace("{{link}}", signingUrl).replace("{{numero}}", docName)
+      : defaultMessage;
+
+    // Usa Resend o il provider email già configurato nel progetto
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (resendApiKey) {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from:    "noreply@ediliziacloud.it",
+          to:      [recipient],
+          subject: `Preventivo da firmare — ${docName}`,
+          html:    `<p>${emailBody.replace(/\n/g, "<br>")}</p>
+                    <p><a href="${signingUrl}" style="background:#2563EB;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:12px;">
+                      Visualizza e firma →
+                    </a></p>
+                    <p style="color:#666;font-size:12px;margin-top:24px;">
+                      Il link scade il ${new Date(Date.now() + expires_days * 86400000).toLocaleDateString("it-IT")}.
+                    </p>`,
+        }),
+      });
+    }
+  }
+
+  // Invia via WhatsApp
+  if (send_via === "whatsapp") {
+    const waMessage = message
+      ? message.replace("{{link}}", signingUrl).replace("{{numero}}", docName)
+      : defaultMessage;
+
+    // Usa la stessa infrastruttura WhatsApp già nel progetto (send-whatsapp-reply o similar)
+    // Se non disponibile, crea il link wa.me per l'invio manuale
+    const waUrl = `https://wa.me/${recipient.replace(/\D/g, "")}?text=${encodeURIComponent(waMessage)}`;
+
+    // Ritorna il link WhatsApp nel response (il frontend lo apre in una nuova tab)
+    return new Response(JSON.stringify({
+      success: true,
+      token:   sigToken,
+      signing_url: signingUrl,
+      whatsapp_url: waUrl,
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  return new Response(JSON.stringify({
+    success:     true,
+    token:       sigToken,
+    signing_url: signingUrl,
+  }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+});
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PF3] — GENERAZIONE PDF PREVENTIVO (CLIENT-SIDE)
+              jsPDF + autotable · Template HTML → PDF
+════════════════════════════════════════════════════════════════════════════
+
+Il PDF viene generato nel browser con jsPDF (già comune in progetti React).
+Nessun server necessario — tutto client-side.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Aggiungi jsPDF a package.json
+────────────────────────────────────────────────────────────────────────────
+
+In package.json aggiungi nelle dependencies:
+```json
+"jspdf": "^2.5.1",
+"jspdf-autotable": "^3.8.2"
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Crea src/lib/generatePreventivoPdf.ts
+────────────────────────────────────────────────────────────────────────────
+
+```ts
+// src/lib/generatePreventivoPdf.ts
+// Genera il PDF del preventivo/ordine usando jsPDF + autotable
+// Ritorna: blob PDF (per download) e base64 string (per allegato)
+
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+
+export interface PreventivoData {
+  // Ordine
+  order_id:           string;
+  order_code:         string | null;
+  preventivo_number:  string | null;
+  preventivo_date:    string | null;
+  validity_days:      number;
+  description:        string | null;
+  tipo:               "preventivo" | "ordine";
+  total_amount:       number;
+  vat_rate:           number;
+
+  // Articoli
+  items: {
+    name:             string;
+    description:      string | null;
+    quantity:         number;
+    unit_price:       number;
+    discount_percent: number;
+    vat_rate:         number;
+  }[];
+
+  // Rate
+  installments: {
+    label:            string;
+    amount:           number;
+    expected_date:    string | null;
+    is_paid:          boolean;
+    position:         number;
+  }[];
+
+  // Azienda emittente
+  company: {
+    name:             string;
+    email:            string | null;
+    phone:            string | null;
+    address:          string | null;
+    vat_number:       string | null;
+    logo_url:         string | null;
+    bank_iban:        string | null;
+    bank_name:        string | null;
+    payment_notes:    string | null;
+  };
+
+  // Cliente destinatario
+  customer: {
+    first_name:       string | null;
+    last_name:        string | null;
+    email:            string | null;
+    phone:            string | null;
+  } | null;
+}
+
+// Colori brand
+const BLUE       = [37, 99, 235];     // #2563EB
+const DARK       = [17, 24, 39];      // #111827
+const GRAY       = [107, 114, 128];   // #6B7280
+const LIGHT_GRAY = [249, 250, 251];   // #F9FAFB
+const WHITE      = [255, 255, 255];
+
+function formatEur(n: number): string {
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+}
+
+export async function generatePreventivoPdf(data: PreventivoData): Promise<{
+  blob: Blob;
+  base64: string;
+  filename: string;
+}> {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  let y = margin;
+
+  // ── HEADER ────────────────────────────────────────────────────────────
+
+  // Logo azienda (se disponibile)
+  if (data.company.logo_url) {
+    try {
+      // Fetch logo e converti in base64
+      const resp = await fetch(data.company.logo_url);
+      const blob = await resp.blob();
+      const b64 = await new Promise<string>(resolve => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+      doc.addImage(b64, "PNG", margin, y, 35, 12);
+    } catch (_) { /* logo non disponibile */ }
+  }
+
+  // Nome azienda
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(...DARK);
+  doc.text(data.company.name, pageW - margin, y + 5, { align: "right" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...GRAY);
+  const companyInfo = [
+    data.company.email,
+    data.company.phone,
+    data.company.address,
+    data.company.vat_number ? `P.IVA: ${data.company.vat_number}` : null,
+  ].filter(Boolean).join("  •  ");
+  doc.text(companyInfo, pageW - margin, y + 11, { align: "right" });
+
+  y += 22;
+
+  // Linea separatrice
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pageW - margin, y);
+  y += 6;
+
+  // ── TITOLO DOCUMENTO ──────────────────────────────────────────────────
+
+  const docTitle = data.tipo === "preventivo" ? "PREVENTIVO" : "ORDINE";
+  const docNumber = data.preventivo_number ?? data.order_code ?? data.order_id.slice(0, 8).toUpperCase();
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(...BLUE);
+  doc.text(`${docTitle} N. ${docNumber}`, margin, y + 7);
+
+  // Data e scadenza
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...GRAY);
+  const emissionDate = data.preventivo_date
+    ? format(new Date(data.preventivo_date), "d MMMM yyyy", { locale: it })
+    : format(new Date(), "d MMMM yyyy", { locale: it });
+
+  doc.text(`Data: ${emissionDate}`, pageW - margin, y + 2, { align: "right" });
+
+  if (data.tipo === "preventivo") {
+    const expiryDate = new Date(
+      (data.preventivo_date ? new Date(data.preventivo_date) : new Date()).getTime()
+      + data.validity_days * 86400000
+    );
+    doc.text(
+      `Validità: ${data.validity_days} giorni (scade il ${format(expiryDate, "d/M/yyyy")})`,
+      pageW - margin, y + 7, { align: "right" }
+    );
+  }
+
+  y += 18;
+
+  // ── INTESTATARIO ─────────────────────────────────────────────────────
+
+  if (data.customer) {
+    doc.setFillColor(...LIGHT_GRAY);
+    doc.roundedRect(margin, y, 80, 22, 2, 2, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    doc.text("INTESTATO A:", margin + 4, y + 5);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...DARK);
+    const customerName = [data.customer.first_name, data.customer.last_name]
+      .filter(Boolean).join(" ") || "Cliente";
+    doc.text(customerName, margin + 4, y + 12);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    const custInfo = [data.customer.email, data.customer.phone].filter(Boolean).join("  •  ");
+    if (custInfo) doc.text(custInfo, margin + 4, y + 18);
+
+    y += 28;
+  }
+
+  // ── DESCRIZIONE ORDINE ─────────────────────────────────────────────
+
+  if (data.description) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text("OGGETTO:", margin, y);
+    y += 4;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...GRAY);
+    const descLines = doc.splitTextToSize(data.description, pageW - margin * 2);
+    doc.text(descLines, margin, y);
+    y += descLines.length * 4 + 4;
+  }
+
+  // ── TABELLA ARTICOLI ─────────────────────────────────────────────────
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...DARK);
+  doc.text("RIEPILOGO ARTICOLI", margin, y);
+  y += 4;
+
+  const tableRows = data.items.map(item => {
+    const priceWithDiscount = item.unit_price * (1 - (item.discount_percent ?? 0) / 100);
+    const rowTotal = priceWithDiscount * item.quantity;
+    return [
+      item.name + (item.description ? `\n${item.description}` : ""),
+      item.quantity.toString(),
+      formatEur(item.unit_price),
+      item.discount_percent > 0 ? `${item.discount_percent}%` : "—",
+      formatEur(rowTotal),
+    ];
+  });
+
+  (doc as any).autoTable({
+    startY: y,
+    head: [["Articolo / Descrizione", "Qtà", "Prezzo unit.", "Sconto", "Totale"]],
+    body: tableRows,
+    margin: { left: margin, right: margin },
+    styles: { fontSize: 9, cellPadding: 3, textColor: DARK },
+    headStyles: { fillColor: BLUE, textColor: WHITE, fontStyle: "bold" },
+    columnStyles: {
+      0: { cellWidth: "auto" },
+      1: { cellWidth: 12, halign: "center" },
+      2: { cellWidth: 28, halign: "right" },
+      3: { cellWidth: 18, halign: "center" },
+      4: { cellWidth: 28, halign: "right", fontStyle: "bold" },
+    },
+    alternateRowStyles: { fillColor: LIGHT_GRAY },
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // ── TOTALI ──────────────────────────────────────────────────────────
+
+  const imponibile = data.total_amount / (1 + data.vat_rate / 100);
+  const iva        = data.total_amount - imponibile;
+
+  const totalsX = pageW - margin - 70;
+  const totalsW = 70;
+
+  doc.setFillColor(...LIGHT_GRAY);
+  doc.rect(totalsX, y, totalsW, 22, "F");
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...GRAY);
+  doc.text("Imponibile:", totalsX + 4, y + 6);
+  doc.text(`IVA (${data.vat_rate}%):`, totalsX + 4, y + 12);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...DARK);
+  doc.text(formatEur(imponibile), totalsX + totalsW - 4, y + 6, { align: "right" });
+  doc.text(formatEur(iva),        totalsX + totalsW - 4, y + 12, { align: "right" });
+
+  // Totale bold con sfondo blu
+  doc.setFillColor(...BLUE);
+  doc.rect(totalsX, y + 15, totalsW, 9, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...WHITE);
+  doc.text("TOTALE:", totalsX + 4, y + 21);
+  doc.text(formatEur(data.total_amount), totalsX + totalsW - 4, y + 21, { align: "right" });
+
+  y += 30;
+
+  // ── PIANO DI PAGAMENTO ───────────────────────────────────────────────
+
+  if (data.installments.length > 0) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...DARK);
+    doc.text("PIANO DI PAGAMENTO", margin, y);
+    y += 4;
+
+    const sorted = [...data.installments].sort((a, b) => a.position - b.position);
+    const installRows = sorted.map(inst => [
+      inst.label,
+      formatEur(inst.amount),
+      inst.expected_date
+        ? format(new Date(inst.expected_date), "d/M/yyyy")
+        : "—",
+    ]);
+
+    (doc as any).autoTable({
+      startY: y,
+      head: [["Tipo pagamento", "Importo", "Data prevista"]],
+      body: installRows,
+      margin: { left: margin, right: margin },
+      tableWidth: 100,
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [79, 70, 229], textColor: WHITE, fontStyle: "bold" },
+      columnStyles: {
+        1: { halign: "right", fontStyle: "bold" },
+        2: { halign: "center" },
+      },
+    });
+
+    y = (doc as any).lastAutoTable.finalY + 6;
+  }
+
+  // ── DATI BANCARI ────────────────────────────────────────────────────
+
+  if (data.company.bank_iban) {
+    doc.setFillColor(...LIGHT_GRAY);
+    doc.roundedRect(margin, y, pageW - margin * 2, 16, 2, 2, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    doc.text("COORDINATE BANCARIE", margin + 4, y + 5);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text(
+      [data.company.bank_name, `IBAN: ${data.company.bank_iban}`, data.company.payment_notes]
+        .filter(Boolean).join("  •  "),
+      margin + 4, y + 11
+    );
+    y += 22;
+  }
+
+  // ── NOTE PAGAMENTO ──────────────────────────────────────────────────
+
+  if (data.company.payment_notes && !data.company.bank_iban) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    const noteLines = doc.splitTextToSize(data.company.payment_notes, pageW - margin * 2);
+    doc.text(noteLines, margin, y);
+    y += noteLines.length * 4 + 4;
+  }
+
+  // ── FOOTER ────────────────────────────────────────────────────────
+
+  const footerY = pageH - 12;
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.3);
+  doc.line(margin, footerY - 4, pageW - margin, footerY - 4);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...GRAY);
+  doc.text(data.company.name, margin, footerY);
+  doc.text(
+    `Documento generato il ${format(new Date(), "d/M/yyyy 'alle' HH:mm")}`,
+    pageW - margin, footerY, { align: "right" }
+  );
+
+  // ── EXPORT ────────────────────────────────────────────────────────
+
+  const filename = `${data.tipo === "preventivo" ? "Preventivo" : "Ordine"}_${
+    data.preventivo_number ?? data.order_code ?? data.order_id.slice(0,8)
+  }.pdf`;
+
+  const blob   = doc.output("blob");
+  const base64 = doc.output("datauristring");
+
+  return { blob, base64, filename };
+}
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PF4] — ORDINE/PREVENTIVO: BOTTONI INVIA + DIALOG FIRMA
+              Aggiornamento OrderDetail.tsx
+════════════════════════════════════════════════════════════════════════════
+
+In src/pages/azienda/OrderDetail.tsx aggiungi:
+  1. Pulsante "Scarica PDF" nell'header
+  2. Pulsante "Invia per firma" nell'header → apre SendSignatureDialog
+  3. Sezione "Firma Digitale" nella pagina (sotto gli allegati)
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Hook useSignatureRequests
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/hooks/useSignatureRequests.ts:
+
+```ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+export interface SignatureRequest {
+  id:               string;
+  order_id:         string;
+  token:            string;
+  status:           "pending" | "viewed" | "signed" | "expired" | "declined";
+  signer_name:      string | null;
+  signer_email:     string | null;
+  signature_png_url: string | null;
+  signed_at:        string | null;
+  first_viewed_at:  string | null;
+  view_count:       number;
+  expires_at:       string;
+  sent_via:         "email" | "whatsapp" | "link" | "sms" | null;
+  sent_to:          string | null;
+  sent_at:          string | null;
+  created_at:       string;
+}
+
+export function useSignatureRequests(orderId: string) {
+  return useQuery({
+    queryKey: ["signature-requests", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("signature_requests")
+        .select("*")
+        .eq("order_id", orderId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as SignatureRequest[];
+    },
+    enabled: !!orderId,
+    staleTime: 30 * 1000,    // 30 secondi — si aggiorna frequentemente
+    refetchInterval: 60_000, // polling ogni minuto per vedere se è stata firmata
+  });
+}
+
+export function useSendPreventivo(orderId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      send_via:      "email" | "whatsapp" | "link";
+      recipient:     string;
+      message?:      string;
+      expires_days?: number;
+    }) => {
+      const { data, error } = await supabase.functions.invoke("send-preventivo", {
+        body: { order_id: orderId, ...params },
+      });
+      if (error) throw error;
+      return data as { success: boolean; token: string; signing_url: string; whatsapp_url?: string };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["signature-requests", orderId] });
+      toast.success("Preventivo inviato per la firma");
+    },
+    onError: () => toast.error("Errore nell'invio"),
+  });
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Componente SendSignatureDialog
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/components/orders/SendSignatureDialog.tsx:
+
+```tsx
+// Dialog per inviare il preventivo per firma digitale
+// 3 modalità: Email | WhatsApp | Copia link
+
+import { useState } from "react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Mail, MessageCircle, Link, Copy, Check, ExternalLink } from "lucide-react";
+import { useSendPreventivo } from "@/hooks/useSignatureRequests";
+import { toast } from "sonner";
+
+interface SendSignatureDialogProps {
+  open:           boolean;
+  onOpenChange:   (open: boolean) => void;
+  orderId:        string;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  docName:        string;
+}
+
+export function SendSignatureDialog({
+  open, onOpenChange, orderId, customerEmail, customerPhone, docName,
+}: SendSignatureDialogProps) {
+  const [tab, setTab]               = useState<"email" | "whatsapp" | "link">("email");
+  const [recipient, setRecipient]   = useState(customerEmail ?? "");
+  const [message, setMessage]       = useState("");
+  const [expiryDays, setExpiryDays] = useState(30);
+  const [copied, setCopied]         = useState(false);
+  const [signingUrl, setSigningUrl] = useState("");
+
+  const sendMutation = useSendPreventivo(orderId);
+
+  const handleSend = async () => {
+    if (tab !== "link" && !recipient.trim()) {
+      toast.error("Inserisci il destinatario");
+      return;
+    }
+
+    const result = await sendMutation.mutateAsync({
+      send_via:     tab,
+      recipient:    recipient.trim() || "link",
+      message:      message || undefined,
+      expires_days: expiryDays,
+    });
+
+    if (tab === "whatsapp" && result.whatsapp_url) {
+      // Apri WhatsApp in nuova tab
+      window.open(result.whatsapp_url, "_blank");
+    }
+
+    if (tab === "link") {
+      setSigningUrl(result.signing_url);
+    } else {
+      onOpenChange(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    await navigator.clipboard.writeText(signingUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast.success("Link copiato!");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            Invia per firma digitale
+            <Badge variant="secondary" className="text-xs">{docName}</Badge>
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+          <TabsList className="grid grid-cols-3 w-full">
+            <TabsTrigger value="email" className="gap-1.5 text-xs">
+              <Mail className="h-3 w-3" />Email
+            </TabsTrigger>
+            <TabsTrigger value="whatsapp" className="gap-1.5 text-xs">
+              <MessageCircle className="h-3 w-3" />WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="link" className="gap-1.5 text-xs">
+              <Link className="h-3 w-3" />Link
+            </TabsTrigger>
+          </TabsList>
+
+          {/* EMAIL */}
+          <TabsContent value="email" className="space-y-3 mt-3">
+            <div className="space-y-1.5">
+              <Label>Email destinatario *</Label>
+              <Input
+                type="email"
+                placeholder="cliente@email.it"
+                value={recipient}
+                onChange={e => setRecipient(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Messaggio personalizzato <span className="text-muted-foreground">(opzionale)</span></Label>
+              <Textarea
+                placeholder={`Usa {{link}} per inserire il link di firma\nUsa {{numero}} per il numero del documento`}
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                rows={3}
+                className="text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Scadenza link (giorni)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                value={expiryDays}
+                onChange={e => setExpiryDays(parseInt(e.target.value) || 30)}
+                className="w-24"
+              />
+            </div>
+          </TabsContent>
+
+          {/* WHATSAPP */}
+          <TabsContent value="whatsapp" className="space-y-3 mt-3">
+            <div className="space-y-1.5">
+              <Label>Numero WhatsApp *</Label>
+              <Input
+                type="tel"
+                placeholder="+39 333 1234567"
+                value={recipient || customerPhone || ""}
+                onChange={e => setRecipient(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Si aprirà WhatsApp con il messaggio precompilato
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Messaggio personalizzato <span className="text-muted-foreground">(opzionale)</span></Label>
+              <Textarea
+                placeholder="Usa {{link}} e {{numero}} come variabili"
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                rows={3}
+                className="text-sm"
+              />
+            </div>
+          </TabsContent>
+
+          {/* LINK DIRETTO */}
+          <TabsContent value="link" className="space-y-3 mt-3">
+            {!signingUrl ? (
+              <div className="text-center py-4">
+                <Link className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-40" />
+                <p className="text-sm text-muted-foreground">
+                  Clicca "Genera link" per creare un link da condividere manualmente
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Link di firma</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={signingUrl}
+                    readOnly
+                    className="text-xs font-mono bg-muted"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyLink}
+                  >
+                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => window.open(signingUrl, "_blank")}
+                >
+                  <ExternalLink className="h-3 w-3 mr-1.5" />
+                  Anteprima pagina firma
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Annulla
+          </Button>
+          <Button
+            onClick={handleSend}
+            disabled={sendMutation.isPending}
+          >
+            {tab === "link"
+              ? (signingUrl ? "Rigenera link" : "Genera link")
+              : tab === "email"
+              ? "Invia via email"
+              : "Apri WhatsApp"
+            }
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Componente SignatureStatusCard
+────────────────────────────────────────────────────────────────────────────
+
+Crea src/components/orders/SignatureStatusCard.tsx:
+
+```tsx
+// Mostra lo stato della richiesta di firma nell'OrderDetail
+// Viene posizionato nella sezione allegati / info documento
+
+import { format, formatDistanceToNow } from "date-fns";
+import { it } from "date-fns/locale";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  CheckCircle2, Clock, Eye, AlertCircle, XCircle,
+  ExternalLink, Download, Copy,
+} from "lucide-react";
+import { SignatureRequest } from "@/hooks/useSignatureRequests";
+import { toast } from "sonner";
+
+const STATUS_CONFIG = {
+  pending:  { label: "In attesa",  variant: "outline"     as const, icon: Clock        },
+  viewed:   { label: "Visto",      variant: "secondary"   as const, icon: Eye          },
+  signed:   { label: "Firmato",    variant: "default"     as const, icon: CheckCircle2 },
+  expired:  { label: "Scaduto",    variant: "destructive" as const, icon: AlertCircle  },
+  declined: { label: "Rifiutato",  variant: "destructive" as const, icon: XCircle      },
+};
+
+interface SignatureStatusCardProps {
+  requests:     SignatureRequest[];
+  onSendNew:    () => void;
+  isLoading:    boolean;
+  appUrl:       string;    // es. "https://app.ediliziacloud.it"
+}
+
+export function SignatureStatusCard({
+  requests, onSendNew, isLoading, appUrl,
+}: SignatureStatusCardProps) {
+  const latest = requests[0];
+
+  const copyLink = async (token: string) => {
+    await navigator.clipboard.writeText(`${appUrl}/firma/${token}`);
+    toast.success("Link copiato");
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center justify-between">
+          <span>Firma Digitale</span>
+          {latest?.status !== "signed" && (
+            <Button size="sm" variant="outline" onClick={onSendNew} className="h-7 text-xs">
+              {latest ? "Reinvia" : "Invia per firma"}
+            </Button>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="h-12 bg-muted animate-pulse rounded" />
+        ) : !latest ? (
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground">
+              Nessuna richiesta di firma inviata
+            </p>
+            <Button size="sm" className="mt-3" onClick={onSendNew}>
+              Invia per firma
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Stato principale */}
+            <div className="flex items-center justify-between">
+              {(() => {
+                const cfg = STATUS_CONFIG[latest.status];
+                const Icon = cfg.icon;
+                return (
+                  <div className="flex items-center gap-2">
+                    <Icon className={`h-4 w-4 ${
+                      latest.status === "signed" ? "text-green-500" :
+                      latest.status === "expired" || latest.status === "declined" ? "text-red-500" :
+                      "text-muted-foreground"
+                    }`} />
+                    <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                  </div>
+                );
+              })()}
+              <span className="text-xs text-muted-foreground">
+                {formatDistanceToNow(new Date(latest.created_at), { locale: it, addSuffix: true })}
+              </span>
+            </div>
+
+            {/* Dettagli */}
+            {latest.status === "signed" && latest.signed_at && (
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3 space-y-1">
+                <p className="text-sm font-medium text-green-800">
+                  Firmato da: {latest.signer_name}
+                </p>
+                {latest.signer_email && (
+                  <p className="text-xs text-green-700">{latest.signer_email}</p>
+                )}
+                <p className="text-xs text-green-700">
+                  {format(new Date(latest.signed_at), "d MMM yyyy 'alle' HH:mm", { locale: it })}
+                </p>
+                {latest.signature_png_url && (
+                  <div className="mt-2">
+                    <img
+                      src={latest.signature_png_url}
+                      alt="Firma"
+                      className="h-12 border bg-white rounded"
+                    />
+                    <a
+                      href={latest.signature_png_url}
+                      download="firma.png"
+                      className="text-xs text-green-700 underline mt-1 block"
+                    >
+                      <Download className="h-3 w-3 inline mr-0.5" />
+                      Scarica firma
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(latest.status === "pending" || latest.status === "viewed") && (
+              <div className="space-y-1.5 text-xs text-muted-foreground">
+                {latest.sent_to && (
+                  <p>Inviato a: <span className="text-foreground">{latest.sent_to}</span></p>
+                )}
+                <p>
+                  Scade: {format(new Date(latest.expires_at), "d MMM yyyy", { locale: it })}
+                </p>
+                {latest.view_count > 0 && (
+                  <p>Visualizzato {latest.view_count} {latest.view_count === 1 ? "volta" : "volte"}</p>
+                )}
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    onClick={() => copyLink(latest.token)}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copia link
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    onClick={() => window.open(`${appUrl}/firma/${latest.token}`, "_blank")}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Anteprima
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Storico richieste precedenti */}
+            {requests.length > 1 && (
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer hover:text-foreground">
+                  {requests.length - 1} richieste precedenti
+                </summary>
+                <div className="mt-2 space-y-1">
+                  {requests.slice(1).map(r => (
+                    <div key={r.id} className="flex items-center gap-2">
+                      <Badge variant={STATUS_CONFIG[r.status].variant} className="text-xs h-4">
+                        {STATUS_CONFIG[r.status].label}
+                      </Badge>
+                      <span>{format(new Date(r.created_at), "d/M/yyyy")}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 4 — Integrazione in OrderDetail.tsx
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/azienda/OrderDetail.tsx aggiungi:
+
+```tsx
+// 1. Nuovi import
+import { generatePreventivoPdf } from "@/lib/generatePreventivoPdf";
+import { SendSignatureDialog } from "@/components/orders/SendSignatureDialog";
+import { SignatureStatusCard } from "@/components/orders/SignatureStatusCard";
+import { useSignatureRequests } from "@/hooks/useSignatureRequests";
+import { FileDown, Send } from "lucide-react";
+
+// 2. Dentro il componente, aggiungi:
+const [showSendDialog, setShowSendDialog] = useState(false);
+const { data: signatureRequests = [], isLoading: sigLoading } =
+  useSignatureRequests(orderId ?? "");
+
+// 3. Funzione download PDF
+const handleDownloadPdf = async () => {
+  if (!order || !orderItems || !company) return;
+
+  const pdfData = {
+    order_id:          order.id,
+    order_code:        order.order_code,
+    preventivo_number: order.preventivo_number ?? null,
+    preventivo_date:   order.preventivo_date ?? null,
+    validity_days:     order.validity_days ?? 30,
+    description:       order.description,
+    tipo:              (order.tipo ?? "ordine") as "preventivo" | "ordine",
+    total_amount:      order.total_amount ?? 0,
+    vat_rate:          order.vat_rate ?? 22,
+    items: orderItems.map(item => ({
+      name:             item.name ?? "",
+      description:      item.description ?? null,
+      quantity:         item.quantity ?? 1,
+      unit_price:       item.unit_price ?? 0,
+      discount_percent: item.discount_percent ?? 0,
+      vat_rate:         item.vat_rate ?? 22,
+    })),
+    installments: (installments ?? []).map(i => ({
+      label:         i.label ?? "",
+      amount:        i.amount ?? 0,
+      expected_date: i.expected_date ?? null,
+      is_paid:       i.is_paid ?? false,
+      position:      i.position ?? 0,
+    })),
+    company: {
+      name:          company.name,
+      email:         company.email,
+      phone:         company.phone ?? null,
+      address:       company.address ?? null,
+      vat_number:    company.vat_number ?? null,
+      logo_url:      company.logo_url ?? null,
+      bank_iban:     company.bank_iban ?? null,
+      bank_name:     company.bank_name ?? null,
+      payment_notes: company.payment_notes ?? null,
+    },
+    customer: customer ? {
+      first_name: customer.first_name ?? null,
+      last_name:  customer.last_name  ?? null,
+      email:      customer.email      ?? null,
+      phone:      customer.phone      ?? null,
+    } : null,
+  };
+
+  const { blob, filename } = await generatePreventivoPdf(pdfData);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// 4. Aggiungi i pulsanti nell'header (accanto al pulsante "Modifica"):
+<Button variant="outline" size="sm" onClick={handleDownloadPdf}>
+  <FileDown className="h-4 w-4 mr-1.5" />
+  Scarica PDF
+</Button>
+
+<Button size="sm" onClick={() => setShowSendDialog(true)}>
+  <Send className="h-4 w-4 mr-1.5" />
+  Invia per firma
+</Button>
+
+// 5. Aggiungi SignatureStatusCard nel corpo della pagina
+//    (dopo OrderAttachments o nella colonna destra dell'ordine):
+<SignatureStatusCard
+  requests={signatureRequests}
+  onSendNew={() => setShowSendDialog(true)}
+  isLoading={sigLoading}
+  appUrl={window.location.origin}
+/>
+
+// 6. Aggiungi il dialog in fondo al return:
+<SendSignatureDialog
+  open={showSendDialog}
+  onOpenChange={setShowSendDialog}
+  orderId={order.id}
+  customerEmail={customer?.email}
+  customerPhone={customer?.phone}
+  docName={order.preventivo_number ?? order.order_code ?? "Preventivo"}
+/>
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PF5] — PAGINA PUBBLICA DI FIRMA
+              /firma/:token — senza login — responsive mobile
+════════════════════════════════════════════════════════════════════════════
+
+Crea la pagina pubblica che il cliente apre cliccando il link ricevuto.
+NON richiede login. Mostra il preventivo + firma canvas.
+
+────────────────────────────────────────────────────────────────────────────
+STEP 1 — Installa react-signature-canvas
+────────────────────────────────────────────────────────────────────────────
+
+In package.json aggiungi:
+```json
+"react-signature-canvas": "^1.0.6",
+"@types/react-signature-canvas": "^1.0.6"
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 2 — Aggiungi route pubblica in App.tsx
+────────────────────────────────────────────────────────────────────────────
+
+In src/App.tsx, FUORI da qualsiasi ProtectedRoute e FUORI da CompanyLayout
+(la pagina è pubblica — nessun layout aziendale):
+
+```tsx
+import FirmaPreventivo from "@/pages/firma/FirmaPreventivo";
+
+// Aggiungi come route di primo livello (non dentro /azienda o /admin):
+<Route path="/firma/:token" element={<FirmaPreventivo />} />
+```
+
+────────────────────────────────────────────────────────────────────────────
+STEP 3 — Crea src/pages/firma/FirmaPreventivo.tsx
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+// Pagina pubblica firma preventivo
+// 5 stati: loading | error | expired | signed | form
+// Form: preview documento + canvas firma + nome/email + pulsante Firma
+
+import { useState, useRef, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import SignatureCanvas from "react-signature-canvas";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  CheckCircle2, AlertCircle, Clock, RotateCcw,
+  FileText, Pen, ChevronDown, ChevronUp,
+} from "lucide-react";
+import { format } from "date-fns";
+import { it } from "date-fns/locale";
+import { toast } from "sonner";
+
+// Tipi inline (non importa dal progetto — è una pagina pubblica standalone)
+interface SignatureData {
+  id:           string;
+  status:       string;
+  expires_at:   string;
+  orders: {
+    id:                string;
+    order_code:        string | null;
+    preventivo_number: string | null;
+    preventivo_date:   string | null;
+    validity_days:     number;
+    description:       string | null;
+    total_amount:      number;
+    vat_rate:          number;
+    tipo:              string;
+    order_items: {
+      name:             string;
+      description:      string | null;
+      quantity:         number;
+      unit_price:       number;
+      discount_percent: number;
+    }[];
+    order_installments: {
+      label:         string;
+      amount:        number;
+      expected_date: string | null;
+      position:      number;
+    }[];
+    companies: {
+      name:         string;
+      email:        string | null;
+      phone:        string | null;
+      logo_url:     string | null;
+      bank_iban:    string | null;
+      bank_name:    string | null;
+    };
+    profiles: {
+      first_name: string | null;
+      last_name:  string | null;
+    } | null;
+  };
+}
+
+function formatEur(n: number) {
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+}
+
+export default function FirmaPreventivo() {
+  const { token } = useParams<{ token: string }>();
+
+  // ── STATO PAGINA ────────────────────────────────────────────────────
+  type PageState = "loading" | "error" | "expired" | "signed" | "form";
+  const [pageState, setPageState]     = useState<PageState>("loading");
+  const [sigData, setSigData]         = useState<SignatureData | null>(null);
+  const [signedAt, setSignedAt]       = useState<string | null>(null);
+  const [errorMsg, setErrorMsg]       = useState("");
+
+  // ── FORM FIRMA ─────────────────────────────────────────────────────
+  const [signerName, setSignerName]   = useState("");
+  const [signerEmail, setSignerEmail] = useState("");
+  const [accepted, setAccepted]       = useState(false);
+  const [submitting, setSubmitting]   = useState(false);
+  const [showItems, setShowItems]     = useState(false);
+  const sigCanvasRef = useRef<SignatureCanvas>(null);
+
+  // ── CARICAMENTO DATI ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!token) { setPageState("error"); setErrorMsg("Token non valido"); return; }
+
+    const load = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke(
+          "get-signature-request",
+          { body: null, headers: {}, method: "GET" }
+        );
+        // N.B.: invocare GET con query param — usa fetch direttamente:
+        const resp = await fetch(
+          `${(supabase as any).supabaseUrl}/functions/v1/get-signature-request?token=${token}`,
+          {
+            headers: {
+              "apikey": (supabase as any).supabaseKey,
+              "Authorization": `Bearer ${(supabase as any).supabaseKey}`,
+            },
+          }
+        );
+
+        const json = await resp.json();
+
+        if (resp.status === 410) { setPageState("expired"); return; }
+        if (!resp.ok)            { setPageState("error"); setErrorMsg(json.error ?? "Errore"); return; }
+        if (json.status === "signed") {
+          setPageState("signed");
+          setSignedAt(json.signed_at);
+          return;
+        }
+
+        setSigData(json.data);
+        setSignerEmail(json.data?.orders?.profiles ? "" : "");
+        setPageState("form");
+      } catch (e) {
+        setPageState("error");
+        setErrorMsg("Impossibile caricare il documento");
+      }
+    };
+
+    load();
+  }, [token]);
+
+  // ── SUBMIT FIRMA ─────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!signerName.trim()) { toast.error("Inserisci il tuo nome completo"); return; }
+    if (!accepted)          { toast.error("Devi accettare le condizioni"); return; }
+    if (sigCanvasRef.current?.isEmpty()) {
+      toast.error("Disegna la tua firma nel riquadro");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const signatureBase64 = sigCanvasRef.current!.toDataURL("image/png");
+
+      const resp = await fetch(
+        `${(supabase as any).supabaseUrl}/functions/v1/submit-signature`,
+        {
+          method: "POST",
+          headers: {
+            "apikey":        (supabase as any).supabaseKey,
+            "Authorization": `Bearer ${(supabase as any).supabaseKey}`,
+            "Content-Type":  "application/json",
+          },
+          body: JSON.stringify({
+            token,
+            signer_name:     signerName.trim(),
+            signer_email:    signerEmail.trim() || undefined,
+            signature_base64: signatureBase64,
+          }),
+        }
+      );
+
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result.error ?? "Errore");
+
+      setSignedAt(result.signed_at);
+      setPageState("signed");
+    } catch (e: any) {
+      toast.error(e.message ?? "Errore durante la firma");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── RENDER STATI SPECIALI ────────────────────────────────────────
+
+  if (pageState === "loading") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-muted-foreground">Caricamento documento...</p>
+      </div>
+    </div>
+  );
+
+  if (pageState === "error") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center max-w-sm">
+        <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-400" />
+        <h1 className="text-xl font-bold mb-2">Documento non trovato</h1>
+        <p className="text-muted-foreground text-sm">{errorMsg}</p>
+      </div>
+    </div>
+  );
+
+  if (pageState === "expired") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center max-w-sm">
+        <Clock className="h-16 w-16 mx-auto mb-4 text-amber-400" />
+        <h1 className="text-xl font-bold mb-2">Link scaduto</h1>
+        <p className="text-muted-foreground text-sm">
+          Questo link di firma è scaduto. Contatta l'azienda per ricevere un nuovo link.
+        </p>
+      </div>
+    </div>
+  );
+
+  if (pageState === "signed") return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="text-center max-w-sm">
+        <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-green-500" />
+        <h1 className="text-xl font-bold mb-2">Documento firmato!</h1>
+        <p className="text-muted-foreground text-sm">
+          La tua firma è stata registrata correttamente.
+          {signedAt && (
+            <> Firmato il {format(new Date(signedAt), "d MMMM yyyy 'alle' HH:mm", { locale: it })}.</>
+          )}
+        </p>
+        <p className="text-xs text-muted-foreground mt-3">
+          Riceverai una copia via email se hai fornito il tuo indirizzo.
+        </p>
+      </div>
+    </div>
+  );
+
+  // ── FORM PRINCIPALE ─────────────────────────────────────────────
+
+  const order     = sigData!.orders;
+  const company   = order.companies;
+  const items     = [...order.order_items];
+  const installments = [...order.order_installments].sort((a,b) => a.position - b.position);
+  const docName   = order.preventivo_number ?? order.order_code ?? "Preventivo";
+  const isPreventivo = order.tipo === "preventivo";
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header aziendale */}
+      <header className="bg-white border-b sticky top-0 z-10">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+          {company.logo_url && (
+            <img src={company.logo_url} alt={company.name} className="h-8 object-contain" />
+          )}
+          <div>
+            <p className="font-semibold text-sm">{company.name}</p>
+            {company.email && (
+              <p className="text-xs text-muted-foreground">{company.email}</p>
+            )}
+          </div>
+          <Badge variant="outline" className="ml-auto text-xs">
+            {isPreventivo ? "Preventivo" : "Ordine"} — {docName}
+          </Badge>
+        </div>
+      </header>
+
+      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+
+        {/* Riepilogo documento */}
+        <div className="bg-white rounded-xl border p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-blue-600" />
+            <h2 className="font-semibold">
+              {isPreventivo ? "Preventivo" : "Ordine"} n. {docName}
+            </h2>
+          </div>
+
+          {order.preventivo_date && (
+            <p className="text-sm text-muted-foreground">
+              Data: {format(new Date(order.preventivo_date), "d MMMM yyyy", { locale: it })}
+              {isPreventivo && (
+                <> · Valido {order.validity_days} giorni</>
+              )}
+            </p>
+          )}
+
+          {order.description && (
+            <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 border">
+              {order.description}
+            </p>
+          )}
+
+          {/* Articoli collassabili */}
+          <button
+            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 w-full"
+            onClick={() => setShowItems(!showItems)}
+          >
+            {showItems ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {showItems ? "Nascondi" : "Mostra"} {items.length} articoli
+          </button>
+
+          {showItems && (
+            <div className="space-y-2">
+              {items.map((item, i) => {
+                const net = item.unit_price * (1 - (item.discount_percent ?? 0) / 100) * item.quantity;
+                return (
+                  <div key={i} className="flex justify-between text-sm py-1 border-b last:border-0">
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Qtà {item.quantity} × {formatEur(item.unit_price)}
+                        {item.discount_percent > 0 && ` (-${item.discount_percent}%)`}
+                      </p>
+                    </div>
+                    <p className="font-semibold flex-shrink-0 ml-4">{formatEur(net)}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <Separator />
+
+          {/* Totale */}
+          <div className="flex justify-between items-center">
+            <span className="font-semibold">Totale IVA inclusa ({order.vat_rate}%)</span>
+            <span className="text-xl font-bold text-blue-600">{formatEur(order.total_amount)}</span>
+          </div>
+        </div>
+
+        {/* Piano pagamento */}
+        {installments.length > 0 && (
+          <div className="bg-white rounded-xl border p-5 space-y-3">
+            <h3 className="font-semibold text-sm">Piano di pagamento</h3>
+            {installments.map((inst, i) => (
+              <div key={i} className="flex justify-between text-sm">
+                <div>
+                  <p>{inst.label}</p>
+                  {inst.expected_date && (
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(inst.expected_date), "d MMMM yyyy", { locale: it })}
+                    </p>
+                  )}
+                </div>
+                <p className="font-semibold">{formatEur(inst.amount)}</p>
+              </div>
+            ))}
+
+            {company.bank_iban && (
+              <div className="bg-gray-50 rounded-lg p-3 text-xs text-muted-foreground">
+                <p className="font-medium text-gray-700 mb-0.5">Coordinate bancarie</p>
+                {company.bank_name && <p>{company.bank_name}</p>}
+                <p className="font-mono">IBAN: {company.bank_iban}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Sezione firma */}
+        <div className="bg-white rounded-xl border p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Pen className="h-5 w-5 text-blue-600" />
+            <h3 className="font-semibold">La tua firma</h3>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="space-y-1.5">
+              <Label>Nome e cognome *</Label>
+              <Input
+                placeholder="Mario Rossi"
+                value={signerName}
+                onChange={e => setSignerName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email <span className="text-muted-foreground">(per ricevere copia)</span></Label>
+              <Input
+                type="email"
+                placeholder="mario@esempio.it"
+                value={signerEmail}
+                onChange={e => setSignerEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Canvas firma */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Firma qui *</Label>
+              <button
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                onClick={() => sigCanvasRef.current?.clear()}
+              >
+                <RotateCcw className="h-3 w-3" />
+                Cancella
+              </button>
+            </div>
+            <div className="border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 overflow-hidden">
+              <SignatureCanvas
+                ref={sigCanvasRef}
+                penColor="#1e3a8a"
+                canvasProps={{
+                  className: "w-full touch-none",
+                  style: { height: "160px" },
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Traccia la tua firma con il dito o il mouse
+            </p>
+          </div>
+
+          {/* Accettazione */}
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="accept"
+              checked={accepted}
+              onCheckedChange={v => setAccepted(!!v)}
+              className="mt-0.5"
+            />
+            <label htmlFor="accept" className="text-sm text-muted-foreground leading-relaxed cursor-pointer">
+              Confermo di aver letto e accettato il documento sopra riportato e
+              di apporre la mia firma digitale come atto di accettazione del preventivo.
+            </label>
+          </div>
+
+          <Button
+            className="w-full h-12 text-base"
+            onClick={handleSubmit}
+            disabled={submitting || !accepted || !signerName.trim()}
+          >
+            {submitting ? (
+              <>
+                <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                Firma in corso...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-5 w-5 mr-2" />
+                Firma il documento
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Footer */}
+        <p className="text-xs text-center text-muted-foreground pb-4">
+          Powered by Edilizia in Cloud · La firma digitale è legalmente valida
+        </p>
+      </main>
+    </div>
+  );
+}
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+════════════════════════════════════════════════════════════════════════════
+PROMPT [PF6] — TIPO DOCUMENTO + ANTEPRIMA PDF + UX FINALE
+              Aggiungi "tipo" a CreateOrder · Pulsante anteprima
+════════════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────────────
+FIX 1 — Aggiungi campo "tipo" alla creazione ordine
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/azienda/CreateOrder.tsx (o EditOrder.tsx), aggiungi il
+toggle Preventivo / Ordine nella prima sezione del form:
+
+```tsx
+// Campo tipo documento — radio o toggle visuale
+<div className="space-y-2">
+  <Label>Tipo documento</Label>
+  <div className="grid grid-cols-2 gap-2">
+    <button
+      type="button"
+      className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+        formData.tipo === "preventivo"
+          ? "border-blue-600 bg-blue-50 text-blue-700"
+          : "border-gray-200 text-gray-600 hover:border-gray-300"
+      }`}
+      onClick={() => setFormData(d => ({ ...d, tipo: "preventivo" }))}
+    >
+      📋 Preventivo
+      <p className="text-xs font-normal mt-0.5 text-muted-foreground">
+        Richiede firma cliente
+      </p>
+    </button>
+    <button
+      type="button"
+      className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+        formData.tipo === "ordine"
+          ? "border-blue-600 bg-blue-50 text-blue-700"
+          : "border-gray-200 text-gray-600 hover:border-gray-300"
+      }`}
+      onClick={() => setFormData(d => ({ ...d, tipo: "ordine" }))}
+    >
+      ✅ Ordine confermato
+      <p className="text-xs font-normal mt-0.5 text-muted-foreground">
+        Già accettato dal cliente
+      </p>
+    </button>
+  </div>
+</div>
+
+// Se tipo === "preventivo", mostra i campi aggiuntivi:
+{formData.tipo === "preventivo" && (
+  <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-1.5">
+      <Label>Data preventivo</Label>
+      <Input
+        type="date"
+        value={formData.preventivo_date ?? ""}
+        onChange={e => setFormData(d => ({ ...d, preventivo_date: e.target.value }))}
+      />
+    </div>
+    <div className="space-y-1.5">
+      <Label>Validità (giorni)</Label>
+      <Input
+        type="number"
+        min={1}
+        max={365}
+        value={formData.validity_days ?? 30}
+        onChange={e => setFormData(d => ({ ...d, validity_days: parseInt(e.target.value) || 30 }))}
+      />
+    </div>
+  </div>
+)}
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 2 — Aggiorna RPC create_order_atomic per i nuovi campi
+────────────────────────────────────────────────────────────────────────────
+
+```sql
+-- Migration: add_tipo_to_create_order_atomic
+-- La RPC create_order_atomic deve accettare i nuovi campi della tabella orders.
+-- Modifica la funzione per estrarre dal JSONB p_order_data anche:
+--   tipo, preventivo_number, preventivo_date, validity_days
+
+-- Nel corpo della funzione, cerca dove inserisce in orders e aggiungi:
+-- tipo             = COALESCE((p_order_data->>'tipo')::text, 'ordine'),
+-- preventivo_date  = (p_order_data->>'preventivo_date')::date,
+-- validity_days    = COALESCE((p_order_data->>'validity_days')::int, 30),
+-- preventivo_number = (p_order_data->>'preventivo_number')::text
+
+-- Se il tipo è 'preventivo' e preventivo_number è NULL, genera automaticamente:
+-- preventivo_number = generate_preventivo_number(p_company_id)
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 3 — Badge "Preventivo" nella lista ordini
+────────────────────────────────────────────────────────────────────────────
+
+In src/pages/azienda/OrdersList.tsx (o componente lista ordini),
+aggiungi un badge visivo per distinguere i preventivi dagli ordini:
+
+```tsx
+// Nella colonna tipo / accanto al codice ordine:
+{order.tipo === "preventivo" && (
+  <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">
+    Preventivo
+  </Badge>
+)}
+
+// Filtro aggiuntivo nella barra filtri:
+<Select value={tipoFilter} onValueChange={setTipoFilter}>
+  <SelectTrigger className="w-36">
+    <SelectValue placeholder="Tipo documento" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">Tutti</SelectItem>
+    <SelectItem value="preventivo">Preventivi</SelectItem>
+    <SelectItem value="ordine">Ordini</SelectItem>
+  </SelectContent>
+</Select>
+```
+
+────────────────────────────────────────────────────────────────────────────
+FIX 4 — Anteprima PDF inline (senza download)
+────────────────────────────────────────────────────────────────────────────
+
+In OrderDetail.tsx, aggiungi un pulsante "Anteprima PDF" che apre
+il documento in una nuova tab del browser invece di scaricarlo:
+
+```tsx
+const handlePreviewPdf = async () => {
+  const { blob } = await generatePreventivoPdf(pdfData);
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+  // Il blob URL viene revocato dal browser quando la tab viene chiusa
+};
+
+// Pulsante accanto a "Scarica PDF":
+<Button variant="ghost" size="sm" onClick={handlePreviewPdf}>
+  <Eye className="h-4 w-4 mr-1.5" />
+  Anteprima
+</Button>
+```
+
+════════════════════════════════════════════════════════════════════════════
+
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║   RIEPILOGO PREVENTIVO + FIRMA DIGITALE                                 ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║                                                                         ║
+║  PROMPT  COSA CREA                      TECNICA                         ║
+║  ──────  ──────────────────────────     ───────────────────────────     ║
+║  [PF1]   Migration DB                   signature_requests (10 col.)    ║
+║          Campo tipo orders              preventivo / ordine             ║
+║          generate_preventivo_number()   PREV-2026-0042 auto             ║
+║                                                                         ║
+║  [PF2]   3 Edge Functions               get-signature-request (GET)     ║
+║          No JWT per firma pubblica      submit-signature (POST)         ║
+║          JWT per send-preventivo        send-preventivo (POST auth)     ║
+║                                                                         ║
+║  [PF3]   generatePreventivoPdf()        jsPDF + autotable client-side   ║
+║          Template completo A4           logo, articoli, totali, IBAN    ║
+║          Base64 + Blob output           per download e allegato         ║
+║                                                                         ║
+║  [PF4]   Bottoni OrderDetail            "Scarica PDF" + "Invia firma"   ║
+║          SendSignatureDialog            email / whatsapp / link         ║
+║          SignatureStatusCard            stato firma in tempo reale      ║
+║          useSignatureRequests hook      polling 60 secondi              ║
+║                                                                         ║
+║  [PF5]   /firma/:token pubblica         5 stati + canvas firma          ║
+║          react-signature-canvas         PNG base64 → Storage            ║
+║          Mobile responsive              touch-friendly                  ║
+║          Notifica azienda               create_notification() RPC       ║
+║                                                                         ║
+║  [PF6]   CreateOrder: campo tipo        preventivo vs ordine            ║
+║          Badge lista ordini             filtro preventivi               ║
+║          Anteprima PDF inline           window.open blob URL            ║
+║          RPC update atomic              nuovi campi                     ║
+║                                                                         ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  ORDINE: PF1 → PF2 → PF3 → PF4 → PF5 → PF6                           ║
+║  PF2 richiede PF1 (tabella signature_requests deve esistere)           ║
+║  PF4 richiede PF3 (importa generatePreventivoPdf)                      ║
+╚══════════════════════════════════════════════════════════════════════════╝

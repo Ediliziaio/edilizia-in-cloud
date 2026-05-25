@@ -1,0 +1,2273 @@
+====================================================================
+SALES OS V2 — EDILIZIA IN CLOUD
+Prompt sequenziale per Lovable.dev (SSO1 → SSO7)
+====================================================================
+Stack: Supabase (PostgreSQL + RLS + Triggers) + React + TypeScript
+Sezione: Marketing & Vendite → Pipeline
+Pre-requisito: Sales OS V1 (SO1-SO6) già implementato
+
+DIFFERENZA V1 vs V2:
+  V1 = CRM che registra cosa è successo
+  V2 = Sales OS che dice cosa fare, perché perdi, e ti avvisa PRIMA
+
+COSA AGGIUNGE V2:
+  1. Multi-stakeholder per opportunità (opportunity_contacts)
+  2. Deal Health Score / qualificazione BANT visuale
+  3. Value change history (erosione margine in trattativa)
+  4. Bridge preventivi↔opportunità (loop chiuso)
+  5. Win/Loss Analytics professionale
+  6. Objection Tracker (impara da ogni vendita)
+  7. Activity Timeline unificata per opportunità
+  8. Visual deal aging sulle kanban card (verde→arancio→rosso)
+  9. Stage entry criteria (porte di qualificazione)
+ 10. Sales Cadence rules (auto-task per stage)
+
+TABELLE ESISTENTI (NON TOCCARE):
+  marketing_opportunities, marketing_contacts, marketing_pipeline_stages,
+  marketing_contact_activities, marketing_opportunity_notes,
+  sales_targets, sales_playbook_completions,
+  quotes (firma digitale), orders
+
+CAMPI GIÀ AGGIUNTI DA V1 (non riaggiungere):
+  marketing_opportunities: probability, expected_close_date, next_action,
+    next_action_date, lost_reason, lost_reason_category, competitor_won,
+    stalled_notified_at, sales_velocity_snapshot
+  marketing_pipeline_stages: win_probability, expected_duration_days,
+    stalled_threshold_days, playbook
+  marketing_contacts: lead_score, icp_score, last_score_update, icp_tier
+====================================================================
+
+
+====================================================================
+PROMPT SSO1 — DATABASE V2: MULTI-STAKEHOLDER, HEALTH SCORE, HISTORY
+====================================================================
+
+Leggi prima supabase/migrations/ per l'ultima migration disponibile.
+Crea: supabase/migrations/[timestamp]_sales_os_v2_schema.sql
+
+------------------------------------------------------------------------
+-- SSO1: Sales OS V2 Schema
+-- Prerequisito: sales_os_schema.sql (V1) già applicato
+------------------------------------------------------------------------
+
+-- ============================================================
+-- 1. ESTENDI marketing_opportunities — nuovi campi V2
+-- ============================================================
+ALTER TABLE marketing_opportunities
+  -- Qualificazione BANT (null = non ancora risposto)
+  ADD COLUMN IF NOT EXISTS bant_budget     TEXT DEFAULT NULL
+    CHECK (bant_budget IS NULL OR bant_budget IN ('confermato', 'stimato', 'sconosciuto', 'no_budget')),
+  ADD COLUMN IF NOT EXISTS bant_authority  TEXT DEFAULT NULL
+    CHECK (bant_authority IS NULL OR bant_authority IN ('decisore', 'influencer', 'da_scoprire')),
+  ADD COLUMN IF NOT EXISTS bant_need       TEXT DEFAULT NULL
+    CHECK (bant_need IS NULL OR bant_need IN ('urgente', 'pianificato', 'esplorativo', 'no_need')),
+  ADD COLUMN IF NOT EXISTS bant_timeline   TEXT DEFAULT NULL
+    CHECK (bant_timeline IS NULL OR bant_timeline IN ('entro_30gg', 'entro_90gg', 'oltre_90gg', 'indefinito')),
+
+  -- Deal health score calcolato (0-100, aggiornato da funzione/trigger)
+  ADD COLUMN IF NOT EXISTS deal_health_score INTEGER DEFAULT NULL
+    CHECK (deal_health_score IS NULL OR (deal_health_score >= 0 AND deal_health_score <= 100)),
+
+  -- Collegamento preventivo (chiude il loop quote→opportunity)
+  ADD COLUMN IF NOT EXISTS quote_id UUID REFERENCES quotes(id) ON DELETE SET NULL,
+
+  -- Stage di ingresso tracciato (per analisi su quale stage si perde)
+  ADD COLUMN IF NOT EXISTS entry_stage_id UUID REFERENCES marketing_pipeline_stages(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS stage_entered_at TIMESTAMPTZ DEFAULT NOW(),
+
+  -- Valore iniziale (per misurare erosione in trattativa)
+  ADD COLUMN IF NOT EXISTS initial_value DECIMAL(12,2) DEFAULT NULL,
+
+  -- Referrer: chi ha portato questo lead
+  ADD COLUMN IF NOT EXISTS referred_by_contact_id UUID REFERENCES marketing_contacts(id) ON DELETE SET NULL;
+
+-- Imposta initial_value = value su tutte le opportunità esistenti dove è NULL
+UPDATE marketing_opportunities
+SET initial_value = value
+WHERE initial_value IS NULL AND value IS NOT NULL;
+
+-- ============================================================
+-- 2. AGGIUNGI entry criteria agli stage
+-- ============================================================
+ALTER TABLE marketing_pipeline_stages
+  ADD COLUMN IF NOT EXISTS entry_criteria JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS exit_criteria  JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS entry_criteria_strict BOOLEAN DEFAULT FALSE;
+
+-- entry_criteria: array di {id, question, is_required}
+-- entry_criteria_strict: se true, non si può spostare lo stage senza rispondere
+-- Esempio: [{"id":"1","question":"Hai confermato il budget?","is_required":true}]
+
+-- ============================================================
+-- 3. CREA opportunity_contacts — multi-stakeholder
+-- ============================================================
+CREATE TABLE IF NOT EXISTS opportunity_contacts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  opportunity_id UUID NOT NULL REFERENCES marketing_opportunities(id) ON DELETE CASCADE,
+  contact_id UUID NOT NULL REFERENCES marketing_contacts(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'influencer'
+    CHECK (role IN ('decisore', 'co_decisore', 'influencer', 'pagante', 'tecnico', 'riferimento')),
+  is_primary BOOLEAN DEFAULT FALSE,
+  notes TEXT DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(opportunity_id, contact_id)
+);
+
+-- Migra il contatto primario esistente nella nuova tabella
+INSERT INTO opportunity_contacts (company_id, opportunity_id, contact_id, role, is_primary)
+SELECT
+  o.company_id,
+  o.id AS opportunity_id,
+  o.contact_id,
+  'decisore' AS role,
+  TRUE AS is_primary
+FROM marketing_opportunities o
+WHERE o.contact_id IS NOT NULL
+ON CONFLICT (opportunity_id, contact_id) DO NOTHING;
+
+ALTER TABLE opportunity_contacts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "opportunity_contacts_company_isolation"
+  ON opportunity_contacts FOR ALL
+  USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()));
+
+-- ============================================================
+-- 4. CREA deal_value_history — traccia erosione del valore
+-- ============================================================
+CREATE TABLE IF NOT EXISTS deal_value_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  opportunity_id UUID NOT NULL REFERENCES marketing_opportunities(id) ON DELETE CASCADE,
+  old_value DECIMAL(12,2) NOT NULL,
+  new_value DECIMAL(12,2) NOT NULL,
+  change_amount DECIMAL(12,2) GENERATED ALWAYS AS (new_value - old_value) STORED,
+  change_pct DECIMAL(8,2) GENERATED ALWAYS AS (
+    CASE WHEN old_value <> 0
+    THEN ROUND(((new_value - old_value) / old_value) * 100, 2)
+    ELSE NULL END
+  ) STORED,
+  changed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  reason TEXT DEFAULT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE deal_value_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "deal_value_history_company_isolation"
+  ON deal_value_history FOR ALL
+  USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()));
+
+-- ============================================================
+-- 5. CREA opportunity_objections — traccia obiezioni in trattativa
+-- ============================================================
+CREATE TABLE IF NOT EXISTS opportunity_objections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  opportunity_id UUID NOT NULL REFERENCES marketing_opportunities(id) ON DELETE CASCADE,
+  category TEXT NOT NULL
+    CHECK (category IN (
+      'prezzo_troppo_alto',
+      'timing_non_giusto',
+      'confronto_concorrente',
+      'budget_non_disponibile',
+      'necessita_approvazione',
+      'prodotto_non_adatto',
+      'nessuna_urgenza',
+      'altro'
+    )),
+  objection_text TEXT NOT NULL,
+  response_given TEXT DEFAULT NULL,
+  is_resolved BOOLEAN DEFAULT FALSE,
+  stage_id UUID REFERENCES marketing_pipeline_stages(id) ON DELETE SET NULL,
+  raised_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ DEFAULT NULL,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
+);
+
+ALTER TABLE opportunity_objections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "opportunity_objections_company_isolation"
+  ON opportunity_objections FOR ALL
+  USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()));
+
+-- ============================================================
+-- 6. CREA sales_cadence_rules — auto-task per stage
+-- ============================================================
+CREATE TABLE IF NOT EXISTS sales_cadence_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  pipeline_stage_id UUID NOT NULL REFERENCES marketing_pipeline_stages(id) ON DELETE CASCADE,
+  trigger_after_days INTEGER NOT NULL DEFAULT 3,
+  task_title TEXT NOT NULL,
+  task_description_template TEXT DEFAULT NULL,
+  action_type TEXT DEFAULT 'chiamata'
+    CHECK (action_type IN ('chiamata', 'email', 'whatsapp', 'visita', 'preventivo', 'follow_up')),
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE sales_cadence_rules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS "sales_cadence_rules_company_isolation"
+  ON sales_cadence_rules FOR ALL
+  USING (company_id = (SELECT company_id FROM profiles WHERE id = auth.uid()));
+
+-- ============================================================
+-- 7. TRIGGER — logga ogni cambio valore opportunità
+-- ============================================================
+CREATE OR REPLACE FUNCTION trigger_log_deal_value_change()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_company_id UUID;
+BEGIN
+  -- Solo se il valore è cambiato e non è la prima insert
+  IF TG_OP = 'UPDATE' AND OLD.value IS NOT NULL AND NEW.value IS NOT NULL
+     AND OLD.value <> NEW.value THEN
+
+    -- Recupera company_id
+    v_company_id := NEW.company_id;
+
+    INSERT INTO deal_value_history (
+      company_id, opportunity_id, old_value, new_value, changed_by
+    ) VALUES (
+      v_company_id, NEW.id, OLD.value, NEW.value, auth.uid()
+    );
+
+    -- Se initial_value non era impostato, impostalo al valore originale
+    IF NEW.initial_value IS NULL THEN
+      NEW.initial_value := OLD.value;
+    END IF;
+  END IF;
+
+  -- Al primo insert, imposta initial_value = value
+  IF TG_OP = 'INSERT' AND NEW.value IS NOT NULL AND NEW.initial_value IS NULL THEN
+    NEW.initial_value := NEW.value;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS log_deal_value_change ON marketing_opportunities;
+CREATE TRIGGER log_deal_value_change
+  BEFORE INSERT OR UPDATE OF value ON marketing_opportunities
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_log_deal_value_change();
+
+-- ============================================================
+-- 8. TRIGGER — aggiorna stage_entered_at a ogni cambio stage
+-- ============================================================
+CREATE OR REPLACE FUNCTION trigger_track_stage_entry()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND OLD.stage_id IS DISTINCT FROM NEW.stage_id THEN
+    NEW.stage_entered_at := NOW();
+    -- Se entry_stage_id è NULL (prima volta che tracciamo), impostalo
+    IF NEW.entry_stage_id IS NULL THEN
+      NEW.entry_stage_id := OLD.stage_id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS track_stage_entry ON marketing_opportunities;
+CREATE TRIGGER track_stage_entry
+  BEFORE UPDATE OF stage_id ON marketing_opportunities
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_track_stage_entry();
+
+-- ============================================================
+-- 9. FUNZIONE — calcola deal health score
+-- ============================================================
+CREATE OR REPLACE FUNCTION calculate_deal_health_score(
+  p_bant_budget TEXT,
+  p_bant_authority TEXT,
+  p_bant_need TEXT,
+  p_bant_timeline TEXT,
+  p_has_next_action BOOLEAN,
+  p_has_expected_close_date BOOLEAN,
+  p_days_in_stage INTEGER,
+  p_stalled_threshold INTEGER
+) RETURNS INTEGER AS $$
+DECLARE
+  score INTEGER := 0;
+BEGIN
+  -- BANT: Budget (25 punti)
+  score := score + CASE p_bant_budget
+    WHEN 'confermato'  THEN 25
+    WHEN 'stimato'     THEN 15
+    WHEN 'sconosciuto' THEN 5
+    WHEN 'no_budget'   THEN 0
+    ELSE 0
+  END;
+
+  -- BANT: Authority (20 punti)
+  score := score + CASE p_bant_authority
+    WHEN 'decisore'    THEN 20
+    WHEN 'influencer'  THEN 10
+    WHEN 'da_scoprire' THEN 3
+    ELSE 0
+  END;
+
+  -- BANT: Need (25 punti)
+  score := score + CASE p_bant_need
+    WHEN 'urgente'      THEN 25
+    WHEN 'pianificato'  THEN 15
+    WHEN 'esplorativo'  THEN 5
+    WHEN 'no_need'      THEN 0
+    ELSE 0
+  END;
+
+  -- BANT: Timeline (15 punti)
+  score := score + CASE p_bant_timeline
+    WHEN 'entro_30gg'  THEN 15
+    WHEN 'entro_90gg'  THEN 10
+    WHEN 'oltre_90gg'  THEN 5
+    WHEN 'indefinito'  THEN 0
+    ELSE 0
+  END;
+
+  -- Bonus operativi (15 punti)
+  IF p_has_next_action        THEN score := score + 8;  END IF;
+  IF p_has_expected_close_date THEN score := score + 7;  END IF;
+
+  -- Penalità stallo (fino a -20 punti)
+  IF p_days_in_stage > p_stalled_threshold * 2 THEN
+    score := score - 20;
+  ELSIF p_days_in_stage > p_stalled_threshold THEN
+    score := score - 10;
+  END IF;
+
+  RETURN GREATEST(0, LEAST(100, score));
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- ============================================================
+-- 10. RPC — Win/Loss deep analytics
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_win_loss_analysis(
+  p_company_id UUID,
+  p_date_from  DATE DEFAULT NULL,
+  p_date_to    DATE DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  WITH closed_opps AS (
+    SELECT
+      o.id,
+      o.status,
+      o.value,
+      o.initial_value,
+      o.lost_reason_category,
+      o.competitor_won,
+      o.source,
+      mc.city,
+      mc.province,
+      o.assigned_to,
+      o.stage_id,
+      ps.name AS stage_name,
+      o.created_at,
+      o.updated_at,
+      EXTRACT(DAY FROM o.updated_at - o.created_at)::INTEGER AS cycle_days,
+      CASE
+        WHEN o.initial_value > 0 AND o.value < o.initial_value
+        THEN ROUND(((o.initial_value - o.value) / o.initial_value) * 100, 1)
+        ELSE 0
+      END AS discount_pct
+    FROM marketing_opportunities o
+    LEFT JOIN marketing_contacts mc ON mc.id = o.contact_id
+    LEFT JOIN marketing_pipeline_stages ps ON ps.id = o.stage_id
+    WHERE o.company_id = p_company_id
+      AND o.status IN ('won', 'lost', 'abandoned')
+      AND (p_date_from IS NULL OR o.updated_at >= p_date_from)
+      AND (p_date_to   IS NULL OR o.updated_at <= p_date_to + INTERVAL '1 day')
+  ),
+  summary AS (
+    SELECT
+      COUNT(*) FILTER (WHERE status = 'won')  AS won_count,
+      COUNT(*) FILTER (WHERE status IN ('lost','abandoned')) AS lost_count,
+      COUNT(*) AS total_closed,
+      ROUND(AVG(cycle_days) FILTER (WHERE status = 'won'), 1) AS avg_win_cycle_days,
+      ROUND(AVG(cycle_days) FILTER (WHERE status IN ('lost','abandoned')), 1) AS avg_loss_cycle_days,
+      COALESCE(SUM(value) FILTER (WHERE status = 'won'), 0) AS total_won_value,
+      ROUND(AVG(discount_pct) FILTER (WHERE status = 'won' AND discount_pct > 0), 1) AS avg_discount_pct,
+      ROUND(AVG(value) FILTER (WHERE status = 'won'), 0) AS avg_deal_size_won,
+      ROUND(AVG(value) FILTER (WHERE status IN ('lost','abandoned')), 0) AS avg_deal_size_lost
+    FROM closed_opps
+  ),
+  by_lost_reason AS (
+    SELECT
+      COALESCE(lost_reason_category, 'non_specificato') AS reason,
+      COUNT(*) AS count,
+      ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM closed_opps WHERE status IN ('lost','abandoned')), 0), 1) AS pct
+    FROM closed_opps
+    WHERE status IN ('lost', 'abandoned')
+    GROUP BY COALESCE(lost_reason_category, 'non_specificato')
+    ORDER BY count DESC
+  ),
+  by_competitor AS (
+    SELECT
+      COALESCE(competitor_won, 'nessuno / sconosciuto') AS competitor,
+      COUNT(*) AS count,
+      ROUND(AVG(value), 0) AS avg_deal_size
+    FROM closed_opps
+    WHERE status IN ('lost', 'abandoned')
+    GROUP BY COALESCE(competitor_won, 'nessuno / sconosciuto')
+    ORDER BY count DESC
+    LIMIT 10
+  ),
+  by_source AS (
+    SELECT
+      COALESCE(source, 'sconosciuto') AS source,
+      COUNT(*) FILTER (WHERE status = 'won')                 AS won,
+      COUNT(*) FILTER (WHERE status IN ('lost','abandoned'))  AS lost,
+      ROUND(
+        COUNT(*) FILTER (WHERE status = 'won') * 100.0 /
+        NULLIF(COUNT(*), 0), 1
+      ) AS win_rate,
+      ROUND(AVG(value) FILTER (WHERE status = 'won'), 0) AS avg_won_value
+    FROM closed_opps
+    GROUP BY COALESCE(source, 'sconosciuto')
+    ORDER BY won DESC
+  ),
+  by_deal_size AS (
+    SELECT
+      CASE
+        WHEN value < 5000       THEN '< €5k'
+        WHEN value < 15000      THEN '€5k–15k'
+        WHEN value < 30000      THEN '€15k–30k'
+        WHEN value < 60000      THEN '€30k–60k'
+        ELSE '> €60k'
+      END AS size_bucket,
+      COUNT(*) FILTER (WHERE status = 'won')                AS won,
+      COUNT(*) FILTER (WHERE status IN ('lost','abandoned')) AS lost,
+      ROUND(
+        COUNT(*) FILTER (WHERE status = 'won') * 100.0 /
+        NULLIF(COUNT(*), 0), 1
+      ) AS win_rate
+    FROM closed_opps
+    GROUP BY size_bucket
+    ORDER BY MIN(value)
+  ),
+  by_stage_lost AS (
+    SELECT
+      stage_name,
+      COUNT(*) AS lost_count,
+      ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM closed_opps WHERE status IN ('lost','abandoned')), 0), 1) AS pct
+    FROM closed_opps
+    WHERE status IN ('lost', 'abandoned') AND stage_name IS NOT NULL
+    GROUP BY stage_name
+    ORDER BY lost_count DESC
+  ),
+  by_salesperson AS (
+    SELECT
+      o.assigned_to,
+      COALESCE(p.full_name, 'Non assegnato') AS name,
+      COUNT(*) FILTER (WHERE o.status = 'won')                AS won,
+      COUNT(*) FILTER (WHERE o.status IN ('lost','abandoned')) AS lost,
+      ROUND(
+        COUNT(*) FILTER (WHERE o.status = 'won') * 100.0 /
+        NULLIF(COUNT(*), 0), 1
+      ) AS win_rate,
+      ROUND(AVG(o.discount_pct) FILTER (WHERE o.status = 'won' AND o.discount_pct > 0), 1) AS avg_discount_pct
+    FROM closed_opps o
+    LEFT JOIN profiles p ON p.id = o.assigned_to
+    GROUP BY o.assigned_to, p.full_name
+    ORDER BY won DESC
+  )
+  SELECT jsonb_build_object(
+    'summary',         (SELECT row_to_json(summary) FROM summary),
+    'by_lost_reason',  (SELECT jsonb_agg(row_to_json(r)) FROM by_lost_reason r),
+    'by_competitor',   (SELECT jsonb_agg(row_to_json(r)) FROM by_competitor r),
+    'by_source',       (SELECT jsonb_agg(row_to_json(r)) FROM by_source r),
+    'by_deal_size',    (SELECT jsonb_agg(row_to_json(r)) FROM by_deal_size r),
+    'by_stage_lost',   (SELECT jsonb_agg(row_to_json(r)) FROM by_stage_lost r),
+    'by_salesperson',  (SELECT jsonb_agg(row_to_json(r)) FROM by_salesperson r)
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 11. RPC — activity timeline per opportunità
+-- ============================================================
+CREATE OR REPLACE FUNCTION get_opportunity_activity_timeline(
+  p_company_id    UUID,
+  p_opportunity_id UUID
+)
+RETURNS TABLE (
+  event_id    UUID,
+  event_type  TEXT,  -- 'activity', 'note', 'stage_change', 'value_change',
+                     --  'objection', 'quote_sent', 'status_change'
+  event_title TEXT,
+  event_body  TEXT,
+  actor_name  TEXT,
+  created_at  TIMESTAMPTZ
+) AS $$
+DECLARE
+  v_contact_id UUID;
+BEGIN
+  SELECT contact_id INTO v_contact_id
+  FROM marketing_opportunities
+  WHERE id = p_opportunity_id AND company_id = p_company_id;
+
+  RETURN QUERY
+
+  -- Note sull'opportunità
+  SELECT
+    mon.id,
+    'note'::TEXT,
+    'Nota aggiunta'::TEXT,
+    LEFT(mon.content, 200),
+    COALESCE(p.full_name, 'Sistema'),
+    mon.created_at
+  FROM marketing_opportunity_notes mon
+  LEFT JOIN profiles p ON p.id = mon.created_by
+  WHERE mon.opportunity_id = p_opportunity_id
+
+  UNION ALL
+
+  -- Attività sul contatto
+  SELECT
+    mca.id,
+    'activity'::TEXT,
+    COALESCE(mca.activity_type, 'Attività'),
+    LEFT(COALESCE(mca.description, mca.notes, ''), 200),
+    COALESCE(p.full_name, 'Sistema'),
+    mca.created_at
+  FROM marketing_contact_activities mca
+  LEFT JOIN profiles p ON p.id = mca.created_by
+  WHERE mca.contact_id = v_contact_id
+    AND mca.company_id = p_company_id
+    AND (mca.opportunity_id = p_opportunity_id OR mca.opportunity_id IS NULL)
+
+  UNION ALL
+
+  -- Storico variazioni valore
+  SELECT
+    dvh.id,
+    'value_change'::TEXT,
+    CASE
+      WHEN dvh.change_amount < 0
+      THEN 'Valore ridotto: ' || TO_CHAR(ABS(dvh.change_amount), 'FM€999,999') || ' (' || dvh.change_pct::TEXT || '%)'
+      ELSE 'Valore aumentato: +' || TO_CHAR(dvh.change_amount, 'FM€999,999')
+    END,
+    'Da ' || TO_CHAR(dvh.old_value, 'FM€999,999') || ' → ' || TO_CHAR(dvh.new_value, 'FM€999,999'),
+    COALESCE(p.full_name, 'Sistema'),
+    dvh.created_at
+  FROM deal_value_history dvh
+  LEFT JOIN profiles p ON p.id = dvh.changed_by
+  WHERE dvh.opportunity_id = p_opportunity_id
+
+  UNION ALL
+
+  -- Obiezioni
+  SELECT
+    oo.id,
+    'objection'::TEXT,
+    'Obiezione: ' || oo.category,
+    LEFT(oo.objection_text, 200)
+      || CASE WHEN oo.response_given IS NOT NULL
+              THEN ' → Risposta: ' || LEFT(oo.response_given, 100)
+              ELSE '' END,
+    COALESCE(p.full_name, 'Team'),
+    oo.raised_at
+  FROM opportunity_objections oo
+  LEFT JOIN profiles p ON p.id = oo.created_by
+  WHERE oo.opportunity_id = p_opportunity_id
+
+  ORDER BY created_at DESC
+  LIMIT 100;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 12. RPC — aggiorna deal health score bulk
+-- ============================================================
+CREATE OR REPLACE FUNCTION refresh_deal_health_scores(p_company_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+  updated_count INTEGER := 0;
+BEGIN
+  UPDATE marketing_opportunities o
+  SET deal_health_score = calculate_deal_health_score(
+    o.bant_budget,
+    o.bant_authority,
+    o.bant_need,
+    o.bant_timeline,
+    o.next_action IS NOT NULL,
+    o.expected_close_date IS NOT NULL,
+    EXTRACT(DAY FROM NOW() - o.stage_entered_at)::INTEGER,
+    COALESCE(ps.stalled_threshold_days, 14)
+  )
+  FROM marketing_pipeline_stages ps
+  WHERE o.stage_id = ps.id
+    AND o.company_id = p_company_id
+    AND o.status = 'open';
+
+  GET DIAGNOSTICS updated_count = ROW_COUNT;
+  RETURN updated_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- 13. AGGIUNGI quote_id a quotes se non esiste già
+-- ============================================================
+-- Permette di collegare un preventivo a un'opportunità
+ALTER TABLE quotes
+  ADD COLUMN IF NOT EXISTS opportunity_id UUID
+    REFERENCES marketing_opportunities(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_quotes_opportunity
+  ON quotes(opportunity_id) WHERE opportunity_id IS NOT NULL;
+
+-- ============================================================
+-- 14. INDEXES per performance V2
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_opp_contacts_opportunity
+  ON opportunity_contacts(opportunity_id);
+CREATE INDEX IF NOT EXISTS idx_opp_contacts_contact
+  ON opportunity_contacts(contact_id);
+CREATE INDEX IF NOT EXISTS idx_deal_value_history_opp
+  ON deal_value_history(opportunity_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_objections_opportunity
+  ON opportunity_objections(opportunity_id);
+CREATE INDEX IF NOT EXISTS idx_opp_health_score
+  ON marketing_opportunities(company_id, deal_health_score)
+  WHERE status = 'open';
+CREATE INDEX IF NOT EXISTS idx_opp_quote
+  ON marketing_opportunities(quote_id)
+  WHERE quote_id IS NOT NULL;
+
+------------------------------------------------------------------------
+-- Fine migration SSO1
+------------------------------------------------------------------------
+
+// VERIFICA SSO1:
+// 1. Tabelle esistono: opportunity_contacts, deal_value_history,
+//    opportunity_objections, sales_cadence_rules
+// 2. marketing_opportunities ha: bant_budget, bant_authority, bant_need,
+//    bant_timeline, deal_health_score, quote_id, initial_value,
+//    stage_entered_at, entry_stage_id, referred_by_contact_id
+// 3. marketing_pipeline_stages ha: entry_criteria, exit_criteria,
+//    entry_criteria_strict
+// 4. quotes ha: opportunity_id
+// 5. Trigger log_deal_value_change: modifica il value di un'opportunità
+//    → verifica una riga in deal_value_history
+// 6. RPC: SELECT get_win_loss_analysis('test-uuid') → JSON, nessun errore
+// 7. RPC: SELECT * FROM get_opportunity_activity_timeline('t','t') → nessun errore
+// 8. FUNCTION: SELECT calculate_deal_health_score('confermato','decisore',
+//    'urgente','entro_30gg',true,true,3,14) → deve ritornare 100
+
+
+====================================================================
+PROMPT SSO2 — HOOK: useSalesOSV2.ts
+====================================================================
+
+Leggi prima:
+- src/hooks/useSalesOS.ts (V1 — non modificare)
+- src/integrations/supabase/types.ts (rigenera dopo SSO1)
+
+Crea: src/hooks/useSalesOSV2.ts
+(file separato — non sovrascrivere useSalesOS.ts)
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+// ============================================================
+// TYPES
+// ============================================================
+
+export type BantBudget    = 'confermato' | 'stimato' | 'sconosciuto' | 'no_budget' | null;
+export type BantAuthority = 'decisore' | 'influencer' | 'da_scoprire' | null;
+export type BantNeed      = 'urgente' | 'pianificato' | 'esplorativo' | 'no_need' | null;
+export type BantTimeline  = 'entro_30gg' | 'entro_90gg' | 'oltre_90gg' | 'indefinito' | null;
+
+export type StakeholderRole =
+  | 'decisore' | 'co_decisore' | 'influencer'
+  | 'pagante'  | 'tecnico'     | 'riferimento';
+
+export interface OpportunityContact {
+  id: string;
+  opportunity_id: string;
+  contact_id: string;
+  role: StakeholderRole;
+  is_primary: boolean;
+  notes: string | null;
+  created_at: string;
+  contact?: {
+    id: string;
+    full_name: string;
+    email: string | null;
+    phone: string | null;
+    company_name: string | null;
+  } | null;
+}
+
+export interface DealValueHistoryEntry {
+  id: string;
+  opportunity_id: string;
+  old_value: number;
+  new_value: number;
+  change_amount: number;
+  change_pct: number | null;
+  changed_by: string | null;
+  reason: string | null;
+  created_at: string;
+  actor_name?: string;
+}
+
+export interface OpportunityObjection {
+  id: string;
+  opportunity_id: string;
+  category: string;
+  objection_text: string;
+  response_given: string | null;
+  is_resolved: boolean;
+  stage_id: string | null;
+  raised_at: string;
+  resolved_at: string | null;
+  created_by: string | null;
+}
+
+export interface ActivityTimelineEvent {
+  event_id: string;
+  event_type: 'activity' | 'note' | 'stage_change' | 'value_change' | 'objection' | 'quote_sent' | 'status_change';
+  event_title: string;
+  event_body: string | null;
+  actor_name: string | null;
+  created_at: string;
+}
+
+export interface WinLossAnalysis {
+  summary: {
+    won_count: number;
+    lost_count: number;
+    total_closed: number;
+    avg_win_cycle_days: number | null;
+    avg_loss_cycle_days: number | null;
+    total_won_value: number;
+    avg_discount_pct: number | null;
+    avg_deal_size_won: number | null;
+    avg_deal_size_lost: number | null;
+  };
+  by_lost_reason: Array<{ reason: string; count: number; pct: number }>;
+  by_competitor: Array<{ competitor: string; count: number; avg_deal_size: number }>;
+  by_source: Array<{ source: string; won: number; lost: number; win_rate: number; avg_won_value: number }>;
+  by_deal_size: Array<{ size_bucket: string; won: number; lost: number; win_rate: number }>;
+  by_stage_lost: Array<{ stage_name: string; lost_count: number; pct: number }>;
+  by_salesperson: Array<{ assigned_to: string; name: string; won: number; lost: number; win_rate: number; avg_discount_pct: number | null }>;
+}
+
+export interface SalesCadenceRule {
+  id: string;
+  company_id: string;
+  pipeline_stage_id: string;
+  trigger_after_days: number;
+  task_title: string;
+  task_description_template: string | null;
+  action_type: string;
+  is_active: boolean;
+}
+
+// ============================================================
+// QUERY KEYS
+// ============================================================
+
+export const salesOSV2Keys = {
+  all: ['sales-os-v2'] as const,
+  opportunityContacts: (oppId: string) =>
+    [...salesOSV2Keys.all, 'opp-contacts', oppId] as const,
+  dealValueHistory: (oppId: string) =>
+    [...salesOSV2Keys.all, 'value-history', oppId] as const,
+  objections: (oppId: string) =>
+    [...salesOSV2Keys.all, 'objections', oppId] as const,
+  activityTimeline: (oppId: string) =>
+    [...salesOSV2Keys.all, 'timeline', oppId] as const,
+  winLossAnalysis: (companyId: string, from?: string, to?: string) =>
+    [...salesOSV2Keys.all, 'win-loss', companyId, from ?? '', to ?? ''] as const,
+  cadenceRules: (companyId: string) =>
+    [...salesOSV2Keys.all, 'cadence', companyId] as const,
+  dealHealthBulk: (companyId: string) =>
+    [...salesOSV2Keys.all, 'health-bulk', companyId] as const,
+};
+
+// ============================================================
+// QUERY HOOKS
+// ============================================================
+
+export function useOpportunityContacts(opportunityId: string | null) {
+  return useQuery({
+    queryKey: salesOSV2Keys.opportunityContacts(opportunityId ?? ''),
+    enabled: !!opportunityId,
+    queryFn: async (): Promise<OpportunityContact[]> => {
+      const { data, error } = await supabase
+        .from('opportunity_contacts')
+        .select(`
+          *,
+          contact:marketing_contacts(id, full_name, email, phone, company_name)
+        `)
+        .eq('opportunity_id', opportunityId!)
+        .order('is_primary', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useDealValueHistory(opportunityId: string | null) {
+  return useQuery({
+    queryKey: salesOSV2Keys.dealValueHistory(opportunityId ?? ''),
+    enabled: !!opportunityId,
+    queryFn: async (): Promise<DealValueHistoryEntry[]> => {
+      const { data, error } = await supabase
+        .from('deal_value_history')
+        .select('*')
+        .eq('opportunity_id', opportunityId!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({
+        ...r,
+        old_value: Number(r.old_value),
+        new_value: Number(r.new_value),
+        change_amount: Number(r.change_amount),
+        change_pct: r.change_pct ? Number(r.change_pct) : null,
+      }));
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useOpportunityObjections(opportunityId: string | null) {
+  return useQuery({
+    queryKey: salesOSV2Keys.objections(opportunityId ?? ''),
+    enabled: !!opportunityId,
+    queryFn: async (): Promise<OpportunityObjection[]> => {
+      const { data, error } = await supabase
+        .from('opportunity_objections')
+        .select('*')
+        .eq('opportunity_id', opportunityId!)
+        .order('raised_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useActivityTimeline(
+  companyId: string | null,
+  opportunityId: string | null
+) {
+  return useQuery({
+    queryKey: salesOSV2Keys.activityTimeline(opportunityId ?? ''),
+    enabled: !!companyId && !!opportunityId,
+    queryFn: async (): Promise<ActivityTimelineEvent[]> => {
+      const { data, error } = await supabase.rpc(
+        'get_opportunity_activity_timeline',
+        { p_company_id: companyId!, p_opportunity_id: opportunityId! }
+      );
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useWinLossAnalysis(
+  companyId: string | null,
+  dateFrom?: string,
+  dateTo?: string
+) {
+  return useQuery({
+    queryKey: salesOSV2Keys.winLossAnalysis(companyId ?? '', dateFrom, dateTo),
+    enabled: !!companyId,
+    queryFn: async (): Promise<WinLossAnalysis | null> => {
+      const { data, error } = await supabase.rpc('get_win_loss_analysis', {
+        p_company_id: companyId!,
+        p_date_from: dateFrom ?? null,
+        p_date_to:   dateTo   ?? null,
+      });
+      if (error) throw error;
+      if (!data) return null;
+      // Normalizza i numeri dal JSON
+      const d = data as WinLossAnalysis;
+      return {
+        ...d,
+        summary: {
+          ...d.summary,
+          won_count: Number(d.summary.won_count),
+          lost_count: Number(d.summary.lost_count),
+          total_closed: Number(d.summary.total_closed),
+          total_won_value: Number(d.summary.total_won_value),
+          avg_deal_size_won: d.summary.avg_deal_size_won ? Number(d.summary.avg_deal_size_won) : null,
+          avg_deal_size_lost: d.summary.avg_deal_size_lost ? Number(d.summary.avg_deal_size_lost) : null,
+          avg_discount_pct: d.summary.avg_discount_pct ? Number(d.summary.avg_discount_pct) : null,
+        },
+      };
+    },
+    staleTime: 1000 * 60 * 15,
+  });
+}
+
+export function useSalesCadenceRules(companyId: string | null) {
+  return useQuery({
+    queryKey: salesOSV2Keys.cadenceRules(companyId ?? ''),
+    enabled: !!companyId,
+    queryFn: async (): Promise<SalesCadenceRule[]> => {
+      const { data, error } = await supabase
+        .from('sales_cadence_rules')
+        .select('*')
+        .eq('company_id', companyId!)
+        .eq('is_active', true)
+        .order('trigger_after_days', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
+// ============================================================
+// MUTATIONS
+// ============================================================
+
+export function useUpdateBANTMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      opportunityId,
+      bant,
+    }: {
+      opportunityId: string;
+      bant: {
+        bant_budget?: BantBudget;
+        bant_authority?: BantAuthority;
+        bant_need?: BantNeed;
+        bant_timeline?: BantTimeline;
+      };
+    }) => {
+      // Calcola il nuovo health score inline
+      const { data: opp } = await supabase
+        .from('marketing_opportunities')
+        .select('bant_budget, bant_authority, bant_need, bant_timeline, next_action, expected_close_date, stage_entered_at, stage_id')
+        .eq('id', opportunityId)
+        .single();
+
+      const merged = { ...opp, ...bant };
+
+      const { data: scoreData } = await supabase.rpc('calculate_deal_health_score', {
+        p_bant_budget: merged.bant_budget ?? null,
+        p_bant_authority: merged.bant_authority ?? null,
+        p_bant_need: merged.bant_need ?? null,
+        p_bant_timeline: merged.bant_timeline ?? null,
+        p_has_next_action: !!merged.next_action,
+        p_has_expected_close_date: !!merged.expected_close_date,
+        p_days_in_stage: merged.stage_entered_at
+          ? Math.floor((Date.now() - new Date(merged.stage_entered_at).getTime()) / 86400000)
+          : 0,
+        p_stalled_threshold: 14,
+      });
+
+      const { error } = await supabase
+        .from('marketing_opportunities')
+        .update({
+          ...bant,
+          deal_health_score: scoreData ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', opportunityId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-os-v2'] });
+      queryClient.invalidateQueries({ queryKey: ['marketing', 'opportunities'] });
+    },
+  });
+}
+
+export function useAddStakeholderMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      companyId,
+      opportunityId,
+      contactId,
+      role,
+      notes,
+    }: {
+      companyId: string;
+      opportunityId: string;
+      contactId: string;
+      role: StakeholderRole;
+      notes?: string;
+    }) => {
+      const { error } = await supabase.from('opportunity_contacts').insert({
+        company_id: companyId,
+        opportunity_id: opportunityId,
+        contact_id: contactId,
+        role,
+        is_primary: false,
+        notes: notes ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: salesOSV2Keys.opportunityContacts(variables.opportunityId),
+      });
+    },
+  });
+}
+
+export function useRemoveStakeholderMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      opportunityId,
+    }: {
+      id: string;
+      opportunityId: string;
+    }) => {
+      const { error } = await supabase
+        .from('opportunity_contacts')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: salesOSV2Keys.opportunityContacts(variables.opportunityId),
+      });
+    },
+  });
+}
+
+export function useAddObjectionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (objection: Omit<OpportunityObjection, 'id' | 'resolved_at'> & { company_id: string }) => {
+      const { error } = await supabase
+        .from('opportunity_objections')
+        .insert(objection);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: salesOSV2Keys.objections(variables.opportunity_id),
+      });
+    },
+  });
+}
+
+export function useResolveObjectionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      response_given,
+      opportunityId,
+    }: {
+      id: string;
+      response_given: string;
+      opportunityId: string;
+    }) => {
+      const { error } = await supabase
+        .from('opportunity_objections')
+        .update({
+          is_resolved: true,
+          response_given,
+          resolved_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: salesOSV2Keys.objections(variables.opportunityId),
+      });
+    },
+  });
+}
+
+export function useLinkQuoteToOpportunityMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      opportunityId,
+      quoteId,
+    }: {
+      opportunityId: string;
+      quoteId: string;
+    }) => {
+      // Collega il preventivo all'opportunità
+      const { error: oppError } = await supabase
+        .from('marketing_opportunities')
+        .update({ quote_id: quoteId, updated_at: new Date().toISOString() })
+        .eq('id', opportunityId);
+      if (oppError) throw oppError;
+
+      // Collega l'opportunità al preventivo
+      const { error: quoteError } = await supabase
+        .from('quotes')
+        .update({ opportunity_id: opportunityId })
+        .eq('id', quoteId);
+      if (quoteError) throw quoteError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-os-v2'] });
+      queryClient.invalidateQueries({ queryKey: ['marketing', 'opportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['quotes'] });
+    },
+  });
+}
+```
+
+// VERIFICA SSO2:
+// 1. Nessun errore TypeScript
+// 2. Tutti gli import da Supabase client e tanstack query corretti
+// 3. useSalesOS.ts (V1) non è stato modificato
+// 4. I tipi BantBudget, BantAuthority, etc. sono esportati
+
+
+====================================================================
+PROMPT SSO3 — KANBAN CARD V2: DEAL AGING + HEALTH SCORE BADGE
+====================================================================
+
+Leggi prima:
+- src/components/opportunities/OpportunityCard.tsx (esistente)
+- src/hooks/useSalesOS.ts (V1)
+
+Obiettivo: aggiungere a ogni card del kanban 3 nuovi elementi visivi
+senza riscrivere la card — solo aggiungere sezioni.
+
+### 3.1 — Visual deal aging (colore bordo sinistro)
+
+Nel componente OpportunityCard.tsx, calcola i giorni in stage corrente
+usando stage_entered_at (nuovo campo) o updated_at (fallback):
+
+```tsx
+// Aggiungi nel componente OpportunityCard (PRIMA del return):
+const daysInStage = React.useMemo(() => {
+  const since = opportunity.stage_entered_at ?? opportunity.updated_at ?? opportunity.created_at;
+  return Math.floor((Date.now() - new Date(since).getTime()) / 86400000);
+}, [opportunity]);
+
+const stalledThreshold = opportunity.stage?.stalled_threshold_days ?? 14;
+
+const agingColor = daysInStage === 0
+  ? ''
+  : daysInStage < Math.floor(stalledThreshold * 0.5)
+  ? 'border-l-green-400'
+  : daysInStage < stalledThreshold
+  ? 'border-l-yellow-400'
+  : daysInStage < stalledThreshold * 1.5
+  ? 'border-l-orange-500'
+  : 'border-l-red-500';
+```
+
+Aggiungi `border-l-4 ${agingColor}` al container principale della card.
+Se la card ha già una classe border, aggiungi `border-l-4` separatamente.
+
+### 3.2 — Deal Health Score badge
+
+Aggiungi un badge nell'angolo superiore destro della card che mostra
+il deal_health_score. Appare SOLO se il valore è presente (non null):
+
+```tsx
+// Dentro il JSX della card (nell'header, vicino al valore):
+{opportunity.deal_health_score !== null && opportunity.deal_health_score !== undefined && (
+  <div
+    className={`
+      flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold shrink-0
+      ${opportunity.deal_health_score >= 70
+        ? 'bg-green-100 text-green-700 ring-1 ring-green-300'
+        : opportunity.deal_health_score >= 40
+        ? 'bg-yellow-100 text-yellow-700 ring-1 ring-yellow-300'
+        : 'bg-red-100 text-red-700 ring-1 ring-red-300'}
+    `}
+    title={`Deal Health Score: ${opportunity.deal_health_score}/100`}
+  >
+    {opportunity.deal_health_score}
+  </div>
+)}
+```
+
+### 3.3 — Stakeholder avatar stack
+
+Se la card mostra già il contatto, aggiungi gli stakeholder aggiuntivi
+come avatar stack (cerchi sovrapposti con iniziali):
+
+```tsx
+// Aggiunta alla card (area dove c'è il nome contatto):
+{opportunity.stakeholders && opportunity.stakeholders.length > 1 && (
+  <div className="flex -space-x-2 ml-1">
+    {opportunity.stakeholders.slice(0, 3).map((s, i) => (
+      <div
+        key={s.contact_id}
+        className="w-5 h-5 rounded-full bg-primary/20 border border-background
+                   flex items-center justify-center text-[9px] font-bold text-primary"
+        title={`${s.contact?.full_name} (${s.role})`}
+        style={{ zIndex: 10 - i }}
+      >
+        {(s.contact?.full_name ?? '?').charAt(0).toUpperCase()}
+      </div>
+    ))}
+    {opportunity.stakeholders.length > 3 && (
+      <div className="w-5 h-5 rounded-full bg-muted border border-background
+                      flex items-center justify-center text-[9px] text-muted-foreground"
+           style={{ zIndex: 7 }}>
+        +{opportunity.stakeholders.length - 3}
+      </div>
+    )}
+  </div>
+)}
+```
+
+Per mostrare gli stakeholder sulla card, il hook useOpportunities deve
+includere i dati opportunity_contacts. Apri useOpportunitiesData.ts e
+nella query delle opportunità aggiungi:
+
+```typescript
+// Nella select delle opportunità, aggiungi:
+stakeholders:opportunity_contacts(
+  id, contact_id, role, is_primary,
+  contact:marketing_contacts(id, full_name)
+)
+```
+
+### 3.4 — Quote status indicator
+
+Se l'opportunità ha quote_id, mostra un piccolo badge con lo stato
+del preventivo direttamente sulla card:
+
+```tsx
+// Se l'opportunity ha un preventivo collegato:
+{opportunity.quote_id && opportunity.quote && (
+  <div className={`text-xs px-1.5 py-0.5 rounded-full border font-medium
+    ${opportunity.quote.status === 'firmato' || opportunity.quote.status === 'accettato'
+      ? 'bg-green-50 border-green-200 text-green-700'
+      : opportunity.quote.status === 'inviata' || opportunity.quote.status === 'visualizzato'
+      ? 'bg-blue-50 border-blue-200 text-blue-700'
+      : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+    📄 {opportunity.quote.status ?? 'Preventivo'}
+  </div>
+)}
+```
+
+Per mostrare lo stato preventivo, aggiungi alla query del hook:
+```typescript
+quote:quotes(id, status)
+```
+
+// VERIFICA SSO3:
+// 1. Apri il kanban pipeline
+// 2. Le card hanno un bordo sinistro verde/giallo/arancio/rosso
+//    (verde se pochi giorni, rosso se ferma da tempo)
+// 3. Le card con deal_health_score mostrano il badge numerico colorato
+// 4. Le card con più stakeholder mostrano gli avatar sovrapposti
+// 5. Le card con preventivo collegato mostrano il badge stato preventivo
+// 6. La card non è più larga del normale (gli elementi sono compatti)
+
+
+====================================================================
+PROMPT SSO4 — OPPORTUNITY DETAIL V2: BANT + STAKEHOLDERS + TIMELINE
+====================================================================
+
+Leggi prima:
+- src/components/opportunities/OpportunityDetailDialog.tsx (esistente)
+- src/hooks/useSalesOSV2.ts (appena creato)
+- src/hooks/useSalesOS.ts (V1, per useUpdateOpportunityMutation)
+
+Aggiungi 4 nuove sezioni al dettaglio opportunità (come Card aggiuntive
+SENZA modificare le sezioni esistenti).
+
+### 4.1 — Sezione BANT (Deal Qualification)
+
+```tsx
+// Import aggiuntivi:
+import { useUpdateBANTMutation, BantBudget, BantAuthority, BantNeed, BantTimeline } from '@/hooks/useSalesOSV2';
+
+// Variabili di stato locali per BANT (inizializzate dai dati esistenti):
+const [bantBudget, setBantBudget] = React.useState<BantBudget>(opportunity?.bant_budget ?? null);
+const [bantAuthority, setBantAuthority] = React.useState<BantAuthority>(opportunity?.bant_authority ?? null);
+const [bantNeed, setBantNeed] = React.useState<BantNeed>(opportunity?.bant_need ?? null);
+const [bantTimeline, setBantTimeline] = React.useState<BantTimeline>(opportunity?.bant_timeline ?? null);
+const updateBANT = useUpdateBANTMutation();
+
+// Calcola health score visivo per il form (aggiornato live):
+const localHealthScore = React.useMemo(() => {
+  const budgetScore = { confermato: 25, stimato: 15, sconosciuto: 5, no_budget: 0 }[bantBudget ?? ''] ?? 0;
+  const authScore   = { decisore: 20, influencer: 10, da_scoprire: 3 }[bantAuthority ?? ''] ?? 0;
+  const needScore   = { urgente: 25, pianificato: 15, esplorativo: 5, no_need: 0 }[bantNeed ?? ''] ?? 0;
+  const timeScore   = { entro_30gg: 15, entro_90gg: 10, oltre_90gg: 5, indefinito: 0 }[bantTimeline ?? ''] ?? 0;
+  return Math.min(100, budgetScore + authScore + needScore + timeScore);
+}, [bantBudget, bantAuthority, bantNeed, bantTimeline]);
+
+// Aggiungi questa Card DOPO le sezioni esistenti del dettaglio:
+<Card className="mt-4">
+  <CardHeader className="pb-3">
+    <div className="flex items-center justify-between">
+      <CardTitle className="text-sm font-medium flex items-center gap-2">
+        <Shield className="h-4 w-4 text-primary" />
+        Qualificazione BANT
+      </CardTitle>
+      {/* Health score live */}
+      <div className={`flex items-center gap-2 text-sm font-bold
+        ${localHealthScore >= 70 ? 'text-green-600' :
+          localHealthScore >= 40 ? 'text-yellow-600' : 'text-red-600'}`}>
+        <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${
+              localHealthScore >= 70 ? 'bg-green-500' :
+              localHealthScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+            }`}
+            style={{ width: `${localHealthScore}%` }}
+          />
+        </div>
+        {localHealthScore}/100
+      </div>
+    </div>
+  </CardHeader>
+  <CardContent className="space-y-3">
+    <div className="grid grid-cols-2 gap-3">
+
+      {/* Budget */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">
+          💰 Budget
+        </label>
+        <Select
+          value={bantBudget ?? ''}
+          onValueChange={(v) => {
+            const val = v as BantBudget;
+            setBantBudget(val);
+            updateBANT.mutate({
+              opportunityId: opportunity.id,
+              bant: { bant_budget: val },
+            });
+          }}
+        >
+          <SelectTrigger className="mt-1 h-8 text-xs">
+            <SelectValue placeholder="Non valutato" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="confermato">✅ Confermato</SelectItem>
+            <SelectItem value="stimato">🟡 Stimato</SelectItem>
+            <SelectItem value="sconosciuto">❓ Sconosciuto</SelectItem>
+            <SelectItem value="no_budget">❌ No budget</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Authority */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">
+          👤 Chi decide?
+        </label>
+        <Select
+          value={bantAuthority ?? ''}
+          onValueChange={(v) => {
+            const val = v as BantAuthority;
+            setBantAuthority(val);
+            updateBANT.mutate({
+              opportunityId: opportunity.id,
+              bant: { bant_authority: val },
+            });
+          }}
+        >
+          <SelectTrigger className="mt-1 h-8 text-xs">
+            <SelectValue placeholder="Non valutato" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="decisore">✅ Parlo con il decisore</SelectItem>
+            <SelectItem value="influencer">🟡 Influencer (non decide)</SelectItem>
+            <SelectItem value="da_scoprire">❓ Da scoprire</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Need */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">
+          🎯 Bisogno
+        </label>
+        <Select
+          value={bantNeed ?? ''}
+          onValueChange={(v) => {
+            const val = v as BantNeed;
+            setBantNeed(val);
+            updateBANT.mutate({
+              opportunityId: opportunity.id,
+              bant: { bant_need: val },
+            });
+          }}
+        >
+          <SelectTrigger className="mt-1 h-8 text-xs">
+            <SelectValue placeholder="Non valutato" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="urgente">🔴 Urgente — vuole farlo presto</SelectItem>
+            <SelectItem value="pianificato">🟡 Pianificato — entro l'anno</SelectItem>
+            <SelectItem value="esplorativo">🔵 Esplorativo — valutazione</SelectItem>
+            <SelectItem value="no_need">⚫ No bisogno reale</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Timeline */}
+      <div>
+        <label className="text-xs font-medium text-muted-foreground">
+          📅 Quando chiude?
+        </label>
+        <Select
+          value={bantTimeline ?? ''}
+          onValueChange={(v) => {
+            const val = v as BantTimeline;
+            setBantTimeline(val);
+            updateBANT.mutate({
+              opportunityId: opportunity.id,
+              bant: { bant_timeline: val },
+            });
+          }}
+        >
+          <SelectTrigger className="mt-1 h-8 text-xs">
+            <SelectValue placeholder="Non valutato" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="entro_30gg">🔴 Entro 30 giorni</SelectItem>
+            <SelectItem value="entro_90gg">🟡 Entro 90 giorni</SelectItem>
+            <SelectItem value="oltre_90gg">🔵 Oltre 90 giorni</SelectItem>
+            <SelectItem value="indefinito">⚫ Non definito</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+```
+
+### 4.2 — Sezione Stakeholder (multi-contatto)
+
+```tsx
+// Import:
+import {
+  useOpportunityContacts,
+  useAddStakeholderMutation,
+  useRemoveStakeholderMutation,
+  StakeholderRole,
+} from '@/hooks/useSalesOSV2';
+
+// Nel componente:
+const { data: stakeholders } = useOpportunityContacts(opportunity.id);
+const addStakeholder = useAddStakeholderMutation();
+const removeStakeholder = useRemoveStakeholderMutation();
+const [showAddStakeholder, setShowAddStakeholder] = React.useState(false);
+
+const ROLE_CONFIG: Record<StakeholderRole, { label: string; icon: string; color: string }> = {
+  decisore:    { label: 'Decisore',     icon: '👑', color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
+  co_decisore: { label: 'Co-decisore',  icon: '🤝', color: 'text-blue-700 bg-blue-50 border-blue-200' },
+  influencer:  { label: 'Influencer',   icon: '💡', color: 'text-purple-700 bg-purple-50 border-purple-200' },
+  pagante:     { label: 'Pagante',      icon: '💳', color: 'text-green-700 bg-green-50 border-green-200' },
+  tecnico:     { label: 'Tecnico',      icon: '🔧', color: 'text-gray-700 bg-gray-50 border-gray-200' },
+  riferimento: { label: 'Riferimento',  icon: '📋', color: 'text-orange-700 bg-orange-50 border-orange-200' },
+};
+
+// Card stakeholder:
+<Card className="mt-4">
+  <CardHeader className="pb-2">
+    <div className="flex items-center justify-between">
+      <CardTitle className="text-sm font-medium flex items-center gap-2">
+        <Users className="h-4 w-4 text-primary" />
+        Stakeholder ({stakeholders?.length ?? 0})
+      </CardTitle>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 text-xs gap-1"
+        onClick={() => setShowAddStakeholder(true)}
+      >
+        <Plus className="h-3 w-3" />
+        Aggiungi
+      </Button>
+    </div>
+  </CardHeader>
+  <CardContent className="space-y-2">
+    {(!stakeholders || stakeholders.length === 0) && (
+      <p className="text-xs text-muted-foreground italic">
+        Solo il contatto principale. Aggiungi altri decisori o influencer.
+      </p>
+    )}
+    {(stakeholders ?? []).map((s) => {
+      const roleConf = ROLE_CONFIG[s.role];
+      return (
+        <div
+          key={s.id}
+          className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/30"
+        >
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+              {(s.contact?.full_name ?? '?').charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div className="text-sm font-medium leading-tight">
+                {s.contact?.full_name ?? 'Contatto sconosciuto'}
+                {s.is_primary && (
+                  <span className="ml-1 text-xs text-muted-foreground">(principale)</span>
+                )}
+              </div>
+              {s.contact?.phone && (
+                <div className="text-xs text-muted-foreground">{s.contact.phone}</div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs px-1.5 py-0.5 rounded-full border font-medium ${roleConf.color}`}>
+              {roleConf.icon} {roleConf.label}
+            </span>
+            {!s.is_primary && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                onClick={() => removeStakeholder.mutate({ id: s.id, opportunityId: opportunity.id })}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        </div>
+      );
+    })}
+  </CardContent>
+</Card>
+
+{/* Dialog aggiungi stakeholder (usa i contatti esistenti) */}
+{showAddStakeholder && (
+  <AddStakeholderDialog
+    open={showAddStakeholder}
+    onOpenChange={setShowAddStakeholder}
+    opportunityId={opportunity.id}
+    companyId={companyId}
+    existingContactIds={(stakeholders ?? []).map((s) => s.contact_id)}
+    onAdd={(contactId, role) =>
+      addStakeholder.mutate({
+        companyId,
+        opportunityId: opportunity.id,
+        contactId,
+        role,
+      })
+    }
+  />
+)}
+```
+
+Crea anche: src/components/opportunities/AddStakeholderDialog.tsx
+
+Il dialog mostra:
+- Ricerca contatti (input text + lista filtrata da marketing_contacts)
+- Select ruolo (decisore, co_decisore, influencer, pagante, tecnico, riferimento)
+- Pulsante "Aggiungi" che chiama onAdd(contactId, role)
+- Esclude i contatti già presenti (existingContactIds)
+
+### 4.3 — Activity Timeline unificata
+
+```tsx
+// Import:
+import { useActivityTimeline, ActivityTimelineEvent } from '@/hooks/useSalesOSV2';
+
+const { data: timeline, isLoading: timelineLoading } = useActivityTimeline(
+  companyId,
+  opportunity.id
+);
+
+const EVENT_CONFIG: Record<string, { icon: string; color: string }> = {
+  activity:     { icon: '📞', color: 'bg-blue-50 border-blue-200' },
+  note:         { icon: '📝', color: 'bg-gray-50 border-gray-200' },
+  stage_change: { icon: '→',  color: 'bg-purple-50 border-purple-200' },
+  value_change: { icon: '💰', color: 'bg-yellow-50 border-yellow-200' },
+  objection:    { icon: '⚠️', color: 'bg-red-50 border-red-200' },
+  quote_sent:   { icon: '📄', color: 'bg-green-50 border-green-200' },
+  status_change:{ icon: '🏁', color: 'bg-indigo-50 border-indigo-200' },
+};
+
+// Card timeline (sostituisce o integra le note esistenti):
+<Card className="mt-4">
+  <CardHeader className="pb-2">
+    <CardTitle className="text-sm font-medium flex items-center gap-2">
+      <Activity className="h-4 w-4 text-primary" />
+      Timeline Attività
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    {timelineLoading && (
+      <div className="text-xs text-muted-foreground animate-pulse">Caricamento timeline...</div>
+    )}
+    {!timelineLoading && (!timeline || timeline.length === 0) && (
+      <div className="text-xs text-muted-foreground">Nessuna attività registrata.</div>
+    )}
+    <div className="relative pl-4 space-y-2">
+      {/* Linea verticale */}
+      {timeline && timeline.length > 0 && (
+        <div className="absolute left-1.5 top-2 bottom-2 w-px bg-border" />
+      )}
+      {(timeline ?? []).map((event) => {
+        const cfg = EVENT_CONFIG[event.event_type] ?? EVENT_CONFIG.activity;
+        return (
+          <div key={event.event_id} className="relative flex gap-3">
+            {/* Dot sulla linea */}
+            <div className="absolute -left-2.5 top-2 w-2 h-2 rounded-full bg-border ring-2 ring-background" />
+            <div className={`flex-1 rounded-lg border p-2 ${cfg.color}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium">
+                    {cfg.icon} {event.event_title}
+                  </div>
+                  {event.event_body && (
+                    <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                      {event.event_body}
+                    </div>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(event.created_at).toLocaleDateString('it-IT', {
+                      day: '2-digit', month: 'short',
+                    })}
+                  </div>
+                  {event.actor_name && (
+                    <div className="text-xs text-muted-foreground">{event.actor_name}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </CardContent>
+</Card>
+```
+
+// VERIFICA SSO4:
+// 1. Apri il dettaglio di un'opportunità
+// 2. Vedi la card "Qualificazione BANT" con 4 dropdown
+// 3. Cambia un valore BANT → il barra di avanzamento si aggiorna in tempo reale
+// 4. Cambia un valore e ricarica → il valore è persistito
+// 5. Vedi la card "Stakeholder" con il contatto principale
+// 6. Clicca "Aggiungi" → si apre il dialog ricerca contatti
+// 7. Aggiungi uno stakeholder → appare nella lista con il badge ruolo
+// 8. Vedi la Timeline Attività con gli eventi
+// 9. Se il valore opportunità viene modificato → appare nella timeline come 'value_change'
+
+
+====================================================================
+PROMPT SSO5 — WIN/LOSS ANALYTICS PAGE
+====================================================================
+
+Leggi prima:
+- src/hooks/useSalesOSV2.ts (WinLossAnalysis type e useWinLossAnalysis)
+- Il routing esistente (src/App.tsx o equivalente)
+- src/components/marketing/dashboard/utils.ts (fmtCur, fmt)
+
+Crea: src/pages/azienda/marketing/WinLossAnalytics.tsx
+
+```tsx
+import React, { useState } from 'react';
+import { useWinLossAnalysis } from '@/hooks/useSalesOSV2';
+import { useCompanyData } from '@/hooks/useCompanyData'; // hook esistente per companyId
+import { fmtCur, fmt } from '@/components/marketing/dashboard/utils';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { TrendingUp, TrendingDown, AlertTriangle, Trophy, Target } from 'lucide-react';
+
+const COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#06b6d4'];
+
+// Utility
+const pct = (v: number | null | undefined) =>
+  v != null ? `${Number(v).toFixed(1)}%` : '—';
+
+export default function WinLossAnalytics() {
+  const { companyId } = useCompanyData();
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const { data: analysis, isLoading } = useWinLossAnalysis(
+    companyId,
+    dateFrom || undefined,
+    dateTo || undefined
+  );
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-64 text-muted-foreground text-sm animate-pulse">
+      Analisi in corso...
+    </div>
+  );
+
+  if (!analysis) return (
+    <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
+      Nessun dato disponibile. Chiudi alcune opportunità per vedere l'analisi.
+    </div>
+  );
+
+  const { summary } = analysis;
+  const winRate = summary.total_closed > 0
+    ? (summary.won_count / summary.total_closed) * 100
+    : 0;
+
+  return (
+    <div className="space-y-5 p-6">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">Win/Loss Analytics</h1>
+          <p className="text-sm text-muted-foreground">
+            Analisi dettagliata delle opportunità chiuse — impara da ogni vendita
+          </p>
+        </div>
+        {/* Filtro date */}
+        <div className="flex gap-2 items-center">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-8 text-xs border rounded px-2"
+          />
+          <span className="text-xs text-muted-foreground">→</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-8 text-xs border rounded px-2"
+          />
+        </div>
+      </div>
+
+      {/* ── Summary bar ── */}
+      <div className="grid grid-cols-5 gap-3">
+        {[
+          {
+            label: 'Win Rate',
+            value: pct(winRate),
+            icon: Target,
+            color: winRate >= 30 ? 'text-green-600' : winRate >= 15 ? 'text-yellow-600' : 'text-red-600',
+            bg: winRate >= 30 ? 'border-green-200 bg-green-50/50' : winRate >= 15 ? 'border-yellow-200' : 'border-red-200 bg-red-50/50',
+          },
+          {
+            label: 'Vinte',
+            value: fmt(summary.won_count),
+            icon: Trophy,
+            color: 'text-green-600',
+            bg: 'border-green-200',
+          },
+          {
+            label: 'Perse',
+            value: fmt(summary.lost_count),
+            icon: TrendingDown,
+            color: 'text-red-600',
+            bg: 'border-red-200',
+          },
+          {
+            label: 'Sconto medio (vinte)',
+            value: pct(summary.avg_discount_pct),
+            icon: AlertTriangle,
+            color: (summary.avg_discount_pct ?? 0) > 15 ? 'text-red-600' : 'text-yellow-600',
+            bg: (summary.avg_discount_pct ?? 0) > 15 ? 'border-red-200 bg-red-50/50' : '',
+          },
+          {
+            label: 'Ciclo medio (vinte)',
+            value: summary.avg_win_cycle_days ? `${summary.avg_win_cycle_days}gg` : '—',
+            icon: TrendingUp,
+            color: 'text-muted-foreground',
+            bg: '',
+          },
+        ].map((item) => (
+          <Card key={item.label} className={item.bg}>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">{item.label}</div>
+                <item.icon className={`h-3.5 w-3.5 ${item.color}`} />
+              </div>
+              <div className={`text-2xl font-bold mt-1 ${item.color}`}>{item.value}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Riga 2: Perché si perde + A quale stage ── */}
+      <div className="grid grid-cols-2 gap-4">
+
+        {/* Motivi di perdita */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Perché si perde</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {analysis.by_lost_reason && analysis.by_lost_reason.length > 0 ? (
+              <div className="space-y-2">
+                {analysis.by_lost_reason.map((r, i) => (
+                  <div key={r.reason}>
+                    <div className="flex justify-between text-xs mb-0.5">
+                      <span className="capitalize">{r.reason.replace(/_/g, ' ')}</span>
+                      <span className="font-medium">{r.count} ({pct(r.pct)})</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${r.pct}%`,
+                          backgroundColor: COLORS[i % COLORS.length],
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Nessuna opportunità persa nel periodo.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* A quale stage si perde */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">A quale stage si perde</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {analysis.by_stage_lost && analysis.by_stage_lost.length > 0 ? (
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={analysis.by_stage_lost} layout="vertical">
+                  <XAxis type="number" tick={{ fontSize: 10 }} />
+                  <YAxis
+                    type="category"
+                    dataKey="stage_name"
+                    tick={{ fontSize: 10 }}
+                    width={100}
+                  />
+                  <Tooltip formatter={(v: number) => [v, 'Perse']} />
+                  <Bar dataKey="lost_count" fill="#ef4444" radius={[0,2,2,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-xs text-muted-foreground">Nessun dato disponibile.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Riga 3: Concorrenti + Win rate per dimensione deal ── */}
+      <div className="grid grid-cols-2 gap-4">
+
+        {/* Top concorrenti */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Chi vince al posto nostro</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {analysis.by_competitor && analysis.by_competitor.filter(c => c.competitor !== 'nessuno / sconosciuto').length > 0 ? (
+              <div className="space-y-2">
+                {analysis.by_competitor
+                  .filter(c => c.competitor !== 'nessuno / sconosciuto')
+                  .slice(0, 6)
+                  .map((c, i) => (
+                    <div key={c.competitor} className="flex items-center justify-between py-1 border-b last:border-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-muted-foreground w-5">{i + 1}.</span>
+                        <span className="text-sm font-medium">{c.competitor}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>{c.count} deal</span>
+                        <span>{fmtCur(c.avg_deal_size)} media</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Aggiungi il campo "Concorrente che ha vinto" quando chiudi un deal come perso.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Win rate per dimensione deal */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Win rate per valore deal</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {analysis.by_deal_size && analysis.by_deal_size.length > 0 ? (
+              <div className="space-y-2">
+                {analysis.by_deal_size.map((bucket) => (
+                  <div key={bucket.size_bucket}>
+                    <div className="flex justify-between text-xs mb-0.5">
+                      <span>{bucket.size_bucket}</span>
+                      <span className={`font-medium ${
+                        bucket.win_rate >= 40 ? 'text-green-600' :
+                        bucket.win_rate >= 20 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {pct(bucket.win_rate)} ({bucket.won}V / {bucket.lost}P)
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          bucket.win_rate >= 40 ? 'bg-green-500' :
+                          bucket.win_rate >= 20 ? 'bg-yellow-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.min(bucket.win_rate, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Nessun dato.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Riga 4: Performance per fonte + per venditore ── */}
+      <div className="grid grid-cols-2 gap-4">
+
+        {/* Per fonte */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Win rate per fonte lead</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {analysis.by_source && analysis.by_source.length > 0 ? (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left py-1">Fonte</th>
+                    <th className="text-right py-1">Vinte</th>
+                    <th className="text-right py-1">Win%</th>
+                    <th className="text-right py-1">Val. medio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysis.by_source.map((s) => (
+                    <tr key={s.source} className="border-b last:border-0">
+                      <td className="py-1.5 capitalize">{s.source}</td>
+                      <td className="py-1.5 text-right">{s.won}</td>
+                      <td className={`py-1.5 text-right font-medium ${
+                        s.win_rate >= 40 ? 'text-green-600' :
+                        s.win_rate >= 20 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>{pct(s.win_rate)}</td>
+                      <td className="py-1.5 text-right text-muted-foreground">
+                        {s.avg_won_value ? fmtCur(s.avg_won_value) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-xs text-muted-foreground">Nessun dato.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Per venditore */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Performance venditore — win rate & sconto</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {analysis.by_salesperson && analysis.by_salesperson.length > 0 ? (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left py-1">Venditore</th>
+                    <th className="text-right py-1">Vinte</th>
+                    <th className="text-right py-1">Win%</th>
+                    <th className="text-right py-1">Sconto medio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysis.by_salesperson.map((s) => (
+                    <tr key={s.assigned_to} className="border-b last:border-0">
+                      <td className="py-1.5 font-medium">{s.name}</td>
+                      <td className="py-1.5 text-right">{s.won}</td>
+                      <td className={`py-1.5 text-right font-medium ${
+                        s.win_rate >= 40 ? 'text-green-600' :
+                        s.win_rate >= 20 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>{pct(s.win_rate)}</td>
+                      <td className={`py-1.5 text-right ${
+                        (s.avg_discount_pct ?? 0) > 20 ? 'text-red-600 font-bold' :
+                        (s.avg_discount_pct ?? 0) > 10 ? 'text-yellow-600' : 'text-muted-foreground'
+                      }`}>
+                        {s.avg_discount_pct ? pct(s.avg_discount_pct) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-xs text-muted-foreground">Nessun dato.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+    </div>
+  );
+}
+```
+
+Aggiungi il route in App.tsx:
+```tsx
+<Route path="/azienda/marketing/win-loss" element={<WinLossAnalytics />} />
+```
+
+Aggiungi il link nella sidebar Marketing & Vendite:
+```tsx
+{ label: 'Win/Loss', path: '/azienda/marketing/win-loss', icon: BarChart2 }
+```
+
+// VERIFICA SSO5:
+// 1. Pagina raggiungibile a /azienda/marketing/win-loss
+// 2. Se non ci sono deal chiusi: messaggio neutro
+// 3. Se ci sono deal chiusi: vedi i 5 KPI in cima
+// 4. Grafici e tabelle si popolano con i dati
+// 5. Win rate < 15% → badge rosso; 15-30% → giallo; > 30% → verde
+// 6. Sconto medio > 20% per un venditore → rosso (segnale: non vende il valore)
+// 7. Filtro date funziona e aggiorna tutti i dati
+// 8. Link "Win/Loss" visibile nella sidebar marketing
+
+
+====================================================================
+PROMPT SSO6 — AGGIORNAMENTO SALES OS DASHBOARD: AGGIUNGI TAB WIN/LOSS
+====================================================================
+
+Leggi prima:
+- src/pages/marketing/SalesOSDashboard.tsx (V1)
+
+Aggiungi una 5a tab "Win/Loss" alla SalesOSDashboard esistente
+che mostra la versione compatta dell'analisi:
+
+```tsx
+// Aggiungi nella TabsList:
+<TabsTrigger value="winloss">
+  <span className="flex items-center gap-1">
+    <BarChart2 className="h-3.5 w-3.5" />
+    Win/Loss
+  </span>
+</TabsTrigger>
+
+// Aggiungi il TabsContent:
+<TabsContent value="winloss" className="mt-4">
+  <div className="text-right mb-2">
+    <a
+      href="/azienda/marketing/win-loss"
+      className="text-xs text-primary hover:underline flex items-center justify-end gap-1"
+    >
+      Apri analisi completa →
+    </a>
+  </div>
+  {/* Mostra il summary dell'analisi in versione compatta */}
+  <WinLossSummaryCompact companyId={companyId} />
+</TabsContent>
+```
+
+Crea il componente WinLossSummaryCompact inline nel file:
+
+```tsx
+function WinLossSummaryCompact({ companyId }: { companyId: string }) {
+  const { data: analysis, isLoading } = useWinLossAnalysis(companyId);
+
+  if (isLoading) return (
+    <div className="text-sm text-muted-foreground animate-pulse p-4">Analisi...</div>
+  );
+  if (!analysis) return (
+    <div className="text-sm text-muted-foreground p-4">
+      Chiudi alcune opportunità per vedere l'analisi.
+    </div>
+  );
+
+  const winRate = analysis.summary.total_closed > 0
+    ? (analysis.summary.won_count / analysis.summary.total_closed) * 100
+    : 0;
+
+  const topLostReason = analysis.by_lost_reason?.[0];
+  const topCompetitor = analysis.by_competitor?.find(c => c.competitor !== 'nessuno / sconosciuto');
+
+  return (
+    <div className="space-y-3">
+      {/* Mini summary */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Win Rate</div>
+          <div className={`text-2xl font-bold ${winRate >= 30 ? 'text-green-600' : winRate >= 15 ? 'text-yellow-600' : 'text-red-600'}`}>
+            {winRate.toFixed(1)}%
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {analysis.summary.won_count}V / {analysis.summary.lost_count}P
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Motivo perdita top</div>
+          <div className="text-sm font-semibold mt-1 capitalize">
+            {topLostReason ? topLostReason.reason.replace(/_/g, ' ') : '—'}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {topLostReason ? `${topLostReason.pct}% dei persi` : ''}
+          </div>
+        </Card>
+        <Card className="p-3">
+          <div className="text-xs text-muted-foreground">Sconto medio</div>
+          <div className={`text-2xl font-bold ${(analysis.summary.avg_discount_pct ?? 0) > 15 ? 'text-red-600' : 'text-muted-foreground'}`}>
+            {analysis.summary.avg_discount_pct ? `${analysis.summary.avg_discount_pct}%` : '—'}
+          </div>
+          <div className="text-xs text-muted-foreground">su deal vinti</div>
+        </Card>
+      </div>
+      {/* Top 3 motivi perdita */}
+      {analysis.by_lost_reason && analysis.by_lost_reason.length > 0 && (
+        <div className="space-y-1">
+          {analysis.by_lost_reason.slice(0, 3).map((r, i) => (
+            <div key={r.reason} className="flex items-center gap-2 text-xs">
+              <div className="w-4 text-muted-foreground font-bold">{i+1}.</div>
+              <div className="flex-1 capitalize">{r.reason.replace(/_/g, ' ')}</div>
+              <div className="font-medium">{r.count} deal ({r.pct}%)</div>
+              <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-red-400 rounded-full"
+                  style={{ width: `${r.pct}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+// VERIFICA SSO6:
+// 1. SalesOSDashboard ha ora 5 tab: Pipeline, Ferme, Team, Analisi, Win/Loss
+// 2. Tab Win/Loss mostra: Win Rate, Motivo perdita top, Sconto medio
+// 3. Link "Apri analisi completa →" porta alla pagina WinLossAnalytics
+// 4. Se nessun deal chiuso: messaggio neutro
+// 5. Se sconto medio > 15%: numero rosso (alert per il direttore)
+
+
+====================================================================
+PROMPT SSO7 — VERIFICA INTEGRAZIONE FINALE SALES OS V2
+====================================================================
+
+Esegui questa checklist sistematica:
+
+SCHEMA V2:
+□ marketing_opportunities ha: bant_budget, bant_authority, bant_need,
+  bant_timeline, deal_health_score, quote_id, initial_value,
+  stage_entered_at, entry_stage_id, referred_by_contact_id
+□ marketing_pipeline_stages ha: entry_criteria, exit_criteria, entry_criteria_strict
+□ Tabella opportunity_contacts: esiste, RLS abilitato
+□ Tabella deal_value_history: esiste, RLS abilitato, colonne GENERATED ok
+□ Tabella opportunity_objections: esiste, RLS abilitato
+□ Tabella sales_cadence_rules: esiste, RLS abilitato
+□ quotes ha: opportunity_id con FK a marketing_opportunities
+□ Trigger log_deal_value_change: funziona su UPDATE valore opportunità
+□ Trigger track_stage_entry: funziona su UPDATE stage_id
+□ Funzione calculate_deal_health_score: SELECT ritorna 100 con tutti 'best' params
+□ RPC get_win_loss_analysis: ritorna JSONB senza errori
+□ RPC get_opportunity_activity_timeline: ritorna righe senza errori
+
+HOOK V2:
+□ useSalesOSV2.ts esiste senza errori TypeScript
+□ useOpportunityContacts, useDealValueHistory, useOpportunityObjections
+□ useActivityTimeline, useWinLossAnalysis, useSalesCadenceRules
+□ useUpdateBANTMutation, useAddStakeholderMutation, useRemoveStakeholderMutation
+□ useAddObjectionMutation, useResolveObjectionMutation, useLinkQuoteToOpportunityMutation
+
+UI:
+□ Kanban card: bordo sinistro colorato (aging), badge health score, avatar stakeholder
+□ Kanban card: badge stato preventivo (se quote_id presente)
+□ OpportunityDetail: sezione BANT con 4 dropdown + barra health score live
+□ OpportunityDetail: sezione Stakeholder con add/remove
+□ OpportunityDetail: Activity Timeline unificata
+□ WinLossAnalytics: pagina a /azienda/marketing/win-loss
+□ WinLossAnalytics: visibile nel menu sidebar
+□ SalesOSDashboard: 5a tab Win/Loss con summary + link a pagina completa
+
+TEST FUNZIONALE (esegui in ordine):
+1. Apri un'opportunità → compila tutti i 4 campi BANT → score sale a 85+
+2. Health score 85+ → badge verde sulla kanban card
+3. Aggiungi stakeholder "co_decisore" → appare con badge viola nella card
+4. Modifica il valore opportunità da €10k a €8k → vai in Activity Timeline
+   → vedi evento "Valore ridotto: -€2.000 (-20%)"
+5. Collega un preventivo esistente all'opportunità → sulla kanban card
+   appare il badge stato preventivo
+6. Chiudi 3 opportunità come 'lost' con motivi diversi → vai a Win/Loss Analytics
+   → vedi i motivi di perdita nel grafico
+7. Chiudi 2 opportunità come 'won' con valore diverso da quello iniziale
+   → Win/Loss mostra lo "sconto medio" calcolato correttamente
+8. SalesOS Dashboard → tab Win/Loss → vedi il summary compatto
+
+// FINE PROMPTS SALES OS V2 (SSO1 → SSO7)
+
+
+====================================================================
+RIEPILOGO TECNICO SALES OS V2
+====================================================================
+
+NUOVE TABELLE:
+  opportunity_contacts    → multi-stakeholder con ruoli (6 ruoli)
+  deal_value_history      → audit trail modifica valore (GENERATED cols)
+  opportunity_objections  → obiezioni in trattativa per categoria
+  sales_cadence_rules     → auto-task per stage dopo N giorni
+
+COLONNE AGGIUNTE a marketing_opportunities:
+  bant_budget, bant_authority, bant_need, bant_timeline
+  deal_health_score, quote_id, initial_value, stage_entered_at
+  entry_stage_id, referred_by_contact_id
+
+COLONNE AGGIUNTE a quotes:
+  opportunity_id  → chiude il loop quote↔opportunity
+
+NUOVI TRIGGER:
+  log_deal_value_change  → logga ogni modifica al campo value
+  track_stage_entry      → aggiorna stage_entered_at a ogni cambio stage
+
+NUOVE FUNZIONI/RPC:
+  calculate_deal_health_score()   → formula BANT + operativi - penalità stallo
+  get_win_loss_analysis()         → JSONB completo win/loss per 6 dimensioni
+  get_opportunity_activity_timeline() → timeline unificata per opportunità
+  refresh_deal_health_scores()    → aggiornamento bulk degli score
+
+DEAL HEALTH SCORE FORMULA:
+  Budget:    confermato=25, stimato=15, sconosciuto=5, no_budget=0
+  Authority: decisore=20, influencer=10, da_scoprire=3
+  Need:      urgente=25, pianificato=15, esplorativo=5, no_need=0
+  Timeline:  entro_30gg=15, entro_90gg=10, oltre_90gg=5, indefinito=0
+  Bonus:     next_action=+8, expected_close_date=+7
+  Penalità:  stalled>2x threshold=-20, stalled>threshold=-10
+  Range:     0–100
+
+VISUAL DEAL AGING (kanban):
+  < 50% threshold  → bordo verde (deal sano)
+  50–100% threshold → bordo giallo (attenzione)
+  100–150%          → bordo arancio (urgente)
+  > 150% threshold  → bordo rosso (critico)
+
+WIN/LOSS ANALYSIS — 6 DIMENSIONI:
+  1. Motivi di perdita (% per categoria)
+  2. Competitor che vincono (chi, quanto spesso, dimensione deal)
+  3. Per fonte lead (win rate, valore medio vinto)
+  4. Per dimensione deal (5 bucket €)
+  5. Per stage dove si perde (heatmap perdita)
+  6. Per venditore (win rate + sconto medio = indicatore "vende il valore")
+====================================================================

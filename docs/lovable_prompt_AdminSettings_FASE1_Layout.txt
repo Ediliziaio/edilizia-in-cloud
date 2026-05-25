@@ -1,0 +1,493 @@
+================================================================================
+PROMPT LOVABLE — SUPER ADMIN SETTINGS FASE 1: LAYOUT GHL-STYLE (SIDEBAR)
+================================================================================
+Ridisegna completamente il layout della pagina AdminSettings in stile
+GoHighLevel: sidebar di navigazione a sinistra con icone + label + descrizione,
+routing URL-based, sezioni raggruppate, ricerca rapida nelle impostazioni,
+mobile-responsive con sidebar collassabile.
+Segui ESATTAMENTE i 4 step qui sotto nell'ordine indicato.
+NON modificare la logica di business dei singoli tab — solo il layout/routing.
+================================================================================
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 1 — Crea il file src/config/adminSettingsNav.ts
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/config/adminSettingsNav.ts`:
+
+```typescript
+import {
+  User, Shield, Users, Settings2, Mail, Bell,
+  ClipboardList, Zap, Globe, CreditCard, Key,
+} from "lucide-react";
+import { LucideIcon } from "lucide-react";
+
+export interface AdminSettingsItem {
+  id: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  permission?: "can_manage_admins" | "can_manage_plans" | "can_view_platform_stats";
+  badge?: string;   // es. "Nuovo" o "Bug fix"
+}
+
+export interface AdminSettingsGroup {
+  group: string;
+  items: AdminSettingsItem[];
+}
+
+export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
+  {
+    group: "Account",
+    items: [
+      {
+        id: "profilo",
+        label: "Profilo",
+        description: "Nome, email e informazioni personali",
+        icon: User,
+      },
+      {
+        id: "sicurezza",
+        label: "Sicurezza",
+        description: "Password, sessioni attive e accesso",
+        icon: Shield,
+      },
+    ],
+  },
+  {
+    group: "Team",
+    items: [
+      {
+        id: "admins",
+        label: "Super Admin",
+        description: "Gestisci gli amministratori della piattaforma",
+        icon: Users,
+        permission: "can_manage_admins",
+      },
+    ],
+  },
+  {
+    group: "Piattaforma",
+    items: [
+      {
+        id: "piattaforma",
+        label: "Info & API",
+        description: "Configurazione chiavi API e integrazioni",
+        icon: Settings2,
+      },
+    ],
+  },
+  {
+    group: "Comunicazioni",
+    items: [
+      {
+        id: "email",
+        label: "Email",
+        description: "Provider, template e statistiche invii",
+        icon: Mail,
+      },
+      {
+        id: "notifiche",
+        label: "Notifiche",
+        description: "Alert e notifiche per gli admin",
+        icon: Bell,
+      },
+    ],
+  },
+  {
+    group: "Sistema",
+    items: [
+      {
+        id: "audit",
+        label: "Registro Attività",
+        description: "Log di tutte le azioni degli amministratori",
+        icon: ClipboardList,
+        permission: "can_manage_admins",
+      },
+      {
+        id: "feature-flags",
+        label: "Feature Flags",
+        description: "Abilita/disabilita funzionalità per azienda",
+        icon: Zap,
+        badge: "Nuovo",
+      },
+    ],
+  },
+];
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 2 — Crea il componente src/components/admin/settings/AdminSettingsSidebar.tsx
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/components/admin/settings/AdminSettingsSidebar.tsx`:
+
+```tsx
+import { useState } from "react";
+import { Search, ChevronRight, X, Menu } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ADMIN_SETTINGS_NAV, AdminSettingsItem } from "@/config/adminSettingsNav";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { cn } from "@/lib/utils";
+
+interface AdminSettingsSidebarProps {
+  activeId: string;
+  onChange: (id: string) => void;
+}
+
+export function AdminSettingsSidebar({ activeId, onChange }: AdminSettingsSidebarProps) {
+  const [search, setSearch] = useState("");
+  const { permissions } = useSuperAdminPermissions();
+
+  const canAccess = (item: AdminSettingsItem): boolean => {
+    if (!item.permission) return true;
+    return permissions?.[item.permission] ?? true;
+  };
+
+  const filteredNav = ADMIN_SETTINGS_NAV
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          canAccess(item) &&
+          (search === "" ||
+            item.label.toLowerCase().includes(search.toLowerCase()) ||
+            item.description.toLowerCase().includes(search.toLowerCase()))
+      ),
+    }))
+    .filter((g) => g.items.length > 0);
+
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-4 py-4 border-b">
+        <h2 className="font-semibold text-base mb-3">Impostazioni</h2>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Cerca impostazioni..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-8 text-sm"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <ScrollArea className="flex-1">
+        <div className="px-2 py-3 space-y-5">
+          {filteredNav.length === 0 ? (
+            <p className="px-2 text-sm text-muted-foreground text-center py-4">
+              Nessun risultato per "{search}"
+            </p>
+          ) : (
+            filteredNav.map((group) => (
+              <div key={group.group}>
+                <p className="px-2 mb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  {group.group}
+                </p>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeId === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => onChange(item.id)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-2 py-2.5 rounded-lg text-left transition-colors group",
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "hover:bg-muted text-foreground"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex-shrink-0 flex items-center justify-center h-8 w-8 rounded-md",
+                            isActive
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted-foreground/10 text-muted-foreground group-hover:bg-muted-foreground/20"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium truncate">
+                              {item.label}
+                            </span>
+                            {item.badge && (
+                              <Badge
+                                variant="secondary"
+                                className="h-4 px-1.5 text-[10px] leading-none"
+                              >
+                                {item.badge}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {item.description}
+                          </p>
+                        </div>
+                        <ChevronRight
+                          className={cn(
+                            "h-3.5 w-3.5 flex-shrink-0 transition-transform",
+                            isActive
+                              ? "text-primary rotate-90"
+                              : "text-muted-foreground/40 group-hover:text-muted-foreground"
+                          )}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex flex-col w-64 flex-shrink-0 border-r bg-background min-h-full">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile: Sheet trigger */}
+      <div className="md:hidden flex items-center gap-2 px-4 py-3 border-b bg-background sticky top-0 z-10">
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Menu className="h-4 w-4" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72 p-0">
+            <SidebarContent />
+          </SheetContent>
+        </Sheet>
+        <span className="text-sm font-medium">Impostazioni</span>
+      </div>
+    </>
+  );
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 3 — Crea src/components/admin/settings/FeatureFlagsTab.tsx (STUB)
+────────────────────────────────────────────────────────────────────────────────
+
+Crea il file `src/components/admin/settings/FeatureFlagsTab.tsx` come stub
+temporaneo (verrà sostituito in una fase successiva):
+
+```tsx
+import { Zap } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+
+export function FeatureFlagsTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold">Feature Flags</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Abilita o disabilita funzionalità per azienda specifica o globalmente.
+        </p>
+      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+            <Zap className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <p className="font-medium">Feature Flags in arrivo</p>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Il modulo di gestione feature flags sarà disponibile nella prossima
+            release. Permetterà di abilitare funzionalità beta per aziende
+            specifiche o percentuali del totale.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+```
+
+
+────────────────────────────────────────────────────────────────────────────────
+STEP 4 — Sostituisci src/pages/admin/AdminSettings.tsx
+────────────────────────────────────────────────────────────────────────────────
+
+Sostituisci COMPLETAMENTE `src/pages/admin/AdminSettings.tsx` con:
+
+```tsx
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { AdminSettingsSidebar } from "@/components/admin/settings/AdminSettingsSidebar";
+import { ProfileTab } from "@/components/admin/settings/ProfileTab";
+import { SuperAdminUsersTab } from "@/components/admin/settings/SuperAdminUsersTab";
+import { PlatformInfoTab } from "@/components/admin/settings/PlatformInfoTab";
+import { EmailSettingsTab } from "@/components/admin/settings/EmailSettingsTab";
+import { NotificationsTab } from "@/components/admin/settings/NotificationsTab";
+import { AuditLogTab } from "@/components/admin/settings/AuditLogTab";
+import { FeatureFlagsTab } from "@/components/admin/settings/FeatureFlagsTab";
+import { SecurityTab } from "@/components/admin/settings/SecurityTab";
+import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+
+// ID validi della sidebar
+type SettingView =
+  | "profilo"
+  | "sicurezza"
+  | "admins"
+  | "piattaforma"
+  | "email"
+  | "notifiche"
+  | "audit"
+  | "feature-flags";
+
+const DEFAULT_VIEW: SettingView = "profilo";
+
+export default function AdminSettings() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { permissions } = useSuperAdminPermissions();
+
+  // Leggi la sezione dall'URL (?section=audit) oppure usa il default
+  const sectionParam = searchParams.get("section") as SettingView | null;
+  const [activeId, setActiveId] = useState<SettingView>(
+    sectionParam ?? DEFAULT_VIEW
+  );
+
+  // Sincronizza URL quando cambia la sezione
+  const handleChange = (id: string) => {
+    setActiveId(id as SettingView);
+    setSearchParams({ section: id }, { replace: true });
+  };
+
+  // Sincronizza state se l'utente naviga avanti/indietro nel browser
+  useEffect(() => {
+    if (sectionParam && sectionParam !== activeId) {
+      setActiveId(sectionParam);
+    }
+  }, [sectionParam]);
+
+  const renderContent = () => {
+    switch (activeId) {
+      case "profilo":
+        return <ProfileTab />;
+      case "sicurezza":
+        return <SecurityTab />;
+      case "admins":
+        if (!(permissions?.can_manage_admins ?? true)) {
+          return <AccessDenied />;
+        }
+        return <SuperAdminUsersTab />;
+      case "piattaforma":
+        return <PlatformInfoTab />;
+      case "email":
+        return <EmailSettingsTab />;
+      case "notifiche":
+        return <NotificationsTab />;
+      case "audit":
+        if (!(permissions?.can_manage_admins ?? true)) {
+          return <AccessDenied />;
+        }
+        return <AuditLogTab />;
+      case "feature-flags":
+        return <FeatureFlagsTab />;
+      default:
+        return <ProfileTab />;
+    }
+  };
+
+  return (
+    <div className="flex h-full min-h-screen">
+      {/* Sidebar */}
+      <AdminSettingsSidebar activeId={activeId} onChange={handleChange} />
+
+      {/* Main content */}
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-3xl mx-auto px-6 py-8">
+          {renderContent()}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// Fallback AccessDenied inline
+function AccessDenied() {
+  return (
+    <div className="flex flex-col items-center gap-3 py-16 text-center">
+      <p className="text-lg font-semibold">Accesso negato</p>
+      <p className="text-sm text-muted-foreground">
+        Non hai i permessi per visualizzare questa sezione.
+      </p>
+    </div>
+  );
+}
+```
+
+IMPORTANTE: Il componente `SecurityTab` viene creato nella FASE 2.
+Per ora, se SecurityTab non esiste ancora, crea uno stub temporaneo:
+
+```tsx
+// src/components/admin/settings/SecurityTab.tsx (stub)
+export function SecurityTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold">Sicurezza</h3>
+        <p className="text-sm text-muted-foreground">
+          Cambio password e sessioni attive.
+        </p>
+      </div>
+    </div>
+  );
+}
+```
+
+Poi usa nella pagina:
+```tsx
+import { SecurityTab } from "@/components/admin/settings/SecurityTab";
+```
+
+
+================================================================================
+NOTE IMPORTANTI
+================================================================================
+
+- Il layout usa flex row: sidebar sinistra (w-64) + main content (flex-1)
+- La sidebar è sticky solo su desktop; su mobile diventa uno Sheet (drawer)
+- Il routing è via URL search param `?section=<id>` — niente React Router nested
+- Ogni section ID corrisponde esattamente ai valori in adminSettingsNav.ts
+- Il componente SecurityTab verrà implementato completamente nella FASE 2
+- Il componente FeatureFlagsTab è uno stub — verrà completato in una fase futura
+- NON modificare i singoli tab (ProfileTab, AuditLogTab, etc.) — solo il layout
+- Aggiungi `react-router-dom` useSearchParams se non già usato in questa pagina
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+1. Vai su /admin/impostazioni → sidebar sinistra con gruppi Account, Team, etc.
+2. Clicca "Super Admin" → URL diventa ?section=admins, contenuto cambia
+3. Clicca "Registro Attività" → ?section=audit
+4. Usa la ricerca nella sidebar → filtra le voci in tempo reale
+5. Su mobile → menu hamburger apre il Sheet con la sidebar
+6. Naviga avanti/indietro col browser → la sezione cambia correttamente
+================================================================================

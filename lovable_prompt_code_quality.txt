@@ -1,0 +1,230 @@
+================================================================================
+PROMPT — OTTIMIZZAZIONE QUALITÀ CODICE & REFACTORING
+================================================================================
+Progetto: Gestionale SaaS multi-tenant (Supabase + React + TypeScript)
+Priorità: MEDIO — nessun bug critico, solo miglioramenti qualitativi
+
+Analizzando il codice ho identificato i seguenti problemi da risolvere.
+Implementa TUTTI i punti nell'ordine indicato.
+
+================================================================================
+1. ESTRAI UTILITY FUNCTION PER SYNC PERMESSI MARKETING
+================================================================================
+
+Il blocco seguente è copiato in TRE file diversi:
+- src/components/users/StaffUserDialog.tsx (righe ~217-233)
+- src/pages/azienda/settings/SettingsUserDetail.tsx (righe ~127-136)
+- src/components/settings/UsersConfig.tsx (righe ~272-279)
+
+Crea il file: src/utils/permissionSync.ts
+
+```typescript
+/**
+ * Sincronizza i flag legacy can_view_marketing / can_edit_marketing
+ * dai permessi granulari. Da chiamare PRIMA di ogni salvataggio permessi.
+ */
+export function syncLegacyMarketingFlags(
+  perms: Record<string, boolean>
+): Record<string, boolean> {
+  return {
+    ...perms,
+    can_view_marketing:
+      perms.can_view_marketing_contacts ||
+      perms.can_view_opportunities ||
+      perms.can_view_marketing_activities ||
+      perms.can_view_email_campaigns ||
+      perms.can_view_whatsapp ||
+      perms.can_view_automations ||
+      false,
+    can_edit_marketing:
+      perms.can_edit_marketing_contacts ||
+      perms.can_edit_opportunities ||
+      perms.can_edit_marketing_activities ||
+      perms.can_edit_email_campaigns ||
+      perms.can_send_whatsapp ||
+      perms.can_manage_automations ||
+      false,
+  };
+}
+```
+
+Poi in ciascuno dei tre file sostituisci il blocco inline con:
+```typescript
+import { syncLegacyMarketingFlags } from '@/utils/permissionSync';
+// ...
+const finalPerms = syncLegacyMarketingFlags(permissions);
+```
+
+================================================================================
+2. ELIMINA I CAST `as any` IN useCompanyDetail.ts
+================================================================================
+
+File: src/hooks/useCompanyDetail.ts
+
+Cerca e sostituisci le seguenti righe:
+
+PRIMA:
+```typescript
+return data as unknown as Company;
+```
+DOPO:
+```typescript
+return data as Company;
+```
+
+PRIMA (riga ~445):
+```typescript
+} as any
+```
+DOPO — verifica il tipo corretto dalla risposta Supabase e usa il tipo esplicito.
+Se il tipo non esiste ancora, aggiungi il tipo appropriato in src/types/index.ts.
+
+================================================================================
+3. AGGIUNGI VALIDAZIONE EMAIL IN SettingsUserDetail
+================================================================================
+
+File: src/pages/azienda/settings/SettingsUserDetail.tsx
+
+Prima di chiamare saveProfileMutation, aggiungi validazione del formato email:
+
+```typescript
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// All'interno di saveProfileMutation, prima della chiamata supabase:
+if (editData.email && !EMAIL_REGEX.test(editData.email)) {
+  toast({
+    title: "Email non valida",
+    description: "Inserisci un indirizzo email corretto.",
+    variant: "destructive",
+  });
+  return;
+}
+```
+
+================================================================================
+4. MIGLIORA EMAIL TEMPLATE IN reset-customer-password
+================================================================================
+
+File: supabase/functions/reset-customer-password/index.ts
+
+Sostituisci il template HTML hardcoded con lo stesso pattern usato dalle altre
+edge functions del progetto (che usano il sistema di template centralizzato
+con `getPlatformSetting`).
+
+Se non esiste ancora un template per il reset password, creane uno in
+Supabase con il seguente approccio:
+
+```typescript
+// Leggi il nome della piattaforma dinamicamente
+const platformName = await getPlatformSetting('platform_name', 'Gestionale');
+
+const emailHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h2>Reset Password — ${platformName}</h2>
+  <p>La tua nuova password temporanea è:</p>
+  <div style="background: #f4f4f4; padding: 16px; border-radius: 8px;
+              font-size: 24px; font-weight: bold; letter-spacing: 2px;
+              text-align: center; margin: 20px 0;">
+    ${newPassword}
+  </div>
+  <p>Accedi e cambia la password dal tuo profilo.</p>
+  <p style="color: #888; font-size: 12px;">
+    Questo messaggio è stato generato automaticamente da ${platformName}.
+  </p>
+</body>
+</html>`;
+```
+
+================================================================================
+5. SPLIT useCompanyDetail IN HOOK PIÙ PICCOLI (refactoring)
+================================================================================
+
+File: src/hooks/useCompanyDetail.ts (614 righe — troppo grande)
+
+Dividi in hook separati:
+
+a) src/hooks/useCompanyStats.ts
+   - Contiene: query stats (ordini, clienti, ticket, team)
+   - Utilizzato da: CompanyDetail
+
+b) src/hooks/useCompanyTeam.ts
+   - Contiene: admins, staff, salespeople, employees queries
+   - Mutazioni: createStaff, createEmployee, resetPermissions
+
+c) src/hooks/useCompanySubscription.ts
+   - Contiene: subscription plan, logs
+   - Mutazioni: changePlan, extendTrial, createCheckoutSession
+
+d) src/hooks/useCompanyDetail.ts (ridotto)
+   - Rimane solo: info azienda base + updateCompany mutation
+   - Importa e re-esporta gli altri hook per compatibilità backward
+
+IMPORTANTE: mantieni la stessa interfaccia pubblica di useCompanyDetail
+per non rompere i componenti esistenti. Usa un hook wrapper:
+```typescript
+export function useCompanyDetail(companyId: string) {
+  const stats = useCompanyStats(companyId);
+  const team = useCompanyTeam(companyId);
+  const subscription = useCompanySubscription(companyId);
+  // ... merge e ritorna tutto come prima
+}
+```
+
+================================================================================
+6. AGGIUNGI SKELETON LOADERS IN UsersConfig
+================================================================================
+
+File: src/components/settings/UsersConfig.tsx
+
+Sostituisci lo spinner generico con skeleton loaders per migliorare la UX:
+
+```tsx
+// Sostituisci il blocco di loading:
+if (isLoading) {
+  return (
+    <div className="space-y-3">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex items-center space-x-4">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+          <Skeleton className="h-8 w-24" />
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+Assicurati di importare `Skeleton` da `@/components/ui/skeleton`.
+
+================================================================================
+VERIFICA FINALE
+================================================================================
+
+Dopo aver implementato tutti i punti:
+
+1. Verifica che il build TypeScript passi senza errori: npx tsc --noEmit
+2. Verifica che i 3 file che usavano syncLegacyMarketingFlags inline ora
+   importino correttamente da @/utils/permissionSync
+3. Verifica che useCompanyDetail esporti la stessa interfaccia di prima
+4. Testa il flusso di creazione utente (StaffUserDialog) con un utente di tipo
+   "company_staff" per verificare che i permessi marketing vengano sincronizzati
+5. Testa reset password da SettingsUserDetail
+
+================================================================================
+NOTE
+================================================================================
+
+- NON modificare la logica di permessi (usePermissions.ts) — è corretta
+- NON modificare StaffUserDialog wizard logic — è corretta
+- NON modificare le edge functions di sicurezza (delete-company-user,
+  create-company-staff) — sono ben implementate
+- L'integrazione bancaria (GoCardless) è un modulo separato con il suo
+  manuale dedicato (manuale_banking_integration.txt) — NON è in scope qui
+
+================================================================================

@@ -1,0 +1,741 @@
+import React, { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  useWeightedPipeline,
+  useSalesForecast,
+  useStalledOpportunities,
+  useSalesVelocity,
+  useSellerPerformance,
+  useConversionBySource,
+  useTopLeads,
+} from "@/hooks/useSalesOS";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  Legend,
+} from "recharts";
+import {
+  TrendingUp,
+  AlertTriangle,
+  Users,
+  Target,
+  Zap,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+const fmt = (v: number) =>
+  new Intl.NumberFormat("it-IT", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(v);
+
+const pct = (v: number) => `${v.toFixed(1)}%`;
+
+// ─── SalesVelocityCard ────────────────────────────────────────────────────────
+
+function SalesVelocityCard({ companyId }: { companyId: string }) {
+  const { data: velocity, isLoading } = useSalesVelocity(companyId);
+
+  if (isLoading)
+    return (
+      <Card>
+        <CardContent className="p-6 flex items-center justify-center h-24">
+          <div className="animate-pulse text-muted-foreground text-sm">
+            Calcolo velocità...
+          </div>
+        </CardContent>
+      </Card>
+    );
+
+  if (!velocity) return null;
+
+  return (
+    <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <Zap className="h-4 w-4 text-primary" />
+          Sales Velocity
+          <span className="text-xs text-muted-foreground font-normal">
+            (ultimi 90gg)
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold text-primary">
+          {fmt(velocity.sales_velocity)}
+          <span className="text-sm font-normal text-muted-foreground">
+            /giorno
+          </span>
+        </div>
+        <div className="grid grid-cols-4 gap-4 mt-3">
+          <div className="text-center">
+            <div className="text-lg font-semibold">
+              {velocity.open_opportunities}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Opp. aperte
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold">
+              {pct(velocity.win_rate)}
+            </div>
+            <div className="text-[11px] text-muted-foreground">Win rate</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold">
+              {fmt(velocity.avg_deal_size)}
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Avg deal size
+            </div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-semibold">
+              {velocity.avg_cycle_days}gg
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Ciclo medio
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── WeightedPipelineChart ────────────────────────────────────────────────────
+
+function WeightedPipelineChart({ companyId }: { companyId: string }) {
+  const { data: stages, isLoading } = useWeightedPipeline(companyId);
+
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm animate-pulse">
+        Caricamento pipeline...
+      </div>
+    );
+
+  if (!stages || stages.length === 0)
+    return (
+      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+        Nessuna opportunità aperta.
+      </div>
+    );
+
+  const chartData = stages.map((s) => ({
+    name:
+      s.stage_name.length > 12
+        ? s.stage_name.slice(0, 12) + "…"
+        : s.stage_name,
+    "Valore totale": Math.round(s.total_value),
+    "Valore pesato": Math.round(s.weighted_value),
+    "N° opp": s.opportunity_count,
+    "Prob %": s.avg_probability,
+  }));
+
+  return (
+    <div className="space-y-3">
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`} />
+          <Tooltip
+            formatter={(value: number, name: string) =>
+              name === "Prob %" ? [`${value}%`, name] : [fmt(value), name]
+            }
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar
+            dataKey="Valore totale"
+            fill="hsl(var(--muted-foreground))"
+            opacity={0.4}
+            radius={[3, 3, 0, 0]}
+          />
+          <Bar
+            dataKey="Valore pesato"
+            fill="hsl(var(--primary))"
+            radius={[3, 3, 0, 0]}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="p-2 rounded border text-center text-xs">
+          <div className="font-semibold text-sm">
+            {fmt(stages.reduce((a, s) => a + s.total_value, 0))}
+          </div>
+          <div className="text-muted-foreground">Valore totale pipeline</div>
+        </div>
+        <div className="p-2 rounded border text-center text-xs">
+          <div className="font-semibold text-sm">
+            {fmt(stages.reduce((a, s) => a + s.weighted_value, 0))}
+          </div>
+          <div className="text-muted-foreground">Valore pesato</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SalesForecastChart ───────────────────────────────────────────────────────
+
+function SalesForecastChart({ companyId }: { companyId: string }) {
+  const { data: forecast, isLoading } = useSalesForecast(companyId, 3);
+
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm animate-pulse">
+        Calcolo forecast...
+      </div>
+    );
+
+  if (!forecast || forecast.length === 0)
+    return (
+      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+        Nessuna opportunità con data chiusura impostata.
+      </div>
+    );
+
+  const chartData = forecast.map((f) => ({
+    mese: new Date(f.forecast_month).toLocaleDateString("it-IT", {
+      month: "short",
+      year: "2-digit",
+    }),
+    "Atteso": Math.round(f.expected_revenue),
+    "Pesato": Math.round(f.weighted_revenue),
+    "N° opp": f.opportunity_count,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={240}>
+      <LineChart data={chartData}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+        <XAxis dataKey="mese" tick={{ fontSize: 11 }} />
+        <YAxis
+          tick={{ fontSize: 11 }}
+          tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+        />
+        <Tooltip
+          formatter={(value: number, name: string) => [fmt(value), name]}
+        />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <Line
+          type="monotone"
+          dataKey="Atteso"
+          stroke="hsl(var(--muted-foreground))"
+          strokeDasharray="5 5"
+          dot={false}
+        />
+        <Line
+          type="monotone"
+          dataKey="Pesato"
+          stroke="hsl(var(--primary))"
+          strokeWidth={2}
+          dot={{ r: 4 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── StalledOpportunitiesPanel ────────────────────────────────────────────────
+
+function StalledOpportunitiesPanel({ companyId }: { companyId: string }) {
+  const { data: stalled, isLoading } = useStalledOpportunities(companyId);
+  const navigate = useNavigate();
+
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground text-sm animate-pulse">
+        Analisi opportunità ferme...
+      </div>
+    );
+
+  if (!stalled || stalled.length === 0)
+    return (
+      <div className="flex flex-col items-center justify-center h-24 text-muted-foreground text-sm gap-1">
+        <span className="text-2xl">✅</span>
+        Nessuna opportunità ferma — ottimo lavoro!
+      </div>
+    );
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Opportunità</TableHead>
+          <TableHead>Stage</TableHead>
+          <TableHead className="text-center">Ferma da</TableHead>
+          <TableHead className="text-center">Threshold</TableHead>
+          <TableHead className="text-right">Valore</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {stalled.map((s) => (
+          <TableRow
+            key={s.opportunity_id}
+            className="cursor-pointer hover:bg-muted/40"
+            onClick={() =>
+              navigate(`/azienda/marketing/opportunita`)
+            }
+          >
+            <TableCell>
+              <div className="font-medium text-sm">{s.opportunity_name}</div>
+              {s.contact_name && (
+                <div className="text-xs text-muted-foreground">
+                  {s.contact_name}
+                </div>
+              )}
+            </TableCell>
+            <TableCell className="text-sm">{s.stage_name}</TableCell>
+            <TableCell className="text-center">
+              <Badge
+                variant={
+                  s.days_stalled > s.stalled_threshold * 2
+                    ? "destructive"
+                    : "secondary"
+                }
+                className="text-xs"
+              >
+                {s.days_stalled}gg
+              </Badge>
+            </TableCell>
+            <TableCell className="text-center text-xs text-muted-foreground">
+              {s.stalled_threshold}gg
+            </TableCell>
+            <TableCell className="text-right text-sm font-medium">
+              {fmt(s.value)}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+// ─── SellerComparisonTable ────────────────────────────────────────────────────
+
+function SellerComparisonTable({ companyId }: { companyId: string }) {
+  const now = new Date();
+  const { data: sellers, isLoading } = useSellerPerformance(
+    companyId,
+    now.getFullYear(),
+    now.getMonth() + 1
+  );
+
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground text-sm animate-pulse">
+        Analisi team vendite...
+      </div>
+    );
+
+  if (!sellers || sellers.length === 0)
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+        Nessun dato venditori per questo mese.
+      </div>
+    );
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Venditore</TableHead>
+          <TableHead className="text-center">Vinte</TableHead>
+          <TableHead className="text-center">Aperte</TableHead>
+          <TableHead className="text-center">Win rate</TableHead>
+          <TableHead className="text-right">Valore vinto</TableHead>
+          <TableHead className="min-w-[120px]">Target mese</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {sellers.map((s) => (
+          <TableRow key={s.assigned_to ?? "unassigned"}>
+            <TableCell className="font-medium text-sm">
+              {s.display_name}
+            </TableCell>
+            <TableCell className="text-center">
+              <Badge variant="default" className="text-xs">
+                {s.won_count}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-center text-sm">{s.open_count}</TableCell>
+            <TableCell className="text-center text-sm">
+              {pct(s.win_rate)}
+            </TableCell>
+            <TableCell className="text-right text-sm font-semibold">
+              {fmt(s.won_value)}
+            </TableCell>
+            <TableCell>
+              {s.target_amount > 0 ? (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {fmt(s.won_value)} / {fmt(s.target_amount)}
+                    </span>
+                    <span
+                      className={
+                        s.target_achievement >= 100
+                          ? "text-green-600 font-bold"
+                          : ""
+                      }
+                    >
+                      {pct(s.target_achievement)}
+                    </span>
+                  </div>
+                  <Progress
+                    value={Math.min(s.target_achievement, 100)}
+                    className="h-1.5"
+                  />
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  No target
+                </span>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+// ─── ConversionBySourceChart ──────────────────────────────────────────────────
+
+function ConversionBySourceChart({ companyId }: { companyId: string }) {
+  const { data: sources, isLoading } = useConversionBySource(companyId);
+
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground text-sm animate-pulse">
+        Analisi fonti lead...
+      </div>
+    );
+
+  if (!sources || sources.length === 0)
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+        Nessun dato fonte lead disponibile.
+      </div>
+    );
+
+  const chartData = sources.slice(0, 8).map((s) => ({
+    fonte:
+      s.source.length > 15 ? s.source.slice(0, 15) + "…" : s.source,
+    Opportunità: s.total_opportunities,
+    "Chiuse vinte": s.won_opportunities,
+    "Win rate %": parseFloat(s.win_rate.toFixed(1)),
+  }));
+
+  return (
+    <div className="space-y-4">
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={chartData} layout="vertical">
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis type="number" tick={{ fontSize: 11 }} />
+          <YAxis
+            type="category"
+            dataKey="fonte"
+            tick={{ fontSize: 11 }}
+            width={90}
+          />
+          <Tooltip
+            formatter={(value: number, name: string) =>
+              name === "Win rate %"
+                ? [`${value.toFixed(1)}%`, name]
+                : [value, name]
+            }
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar
+            dataKey="Opportunità"
+            fill="hsl(var(--muted-foreground))"
+            opacity={0.5}
+            radius={[0, 2, 2, 0]}
+          />
+          <Bar
+            dataKey="Chiuse vinte"
+            fill="hsl(var(--primary))"
+            radius={[0, 2, 2, 0]}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="grid grid-cols-2 gap-2">
+        {sources.slice(0, 4).map((s) => (
+          <div
+            key={s.source}
+            className="flex items-center justify-between p-2 rounded border text-xs"
+          >
+            <span className="font-medium truncate">{s.source}</span>
+            <span className="text-muted-foreground ml-2">
+              {fmt(s.total_won_value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── TopLeadsTable ────────────────────────────────────────────────────────────
+
+function TopLeadsTable({ companyId }: { companyId: string }) {
+  const { data: leads, isLoading } = useTopLeads(companyId, 10);
+
+  if (isLoading)
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground text-sm animate-pulse">
+        Calcolo lead score...
+      </div>
+    );
+
+  if (!leads || leads.length === 0)
+    return (
+      <div className="flex items-center justify-center h-24 text-muted-foreground text-sm">
+        Nessun lead con score disponibile.
+      </div>
+    );
+
+  const tierColor: Record<string, string> = {
+    A: "bg-green-100 text-green-800",
+    B: "bg-blue-100 text-blue-800",
+    C: "bg-yellow-100 text-yellow-800",
+    D: "bg-gray-100 text-gray-800",
+  };
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Lead</TableHead>
+          <TableHead className="text-center">Tier ICP</TableHead>
+          <TableHead className="min-w-[130px]">Score</TableHead>
+          <TableHead>Fonte</TableHead>
+          <TableHead className="text-center">Opp. aperte</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {leads.map((lead) => (
+          <TableRow key={lead.id}>
+            <TableCell>
+              <div className="font-medium text-sm">{lead.full_name}</div>
+              {lead.company_name && (
+                <div className="text-xs text-muted-foreground">
+                  {lead.company_name}
+                </div>
+              )}
+            </TableCell>
+            <TableCell className="text-center">
+              {lead.icp_tier ? (
+                <span
+                  className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
+                    tierColor[lead.icp_tier] ?? "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  {lead.icp_tier}
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">—</span>
+              )}
+            </TableCell>
+            <TableCell>
+              <div className="flex items-center gap-1">
+                <div className="w-16">
+                  <Progress value={lead.lead_score} className="h-1.5" />
+                </div>
+                <span className="text-xs font-medium w-8 text-right">
+                  {lead.lead_score}
+                </span>
+              </div>
+            </TableCell>
+            <TableCell className="text-xs text-muted-foreground">
+              {lead.source ?? "—"}
+            </TableCell>
+            <TableCell className="text-center">
+              {lead.open_opportunities_count > 0 ? (
+                <Badge variant="default" className="text-xs">
+                  {lead.open_opportunities_count}
+                </Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground">0</span>
+              )}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+// ─── SalesOSDashboard (pagina principale) ────────────────────────────────────
+
+export default function SalesOSDashboard() {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? null;
+  const [activeTab, setActiveTab] = useState("pipeline");
+
+  if (!companyId)
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Caricamento dati azienda...
+      </div>
+    );
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Zap className="h-6 w-6 text-primary" />
+            Sales OS
+          </h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Centro di comando commerciale
+          </p>
+        </div>
+      </div>
+
+      {/* KPI Bar — sempre visibile */}
+      <SalesVelocityCard companyId={companyId} />
+
+      {/* Tabs principali */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-4 w-full max-w-lg">
+          <TabsTrigger value="pipeline">
+            <span className="flex items-center gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5" />
+              Pipeline
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="stalled">
+            <span className="flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Ferme
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="team">
+            <span className="flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5" />
+              Team
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="analisi">
+            <span className="flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5" />
+              Analisi
+            </span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* TAB: Pipeline & Forecast */}
+        <TabsContent value="pipeline" className="space-y-4 mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  Pipeline Pesata per Stage
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WeightedPipelineChart companyId={companyId} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                  Forecast Prossimi 3 Mesi
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SalesForecastChart companyId={companyId} />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* TAB: Opportunità ferme */}
+        <TabsContent value="stalled" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                Opportunità Ferme — Richiede Attenzione
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StalledOpportunitiesPanel companyId={companyId} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB: Team / Venditori */}
+        <TabsContent value="team" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Confronto Venditori — Mese Corrente
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SellerComparisonTable companyId={companyId} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Target className="h-4 w-4 text-yellow-500" />
+                Top Lead per Score
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TopLeadsTable companyId={companyId} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB: Analisi conversione */}
+        <TabsContent value="analisi" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">
+                Conversione per Fonte Lead
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ConversionBySourceChart companyId={companyId} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

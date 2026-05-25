@@ -1,0 +1,832 @@
+====================================================================
+PROMPT LOVABLE — API Keys: Gestione Chiavi API per Integrazioni Esterne
+====================================================================
+
+CONTESTO TECNICO
+- Stack: React 18 + TypeScript + Vite + Supabase + TanStack React Query v5
+- UI: Shadcn/ui + Radix UI + Tailwind CSS + Lucide Icons
+- Pattern auth: useAuth() → effectiveCompany?.id (MAI company?.id)
+- Utilities in src/lib/ (MAI src/utils/)
+- Route esistente: /azienda/impostazioni/* con sidebar nav già presente
+- La chiave viene mostrata UNA SOLA VOLTA dopo la creazione — non viene mai
+  salvata in chiaro nel database (solo hash SHA-256)
+
+OBIETTIVO
+Creare il modulo gestione API Keys con:
+- Lista chiavi con nome, prefisso, scopes, last used, expiry, status
+- Creazione chiave con wizard a 2 step (configurazione → mostra chiave)
+- Revoca chiave con conferma
+- Sistema di scopes granulari per modulo
+- Warning "non sarà più visibile" dopo creazione
+
+================================================================
+STEP 1 — MIGRAZIONE DATABASE
+================================================================
+
+Crea file: supabase/migrations/20260320140000_api_keys.sql
+
+```sql
+CREATE TABLE IF NOT EXISTS api_keys (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id   uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  key_prefix   text NOT NULL,   -- Primissimi 12 char della chiave (es. "eic_live_xxxx")
+  key_hash     text NOT NULL,   -- SHA-256 dell'intera chiave
+  scopes       text[] NOT NULL DEFAULT '{}',
+  is_active    boolean NOT NULL DEFAULT true,
+  last_used_at timestamptz,
+  expires_at   timestamptz,     -- null = non scade mai
+  created_by   uuid REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at   timestamptz DEFAULT now(),
+  revoked_at   timestamptz
+);
+
+CREATE INDEX idx_api_keys_company_id ON api_keys(company_id);
+CREATE INDEX idx_api_keys_key_hash   ON api_keys(key_hash);
+CREATE INDEX idx_api_keys_prefix     ON api_keys(key_prefix);
+
+ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_api_keys" ON api_keys
+  FOR ALL USING (
+    company_id IN (SELECT company_id FROM profiles WHERE id = auth.uid())
+  );
+
+-- RPC per aggiornare last_used_at quando viene usata una chiave
+-- (chiamata dall'Edge Function di autenticazione API)
+CREATE OR REPLACE FUNCTION update_api_key_last_used(p_key_hash text)
+RETURNS void AS $$
+  UPDATE api_keys SET last_used_at = now() WHERE key_hash = p_key_hash;
+$$ LANGUAGE SQL SECURITY DEFINER;
+```
+
+================================================================
+STEP 2 — UTILITY: src/lib/apiKeyUtils.ts
+================================================================
+
+```typescript
+/**
+ * Genera una API key sicura nel formato:
+ * eic_live_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (esempio non segreto)
+ * Il prefisso eic_live_ è fisso, poi char esadecimali casuali.
+ */
+export function generateApiKey(): string {
+  const randomPart = new Uint8Array(28);
+  crypto.getRandomValues(randomPart);
+  const hex = Array.from(randomPart).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `eic_live_${hex}`;
+}
+
+/**
+ * Calcola SHA-256 della chiave per il salvataggio nel DB.
+ */
+export async function hashApiKey(key: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Estrae il prefisso visibile (primissimi 12 caratteri + "...")
+ */
+export function getKeyPrefix(key: string): string {
+  return key.slice(0, 12);
+}
+
+/**
+ * Calcola la data di scadenza in base alla scelta dell'utente
+ */
+export function computeExpiresAt(option: ExpiryOption): Date | null {
+  if (option === "never") return null;
+  const now = new Date();
+  const map: Record<Exclude<ExpiryOption, "never">, number> = {
+    "30d": 30,
+    "90d": 90,
+    "1y": 365,
+  };
+  now.setDate(now.getDate() + map[option]);
+  return now;
+}
+
+export type ExpiryOption = "never" | "30d" | "90d" | "1y";
+```
+
+================================================================
+STEP 3 — TIPI E SCOPES: src/types/apiKeys.ts
+================================================================
+
+```typescript
+export interface ApiKey {
+  id: string;
+  company_id: string;
+  name: string;
+  key_prefix: string;
+  key_hash: string;
+  scopes: string[];
+  is_active: boolean;
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export interface ApiScopeGroup {
+  id: string;
+  label: string;
+  description: string;
+  scopes: ApiScope[];
+}
+
+export interface ApiScope {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export const API_SCOPE_GROUPS: ApiScopeGroup[] = [
+  {
+    id: "crm",
+    label: "CRM",
+    description: "Accesso a contatti e opportunità",
+    scopes: [
+      { id: "contacts:read",       label: "Leggi contatti",        description: "Visualizza lista e dettaglio contatti" },
+      { id: "contacts:write",      label: "Modifica contatti",     description: "Crea, aggiorna ed elimina contatti" },
+      { id: "opportunities:read",  label: "Leggi opportunità",     description: "Visualizza opportunità e pipeline" },
+      { id: "opportunities:write", label: "Modifica opportunità",  description: "Crea, aggiorna ed elimina opportunità" },
+    ],
+  },
+  {
+    id: "orders",
+    label: "Ordini",
+    description: "Accesso al modulo ordini",
+    scopes: [
+      { id: "orders:read",  label: "Leggi ordini",   description: "Visualizza lista e dettaglio ordini" },
+      { id: "orders:write", label: "Modifica ordini", description: "Crea, aggiorna ed elimina ordini" },
+    ],
+  },
+  {
+    id: "calendar",
+    label: "Calendario",
+    description: "Accesso ad appuntamenti e disponibilità",
+    scopes: [
+      { id: "appointments:read",  label: "Leggi appuntamenti",   description: "Visualizza appuntamenti e disponibilità" },
+      { id: "appointments:write", label: "Modifica appuntamenti", description: "Crea e cancella appuntamenti" },
+    ],
+  },
+  {
+    id: "tasks",
+    label: "Task",
+    description: "Accesso alle attività",
+    scopes: [
+      { id: "tasks:read",  label: "Leggi task",   description: "Visualizza task assegnate" },
+      { id: "tasks:write", label: "Modifica task", description: "Crea, aggiorna e completa task" },
+    ],
+  },
+  {
+    id: "products",
+    label: "Prodotti",
+    description: "Accesso al catalogo prodotti",
+    scopes: [
+      { id: "products:read", label: "Leggi prodotti", description: "Visualizza catalogo e prezzi" },
+    ],
+  },
+  {
+    id: "reports",
+    label: "Report",
+    description: "Accesso alle statistiche",
+    scopes: [
+      { id: "reports:read", label: "Leggi report", description: "Accedi a statistiche e KPI" },
+    ],
+  },
+  {
+    id: "advanced",
+    label: "Avanzate",
+    description: "Permessi speciali",
+    scopes: [
+      { id: "webhooks:manage", label: "Gestisci webhook", description: "Crea e gestisci webhook via API" },
+    ],
+  },
+];
+
+// Helper: tutte le scope ID in un array flat
+export const ALL_SCOPE_IDS = API_SCOPE_GROUPS.flatMap((g) => g.scopes.map((s) => s.id));
+```
+
+================================================================
+STEP 4 — HOOK: src/hooks/useApiKeys.ts
+================================================================
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { ApiKey } from "@/types/apiKeys";
+import { generateApiKey, hashApiKey, getKeyPrefix, computeExpiresAt } from "@/lib/apiKeyUtils";
+import type { ExpiryOption } from "@/lib/apiKeyUtils";
+
+export function useApiKeys(companyId: string | undefined) {
+  return useQuery({
+    queryKey: ["api-keys", companyId],
+    queryFn: async () => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("api_keys")
+        .select("*")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as ApiKey[];
+    },
+    enabled: !!companyId,
+  });
+}
+
+export function useCreateApiKey(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      scopes,
+      expiryOption,
+    }: {
+      name: string;
+      scopes: string[];
+      expiryOption: ExpiryOption;
+    }) => {
+      if (!companyId) throw new Error("companyId richiesto");
+      const rawKey = generateApiKey();
+      const hash = await hashApiKey(rawKey);
+      const prefix = getKeyPrefix(rawKey);
+      const expiresAt = computeExpiresAt(expiryOption);
+
+      const { error } = await supabase.from("api_keys").insert({
+        company_id: companyId,
+        name,
+        key_prefix: prefix,
+        key_hash: hash,
+        scopes,
+        expires_at: expiresAt?.toISOString() || null,
+      });
+      if (error) throw error;
+
+      // Ritorna la chiave in chiaro — sarà mostrata solo in questo momento
+      return rawKey;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys", companyId] }),
+  });
+}
+
+export function useRevokeApiKey(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (keyId: string) => {
+      const { error } = await supabase
+        .from("api_keys")
+        .update({ is_active: false, revoked_at: new Date().toISOString() })
+        .eq("id", keyId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys", companyId] }),
+  });
+}
+```
+
+================================================================
+STEP 5 — PAGINA: src/pages/azienda/settings/SettingsApiKeys.tsx
+================================================================
+
+```typescript
+import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/hooks/useApiKeys";
+import { API_SCOPE_GROUPS, ALL_SCOPE_IDS } from "@/types/apiKeys";
+import type { ExpiryOption } from "@/lib/apiKeyUtils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
+  Alert, AlertDescription
+} from "@/components/ui/alert";
+import {
+  Plus, Key, Copy, CheckCircle2, Trash2, ShieldAlert, Clock,
+  Loader2, AlertTriangle, ExternalLink
+} from "lucide-react";
+import { formatRelativeTime, formatDate } from "@/lib/formatters";
+
+const EXPIRY_OPTIONS: { value: ExpiryOption; label: string }[] = [
+  { value: "never", label: "Non scade mai" },
+  { value: "30d",   label: "30 giorni" },
+  { value: "90d",   label: "90 giorni" },
+  { value: "1y",    label: "1 anno" },
+];
+
+// ---- Sub-component: CreateApiKeyDialog ----
+function CreateApiKeyDialog({
+  open,
+  onOpenChange,
+  companyId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  companyId: string;
+}) {
+  const { toast } = useToast();
+  const createMutation = useCreateApiKey(companyId);
+
+  // Step 1: configurazione, Step 2: mostra chiave
+  const [step, setStep] = useState<1 | 2>(1);
+  const [name, setName] = useState("");
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+  const [expiry, setExpiry] = useState<ExpiryOption>("never");
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const resetForm = () => {
+    setStep(1);
+    setName("");
+    setSelectedScopes([]);
+    setExpiry("never");
+    setGeneratedKey(null);
+    setCopied(false);
+  };
+
+  const handleClose = (v: boolean) => {
+    if (!v) resetForm();
+    onOpenChange(v);
+  };
+
+  const toggleScope = (scopeId: string) => {
+    setSelectedScopes((prev) =>
+      prev.includes(scopeId) ? prev.filter((s) => s !== scopeId) : [...prev, scopeId]
+    );
+  };
+
+  const toggleGroup = (groupScopeIds: string[], enable: boolean) => {
+    setSelectedScopes((prev) => {
+      const filtered = prev.filter((s) => !groupScopeIds.includes(s));
+      return enable ? [...filtered, ...groupScopeIds] : filtered;
+    });
+  };
+
+  const handleCreate = async () => {
+    if (!name || selectedScopes.length === 0) {
+      toast({ title: "Campi obbligatori", description: "Inserisci nome e seleziona almeno uno scope.", variant: "destructive" });
+      return;
+    }
+    try {
+      const key = await createMutation.mutateAsync({ name, scopes: selectedScopes, expiryOption: expiry });
+      setGeneratedKey(key);
+      setStep(2);
+    } catch {
+      toast({ title: "Errore", description: "Impossibile creare la chiave API.", variant: "destructive" });
+    }
+  };
+
+  const copyKey = async () => {
+    if (!generatedKey) return;
+    await navigator.clipboard.writeText(generatedKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {step === 1 ? "Crea API Key" : "Chiave API creata"}
+          </DialogTitle>
+          <DialogDescription>
+            {step === 1
+              ? "Configura nome, permessi e scadenza della nuova chiave."
+              : "Copia la chiave ora — non sarà più visibile."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 1 ? (
+          <div className="space-y-6 py-2">
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label>Nome chiave *</Label>
+              <Input
+                placeholder="Es. Integrazione ERP, App Mobile..."
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            {/* Expiry */}
+            <div className="space-y-1.5">
+              <Label>Scadenza</Label>
+              <Select value={expiry} onValueChange={(v) => setExpiry(v as ExpiryOption)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXPIRY_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator />
+
+            {/* Scopes */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Permessi (scopes) *</Label>
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                  onClick={() => {
+                    const allSelected = ALL_SCOPE_IDS.every((s) => selectedScopes.includes(s));
+                    setSelectedScopes(allSelected ? [] : [...ALL_SCOPE_IDS]);
+                  }}
+                >
+                  {ALL_SCOPE_IDS.every((s) => selectedScopes.includes(s))
+                    ? "Deseleziona tutti"
+                    : "Seleziona tutti"}
+                </button>
+              </div>
+
+              {API_SCOPE_GROUPS.map((group) => {
+                const groupIds = group.scopes.map((s) => s.id);
+                const selectedCount = groupIds.filter((id) => selectedScopes.includes(id)).length;
+                const allGroupSelected = selectedCount === groupIds.length;
+
+                return (
+                  <div key={group.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={allGroupSelected}
+                        onCheckedChange={(v) => toggleGroup(groupIds, !!v)}
+                      />
+                      <div>
+                        <span className="text-sm font-medium">{group.label}</span>
+                        <span className="text-xs text-muted-foreground ml-2">{group.description}</span>
+                      </div>
+                      {selectedCount > 0 && (
+                        <Badge variant="secondary" className="text-xs ml-auto">
+                          {selectedCount}/{groupIds.length}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="ml-6 space-y-1.5">
+                      {group.scopes.map((scope) => (
+                        <div key={scope.id} className="flex items-start gap-2">
+                          <Checkbox
+                            id={scope.id}
+                            checked={selectedScopes.includes(scope.id)}
+                            onCheckedChange={() => toggleScope(scope.id)}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <label htmlFor={scope.id} className="text-sm font-medium cursor-pointer">
+                              {scope.label}
+                            </label>
+                            <p className="text-xs text-muted-foreground">{scope.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 py-2">
+            {/* Warning */}
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800">
+                <strong>Salva questa chiave adesso.</strong> Per sicurezza non viene mai memorizzata
+                in chiaro — non potrai più vederla dopo aver chiuso questa finestra.
+              </AlertDescription>
+            </Alert>
+
+            {/* Key display */}
+            <div className="space-y-1.5">
+              <Label>Chiave API</Label>
+              <div className="flex gap-2">
+                <code className="flex-1 bg-muted rounded-lg px-3 py-2.5 text-sm font-mono break-all">
+                  {generatedKey}
+                </code>
+                <Button variant="outline" size="icon" onClick={copyKey} className="shrink-0 h-10 w-10">
+                  {copied ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+              <p className="text-sm font-medium">Riepilogo</p>
+              <div className="space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Nome:</span>
+                  <span className="font-medium">{name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Scadenza:</span>
+                  <span className="font-medium">
+                    {expiry === "never" ? "Mai" : EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label}
+                  </span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-muted-foreground shrink-0 mr-2">Permessi:</span>
+                  <div className="flex flex-wrap gap-1 justify-end">
+                    {selectedScopes.map((s) => (
+                      <Badge key={s} variant="secondary" className="text-xs font-mono">
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          {step === 1 ? (
+            <>
+              <Button variant="outline" onClick={() => handleClose(false)}>Annulla</Button>
+              <Button onClick={handleCreate} disabled={createMutation.isPending}>
+                {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Crea chiave
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => handleClose(false)} className="w-full">
+              Ho salvato la chiave — Chiudi
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- PAGINA PRINCIPALE ----
+export default function SettingsApiKeys() {
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id as string;
+  const { toast } = useToast();
+  const revokeMutation = useRevokeApiKey(companyId);
+
+  const { data: apiKeys = [], isLoading } = useApiKeys(companyId);
+  const [formOpen, setFormOpen] = useState(false);
+
+  const activeKeys = apiKeys.filter((k) => k.is_active && !k.revoked_at);
+  const revokedKeys = apiKeys.filter((k) => !k.is_active || !!k.revoked_at);
+
+  const isExpired = (key: typeof apiKeys[0]) =>
+    key.expires_at ? new Date(key.expires_at) < new Date() : false;
+
+  const handleRevoke = async (keyId: string) => {
+    try {
+      await revokeMutation.mutateAsync(keyId);
+      toast({ title: "Chiave revocata", description: "La chiave API non è più valida." });
+    } catch {
+      toast({ title: "Errore", description: "Impossibile revocare la chiave.", variant: "destructive" });
+    }
+  };
+
+  const ScopeBadges = ({ scopes }: { scopes: string[] }) => (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      {scopes.slice(0, 4).map((s) => (
+        <Badge key={s} variant="outline" className="text-xs font-mono">{s}</Badge>
+      ))}
+      {scopes.length > 4 && (
+        <Badge variant="outline" className="text-xs">+{scopes.length - 4}</Badge>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">API Keys</h1>
+          <p className="text-muted-foreground mt-1">
+            Genera chiavi API per integrare sistemi esterni in modo sicuro.
+          </p>
+        </div>
+        <Button onClick={() => setFormOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nuova API Key
+        </Button>
+      </div>
+
+      {/* Info box */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="flex items-start gap-3 pt-4 pb-4">
+          <ShieldAlert className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+          <div className="text-sm text-blue-900">
+            <p className="font-medium">Le chiavi API danno accesso ai dati della tua azienda.</p>
+            <p className="mt-0.5">
+              Non condividere mai una chiave in pubblico o inserirla nel codice sorgente.
+              Usa variabili d'ambiente o un secret manager.
+              Limite: <strong>100 richieste/minuto</strong> per chiave.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <>
+          {/* Active Keys */}
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Chiavi attive ({activeKeys.length})
+            </h2>
+
+            {activeKeys.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center gap-3 py-10">
+                  <Key className="h-10 w-10 text-muted-foreground" />
+                  <div className="text-center">
+                    <p className="font-medium">Nessuna chiave attiva</p>
+                    <p className="text-sm text-muted-foreground">
+                      Crea la tua prima API key per iniziare ad integrare.
+                    </p>
+                  </div>
+                  <Button onClick={() => setFormOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crea API Key
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              activeKeys.map((key) => (
+                <Card key={key.id} className={isExpired(key) ? "border-amber-300 bg-amber-50/50" : ""}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{key.name}</span>
+                          {isExpired(key) && (
+                            <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
+                              Scaduta
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <code className="text-sm font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                            {key.key_prefix}••••••••••••••••••••••••••••••••••••••••••••••••
+                          </code>
+                        </div>
+                        <ScopeBadges scopes={key.scopes} />
+                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground flex-wrap">
+                          {key.last_used_at ? (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Usata {formatRelativeTime(key.last_used_at)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/60">Mai usata</span>
+                          )}
+                          {key.expires_at && (
+                            <span className={isExpired(key) ? "text-amber-700 font-medium" : ""}>
+                              Scade: {formatDate(key.expires_at)}
+                            </span>
+                          )}
+                          <span>Creata {formatRelativeTime(key.created_at)}</span>
+                        </div>
+                      </div>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive shrink-0">
+                            <Trash2 className="h-4 w-4 mr-1.5" />
+                            Revoca
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Revocare la chiave?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              La chiave <strong>{key.name}</strong> ({key.key_prefix}...) cesserà
+                              immediatamente di funzionare. Qualsiasi integrazione che la usa smetterà
+                              di rispondere. Questa azione è irreversibile.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Annulla</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => handleRevoke(key.id)}
+                            >
+                              Sì, revoca
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Revoked Keys (collapsed section) */}
+          {revokedKeys.length > 0 && (
+            <details className="group">
+              <summary className="text-sm font-semibold text-muted-foreground uppercase tracking-wide cursor-pointer list-none flex items-center gap-2">
+                <span>Chiavi revocate ({revokedKeys.length})</span>
+                <span className="text-xs font-normal">(clicca per espandere)</span>
+              </summary>
+              <div className="mt-3 space-y-3 opacity-60">
+                {revokedKeys.map((key) => (
+                  <Card key={key.id} className="border-dashed">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium line-through text-muted-foreground">{key.name}</span>
+                            <Badge variant="destructive" className="text-xs">Revocata</Badge>
+                          </div>
+                          <code className="text-sm font-mono text-muted-foreground mt-1 block">
+                            {key.key_prefix}...
+                          </code>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Revocata {formatRelativeTime(key.revoked_at!)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </details>
+          )}
+        </>
+      )}
+
+      <CreateApiKeyDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        companyId={companyId}
+      />
+    </div>
+  );
+}
+```
+
+================================================================
+STEP 6 — AGGIUNGERE ROUTE E VOCE DI MENU
+================================================================
+
+1. In src/App.tsx (o file di routing), aggiungi la rotta:
+   <Route path="/azienda/impostazioni/api-keys" element={<SettingsApiKeys />} />
+
+2. Nella sidebar impostazioni, aggiungi dopo "Webhook":
+   { path: "/azienda/impostazioni/api-keys", label: "API Keys", icon: Key }
+   (importa Key da "lucide-react")
+
+3. IMPORTANTE: La pagina è accessibile solo a company_admin e super_admin.
+   Verifica che la rotta sia protetta con il controllo di ruolo già presente
+   nelle altre rotte sensibili.
+
+================================================================
+NOTE FINALI
+================================================================
+
+- La chiave viene generata nel browser (crypto.getRandomValues) — mai
+  nel backend. Solo l'hash SHA-256 viene salvato nel DB.
+  Questo è il pattern corretto per API keys (simile a come lo fa GitHub).
+
+- Per autenticare le chiamate API esterne, crea un'Edge Function apposita
+  che accetta Authorization: Bearer eic_live_xxx, calcola SHA-256 della
+  chiave ricevuta, la cerca in api_keys, verifica is_active e expires_at,
+  controlla i scopes necessari, e poi procede con la richiesta.
+  Dopo l'autenticazione chiama update_api_key_last_used(hash).
+
+- Il Rate Limiting (100 req/min) va implementato nell'Edge Function di
+  autenticazione usando una tabella api_key_rate_limits o con Upstash Redis.
+
+- La documentazione API (link "Documentazione API") può puntare a una
+  pagina Swagger/OpenAPI generata automaticamente da Supabase oppure
+  a una pagina statica futura.

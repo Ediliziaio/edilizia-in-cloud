@@ -1,0 +1,1060 @@
+╔══════════════════════════════════════════════════════════════════╗
+║   CLEANUP V2 — BUG FIX + PERFORMANCE + CODICE MORTO            ║
+║   Analisi completa su 555 file · 5 prompt sequenziali           ║
+╚══════════════════════════════════════════════════════════════════╝
+
+ISTRUZIONI GENERALI
+───────────────────
+Questi prompt non aggiungono nessuna nuova funzionalità.
+Correggono bug reali, rimuovono codice morto e ottimizzano le
+performance. Esegui UN PROMPT ALLA VOLTA, verifica che compili,
+poi passa al successivo.
+
+PROBLEMI TROVATI PER CATEGORIA:
+  🔴 CRITICO   — 8 (bug che causano crash o vulnerabilità XSS)
+  🟠 ALTO      — 14 (performance severa: refetch costanti, O(n³))
+  🟡 MEDIO     — 12 (error handling mancante, race condition)
+  🟢 BASSO     — 11 (codice morto, duplicazione, inconsistenze)
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 1 di 5 — BUG CRITICI (crash + sicurezza)
+════════════════════════════════════════════════════════════════════
+
+Correggi questi bug critici. NON aggiungere feature, solo fix.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 1 — XSS in CampaignEditor (SICUREZZA)
+File: src/pages/azienda/marketing/CampaignEditor.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la funzione che inserisce link (dove si usa `<a href="${linkUrl}">`)
+e quella che inserisce immagini (dove si usa `<img src="${imageUrl}">`).
+
+PROBLEMA: linkUrl e imageUrl vengono inseriti direttamente nell'HTML
+senza sanitizzazione → vulnerabilità XSS.
+
+SOLUZIONE: aggiungi sanitizzazione prima dell'inserimento:
+
+```typescript
+// Aggiungi questa funzione in cima al componente, PRIMA del return:
+const sanitizeUrl = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    // Permetti solo protocolli sicuri
+    if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) {
+      return "#";
+    }
+    return parsed.toString();
+  } catch {
+    return "#";
+  }
+};
+```
+
+Poi usa `sanitizeUrl(linkUrl)` e `sanitizeUrl(imageUrl)` nelle
+rispettive funzioni di inserimento.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 2 — Memory leak: timer non ripulito in CampaignEditor
+File: src/pages/azienda/marketing/CampaignEditor.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la variabile `autoSaveTimer` (o simile, che usa `setTimeout`
+per l'auto-salvataggio).
+
+PROBLEMA: il timer viene creato ma non viene pulito quando il
+componente si smonta → memory leak e possibile chiamata su
+componente smontato.
+
+SOLUZIONE: usa useRef per il timer e aggiungi cleanup:
+
+```typescript
+const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+// Sostituisci ogni setTimeout con:
+const triggerAutoSave = useCallback(() => {
+  if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+  autoSaveTimerRef.current = setTimeout(() => {
+    // logica di salvataggio...
+  }, 3000);
+}, [/* dipendenze necessarie */]);
+
+// Aggiungi cleanup nell'useEffect o in un useEffect dedicato:
+useEffect(() => {
+  return () => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+  };
+}, []);
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 3 — Bug array vuoto in useCompanyCostsData
+File: src/hooks/useCompanyCostsData.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la riga dove si usa `.in("order_id", orderIds)` (o simile,
+es. `.in("id", someIds)`).
+
+PROBLEMA: se `orderIds` (o l'array corrispondente) è vuoto `[]`,
+Supabase restituisce un errore invece di un array vuoto.
+
+SOLUZIONE: aggiungi guard prima della query:
+
+```typescript
+// Aggiungi l'opzione `enabled` alla query che usa .in():
+enabled: !!companyId && orderIds.length > 0,
+```
+
+Se la query è dentro una `queryFn` con Promise.all, gestiscilo così:
+
+```typescript
+// Se orderIds è vuoto, restituisci array vuoto senza fare query:
+if (!orderIds || orderIds.length === 0) return [];
+const { data, error } = await supabase
+  .from("order_items")
+  .select("...")
+  .in("order_id", orderIds);
+if (error) throw error;
+return data ?? [];
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 4 — Confronto date come stringe in useCruscottoData
+File: src/hooks/useCruscottoData.ts (e simili)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cerca nel codebase tutte le occorrenze di confronto date come
+stringhe del tipo:
+  `item.expected_date < todayStr`
+  `inst.expected_date < todayStr`
+  `someDate > anotherDateString`
+
+PROBLEMA: i confronti stringa funzionano per date ISO (YYYY-MM-DD)
+MA sono fragili se il formato cambia o se la colonna include orari.
+
+SOLUZIONE: nei file dove trovi questi confronti, aggiungi questa
+utility in cima (o in src/lib/dateUtils.ts se già esiste):
+
+```typescript
+// Confronto robusto data-stringa ISO
+export const isDateBefore = (dateStr: string, referenceStr: string): boolean => {
+  return dateStr.slice(0, 10) < referenceStr.slice(0, 10);
+};
+export const isDateAfter = (dateStr: string, referenceStr: string): boolean => {
+  return dateStr.slice(0, 10) > referenceStr.slice(0, 10);
+};
+export const todayISO = (): string => new Date().toISOString().slice(0, 10);
+```
+
+Sostituisci i confronti esistenti con queste funzioni.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 5 — scostamento invertito in useCompanyCostsData
+File: src/hooks/useCompanyCostsData.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la riga con `scostamento: totalPaid - totalPrevisti`
+(o formula simile con "scostamento" o "variance").
+
+PROBLEMA: la formula è invertita. "Scostamento" = quanto si discosta
+il preventivato dal reale → deve essere `previsti - paid`, non
+`paid - previsti`. Un'azienda che spende MENO del preventivato
+deve avere scostamento POSITIVO.
+
+SOLUZIONE:
+```typescript
+// PRIMA (sbagliato):
+scostamento: totalPaid - totalPrevisti,
+
+// DOPO (corretto):
+scostamento: totalPrevisti - totalPaid,  // positivo = risparmio
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 6 — .single() su query multi-risultato in MarketingOpportunities
+File: src/pages/azienda/marketing/MarketingOpportunities.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la funzione di import opportunità (es. `onImportOpportunities`).
+Dentro ci sarà una query che usa `.single()` per cercare un contatto
+per email o telefono.
+
+PROBLEMA: se esistono 2+ contatti con la stessa email/telefono,
+`.single()` lancia un'eccezione invece di prendere il primo.
+
+SOLUZIONE: sostituisci `.single()` con `.limit(1).maybeSingle()`:
+
+```typescript
+// PRIMA:
+const { data: existingContact } = await supabase
+  .from("contacts")
+  .select("id")
+  .eq("email", email)
+  .single();
+
+// DOPO:
+const { data: existingContact } = await supabase
+  .from("contacts")
+  .select("id")
+  .eq("email", email)
+  .limit(1)
+  .maybeSingle();  // restituisce null se non trovato, non lancia errore
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 7 — Import in loop sequenziale → batch in MarketingOpportunities
+File: src/pages/azienda/marketing/MarketingOpportunities.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Nella funzione di import opportunità, trova il ciclo `for` o
+`forEach` che inserisce ogni opportunità una alla volta con
+`await supabase.from("opportunities").insert({...})` dentro il loop.
+
+PROBLEMA: ogni inserimento è un round-trip HTTP separato.
+Se l'utente importa 200 righe → 200 richieste sequenziali → timeout.
+
+SOLUZIONE: accumula gli insert e manda un solo batch:
+
+```typescript
+// Raccogli tutti i record validi PRIMA:
+const recordsToInsert: OpportunityInsert[] = [];
+
+for (const row of csvRows) {
+  // validazione e ricerca contatto (questa rimane nel loop)...
+  const contactId = existingContact?.id ?? newContact?.id;
+  if (!contactId) continue;
+
+  recordsToInsert.push({
+    company_id: companyId,
+    contact_id: contactId,
+    pipeline_id: pipelineId,
+    title: row.title ?? "",
+    value: parseFloat(row.value ?? "0") || 0,
+    // ... altri campi
+  });
+}
+
+// UN SOLO insert alla fine:
+if (recordsToInsert.length > 0) {
+  const { error } = await supabase
+    .from("opportunities")
+    .insert(recordsToInsert);
+  if (error) throw error;
+}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 8 — document.execCommand() deprecato in CampaignEditor
+File: src/pages/azienda/marketing/CampaignEditor.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova tutte le chiamate a `document.execCommand(...)`.
+
+PROBLEMA: `document.execCommand` è deprecato e rimosso nei browser
+moderni. Causa errori silenziosi in Chrome 120+.
+
+SOLUZIONE: sostituisci con l'API moderna:
+
+```typescript
+// PRIMA (deprecato):
+document.execCommand("bold");
+document.execCommand("insertText", false, text);
+
+// DOPO (moderno):
+// Per bold/italic/underline:
+const selection = window.getSelection();
+if (selection && !selection.isCollapsed) {
+  // Controlla se già applicato
+  const range = selection.getRangeAt(0);
+  const span = document.createElement("span");
+  span.style.fontWeight = "bold"; // o fontStyle: "italic" ecc.
+  try {
+    range.surroundContents(span);
+  } catch {
+    // fallback se selezione attraversa elementi
+  }
+}
+
+// Per insertText usa direttamente:
+document.getSelection()?.getRangeAt(0)?.insertNode(
+  document.createTextNode(text)
+);
+```
+
+Se l'editor è complesso, segna queste chiamate come `@deprecated`
+nei commenti e aggiungi un TODO: "Migrare a libreria editor moderna".
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 2 di 5 — PERFORMANCE: staleTime + gcTime + debounce
+════════════════════════════════════════════════════════════════════
+
+Aggiungi staleTime e gcTime a TUTTE le query React Query che ne
+mancano, e debounce agli input di ricerca. NON cambiare logica
+applicativa, solo config di caching e debounce.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 9 — staleTime mancante in useMarketingDashboard
+File: src/hooks/useMarketingDashboard.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la query RPC nel hook (quella con `queryFn` che chiama
+`supabase.rpc("get_marketing_dashboard_stats")`).
+
+Se già ha staleTime, aggiornalo. Se non ce l'ha, aggiungilo:
+
+```typescript
+staleTime: 3 * 60 * 1000,   // 3 minuti
+gcTime: 10 * 60 * 1000,     // 10 minuti
+```
+
+Anche il queryKey attualmente include `dateRange.from.toISOString()`
+con millisecondi che causano cache miss inutili. Cambia in:
+
+```typescript
+// PRIMA:
+queryKey: ["marketing-dashboard", ..., dateRange.from.toISOString(), dateRange.to.toISOString()]
+
+// DOPO (usa solo la data, non l'orario):
+queryKey: ["marketing-dashboard", ..., dateRange.from.toISOString().slice(0,10), dateRange.to.toISOString().slice(0,10)]
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 10 — staleTime mancante in useOpportunitiesData
+File: src/hooks/useOpportunitiesData.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova tutte le chiamate useQuery nel file. Aggiungi a ciascuna:
+
+```typescript
+// Per la query principale opportunità:
+staleTime: 2 * 60 * 1000,
+gcTime: 10 * 60 * 1000,
+
+// Per usePipelines (cambiano raramente):
+staleTime: 10 * 60 * 1000,
+gcTime: 30 * 60 * 1000,
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 11 — staleTime mancante in MarketingTasks
+File: src/pages/azienda/marketing/MarketingTasks.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la query principale dei task marketing. Aggiungi:
+
+```typescript
+staleTime: 60 * 1000,      // 1 minuto — task cambiano spesso
+gcTime: 5 * 60 * 1000,
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 12 — staleTime mancante in EmailCampaignsTab e EmailTemplatesTab
+File: src/components/email-marketing/EmailCampaignsTab.tsx
+File: src/components/email-marketing/EmailTemplatesTab.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In EntramBI i file, trova tutte le useQuery e aggiungi:
+
+```typescript
+staleTime: 2 * 60 * 1000,
+gcTime: 10 * 60 * 1000,
+```
+
+Nella query che fa `.from("email_campaigns").select(...)`:
+aggiungi anche `.select("id, name, subject, status, scheduled_at, sent_at, stats_open_rate, stats_click_rate, folder_id, is_template")`
+invece di `.select("*")` — riduce il payload.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 13 — staleTime mancante in EmailStatsTab
+File: src/components/email-marketing/EmailStatsTab.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Tutte le chiamate RPC per le statistiche email non hanno staleTime.
+Le statistiche cambiano solo dopo invio campagne, quindi:
+
+```typescript
+staleTime: 5 * 60 * 1000,   // 5 minuti
+gcTime: 15 * 60 * 1000,
+```
+
+Aggiungi a TUTTE le useQuery nel file.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 14 — staleTime mancante in MarketingCalendar
+File: src/pages/azienda/marketing/MarketingCalendar.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```typescript
+// Query appuntamenti:
+staleTime: 2 * 60 * 1000,
+gcTime: 10 * 60 * 1000,
+
+// Query contatti (cambiano raramente in calendario):
+staleTime: 5 * 60 * 1000,
+gcTime: 15 * 60 * 1000,
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 15 — staleTime mancante in MarketingContactDetail
+File: src/pages/azienda/marketing/MarketingContactDetail.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Il file è molto grande (~62KB) e ha molte useQuery senza staleTime
+(note, documenti, timeline, comunicazioni, opportunità del contatto).
+
+Aggiungi a TUTTE le useQuery nel file:
+```typescript
+staleTime: 2 * 60 * 1000,
+gcTime: 8 * 60 * 1000,
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 16 — Debounce ricerca in MarketingContacts + MarketingOpportunities
+File: src/pages/azienda/marketing/MarketingContacts.tsx
+File: src/pages/azienda/marketing/MarketingOpportunities.tsx
+File: src/components/email-marketing/EmailCampaignsTab.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+In tutti questi file, l'input di ricerca aggiorna stato a ogni
+tasto → ogni aggiornamento può triggerare un refetch.
+
+SOLUZIONE: aggiungi stato intermedio per il debounce.
+
+Prima crea il custom hook (o aggiungi a src/hooks/useDebounce.ts
+se già esiste):
+
+```typescript
+// src/hooks/useDebounce.ts
+import { useState, useEffect } from "react";
+
+export function useDebounce<T>(value: T, delay: number = 300): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
+```
+
+Poi in ogni file che ha ricerca:
+
+```typescript
+// In MarketingContacts.tsx, MarketingOpportunities.tsx, EmailCampaignsTab.tsx:
+const [searchInput, setSearchInput] = useState("");
+const search = useDebounce(searchInput, 350);  // usa "search" nella query
+
+// Nel <Input>:
+<Input
+  value={searchInput}
+  onChange={(e) => setSearchInput(e.target.value)}
+  placeholder="Cerca..."
+/>
+```
+
+Nelle queryKey, usa `search` (debounced) invece di `searchInput`.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 17 — Calendar: localStorage senza debounce
+File: src/pages/azienda/Calendar.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova dove le preferenze dei layer vengono salvate in localStorage
+(es. ogni volta che cambia `visibleLayers` o simile).
+
+Se è dentro un `useEffect` senza debounce, avvolgi con debounce:
+
+```typescript
+useEffect(() => {
+  const timer = setTimeout(() => {
+    localStorage.setItem("calendar-layers", JSON.stringify(visibleLayers));
+  }, 500);
+  return () => clearTimeout(timer);
+}, [visibleLayers]);
+```
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 3 di 5 — PERFORMANCE: O(n²)→O(1), enabled guards, memoization
+════════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 18 — O(n³) in OrdersList: salespeopleMap + laborMap
+File: src/pages/azienda/OrdersList.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEMA: dentro la funzione di filtro/sort degli ordini ci sono
+chiamate `.find()` su array dentro un `.filter()` — O(n²) o O(n³).
+
+Esempio del problema da cercare:
+```typescript
+// Pattern DA TROVARE E CORREGGERE:
+orders.filter(order => {
+  const sp = salespeopleData?.find(s => s.id === order.salesperson_id);
+  // ... confronto
+});
+```
+
+SOLUZIONE: precalcola le Map PRIMA del filter:
+
+```typescript
+// Crea queste Map FUORI dal filtro, in useMemo:
+const salespeopleMap = useMemo(() =>
+  new Map((salespeopleData ?? []).map(s => [s.id, s])),
+  [salespeopleData]
+);
+
+const laborProfilesMap = useMemo(() =>
+  new Map((laborData ?? []).map(p => [p.id, p])),
+  [laborData]
+);
+
+const supplierMap = useMemo(() =>
+  new Map((suppliersData ?? []).map(s => [s.id, s])),
+  [suppliersData]
+);
+
+// Poi nei filtri usa O(1):
+orders.filter(order => {
+  const sp = salespeopleMap.get(order.salesperson_id);
+  // ...
+});
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 19 — O(n²) in useCompanyCostsData: monthlyDistribution
+File: src/hooks/useCompanyCostsData.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEMA: trova il codice che calcola la distribuzione mensile.
+Probabilmente itera tutti i costi per ogni mese (12 iterazioni
+sull'intero array = O(12n)).
+
+SOLUZIONE: sostituisci con un singolo passaggio che usa un oggetto
+come accumulatore per mese:
+
+```typescript
+const monthlyDistribution = useMemo(() => {
+  // SINGOLO PASSAGGIO invece di 12 filter separati:
+  const buckets: Record<string, number> = {};
+  for (const cost of allCosts) {
+    const month = (cost.due_date ?? cost.created_at ?? "").slice(0, 7); // "YYYY-MM"
+    if (!month) continue;
+    buckets[month] = (buckets[month] ?? 0) + (cost.amount ?? 0);
+  }
+  // Converti in array ordinato:
+  return Object.entries(buckets)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, total]) => ({ month, total }));
+}, [allCosts]);
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 20 — Multi-filter stats task in singolo passaggio
+File: src/pages/azienda/marketing/MarketingTasks.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLEMA: le statistiche dei task vengono calcolate con 4 `.filter()`
+separati sullo stesso array.
+
+Cerca il `useMemo` che calcola stats con multiple filter chain.
+Sostituisci con singolo reduce:
+
+```typescript
+const stats = useMemo(() => {
+  const today = new Date().toISOString().slice(0, 10);
+  const in7days = new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0, 10);
+
+  return (tasks ?? []).reduce(
+    (acc, task) => {
+      if (task.status === "completed") { acc.completed++; return acc; }
+      acc.active++;
+      const due = task.due_date?.slice(0, 10);
+      if (due) {
+        if (due < today) acc.overdue++;
+        else if (due <= in7days) acc.expiringSoon++;
+      }
+      return acc;
+    },
+    { active: 0, expiringSoon: 0, overdue: 0, completed: 0 }
+  );
+}, [tasks]);
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 21 — enabled guard mancante in OrderDetail
+File: src/pages/azienda/OrderDetail.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova le query per `attachments` o simili che dipendono da
+`orderItems` già caricati (query che si triggerano dopo la prima).
+
+Aggiungi `enabled` appropriati:
+
+```typescript
+// Esempio per la query attachments dipendente da orderItems:
+enabled: !!orderId && (orderItems?.length ?? 0) > 0,
+
+// Per tutte le query che dipendono dall'ID ordine:
+enabled: !!orderId && !!companyId,
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 22 — enabled guard globale sweep
+File: tutti i hook in src/hooks/
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cerca in tutti i file di hooks tutte le `useQuery` che:
+- Non hanno `enabled`
+- Fanno query su tabelle company-specific
+- La queryFn usa `companyId` o `effectiveCompanyId`
+
+Per ciascuna, aggiungi il guard minimo:
+```typescript
+enabled: !!companyId,
+```
+
+Se la query dipende anche da un ID specifico (es. orderId, contactId):
+```typescript
+enabled: !!companyId && !!orderId,
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 23 — Memoizzazione displayItems in OrderDetail
+File: src/pages/azienda/OrderDetail.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la trasformazione `displayItems` (o simile) che mappa
+`orderItems` in items da visualizzare.
+
+Se non è già in un `useMemo`, avvolgi:
+
+```typescript
+const displayItems = useMemo(() => {
+  return (orderItems ?? []).map(item => ({
+    ...item,
+    // trasformazioni esistenti...
+  }));
+}, [orderItems]);
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 24 — Memoizzazione filteringOpportunities
+File: src/pages/azienda/marketing/MarketingOpportunities.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Il filtro + sort delle opportunità avviene nel render. Avvolgi
+l'intera catena filter+sort in un unico `useMemo`:
+
+```typescript
+const filteredAndSortedOpportunities = useMemo(() => {
+  let result = opportunities ?? [];
+
+  // applica filtri esistenti...
+  if (searchQuery) result = result.filter(o =>
+    o.title?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  // altri filtri...
+
+  // sort
+  return [...result].sort((a, b) => {
+    // logica sort esistente
+  });
+}, [opportunities, searchQuery, filters, sortField, sortDir]);
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 25 — gcTime mancante in tutti gli hook esistenti
+File: tutti i file in src/hooks/
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cerca in src/hooks/ tutte le query che hanno `staleTime` ma NON
+`gcTime`. React Query di default tiene la cache per 5 minuti poi la
+svuota — con gcTime la teniamo più a lungo per navigazione back/forward.
+
+Per ogni query che ha staleTime ma non gcTime, aggiungi:
+```typescript
+gcTime: staleTime * 3,  // regola empirica: gcTime = 3x staleTime
+```
+
+Esempio:
+- staleTime: 2 * 60 * 1000 → gcTime: 6 * 60 * 1000
+- staleTime: 5 * 60 * 1000 → gcTime: 15 * 60 * 1000
+- staleTime: 10 * 60 * 1000 → gcTime: 30 * 60 * 1000
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 4 di 5 — CODICE MORTO + DEDUPLICAZIONE
+════════════════════════════════════════════════════════════════════
+
+Rimuovi codice morto, import inutilizzati e deduplica logica ripetuta.
+Questo non cambia nessun comportamento visibile.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 26 — Import toast inconsistente
+File: src/pages/azienda/marketing/MarketingTasks.tsx
+(e altri file che usano l'hook vecchio)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cerca in tutto il codebase i file che importano:
+```typescript
+import { useToast } from "@/hooks/use-toast";
+```
+
+L'app usa `sonner` come standard. Sostituisci in ogni file trovato:
+
+```typescript
+// RIMUOVI:
+import { useToast } from "@/hooks/use-toast";
+// e le relative const { toast } = useToast();
+
+// AGGIUNGI:
+import { toast } from "sonner";
+
+// Aggiorna le chiamate (le chiamate toast cambiano leggermente):
+// PRIMA: toast({ title: "...", description: "..." })
+// DOPO:  toast.success("...") oppure toast.error("...")
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 27 — Costante FONT_FAMILIES mai usata
+File: src/components/email-builder/BuilderPropertiesPanel.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la costante `FONT_FAMILIES` (o simile) dichiarata in cima al
+file ma mai referenziata nel JSX o nelle funzioni.
+
+Se non è usata in nessun punto del componente, rimuovila.
+Se è usata anche in CampaignEditor.tsx, spostala in:
+```typescript
+// src/lib/editorConstants.ts
+export const FONT_FAMILIES = [...];
+```
+e importala dove serve invece di duplicarla.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 28 — hasActiveFilters mai usato in useWarehouseData
+File: src/hooks/useWarehouseData.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la variabile `hasActiveFilters` (computed come:
+`const hasActiveFilters = searchQuery || statusFilter || ...`).
+
+Se non è inclusa nel return del hook e non è usata altrove nel file,
+rimuovila completamente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 29 — Bottone placeholder non funzionale in MarketingAutomations
+File: src/pages/azienda/marketing/MarketingAutomations.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova il pulsante con testo "Personalizza Elenco" (o simile) che
+ha `variant="ghost"` ma NESSUN `onClick` handler — è un placeholder
+non implementato.
+
+Opzione A: rimuovilo se non fa nulla.
+Opzione B: disabilitalo temporaneamente:
+```tsx
+<Button variant="ghost" disabled title="Funzione in arrivo">
+  Personalizza Elenco
+</Button>
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 30 — urlFilter calcolato 2 volte in MarketingAutomations
+File: src/pages/azienda/marketing/MarketingAutomations.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova nel file dove `searchParams.get("filter")` viene letto
+più di una volta (in punti diversi del componente).
+
+Calcola il valore UNA SOLA VOLTA in cima:
+```typescript
+const urlFilter = searchParams.get("filter") ?? "all";
+```
+E usa `urlFilter` ovunque nel componente invece di richiamare
+`searchParams.get("filter")` più volte.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 31 — Logica paginazione duplicata → hook condiviso
+File: src/components/email-marketing/EmailCampaignsTab.tsx
+File: src/components/email-marketing/EmailTemplatesTab.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Entrambi i file hanno la stessa logica di paginazione client-side
+(page, pageSize, totalPages, slice).
+
+Crea un hook condiviso:
+
+```typescript
+// src/hooks/useClientPagination.ts
+import { useState, useMemo } from "react";
+
+export function useClientPagination<T>(items: T[], pageSize: number = 20) {
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.ceil(items.length / pageSize);
+  const paginatedItems = useMemo(
+    () => items.slice((page - 1) * pageSize, page * pageSize),
+    [items, page, pageSize]
+  );
+
+  // Reset a pagina 1 quando items cambiano
+  const prevLengthRef = useRef(items.length);
+  if (prevLengthRef.current !== items.length) {
+    prevLengthRef.current = items.length;
+    if (page > 1) setPage(1);
+  }
+
+  return { page, setPage, totalPages, paginatedItems, total: items.length };
+}
+```
+
+Poi in EmailCampaignsTab.tsx e EmailTemplatesTab.tsx, sostituisci
+la logica paginazione locale con:
+```typescript
+const { page, setPage, totalPages, paginatedItems } = useClientPagination(filteredCampaigns, 20);
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 32 — Rimuovi import Lucide inutilizzati (sweep globale)
+File: tutti i file .tsx del progetto
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cerca in tutti i file .tsx gli import da "lucide-react".
+Per ogni file, verifica quali icone vengono effettivamente usate
+nel JSX e rimuovi quelle non usate.
+
+Pattern comune da trovare e correggere:
+```typescript
+// PRIMA (icone non usate):
+import { Home, Plus, Edit, Trash, Eye, Download, Upload, Filter } from "lucide-react";
+// se nel JSX compaiono solo Home, Plus, Edit → rimuovi Trash, Eye, Download, Upload, Filter
+
+// DOPO:
+import { Home, Plus, Edit } from "lucide-react";
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 33 — Alias inutile in useCashFlowData
+File: src/hooks/useCashFlowData.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la riga tipo:
+```typescript
+const orders = installmentsData; // backward compatibility
+```
+
+Questo alias confonde. Sostituisci ogni uso di `orders` (dove si
+riferisce a questo alias) con `installmentsData` direttamente,
+poi rimuovi la riga dell'alias.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 34 — campagne_e_form.txt: rimuovi vecchio file route
+File: src/App.tsx o router file
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cerca in App.tsx (o nel file di routing) eventuali route che puntano
+a pagine/componenti non più esistenti o rinominate (route "orfane").
+
+Esempi da cercare:
+- Route che importano un componente il cui file non esiste
+- Route commentate ma mai rimosse
+- Componenti importati ma non montati in nessuna Route
+
+Rimuovi tutte le route orfane trovate.
+
+
+════════════════════════════════════════════════════════════════════
+PROMPT 5 di 5 — ROBUSTEZZA: error handling + null checks
+════════════════════════════════════════════════════════════════════
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 35 — Null check su campaign.name in EmailCampaignsTab
+File: src/components/email-marketing/EmailCampaignsTab.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova il filtro ricerca campagne:
+```typescript
+// PRIMA (crash se c.name è null):
+.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+
+// DOPO (safe):
+.filter(c => c.name?.toLowerCase().includes(search.toLowerCase()) ?? false)
+```
+
+Stessa correzione in EmailTemplatesTab.tsx.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 36 — Gestione errore MarketingDashboard quando query fallisce
+File: src/pages/azienda/marketing/MarketingDashboard.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Dopo il blocco `if (isError)` che mostra il messaggio d'errore,
+i componenti sotto vengono comunque renderizzati con `data={undefined}`.
+
+Aggiungi un return anticipato dopo l'errore:
+
+```typescript
+if (isError) {
+  return (
+    <div className="p-6 text-center text-destructive">
+      <p>Errore nel caricamento della dashboard. Riprova.</p>
+    </div>
+  );
+}
+
+// Solo se non in errore, prosegui con il rendering normale
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 37 — Error handling nel salvataggio manuale CampaignEditor
+File: src/pages/azienda/marketing/CampaignEditor.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la funzione "salva manuale" (onClick del pulsante Salva).
+Se non ha try/catch:
+
+```typescript
+const handleSave = async () => {
+  try {
+    setIsSaving(true);
+    // logica di salvataggio...
+    toast.success("Campagna salvata");
+  } catch (err) {
+    console.error("Errore salvataggio campagna:", err);
+    toast.error("Errore nel salvataggio. Riprova.");
+  } finally {
+    setIsSaving(false);
+  }
+};
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 38 — Error handling travel legs in MarketingCalendar
+File: src/pages/azienda/marketing/MarketingCalendar.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la funzione `computeTravelLegsForDate` (o simile) che chiama
+il proxy maps. Aggiungi try/catch se mancante:
+
+```typescript
+const computeTravelLegsForDate = async (date: string) => {
+  try {
+    const { data, error } = await supabase.functions.invoke("maps-proxy", {
+      body: { /* ... */ }
+    });
+    if (error) {
+      console.warn("Travel legs API non disponibile:", error.message);
+      return [];
+    }
+    return data ?? [];
+  } catch (err) {
+    console.warn("Errore calcolo percorsi:", err);
+    return [];  // fallback silenzioso — il calendario funziona senza percorsi
+  }
+};
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 39 — Validazione data in EmailStatsTab
+File: src/components/email-marketing/EmailStatsTab.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova dove viene creata la data con `new Date(dateFrom)` o simile.
+Aggiungi validazione:
+
+```typescript
+const parseStatDate = (dateStr: string | undefined): string => {
+  if (!dateStr) return new Date().toISOString().slice(0, 10);
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+  return d.toISOString().slice(0, 10);
+};
+```
+
+Usa questa funzione al posto di `new Date(dateFrom)` diretto.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 40 — Race condition toggle task in MarketingTasks
+File: src/pages/azienda/marketing/MarketingTasks.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova `handleToggleComplete` (o simile). Il pulsante non è
+disabilitato durante l'aggiornamento → doppio click = conflitto.
+
+SOLUZIONE: aggiungi stato di "task in aggiornamento":
+
+```typescript
+const [updatingTaskIds, setUpdatingTaskIds] = useState<Set<string>>(new Set());
+
+const handleToggleComplete = async (taskId: string, currentStatus: string) => {
+  if (updatingTaskIds.has(taskId)) return; // previeni doppio click
+
+  setUpdatingTaskIds(prev => new Set(prev).add(taskId));
+  try {
+    await toggleTaskMutation.mutateAsync({ taskId, currentStatus });
+  } finally {
+    setUpdatingTaskIds(prev => {
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }
+};
+
+// Nel render del pulsante:
+<Checkbox
+  disabled={updatingTaskIds.has(task.id)}
+  onCheckedChange={() => handleToggleComplete(task.id, task.status)}
+/>
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 41 — Validazione companyId prima query in CustomersList
+File: src/pages/azienda/CustomersList.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Trova la chiamata RPC `get_customers_paginated` e aggiungi
+validazione del parametro company_id prima di inviare:
+
+```typescript
+// Aggiungi enabled guard:
+enabled: !!companyId && companyId.length > 0,
+
+// Nella queryFn, aggiungi guard:
+if (!companyId) throw new Error("companyId mancante");
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIX 42 — Error boundary globale
+File: src/components/error/ErrorBoundary.tsx (già esiste)
+File: src/App.tsx
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Verifica che `ErrorBoundary` sia applicato intorno alle sezioni
+principali dell'app in App.tsx.
+
+Se non lo è, avvolgi le route principali:
+
+```tsx
+// In App.tsx, avvolgi i RouterProvider o le Route:
+<ErrorBoundary
+  fallback={
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h2 className="text-lg font-semibold">Qualcosa è andato storto</h2>
+        <p className="text-muted-foreground mt-1">Ricarica la pagina per riprovare.</p>
+        <Button className="mt-4" onClick={() => window.location.reload()}>
+          Ricarica
+        </Button>
+      </div>
+    </div>
+  }
+>
+  {/* Routes esistenti */}
+</ErrorBoundary>
+```
+

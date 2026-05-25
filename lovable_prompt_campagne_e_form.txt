@@ -1,0 +1,1608 @@
+╔══════════════════════════════════════════════════════════════════╗
+║     MODULO CAMPAGNE + FORM ACQUISIZIONE LEAD                    ║
+║         2 moduli — prompt sequenziali per Lovable.dev           ║
+╚══════════════════════════════════════════════════════════════════╝
+
+MODULO A: Gestione Campagne con UTM Tracking e ROI
+MODULO B: Form Builder per acquisizione lead embeddabili
+
+Entrambi si integrano con i moduli esistenti:
+  → Contatti, Opportunità, Automazioni Marketing, Reportistica
+  → Le campagne diventano l'anello mancante tra "cosa spendo" e "cosa genero"
+  → I form alimentano i Contatti e innescano le automazioni esistenti
+
+Aggiungi nella sidebar di Marketing e Vendite:
+  - Sotto-categoria "CRM" → nessuna modifica
+  - Sotto-categoria "Comunicazione" → aggiungi "Campagne" e "Form Lead"
+
+
+══════════════════════════════════════════════════════════════════
+ ██████╗ █████╗ ███╗   ███╗██████╗  █████╗  ██████╗ ███╗   ██╗███████╗
+██╔════╝██╔══██╗████╗ ████║██╔══██╗██╔══██╗██╔════╝ ████╗  ██║██╔════╝
+██║     ███████║██╔████╔██║██████╔╝███████║██║  ███╗██╔██╗ ██║█████╗
+██║     ██╔══██║██║╚██╔╝██║██╔═══╝ ██╔══██║██║   ██║██║╚██╗██║██╔══╝
+╚██████╗██║  ██║██║ ╚═╝ ██║██║     ██║  ██║╚██████╔╝██║ ╚████║███████╗
+ ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+══════════════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════════════════
+PROMPT A1 di 4 — DATABASE SCHEMA: MODULO CAMPAGNE
+════════════════════════════════════════════════════════════════════
+
+Crea questa migrazione Supabase per il modulo Campagne.
+
+```sql
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 1: Campagne
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Identità campagna
+  name TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  -- 'draft' | 'active' | 'paused' | 'completed' | 'archived'
+
+  -- Tipo e canale
+  type TEXT NOT NULL DEFAULT 'mixed',
+  -- 'email' | 'social' | 'google_ads' | 'seo' | 'event' | 'referral' | 'mixed'
+  channel TEXT,
+  -- es. 'facebook', 'instagram', 'google', 'linkedin', 'newsletter', ecc.
+
+  -- Date
+  start_date DATE,
+  end_date DATE,
+
+  -- Budget
+  budget_total    NUMERIC(12,2) DEFAULT 0,   -- budget pianificato
+  budget_spent    NUMERIC(12,2) DEFAULT 0,   -- speso effettivo (aggiornato manualmente o via costi)
+  budget_currency TEXT DEFAULT 'EUR',
+
+  -- UTM parameters (generati automaticamente, modificabili)
+  utm_source   TEXT,    -- es. 'facebook', 'newsletter', 'google'
+  utm_medium   TEXT,    -- es. 'cpc', 'email', 'social'
+  utm_campaign TEXT,    -- es. 'promo_estate_2025'
+  utm_content  TEXT,    -- es. 'banner_hero', 'link_footer'
+  utm_term     TEXT,    -- parole chiave (Google Ads)
+
+  -- URL di destinazione
+  target_url TEXT,      -- landing page della campagna
+  short_url  TEXT,      -- URL corto generato (con UTM appesi)
+
+  -- Obiettivi
+  goal_type TEXT,
+  -- 'leads' | 'sales' | 'brand_awareness' | 'traffic' | 'conversions'
+  goal_value NUMERIC(12,2),    -- es. "genera 50 lead" o "€10.000 di vendite"
+
+  -- Metriche aggregate (aggiornate da trigger o job)
+  total_clicks       INTEGER DEFAULT 0,
+  total_impressions  INTEGER DEFAULT 0,
+  total_leads        INTEGER DEFAULT 0,    -- contatti generati
+  total_opportunities INTEGER DEFAULT 0,  -- opportunità attribuite
+  total_revenue      NUMERIC(12,2) DEFAULT 0,  -- ricavi attribuiti
+
+  -- Note
+  notes TEXT,
+
+  -- Metadata
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 2: Click / Impression tracking (UTM hits)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS campaign_clicks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  company_id  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Dati UTM ricevuti
+  utm_source   TEXT,
+  utm_medium   TEXT,
+  utm_campaign TEXT,
+  utm_content  TEXT,
+  utm_term     TEXT,
+
+  -- Dati sessione (anonimi)
+  ip_hash      TEXT,    -- hash IP per conteggio univoci (non IP raw per privacy)
+  user_agent   TEXT,
+  referrer     TEXT,
+  landing_page TEXT,
+  country_code TEXT,
+  device_type  TEXT,    -- 'desktop' | 'mobile' | 'tablet'
+
+  -- Esito
+  converted BOOLEAN DEFAULT false,     -- ha compilato un form / diventa contatto?
+  contact_id UUID REFERENCES contacts(id),  -- se si converte, chi diventa
+
+  clicked_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 3: Attribuzione campagna → Contatti e Opportunità
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS campaign_attributions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id    UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  company_id     UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  entity_type    TEXT NOT NULL,  -- 'contact' | 'opportunity' | 'invoice'
+  entity_id      UUID NOT NULL,
+
+  attribution_model TEXT DEFAULT 'first_touch',
+  -- 'first_touch' | 'last_touch' | 'linear'
+
+  -- Valore attribuito (per ROI)
+  attributed_revenue NUMERIC(12,2) DEFAULT 0,
+
+  source TEXT,   -- come è avvenuta l'attribuzione: 'utm_click' | 'form' | 'manual'
+  attributed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 4: Spese campagna (collegate ai costi esistenti)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS campaign_expenses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  company_id  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  description TEXT NOT NULL,
+  amount      NUMERIC(12,2) NOT NULL,
+  date        DATE NOT NULL DEFAULT CURRENT_DATE,
+  category    TEXT,  -- 'advertising' | 'content' | 'design' | 'tools' | 'other'
+
+  -- Opzionale: collega alla tabella costs esistente
+  cost_id UUID REFERENCES costs(id),
+
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- Aggiungi colonne UTM a contacts e opportunities per attribuzione
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS campaign_id    UUID REFERENCES campaigns(id);
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS utm_source     TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS utm_medium     TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS utm_campaign   TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS utm_content    TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS acquisition_source TEXT;
+-- 'form' | 'manual' | 'import' | 'api' | 'whatsapp' | 'email'
+
+ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS campaign_id UUID REFERENCES campaigns(id);
+ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS utm_source  TEXT;
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE RPC: Calcola ROI e metriche campagna
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION get_campaign_stats(p_campaign_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB;
+  v_spent  NUMERIC;
+  v_revenue NUMERIC;
+  v_leads  INTEGER;
+  v_opps   INTEGER;
+  v_clicks INTEGER;
+  v_conversions INTEGER;
+BEGIN
+  -- Speso
+  SELECT COALESCE(SUM(amount), 0) INTO v_spent
+  FROM campaign_expenses WHERE campaign_id = p_campaign_id;
+
+  -- Ricavi attribuiti
+  SELECT COALESCE(SUM(attributed_revenue), 0) INTO v_revenue
+  FROM campaign_attributions WHERE campaign_id = p_campaign_id;
+
+  -- Lead (contatti attribuiti)
+  SELECT COUNT(*) INTO v_leads
+  FROM campaign_attributions
+  WHERE campaign_id = p_campaign_id AND entity_type = 'contact';
+
+  -- Opportunità
+  SELECT COUNT(*) INTO v_opps
+  FROM campaign_attributions
+  WHERE campaign_id = p_campaign_id AND entity_type = 'opportunity';
+
+  -- Click
+  SELECT COUNT(*) INTO v_clicks
+  FROM campaign_clicks WHERE campaign_id = p_campaign_id;
+
+  -- Conversioni (click che hanno generato un contatto)
+  SELECT COUNT(*) INTO v_conversions
+  FROM campaign_clicks WHERE campaign_id = p_campaign_id AND converted = true;
+
+  -- Aggiorna contatori campagna
+  UPDATE campaigns SET
+    budget_spent       = v_spent,
+    total_clicks       = v_clicks,
+    total_leads        = v_leads,
+    total_opportunities = v_opps,
+    total_revenue      = v_revenue,
+    updated_at         = NOW()
+  WHERE id = p_campaign_id;
+
+  SELECT jsonb_build_object(
+    'budget_spent',    v_spent,
+    'revenue',         v_revenue,
+    'roi_percent',     CASE WHEN v_spent > 0
+                         THEN ROUND(((v_revenue - v_spent) / v_spent * 100)::NUMERIC, 1)
+                         ELSE NULL END,
+    'roi_absolute',    v_revenue - v_spent,
+    'leads',           v_leads,
+    'opportunities',   v_opps,
+    'clicks',          v_clicks,
+    'conversions',     v_conversions,
+    'conversion_rate', CASE WHEN v_clicks > 0
+                         THEN ROUND((v_conversions::NUMERIC / v_clicks * 100), 1)
+                         ELSE 0 END,
+    'cost_per_lead',   CASE WHEN v_leads > 0
+                         THEN ROUND((v_spent / v_leads)::NUMERIC, 2)
+                         ELSE NULL END,
+    'cost_per_click',  CASE WHEN v_clicks > 0
+                         THEN ROUND((v_spent / v_clicks)::NUMERIC, 4)
+                         ELSE NULL END
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: Genera URL con UTM parameters
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION generate_utm_url(p_campaign_id UUID)
+RETURNS TEXT AS $$
+DECLARE
+  v_campaign campaigns%ROWTYPE;
+  v_url TEXT;
+  v_params TEXT := '';
+BEGIN
+  SELECT * INTO v_campaign FROM campaigns WHERE id = p_campaign_id;
+  IF v_campaign.target_url IS NULL THEN RETURN NULL; END IF;
+
+  v_url := v_campaign.target_url;
+  IF v_campaign.utm_source   IS NOT NULL THEN v_params := v_params || '&utm_source='   || v_campaign.utm_source; END IF;
+  IF v_campaign.utm_medium   IS NOT NULL THEN v_params := v_params || '&utm_medium='   || v_campaign.utm_medium; END IF;
+  IF v_campaign.utm_campaign IS NOT NULL THEN v_params := v_params || '&utm_campaign=' || v_campaign.utm_campaign; END IF;
+  IF v_campaign.utm_content  IS NOT NULL THEN v_params := v_params || '&utm_content='  || v_campaign.utm_content; END IF;
+  IF v_campaign.utm_term     IS NOT NULL THEN v_params := v_params || '&utm_term='     || v_campaign.utm_term; END IF;
+
+  IF LENGTH(v_params) > 0 THEN
+    v_params := SUBSTRING(v_params FROM 2); -- rimuovi & iniziale
+    v_url := v_url || CASE WHEN v_url LIKE '%?%' THEN '&' ELSE '?' END || v_params;
+  END IF;
+
+  RETURN v_url;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger: aggiorna short_url quando cambiano i parametri UTM
+CREATE OR REPLACE FUNCTION trg_update_campaign_utm()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.short_url := generate_utm_url(NEW.id);
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_campaigns_utm ON campaigns;
+CREATE TRIGGER trg_campaigns_utm
+  BEFORE UPDATE ON campaigns
+  FOR EACH ROW
+  WHEN (
+    OLD.utm_source IS DISTINCT FROM NEW.utm_source OR
+    OLD.utm_medium IS DISTINCT FROM NEW.utm_medium OR
+    OLD.utm_campaign IS DISTINCT FROM NEW.utm_campaign OR
+    OLD.target_url IS DISTINCT FROM NEW.target_url
+  )
+  EXECUTE FUNCTION trg_update_campaign_utm();
+
+-- ════════════════════════════════════════════════════════════════
+-- Trigger: aggiungi spesa alla campagna quando si aggiunge expense
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION trg_update_campaign_spent()
+RETURNS TRIGGER AS $$
+DECLARE v_cid UUID;
+BEGIN
+  v_cid := COALESCE(NEW.campaign_id, OLD.campaign_id);
+  UPDATE campaigns SET
+    budget_spent = COALESCE((
+      SELECT SUM(amount) FROM campaign_expenses WHERE campaign_id = v_cid
+    ), 0),
+    updated_at = NOW()
+  WHERE id = v_cid;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_campaign_expenses ON campaign_expenses;
+CREATE TRIGGER trg_campaign_expenses
+  AFTER INSERT OR UPDATE OR DELETE ON campaign_expenses
+  FOR EACH ROW EXECUTE FUNCTION trg_update_campaign_spent();
+
+-- ════════════════════════════════════════════════════════════════
+-- RLS POLICIES
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE campaigns              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaign_clicks        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaign_attributions  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaign_expenses      ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_campaigns"
+  ON campaigns FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_campaign_clicks"
+  ON campaign_clicks FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_campaign_attributions"
+  ON campaign_attributions FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_campaign_expenses"
+  ON campaign_expenses FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+-- Click pubblici: la edge function usa service_role, nessuna policy utente necessaria
+
+-- ════════════════════════════════════════════════════════════════
+-- INDICI
+-- ════════════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_campaigns_company     ON campaigns(company_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_status      ON campaigns(company_id, status);
+CREATE INDEX IF NOT EXISTS idx_campaign_clicks_camp  ON campaign_clicks(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_clicks_utm   ON campaign_clicks(utm_campaign, utm_source);
+CREATE INDEX IF NOT EXISTS idx_campaign_attr_camp    ON campaign_attributions(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_attr_entity  ON campaign_attributions(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_campaign     ON contacts(campaign_id) WHERE campaign_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_opportunities_campaign ON opportunities(campaign_id) WHERE campaign_id IS NOT NULL;
+```
+
+════════════════════════════════════════════════════════════════════
+PROMPT A2 di 4 — EDGE FUNCTION: campaign-tracker + UI CAMPAGNE
+════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────
+FUNZIONE: supabase/functions/campaign-tracker/index.ts
+────────────────────────────────────────────────────────────────────
+Questa funzione riceve i parametri UTM dal sito del cliente
+(tramite pixel JS o redirect) e li registra nella tabella campaign_clicks.
+È pubblica (no JWT) perché viene chiamata dal browser del visitatore.
+
+```typescript
+// supabase/functions/campaign-tracker/index.ts
+// verify_jwt: false — endpoint pubblico
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+
+  const url = new URL(req.url);
+
+  // Parametri UTM (via GET querystring o POST body)
+  let params: Record<string, string> = {};
+  if (req.method === "GET") {
+    params = Object.fromEntries(url.searchParams.entries());
+  } else {
+    try { params = await req.json(); } catch { params = {}; }
+  }
+
+  const {
+    utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+    company_id, landing_page, referrer,
+  } = params;
+
+  if (!company_id || !utm_campaign) {
+    return new Response(JSON.stringify({ error: "company_id e utm_campaign richiesti" }), {
+      status: 400, headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+
+  // Trova campagna corrispondente
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select("id")
+    .eq("company_id", company_id)
+    .eq("utm_campaign", utm_campaign)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (!campaign) {
+    return new Response(JSON.stringify({ tracked: false, reason: "Campaign not found or inactive" }), {
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+
+  // Device detection
+  const ua = req.headers.get("user-agent") || "";
+  const device_type = /mobile|android|iphone/i.test(ua) ? "mobile" :
+                      /tablet|ipad/i.test(ua) ? "tablet" : "desktop";
+
+  // Hash IP per privacy (non salviamo mai l'IP raw)
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+             req.headers.get("cf-connecting-ip") || "unknown";
+  const ipHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip))
+    .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("").substring(0, 16));
+
+  // Inserisci click
+  const { error } = await supabase.from("campaign_clicks").insert({
+    campaign_id: campaign.id,
+    company_id,
+    utm_source: utm_source || null,
+    utm_medium: utm_medium || null,
+    utm_campaign,
+    utm_content: utm_content || null,
+    utm_term: utm_term || null,
+    ip_hash: ipHash,
+    user_agent: ua.substring(0, 200),
+    referrer: referrer || req.headers.get("referer") || null,
+    landing_page: landing_page || null,
+    device_type,
+    clicked_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    return new Response(JSON.stringify({ tracked: false, error: error.message }), {
+      status: 500, headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+
+  // Risponde con pixel 1x1 trasparente se richiesto via GET (pixel tracking)
+  if (req.method === "GET" && url.searchParams.get("pixel") === "1") {
+    const pixel = new Uint8Array([
+      0x47,0x49,0x46,0x38,0x39,0x61,0x01,0x00,0x01,0x00,0x80,0x00,
+      0x00,0xff,0xff,0xff,0x00,0x00,0x00,0x21,0xf9,0x04,0x00,0x00,
+      0x00,0x00,0x00,0x2c,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,
+      0x00,0x02,0x02,0x44,0x01,0x00,0x3b,
+    ]);
+    return new Response(pixel, {
+      headers: { ...CORS, "Content-Type": "image/gif", "Cache-Control": "no-cache" },
+    });
+  }
+
+  return new Response(JSON.stringify({ tracked: true, campaign_id: campaign.id }), {
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+});
+```
+
+────────────────────────────────────────────────────────────────────
+UI CAMPAGNE — pagina `/azienda/marketing/campagne`
+────────────────────────────────────────────────────────────────────
+
+Aggiungi la voce "Campagne" nella sidebar Marketing e Vendite,
+sotto la sotto-categoria "Comunicazione", dopo Email Marketing.
+
+VISTA LISTA:
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 📣 Campagne                                  [+ Nuova Campagna]  │
+├──────────────────────────────────────────────────────────────────┤
+│  KPI OVERVIEW (4 cards):                                         │
+│  [Campagne attive: 3]  [Lead totali: 142]  [ROI medio: +340%]   │
+│  [Speso questo mese: €1.240]                                     │
+├──────────────────────────────────────────────────────────────────┤
+│ [Tutte] [Attive] [Bozze] [Completate]   🔍 Cerca...             │
+├──────────────────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────────────────┐  │
+│ │ 🟢 Promo Estate 2025                    Email · Attiva      │  │
+│ │ Budget: €500 / €480 spesi ████████████░ 96%                │  │
+│ │ 📊 340 click · 28 lead · 5 opportunità · ROI +320%         │  │
+│ │ UTM: ?utm_source=newsletter&utm_campaign=promo_estate_2025  │  │
+│ │ [Dettaglio] [Pausa] [Copia URL] [Modifica]                 │  │
+│ └─────────────────────────────────────────────────────────────┘  │
+│ ┌─────────────────────────────────────────────────────────────┐  │
+│ │ 🔵 Google Ads Settembre                 Google · Attiva     │  │
+│ │ Budget: €1.000 / €210 spesi ██░░░░░░░░░ 21%                │  │
+│ │ 📊 1.240 click · 14 lead · 2 opportunità · ROI +180%       │  │
+│ │ [Dettaglio] [Pausa] [Copia URL] [Modifica]                 │  │
+│ └─────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+DETTAGLIO CAMPAGNA (pagina `/azienda/marketing/campagne/:id`):
+
+Layout a 3 sezioni:
+
+**SEZIONE 1 — Panoramica e KPI:**
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 📣 Promo Estate 2025          [Modifica] [Pausa] [Archivia]      │
+│ Email · 01/06/2025 → 31/08/2025                                  │
+├──────────────┬───────────────┬──────────────┬────────────────────┤
+│ 🖱️  Click    │ 👤 Lead       │ 💼 Opportun. │ 💰 ROI             │
+│ 340          │ 28            │ 5             │ +320%              │
+│ ↑12% vs ieri│ ↑3 questa sett│ 2 in negoziaz │ €1.600 ricavi      │
+├──────────────┴───────────────┴──────────────┴────────────────────┤
+│ Budget: €480 spesi / €500 totali (96%)                           │
+│ ████████████████████████████████████████████████████░░  96%      │
+│ Cost per lead: €17,14  |  Cost per click: €1,41                  │
+│ Conversion rate: 8,2%                                            │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**SEZIONE 2 — Grafico click nel tempo (LineChart con recharts):**
+- X: giorni della campagna
+- Y: click giornalieri e lead giornalieri (due linee)
+- Tooltip con dettagli per ogni punto
+
+**SEZIONE 3 — Tab con 4 tab:**
+
+Tab "UTM & Link":
+```
+  URL di destinazione: https://miosito.it/offerta-estate
+  ──────────────────────────────────────────────────────
+  URL con UTM (copia e incolla sul tuo canale):
+  ┌─────────────────────────────────────────────────────────┐
+  │ https://miosito.it/offerta-estate?utm_source=newsletter │
+  │ &utm_medium=email&utm_campaign=promo_estate_2025        │
+  │                                              [📋 Copia] │
+  └─────────────────────────────────────────────────────────┘
+
+  Pixel di tracciamento (incolla nell'email HTML):
+  ┌──────────────────────────────────────────────────────────────┐
+  │ <img src="https://[progetto].supabase.co/functions/v1/       │
+  │ campaign-tracker?company_id=xxx&utm_campaign=promo_estate    │
+  │ &pixel=1" width="1" height="1" />         [📋 Copia]        │
+  └──────────────────────────────────────────────────────────────┘
+
+  Script JS (incolla nel tuo sito per auto-tracking):
+  ┌──────────────────────────────────────────────────────────────┐
+  │ <script>                                                      │
+  │ const p=new URLSearchParams(location.search);                │
+  │ if(p.get('utm_campaign')){fetch('https://[proj].supabase.co  │
+  │ /functions/v1/campaign-tracker',{method:'POST',              │
+  │ headers:{'Content-Type':'application/json'},                 │
+  │ body:JSON.stringify({company_id:'xxx',                       │
+  │ utm_source:p.get('utm_source'),                              │
+  │ utm_campaign:p.get('utm_campaign'),                          │
+  │ utm_medium:p.get('utm_medium'),                              │
+  │ landing_page:location.href})});}                             │
+  │ </script>                              [📋 Copia]           │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+Tab "Lead attribuiti":
+- Lista contatti generati da questa campagna (con link al profilo)
+- Colonne: Nome, Email, Data acquisizione, Fonte, Opportunità collegata
+- Bottone [+ Attribuisci contatto manualmente] → cerca contatto esistente
+
+Tab "Opportunità":
+- Lista opportunità con campaign_id = questa campagna
+- Colonne: Nome, Valore, Fase, Data creazione, Probabilità
+- Totale valore pipeline attribuito
+
+Tab "Spese":
+- Lista expense della campagna con categoria e data
+- Form inline per aggiungere spesa: [Descrizione] [Importo] [Categoria] [Data] [+ Aggiungi]
+- Bottone [Collega a costo esistente] → cerca nella tabella costs
+- Totale speso vs budget con progress bar
+
+FORM NUOVA/MODIFICA CAMPAGNA:
+- Nome campagna*
+- Tipo: Select con icone [Email / Social / Google Ads / SEO / Evento / Referral / Misto]
+- Canale specifico: Text input (es. "Facebook Ads", "Instagram Story")
+- Date inizio/fine: DatePicker range
+- Budget totale: Input numerico con valuta
+- URL destinazione: URL input
+- UTM Parameters (sezione espandibile "Parametri UTM"):
+  - utm_source*: Text (es. "facebook", "newsletter")
+  - utm_medium*: Text (es. "cpc", "email", "social")
+  - utm_campaign*: Text auto-generato dal nome (slug), modificabile
+  - utm_content: Text opzionale
+  - utm_term: Text opzionale (per Google Ads)
+  - Preview live URL con UTM sotto i campi
+- Obiettivo: Select [Lead / Vendite / Traffico / Brand / Conversioni]
+- Valore obiettivo: Input numerico
+- Note: Textarea
+
+Logica auto-slug: quando l'utente scrive il nome campagna, utm_campaign
+si auto-popola come slug (lowercase, spazi → underscore, caratteri speciali rimossi).
+Esempio: "Promo Estate 2025" → "promo_estate_2025"
+
+INTEGRAZIONE CON REPORTISTICA:
+Nel modulo Reportistica esistente, aggiungi una sezione "Campagne":
+- Grafico a barre: ROI per campagna (solo campagne completate/attive)
+- Grafico a torta: distribuzione lead per canale (email, social, google, ecc.)
+- KPI: totale lead generati, costo medio per lead, campagna con ROI più alto
+- Filtro per periodo (mese, trimestre, anno)
+
+INTEGRAZIONE CON CONTATTI:
+Quando si crea un contatto manualmente, aggiungi campo opzionale:
+"Campagna di origine" → Autocomplete sulle campagne attive.
+Quando selezionato → imposta contact.campaign_id e registra attribuzione.
+
+INTEGRAZIONE CON OPPORTUNITÀ:
+Nella pagina crea/modifica opportunità, aggiungi campo:
+"Campagna collegata" → Autocomplete sulle campagne.
+Se il contatto dell'opportunità ha già campaign_id → pre-compila automaticamente.
+
+
+══════════════════════════════════════════════════════════════════
+███████╗ ██████╗ ██████╗ ███╗   ███╗
+██╔════╝██╔═══██╗██╔══██╗████╗ ████║
+█████╗  ██║   ██║██████╔╝██╔████╔██║
+██╔══╝  ██║   ██║██╔══██╗██║╚██╔╝██║
+██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║
+╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝
+  ██████╗ ██╗   ██╗██╗██╗     ██████╗ ███████╗██████╗
+ ██╔══██╗██║   ██║██║██║     ██╔══██╗██╔════╝██╔══██╗
+ ██████╔╝██║   ██║██║██║     ██║  ██║█████╗  ██████╔╝
+ ██╔══██╗██║   ██║██║██║     ██║  ██║██╔══╝  ██╔══██╗
+ ██████╔╝╚██████╔╝██║███████╗██████╔╝███████╗██║  ██║
+ ╚═════╝  ╚═════╝ ╚═╝╚══════╝╚═════╝ ╚══════╝╚═╝  ╚═╝
+══════════════════════════════════════════════════════════════════
+
+════════════════════════════════════════════════════════════════════
+PROMPT B1 di 4 — DATABASE SCHEMA: FORM BUILDER
+════════════════════════════════════════════════════════════════════
+
+```sql
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 1: Form templates
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS lead_forms (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Identità
+  name        TEXT NOT NULL,
+  description TEXT,
+  slug        TEXT NOT NULL,  -- URL pubblico: /f/{slug}
+  status      TEXT NOT NULL DEFAULT 'draft',
+  -- 'draft' | 'published' | 'paused' | 'archived'
+
+  -- Configurazione form
+  fields JSONB NOT NULL DEFAULT '[]',
+  -- Array di field objects (vedi struttura sotto)
+
+  -- Apparenza
+  theme JSONB DEFAULT '{}',
+  -- { primaryColor, backgroundColor, textColor, fontFamily,
+  --   buttonText, buttonColor, logoUrl, showLogo,
+  --   layout: 'single_page' | 'multi_step',
+  --   coverImage }
+
+  -- Impostazioni
+  settings JSONB DEFAULT '{}',
+  -- { redirectUrl, thankYouMessage, thankYouTitle,
+  --   allowMultipleSubmissions, requireCaptcha,
+  --   notifyEmail, notifyOnSubmit,
+  --   campaign_id, tags[], pipeline_stage,
+  --   auto_assign_to (user_id) }
+
+  -- Collegamento campagna
+  campaign_id UUID REFERENCES campaigns(id),
+
+  -- Statistiche
+  total_views       INTEGER DEFAULT 0,
+  total_submissions INTEGER DEFAULT 0,
+  -- conversion_rate calcolata: total_submissions / total_views * 100
+
+  -- Embed
+  embed_code TEXT,   -- snippet HTML generato automaticamente
+
+  -- Metadata
+  created_by UUID REFERENCES profiles(id),
+  published_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE(company_id, slug)
+);
+
+-- Struttura di ogni field in lead_forms.fields (JSONB array):
+-- {
+--   id: string (uuid),
+--   type: 'text' | 'email' | 'phone' | 'textarea' | 'select' |
+--         'checkbox' | 'radio' | 'date' | 'number' | 'file' |
+--         'divider' | 'heading' | 'paragraph' | 'hidden',
+--   label: string,
+--   placeholder?: string,
+--   required: boolean,
+--   options?: string[],        -- per select, radio, checkbox
+--   mapping?: string,          -- campo contatto a cui mappare: 'first_name' | 'last_name' |
+--                              -- 'email' | 'phone' | 'company' | 'notes' | custom
+--   validation?: {
+--     minLength?: number,
+--     maxLength?: number,
+--     pattern?: string,
+--     errorMessage?: string
+--   },
+--   visible_if?: {             -- logica condizionale
+--     field_id: string,
+--     operator: 'equals' | 'not_equals' | 'contains',
+--     value: string
+--   },
+--   width?: 'full' | 'half',   -- larghezza colonna nel layout
+--   sort_order: number
+-- }
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 2: Submissions (invii form)
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS form_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id    UUID NOT NULL REFERENCES lead_forms(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+
+  -- Dati inviati (raw)
+  data JSONB NOT NULL DEFAULT '{}',
+  -- chiave: field.id, valore: risposta dell'utente
+
+  -- Contatto creato/aggiornato
+  contact_id UUID REFERENCES contacts(id),
+  is_new_contact BOOLEAN DEFAULT true,  -- false se era già in DB (merge per email)
+
+  -- UTM al momento della submission
+  utm_source   TEXT,
+  utm_medium   TEXT,
+  utm_campaign TEXT,
+  campaign_id  UUID REFERENCES campaigns(id),
+
+  -- Dati tecnici
+  ip_hash      TEXT,
+  user_agent   TEXT,
+  referrer     TEXT,
+  landing_page TEXT,
+  device_type  TEXT,
+
+  -- Status elaborazione
+  status TEXT DEFAULT 'pending',
+  -- 'pending' | 'processed' | 'spam' | 'duplicate'
+
+  processed_at TIMESTAMPTZ,
+  submitted_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- TABELLA 3: View tracking per conversion rate
+-- ════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS form_views (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  form_id    UUID NOT NULL REFERENCES lead_forms(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  ip_hash    TEXT,
+  utm_source TEXT,
+  utm_campaign TEXT,
+  viewed_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ════════════════════════════════════════════════════════════════
+-- FUNZIONE: Aggiorna contatori form dopo submission
+-- ════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION trg_update_form_stats()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE lead_forms SET
+    total_submissions = (
+      SELECT COUNT(*) FROM form_submissions
+      WHERE form_id = NEW.form_id AND status != 'spam'
+    ),
+    updated_at = NOW()
+  WHERE id = NEW.form_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_form_submission_stats ON form_submissions;
+CREATE TRIGGER trg_form_submission_stats
+  AFTER INSERT ON form_submissions
+  FOR EACH ROW EXECUTE FUNCTION trg_update_form_stats();
+
+-- Aggiorna total_views
+CREATE OR REPLACE FUNCTION trg_update_form_views()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE lead_forms SET
+    total_views = (SELECT COUNT(*) FROM form_views WHERE form_id = NEW.form_id),
+    updated_at = NOW()
+  WHERE id = NEW.form_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_form_view_stats ON form_views;
+CREATE TRIGGER trg_form_view_stats
+  AFTER INSERT ON form_views
+  FOR EACH ROW EXECUTE FUNCTION trg_update_form_views();
+
+-- ════════════════════════════════════════════════════════════════
+-- RLS POLICIES
+-- ════════════════════════════════════════════════════════════════
+ALTER TABLE lead_forms       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_views       ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "company_lead_forms" ON lead_forms
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_form_submissions" ON form_submissions
+  FOR ALL USING (company_id = get_user_company_id(auth.uid()));
+
+CREATE POLICY "company_form_views" ON form_views
+  FOR SELECT USING (company_id = get_user_company_id(auth.uid()));
+
+-- Forms pubblici: visibili in lettura da chiunque se published
+CREATE POLICY "public_lead_forms_read" ON lead_forms
+  FOR SELECT USING (status = 'published');
+
+-- ════════════════════════════════════════════════════════════════
+-- INDICI
+-- ════════════════════════════════════════════════════════════════
+CREATE INDEX IF NOT EXISTS idx_lead_forms_company ON lead_forms(company_id);
+CREATE INDEX IF NOT EXISTS idx_lead_forms_slug    ON lead_forms(slug);
+CREATE INDEX IF NOT EXISTS idx_form_submissions_form    ON form_submissions(form_id);
+CREATE INDEX IF NOT EXISTS idx_form_submissions_contact ON form_submissions(contact_id);
+CREATE INDEX IF NOT EXISTS idx_form_submissions_status  ON form_submissions(form_id, status);
+CREATE INDEX IF NOT EXISTS idx_form_views_form ON form_views(form_id);
+```
+
+════════════════════════════════════════════════════════════════════
+PROMPT B2 di 4 — EDGE FUNCTIONS: form-submit + public form render
+════════════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────────
+FUNZIONE A: supabase/functions/form-submit/index.ts
+────────────────────────────────────────────────────────────────────
+Gestisce la submission pubblica del form: crea/aggiorna il contatto,
+lancia le automazioni marketing, attribuisce la campagna.
+È PUBBLICA (no JWT) perché viene chiamata dal browser del visitatore.
+
+```typescript
+// supabase/functions/form-submit/index.ts
+// verify_jwt: false
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status, headers: { ...CORS, "Content-Type": "application/json" },
+    });
+
+  let body: Record<string, unknown>;
+  try { body = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+
+  const { form_id, form_slug, data: formData, utm, meta } = body as {
+    form_id?: string;
+    form_slug?: string;
+    data: Record<string, string>;
+    utm?: Record<string, string>;
+    meta?: Record<string, string>;
+  };
+
+  // Recupera il form
+  let formQuery = supabase.from("lead_forms").select("*");
+  if (form_id) formQuery = formQuery.eq("id", form_id);
+  else if (form_slug) formQuery = formQuery.eq("slug", form_slug);
+  else return json({ error: "form_id o form_slug richiesto" }, 400);
+
+  const { data: form } = await formQuery.eq("status", "published").single();
+  if (!form) return json({ error: "Form not found or not published" }, 404);
+
+  const fields = form.fields as Array<Record<string, unknown>>;
+  const settings = form.settings as Record<string, unknown>;
+
+  // ── Validazione campi required ────────────────────────────
+  const errors: Record<string, string> = {};
+  for (const field of fields) {
+    if (field.required && field.type !== "divider" && field.type !== "heading") {
+      const val = formData[field.id as string];
+      if (!val || String(val).trim() === "") {
+        errors[field.id as string] = `${field.label} è obbligatorio`;
+      }
+    }
+  }
+  if (Object.keys(errors).length > 0) return json({ success: false, errors }, 400);
+
+  // ── Mappa i campi del form ai campi del contatto ───────────
+  const contactData: Record<string, unknown> = {
+    company_id: form.company_id,
+    acquisition_source: "form",
+    utm_source: utm?.utm_source,
+    utm_medium: utm?.utm_medium,
+    utm_campaign: utm?.utm_campaign,
+    campaign_id: form.campaign_id || null,
+    status: "lead",
+  };
+
+  for (const field of fields) {
+    const val = formData[field.id as string];
+    if (!val || !field.mapping) continue;
+
+    const mapping = field.mapping as string;
+    if (mapping === "first_name") contactData.first_name = val;
+    else if (mapping === "last_name") contactData.last_name = val;
+    else if (mapping === "email") contactData.email = val;
+    else if (mapping === "phone") contactData.phone = val;
+    else if (mapping === "company") contactData.company = val;
+    else if (mapping === "notes") contactData.notes = val;
+    // Campi custom → salvati in extra_data JSONB se la colonna esiste
+  }
+
+  // Nome obbligatorio: prova a costruirlo
+  if (!contactData.first_name && !contactData.last_name) {
+    const nameField = fields.find(f => f.mapping === "first_name" || f.mapping === "last_name");
+    if (!nameField) contactData.first_name = "Lead";
+  }
+
+  // ── Crea o aggiorna contatto (upsert per email) ────────────
+  let contactId: string | null = null;
+  let isNew = true;
+
+  if (contactData.email) {
+    const { data: existing } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("company_id", form.company_id)
+      .eq("email", contactData.email)
+      .maybeSingle();
+
+    if (existing) {
+      contactId = existing.id;
+      isNew = false;
+      // Aggiorna solo campi non vuoti
+      const updateData = Object.fromEntries(
+        Object.entries(contactData).filter(([, v]) => v !== null && v !== undefined)
+      );
+      await supabase.from("contacts").update(updateData).eq("id", contactId);
+    }
+  }
+
+  if (!contactId) {
+    // Assegna pipeline stage se configurato
+    if (settings.pipeline_stage) contactData.pipeline_stage = settings.pipeline_stage;
+    if (settings.auto_assign_to) contactData.assigned_to = settings.auto_assign_to;
+
+    const { data: newContact, error: createError } = await supabase
+      .from("contacts")
+      .insert(contactData)
+      .select("id")
+      .single();
+
+    if (createError || !newContact) {
+      return json({ error: "Errore creazione contatto" }, 500);
+    }
+    contactId = newContact.id;
+  }
+
+  // ── Salva submission ──────────────────────────────────────
+  const ua = req.headers.get("user-agent") || "";
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ipHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip))
+    .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("").substring(0, 16));
+
+  const device_type = /mobile|android|iphone/i.test(ua) ? "mobile" :
+                      /tablet|ipad/i.test(ua) ? "tablet" : "desktop";
+
+  await supabase.from("form_submissions").insert({
+    form_id: form.id,
+    company_id: form.company_id,
+    data: formData,
+    contact_id: contactId,
+    is_new_contact: isNew,
+    utm_source: utm?.utm_source,
+    utm_medium: utm?.utm_medium,
+    utm_campaign: utm?.utm_campaign,
+    campaign_id: form.campaign_id || null,
+    ip_hash: ipHash,
+    user_agent: ua.substring(0, 200),
+    referrer: meta?.referrer || null,
+    landing_page: meta?.landing_page || null,
+    device_type,
+    status: "processed",
+    processed_at: new Date().toISOString(),
+  });
+
+  // ── Attribuzione campagna ─────────────────────────────────
+  if (form.campaign_id) {
+    await supabase.from("campaign_attributions").insert({
+      campaign_id: form.campaign_id,
+      company_id: form.company_id,
+      entity_type: "contact",
+      entity_id: contactId,
+      attribution_model: "first_touch",
+      source: "form",
+    });
+
+    // Aggiorna conversion sul click corrispondente (se esiste)
+    if (utm?.utm_campaign && ipHash) {
+      await supabase.from("campaign_clicks")
+        .update({ converted: true, contact_id: contactId })
+        .eq("campaign_id", form.campaign_id)
+        .eq("ip_hash", ipHash)
+        .eq("converted", false)
+        .order("clicked_at", { ascending: false })
+        .limit(1);
+    }
+  }
+
+  // ── Innesca automazioni marketing (trigger: contact_created) ─
+  // Usa la stessa logica delle Marketing Automations esistenti
+  // Il contatto è già stato creato/aggiornato → i trigger DB esistenti
+  // per automation_flows si attiveranno automaticamente se configurati.
+
+  // ── Notifica email se configurata ─────────────────────────
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (settings.notifyOnSubmit && settings.notifyEmail && resendKey) {
+    const contactName = `${contactData.first_name || ""} ${contactData.last_name || ""}`.trim();
+    const fieldsSummary = fields
+      .filter(f => f.type !== "divider" && f.type !== "heading" && formData[f.id as string])
+      .map(f => `<tr><td style="padding:4px 8px;font-weight:600">${f.label}</td><td style="padding:4px 8px">${formData[f.id as string]}</td></tr>`)
+      .join("");
+
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Gestionale <noreply@gestionale.app>",
+        to: [settings.notifyEmail],
+        subject: `🔔 Nuovo lead da ${form.name}: ${contactName}`,
+        html: `
+          <h2>Nuovo lead acquisito</h2>
+          <p>Il form <strong>${form.name}</strong> ha ricevuto una nuova compilazione.</p>
+          <table style="border-collapse:collapse;width:100%">${fieldsSummary}</table>
+          <p style="margin-top:16px">
+            <a href="${Deno.env.get("APP_URL")}/azienda/contatti/${contactId}"
+               style="background:#1E40AF;color:white;padding:8px 16px;text-decoration:none;border-radius:4px">
+              Visualizza contatto
+            </a>
+          </p>
+        `,
+      }),
+    });
+  }
+
+  // ── Risposta con redirect URL se configurato ──────────────
+  return json({
+    success: true,
+    contact_id: contactId,
+    is_new_contact: isNew,
+    redirect_url: settings.redirectUrl || null,
+    thank_you_title: settings.thankYouTitle || "Grazie!",
+    thank_you_message: settings.thankYouMessage || "Abbiamo ricevuto la tua richiesta. Ti contatteremo presto.",
+  });
+});
+```
+
+────────────────────────────────────────────────────────────────────
+FUNZIONE B: supabase/functions/form-render/index.ts
+────────────────────────────────────────────────────────────────────
+Genera la pagina HTML standalone del form (per embed iframe o link diretto).
+È PUBBLICA (no JWT).
+
+```typescript
+// supabase/functions/form-render/index.ts
+// verify_jwt: false
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabase = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+);
+
+Deno.serve(async (req) => {
+  const url = new URL(req.url);
+  const slug = url.pathname.split("/").pop();
+
+  if (!slug) return new Response("Not found", { status: 404 });
+
+  const { data: form } = await supabase
+    .from("lead_forms")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "published")
+    .single();
+
+  if (!form) {
+    return new Response("<h1>Form non trovato</h1>", {
+      status: 404, headers: { "Content-Type": "text/html" },
+    });
+  }
+
+  // Registra view
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ipHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip))
+    .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("").substring(0, 16));
+
+  await supabase.from("form_views").insert({
+    form_id: form.id, company_id: form.company_id,
+    ip_hash: ipHash,
+    utm_source: url.searchParams.get("utm_source"),
+    utm_campaign: url.searchParams.get("utm_campaign"),
+  });
+
+  const theme = form.theme as Record<string, string>;
+  const fields = form.fields as Array<Record<string, unknown>>;
+  const settings = form.settings as Record<string, unknown>;
+
+  const primary   = theme.primaryColor   || "#1E40AF";
+  const bg        = theme.backgroundColor || "#ffffff";
+  const textColor = theme.textColor       || "#111827";
+  const btnText   = theme.buttonText      || "Invia";
+  const btnColor  = theme.buttonColor     || primary;
+  const fontFamily = theme.fontFamily     || "Inter, sans-serif";
+
+  // Genera HTML dei campi
+  const fieldsHtml = fields
+    .sort((a, b) => (a.sort_order as number) - (b.sort_order as number))
+    .map(f => {
+      if (f.type === "divider") return `<hr style="border-color:${textColor}22;margin:16px 0">`;
+      if (f.type === "heading")  return `<h3 style="color:${textColor};font-size:18px;font-weight:600;margin:16px 0 8px">${f.label}</h3>`;
+      if (f.type === "paragraph") return `<p style="color:${textColor}99;font-size:14px;margin:0 0 12px">${f.label}</p>`;
+
+      const req = f.required ? 'required' : '';
+      const ph  = f.placeholder ? `placeholder="${f.placeholder}"` : '';
+      const width = f.width === "half" ? "calc(50% - 8px)" : "100%";
+
+      let input = "";
+      if (f.type === "text" || f.type === "email" || f.type === "phone" || f.type === "number" || f.type === "date") {
+        input = `<input type="${f.type}" id="${f.id}" name="${f.id}" ${ph} ${req}
+          style="width:100%;padding:10px 12px;border:1.5px solid ${textColor}22;border-radius:6px;
+          font-size:14px;color:${textColor};background:#fff;box-sizing:border-box;
+          outline:none;transition:border-color 0.2s"
+          onfocus="this.style.borderColor='${primary}'"
+          onblur="this.style.borderColor='${textColor}22'" />`;
+      } else if (f.type === "textarea") {
+        input = `<textarea id="${f.id}" name="${f.id}" ${ph} ${req} rows="4"
+          style="width:100%;padding:10px 12px;border:1.5px solid ${textColor}22;border-radius:6px;
+          font-size:14px;color:${textColor};background:#fff;box-sizing:border-box;resize:vertical;
+          outline:none;transition:border-color 0.2s"
+          onfocus="this.style.borderColor='${primary}'"
+          onblur="this.style.borderColor='${textColor}22'"></textarea>`;
+      } else if (f.type === "select") {
+        const opts = (f.options as string[]).map(o => `<option value="${o}">${o}</option>`).join("");
+        input = `<select id="${f.id}" name="${f.id}" ${req}
+          style="width:100%;padding:10px 12px;border:1.5px solid ${textColor}22;border-radius:6px;
+          font-size:14px;color:${textColor};background:#fff;box-sizing:border-box">
+          <option value="">-- Seleziona --</option>${opts}</select>`;
+      } else if (f.type === "checkbox") {
+        const opts = (f.options as string[]).map(o =>
+          `<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" name="${f.id}[]" value="${o}" style="accent-color:${primary}"> ${o}
+           </label>`).join("");
+        input = `<div>${opts}</div>`;
+      } else if (f.type === "radio") {
+        const opts = (f.options as string[]).map(o =>
+          `<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
+            <input type="radio" name="${f.id}" value="${o}" style="accent-color:${primary}"> ${o}
+           </label>`).join("");
+        input = `<div>${opts}</div>`;
+      }
+
+      return `
+        <div style="margin-bottom:16px;width:${width}" data-field="${f.id}">
+          <label for="${f.id}" style="display:block;font-size:13px;font-weight:600;
+            color:${textColor};margin-bottom:6px">
+            ${f.label}${f.required ? ' <span style="color:#EF4444">*</span>' : ''}
+          </label>
+          ${input}
+          <div id="err-${f.id}" style="color:#EF4444;font-size:12px;margin-top:4px;display:none"></div>
+        </div>`;
+    }).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${form.name}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: ${fontFamily}; background: ${bg}; color: ${textColor};
+           min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           padding: 24px; }
+    .form-wrapper { width: 100%; max-width: 560px; }
+    .form-card { background: #fff; border-radius: 12px;
+                 box-shadow: 0 4px 24px rgba(0,0,0,0.08); padding: 40px; }
+    .form-fields { display: flex; flex-wrap: wrap; gap: 16px; }
+    .form-fields > div[style*="calc(50%"] { flex: 0 0 calc(50% - 8px); }
+    .form-fields > div:not([style*="calc(50%"]) { flex: 0 0 100%; }
+    .submit-btn { width: 100%; padding: 14px; background: ${btnColor};
+                  color: #fff; border: none; border-radius: 8px;
+                  font-size: 16px; font-weight: 600; cursor: pointer;
+                  margin-top: 24px; transition: opacity 0.2s; }
+    .submit-btn:hover { opacity: 0.9; }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .thank-you { text-align: center; padding: 40px 20px; display: none; }
+    .thank-you h2 { font-size: 24px; font-weight: 700; color: ${primary}; margin-bottom: 12px; }
+    .thank-you p  { font-size: 16px; color: ${textColor}99; }
+    @media (max-width: 480px) {
+      .form-card { padding: 24px; }
+      .form-fields > div[style*="calc(50%"] { flex: 0 0 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="form-wrapper">
+    <div class="form-card">
+      ${theme.showLogo && theme.logoUrl
+        ? `<img src="${theme.logoUrl}" alt="Logo" style="height:40px;margin-bottom:24px;display:block">`
+        : ""}
+      <h1 style="font-size:22px;font-weight:700;margin-bottom:8px;color:${textColor}">${form.name}</h1>
+      ${form.description ? `<p style="font-size:14px;color:${textColor}99;margin-bottom:24px">${form.description}</p>` : ""}
+
+      <form id="leadForm" novalidate>
+        <div class="form-fields">${fieldsHtml}</div>
+        <button type="submit" class="submit-btn" id="submitBtn">${btnText}</button>
+      </form>
+
+      <div class="thank-you" id="thankYou">
+        <div style="font-size:48px;margin-bottom:16px">✅</div>
+        <h2>${settings.thankYouTitle || "Grazie!"}</h2>
+        <p>${settings.thankYouMessage || "Abbiamo ricevuto la tua richiesta. Ti contatteremo presto."}</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUBMIT_URL = '${Deno.env.get("SUPABASE_URL")}/functions/v1/form-submit';
+    const FORM_ID = '${form.id}';
+
+    // Cattura UTM dalla URL
+    const params = new URLSearchParams(location.search);
+    const utm = {
+      utm_source: params.get('utm_source'),
+      utm_medium: params.get('utm_medium'),
+      utm_campaign: params.get('utm_campaign'),
+      utm_content: params.get('utm_content'),
+      utm_term: params.get('utm_term'),
+    };
+
+    document.getElementById('leadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Invio in corso...';
+
+      const formEl = e.target;
+      const data = {};
+      new FormData(formEl).forEach((v, k) => {
+        if (data[k]) {
+          data[k] = Array.isArray(data[k]) ? [...data[k], v] : [data[k], v];
+        } else { data[k] = v; }
+      });
+
+      try {
+        const res = await fetch(SUBMIT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            form_id: FORM_ID,
+            data,
+            utm,
+            meta: { referrer: document.referrer, landing_page: location.href }
+          }),
+        });
+        const result = await res.json();
+
+        if (result.errors) {
+          Object.entries(result.errors).forEach(([id, msg]) => {
+            const el = document.getElementById('err-' + id);
+            if (el) { el.textContent = msg; el.style.display = 'block'; }
+          });
+          btn.disabled = false;
+          btn.textContent = '${btnText}';
+          return;
+        }
+
+        if (result.success) {
+          if (result.redirect_url) {
+            location.href = result.redirect_url;
+          } else {
+            formEl.style.display = 'none';
+            document.getElementById('thankYou').style.display = 'block';
+          }
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '${btnText}';
+        alert('Errore durante l'invio. Riprova.');
+      }
+    });
+  </script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+});
+```
+
+════════════════════════════════════════════════════════════════════
+PROMPT B3 di 4 — UI: FORM BUILDER DRAG & DROP
+════════════════════════════════════════════════════════════════════
+
+Aggiungi la voce "Form Lead" nella sidebar Marketing e Vendite,
+sotto la sotto-categoria "Comunicazione", dopo "Campagne".
+Percorso: `/azienda/marketing/form-lead`
+
+─── PAGINA LISTA FORM ───────────────────────────────────────────
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 📋 Form di acquisizione lead              [+ Nuovo Form]         │
+├──────────────────────────────────────────────────────────────────┤
+│ ┌──────────────────────────────────────────────────────────────┐ │
+│ │ 📋 Richiesta Preventivo Finestre     ● Pubblicato            │ │
+│ │ /f/richiesta-preventivo-finestre                             │ │
+│ │ 👁 1.240 visite · 📨 48 invii · 📊 Conversione: 3,9%       │ │
+│ │ Campagna: Promo Estate 2025                                  │ │
+│ │ [Modifica] [Analitiche] [Copia link] [Embed] [Duplica]      │ │
+│ └──────────────────────────────────────────────────────────────┘ │
+│ ┌──────────────────────────────────────────────────────────────┐ │
+│ │ 📋 Contattaci                        ○ Bozza                 │ │
+│ │ /f/contattaci                                                │ │
+│ │ Non ancora pubblicato                                        │ │
+│ │ [Modifica] [Pubblica] [Duplica] [Elimina]                   │ │
+│ └──────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+─── FORM BUILDER `/azienda/marketing/form-lead/:id/modifica` ──────
+
+Layout a 3 colonne:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ← Torna ai form        "Richiesta Preventivo"        [Salva] [Pubblica]      │
+├──────────────┬────────────────────────────────────────┬─────────────────────┤
+│   LIBRERIA   │          CANVAS (area centrale)        │   PROPRIETÀ         │
+│   CAMPI      │                                        │   CAMPO SELEZIONATO │
+│              │  ┌──────────────────────────────────┐  │                     │
+│ ── Testo ──  │  │ Nome *                            │  │ Tipo: Testo         │
+│ [T] Testo    │  │ [___________________________]     │  │ Label: [Nome    ]   │
+│ [✉] Email    │  │                                   │  │ Placeholder: [...]  │
+│ [📱] Telefono│  │ Email *                           │  │ Required: [✓]       │
+│ [✏] Area     │  │ [___________________________]     │  │ Mappatura:          │
+│              │  │                                   │  │ [first_name ▼]      │
+│ ─ Scelta ─   │  │ Messaggio                         │  │ Visibile se:        │
+│ [▼] Select   │  │ [___________________________ ]    │  │ [Nessuna regola]    │
+│ [◉] Radio    │  │ [___________________________ ]    │  │ Larghezza:          │
+│ [☐] Check    │  │                                   │  │ [●Intera ○Metà]    │
+│              │  │         [INVIA RICHIESTA]          │  │                     │
+│ ─ Layout ─   │  └──────────────────────────────────┘  │ [Elimina campo]     │
+│ [—] Divisore │                                        │                     │
+│ [H] Titolo   │  ↑ Trascina i campi dalla libreria     │                     │
+│ [¶] Testo    │    o clicca + per aggiungere           │                     │
+└──────────────┴────────────────────────────────────────┴─────────────────────┘
+```
+
+Implementazione React:
+- Usa `@dnd-kit/core` e `@dnd-kit/sortable` per il drag & drop (già disponibili o da installare)
+- Ogni campo nella libreria è draggable
+- Il canvas usa `SortableContext` per riordinare i campi
+- Click su un campo nel canvas → seleziona e mostra le proprietà nel pannello destro
+- Drag da libreria → canvas aggiunge il campo in quella posizione
+
+Tab nella pagina builder:
+- [Campi] → canvas drag & drop (default)
+- [Aspetto] → personalizzazione colori, font, logo, testo bottone
+- [Impostazioni] → redirect URL, messaggio grazie, notifica email, campagna collegata, tag automatici
+- [Condivisione] → link diretto, codice iframe, snippet JS
+
+TAB CONDIVISIONE:
+```
+URL diretto:
+┌──────────────────────────────────────────────────────────┐
+│ https://[progetto].supabase.co/functions/v1/form-render/ │
+│ richiesta-preventivo-finestre              [📋 Copia]    │
+└──────────────────────────────────────────────────────────┘
+
+Incorpora come iframe:
+┌──────────────────────────────────────────────────────────┐
+│ <iframe                                                   │
+│   src="https://[progetto].supabase.co/functions/v1/      │
+│        form-render/richiesta-preventivo-finestre"         │
+│   width="100%" height="600"                              │
+│   frameborder="0" style="border-radius:12px">            │
+│ </iframe>                             [📋 Copia]         │
+└──────────────────────────────────────────────────────────┘
+
+Script JS auto-resize (consigliato):
+┌──────────────────────────────────────────────────────────┐
+│ <div id="lead-form-container"></div>                      │
+│ <script>                                                  │
+│ (function(){var s=document.createElement('script');       │
+│ s.src='https://[progetto].supabase.co/form-embed.js';    │
+│ s.dataset.form='richiesta-preventivo-finestre';           │
+│ s.dataset.container='lead-form-container';               │
+│ document.head.appendChild(s);})();                       │
+│ </script>                             [📋 Copia]         │
+└──────────────────────────────────────────────────────────┘
+```
+
+════════════════════════════════════════════════════════════════════
+PROMPT B4 di 4 — ANALITICHE FORM + INTEGRAZIONE AUTOMAZIONI
+════════════════════════════════════════════════════════════════════
+
+─── PAGINA ANALITICHE FORM `/azienda/marketing/form-lead/:id/analitiche` ──
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 📊 Analitiche — Richiesta Preventivo           Periodo: [30gg ▼] │
+├───────────────┬──────────────┬──────────────┬────────────────────┤
+│ 👁 Visite     │ 📨 Invii     │ 📊 Conversione│ 📅 Ultimo invio   │
+│ 1.240         │ 48           │ 3,9%          │ 2 ore fa          │
+├───────────────┴──────────────┴──────────────┴────────────────────┤
+│ Visite e invii nel tempo (grafico LineChart recharts)            │
+│                                                                  │
+├──────────────────────────────────────────────────────────────────┤
+│ DETTAGLIO SUBMISSION (tabella ultimi 50 invii)                   │
+│ Data/Ora | Nome | Email | Dispositivo | Campagna | Contatto ↗   │
+│ ─────────────────────────────────────────────────────────────── │
+│ 2h fa    │ Mario R.│mario@.. │ Desktop │ Promo Est.│ ↗ Visualizza│
+│ 5h fa    │ Anna B. │anna@..  │ Mobile  │ —         │ ↗ Visualizza│
+│                                                    [Esporta CSV] │
+├──────────────────────────────────────────────────────────────────┤
+│ ANALISI CAMPI (% di compilazione per campo)                      │
+│ Nome    ████████████████████████████ 100%                        │
+│ Email   ████████████████████████████ 100%                        │
+│ Telefono████████████████░░░░░░░░░░░░  58%                        │
+│ Messaggio███████████░░░░░░░░░░░░░░░░  40%                        │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+─── INTEGRAZIONE CON AUTOMAZIONI MARKETING ─────────────────────────
+
+Aggiungi il trigger "Form Compilato" al sistema di Marketing Automations
+(automation_flows esistenti). Quando un visitatore compila un form lead:
+
+1. Aggiungi questo trigger al tipo `automation_flows.trigger_type`:
+   - `form_submitted` — si attiva quando arriva una submission per un form specifico
+
+2. Aggiungi il trigger alla tabella database delle automazioni esistenti:
+
+```sql
+-- Funzione chiamata da form-submit edge function dopo aver creato il contatto
+-- Inserisce nella automation_queue i flow con trigger 'form_submitted' attivi
+CREATE OR REPLACE FUNCTION trigger_form_automations(
+  p_company_id UUID,
+  p_form_id UUID,
+  p_contact_id UUID,
+  p_submission_data JSONB
+)
+RETURNS VOID AS $$
+DECLARE v_flow RECORD; v_trigger_node UUID; v_first_action UUID; v_enrollment_id UUID;
+BEGIN
+  FOR v_flow IN
+    SELECT af.id FROM automation_flows af
+    WHERE af.company_id = p_company_id
+      AND af.is_active = true
+      AND af.trigger_type = 'form_submitted'
+      AND (
+        af.trigger_config->>'form_id' = p_form_id::TEXT
+        OR af.trigger_config->>'form_id' IS NULL  -- qualsiasi form
+      )
+  LOOP
+    SELECT id INTO v_trigger_node FROM automation_nodes
+    WHERE flow_id = v_flow.id AND node_type = 'trigger' LIMIT 1;
+
+    SELECT target_node_id INTO v_first_action FROM automation_connections
+    WHERE flow_id = v_flow.id AND source_node_id = v_trigger_node LIMIT 1;
+
+    IF v_first_action IS NULL THEN CONTINUE; END IF;
+
+    INSERT INTO automation_enrollments (
+      flow_id, company_id, contact_id, current_node_id, status, context_data
+    ) VALUES (
+      v_flow.id, p_company_id, p_contact_id, v_first_action, 'active',
+      jsonb_build_object('form_id', p_form_id, 'submission_data', p_submission_data)
+    ) RETURNING id INTO v_enrollment_id;
+
+    INSERT INTO automation_queue (
+      enrollment_id, flow_id, node_id, company_id, contact_id, scheduled_at, status
+    ) VALUES (
+      v_enrollment_id, v_flow.id, v_first_action, p_company_id, p_contact_id, NOW(), 'pending'
+    );
+
+    UPDATE automation_flows SET total_runs = total_runs + 1 WHERE id = v_flow.id;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+3. Chiama `trigger_form_automations()` alla fine della edge function `form-submit`,
+   dopo aver creato/aggiornato il contatto:
+
+```typescript
+// Aggiungi in fondo a form-submit/index.ts, prima del return finale:
+await supabase.rpc("trigger_form_automations", {
+  p_company_id: form.company_id,
+  p_form_id: form.id,
+  p_contact_id: contactId,
+  p_submission_data: formData,
+});
+```
+
+4. Nel builder delle Marketing Automations, aggiungi "Form Compilato" alla lista trigger:
+   - Icona: ClipboardList
+   - Categoria: "Lead & Contatti"
+   - Config field: "Form specifico" → Dropdown che carica tutti i form pubblicati
+     oppure "Qualsiasi form" se non selezionato
+   - Variabili disponibili: `{{contact.name}}`, `{{contact.email}}`,
+     `{{form.name}}`, `{{form.submission.campo_id}}`
+
+─── RIEPILOGO VOCI SIDEBAR DA AGGIUNGERE ───────────────────────────
+
+Marketing e Vendite → Comunicazione:
+  → [già presente] Email Marketing
+  → [già presente] WhatsApp
+  → [NUOVO] 📣 Campagne        → /azienda/marketing/campagne
+  → [NUOVO] 📋 Form Lead       → /azienda/marketing/form-lead
+
+══════════════════════════════════════════════════════════════════
+VARIABILI AMBIENTE DA AGGIUNGERE
+══════════════════════════════════════════════════════════════════
+
+  RESEND_API_KEY   = (già presente dal modulo fatturazione)
+  APP_URL          = https://[tuo-dominio].lovable.app
+
+  Nessuna variabile aggiuntiva necessaria: campaign-tracker e
+  form-render/form-submit usano service_role key già configurata.
+
+══════════════════════════════════════════════════════════════════
+TABELLA COMPARATIVA FUNZIONALITÀ
+══════════════════════════════════════════════════════════════════
+
+CAMPAGNE:
+  ✅ Creazione campagne con tipo/canale/date/budget
+  ✅ Generazione automatica URL con UTM parameters
+  ✅ Tracking click via pixel GIF o snippet JS
+  ✅ ROI calcolato: (ricavi attribuiti - speso) / speso × 100
+  ✅ Cost per lead, cost per click, conversion rate
+  ✅ Attribuzione contatti e opportunità (first touch / last touch)
+  ✅ Grafico click nel tempo con recharts
+  ✅ Spese collegate (o importate da tabella costs)
+  ✅ Integrazione Reportistica (ROI per campagna, lead per canale)
+  ✅ Integrazione Contatti (campo "campagna origine")
+  ✅ Integrazione Opportunità (campo "campagna collegata")
+
+FORM BUILDER:
+  ✅ 11 tipi di campo (testo, email, tel, area, select, radio, checkbox, data, numero, divisore, titolo)
+  ✅ Drag & drop per riordinare i campi
+  ✅ Logica condizionale (mostra campo SE altro campo = valore)
+  ✅ Mappatura campi → campi contatto (first_name, email, phone, ecc.)
+  ✅ Temi: colori, font, logo, testo bottone
+  ✅ URL pubblico standalone + embed iframe + snippet JS
+  ✅ Upsert contatto per email (evita duplicati)
+  ✅ Attribuzione automatica campagna (legge UTM dalla URL)
+  ✅ Notifica email al team su ogni nuovo invio
+  ✅ Redirect URL o messaggio grazie personalizzato
+  ✅ Tracking visite + conversion rate
+  ✅ Trigger "Form Compilato" per Marketing Automations
+  ✅ Analitiche per form: visite, invii, tasso conversione, % compilazione per campo
