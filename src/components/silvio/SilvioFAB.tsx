@@ -138,10 +138,18 @@ export function SilvioFAB({ hidden = false }: Props) {
   useEffect(() => { if (chatOpen) setChatHasMounted(true); }, [chatOpen]);
 
   // Listener globale per aprire il sheet da componenti esterni (es. il bell
-  // popover "Apri chat con Silvio"). window.dispatchEvent(new Event("silvio:open-chat"))
+  // popover "Apri chat con Silvio"). Pattern d'uso:
+  //   window.dispatchEvent(new Event("silvio:open-chat"))                 // apre vuoto
+  //   window.dispatchEvent(new CustomEvent("silvio:open-chat",            // apre con draft
+  //     { detail: { draft: "Riassumi candidato Marco" } }))
   useEffect(() => {
-    const openHandler = () => {
+    const openHandler = (e: Event) => {
       setOpen(false); // chiudi popover FAB se aperto
+      const detail = (e as CustomEvent<{ draft?: string }>).detail;
+      if (detail?.draft) {
+        // Prefix con timestamp per forzare re-application su prefillDraft anche se stessa string
+        setChatPrefill(`${Date.now()}::${detail.draft}`);
+      }
       setChatOpen(true);
     };
     window.addEventListener("silvio:open-chat", openHandler);

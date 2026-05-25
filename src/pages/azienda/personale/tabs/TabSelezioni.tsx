@@ -974,6 +974,8 @@ function ReportDecisionDialog({
           </CardContent>
         </Card>
 
+        <SilvioReportActions candidate={candidate} report={report} />
+
         <DialogFooter>
           <Button variant="outline" onClick={() => copyTalentReportSummary(report)}>
             <Copy className="mr-2 h-4 w-4" />
@@ -1274,6 +1276,92 @@ function SelezioniAnalytics({ candidates, reports }: { candidates: TalentCandida
               </ResponsiveContainer>
             )}
           </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SilvioReportActions({ candidate, report }: { candidate: TalentCandidate; report: TalentReport }) {
+  const name = `${candidate.nome} ${candidate.cognome}`.trim();
+  const ruolo = report.role_requested || candidate.ruolo_richiesto || "il ruolo richiesto";
+  const fitPct = Number(report.role_match?.compatibilitaPct || 0);
+  const profilo = report.profile_type?.replace(/_/g, " ") || "profilo non identificato";
+  const reliability = report.reliability_index;
+  const syndromesCount = Array.isArray(report.syndromes_detected) ? report.syndromes_detected.length : 0;
+  const decision = buildTalentReportDecision(report);
+
+  const baseContext =
+    `Contesto candidato: ${name} (ruolo valutato: ${ruolo}). ` +
+    `Fit ${fitPct}%, profilo ${profilo}, attendibilità ${reliability}, ${syndromesCount} sindromi attive. ` +
+    `Decisione: ${decision.label}.`;
+
+  const openWithDraft = (draft: string) => {
+    window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft } }));
+  };
+
+  const actions: { id: string; label: string; emoji: string; build: () => string; tone: string }[] = [
+    {
+      id: "sintesi",
+      emoji: "📋",
+      label: "Sintetizza in 60s",
+      tone: "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100",
+      build: () =>
+        `${baseContext}\n\nRiassumi questo candidato in 60 secondi: verdetto, 3 punti forti concreti, 2 rischi reali, 1 raccomandazione operativa. Parla in italiano colloquiale per imprenditore (non psicologico/tecnico). Massimo 8 righe.`,
+    },
+    {
+      id: "domande",
+      emoji: "❓",
+      label: "Domande colloquio",
+      tone: "border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100",
+      build: () =>
+        `${baseContext}\n\nGenera 5 domande critiche di colloquio personalizzate per questo candidato. Per ciascuna: (1) la domanda concreta da fare, (2) cosa stai osservando dietro la domanda, (3) cosa significa una risposta "rossa". Focalizzati sui tratti più sensibili e sulle sindromi attive.`,
+    },
+    {
+      id: "email_offerta",
+      emoji: "✉️",
+      label: "Email offerta",
+      tone: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
+      build: () =>
+        `${baseContext}\n\nScrivi una bozza di email di offerta di lavoro per ${name}. Tono caldo ma professionale, personalizza sui suoi tratti dominanti. Includi: ruolo, sede di lavoro generica "il nostro cantiere", prossimo passo "fissiamo un colloquio finale". Massimo 150 parole. Saluti firmati "HR — EdiliziaInCloud".`,
+    },
+    {
+      id: "email_rifiuto",
+      emoji: "📧",
+      label: "Email rifiuto",
+      tone: "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+      build: () =>
+        `${baseContext}\n\nScrivi una bozza di email di rifiuto educata e rispettosa per ${name}. NON dire le ragioni vere (sindromi, fit basso): usa formula tipo "altri profili più allineati al ruolo in questo momento". Lascia porta aperta per il futuro. Tono umano, non robotico. Massimo 100 parole. Saluti firmati "HR — EdiliziaInCloud".`,
+    },
+  ];
+
+  return (
+    <Card className="border-orange-200 bg-gradient-to-br from-orange-50/40 via-white to-amber-50/30">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <BrainCircuit className="h-4 w-4 text-orange-600" />
+          Chiedi a Silvio
+        </CardTitle>
+        <p className="text-sm text-slate-600">
+          Apre la chat con un prompt già scritto + contesto del candidato. Modifica prima di inviare se vuoi.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {actions.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => openWithDraft(a.build())}
+              className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${a.tone}`}
+            >
+              <span className="text-xl">{a.emoji}</span>
+              <span>
+                <span className="block text-sm font-semibold">{a.label}</span>
+                <span className="text-xs opacity-80">Click per aprire Silvio</span>
+              </span>
+            </button>
+          ))}
         </div>
       </CardContent>
     </Card>
