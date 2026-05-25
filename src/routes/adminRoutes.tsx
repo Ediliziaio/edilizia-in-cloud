@@ -13,7 +13,9 @@ const CompaniesList = lazy(() => import("@/pages/admin/CompaniesList"));
 const CreateCompany = lazy(() => import("@/pages/admin/CreateCompany"));
 const CompanyDetail = lazy(() => import("@/pages/admin/CompanyDetail"));
 const GlobalTickets = lazy(() => import("@/pages/admin/GlobalTickets"));
-const AdminSettingsProfile = lazy(() => import("@/pages/admin/settings/AdminSettingsProfile"));
+// AdminSettingsProfile rimosso: sostituito da AdminMioProfilo (tab Profilo/
+// Sicurezza/Calendari/Email/Notifiche). Vecchia route /admin/impostazioni/
+// profilo redirige a /mio-profilo per back-compat.
 const AdminSettingsPlatform = lazy(() => import("@/pages/admin/settings/AdminSettingsPlatform"));
 const AdminSettingsNotifications = lazy(() => import("@/pages/admin/settings/AdminSettingsNotifications"));
 const AdminSettingsSuperAdmins = lazy(() => import("@/pages/admin/settings/AdminSettingsSuperAdmins"));
@@ -203,7 +205,7 @@ export default function AdminRoutesContainer() {
         <Route path="aziende/:id" element={<RequireSuperAdmin><CompanyDetail /></RequireSuperAdmin>} />
         <Route path="ticket" element={<RequireAdminPermission permission="can_manage_tickets"><GlobalTickets /></RequireAdminPermission>} />
         <Route path="impostazioni" element={<Navigate to="/admin/impostazioni/mio-profilo" replace />} />
-        <Route path="impostazioni/profilo" element={<AdminSettingsProfile />} />
+        <Route path="impostazioni/profilo" element={<Navigate to="/admin/impostazioni/mio-profilo" replace />} />
         <Route path="impostazioni/piattaforma" element={<RequireSuperAdmin><AdminSettingsPlatform /></RequireSuperAdmin>} />
         <Route path="impostazioni/notifiche" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsNotifications /></RequireAdminPermission>} />
         <Route path="impostazioni/super-admin" element={<RequireSuperAdmin><AdminSettingsSuperAdmins /></RequireSuperAdmin>} />

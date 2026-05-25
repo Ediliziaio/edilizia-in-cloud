@@ -256,6 +256,11 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
     if (location.pathname.includes("/contenuti-multimediali")) return "EiC Drive";
     if (location.pathname.includes("/impostazioni")) return "Impostazioni";
     if (location.pathname === "/azienda" || location.pathname === "/azienda/") return "Home azienda";
+    if (location.pathname === "/admin" || location.pathname === "/admin/") return "Home Superadmin";
+    if (location.pathname.startsWith("/admin/email")) return "Email Superadmin";
+    if (location.pathname.startsWith("/admin/aziende")) return "Aziende clienti";
+    if (location.pathname.startsWith("/admin/ai-operate")) return "AI Operatività";
+    if (location.pathname.startsWith("/admin/")) return "Area Superadmin";
     return "Pagina corrente";
   }, [location.pathname, pageContext?.route_label]);
 
@@ -266,12 +271,20 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
       action: point.action_hint ?? "Apri dettaglio",
     })) ?? [];
     if (fromBriefing.length > 0) return fromBriefing;
+    // Default suggestions specifiche al mode
+    if (mode === "admin") {
+      return [
+        { text: "Approvazioni AI in attesa — rivedi le azioni proposte", severity: "attention", action: "Apri approvazioni" },
+        { text: `Chiedi a Silvio Superadmin cosa conta ora in ${pageContextLabel}`, severity: "info", action: "Apri chat" },
+        { text: "Aziende a rischio churn — controlla salute clienti", severity: "info", action: "Vedi aziende" },
+      ];
+    }
     return [
       { text: "Controlla le cose da sapere prima di cambiare pagina", severity: "attention", action: "Vedi priorita" },
       { text: `Chiedi a Silvio cosa conta ora in ${pageContextLabel}`, severity: "info", action: "Apri chat" },
       { text: "Carica documenti, foto o computi senza scegliere il modulo", severity: "info", action: "Importa file" },
     ];
-  }, [morningBrief?.key_points, pageContextLabel]);
+  }, [morningBrief?.key_points, pageContextLabel, mode]);
 
   const pendingActionsCount = operationalPriorities.length + (morningBrief && !morningBrief.read_at ? 1 : 0);
 
