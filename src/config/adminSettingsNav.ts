@@ -1,7 +1,7 @@
 import {
   User, Shield, Users, Server, Mail, Bell,
   ScrollText, Globe, Zap, Plug, Landmark,
-  Webhook, Activity,
+  Webhook, Activity, CalendarDays,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -69,6 +69,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "API esterne, webhook e connettori",
         icon: Plug,
         url: "/admin/impostazioni/integrazioni",
+        permission: "can_manage_admins",
+      },
+      {
+        id: "calendari",
+        label: "Calendari marketing",
+        description: "Calendari CRM, disponibilita e sync Google/Apple",
+        icon: CalendarDays,
+        url: "/admin/impostazioni/calendari",
         permission: "can_manage_admins",
       },
       {

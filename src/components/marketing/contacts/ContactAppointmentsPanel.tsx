@@ -59,6 +59,10 @@ export function ContactAppointmentsPanel({ contactId, companyId, contactName, ca
       address_postal_code: apt.address_postal_code, address_province: apt.address_province,
       address_country: apt.address_country, formatted_address: apt.formatted_address,
       lat: apt.lat, lng: apt.lng, place_id: apt.place_id,
+      meeting_provider: apt.meeting_provider || null,
+      meeting_url: apt.meeting_url || null,
+      meeting_status: apt.meeting_status || null,
+      meeting_created_at: apt.meeting_created_at || null,
     });
     setDialogOpen(true);
   };

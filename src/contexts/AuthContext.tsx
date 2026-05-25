@@ -49,6 +49,13 @@ interface AuthContextType extends AuthState {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// In sviluppo Vite/HMR puo mantenere in memoria due copie diverse del context
+// dopo modifiche frequenti da piu terminali. Accettiamo l'update senza forzare
+// reload: il reload automatico qui causava loop locali e boot bloccati su /admin.
+if (import.meta.hot && typeof window !== "undefined") {
+  import.meta.hot.accept();
+}
+
 // Impersonation persisted in sessionStorage (tab-scoped), validated server-side on restore
 const SESSION_ID_KEY = "user_session_id";
 const IMP_COMPANY_KEY = "imp_company_id";

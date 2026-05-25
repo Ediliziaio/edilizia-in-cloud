@@ -21,6 +21,7 @@ import {
   Plus,
   Settings2,
   Users,
+  Video,
 } from "lucide-react";
 import AddressAutocomplete, { type AddressData } from "@/components/shared/AddressAutocomplete";
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
@@ -43,6 +44,8 @@ export interface CalendarFormData {
   base_lat: number | null;
   base_lng: number | null;
   base_place_id: string;
+  default_meeting_provider: "none" | "google_meet";
+  default_meeting_enabled: boolean;
 }
 
 interface CalendarDialogProps {
@@ -116,6 +119,8 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
     base_lat: null,
     base_lng: null,
     base_place_id: "",
+    default_meeting_provider: "none",
+    default_meeting_enabled: false,
   });
 
   const addressValue: AddressData = {
@@ -180,13 +185,15 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
         base_lat: initialData.base_lat ?? null,
         base_lng: initialData.base_lng ?? null,
         base_place_id: initialData.base_place_id || "",
+        default_meeting_provider: initialData.default_meeting_provider || "none",
+        default_meeting_enabled: initialData.default_meeting_provider === "google_meet" || !!initialData.default_meeting_enabled,
       });
       setShowDescription(!!(initialData.description));
       setDurationUnit(isHours ? "hours" : "minutes");
       setDurationValue(isHours ? mins / 60 : mins);
       setSlugTouched(!!initialData.booking_slug);
     } else {
-      setForm({ name: "", description: "", owner_id: "", calendar_type: "personal", booking_slug: "", duration_minutes: 30, max_daily_km: null, base_address_line: "", base_address_city: "", base_address_postal_code: "", base_address_province: "", base_address_country: "IT", base_formatted_address: "", base_lat: null, base_lng: null, base_place_id: "" });
+      setForm({ name: "", description: "", owner_id: "", calendar_type: "personal", booking_slug: "", duration_minutes: 30, max_daily_km: null, base_address_line: "", base_address_city: "", base_address_postal_code: "", base_address_province: "", base_address_country: "IT", base_formatted_address: "", base_lat: null, base_lng: null, base_place_id: "", default_meeting_provider: "none", default_meeting_enabled: false });
       setShowDescription(false);
       setDurationUnit("minutes");
       setDurationValue(30);
@@ -422,6 +429,56 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                 <div className="mb-4 flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">4</div>
                   <div>
+                    <h3 className="text-sm font-semibold">Modalità incontro</h3>
+                    <p className="text-xs text-muted-foreground">Decidi se gli appuntamenti nascono in presenza o con link Google Meet automatico.</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, default_meeting_provider: "none", default_meeting_enabled: false }))}
+                    className={`rounded-lg border p-3 text-left transition hover:border-primary/60 hover:bg-primary/5 ${
+                      form.default_meeting_provider === "none" ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-background"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      In presenza / telefono
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      L'appuntamento resta senza link video. Puoi aggiungere un indirizzo o note operative.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, default_meeting_provider: "google_meet", default_meeting_enabled: true }))}
+                    className={`rounded-lg border p-3 text-left transition hover:border-primary/60 hover:bg-primary/5 ${
+                      form.default_meeting_provider === "google_meet" ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "bg-background"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Video className="h-4 w-4 text-primary" />
+                      Google Meet automatico
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                      Quando il calendario Google è collegato, EiC crea il link Meet e lo salva sull'appuntamento.
+                    </p>
+                  </button>
+                </div>
+
+                {form.default_meeting_provider === "google_meet" && (
+                  <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                    Serve il collegamento Google Calendar del responsabile. Se manca, l'appuntamento resta in attesa e il link verrà creato al primo sync utile.
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-lg border bg-background p-4">
+                <div className="mb-4 flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">5</div>
+                  <div>
                     <h3 className="text-sm font-semibold">Base operativa</h3>
                     <p className="text-xs text-muted-foreground">Serve per percorsi, distanze e appuntamenti sul territorio.</p>
                   </div>
@@ -464,6 +521,10 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin className="h-3.5 w-3.5" />
                     <span className="truncate">{form.base_formatted_address || form.base_address_city || "Sede non configurata"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Video className="h-3.5 w-3.5" />
+                    <span>{form.default_meeting_provider === "google_meet" ? "Google Meet automatico" : "Nessun link video automatico"}</span>
                   </div>
                 </div>
 

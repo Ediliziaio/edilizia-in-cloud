@@ -825,7 +825,7 @@ export default function SettingsIntegrations() {
                 return;
               }
               if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
-                navigate("/azienda/impostazioni/calendari-marketing");
+                navigate("/azienda/impostazioni/calendari");
               } else if (item.provider === "google_ads") {
                 setGoogleAdsDialogOpen(true);
               } else {
@@ -838,7 +838,7 @@ export default function SettingsIntegrations() {
                 return;
               }
               if (item.provider === "google_calendar" || item.provider === "apple_calendar") {
-                navigate("/azienda/impostazioni/calendari-marketing");
+                navigate("/azienda/impostazioni/calendari");
               } else if (item.provider === "google_ads") {
                 setGoogleAdsDialogOpen(true);
               } else {

@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+
+const PLATFORM_ADMIN_COMPANY_ID = "00000000-0000-0000-0000-000000000001";
 
 export interface SidebarBadges {
   /** Open support tickets count */
@@ -18,16 +21,24 @@ export interface SidebarBadges {
   overdueTasks: number;
   /** Tasks due today (not completed) */
   dueTodayTasks: number;
+  /** Unread internal chat messages for the superadmin workspace */
+  chatUnread: number;
 }
 
 /** Fetches badge counts for the admin sidebar nav items */
 export function useAdminSidebarBadges() {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ["admin-sidebar-badges"],
+    queryKey: ["admin-sidebar-badges", user?.id],
     queryFn: async (): Promise<SidebarBadges> => {
       const now = new Date();
       const threeDaysFromNow = new Date(now.getTime() + 3 * 86400000).toISOString();
       const todayIso = now.toISOString().slice(0, 10);
+      const chatSidebarRpc = supabase.rpc as unknown as (
+        fn: "get_internal_chat_sidebar_state",
+        args: { p_company_id: string; p_user_id: string }
+      ) => Promise<{ data: Array<{ unread_count: number | null }> | null; error: unknown }>;
 
       // Fail-soft: se UNA delle query ha RLS broken (es. failure_alerts con
       // policy `auth.jwt()->>role` pre-migration 000003), non vogliamo far
@@ -64,6 +75,10 @@ export function useAdminSidebarBadges() {
           .select("status, due_date")
           .neq("status", "completed")
           .limit(500),
+        chatSidebarRpc("get_internal_chat_sidebar_state", {
+          p_company_id: PLATFORM_ADMIN_COMPANY_ID,
+          p_user_id: user!.id,
+        }),
       ]);
 
       type SettledResult<T> = { data: T | null; error: unknown; count: number | null };
@@ -79,6 +94,7 @@ export function useAdminSidebarBadges() {
       const announcementsRes = pick<unknown>(3);
       const alertsRes = pick<unknown>(4);
       const tasksRes = pick<Array<{ status: string; due_date: string | null }>>(5);
+      const chatRes = pick<Array<{ unread_count: number | null }>>(6);
 
       const openTasksRows = tasksRes.data ?? [];
       const overdueTasks = openTasksRows.filter(
@@ -97,8 +113,10 @@ export function useAdminSidebarBadges() {
         openTasks: openTasksRows.length,
         overdueTasks,
         dueTodayTasks,
+        chatUnread: (chatRes.data ?? []).reduce((sum, row) => sum + Number(row.unread_count ?? 0), 0),
       };
     },
+    enabled: !!user?.id,
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
   });
@@ -127,6 +145,10 @@ export function getBadgeForNavItem(
           ? "warning"
           : "default",
     };
+  }
+
+  if (url === "/admin/chat" && badges.chatUnread > 0) {
+    return { count: badges.chatUnread, variant: "default" };
   }
 
   if (url === "/admin/lifecycle" && badges.trialsExpiring > 0) {

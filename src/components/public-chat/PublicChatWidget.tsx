@@ -14,11 +14,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Loader2, Minimize2 } from "lucide-react";
 import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 
-// v8.6.58 — Supabase Edge Functions richiedono header apikey + Authorization
-// anche per le function "pubbliche" (verify_jwt=false). Senza header → 401
-// UNAUTHORIZED_NO_AUTH_HEADER. Uso la VITE_SUPABASE_PUBLISHABLE_KEY (anon key
-// pubblica safe-to-expose) come bearer per autenticare il client anonimo.
-const SUPABASE_ANON_KEY = (import.meta as { env?: Record<string, string> }).env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+// La function `public-chat-widget` e' verify_jwt=false: deve restare invocabile
+// da siti pubblici/iframe senza header custom, altrimenti il browser blocca la
+// preflight CORS su embed esterni.
+const SUPABASE_URL =
+  (import.meta as { env?: Record<string, string> }).env?.VITE_SUPABASE_URL ??
+  "https://rsbrguhkodgnqfomrevo.supabase.co";
 
 interface Props {
   /** UUID del widget configurato in public_chatbot_settings */
@@ -84,7 +85,7 @@ function getUtmParams(): Record<string, string | undefined> {
 
 export function PublicChatWidget({
   widgetToken,
-  apiBase = "https://rsbrguhkodgnqfomrevo.supabase.co",
+  apiBase = SUPABASE_URL,
   position = "bottom-right",
   defaultOpen = false,
   onQualified,
@@ -95,6 +96,7 @@ export function PublicChatWidget({
   const [inputValue, setInputValue] = useState("");
   const [sending, setSending] = useState(false);
   const [initLoading, setInitLoading] = useState(false);
+  const [initAttempted, setInitAttempted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [botName, setBotName] = useState("Assistente");
   const [primaryColor, setPrimaryColor] = useState("#2563EB");
@@ -119,7 +121,8 @@ export function PublicChatWidget({
   }, [open]);
 
   const initSession = useCallback(async () => {
-    if (sessionId) return;
+    if (sessionId || initAttempted) return;
+    setInitAttempted(true);
     setInitLoading(true);
     setError(null);
     try {
@@ -128,11 +131,6 @@ export function PublicChatWidget({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // v8.6.58 — anon key per autenticare la chiamata come "public"
-          ...(SUPABASE_ANON_KEY && {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          }),
         },
         timeoutMs: 10_000,
         context: "public-chat.init",
@@ -169,18 +167,30 @@ export function PublicChatWidget({
         setMessages([{ role: "assistant", content: data.welcome, ts: Date.now() }]);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Errore connessione");
+      const message = e instanceof Error ? e.message : "";
+      const friendly =
+        message.toLowerCase().includes("timeout") || e instanceof DOMException
+          ? "La chat sta impiegando troppo tempo a rispondere. Riprova tra qualche secondo o scrivici a info@ediliziaincloud.com."
+          : "Connessione alla chat non riuscita. Controlla la rete o riprova tra poco.";
+      setError(friendly);
     } finally {
       setInitLoading(false);
     }
-  }, [widgetToken, apiUrl, sessionId]);
+  }, [widgetToken, apiUrl, sessionId, initAttempted]);
 
   // Auto-init alla prima apertura
   useEffect(() => {
-    if (open && !sessionId && !initLoading) {
+    if (open && !sessionId && !initLoading && !initAttempted) {
       void initSession();
     }
-  }, [open, sessionId, initLoading, initSession]);
+  }, [open, sessionId, initLoading, initAttempted, initSession]);
+
+  const retryInit = () => {
+    setSessionId(null);
+    setMessages([]);
+    setError(null);
+    setInitAttempted(false);
+  };
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -210,10 +220,6 @@ export function PublicChatWidget({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(SUPABASE_ANON_KEY && {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          }),
         },
         timeoutMs: 30_000,
         context: "public-chat.message",
@@ -355,8 +361,17 @@ export function PublicChatWidget({
 
         {error ? (
           <div className="flex justify-center">
-            <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-md px-3 py-2 text-xs text-rose-700 dark:text-rose-300">
-              {error}
+            <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-md px-3 py-2 text-xs text-rose-700 dark:text-rose-300 space-y-2">
+              <p>{error}</p>
+              {!sessionId ? (
+                <button
+                  type="button"
+                  onClick={retryInit}
+                  className="rounded-md border border-rose-200 bg-white px-2.5 py-1 font-medium text-rose-700 hover:bg-rose-100"
+                >
+                  Riprova connessione
+                </button>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -374,7 +389,7 @@ export function PublicChatWidget({
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={!sessionId || sending}
-            placeholder={sessionId ? "Scrivi un messaggio..." : "Connessione..."}
+            placeholder={sessionId ? "Scrivi un messaggio..." : error ? "Chat momentaneamente non disponibile" : "Connessione..."}
             className="flex-1 rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-1"
             style={{ outlineColor: primaryColor }}
           />

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound } from "lucide-react";
+import { Search, Upload, Plus, Download, Filter, ArrowUpDown, Settings2, ChevronDown, MoreHorizontal, Loader2, ChevronLeft, ChevronRight, ContactRound, AlertTriangle, CheckCircle2, ShieldCheck, MailWarning, UserRoundCheck, Sparkles, ExternalLink, Mail, Phone, Building2, CalendarClock, Copy, PanelRightOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -11,9 +11,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { ContactsTable, type MarketingContact, type SortField, type SortDirection, loadVisibleColumns, saveVisibleColumns, getStorageKey } from "@/components/marketing/ContactsTable";
-import { getInitials, getAvatarColor } from "@/lib/contactUtils";
+import { getInitials, getAvatarColor, formatContactDate } from "@/lib/contactUtils";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import { cleanPhone } from "@/lib/contactUtils";
 import { ContactDialog, type ContactFormData } from "@/components/marketing/ContactDialog";
@@ -108,9 +109,329 @@ const CSV_FIELDS: ImportField[] = [
   { key: "source", label: "Fonte", required: false },
 ];
 
-export default function MarketingContacts() {
+const QUALITY_FILTERS = [
+  { value: "all", label: "Tutti", description: "Vista completa" },
+  { value: "issues", label: "Da sistemare", description: "Dati incompleti o rischi marketing" },
+  { value: "missing_contact", label: "Senza recapiti", description: "Email o telefono mancanti" },
+  { value: "no_source", label: "Senza fonte", description: "Origine lead non tracciata" },
+  { value: "optout", label: "No marketing", description: "Opt-out o unsubscribe" },
+  { value: "stale", label: "Da ricontattare", description: "Attività vecchia o assente" },
+] as const;
+
+type ContactQualityFilter = (typeof QUALITY_FILTERS)[number]["value"];
+
+type ContactQualityIssue = {
+  key: string;
+  label: string;
+  tone: "amber" | "red" | "blue";
+};
+
+function isQualityFilter(value: string): value is ContactQualityFilter {
+  return QUALITY_FILTERS.some((filter) => filter.value === value);
+}
+
+function hasText(value: string | null | undefined) {
+  return !!value?.trim();
+}
+
+function getContactName(contact: MarketingContact) {
+  return [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() || "Contatto senza nome";
+}
+
+function isMarketingOptedOut(contact: MarketingContact) {
+  return Boolean(contact.unsubscribed || contact.opt_out || contact.optout_email);
+}
+
+function isStaleContact(contact: MarketingContact) {
+  const referenceDate = contact.last_activity_at || contact.created_at;
+  if (!referenceDate) return true;
+  const timestamp = new Date(referenceDate).getTime();
+  if (Number.isNaN(timestamp)) return true;
+  return Date.now() - timestamp > 48 * 60 * 60 * 1000;
+}
+
+function getContactQualityIssues(contact: MarketingContact, duplicateKeys = new Set<string>()): ContactQualityIssue[] {
+  const issues: ContactQualityIssue[] = [];
+  const duplicateEmail = contact.email ? duplicateKeys.has(`email:${contact.email.trim().toLowerCase()}`) : false;
+  const duplicatePhone = contact.phone ? duplicateKeys.has(`phone:${cleanPhone(contact.phone)}`) : false;
+
+  if (!hasText(contact.email) && !hasText(contact.phone)) {
+    issues.push({ key: "missing_contact", label: "Senza recapiti", tone: "red" });
+  } else if (!hasText(contact.email)) {
+    issues.push({ key: "missing_email", label: "Email mancante", tone: "amber" });
+  } else if (!hasText(contact.phone)) {
+    issues.push({ key: "missing_phone", label: "Telefono mancante", tone: "amber" });
+  }
+
+  if (!hasText(contact.source)) {
+    issues.push({ key: "no_source", label: "Fonte assente", tone: "amber" });
+  }
+
+  if (isMarketingOptedOut(contact)) {
+    issues.push({ key: "optout", label: "No marketing", tone: "red" });
+  }
+
+  if (isStaleContact(contact)) {
+    issues.push({ key: "stale", label: "Da ricontattare", tone: "blue" });
+  }
+
+  if (duplicateEmail || duplicatePhone) {
+    issues.push({ key: "duplicate", label: "Possibile duplicato", tone: "amber" });
+  }
+
+  return issues;
+}
+
+function issueClasses(tone: ContactQualityIssue["tone"]) {
+  if (tone === "red") return "border-red-200 bg-red-50 text-red-700";
+  if (tone === "blue") return "border-blue-200 bg-blue-50 text-blue-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function ContactProfileDrawer({
+  contact,
+  companyId,
+  open,
+  onOpenChange,
+  onEdit,
+  canEdit,
+}: {
+  contact: MarketingContact | null;
+  companyId?: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onEdit: (contact: MarketingContact) => void;
+  canEdit: boolean;
+}) {
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
+  const fullName = contact ? getContactName(contact) : "";
+  const issues = contact ? getContactQualityIssues(contact) : [];
+  const primaryScore = contact?.ai_score ?? contact?.lead_score ?? contact?.score ?? null;
+  const hasMarketingBlock = contact ? isMarketingOptedOut(contact) : false;
+
+  const { data: listNames = [], isLoading: listsLoading } = useQuery({
+    queryKey: ["marketing-contact-profile-lists", companyId, contact?.id],
+    enabled: open && !!companyId && !!contact?.id,
+    queryFn: async () => {
+      if (!companyId || !contact?.id) return [];
+      const { data: members, error } = await supabase
+        .from("marketing_contact_list_members")
+        .select("list_id")
+        .eq("contact_id", contact.id);
+      if (error) throw error;
+      const listIds = [...new Set((members || []).map((member) => member.list_id).filter(Boolean))];
+      if (listIds.length === 0) return [];
+      const { data: lists, error: listsError } = await supabase
+        .from("marketing_contact_lists")
+        .select("id, name")
+        .eq("company_id", companyId)
+        .in("id", listIds);
+      if (listsError) throw listsError;
+      return (lists || []).map((list) => list.name);
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const copyValue = async (value: string | null | undefined, label: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copiato`);
+    } catch {
+      toast.error("Non riesco a copiare negli appunti");
+    }
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-xl">
+        {contact && (
+          <>
+            <SheetHeader className="border-b bg-gradient-to-br from-white via-orange-50/40 to-amber-50 px-6 py-5">
+              <div className="flex items-start gap-4 pr-8">
+                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-base font-bold text-white ${getAvatarColor(fullName)}`}>
+                  {getInitials(contact.first_name, contact.last_name || "")}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <SheetTitle className="truncate text-xl">{fullName}</SheetTitle>
+                  <SheetDescription className="mt-1 truncate">
+                    {contact.company_name || contact.source || "Contatto marketing"}
+                  </SheetDescription>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {primaryScore !== null && (
+                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Score {primaryScore}</Badge>
+                    )}
+                    {contact.opp_status === "open" && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Opportunità aperta</Badge>}
+                    {hasMarketingBlock && <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Marketing bloccato</Badge>}
+                  </div>
+                </div>
+              </div>
+            </SheetHeader>
+
+            <div className="space-y-5 px-6 py-5">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  className="flex min-h-16 items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors hover:bg-slate-50"
+                  onClick={() => copyValue(contact.email, "Email")}
+                >
+                  <Mail className="h-4 w-4 text-slate-500" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Email</p>
+                    <p className="truncate text-sm font-medium">{contact.email || "Non presente"}</p>
+                  </div>
+                  {contact.email && <Copy className="ml-auto h-3.5 w-3.5 text-slate-400" />}
+                </button>
+                <button
+                  type="button"
+                  className="flex min-h-16 items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors hover:bg-slate-50"
+                  onClick={() => copyValue(contact.phone, "Telefono")}
+                >
+                  <Phone className="h-4 w-4 text-slate-500" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Telefono</p>
+                    <p className="truncate text-sm font-medium">{contact.phone || "Non presente"}</p>
+                  </div>
+                  {contact.phone && <Copy className="ml-auto h-3.5 w-3.5 text-slate-400" />}
+                </button>
+                <div className="flex min-h-16 items-center gap-3 rounded-2xl border bg-white p-3">
+                  <Building2 className="h-4 w-4 text-slate-500" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Azienda</p>
+                    <p className="truncate text-sm font-medium">{contact.company_name || "Non indicata"}</p>
+                  </div>
+                </div>
+                <div className="flex min-h-16 items-center gap-3 rounded-2xl border bg-white p-3">
+                  <CalendarClock className="h-4 w-4 text-slate-500" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Ultima attività</p>
+                    <p className="truncate text-sm font-medium">{formatContactDate(contact.last_activity_at || contact.created_at)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-950">Qualità dato</p>
+                    <p className="text-sm text-slate-500">Rischi operativi prima di campagne e automazioni.</p>
+                  </div>
+                  {issues.length === 0 ? (
+                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Pulito
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                      <AlertTriangle className="mr-1 h-3.5 w-3.5" /> {issues.length} warning
+                    </Badge>
+                  )}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {issues.length === 0 ? (
+                    <span className="text-sm text-slate-500">Nessuna criticità evidente sul contatto.</span>
+                  ) : (
+                    issues.map((issue) => (
+                      <span key={issue.key} className={`rounded-full border px-2.5 py-1 text-xs font-medium ${issueClasses(issue.tone)}`}>
+                        {issue.label}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <ShieldCheck className="h-4 w-4 text-slate-500" /> Consensi
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span>Email marketing</span>
+                      <Badge variant={contact.optout_email || contact.unsubscribed ? "destructive" : "secondary"}>
+                        {contact.optout_email || contact.unsubscribed ? "Bloccata" : "OK"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>WhatsApp</span>
+                      <Badge variant={contact.optout_whatsapp ? "destructive" : "secondary"}>
+                        {contact.optout_whatsapp ? "Bloccato" : "OK"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Chiamate</span>
+                      <Badge variant={contact.optout_call ? "destructive" : "secondary"}>
+                        {contact.optout_call ? "Bloccate" : "OK"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <Sparkles className="h-4 w-4 text-slate-500" /> Insight
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm text-slate-600">
+                    <p><span className="font-medium text-slate-900">Fonte:</span> {contact.source || "Non tracciata"}</p>
+                    <p><span className="font-medium text-slate-900">Canale:</span> {contact.preferred_channel || "Non definito"}</p>
+                    <p><span className="font-medium text-slate-900">Prossima azione:</span> {contact.ai_next_action || "Nessun suggerimento"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="font-semibold text-slate-950">Liste e segmenti</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {listsLoading ? (
+                    <span className="text-sm text-slate-500">Carico liste...</span>
+                  ) : listNames.length === 0 ? (
+                    <span className="text-sm text-slate-500">Non appartiene ancora a nessuna lista.</span>
+                  ) : (
+                    listNames.map((name) => <Badge key={name} variant="secondary">{name}</Badge>)
+                  )}
+                </div>
+              </div>
+
+              {contact.opp_name && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="font-semibold text-emerald-950">Opportunità collegata</p>
+                  <p className="mt-1 text-sm text-emerald-800">{contact.opp_name}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {contact.opp_pipeline && <Badge className="bg-white text-emerald-700 hover:bg-white">{contact.opp_pipeline}</Badge>}
+                    {contact.opp_stage && <Badge className="bg-white text-emerald-700 hover:bg-white">{contact.opp_stage}</Badge>}
+                    {contact.opp_value != null && <Badge className="bg-white text-emerald-700 hover:bg-white">€ {Number(contact.opp_value).toLocaleString("it-IT")}</Badge>}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  className="flex-1"
+                  onClick={() => navigate(`${routePrefix}/contatti/${contact.id}`)}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" /> Apri scheda completa
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  disabled={!canEdit}
+                  onClick={() => {
+                    onEdit(contact);
+                    onOpenChange(false);
+                  }}
+                >
+                  Modifica contatto
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+export default function MarketingContacts() {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
@@ -138,6 +459,7 @@ export default function MarketingContacts() {
     sortDirection: { key: "dir", defaultValue: "desc" },
     // Deep-link preset usato da dashboard / executive summary marketing.
     filter: { key: "filter", defaultValue: "" },
+    quality: { key: "qualita", defaultValue: "all" },
   });
 
   const normalizedUrl = useMemo(
@@ -157,10 +479,10 @@ export default function MarketingContacts() {
   }, [setURLParams]);
 
   useEffect(() => {
-    if (urlFilters.activeTab !== normalizedUrl.activeTab) {
-      setURLParam("activeTab", normalizedUrl.activeTab);
+    if (urlFilters.activeTab !== activeTab) {
+      setURLParam("activeTab", activeTab);
     }
-  }, [normalizedUrl.activeTab, setURLParam, urlFilters.activeTab]);
+  }, [activeTab, setURLParam, urlFilters.activeTab]);
 
   const [searchInput, setSearchInput] = useState(urlFilters.searchInput);
   const search = useDebounce(searchInput, 350);
@@ -181,8 +503,13 @@ export default function MarketingContacts() {
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
   const [filters, setFilters] = useState<ContactFilters>(EMPTY_CONTACT_FILTERS);
   const [exporting, setExporting] = useState(false);
+  const [previewContact, setPreviewContact] = useState<MarketingContact | null>(null);
 
   const activeFilterCount = countActiveContactFilters(filters);
+  const qualityFilter = isQualityFilter(urlFilters.quality) ? urlFilters.quality : "all";
+  const setQualityFilter = useCallback((value: ContactQualityFilter) => {
+    setURLParams({ quality: value, page: 1 });
+  }, [setURLParams]);
   // Preset filter via query param: ?filter=stale|stale_2h
   // Permette ai banner della dashboard / executive summary di "deep-linkare"
   // direttamente sui lead da contattare. Si rimuove con il bottone in banner.
@@ -199,6 +526,14 @@ export default function MarketingContacts() {
       setURLParam("searchInput", search);
     }
   }, [search, setURLParam, urlFilters.searchInput]);
+
+  useEffect(() => {
+    setVisibleColumns(loadVisibleColumns(columnsStorageKey));
+  }, [columnsStorageKey]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [companyId, activeTab, search, pageSize, sortField, sortDirection, filters, stalePreset, qualityFilter]);
 
   const doExport = useCallback(async (format: "csv" | "xlsx") => {
     if (!companyId || exporting) return;
@@ -254,6 +589,33 @@ export default function MarketingContacts() {
         if (safeSearch) {
           const s = `%${safeSearch}%`;
           query = query.or(`first_name.ilike.${s},last_name.ilike.${s},email.ilike.${s},phone.ilike.${s}`);
+        }
+
+        if (qualityFilter === "issues") {
+          query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.,source.is.null,source.eq.,unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true,last_activity_at.is.null");
+        } else if (qualityFilter === "missing_contact") {
+          query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.");
+        } else if (qualityFilter === "no_source") {
+          query = query.or("source.is.null,source.eq.");
+        } else if (qualityFilter === "optout") {
+          query = query.or("unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true");
+        } else if (qualityFilter === "stale") {
+          const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+          query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
+        }
+
+        if (stalePresetActive) {
+          const now = Date.now();
+          if (stalePreset === "stale_2h") {
+            const twoHoursAgo = new Date(now - 2 * 60 * 60 * 1000).toISOString();
+            query = query
+              .gte("created_at", new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString())
+              .lte("created_at", twoHoursAgo)
+              .or("last_activity_at.is.null");
+          } else {
+            const fortyEightHoursAgo = new Date(now - 48 * 60 * 60 * 1000).toISOString();
+            query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
+          }
         }
 
         if (finalIds) query = query.in("id", finalIds);
@@ -345,7 +707,7 @@ export default function MarketingContacts() {
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search, permissions.onlyAssigned, user?.id]);
+  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search, permissions.onlyAssigned, user?.id, activeTab, qualityFilter, stalePreset, stalePresetActive]);
 
   // Consolidated filter data query (pipelines, tags, list count)
   const { data: filterData } = useQuery({
@@ -371,6 +733,7 @@ export default function MarketingContacts() {
       ]);
       if (pipelinesRes.error) throw pipelinesRes.error;
       if (tagsRes.error) throw tagsRes.error;
+      if (countRes.error) throw countRes.error;
       return {
         pipelines: (pipelinesRes.data || []) as PipelineWithStages[],
         availableTags: normalizeTagList((tagsRes.data || []).map((t) => t.name)),
@@ -420,7 +783,8 @@ export default function MarketingContacts() {
           else if (rule.operator === "is_not") oppQuery = oppQuery.neq("pipeline_id", pipelineId);
         }
       }
-      const { data: oppData } = await oppQuery;
+      const { data: oppData, error: oppError } = await oppQuery;
+      if (oppError) throw oppError;
       oppContactIds = [...new Set((oppData || []).map((o) => o.contact_id))];
       if (oppContactIds.length === 0) return [];
     }
@@ -438,7 +802,8 @@ export default function MarketingContacts() {
           case "is_empty": cfQuery = cfQuery.or("value.is.null,value.eq."); break;
           case "is_not_empty": cfQuery = cfQuery.not("value", "is", null).neq("value", ""); break;
         }
-        const { data: cfData } = await cfQuery;
+        const { data: cfData, error: cfError } = await cfQuery;
+        if (cfError) throw cfError;
         sets.push(new Set((cfData || []).map((r) => r.contact_id)));
       }
       // AND: intersect all sets
@@ -474,13 +839,14 @@ export default function MarketingContacts() {
       else if (rule.operator === "is_empty") query = query.or("tags.is.null,tags.eq.{}");
       else if (rule.operator === "is_not_empty") query = query.not("tags", "is", null).not("tags", "eq", "{}");
     }
-    const { data } = await query;
+    const { data, error } = await query;
+    if (error) throw error;
     return (data || []).map((r) => r.id);
   }
 
   // Fetch contacts with grouped filter rules
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -524,6 +890,19 @@ export default function MarketingContacts() {
       }
 
       if (finalIds) query = query.in("id", finalIds);
+
+      if (qualityFilter === "issues") {
+        query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.,source.is.null,source.eq.,unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true,last_activity_at.is.null");
+      } else if (qualityFilter === "missing_contact") {
+        query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.");
+      } else if (qualityFilter === "no_source") {
+        query = query.or("source.is.null,source.eq.");
+      } else if (qualityFilter === "optout") {
+        query = query.or("unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true");
+      } else if (qualityFilter === "stale") {
+        const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+        query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
+      }
 
       // Preset "lead da contattare" — applicato server-side se ?filter=stale|stale_2h.
       // - stale_2h: lead nuovi (creati ≤ 2h fa) ma non ancora contattati
@@ -615,10 +994,47 @@ export default function MarketingContacts() {
   const contacts = useMemo(() => data?.contacts ?? [], [data?.contacts]);
   const totalCount = data?.count || 0;
   const contactIds = useMemo(() => contacts.map((c) => c.id), [contacts]);
+  const duplicateKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    contacts.forEach((contact) => {
+      const email = contact.email?.trim().toLowerCase();
+      const phone = contact.phone ? cleanPhone(contact.phone) : "";
+      if (email) counts.set(`email:${email}`, (counts.get(`email:${email}`) || 0) + 1);
+      if (phone) counts.set(`phone:${phone}`, (counts.get(`phone:${phone}`) || 0) + 1);
+    });
+    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
+  }, [contacts]);
+  const contactIssuesById = useMemo(() => {
+    const map: Record<string, ContactQualityIssue[]> = {};
+    contacts.forEach((contact) => {
+      map[contact.id] = getContactQualityIssues(contact, duplicateKeys);
+    });
+    return map;
+  }, [contacts, duplicateKeys]);
+  const qualityStats = useMemo(() => {
+    const values = Object.values(contactIssuesById);
+    return {
+      totalIssues: values.filter((issues) => issues.length > 0).length,
+      missingContact: values.filter((issues) => issues.some((issue) => issue.key === "missing_contact" || issue.key === "missing_email" || issue.key === "missing_phone")).length,
+      noSource: values.filter((issues) => issues.some((issue) => issue.key === "no_source")).length,
+      optout: values.filter((issues) => issues.some((issue) => issue.key === "optout")).length,
+      stale: values.filter((issues) => issues.some((issue) => issue.key === "stale")).length,
+      duplicates: values.filter((issues) => issues.some((issue) => issue.key === "duplicate")).length,
+    };
+  }, [contactIssuesById]);
+  const selectedQualitySummary = useMemo(() => {
+    const selectedContacts = contacts.filter((contact) => selectedIds.has(contact.id));
+    const selectedIssues = selectedContacts.flatMap((contact) => contactIssuesById[contact.id] || []);
+    return {
+      selected: selectedContacts.length,
+      issues: selectedIssues.length,
+      optout: selectedIssues.filter((issue) => issue.key === "optout").length,
+    };
+  }, [contacts, selectedIds, contactIssuesById]);
 
   // Fetch custom field values for visible contacts
   const { data: customFieldValues = {} } = useQuery({
-    queryKey: ["marketing-contact-field-values", contactIds],
+    queryKey: ["marketing-contact-field-values", companyId, contactIds],
     queryFn: async () => {
       if (contactIds.length === 0) return {} as Record<string, Record<string, string>>;
       const { data: vals, error } = await supabase
@@ -1123,8 +1539,81 @@ export default function MarketingContacts() {
 
       {activeTab === "lists" ? (
         <ContactListsView />
-      ) : activeTab === "all" ? (
+      ) : (
         <>
+          {/* Quality cockpit */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-blue-600" />
+                  <p className="font-semibold text-slate-950">Igiene CRM</p>
+                  <Badge variant="secondary" className="text-[11px]">pagina corrente</Badge>
+                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  Controlli rapidi su recapiti, fonte, consensi e duplicati prima di liste, export o automazioni.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <PanelRightOpen className="h-3.5 w-3.5 text-slate-500" />
+                Clic sulla riga: anteprima laterale. Clic sul nome: scheda completa.
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase text-amber-700">Da sistemare</span>
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                </div>
+                <p className="mt-1 text-2xl font-bold text-amber-950">{qualityStats.totalIssues}</p>
+                <p className="text-xs text-amber-700">contatti con warning visibili</p>
+              </div>
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase text-red-700">No marketing</span>
+                  <MailWarning className="h-4 w-4 text-red-600" />
+                </div>
+                <p className="mt-1 text-2xl font-bold text-red-950">{qualityStats.optout}</p>
+                <p className="text-xs text-red-700">opt-out o unsubscribe</p>
+              </div>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase text-blue-700">Da ricontattare</span>
+                  <CalendarClock className="h-4 w-4 text-blue-600" />
+                </div>
+                <p className="mt-1 text-2xl font-bold text-blue-950">{qualityStats.stale}</p>
+                <p className="text-xs text-blue-700">attività vecchia o assente</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase text-emerald-700">Duplicati</span>
+                  <UserRoundCheck className="h-4 w-4 text-emerald-600" />
+                </div>
+                <p className="mt-1 text-2xl font-bold text-emerald-950">{qualityStats.duplicates}</p>
+                <p className="text-xs text-emerald-700">match email/telefono nella pagina</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {QUALITY_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    qualityFilter === filter.value
+                      ? "border-orange-300 bg-orange-50 text-orange-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                  title={filter.description}
+                  onClick={() => setQualityFilter(filter.value)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Filter bar */}
           <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             {/* Mobile: full-width search */}
@@ -1178,10 +1667,11 @@ export default function MarketingContacts() {
                 const fullName = [c.first_name, c.last_name].filter(Boolean).join(" ");
                 const initials = getInitials(c.first_name, c.last_name || "");
                 const color = getAvatarColor(fullName);
+                const issues = contactIssuesById[c.id] || [];
                 return (
                   <div
                     key={c.id}
-                    onClick={() => navigate(`${routePrefix}/contatti/${c.id}`)}
+                    onClick={() => setPreviewContact(c)}
                     className="border rounded-xl p-4 cursor-pointer active:scale-[0.99] transition-all bg-card"
                   >
                     <div className="flex items-center gap-3">
@@ -1194,6 +1684,11 @@ export default function MarketingContacts() {
                         {c.company_name && <p className="text-xs text-muted-foreground truncate">{c.company_name}</p>}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
+                        {issues.length > 0 && (
+                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-[10px]">
+                            {issues.length} warning
+                          </Badge>
+                        )}
                         {c.tags?.slice(0, 1).map((t) => (
                           <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
                         ))}
@@ -1249,16 +1744,32 @@ export default function MarketingContacts() {
               sortField={sortField}
               sortDirection={sortDirection}
               onSort={(f, d) => { setSortField(f); setSortDirection(d); setPage(1); }}
-              bulkActions={<div className="flex items-center gap-2"><AddToListDropdown selectedIds={selectedIds} /><BulkEnrollAutomationDropdown selectedIds={selectedIds} /></div>}
+              bulkActions={
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedQualitySummary.issues > 0 && (
+                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                      {selectedQualitySummary.issues} warning selezione
+                    </Badge>
+                  )}
+                  {selectedQualitySummary.optout > 0 && (
+                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                      {selectedQualitySummary.optout} no marketing
+                    </Badge>
+                  )}
+                  <AddToListDropdown selectedIds={selectedIds} />
+                  <BulkEnrollAutomationDropdown selectedIds={selectedIds} />
+                </div>
+              }
               visibleColumns={visibleColumns}
               customFields={contactCustomFields}
               customFieldValues={customFieldValues}
               canEdit={canEditContacts}
+              onOpenPreview={setPreviewContact}
             />
           )}
           </div>
         </>
-      ) : null}
+      )}
 
       {/* Sheets */}
       <ContactFieldsSheet
@@ -1298,6 +1809,16 @@ export default function MarketingContacts() {
         isEditing={!!editingContact}
         companyId={companyId}
         editingContactId={editingContact?.id}
+      />
+      <ContactProfileDrawer
+        contact={previewContact}
+        companyId={companyId}
+        open={!!previewContact}
+        onOpenChange={(open) => {
+          if (!open) setPreviewContact(null);
+        }}
+        onEdit={handleEdit}
+        canEdit={canEditContacts}
       />
     </div>
   );

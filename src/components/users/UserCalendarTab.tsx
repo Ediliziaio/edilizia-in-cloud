@@ -137,7 +137,7 @@ export function UserCalendarTab() {
 
   const handleConnect = () => {
     navigate(
-      `/azienda/impostazioni/calendari-marketing?return=/azienda/impostazioni/utenti/${userId}?tab=calendar`
+      `/azienda/impostazioni/calendari?return=/azienda/impostazioni/utenti/${userId}?tab=calendar`
     );
   };
 
@@ -454,7 +454,7 @@ export function UserCalendarTab() {
           <button
             type="button"
             className="underline hover:text-foreground transition-colors"
-            onClick={() => navigate("/azienda/impostazioni/calendari-marketing")}
+            onClick={() => navigate("/azienda/impostazioni/calendari")}
           >
             Impostazioni → Calendari
           </button>

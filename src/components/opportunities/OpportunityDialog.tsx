@@ -16,7 +16,7 @@ import { TagSelector } from "@/components/marketing/TagSelector";
 import { CustomFieldInput } from "@/components/shared/CustomFieldInput";
 import { useNavigate } from "react-router-dom";
 import { syncTagsToContact } from "@/hooks/useTagSync";
-import { STATUS_OPTIONS } from "@/types/opportunities";
+import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { cleanPhone } from "@/lib/contactUtils";
 import { usePermissions } from "@/hooks/usePermissions";
 import { normalizeTagList } from "@/lib/marketingTags";
@@ -506,7 +506,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                     <Select value={stageId} onValueChange={(v) => {
                       setStageId(v);
                       const stage = stages.find((s) => s.id === v);
-                      if (stage?.auto_status) setStatus(stage.auto_status);
+                      setStatus(inferOpportunityStatusFromStage(stage, "open"));
                     }}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>

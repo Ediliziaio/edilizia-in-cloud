@@ -596,6 +596,8 @@ Deno.serve(async (req) => {
     const channelId: string | undefined = body.channel_id;
     const message: string | undefined = body.message;
     const forceModel: string | undefined = body.model;
+    const pageContext: string | undefined =
+      typeof body.page_context === "string" ? body.page_context.slice(0, 600) : undefined;
 
     if (!channelId || !message?.trim()) {
       return jsonRes({ error: "channel_id e message obbligatori" }, 400);
@@ -758,7 +760,10 @@ Deno.serve(async (req) => {
       : "";
 
     // 5b. Build messages[] — Preambolo costituzionale + Director base + persona-specific
-    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${personaAddendum}${strictFormatAddendum}`;
+    const pageContextAddendum = pageContext?.trim()
+      ? `\n\n═══ CONTESTO UI CORRENTE ═══\nFlorin ha aperto Silvio dalla pagina admin: ${pageContext.trim()}.\nUsalo solo come hint operativo per capire cosa stava guardando. Non inventare dati della pagina se non arrivano da tool, DB o storia chat.`
+      : "";
+    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${pageContextAddendum}${personaAddendum}${strictFormatAddendum}`;
     const aiMessages: AIMessage[] = [
       { role: "system", content: fullSystemPrompt },
     ];

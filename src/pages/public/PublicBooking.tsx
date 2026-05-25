@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CalendarDays, CheckCircle2, Clock, ExternalLink, Loader2, Mail, Phone, ShieldCheck, User } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, Clock, ExternalLink, Loader2, Mail, Phone, ShieldCheck, User, Video } from "lucide-react";
 import { toast } from "sonner";
 
 const PUBLIC_BOOKING_TIMEOUT_MS = 8_000;
@@ -63,7 +63,7 @@ export default function PublicBooking() {
       const { data, error } = await withPublicBookingTimeout(
         supabase
           .from("marketing_calendars")
-          .select("id, name, description, company_id, duration_minutes, booking_slug, owner_id")
+          .select("id, name, description, company_id, duration_minutes, booking_slug, owner_id, default_meeting_provider, default_meeting_enabled")
           .eq("booking_slug", slug)
           .eq("is_active", true)
           .maybeSingle(),
@@ -267,6 +267,7 @@ export default function PublicBooking() {
       if (!hasContactMethod) throw new Error("Inserisci almeno email o telefono.");
       if (!emailIsValid) throw new Error("Inserisci un indirizzo email valido.");
       const duration = calendar.duration_minutes || 30;
+      const usesGoogleMeet = calendar.default_meeting_provider === "google_meet";
       const endTime = format(
         new Date(parse(selectedSlot, "HH:mm", selectedDate).getTime() + duration * 60000),
         "HH:mm"
@@ -297,10 +298,12 @@ export default function PublicBooking() {
           form.phone && `Tel: ${form.phone}`,
           form.notes && `Note: ${form.notes}`,
         ].filter(Boolean).join("\n"),
-        appointment_type: "appuntamento",
+        appointment_type: usesGoogleMeet ? "videocall" : "appuntamento",
         status: "confermato",
         assigned_to: calendar.owner_id || null,
         created_by: "00000000-0000-0000-0000-000000000000",
+        meeting_provider: usesGoogleMeet ? "google_meet" : "none",
+        meeting_status: usesGoogleMeet ? "pending" : "none",
       });
       if (error) throw error;
     },
@@ -366,6 +369,7 @@ export default function PublicBooking() {
   const addToOutlookUrl = selectedStart && selectedEnd
     ? `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(calendar.name)}&startdt=${encodeURIComponent(selectedStart.toISOString())}&enddt=${encodeURIComponent(selectedEnd.toISOString())}&body=${encodeURIComponent(form.notes || calendar.description || "")}`
     : "";
+  const usesGoogleMeet = calendar.default_meeting_provider === "google_meet";
 
   if (booked) {
     return (
@@ -380,6 +384,12 @@ export default function PublicBooking() {
             <strong>{selectedSlot}</strong>.
           </p>
             <p className="mt-4 text-sm text-muted-foreground">Riceverai conferma dall'azienda se sono necessarie altre informazioni.</p>
+            {usesGoogleMeet && (
+              <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                <Video className="mr-2 inline h-4 w-4" />
+                Videocall Google Meet: il link verrà creato dall'azienda e aggiunto all'evento calendario.
+              </div>
+            )}
             {(addToGoogleUrl || addToOutlookUrl) && (
               <div className="mt-6 grid gap-2 sm:grid-cols-2">
                 {addToGoogleUrl && (
@@ -437,6 +447,12 @@ export default function PublicBooking() {
                   <ShieldCheck className="h-4 w-4" />
                   <span>Conferma immediata in calendario</span>
                 </div>
+                {usesGoogleMeet && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Video className="h-4 w-4" />
+                    <span>Videocall Google Meet</span>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-lg border bg-background p-3 text-sm">

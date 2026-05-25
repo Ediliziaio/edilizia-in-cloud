@@ -260,7 +260,7 @@ export default function MioProfilo() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("google-calendar-auth", {
-        body: { action: "get-auth-url", company_id: companyId, user_id: user.id },
+        body: { action: "start", companyId },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (res.error) throw new Error(res.error.message);
@@ -309,7 +309,7 @@ export default function MioProfilo() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       await supabase.functions.invoke("google-calendar-sync", {
-        body: { company_id: companyId, user_id: user.id },
+        body: { action: "full-sync", companyId },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       toast.success("Sincronizzazione completata!");
@@ -787,11 +787,11 @@ export default function MioProfilo() {
                       <span className="font-medium text-green-800 dark:text-green-300 text-sm">Calendario collegato</span>
                     </div>
                     <p className="text-xs text-green-700 dark:text-green-400">
-                      Account: {googleConn.google_email ?? "Google Account"}
+                      Account: {googleConn.google_account_email ?? "Google Account"}
                     </p>
-                    {googleConn.last_synced_at && (
+                    {googleConn.last_sync_at && (
                       <p className="text-xs text-green-600/70 mt-1">
-                        Ultima sync: {format(new Date(googleConn.last_synced_at), "d MMM yyyy, HH:mm", { locale: it })}
+                        Ultima sync: {format(new Date(googleConn.last_sync_at), "d MMM yyyy, HH:mm", { locale: it })}
                       </p>
                     )}
                   </div>

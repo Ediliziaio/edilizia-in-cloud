@@ -5,6 +5,35 @@ export interface OpportunityStage {
   auto_status?: string | null;
 }
 
+export type OpportunityStatus = "open" | "won" | "lost" | "abandoned";
+
+const STATUS_VALUES = new Set<OpportunityStatus>(["open", "won", "lost", "abandoned"]);
+
+export function normalizeOpportunityStatus(value: unknown): OpportunityStatus | undefined {
+  return typeof value === "string" && STATUS_VALUES.has(value as OpportunityStatus)
+    ? value as OpportunityStatus
+    : undefined;
+}
+
+export function inferOpportunityStatusFromStage(
+  stage?: Pick<OpportunityStage, "name" | "auto_status"> | null,
+  fallback: OpportunityStatus = "open",
+): OpportunityStatus {
+  const explicit = normalizeOpportunityStatus(stage?.auto_status);
+  if (explicit) return explicit;
+
+  const normalizedName = (stage?.name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (/\b(won|vint[ao]|chius[ao]\s+vint[ao])\b/.test(normalizedName)) return "won";
+  if (/\b(lost|pers[ao]|chius[ao]\s+pers[ao])\b/.test(normalizedName)) return "lost";
+  if (/\b(abbandonat[ao]|abandoned)\b/.test(normalizedName)) return "abandoned";
+
+  return fallback;
+}
+
 export const STATUS_OPTIONS = [
   { value: "open", label: "Aperta" },
   { value: "won", label: "Vinta" },

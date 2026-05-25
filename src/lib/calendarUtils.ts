@@ -1,4 +1,4 @@
-import { CalendarClock, Search, Truck, Users, UserCheck, Ruler, HardHat, ClipboardCheck, Wrench, ShieldCheck, MapPin, Hammer, Flag } from "lucide-react";
+import { CalendarClock, Search, Truck, Users, UserCheck, Ruler, HardHat, ClipboardCheck, Wrench, ShieldCheck, MapPin, Hammer, Flag, Video } from "lucide-react";
 import type { CalendarOrder, CalendarAppointment } from "@/types/calendar";
 import type { AppointmentData } from "@/components/appointments/AppointmentDialog";
 
@@ -67,6 +67,7 @@ export const APPOINTMENT_ICONS: Record<string, typeof CalendarClock> = {
   riunione: Users,
   cliente: UserCheck,
   generico: CalendarClock,
+  videocall: Video,
   // M16 — Nuovi tipi appuntamento tecnico
   sopralluogo_preventivo: MapPin,
   rilievo_tecnico: Ruler,
@@ -105,6 +106,7 @@ export const APPOINTMENT_COLORS: Record<string, string> = {
   riunione:               "bg-gray-100 text-gray-800 border-gray-200",
   cliente:                "bg-pink-100 text-pink-800 border-pink-200",
   generico:               "bg-gray-100 text-gray-700 border-gray-200",
+  videocall:              "bg-sky-100 text-sky-800 border-sky-200",
 };
 
 export function mapAppointmentToEditData(apt: CalendarAppointment): AppointmentData {

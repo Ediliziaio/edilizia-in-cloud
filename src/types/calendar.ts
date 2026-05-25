@@ -123,6 +123,10 @@ export interface CalendarAppointment {
   } | null;
   status?: string;
   reminder_minutes?: number | null;
+  meeting_provider?: string | null;
+  meeting_url?: string | null;
+  meeting_status?: string | null;
+  meeting_created_at?: string | null;
   formatted_address?: string | null;
   address_line?: string | null;
   address_city?: string | null;

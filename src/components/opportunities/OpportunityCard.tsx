@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useCardFieldPreferences, type CardLayout } from "@/hooks/useCardFieldPreferences";
+import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -32,6 +33,7 @@ interface OpportunityCardProps {
 
 export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardProps>(function OpportunityCard({ opportunity, onClick, onOpenTab, onDelete, isOverlay, selected, onSelect, canEdit = true }, _ref) {
   const navigate = useNavigate();
+  const routePrefix = useMarketingRoutePrefix();
   const contact = opportunity.marketing_contacts;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { activeFields, layout, isFieldActive } = useCardFieldPreferences();
@@ -52,6 +54,8 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
     : opportunity.name;
   const cityPart = contact?.city ? ` - ${contact.city}` : "";
   const displayName = `${fullName}${cityPart}` || opportunity.name;
+  const stageChangedAt = opportunity.stage_changed_at || opportunity.updated_at || null;
+  const daysInStage = stageChangedAt ? Math.max(0, differenceInDays(new Date(), new Date(stageChangedAt))) : null;
 
   // Owner avatar from assigned_profile
   const profile = opportunity.assigned_profile;
@@ -65,7 +69,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   // Tags
   const tags: string[] = opportunity.tags || [];
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = () => {
     if (isDragging) return;
     onClick?.();
   };
@@ -205,7 +209,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                 <LeadTemperatureBadge lastActivityAt={contact.last_activity_at} hasOpenOpportunity createdAt={contact.created_at} compact />
                 <p
                   className="text-xs md:text-sm font-bold leading-tight truncate cursor-pointer hover:underline"
-                  onClick={(e) => { e.stopPropagation(); navigate(`/azienda/marketing/contatti/${contact.id}`); }}
+                  onClick={(e) => { e.stopPropagation(); navigate(`${routePrefix}/contatti/${contact.id}`); }}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
                   {displayName}
@@ -239,7 +243,7 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         </div>
 
         {/* Detail rows - driven by field preferences */}
-        <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} isFieldActive={isFieldActive} />
+        <CardDetailRows opportunity={opportunity} contact={contact} activeFields={activeFields} layout={layout} />
 
         {/* Updated at + days in stage */}
         {!isOverlay && (
@@ -250,9 +254,9 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
                 <span>Agg. {formatDistanceToNow(new Date(opportunity.updated_at), { addSuffix: false, locale: it })}</span>
               </div>
             )}
-            {opportunity.updated_at && opportunity.status === 'open' && (
+            {daysInStage !== null && opportunity.status === 'open' && (
               <span className="text-[9px] bg-muted rounded px-1 py-0.5">
-                {differenceInDays(new Date(), new Date(opportunity.updated_at))}gg in stage
+                {daysInStage}gg in stage
               </span>
             )}
           </div>
@@ -306,16 +310,15 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
 OpportunityCard.displayName = "OpportunityCard";
 
 /** Renders detail rows based on user field preferences */
-function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldActive }: {
+function CardDetailRows({ opportunity, contact, activeFields, layout }: {
   opportunity: any;
   contact: any;
   activeFields: string[];
   layout: CardLayout;
-  isFieldActive: (key: string) => boolean;
 }) {
   const rows = useMemo(() => {
     const r: { label: string; value: string; highlight?: boolean }[] = [];
-    const fieldMap: Record<string, () => { label: string; value: string; highlight?: boolean }> = {
+    const fieldMap: Record<string, () => { label: string; value: string; highlight?: boolean } | null> = {
       source: () => ({ label: "Fonte", value: opportunity.source || "—" }),
       value: () => ({
         label: "Valore",
@@ -324,7 +327,13 @@ function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldAct
       }),
       contact_email: () => ({ label: "Email", value: contact?.email || "—" }),
       contact_phone: () => ({ label: "Telefono", value: contact?.phone || "—" }),
-      lost_reason: () => ({ label: "Motivo perdita", value: opportunity.notes || "—" }),
+      lost_reason: () => {
+        if (opportunity.status !== "lost" && opportunity.status !== "abandoned") return null;
+        return {
+          label: "Motivo perdita",
+          value: opportunity.lost_reason || opportunity.loss_reason || opportunity.lost_reason_category || "—",
+        };
+      },
       created_at: () => ({ label: "Creato il", value: opportunity.created_at ? new Date(opportunity.created_at).toLocaleDateString("it-IT") : "—" }),
       updated_at: () => ({ label: "Aggiornato il", value: opportunity.updated_at ? new Date(opportunity.updated_at).toLocaleDateString("it-IT") : "—" }),
       contact_name: () => ({ label: "Contatto", value: contact ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim() || "—" : "—" }),
@@ -347,7 +356,8 @@ function CardDetailRows({ opportunity, contact, activeFields, layout, isFieldAct
     for (const key of activeFields) {
       if (key === "opp_name" || key === "tags" || key === "owner") continue;
       const gen = fieldMap[key];
-      if (gen) r.push(gen());
+      const row = gen?.();
+      if (row) r.push(row);
     }
     return r;
   }, [opportunity, contact, activeFields]);

@@ -39,6 +39,8 @@ import {
   Link2,
   Clock,
   Users,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -71,17 +73,20 @@ export default function MarketingCalendar() {
   const appleSync = useAppleCalendarSync();
   const { isGoogleConnected } = googleSync;
   const { isAppleConnected } = appleSync;
-  const calendarSettingsPath = "/azienda/impostazioni/calendari";
+  const calendarSettingsPath = isAdminContext
+    ? "/admin/impostazioni/calendari"
+    : "/azienda/impostazioni/calendari";
 
   // Fetch Google busy slots for marketing calendar overlay
-  const { data: googleBusySlots = [] } = useQuery({
+  const { data: googleBusySlots = [], error: googleBusyError, refetch: refetchGoogleBusySlots } = useQuery({
     queryKey: ["gcal-busy-slots", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("google_calendar_busy_slots")
         .select("id, start_at, end_at, summary, is_all_day, user_id, google_calendar_id")
         .eq("company_id", companyId);
+      if (error) throw error;
       return data || [];
     },
     enabled: !!companyId && isGoogleConnected,
@@ -89,14 +94,15 @@ export default function MarketingCalendar() {
   });
 
   // Fetch Apple Calendar busy slots for marketing calendar overlay
-  const { data: appleBusySlots = [] } = useQuery({
+  const { data: appleBusySlots = [], error: appleBusyError, refetch: refetchAppleBusySlots } = useQuery({
     queryKey: ["apple-busy-slots", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("apple_calendar_busy_slots")
         .select("id, start_at, end_at, summary, is_all_day, user_id, caldav_calendar_url")
         .eq("company_id", companyId);
+      if (error) throw error;
       return (data || []).map((s: any) => ({
         ...s,
         google_calendar_id: s.caldav_calendar_url,
@@ -118,6 +124,7 @@ export default function MarketingCalendar() {
   const [editingAppointment, setEditingAppointment] = useState<MarketingAppointmentData | null>(null);
   const [defaultDate, setDefaultDate] = useState<string | undefined>();
   const [defaultTime, setDefaultTime] = useState<string | undefined>();
+  const [syncingExternal, setSyncingExternal] = useState(false);
 
   // Filter state
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
@@ -131,16 +138,17 @@ export default function MarketingCalendar() {
   );
 
   // Fetch calendars
-  const { data: calendars = [] } = useQuery({
+  const { data: calendars = [], error: calendarsError, refetch: refetchCalendars } = useQuery({
     queryKey: ["marketing-calendars", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("marketing_calendars")
-        .select("id, name, is_active, base_lat, base_lng, base_formatted_address, duration_minutes")
+        .select("id, name, is_active, base_lat, base_lng, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .order("name");
+      if (error) throw error;
       return data || [];
     },
     enabled: !!companyId,
@@ -202,7 +210,7 @@ export default function MarketingCalendar() {
   }, [activeTab, calendarView, currentDate, weekStart]);
 
   // Fetch appointments with date range filter
-  const { data: rawAppointments = [], refetch: refetchAppointments } = useQuery({
+  const { data: rawAppointments = [], error: appointmentsError, refetch: refetchAppointments } = useQuery({
     queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
@@ -218,7 +226,8 @@ export default function MarketingCalendar() {
       if (permissions.onlyAssigned && user?.id) {
         query = query.eq("assigned_to", user.id);
       }
-      const { data } = await query;
+      const { data, error } = await query;
+      if (error) throw error;
       return (data || []) as any[];
     },
     enabled: !!companyId,
@@ -235,15 +244,16 @@ export default function MarketingCalendar() {
   }, [rawAppointments]);
 
   // Fetch only referenced contacts for enrichment
-  const { data: contacts = [] } = useQuery({
+  const { data: contacts = [], error: contactsError } = useQuery({
     queryKey: ["marketing-contacts-lookup", companyId, contactIds],
     queryFn: async () => {
       if (!companyId || contactIds.length === 0) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name")
         .eq("company_id", companyId)
         .in("id", contactIds);
+      if (error) throw error;
       return data || [];
     },
     enabled: !!companyId && contactIds.length > 0,
@@ -283,19 +293,28 @@ export default function MarketingCalendar() {
 
   // Filtered
   const filteredAppointments = useMemo(() => {
+    const allUsersSelected = users.length === 0 || selectedUserIds.length >= users.length;
     return appointments.filter((a: any) => {
       if (!a.calendar_id) return false;
       if (calendars.length > 0 && selectedCalendarIds.length === 0) return false;
       if (selectedCalendarIds.length > 0 && !selectedCalendarIds.includes(a.calendar_id))
         return false;
       if (users.length > 0 && selectedUserIds.length === 0) return false;
-      if (selectedUserIds.length > 0) {
+      if (!allUsersSelected && selectedUserIds.length > 0) {
         if (!a.assigned_to) return false;
         if (!selectedUserIds.includes(a.assigned_to)) return false;
       }
       return true;
     });
   }, [appointments, calendars.length, selectedCalendarIds, selectedUserIds, users.length]);
+
+  const calendarLoadError = calendarsError || appointmentsError || contactsError || googleBusyError || appleBusyError;
+  const calendarLoadErrorMessage =
+    calendarLoadError instanceof Error
+      ? calendarLoadError.message
+      : calendarLoadError
+        ? "Errore nel caricamento dei dati calendario"
+        : null;
 
   // Compute slot duration from selected calendars
   const slotDurationMinutes = useMemo(() => {
@@ -523,6 +542,10 @@ export default function MarketingCalendar() {
       lat: apt.lat,
       lng: apt.lng,
       place_id: apt.place_id,
+      meeting_provider: apt.meeting_provider,
+      meeting_url: apt.meeting_url,
+      meeting_status: apt.meeting_status,
+      meeting_created_at: apt.meeting_created_at,
     });
     setDialogOpen(true);
   };
@@ -644,6 +667,40 @@ export default function MarketingCalendar() {
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
   }, [refetchAppointments, queryClient, companyId, syncExternalCalendarsForAppointment]);
 
+  const handleSyncExternalCalendars = useCallback(async () => {
+    const hasExternalConnection = googleSync.isGoogleConnected || appleSync.isAppleConnected;
+    if (!hasExternalConnection) {
+      toast.info("Collega prima Google Calendar o Apple Calendar");
+      navigate(`${calendarSettingsPath}?tab=connections`);
+      return;
+    }
+
+    setSyncingExternal(true);
+    try {
+      const tasks: Promise<unknown>[] = [];
+      if (googleSync.isGoogleConnected) tasks.push(googleSync.pullBusySlots());
+      if (appleSync.isAppleConnected) tasks.push(appleSync.pullBusySlots());
+
+      await Promise.allSettled(tasks);
+      await Promise.allSettled([
+        refetchGoogleBusySlots(),
+        refetchAppleBusySlots(),
+        refetchAppointments(),
+      ]);
+      toast.success("Calendari esterni sincronizzati");
+    } finally {
+      setSyncingExternal(false);
+    }
+  }, [
+    appleSync,
+    calendarSettingsPath,
+    googleSync,
+    navigate,
+    refetchAppleBusySlots,
+    refetchAppointments,
+    refetchGoogleBusySlots,
+  ]);
+
   const tabs = [
     { key: "calendar" as const, label: "Calendario", icon: CalendarIcon },
     { key: "list" as const, label: "Elenco", icon: ListIcon },
@@ -672,21 +729,49 @@ export default function MarketingCalendar() {
                 </>
               )}
             </p>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {isGoogleConnected && (
+                <Badge variant="outline" className="h-5 gap-1 border-emerald-200 bg-emerald-50 px-1.5 text-[10px] text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Google sync
+                </Badge>
+              )}
+              {isAppleConnected && (
+                <Badge variant="outline" className="h-5 gap-1 border-sky-200 bg-sky-50 px-1.5 text-[10px] text-sky-700">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Apple sync
+                </Badge>
+              )}
+              {!isGoogleConnected && !isAppleConnected && (
+                <Badge variant="outline" className="h-5 gap-1 px-1.5 text-[10px] text-muted-foreground">
+                  Sync esterna non collegata
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!isAdminContext && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => navigate("/azienda/impostazioni/calendari")}
-              className="h-9 gap-1 text-muted-foreground hover:text-foreground"
-              title="Impostazioni calendari"
-            >
-              <Settings className="h-4 w-4" />
-              <span className="hidden md:inline">Impostazioni</span>
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSyncExternalCalendars}
+            disabled={syncingExternal}
+            className="h-9 gap-1.5"
+            title="Sincronizza disponibilita' e appuntamenti con i calendari esterni collegati"
+          >
+            <RefreshCw className={cn("h-4 w-4", syncingExternal && "animate-spin")} />
+            <span className="hidden sm:inline">Sync</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => navigate(calendarSettingsPath)}
+            className="h-9 gap-1 text-muted-foreground hover:text-foreground"
+            title="Impostazioni calendari"
+          >
+            <Settings className="h-4 w-4" />
+            <span className="hidden md:inline">Impostazioni</span>
+          </Button>
           <Button
             size="sm"
             onClick={() => (hasCalendars ? openNewDialog() : navigate(calendarSettingsPath))}
@@ -729,6 +814,32 @@ export default function MarketingCalendar() {
           ))}
         </nav>
       </div>
+
+      {calendarLoadErrorMessage && (
+        <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-semibold">Alcuni dati del calendario non sono stati caricati.</p>
+              <p className="mt-0.5 text-xs text-red-700">{calendarLoadErrorMessage}</p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0 border-red-200 bg-white text-red-800 hover:bg-red-100"
+            onClick={() => {
+              void refetchCalendars();
+              void refetchAppointments();
+              void refetchGoogleBusySlots();
+              void refetchAppleBusySlots();
+            }}
+          >
+            Riprova
+          </Button>
+        </div>
+      )}
 
       {/* Content */}
       {activeTab === "calendar" && (

@@ -75,6 +75,7 @@ import { AdminNotificationCenter } from "@/components/admin/header/AdminNotifica
 import { AdminQuickActions } from "@/components/admin/header/AdminQuickActions";
 import { AdminBottomNav } from "@/components/admin/AdminBottomNav";
 import { AdminMobileSettingsNav } from "@/components/admin/AdminMobileSettingsNav";
+import { AdminSilvioFAB } from "@/components/silvio/AdminSilvioFAB";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AdminNavItem {
@@ -529,20 +530,28 @@ function AdminMainSidebar() {
                     </SidebarMenuItem>
                   );
                 })()}
-                {permissions.can_manage_companies && (
-                  <SidebarMenuItem key="top-chat">
-                    <SidebarMenuButton asChild tooltip="Chat team">
-                      <NavLink
-                        to="/admin/chat"
-                        className={navLinkClass}
-                        activeClassName={activeClass}
-                      >
-                        <MessagesSquare className="h-4 w-4" />
-                        <span className="flex-1 font-medium">Chat</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
+                {permissions.can_manage_companies && (() => {
+                  const badge = getBadgeForNavItem("/admin/chat", sidebarBadges);
+                  return (
+                    <SidebarMenuItem key="top-chat">
+                      <SidebarMenuButton asChild tooltip="Chat team">
+                        <NavLink
+                          to="/admin/chat"
+                          className={navLinkClass}
+                          activeClassName={activeClass}
+                        >
+                          <MessagesSquare className="h-4 w-4" />
+                          <span className="flex-1 font-medium">Chat</span>
+                          {badge && badge.count != null && badge.count > 0 && (
+                            <span className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-sidebar-primary/15 px-1 text-xs font-bold leading-none text-sidebar-primary">
+                              {badge.count > 99 ? "99+" : badge.count}
+                            </span>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })()}
                 {/* Silvio rimosso dalla sidebar: ora vive come canale dentro
                     /admin/chat (visibile e accessibile come per le aziende).
                     Il link sidebar separato era ridondante. */}
@@ -784,6 +793,7 @@ export function AdminLayout() {
             </ErrorBoundary>
           </main>
         </div>
+        <AdminSilvioFAB />
       </div>
     </SidebarProvider>
   );

@@ -42,6 +42,40 @@ interface ListMember {
   };
 }
 
+type ListMemberRow = Omit<ListMember, "contact"> & {
+  marketing_contacts: ListMember["contact"] | ListMember["contact"][] | null;
+};
+
+async function assertListBelongsToCompany(listId: string, companyId: string | undefined) {
+  if (!companyId) throw new Error("Azienda non selezionata");
+  const { data, error } = await supabase
+    .from("marketing_contact_lists")
+    .select("id")
+    .eq("id", listId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Lista non trovata per questa azienda");
+}
+
+async function assertContactsBelongToCompany(contactIds: string[], companyId: string | undefined) {
+  if (!companyId) throw new Error("Azienda non selezionata");
+  if (contactIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("marketing_contacts")
+    .select("id")
+    .eq("company_id", companyId)
+    .in("id", contactIds);
+  if (error) throw error;
+
+  const allowedIds = (data || []).map((row) => row.id);
+  if (allowedIds.length !== contactIds.length) {
+    throw new Error("Alcuni contatti selezionati non appartengono alla lista aziendale corrente");
+  }
+  return allowedIds;
+}
+
 export function ContactListsView() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -64,6 +98,7 @@ export function ContactListsView() {
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
+      if (!data || data.length === 0) return [];
 
       const listIds = (data || []).map(l => l.id);
       if (listIds.length === 0) return [];
@@ -97,7 +132,8 @@ export function ContactListsView() {
         const { error } = await supabase
           .from("marketing_contact_lists")
           .update({ name: data.name, description: data.description || null })
-          .eq("id", editingList.id);
+          .eq("id", editingList.id)
+          .eq("company_id", companyId);
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -117,7 +153,12 @@ export function ContactListsView() {
   // Delete list
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("marketing_contact_lists").delete().eq("id", id);
+      if (!companyId) throw new Error("No company");
+      const { error } = await supabase
+        .from("marketing_contact_lists")
+        .delete()
+        .eq("id", id)
+        .eq("company_id", companyId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -133,11 +174,14 @@ export function ContactListsView() {
   const removeMembersMutation = useMutation({
     mutationFn: async (contactIds: string[]) => {
       if (!selectedList) return;
+      await assertListBelongsToCompany(selectedList.id, companyId);
+      const safeContactIds = await assertContactsBelongToCompany(contactIds, companyId);
+      if (safeContactIds.length === 0) return;
       const { error } = await supabase
         .from("marketing_contact_list_members")
         .delete()
         .eq("list_id", selectedList.id)
-        .in("contact_id", contactIds);
+        .in("contact_id", safeContactIds);
       if (error) throw error;
     },
     onSuccess: (_, contactIds) => {
@@ -304,20 +348,28 @@ function ListDetailView({
   const queryClient = useQueryClient();
 
   const { data: members = [], isLoading } = useQuery({
-    queryKey: queryKeys.listMembers.byList(listId),
+    queryKey: ["list-members", companyId, listId],
     queryFn: async () => {
+      await assertListBelongsToCompany(listId, companyId);
       const { data, error } = await supabase
         .from("marketing_contact_list_members")
         .select("id, contact_id, added_at, marketing_contacts(id, first_name, last_name, phone, email, company_name, tags)")
         .eq("list_id", listId);
       if (error) throw error;
-      return (data || []).map((d: any) => ({
-        id: d.id,
-        contact_id: d.contact_id,
-        added_at: d.added_at,
-        contact: d.marketing_contacts,
-      })) as ListMember[];
+      return ((data || []) as ListMemberRow[]).flatMap((row) => {
+        const contact = Array.isArray(row.marketing_contacts)
+          ? row.marketing_contacts[0]
+          : row.marketing_contacts;
+        if (!contact) return [];
+        return [{
+          id: row.id,
+          contact_id: row.contact_id,
+          added_at: row.added_at,
+          contact,
+        }];
+      });
     },
+    enabled: !!companyId && !!listId,
   });
 
   const filtered = members.filter(m => {
@@ -484,8 +536,9 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
 
   // Fetch existing member IDs
   const { data: existingIds = [] } = useQuery({
-    queryKey: queryKeys.listMembers.ids(listId),
+    queryKey: ["list-member-ids", companyId, listId],
     queryFn: async () => {
+      await assertListBelongsToCompany(listId, companyId);
       const { data, error } = await supabase
         .from("marketing_contact_list_members")
         .select("contact_id")
@@ -525,7 +578,10 @@ function AddContactsToListDialog({ open, onOpenChange, listId, companyId, onDone
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      const rows = Array.from(selected).map(contactId => ({ list_id: listId, contact_id: contactId }));
+      await assertListBelongsToCompany(listId, companyId);
+      const contactIds = await assertContactsBelongToCompany(Array.from(selected), companyId);
+      if (contactIds.length === 0) return;
+      const rows = contactIds.map(contactId => ({ list_id: listId, contact_id: contactId }));
       const { error } = await supabase.from("marketing_contact_list_members").upsert(rows, { onConflict: "list_id,contact_id" });
       if (error) throw error;
     },

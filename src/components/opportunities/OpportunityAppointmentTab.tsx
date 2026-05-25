@@ -52,7 +52,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("marketing_calendars")
-        .select("id, name, duration_minutes, calendar_type, base_lat, base_lng, base_formatted_address")
+        .select("id, name, duration_minutes, calendar_type, base_lat, base_lng, base_formatted_address, default_meeting_provider, default_meeting_enabled")
         .eq("company_id", companyId)
         .eq("is_active", true)
         .order("name");
@@ -169,6 +169,10 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       lat: appt.lat ?? null,
       lng: appt.lng ?? null,
       place_id: appt.place_id || null,
+      meeting_provider: appt.meeting_provider || null,
+      meeting_url: appt.meeting_url || null,
+      meeting_status: appt.meeting_status || null,
+      meeting_created_at: appt.meeting_created_at || null,
     });
     setDialogOpen(true);
   };

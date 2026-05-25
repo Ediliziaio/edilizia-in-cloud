@@ -669,10 +669,10 @@
         // non ha ancora montato (spinner inline visibile) lo stack è
         // probabilmente bloccato da SW/cache stale → recovery utile prima
         // di vedere "1 minuto" percepito.
-        // In localhost Vite può compilare a freddo per più di 10s: lì evitiamo
-        // reload automatici che peggiorano il loop e mostriamo un fallback
-        // azionabile dopo una soglia più alta.
-        var BOOT_TIMEOUT_MS = LOCAL_DEV_HOST_RE.test(location.hostname) ? 30000 : 10000;
+        // In localhost Vite può compilare a freddo, ma 30s lasciavano l'utente
+        // davanti alla rotellina troppo a lungo. Mostriamo un fallback azionabile
+        // prima, senza reload automatici ripetuti.
+        var BOOT_TIMEOUT_MS = LOCAL_DEV_HOST_RE.test(location.hostname) ? 16000 : 10000;
         window.setTimeout(function () {
           var root = document.getElementById('root');
           if (!root) return;
@@ -692,7 +692,10 @@
           }
         }, BOOT_TIMEOUT_MS);
 
-        window.setTimeout(recoverBlankScreen, LOCAL_DEV_HOST_RE.test(location.hostname) ? 5_000 : 12_000);
+        // In locale Vite puo restare "bianco" mentre compila chunk grossi o
+        // mentre HMR riallinea i provider. Soglia abbastanza morbida per evitare
+        // falsi positivi, ma non cosi alta da sembrare un blocco infinito.
+        window.setTimeout(recoverBlankScreen, LOCAL_DEV_HOST_RE.test(location.hostname) ? 18_000 : 12_000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

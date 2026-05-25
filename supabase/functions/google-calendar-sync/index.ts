@@ -12,6 +12,20 @@ function getSupabaseAdmin() {
   );
 }
 
+async function verifyCompanyAccess(userId: string, companyId: string): Promise<boolean> {
+  const admin = getSupabaseAdmin();
+  const [profileRes, rolesRes] = await Promise.all([
+    admin.from("profiles").select("company_id").eq("id", userId).maybeSingle(),
+    admin.from("user_roles").select("role").eq("user_id", userId),
+  ]);
+
+  if ((rolesRes.data ?? []).some((row: { role?: string }) => row.role === "super_admin")) {
+    return true;
+  }
+
+  return profileRes.data?.company_id === companyId;
+}
+
 // encrypt/decrypt/getEncryptionKey imported from _shared/encryption.ts
 
 // Get a valid access token, refreshing if expired
@@ -231,10 +245,11 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     .maybeSingle();
   if (existing) return json({ error: "Already synced", mappingId: existing.id }, 409);
 
-  const googleEvent = buildGoogleEvent(apt);
+  const meetRequested = shouldUseGoogleMeet(apt);
+  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url });
 
   const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(settings.primary_calendar_id)}/events`,
+    buildGoogleEventUrl(settings.primary_calendar_id, undefined, meetRequested),
     {
       method: "POST",
       headers: {
@@ -256,6 +271,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
   }
 
   const created = await res.json();
+  const meetUrl = await persistMeetDetails(admin, appointmentId, created, meetRequested);
 
   await admin.from("google_calendar_event_map").insert({
     company_id: companyId,
@@ -281,7 +297,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     })
     .eq("id", conn.id);
 
-  return json({ success: true, googleEventId: created.id });
+  return json({ success: true, googleEventId: created.id, meetingUrl: meetUrl });
 }
 
 // ---- UPDATE EVENT ----
@@ -308,10 +324,11 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
     .single();
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
-  const googleEvent = buildGoogleEvent(apt);
+  const meetRequested = shouldUseGoogleMeet(apt);
+  const googleEvent = buildGoogleEvent(apt, { createMeet: meetRequested && !apt.meeting_url });
 
   const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(mapping.google_calendar_id!)}/events/${encodeURIComponent(mapping.google_event_id)}`,
+    buildGoogleEventUrl(mapping.google_calendar_id!, mapping.google_event_id, meetRequested),
     {
       method: "PATCH",
       headers: {
@@ -330,6 +347,7 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
   }
 
   const updated = await res.json();
+  const meetUrl = await persistMeetDetails(admin, appointmentId, updated, meetRequested);
   await admin
     .from("google_calendar_event_map")
     .update({
@@ -350,7 +368,7 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
     })
     .eq("id", conn.id);
 
-  return json({ success: true });
+  return json({ success: true, meetingUrl: meetUrl });
 }
 
 // ---- DELETE EVENT ----
@@ -487,6 +505,10 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
           appointment_end_time: fields.endTime,
           description: fields.description,
           formatted_address: fields.location,
+          meeting_provider: fields.meetingProvider,
+          meeting_url: fields.meetingUrl,
+          meeting_status: fields.meetingStatus,
+          meeting_created_at: fields.meetingUrl ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", mapping.appointment_id);
@@ -536,10 +558,14 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
           appointment_end_time: fields.endTime,
           description: fields.description,
           formatted_address: fields.location,
-          appointment_type: "altro",
+          appointment_type: fields.meetingProvider === "google_meet" ? "videocall" : "altro",
           status: "confermato",
           is_completed: false,
           is_blocked_slot: false,
+          meeting_provider: fields.meetingProvider,
+          meeting_url: fields.meetingUrl,
+          meeting_status: fields.meetingStatus,
+          meeting_created_at: fields.meetingUrl ? new Date().toISOString() : null,
         })
         .select("id")
         .single();
@@ -584,7 +610,53 @@ async function fullSync(userId: string, companyId: string): Promise<Response> {
 }
 
 // ---- HELPERS ----
-function buildGoogleEvent(apt: any) {
+function buildGoogleEventUrl(calendarId: string, eventId?: string, withConference = false): string {
+  const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events${eventId ? `/${encodeURIComponent(eventId)}` : ""}`;
+  if (!withConference) return base;
+  return `${base}?${new URLSearchParams({ conferenceDataVersion: "1" })}`;
+}
+
+function shouldUseGoogleMeet(apt: any): boolean {
+  return apt?.meeting_provider === "google_meet" || apt?.appointment_type === "videocall";
+}
+
+function extractMeetUrl(gEvent: any): string | null {
+  if (typeof gEvent?.hangoutLink === "string" && gEvent.hangoutLink) return gEvent.hangoutLink;
+  const videoEntry = (gEvent?.conferenceData?.entryPoints || []).find((entry: any) =>
+    entry?.entryPointType === "video" && typeof entry?.uri === "string"
+  );
+  return videoEntry?.uri || null;
+}
+
+async function persistMeetDetails(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  appointmentId: string,
+  gEvent: any,
+  meetRequested: boolean
+): Promise<string | null> {
+  const meetUrl = extractMeetUrl(gEvent);
+  if (!meetRequested && !meetUrl) return null;
+
+  const patch = meetUrl
+    ? {
+        meeting_provider: "google_meet",
+        meeting_url: meetUrl,
+        meeting_status: "ready",
+        meeting_created_at: new Date().toISOString(),
+      }
+    : {
+        meeting_provider: "google_meet",
+        meeting_status: "pending",
+      };
+
+  const { error } = await admin.from("appointments").update(patch).eq("id", appointmentId);
+  if (error) {
+    console.error("persistMeetDetails: failed to update appointment", error);
+  }
+  return meetUrl;
+}
+
+function buildGoogleEvent(apt: any, options: { createMeet?: boolean } = {}) {
   const hasTime = !!apt.appointment_time;
   const dateStr = apt.appointment_date;
 
@@ -605,19 +677,32 @@ function buildGoogleEvent(apt: any) {
 
   const description = [
     apt.description || "",
+    shouldUseGoogleMeet(apt) ? "\nVideochiamata: Google Meet" : "",
+    apt.meeting_url ? `Link Meet: ${apt.meeting_url}` : "",
     "",
     `crm_appointment_id=${apt.id}`,
     `crm_sync=true`,
     `crm_last_update=${new Date().toISOString()}`,
   ].join("\n");
 
-  return {
+  const event: Record<string, unknown> = {
     summary: apt.title,
     description,
     start,
     end,
     ...(apt.formatted_address ? { location: apt.formatted_address } : {}),
   };
+
+  if (options.createMeet) {
+    event.conferenceData = {
+      createRequest: {
+        requestId: `eic-${apt.id}-${Date.now()}`,
+        conferenceSolutionKey: { type: "hangoutsMeet" },
+      },
+    };
+  }
+
+  return event;
 }
 
 function addHour(dateTime: string): string {
@@ -645,9 +730,15 @@ function parseGoogleEventToCrmFields(gEvent: any): {
   endTime: string | null;
   description: string | null;
   location: string | null;
+  meetingProvider: "none" | "google_meet";
+  meetingUrl: string | null;
+  meetingStatus: "none" | "ready";
 } {
   const title = gEvent.summary || null;
   const location = gEvent.location || null;
+  const meetingUrl = extractMeetUrl(gEvent);
+  const meetingProvider = meetingUrl ? "google_meet" : "none";
+  const meetingStatus = meetingUrl ? "ready" : "none";
 
   // Strip CRM metadata from description
   let description = gEvent.description || "";
@@ -655,6 +746,8 @@ function parseGoogleEventToCrmFields(gEvent: any): {
     .replace(/crm_appointment_id=[0-9a-f-]{36}/gi, "")
     .replace(/crm_sync=true/gi, "")
     .replace(/crm_last_update=[^\n]*/gi, "")
+    .replace(/Videochiamata:\s*Google Meet/gi, "")
+    .replace(/Link Meet:\s*https?:\/\/[^\s]+/gi, "")
     .replace(/\n{2,}/g, "\n")
     .trim() || null;
 
@@ -677,7 +770,7 @@ function parseGoogleEventToCrmFields(gEvent: any): {
     }
   }
 
-  return { title, date, time, endTime, description, location };
+  return { title, date, time, endTime, description, location, meetingProvider, meetingUrl, meetingStatus };
 }
 
 // ---- CRON FULL SYNC (all connected users) ----
@@ -833,14 +926,9 @@ Deno.serve(async (req) => {
 
     if (!companyId) return json({ error: "companyId required" }, 400);
 
-    // P0 Security: Validate companyId matches authenticated user's profile (skip for service_role calls)
+    // P0 Security: utenti aziendali solo sulla propria azienda; superadmin abiliti per il contesto piattaforma.
     if (token !== serviceRoleKey) {
-      const { data: profile } = await getSupabaseAdmin()
-        .from("profiles")
-        .select("company_id")
-        .eq("id", userId)
-        .single();
-      if (!profile || profile.company_id !== companyId) {
+      if (!(await verifyCompanyAccess(userId, companyId))) {
         return json({ error: "Company mismatch" }, 403);
       }
     }

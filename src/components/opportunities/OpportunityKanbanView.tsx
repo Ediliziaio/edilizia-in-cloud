@@ -12,7 +12,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { useUpdateOpportunityStage, useDeleteOpportunity } from "@/hooks/useOpportunitiesData";
 import type { OpportunityStage } from "@/types/opportunities";
-import { hashColor } from "@/types/opportunities";
+import { hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { useCardFieldPreferences } from "@/hooks/useCardFieldPreferences";
 
 const StageColumn = memo(forwardRef<HTMLDivElement, {
@@ -151,10 +151,11 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
 
     if (activeOpp.stage_id !== targetStageId && stages.some(s => s.id === targetStageId)) {
       const targetStage = stages.find(s => s.id === targetStageId);
+      const nextStatus = inferOpportunityStatusFromStage(targetStage, "open");
       updateStage.mutate({
         id: activeOpp.id,
         stage_id: targetStageId,
-        auto_status: targetStage?.auto_status || undefined,
+        auto_status: nextStatus,
       });
     }
   }, [opportunities, stages, updateStage, canEdit]);

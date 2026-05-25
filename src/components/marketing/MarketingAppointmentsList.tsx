@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,12 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
   const totalPages = Math.ceil(filtered.length / rowsPerPage);
   const paged = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
+  useEffect(() => {
+    if (page > 0 && page >= totalPages) {
+      setPage(Math.max(totalPages - 1, 0));
+    }
+  }, [page, totalPages]);
+
   const syncExternalCalendarsForStatus = useCallback(async (appointmentId: string, status: string) => {
     const tasks: Promise<unknown>[] = [];
     const shouldDelete = status === "annullato";
@@ -98,6 +104,11 @@ export default function MarketingAppointmentsList({ appointments, onRefresh, onC
   }, [appleSync, googleSync]);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
+    if (!companyId) {
+      toast({ title: "Azienda non disponibile", variant: "destructive" });
+      return;
+    }
+
     const current = appointments.find((a) => a.id === id);
     if (current?.status === newStatus) return; // early return se lo status non cambia
 

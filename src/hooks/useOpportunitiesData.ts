@@ -6,6 +6,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useEffect, useMemo } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { withClientTimeout } from "@/lib/query-timeout";
 
 export function usePipelines() {
   const { effectiveCompany } = useAuth();
@@ -14,11 +15,14 @@ export function usePipelines() {
   return useQuery({
     queryKey: queryKeys.pipelines.list(companyId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("marketing_pipelines")
-        .select("*, marketing_pipeline_stages(id, name, position, auto_status)")
-        .eq("company_id", companyId!)
-        .order("position");
+      const { data, error } = await withClientTimeout(
+        supabase
+          .from("marketing_pipelines")
+          .select("*, marketing_pipeline_stages(id, name, position, auto_status)")
+          .eq("company_id", companyId!)
+          .order("position"),
+        "Caricamento pipeline opportunità",
+      );
       if (error) throw error;
       return data.map((p: any) => ({
         ...p,
@@ -26,6 +30,7 @@ export function usePipelines() {
       }));
     },
     enabled: !!companyId,
+    retry: false,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
@@ -47,14 +52,13 @@ function validateOpportunityPayload(data: Record<string, any>) {
     const numericValue = Number(data.value);
     if (!Number.isFinite(numericValue) || numericValue < 0) throw new Error("Il valore economico deve essere un numero positivo");
   }
-  if ("status" in data && data.status === "lost" && !data.lost_reason_category && !data.loss_reason) {
+  if ("status" in data && data.status === "lost" && !data.lost_reason_category && !data.lost_reason && !data.loss_reason) {
     throw new Error("Indica il motivo prima di segnare l'opportunità come persa");
   }
 }
 
 async function countOpportunityLinks(opportunityId: string, companyId: string) {
   const linkedTables = [
-    "appointments",
     "marketing_contact_notes",
     "marketing_documents",
     "marketing_opportunity_notes",
@@ -62,19 +66,23 @@ async function countOpportunityLinks(opportunityId: string, companyId: string) {
     "render_bagno_sessions",
     "render_facciata_sessions",
     "render_pavimento_sessions",
+    "render_pergole_sessions",
     "render_persiane_sessions",
+    "render_piscine_sessions",
     "render_sessions",
     "render_stanza_sessions",
+    "render_technical_sessions",
     "render_tetto_sessions",
     "tasks",
   ];
 
   const counts = await Promise.all(linkedTables.map(async (table) => {
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from(table as any)
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyId)
       .eq("opportunity_id", opportunityId);
+    if (error) throw error;
     return count || 0;
   }));
 
@@ -177,9 +185,9 @@ export function useOpportunities(pipelineId: string | null) {
       if (permissions.onlyAssigned && user?.id) {
         query = query.eq("assigned_to", user.id);
       }
-      const { data, error } = await query;
+      const { data, error } = await withClientTimeout(query, "Caricamento opportunità", 15_000);
       if (error) throw error;
-      const enriched = await enrichPage(data, companyId!);
+      const enriched = await withClientTimeout(enrichPage(data, companyId!), "Arricchimento opportunità", 15_000);
       return enriched;
     },
     initialPageParam: 0,
@@ -187,6 +195,7 @@ export function useOpportunities(pipelineId: string | null) {
       return lastPage.length === PAGE_SIZE ? lastPageParam + 1 : undefined;
     },
     enabled: !!companyId && !!pipelineId,
+    retry: false,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -207,6 +216,8 @@ export function useOpportunities(pipelineId: string | null) {
   return {
     data: opportunities,
     isLoading: infiniteQuery.isLoading,
+    error: infiniteQuery.error,
+    refetch: infiniteQuery.refetch,
     isFetchingNextPage: infiniteQuery.isFetchingNextPage,
     hasNextPage: infiniteQuery.hasNextPage,
     totalLoaded: opportunities.length,
@@ -311,6 +322,7 @@ export function useUpdateOpportunityStage() {
       await queryClient.cancelQueries({ queryKey: queryKeys.opportunities.all });
 
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.opportunities.all });
+      const now = new Date().toISOString();
 
       queryClient.setQueriesData(
         { queryKey: queryKeys.opportunities.all },
@@ -323,7 +335,7 @@ export function useUpdateOpportunityStage() {
               pages: old.pages.map((page: any[]) =>
                 page.map((o: any) =>
                   o.id === id
-                    ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
+                    ? { ...o, stage_id, stage_changed_at: now, updated_at: now, ...(auto_status ? { status: auto_status } : {}) }
                     : o
                 )
               ),
@@ -333,7 +345,7 @@ export function useUpdateOpportunityStage() {
           if (Array.isArray(old)) {
             return old.map((o: any) =>
               o.id === id
-                ? { ...o, stage_id, ...(auto_status ? { status: auto_status } : {}) }
+                ? { ...o, stage_id, stage_changed_at: now, updated_at: now, ...(auto_status ? { status: auto_status } : {}) }
                 : o
             );
           }

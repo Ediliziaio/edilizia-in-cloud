@@ -43,7 +43,7 @@ describe("marketing contacts helpers", () => {
     });
   });
 
-  it("treats the old Facebook leads tab as a regular contacts view", () => {
+  it("normalizes the removed Facebook contacts tab to all contacts", () => {
     expect(
       normalizeContactsUrlState({
         activeTab: "meta",

@@ -40,7 +40,7 @@ import { LinkedRendersList } from "@/components/render/LinkedRendersList";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
 import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
-import { STATUS_OPTIONS } from "@/types/opportunities";
+import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
@@ -433,8 +433,9 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
             <DialogTitle className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</DialogTitle>
             {/* SALES OS: Badge opportunità ferma */}
             {(() => {
-              const daysSince = opportunity.updated_at
-                ? Math.floor((Date.now() - new Date(opportunity.updated_at).getTime()) / 86400000)
+              const stageTouchedAt = opportunity.stage_changed_at || opportunity.updated_at;
+              const daysSince = stageTouchedAt
+                ? Math.floor((Date.now() - new Date(stageTouchedAt).getTime()) / 86400000)
                 : 0;
               return daysSince >= 14 && opportunity.status === "open" ? (
                 <Badge variant="destructive" className="text-xs">
@@ -655,9 +656,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             // Auto-update status based on stage's auto_status
                             const pipeline = pipelines.find((p: any) => p.id === opportunity.pipeline_id);
                             const targetStage = pipeline?.marketing_pipeline_stages?.find((s: any) => s.id === newStageId);
-                            if (targetStage?.auto_status) {
-                              setStatus(targetStage.auto_status);
-                            }
+                            setStatus(inferOpportunityStatusFromStage(targetStage, "open"));
                           }}>
                             <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>

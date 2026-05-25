@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
-import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download, Check, X, Minimize2, Maximize2 } from "lucide-react";
+import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download, Check, X, Minimize2, Maximize2, AlertTriangle, RefreshCw } from "lucide-react";
 import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
 import { useCardFieldPreferences, CardFieldPreferencesProvider } from "@/hooks/useCardFieldPreferences";
 import type { FieldDefinition } from "@/hooks/useCardFieldPreferences";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PipelineSelector } from "@/components/opportunities/PipelineSelector";
 import { OpportunityKanbanView } from "@/components/opportunities/OpportunityKanbanView";
 import { OpportunityListView } from "@/components/opportunities/OpportunityListView";
@@ -75,7 +76,7 @@ function MarketingOpportunitiesContent() {
   const currentUserId = user?.id ?? null;
   const permissions = usePermissions();
   const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
-  const { data: pipelines = [], isLoading: loadingPipelines } = usePipelines();
+  const { data: pipelines = [], isLoading: loadingPipelines, error: pipelinesError, refetch: refetchPipelines } = usePipelines();
 
   const { params: urlFilters, setParam: setURLParam } = useURLFilters({
     selectedPipelineId: { key: "pipeline", defaultValue: "" },
@@ -137,6 +138,7 @@ function MarketingOpportunitiesContent() {
   const { activeFields, layout, setActiveFields, setLayout } = useCardFieldPreferences();
   const [cardCustomizeOpen, setCardCustomizeOpen] = useState(false);
   const queryClient = useQueryClient();
+  const invalidPipelineNoticeRef = useRef<string | null>(null);
 
   // Sorting state
   const sortField = normalizedUrlState.sortField;
@@ -244,6 +246,11 @@ function MarketingOpportunitiesContent() {
 
   useEffect(() => {
     if (!loadingPipelines && selectedPipelineId && selectedPipelineId !== urlFilters.selectedPipelineId) {
+      const requestedPipelineId = (urlFilters.selectedPipelineId || "").trim();
+      if (requestedPipelineId && invalidPipelineNoticeRef.current !== requestedPipelineId) {
+        invalidPipelineNoticeRef.current = requestedPipelineId;
+        toast.warning("Pipeline non trovata: ho aperto la prima pipeline disponibile.");
+      }
       setURLParam("selectedPipelineId", selectedPipelineId);
     }
   }, [loadingPipelines, selectedPipelineId, setURLParam, urlFilters.selectedPipelineId]);
@@ -264,7 +271,7 @@ function MarketingOpportunitiesContent() {
   );
   const stages = useMemo(() => selectedPipeline?.marketing_pipeline_stages || [], [selectedPipeline]);
 
-  const { data: opportunities = [], isLoading: loadingOpps, isFetchingNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
+  const { data: opportunities = [], isLoading: loadingOpps, error: opportunitiesError, refetch: refetchOpportunities, isFetchingNextPage, totalLoaded } = useOpportunities(selectedPipelineId);
 
   const availableTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -488,8 +495,55 @@ function MarketingOpportunitiesContent() {
 
   if (loadingPipelines) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex min-h-[420px] flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+              Caricamento opportunità...
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Sto preparando pipeline, fasi e dati commerciali.</p>
+          </div>
+          <Skeleton className="h-9 w-36 rounded-xl" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className="h-20 rounded-2xl" />
+          ))}
+        </div>
+        <div className="grid flex-1 gap-3 md:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+              <Skeleton className="mb-3 h-5 w-28 rounded-lg" />
+              <div className="space-y-3">
+                <Skeleton className="h-28 rounded-2xl bg-white" />
+                <Skeleton className="h-28 rounded-2xl bg-white" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (pipelinesError) {
+    return (
+      <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-red-100 bg-red-50/60 p-6 text-center">
+        <div className="max-w-md space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-red-600 shadow-sm">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-950">Opportunità non caricate</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Non sono riuscito a caricare le pipeline commerciali. Riprova: se la rete è lenta evitiamo un caricamento infinito.
+            </p>
+          </div>
+          <Button type="button" variant="outline" onClick={() => refetchPipelines()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Riprova
+          </Button>
+        </div>
       </div>
     );
   }
@@ -517,7 +571,7 @@ function MarketingOpportunitiesContent() {
         <div className="flex items-center gap-2">
           <PipelineSelector pipelines={pipelines} value={selectedPipelineId} onChange={setSelectedPipelineId} />
           <Badge className="h-6 bg-orange-100 px-2 text-xs text-orange-700 hover:bg-orange-100">
-            {filteredOpportunities.length} lead
+            {filteredOpportunities.length} opportunità
           </Badge>
         </div>
         <div className="flex items-center gap-1.5">
@@ -590,6 +644,18 @@ function MarketingOpportunitiesContent() {
           <span className="text-xs text-muted-foreground">Caricamento opportunità… ({totalLoaded} caricate)</span>
         </div>
       )}
+      {opportunitiesError && (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            <span>Caricamento opportunità interrotto: puoi riprovare senza ricaricare tutta la pagina.</span>
+          </div>
+          <Button type="button" size="sm" variant="outline" className="h-8 border-amber-200 bg-white text-amber-900 hover:bg-amber-100" onClick={() => refetchOpportunities()}>
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+            Riprova
+          </Button>
+        </div>
+      )}
 
       <div className="flex shrink-0 items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm scrollbar-none">
         <Button
@@ -638,7 +704,7 @@ function MarketingOpportunitiesContent() {
       <div className="flex shrink-0 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="relative w-full">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Cerca Lead..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="h-8 w-full pl-8 text-xs" />
+          <Input placeholder="Cerca opportunità, contatto, azienda, email o telefono..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="h-8 w-full pl-8 text-xs" />
         </div>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">

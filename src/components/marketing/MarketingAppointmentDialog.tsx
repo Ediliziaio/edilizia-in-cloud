@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2, ChevronsUpDown, Check, AlertCircle, Sparkles, ListChecks } from "lucide-react";
+import { CalendarDays, Trash2, Plus, Clock, Ban, Car, Loader2, ChevronsUpDown, Check, AlertCircle, Sparkles, ListChecks, Video, ExternalLink, Copy } from "lucide-react";
 import { addDays, format } from "date-fns";
 import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,8 @@ interface CalendarOption {
   base_lng?: number | null;
   base_formatted_address?: string | null;
   duration_minutes?: number | null;
+  default_meeting_provider?: "none" | "google_meet" | null;
+  default_meeting_enabled?: boolean | null;
 }
 
 interface UserOption {
@@ -73,6 +75,10 @@ export interface MarketingAppointmentData {
   lat?: number | null;
   lng?: number | null;
   place_id?: string | null;
+  meeting_provider?: string | null;
+  meeting_url?: string | null;
+  meeting_status?: string | null;
+  meeting_created_at?: string | null;
 }
 
 interface Props {
@@ -127,6 +133,9 @@ export default function MarketingAppointmentDialog({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
+  const [meetingProvider, setMeetingProvider] = useState<"none" | "google_meet">("none");
+  const [meetingUrl, setMeetingUrl] = useState("");
+  const [meetingStatus, setMeetingStatus] = useState<"none" | "pending" | "ready" | "error">("none");
   const [createFollowUp, setCreateFollowUp] = useState(false);
   const [followUpTitle, setFollowUpTitle] = useState("");
   const [followUpDueDate, setFollowUpDueDate] = useState("");
@@ -164,6 +173,9 @@ export default function MarketingAppointmentDialog({
       setStatus(appointment.status || "confermato");
       setInternalNotes(appointment.internal_notes || "");
       setShowInternalNotes(!!appointment.internal_notes);
+      setMeetingProvider(appointment.meeting_provider === "google_meet" || appointment.appointment_type === "videocall" ? "google_meet" : "none");
+      setMeetingUrl(appointment.meeting_url || "");
+      setMeetingStatus((appointment.meeting_status as "none" | "pending" | "ready" | "error") || (appointment.meeting_url ? "ready" : "none"));
       setCreateFollowUp(false);
       setFollowUpTitle("");
       setFollowUpDueDate("");
@@ -194,6 +206,9 @@ export default function MarketingAppointmentDialog({
       setStatus("confermato");
       setInternalNotes("");
       setShowInternalNotes(false);
+      setMeetingProvider("none");
+      setMeetingUrl("");
+      setMeetingStatus("none");
       setCreateFollowUp(false);
       setFollowUpTitle("");
       setFollowUpDueDate("");
@@ -201,6 +216,14 @@ export default function MarketingAppointmentDialog({
       setAddressData(emptyAddress);
     }
   }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId]);
+
+  useEffect(() => {
+    if (!open || isEditing || activeTab === "blocked" || !selectedCalendar) return;
+    const nextProvider = selectedCalendar.default_meeting_provider === "google_meet" ? "google_meet" : "none";
+    setMeetingProvider(nextProvider);
+    setMeetingStatus(nextProvider === "google_meet" ? "pending" : "none");
+    setMeetingUrl("");
+  }, [activeTab, isEditing, open, selectedCalendar]);
 
   // Update end time when calendar/duration changes for new appointments.
   useEffect(() => {
@@ -253,6 +276,22 @@ export default function MarketingAppointmentDialog({
 
   const selectedOpportunity = useMemo(() => contactOpportunities[0] || null, [contactOpportunities]);
   const selectedStatusMeta = useMemo(() => getMarketingAppointmentStatusMeta(status), [status]);
+  const meetingStatusLabel = useMemo(() => {
+    if (meetingProvider !== "google_meet") return "Nessuna videocall";
+    if (meetingUrl) return "Link Meet pronto";
+    if (meetingStatus === "error") return "Meet da rigenerare";
+    return "Meet in attesa di sync";
+  }, [meetingProvider, meetingStatus, meetingUrl]);
+
+  const copyMeetingUrl = useCallback(async () => {
+    if (!meetingUrl) return;
+    try {
+      await navigator.clipboard.writeText(meetingUrl);
+      toast({ title: "Link Meet copiato" });
+    } catch {
+      toast({ title: "Copia non riuscita", description: "Apri il link e copialo manualmente.", variant: "destructive" });
+    }
+  }, [meetingUrl]);
 
   // Distance from calendar base
   const { data: baseDistance } = useQuery({
@@ -520,6 +559,8 @@ export default function MarketingAppointmentDialog({
       const successTitle = isEditing
         ? isBlocked ? "Tempo bloccato aggiornato" : "Appuntamento aggiornato"
         : isBlocked ? "Tempo bloccato creato" : "Appuntamento prenotato";
+      const effectiveMeetingProvider = !isBlocked && meetingProvider === "google_meet" ? "google_meet" : "none";
+      const effectiveMeetingUrl = effectiveMeetingProvider === "google_meet" ? meetingUrl.trim() || null : null;
 
       const payload: Record<string, unknown> = {
         company_id: companyId,
@@ -528,7 +569,7 @@ export default function MarketingAppointmentDialog({
         appointment_date: format(appointmentDate, "yyyy-MM-dd"),
         appointment_time: startTime + ":00",
         appointment_end_time: endTime + ":00",
-        appointment_type: isBlocked ? "blocked" : "generico",
+        appointment_type: isBlocked ? "blocked" : effectiveMeetingProvider === "google_meet" ? "videocall" : "generico",
         assigned_to: assignedTo && assignedTo !== "none" ? assignedTo : null,
         calendar_id: calendarId,
         contact_id: !isBlocked && contactId && contactId !== "none" ? contactId : null,
@@ -547,6 +588,10 @@ export default function MarketingAppointmentDialog({
         lat: addressData.lat ?? null,
         lng: addressData.lng ?? null,
         place_id: addressData.place_id || null,
+        meeting_provider: effectiveMeetingProvider,
+        meeting_url: effectiveMeetingUrl,
+        meeting_status: effectiveMeetingProvider === "google_meet" ? (effectiveMeetingUrl ? "ready" : "pending") : "none",
+        meeting_created_at: effectiveMeetingUrl && !appointment?.meeting_created_at ? new Date().toISOString() : appointment?.meeting_created_at || null,
       };
 
       if (isEditing && appointment?.id) {
@@ -699,6 +744,78 @@ export default function MarketingAppointmentDialog({
                 <div className="space-y-2">
                   <Label htmlFor="mkt-desc">Descrizione</Label>
                   <Textarea id="mkt-desc" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Dettagli aggiuntivi..." rows={3} />
+                </div>
+
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <Label className="text-sm font-semibold">Modalità incontro</Label>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{meetingStatusLabel}</p>
+                    </div>
+                    {meetingProvider === "google_meet" && (
+                      <Badge variant={meetingUrl ? "default" : "secondary"} className="gap-1">
+                        <Video className="h-3.5 w-3.5" />
+                        Google Meet
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMeetingProvider("none");
+                        setMeetingStatus("none");
+                        setMeetingUrl("");
+                      }}
+                      className={cn(
+                        "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5",
+                        meetingProvider === "none" && "border-primary bg-primary/5 ring-1 ring-primary/20",
+                      )}
+                    >
+                      <span className="font-medium">In presenza / telefono</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">Usa indirizzo, note o telefonata senza link video.</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMeetingProvider("google_meet");
+                        setMeetingStatus(meetingUrl ? "ready" : "pending");
+                      }}
+                      className={cn(
+                        "rounded-lg border bg-background p-3 text-left text-sm transition hover:border-primary/60 hover:bg-primary/5",
+                        meetingProvider === "google_meet" && "border-primary bg-primary/5 ring-1 ring-primary/20",
+                      )}
+                    >
+                      <span className="inline-flex items-center gap-1.5 font-medium">
+                        <Video className="h-4 w-4 text-primary" />
+                        Google Meet
+                      </span>
+                      <span className="mt-1 block text-xs text-muted-foreground">Generato dal sync Google Calendar del responsabile.</span>
+                    </button>
+                  </div>
+
+                  {meetingProvider === "google_meet" && (
+                    <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                      {meetingUrl ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate">{meetingUrl}</span>
+                          <Button type="button" variant="outline" size="sm" className="h-7 gap-1" onClick={copyMeetingUrl}>
+                            <Copy className="h-3.5 w-3.5" />
+                            Copia
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" className="h-7 gap-1" asChild>
+                            <a href={meetingUrl} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Apri
+                            </a>
+                          </Button>
+                        </div>
+                      ) : (
+                        "Il link Meet verrà creato appena l'appuntamento viene sincronizzato con Google Calendar."
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Location section */}

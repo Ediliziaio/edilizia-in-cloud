@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Settings2, Copy, AlertTriangle, ExternalLink, Code2, Share2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, CalendarDays, Link2, Clock, Settings2, Copy, AlertTriangle, ExternalLink, Code2, Share2, Video } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import CalendarDialog, { type CalendarFormData } from "./CalendarDialog";
@@ -42,6 +42,8 @@ type MarketingCalendar = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  default_meeting_provider: "none" | "google_meet";
+  default_meeting_enabled: boolean;
   base_address_line: string | null;
   base_address_city: string | null;
   base_address_postal_code: string | null;
@@ -138,6 +140,7 @@ export default function MarketingCalendarsConfig() {
     const maxDailyKm = data.max_daily_km == null ? null : Number(data.max_daily_km);
     const bookingSlug = normalizeBookingSlug(data.booking_slug || name);
     const calendarType = ["personal", "team", "event"].includes(data.calendar_type) ? data.calendar_type : "personal";
+    const meetingProvider = data.default_meeting_provider === "google_meet" ? "google_meet" : "none";
 
     if (!name) throw new Error("Inserisci un nome calendario.");
     if (!bookingSlug) throw new Error("Genera o inserisci uno slug per il link pubblico.");
@@ -148,7 +151,7 @@ export default function MarketingCalendarsConfig() {
       throw new Error("I km massimi giornalieri devono essere maggiori di zero.");
     }
 
-    return { name, duration, maxDailyKm, bookingSlug, calendarType };
+    return { name, duration, maxDailyKm, bookingSlug, calendarType, meetingProvider };
   };
 
   const assertNoDuplicateCalendarName = async (name: string, excludeId?: string) => {
@@ -296,7 +299,7 @@ export default function MarketingCalendarsConfig() {
     mutationFn: async (data: CalendarFormData) => {
       if (!effectiveCompanyId || !user?.id) throw new Error("Dati mancanti");
       if (!canManageCalendars) throw new Error("Non hai i permessi per creare calendari.");
-      const { name, duration, maxDailyKm, bookingSlug, calendarType } = validateCalendarPayload(data);
+      const { name, duration, maxDailyKm, bookingSlug, calendarType, meetingProvider } = validateCalendarPayload(data);
       await assertNoDuplicateCalendarName(name);
       const safeBookingSlug = await getAvailableBookingSlug(bookingSlug);
       const { error } = await supabase.from("marketing_calendars").insert({
@@ -309,6 +312,8 @@ export default function MarketingCalendarsConfig() {
         duration_minutes: duration,
         max_daily_km: maxDailyKm,
         calendar_type: calendarType,
+        default_meeting_provider: meetingProvider,
+        default_meeting_enabled: meetingProvider === "google_meet",
         group_name: null,
         base_address_line: data.base_address_line || null,
         base_address_city: data.base_address_city || null,
@@ -334,7 +339,7 @@ export default function MarketingCalendarsConfig() {
     mutationFn: async ({ id, ...data }: CalendarFormData & { id: string }) => {
       if (!effectiveCompanyId) throw new Error("Azienda non disponibile.");
       if (!canManageCalendars) throw new Error("Non hai i permessi per modificare calendari.");
-      const { name, duration, maxDailyKm, bookingSlug, calendarType } = validateCalendarPayload(data);
+      const { name, duration, maxDailyKm, bookingSlug, calendarType, meetingProvider } = validateCalendarPayload(data);
       await assertNoDuplicateCalendarName(name, id);
       if (await isBookingSlugTaken(bookingSlug, id)) {
         throw new Error("Questo link pubblico e gia usato da un altro calendario.");
@@ -345,6 +350,8 @@ export default function MarketingCalendarsConfig() {
         owner_id: data.owner_id || null,
         booking_slug: bookingSlug,
         calendar_type: calendarType,
+        default_meeting_provider: meetingProvider,
+        default_meeting_enabled: meetingProvider === "google_meet",
         duration_minutes: duration,
         max_daily_km: maxDailyKm,
         base_address_line: data.base_address_line || null,
@@ -510,6 +517,7 @@ export default function MarketingCalendarsConfig() {
     active: calendars.filter(c => c.is_active).length,
     assigned: calendars.filter(c => !!c.owner_id).length,
     withAddress: calendars.filter(c => !!c.base_formatted_address || !!c.base_address_city).length,
+    withMeet: calendars.filter(c => c.default_meeting_provider === "google_meet").length,
     appointments: Object.values(appointmentCountsByCalendar).reduce((sum, count) => sum + count, 0),
   };
 
@@ -722,6 +730,12 @@ export default function MarketingCalendarsConfig() {
                       <TableCell>
                         <div className="space-y-1">
                           <p className="font-medium">{cal.name}</p>
+                          {cal.default_meeting_provider === "google_meet" && (
+                            <Badge variant="outline" className="gap-1 border-sky-200 bg-sky-50 text-sky-700">
+                              <Video className="h-3 w-3" />
+                              Meet
+                            </Badge>
+                          )}
                           {getConfigWarnings(cal).length > 0 && (
                             <p className="text-xs text-amber-600">
                               Da completare: {getConfigWarnings(cal).join(", ")}

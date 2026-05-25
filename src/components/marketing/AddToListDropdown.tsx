@@ -13,6 +13,40 @@ interface AddToListDropdownProps {
   selectedIds: Set<string>;
 }
 
+async function assertListBelongsToCompany(listId: string, companyId: string | undefined) {
+  if (!companyId) throw new Error("Azienda non selezionata");
+
+  const { data, error } = await supabase
+    .from("marketing_contact_lists")
+    .select("id")
+    .eq("id", listId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) throw new Error("Lista non disponibile per questa azienda");
+}
+
+async function getCompanyScopedContactIds(contactIds: string[], companyId: string | undefined) {
+  if (!companyId) throw new Error("Azienda non selezionata");
+  if (contactIds.length === 0) throw new Error("Seleziona almeno un contatto");
+
+  const { data, error } = await supabase
+    .from("marketing_contacts")
+    .select("id")
+    .eq("company_id", companyId)
+    .in("id", contactIds);
+
+  if (error) throw error;
+
+  const safeIds = (data || []).map((row) => row.id);
+  if (safeIds.length !== contactIds.length) {
+    throw new Error("Alcuni contatti selezionati non appartengono all'azienda corrente");
+  }
+
+  return safeIds;
+}
+
 export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -37,7 +71,10 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
 
   const addMutation = useMutation({
     mutationFn: async (listId: string) => {
-      const rows = Array.from(selectedIds).map(contactId => ({ list_id: listId, contact_id: contactId }));
+      await assertListBelongsToCompany(listId, companyId);
+      const contactIds = await getCompanyScopedContactIds(Array.from(selectedIds), companyId);
+      const rows = contactIds.map(contactId => ({ list_id: listId, contact_id: contactId }));
+
       const { error } = await supabase.from("marketing_contact_list_members").upsert(rows, { onConflict: "list_id,contact_id" });
       if (error) throw error;
     },
@@ -46,19 +83,22 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
       queryClient.invalidateQueries({ queryKey: queryKeys.contactLists.all });
       setOpen(false);
     },
-    onError: () => toast.error("Errore nell'aggiunta"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Errore nell'aggiunta"),
   });
 
   const createAndAdd = useMutation({
     mutationFn: async (data: { name: string; description: string }) => {
-      if (!companyId) throw new Error("No company");
+      if (!companyId) throw new Error("Azienda non selezionata");
+      const contactIds = await getCompanyScopedContactIds(Array.from(selectedIds), companyId);
+
       const { data: list, error } = await supabase
         .from("marketing_contact_lists")
         .insert({ company_id: companyId, name: data.name, description: data.description || null })
         .select("id")
         .single();
       if (error) throw error;
-      const rows = Array.from(selectedIds).map(contactId => ({ list_id: list.id, contact_id: contactId }));
+
+      const rows = contactIds.map(contactId => ({ list_id: list.id, contact_id: contactId }));
       const { error: err2 } = await supabase.from("marketing_contact_list_members").insert(rows);
       if (err2) throw err2;
     },
@@ -68,14 +108,14 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
       setCreateOpen(false);
       setOpen(false);
     },
-    onError: () => toast.error("Errore nella creazione"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Errore nella creazione"),
   });
 
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" disabled={selectedIds.size === 0 || addMutation.isPending || createAndAdd.isPending}>
             <ListPlus className="h-4 w-4 mr-1" /> Aggiungi a lista
           </Button>
         </PopoverTrigger>
@@ -89,6 +129,7 @@ export function AddToListDropdown({ selectedIds }: AddToListDropdownProps) {
                   key={l.id}
                   className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted transition-colors"
                   onClick={() => addMutation.mutate(l.id)}
+                  disabled={addMutation.isPending}
                 >
                   {l.name}
                 </button>

@@ -6,10 +6,8 @@ import {
   endOfWeek,
   addDays,
   isSameMonth,
-  isSameDay,
   isToday,
   format,
-  parseISO,
 } from "date-fns";
 import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
@@ -63,8 +61,25 @@ export default function MarketingCalendarMonthView({
     return result;
   }, [currentDate]);
 
-  const getAppointmentsForDay = (day: Date) =>
-    appointments.filter((a) => isSameDay(parseISO(a.appointment_date), day));
+  const appointmentsByDate = useMemo(() => {
+    const grouped = new Map<string, MarketingAppointment[]>();
+
+    appointments.forEach((appointment) => {
+      if (!appointment.appointment_date) return;
+      const dateKey = appointment.appointment_date.slice(0, 10);
+      const dayAppointments = grouped.get(dateKey) ?? [];
+      dayAppointments.push(appointment);
+      grouped.set(dateKey, dayAppointments);
+    });
+
+    grouped.forEach((dayAppointments) => {
+      dayAppointments.sort((a, b) =>
+        (a.appointment_time || "23:59").localeCompare(b.appointment_time || "23:59")
+      );
+    });
+
+    return grouped;
+  }, [appointments]);
 
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
@@ -102,9 +117,9 @@ export default function MarketingCalendarMonthView({
             <div key={wi} className="grid min-h-0 grid-cols-7 border-b last:border-b-0">
               {week.map((day) => {
                 const inMonth = isSameMonth(day, currentDate);
-                const dayApts = getAppointmentsForDay(day);
                 const maxShow = 3;
                 const dateKey = format(day, "yyyy-MM-dd");
+                const dayApts = appointmentsByDate.get(dateKey) ?? [];
 
                 return (
                   <DroppableSlot

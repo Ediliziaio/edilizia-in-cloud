@@ -47,6 +47,26 @@ export interface AdminDashboardData {
 
 const CACHE_TTL_MS = 30 * 1000; // 30 secondi
 const POLL_INTERVAL_MS = 60 * 1000; // 60 secondi
+const ADMIN_QUERY_TIMEOUT_MS = 8_000;
+
+function withDashboardTimeout<T>(label: string, promise: PromiseLike<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`${label}: timeout dopo ${ADMIN_QUERY_TIMEOUT_MS / 1000} secondi`));
+    }, ADMIN_QUERY_TIMEOUT_MS);
+
+    Promise.resolve(promise).then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
 
 async function fetchDashboardData(): Promise<AdminDashboardData> {
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -56,38 +76,56 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
   // dashboard. Usiamo allSettled e degradiamo gracefully su ogni query che
   // fallisce (rendiamo la sezione vuota invece di buttare giù tutto).
   const settled = await Promise.allSettled([
-    supabase
-      .from("companies")
-      .select("id", { count: "exact", head: true })
-      .eq("is_platform_admin_company", false),
-    supabase.rpc("get_total_orders_value"),
-    supabase
-      .from("user_roles")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "customer"),
-    supabase
-      .from("support_conversations")
-      .select("id", { count: "exact", head: true })
-      .not("status", "in", '("resolved","closed")'),
-    supabase
-      .from("companies")
-      .select(
-        "id, status, trial_ends_at, subscription_plan_id, created_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plans:subscription_plan_id(price_monthly, price_yearly)"
-      )
-      .eq("is_platform_admin_company", false)
-      .limit(5000),
-    supabase
-      .from("audit_log")
-      .select("company_id", { count: "exact", head: false })
-      .gte("created_at", oneDayAgo)
-      .not("company_id", "is", null)
-      .limit(1000),
-    supabase
-      .from("audit_log")
-      .select("company_id", { count: "exact", head: false })
-      .gte("created_at", sevenDaysAgo)
-      .not("company_id", "is", null)
-      .limit(5000),
+    withDashboardTimeout(
+      "Conteggio aziende",
+      supabase
+        .from("companies")
+        .select("id", { count: "exact", head: true })
+        .eq("is_platform_admin_company", false)
+    ),
+    withDashboardTimeout("Valore ordini", supabase.rpc("get_total_orders_value")),
+    withDashboardTimeout(
+      "Conteggio clienti",
+      supabase
+        .from("user_roles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "customer")
+    ),
+    withDashboardTimeout(
+      "Conversazioni supporto",
+      supabase
+        .from("support_conversations")
+        .select("id", { count: "exact", head: true })
+        .not("status", "in", '("resolved","closed")')
+    ),
+    withDashboardTimeout(
+      "Lista aziende dashboard",
+      supabase
+        .from("companies")
+        .select(
+          "id, status, trial_ends_at, subscription_plan_id, created_at, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plans:subscription_plan_id(price_monthly, price_yearly)"
+        )
+        .eq("is_platform_admin_company", false)
+        .limit(5000)
+    ),
+    withDashboardTimeout(
+      "Attivita giornaliera",
+      supabase
+        .from("audit_log")
+        .select("company_id", { count: "exact", head: false })
+        .gte("created_at", oneDayAgo)
+        .not("company_id", "is", null)
+        .limit(1000)
+    ),
+    withDashboardTimeout(
+      "Attivita settimanale",
+      supabase
+        .from("audit_log")
+        .select("company_id", { count: "exact", head: false })
+        .gte("created_at", sevenDaysAgo)
+        .not("company_id", "is", null)
+        .limit(5000)
+    ),
   ]);
 
   // Estrae il value-body di ogni allSettled (o un oggetto vuoto se rejected)

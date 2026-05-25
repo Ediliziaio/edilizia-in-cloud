@@ -16,6 +16,10 @@ export interface MarketingAppointment {
   lng?: number | null;
   formatted_address?: string | null;
   internal_notes?: string | null;
+  meeting_provider?: string | null;
+  meeting_url?: string | null;
+  meeting_status?: string | null;
+  meeting_created_at?: string | null;
   // Enriched fields
   calendar_name?: string | null;
   assigned_name?: string | null;

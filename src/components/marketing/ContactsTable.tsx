@@ -45,6 +45,21 @@ export interface MarketingContact {
   opp_status: string | null;
   opp_pipeline: string | null;
   opp_stage: string | null;
+  ai_next_action?: string | null;
+  ai_score?: number | null;
+  ai_score_reasoning?: string | null;
+  ai_score_tier?: string | null;
+  icp_score?: number | null;
+  lead_score?: number | null;
+  opt_out?: boolean | null;
+  optout_email?: boolean | null;
+  optout_sms?: boolean | null;
+  optout_whatsapp?: boolean | null;
+  preferred_channel?: string | null;
+  score?: number | null;
+  unsubscribed?: boolean | null;
+  unsubscribed_at?: string | null;
+  updated_at?: string | null;
 }
 
 export type SortField = "first_name" | "phone" | "email" | "company_name" | "created_at" | "last_activity_at";
@@ -128,6 +143,7 @@ interface ContactsTableProps {
   customFields?: CustomFieldDef[];
   customFieldValues?: Record<string, Record<string, string>>;
   canEdit?: boolean;
+  onOpenPreview?: (contact: MarketingContact) => void;
 }
 
 
@@ -151,7 +167,13 @@ function renderStaticCell(col: { key: string; label: string }, c: MarketingConta
             <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0 ${getAvatarColor(fullName)}`}>
               {getInitials(c.first_name, c.last_name)}
             </div>
-            <span className="font-medium text-sm text-primary hover:underline cursor-pointer" onClick={() => navigate(`${routePrefix}/contatti/${c.id}`)}>
+            <span
+              className="font-medium text-sm text-primary hover:underline cursor-pointer"
+              onClick={(event) => {
+                event.stopPropagation();
+                navigate(`${routePrefix}/contatti/${c.id}`);
+              }}
+            >
               {fullName}
             </span>
           </div>
@@ -241,7 +263,7 @@ export const ContactsTable = memo(function ContactsTable({
   contacts, totalCount, selectedIds, onToggleSelect, onToggleAll,
   onEdit, onDelete, page, pageSize, onPageChange, onPageSizeChange,
   sortField, sortDirection, onSort, bulkActions, visibleColumns,
-  customFields = [], customFieldValues = {}, canEdit = true,
+  customFields = [], customFieldValues = {}, canEdit = true, onOpenPreview,
 }: ContactsTableProps) {
   const navigate = useNavigate();
   const routePrefix = useMarketingRoutePrefix();
@@ -323,7 +345,10 @@ export const ContactsTable = memo(function ContactsTable({
                 <TableRow
                   key={c.id}
                   className="group cursor-pointer"
-                  onClick={() => navigate(`${routePrefix}/contatti/${c.id}`)}
+                  onClick={() => {
+                    if (onOpenPreview) onOpenPreview(c);
+                    else navigate(`${routePrefix}/contatti/${c.id}`);
+                  }}
                 >
                   <TableCell className={`py-1.5 ${borderClass}`}>
                     <Checkbox

@@ -6491,6 +6491,10 @@ export type Database = {
           is_completed: boolean
           lat: number | null
           lng: number | null
+          meeting_created_at: string | null
+          meeting_provider: string
+          meeting_status: string
+          meeting_url: string | null
           order_id: string | null
           place_id: string | null
           reminder_minutes: number | null
@@ -6524,6 +6528,10 @@ export type Database = {
           is_completed?: boolean
           lat?: number | null
           lng?: number | null
+          meeting_created_at?: string | null
+          meeting_provider?: string
+          meeting_status?: string
+          meeting_url?: string | null
           order_id?: string | null
           place_id?: string | null
           reminder_minutes?: number | null
@@ -6557,6 +6565,10 @@ export type Database = {
           is_completed?: boolean
           lat?: number | null
           lng?: number | null
+          meeting_created_at?: string | null
+          meeting_provider?: string
+          meeting_status?: string
+          meeting_url?: string | null
           order_id?: string | null
           place_id?: string | null
           reminder_minutes?: number | null
@@ -29008,6 +29020,8 @@ export type Database = {
           company_id: string
           created_at: string
           created_by: string
+          default_meeting_enabled: boolean
+          default_meeting_provider: string
           description: string | null
           duration_minutes: number
           group_name: string | null
@@ -29033,6 +29047,8 @@ export type Database = {
           company_id: string
           created_at?: string
           created_by: string
+          default_meeting_enabled?: boolean
+          default_meeting_provider?: string
           description?: string | null
           duration_minutes?: number
           group_name?: string | null
@@ -29058,6 +29074,8 @@ export type Database = {
           company_id?: string
           created_at?: string
           created_by?: string
+          default_meeting_enabled?: boolean
+          default_meeting_provider?: string
           description?: string | null
           duration_minutes?: number
           group_name?: string | null
