@@ -967,8 +967,14 @@ const CompanySidebar = memo(function CompanySidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const commercialistaParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
-  const commercialistaCompanyId = commercialistaParams.get("commercialistaCompany") ?? "";
+  // Modalità commercialista forzata se:
+  //   1) URL ha ?commercialistaMode=1 (ingresso esplicito dal portale studio), OPPURE
+  //   2) l'utente loggato ha role='accountant' (per sicurezza: anche se entra
+  //      dal company switcher in alto, non gli mostriamo mai la UI admin completa)
+  const isCommercialistaMode =
+    commercialistaParams.get("commercialistaMode") === "1" || role === "accountant";
+  const commercialistaCompanyId =
+    commercialistaParams.get("commercialistaCompany") ?? effectiveCompany?.id ?? "";
   const commercialistaCompanyName =
     commercialistaParams.get("commercialistaCompanyName") ??
     effectiveCompany?.name ??
@@ -1411,6 +1417,7 @@ export function CompanyLayout() {
     multiCompanyAccesses,
     selectedMultiCompanyId,
     switchMultiCompany,
+    role,
   } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits({ includeUsageCounts: false });
@@ -1424,10 +1431,17 @@ export function CompanyLayout() {
   const { area, areaIcon: AreaIcon, page, pageUrl } = useBreadcrumb();
   const location = useLocation();
   const commercialistaParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
-  const commercialistaCompanyId = commercialistaParams.get("commercialistaCompany");
+  // Modalità commercialista FORZATA se role='accountant', anche se l'utente
+  // è entrato dal company switcher senza i query param. Garantisce sidebar
+  // filtrata + banner blu + pulsante "Torna allo studio" sempre presenti.
+  const isCommercialistaMode =
+    commercialistaParams.get("commercialistaMode") === "1" || role === "accountant";
+  const commercialistaCompanyId =
+    commercialistaParams.get("commercialistaCompany") ?? effectiveCompany?.id ?? null;
   const commercialistaCompanyName =
-    commercialistaParams.get("commercialistaCompanyName") ?? null;
+    commercialistaParams.get("commercialistaCompanyName") ??
+    effectiveCompany?.name ??
+    null;
   const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
 
   // AUTO-SWITCH: se l'URL contiene commercialistaMode=1 + commercialistaCompany=X,
