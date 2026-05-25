@@ -345,7 +345,14 @@ function getDemoOperationalActions(row: DemoEmailRow): string[] {
   return ["Aggiorna ODA", "Crea task logistica", "Scrivi risposta"];
 }
 
-export default function EmailClientPage() {
+interface EmailClientPageProps {
+  /** Path settings da passare a EmailLayout (per superadmin → /admin/impostazioni/email) */
+  settingsPath?: string;
+  /** Settings path per EmptyConnectionsState (CTA "collega casella") */
+  emptyStateSettingsPath?: string;
+}
+
+export default function EmailClientPage({ settingsPath, emptyStateSettingsPath }: EmailClientPageProps = {}) {
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
   const companyId = effectiveCompany?.id;
@@ -385,10 +392,13 @@ export default function EmailClientPage() {
 
   const hasConnections = (connections?.length ?? 0) > 0;
 
+  // Settings path effettivo (es. /admin/impostazioni/email per superadmin)
+  const emptyStatePath = emptyStateSettingsPath ?? settingsPath;
+
   if (forceDemo) {
     return (
       <div className="container mx-auto max-w-6xl p-4 md:p-6">
-        <EmptyConnectionsState />
+        <EmptyConnectionsState settingsPath={emptyStatePath} />
       </div>
     );
   }
@@ -396,7 +406,7 @@ export default function EmailClientPage() {
   if (isCheckingConnections && !showSlowFallback) {
     return (
       <div className="container mx-auto p-4 md:p-6">
-        <EmailConnectingState />
+        <EmailConnectingState settingsPath={emptyStatePath} />
       </div>
     );
   }
@@ -406,6 +416,7 @@ export default function EmailClientPage() {
       <div className="container mx-auto max-w-6xl p-4 md:p-6">
         <EmptyConnectionsState
           mode="loading"
+          settingsPath={emptyStatePath}
           onRetry={() => {
             setShowSlowFallback(false);
             void refetch();
@@ -420,6 +431,7 @@ export default function EmailClientPage() {
       <div className="container mx-auto max-w-6xl p-4 md:p-6">
         <EmptyConnectionsState
           mode="error"
+          settingsPath={emptyStatePath}
           errorMessage={error instanceof Error ? error.message : "Impossibile caricare le caselle email."}
           onRetry={() => void refetch()}
         />
@@ -430,17 +442,21 @@ export default function EmailClientPage() {
   if (!hasConnections) {
     return (
       <div className="container mx-auto max-w-6xl p-4 md:p-6">
-        <EmptyConnectionsState />
+        <EmptyConnectionsState settingsPath={emptyStatePath} />
       </div>
     );
   }
 
-  return <EmailLayout />;
+  return <EmailLayout settingsPath={settingsPath} />;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
 
-function EmailConnectingState() {
+function EmailConnectingState({
+  settingsPath = "/azienda/impostazioni/mio-profilo",
+}: {
+  settingsPath?: string;
+} = {}) {
   return (
     <div className="mx-auto grid min-h-[calc(100vh-8rem)] max-w-5xl place-items-center">
       <Card className="w-full overflow-hidden border-blue-100 bg-white shadow-sm">
@@ -463,7 +479,7 @@ function EmailConnectingState() {
                 </Link>
               </Button>
               <Button asChild className="rounded-xl bg-blue-600 hover:bg-blue-700">
-                <Link to="/azienda/impostazioni/mio-profilo">
+                <Link to={settingsPath}>
                   <Settings2 className="mr-2 h-4 w-4" />
                   Impostazioni email
                 </Link>
@@ -506,10 +522,12 @@ function EmptyConnectionsState({
   mode = "empty",
   errorMessage,
   onRetry,
+  settingsPath = "/azienda/impostazioni/mio-profilo",
 }: {
   mode?: "empty" | "loading" | "error";
   errorMessage?: string;
   onRetry?: () => void;
+  settingsPath?: string;
 }) {
   const isLoadingMode = mode === "loading";
   const isErrorMode = mode === "error";
@@ -563,7 +581,7 @@ function EmptyConnectionsState({
               <EmailDemoDialog />
             </Dialog>
             <Button asChild className="w-fit gap-2 rounded-xl bg-blue-600 hover:bg-blue-700">
-              <Link to="/azienda/impostazioni/mio-profilo">
+              <Link to={settingsPath}>
                 <Mail className="h-4 w-4" />
                 Vai alle Impostazioni Email
                 <ArrowRight className="h-4 w-4" />
