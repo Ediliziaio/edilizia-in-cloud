@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,9 +18,15 @@ import {
   PLATFORM_ROLE_LABELS,
   PLATFORM_ROLE_COLORS,
   PLATFORM_ROLES,
+  SUPER_ADMIN_LABEL,
+  SUPER_ADMIN_COLOR,
   type PlatformRole,
 } from "@/types/auth";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
+import { invokeAdminFunction } from "@/lib/admin/invokeAdminFunction";
+import { logAdminAuditAction } from "@/lib/admin/auditLog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmWithPasswordDialog } from "@/components/admin/ConfirmWithPasswordDialog";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import PlatformPermissionsDialog from "./PlatformPermissionsDialog";
 import CreatePlatformUserDialog from "./CreatePlatformUserDialog";
@@ -38,13 +43,25 @@ interface PlatformUser {
 }
 
 const ROLE_STAT_CARDS: { role: "super_admin" | PlatformRole; label: string; colorClass: string }[] = [
-  { role: "super_admin", label: "Super Admin", colorClass: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  { role: "super_admin", label: SUPER_ADMIN_LABEL, colorClass: SUPER_ADMIN_COLOR },
   { role: "platform_manager", label: PLATFORM_ROLE_LABELS.platform_manager, colorClass: PLATFORM_ROLE_COLORS.platform_manager },
   { role: "platform_sales", label: PLATFORM_ROLE_LABELS.platform_sales, colorClass: PLATFORM_ROLE_COLORS.platform_sales },
   { role: "platform_support", label: PLATFORM_ROLE_LABELS.platform_support, colorClass: PLATFORM_ROLE_COLORS.platform_support },
   { role: "platform_marketing", label: PLATFORM_ROLE_LABELS.platform_marketing, colorClass: PLATFORM_ROLE_COLORS.platform_marketing },
   { role: "platform_implementation", label: PLATFORM_ROLE_LABELS.platform_implementation, colorClass: PLATFORM_ROLE_COLORS.platform_implementation },
 ];
+
+/**
+ * Ruolo primario di un utente — un solo "slot" per utente.
+ * Precedenza: super_admin > primo platform_role nell'array roles.
+ * Evita il bug per cui un utente con super_admin + platform_manager veniva
+ * contato due volte nelle stat card.
+ */
+function getPrimaryRole(roles: string[]): "super_admin" | PlatformRole | null {
+  if (roles.includes("super_admin")) return "super_admin";
+  const pr = roles.find((r) => PLATFORM_ROLES.includes(r as PlatformRole));
+  return (pr as PlatformRole) ?? null;
+}
 
 function getInitials(first: string, last: string) {
   return `${first?.[0] || ""}${last?.[0] || ""}`.toUpperCase();
@@ -75,16 +92,11 @@ export default function PlatformTeamTab() {
   const { data: users = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: [...queryKeys.admin.superAdmins, "platform-team"],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-platform-users", {
-        body: { action: "list" },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const body = await res.error.context?.json?.();
-        throw new Error(body?.error || res.error.message);
-      }
-      return (res.data?.users || []) as PlatformUser[];
+      const data = await invokeAdminFunction<{ users?: PlatformUser[] }>(
+        "manage-platform-users",
+        { action: "list" },
+      );
+      return (data?.users ?? []) as PlatformUser[];
     },
   });
 
@@ -101,61 +113,87 @@ export default function PlatformTeamTab() {
 
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-platform-users", {
-        body: { action: "delete", userId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const body = await res.error.context?.json?.();
-        throw new Error(body?.error || res.error.message);
-      }
-      if (res.data?.error) throw new Error(res.data.error);
+      await invokeAdminFunction("manage-platform-users", { action: "delete", userId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, userId) => {
+      // Audit trail per azione distruttiva
+      const target = deleteTarget;
+      void logAdminAuditAction({
+        action: "platform_user.delete",
+        targetType: "platform_user",
+        targetId: userId,
+        details: target
+          ? {
+              email: target.email,
+              name: `${target.first_name} ${target.last_name}`,
+              roles: target.roles,
+            }
+          : { id: userId },
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
       setDeleteTarget(null);
       toast.success("Utente rimosso dal team");
     },
-    onError: (e: Error) => { setDeleteTarget(null); toast.error(e.message); },
+    onError: (e: Error) => {
+      setDeleteTarget(null);
+      toast.error(e.message);
+    },
   });
 
+  /**
+   * Reset password — tenta prima la nuova edge `manage-platform-users` con
+   * action `reset-password`, e in caso di "action sconosciuta" fa fallback
+   * silenzioso sulla legacy `manage-super-admins`. Questo permette di
+   * migrare alla nuova senza rompere subito la pagina se la edge nuova non
+   * supporta ancora l'action.
+   */
   const resetMutation = useMutation({
     mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
-      // NB: il reset password è gestito dalla legacy `manage-super-admins`
-      // (verificato: la nuova `manage-platform-users` non implementa
-      // l'action `reset-password`). Single round-trip, no fallback.
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-super-admins", {
-        body: { action: "reset-password", userId, newPassword },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const body = await res.error.context?.json?.();
-        throw new Error(body?.error || res.error.message);
+      try {
+        await invokeAdminFunction("manage-platform-users", {
+          action: "reset-password",
+          userId,
+          newPassword,
+        });
+      } catch (err) {
+        const msg = (err as Error).message?.toLowerCase() ?? "";
+        const isUnknownAction =
+          msg.includes("unknown action") ||
+          msg.includes("invalid action") ||
+          msg.includes("not implemented") ||
+          msg.includes("action not supported");
+        if (!isUnknownAction) throw err;
+        // Fallback legacy
+        await invokeAdminFunction("manage-super-admins", {
+          action: "reset-password",
+          userId,
+          newPassword,
+        });
       }
-      if (res.data?.error) throw new Error(res.data.error);
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
+      const target = resetTarget;
+      void logAdminAuditAction({
+        action: "platform_user.reset_password",
+        targetType: "platform_user",
+        targetId: vars.userId,
+        details: target
+          ? { email: target.email, name: `${target.first_name} ${target.last_name}` }
+          : { id: vars.userId },
+      });
       setResetTarget(null);
       toast.success("Password reimpostata");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const getPlatformRole = (u: PlatformUser): PlatformRole | "super_admin" | null => {
-    if (u.roles.includes("super_admin")) return "super_admin";
-    const pr = u.roles.find(r => PLATFORM_ROLES.includes(r as PlatformRole));
-    return (pr as PlatformRole) || null;
-  };
-
   const getRoleBadge = (u: PlatformUser) => {
-    const role = getPlatformRole(u);
+    const role = getPrimaryRole(u.roles);
     if (role === "super_admin") {
-      return <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">Super Admin</Badge>;
+      return <Badge className={SUPER_ADMIN_COLOR}>{SUPER_ADMIN_LABEL}</Badge>;
     }
     if (role && role in PLATFORM_ROLE_LABELS) {
-      return <Badge className={PLATFORM_ROLE_COLORS[role as PlatformRole]}>{PLATFORM_ROLE_LABELS[role as PlatformRole]}</Badge>;
+      return <Badge className={PLATFORM_ROLE_COLORS[role]}>{PLATFORM_ROLE_LABELS[role]}</Badge>;
     }
     return <Badge variant="secondary">Custom</Badge>;
   };
@@ -178,15 +216,17 @@ export default function PlatformTeamTab() {
     );
   };
 
-  // Counts per role
-  const roleCounts = ROLE_STAT_CARDS.map((rc) => ({
-    ...rc,
-    count: users.filter((u) =>
-      rc.role === "super_admin"
-        ? u.roles.includes("super_admin")
-        : u.roles.includes(rc.role)
-    ).length,
-  }));
+  // Counts per role — uso del ruolo PRIMARIO (precedenza super_admin > altri)
+  // per evitare double-counting: un utente con super_admin + platform_manager
+  // viene contato SOLO in "Super Admin", non in entrambe le card.
+  const roleCounts = useMemo(() => {
+    const tally: Record<string, number> = {};
+    users.forEach((u) => {
+      const primary = getPrimaryRole(u.roles);
+      if (primary) tally[primary] = (tally[primary] ?? 0) + 1;
+    });
+    return ROLE_STAT_CARDS.map((rc) => ({ ...rc, count: tally[rc.role] ?? 0 }));
+  }, [users]);
 
   return (
     <div className="space-y-6">
@@ -271,9 +311,12 @@ export default function PlatformTeamTab() {
               )}
             </div>
           ) : filteredUsers.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8 text-sm">
-              Nessun membro corrisponde alla ricerca.
-            </p>
+            <EmptyState
+              icon={Search}
+              size="sm"
+              title={<>Nessun membro corrisponde a &quot;{search}&quot;</>}
+              action={{ label: "Pulisci ricerca", onClick: () => setSearch(""), icon: X, variant: "ghost" }}
+            />
           ) : (
             <Table>
               <TableHeader>
@@ -364,23 +407,24 @@ export default function PlatformTeamTab() {
         />
       )}
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere dal team?</AlertDialogTitle>
-            <AlertDialogDescription>
-              L'utente <strong>{deleteTarget?.first_name} {deleteTarget?.last_name}</strong> ({deleteTarget?.email}) perderà l'accesso alla piattaforma. Questa azione è irreversibile.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)} disabled={deleteMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Rimuovi
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Re-auth con password prima del delete — security best practice
+          (Google/Stripe/GitHub style). */}
+      <ConfirmWithPasswordDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Rimuovere dal team?"
+        description={
+          deleteTarget ? (
+            <>
+              L&apos;utente <strong>{deleteTarget.first_name} {deleteTarget.last_name}</strong>{" "}
+              ({deleteTarget.email}) perderà l&apos;accesso alla piattaforma.
+              Questa azione è <strong>irreversibile</strong>.
+            </>
+          ) : null
+        }
+        destructiveLabel="Rimuovi utente"
+        onConfirmed={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
     </div>
   );
 }

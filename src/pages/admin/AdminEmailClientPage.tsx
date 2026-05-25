@@ -31,6 +31,7 @@ export default function AdminEmailClientPage() {
           <EmailClientPage
             settingsPath="/admin/impostazioni/mio-profilo?tab=email"
             emptyStateSettingsPath="/admin/impostazioni/mio-profilo?tab=email"
+            emailContext="admin"
           />
         </Suspense>
       </div>

@@ -1648,8 +1648,22 @@ const BrainGraphCanvas = forwardRef<BrainGraphCanvasHandle, BrainGraphCanvasProp
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function AIBrainGraph() {
+/**
+ * Scope dati del grafo:
+ *   - "azienda" (default): ai_personas_public + ai_persona_memory
+ *     (scoped per company tramite RLS effectiveCompany)
+ *   - "admin": silvio_admin_personas + silvio_persona_memory
+ *     (21 personas piattaforma, memorie globali platform)
+ */
+export type BrainGraphScope = "azienda" | "admin";
+
+interface AIBrainGraphProps {
+  scope?: BrainGraphScope;
+}
+
+export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = {}) {
   const { effectiveCompany } = useAuth();
+  const isAdmin = scope === "admin";
   const qc = useQueryClient();
   const graphRef = useRef<BrainGraphCanvasHandle | null>(null);
   // Vista: 2D piatto | 3D libero | Nucleo rotante (3D + camera orbit auto)
@@ -1685,8 +1699,33 @@ export default function AIBrainGraph() {
     error: personasError,
     refetch: refetchPersonas,
   } = useQuery({
-    queryKey: ["brain-graph-personas"],
+    queryKey: ["brain-graph-personas", scope],
     queryFn: async (): Promise<PersonaLite[]> => {
+      if (isAdmin) {
+        // Admin: 21 personas superadmin (silvio_admin_personas).
+        // Schema diverso: niente "category"/"color"/"icon", ma "emoji" + "sort_order".
+        const { data, error } = await withTimeout(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (brainSupabase as any)
+            .from("silvio_admin_personas")
+            .select("persona_key, display_name, short_label, emoji, sort_order")
+            .eq("enabled", true)
+            .order("sort_order"),
+          8_000,
+          "Caricamento personas Superadmin",
+        );
+        if (error) throw error;
+        // Normalizziamo verso PersonaLite: category derivata da short_label
+        // (CFO/Vendite/Marketing/...) → ogni persona ha colore distinto.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return ((data ?? []) as any[]).map((row) => ({
+          persona_key: row.persona_key as string,
+          display_name: row.display_name as string,
+          category: (row.short_label as string | null) ?? "platform",
+          color: null,
+          icon: row.emoji ?? null,
+        })) as PersonaLite[];
+      }
       const { data, error } = await withTimeout(
         brainSupabase
           .from("ai_personas_public")
@@ -1710,9 +1749,27 @@ export default function AIBrainGraph() {
     error: memoriesError,
     refetch: refetchMemories,
   } = useQuery({
-    queryKey: ["brain-graph-memories", effectiveCompany?.id],
-    enabled: !!effectiveCompany?.id,
+    queryKey: ["brain-graph-memories", scope, effectiveCompany?.id],
+    enabled: isAdmin ? true : !!effectiveCompany?.id,
     queryFn: async (): Promise<MemoryRow[]> => {
+      if (isAdmin) {
+        // Admin: memorie globali piattaforma (silvio_persona_memory).
+        // Niente company_id filter — il scope è la PLATFORM_ADMIN_COMPANY_ID
+        // gestita via RLS lato DB.
+        const { data, error } = await withTimeout(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (brainSupabase as any)
+            .from("silvio_persona_memory")
+            .select("id, persona_key, memory_type, content, confidence, hits_count, enabled, source, created_at")
+            .eq("enabled", true)
+            .order("hits_count", { ascending: false })
+            .limit(300),
+          8_000,
+          "Caricamento memorie Superadmin",
+        );
+        if (error) throw error;
+        return (data ?? []) as MemoryRow[];
+      }
       const { data, error } = await withTimeout(
         brainSupabase
           .from("ai_persona_memory")
@@ -1865,17 +1922,23 @@ export default function AIBrainGraph() {
   // ── #4: Real-time subscription ────────────────────────────────────────────
 
   useEffect(() => {
-    if (!effectiveCompany?.id) return;
+    if (!isAdmin && !effectiveCompany?.id) return;
+    const channelName = isAdmin
+      ? "brain-graph-rt-admin"
+      : `brain-graph-rt-${effectiveCompany!.id}`;
+    const table = isAdmin ? "silvio_persona_memory" : "ai_persona_memory";
     const ch = supabase
-      .channel(`brain-graph-rt-${effectiveCompany.id}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "ai_persona_memory",
-          filter: `company_id=eq.${effectiveCompany.id}`,
-        },
+        isAdmin
+          ? { event: "*", schema: "public", table }
+          : {
+              event: "*",
+              schema: "public",
+              table,
+              filter: `company_id=eq.${effectiveCompany!.id}`,
+            },
         () => {
           // Pulse the LIVE indicator briefly + bump event counter
           setRecentEventsCount((n) => n + 1);
@@ -1896,7 +1959,7 @@ export default function AIBrainGraph() {
       }
       void supabase.removeChannel(ch);
     };
-  }, [effectiveCompany?.id, qc]);
+  }, [effectiveCompany?.id, isAdmin, qc]);
 
   // ── Build graph ───────────────────────────────────────────────────────────
 
@@ -2204,7 +2267,9 @@ export default function AIBrainGraph() {
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
       const today = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
-      const companyName = effectiveCompany?.name ?? "Azienda";
+      const companyName = isAdmin
+        ? "Superadmin · Piattaforma"
+        : (effectiveCompany?.name ?? "Azienda");
 
       // ── Header ──
       pdf.setFillColor(249, 115, 22);
@@ -2308,7 +2373,7 @@ export default function AIBrainGraph() {
     } catch (err) {
       toast.error("Errore generazione PDF", { description: String((err as Error).message ?? err) });
     }
-  }, [effectiveCompany?.name, totalMemories, totalCrossPersonaLinks, insights.healthPct, stats.personaCount, personas, memories, heroInsight]);
+  }, [effectiveCompany?.name, isAdmin, totalMemories, totalCrossPersonaLinks, insights.healthPct, stats.personaCount, personas, memories, heroInsight]);
 
   // ── Seed demo: popola memorie realistiche per Demo Azienda ──────────────
   // Mappa ogni persona_key demo a un persona_key reale presente nel sistema.

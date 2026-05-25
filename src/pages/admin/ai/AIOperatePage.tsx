@@ -9,7 +9,7 @@
  *
  * I tab Approvals e Queue mostrano badge counter live (count pending da DB).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,9 +25,11 @@ import {
   Users,
   ShieldCheck,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AIPageHeader } from "@/components/admin/ai-shared/AIPageHeader";
 import { AITabsList } from "@/components/admin/ai-shared/AITabsList";
 import { SectionAlert } from "@/components/admin/ai-shared/SectionIntro";
+import { useAIHubNested } from "@/components/admin/ai-shared/AIHubNestedContext";
 import { ApprovalsTab } from "@/components/admin/silvio-hub/ApprovalsTab";
 import { QueueTab } from "@/components/admin/silvio-hub/QueueTab";
 import { PoliciesTab } from "@/components/admin/silvio-hub/PoliciesTab";
@@ -37,10 +39,14 @@ import { MemoryTab } from "@/components/admin/silvio-hub/MemoryTab";
 import { LearningTab } from "@/components/admin/silvio-hub/LearningTab";
 import { AdminPersonasTab } from "@/components/admin/silvio-hub/AdminPersonasTab";
 
+// Cervello AI 3D (knowledge graph reagraph) — lazy: ~500KB di WebGL bundle
+const AIBrainGraph = lazy(() => import("@/components/ai/AIBrainGraph"));
+
 export default function AIOperatePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") ?? "approvals";
   const [activeTab, setActiveTab] = useState(initialTab);
+  const { isNested, navigateToSection } = useAIHubNested();
 
   useEffect(() => {
     const t = searchParams.get("tab");
@@ -55,7 +61,11 @@ export default function AIOperatePage() {
     setSearchParams(params, { replace: true });
   };
 
-  // Counter live per badge (refetch ogni 30s)
+  // Counter live per badge (refetch ogni 30s).
+  // NB: AdminAIHub fa conditional mount/unmount → quando l'utente non è sulla
+  // section "operate", AIOperatePage è unmounted e la query si ferma.
+  // refetchIntervalInBackground=false (default) → niente refetch su tab non
+  // visibile del browser.
   const { data: counters } = useQuery({
     queryKey: ["ai-operate-counters"],
     refetchInterval: 30_000,
@@ -101,40 +111,82 @@ export default function AIOperatePage() {
     },
     { value: "chief", label: "Chief", icon: Activity },
     { value: "personas", label: "Personas Admin", icon: Users },
-    { value: "memory", label: "Memoria", icon: Brain },
+    { value: "memory", label: "Memoria Admin", icon: Brain },
+    { value: "cervello", label: "Cervello 3D", icon: Network },
     { value: "learning", label: "Learning", icon: Zap },
   ];
 
   return (
-    <div className="p-4 md:p-6 max-w-screen-2xl mx-auto">
-      <AIPageHeader
-        icon={Bot}
-        title="AI · Operatività"
-        subtitle="Operatività"
-        description="Cosa fa Silvio in questo momento. Approvazioni in attesa, azioni in coda, policy run-time, missioni multi-agent, brief strategici, memoria e self-learning."
-        quickLinks={[
-          { label: "Configurazione", to: "/admin/ai-config", icon: Settings },
-          { label: "Monitor live", to: "/admin/ai-monitor", icon: Activity },
-        ]}
-        actions={
-          counters && (counters.approvals > 0 || counters.queue > 0) ? (
-            <div className="flex items-center gap-2 text-xs">
-              {counters.approvals > 0 ? (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 font-medium">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
-                  {counters.approvals} approval{counters.approvals === 1 ? "" : "s"}
-                </span>
-              ) : null}
-              {counters.queue > 0 ? (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-medium">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  {counters.queue} in coda
-                </span>
-              ) : null}
-            </div>
-          ) : null
-        }
-      />
+    <div className={isNested ? "" : "p-4 md:p-6 max-w-screen-2xl mx-auto"}>
+      {/* Header SOLO se non nested in AdminAIHub (che ha già il suo hero) */}
+      {!isNested && (
+        <AIPageHeader
+          icon={Bot}
+          title="AI · Operatività"
+          subtitle="Operatività"
+          description="Cosa fa Silvio in questo momento. Approvazioni in attesa, azioni in coda, policy run-time, missioni multi-agent, brief strategici, memoria e self-learning."
+          quickLinks={[
+            { label: "Configurazione", to: "/admin/ai-config", icon: Settings },
+            { label: "Monitor live", to: "/admin/ai-monitor", icon: Activity },
+          ]}
+          actions={
+            counters && (counters.approvals > 0 || counters.queue > 0) ? (
+              <div className="flex items-center gap-2 text-xs">
+                {counters.approvals > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                    {counters.approvals} approval{counters.approvals === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+                {counters.queue > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    {counters.queue} in coda
+                  </span>
+                ) : null}
+              </div>
+            ) : null
+          }
+        />
+      )}
+      {/* Quando nested: counter inline come strip leggera sopra le tab */}
+      {isNested && counters && (counters.approvals > 0 || counters.queue > 0) ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          {counters.approvals > 0 ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-rose-100 text-rose-700 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+              {counters.approvals} approval{counters.approvals === 1 ? "" : "s"}
+            </span>
+          ) : null}
+          {counters.queue > 0 ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+              {counters.queue} in coda
+            </span>
+          ) : null}
+          {/* Quick switch sub-section senza redirect */}
+          {navigateToSection && (
+            <>
+              <button
+                type="button"
+                onClick={() => navigateToSection("config")}
+                className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+              >
+                <Settings className="h-3 w-3" />
+                Config
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateToSection("monitor")}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+              >
+                <Activity className="h-3 w-3" />
+                Monitor
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
 
       <AITabsList
         value={activeTab}
@@ -246,9 +298,31 @@ export default function AIOperatePage() {
                 ]}
                 related={[
                   { label: "Memoria sistema/azienda", to: "/admin/ai-config?tab=governance" },
+                  { label: "Visualizza in 3D", to: "/admin/ai-operate?tab=cervello" },
                 ]}
               />
               <MemoryTab />
+            </>
+          ),
+          cervello: (
+            <>
+              <SectionAlert.info
+                title="Cervello 3D — knowledge graph piattaforma"
+                description="Visualizzazione 3D delle 21 Personas Admin e delle loro memorie. Naviga le connessioni semantiche, scopri pattern cross-persona, esplora la galassia della conoscenza Superadmin."
+                bullets={[
+                  "Sorgente dati: silvio_admin_personas + silvio_persona_memory (scope globale platform)",
+                  "Modalità vista: 2D piatto · 3D libero · Nucleo rotante (orbit camera)",
+                  "Filtra per persona, tipo di memoria o range temporale (7d/30d/90d)",
+                  "Real-time: nuove memorie appaiono live con pulse animation",
+                ]}
+                related={[
+                  { label: "Gestisci memorie", to: "/admin/ai-operate?tab=memory" },
+                  { label: "Configura Personas", to: "/admin/ai-operate?tab=personas" },
+                ]}
+              />
+              <Suspense fallback={<BrainGraphSkeleton />}>
+                <AIBrainGraph scope="admin" />
+              </Suspense>
             </>
           ),
           learning: (
@@ -271,6 +345,20 @@ export default function AIOperatePage() {
           ),
         }}
       />
+    </div>
+  );
+}
+
+function BrainGraphSkeleton() {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-[480px] w-full" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </div>
     </div>
   );
 }

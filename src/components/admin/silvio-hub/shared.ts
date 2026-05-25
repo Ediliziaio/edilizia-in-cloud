@@ -7,6 +7,8 @@
 // TYPES
 // ============================================================================
 
+export type ApprovalRiskLevel = "low" | "yellow" | "red" | "critical" | "high" | "medium";
+
 export interface PendingApproval {
   id: string;
   action_id: string;
@@ -15,6 +17,11 @@ export interface PendingApproval {
   status: string;
   expires_at: string;
   created_at: string;
+  // Campi opzionali — il backend potrebbe popolarli; difensivo se mancanti.
+  action_type?: string | null;
+  risk_level?: ApprovalRiskLevel | null;
+  company_id?: string | null;
+  proposed_by?: string | null;
 }
 
 export interface QueueAction {

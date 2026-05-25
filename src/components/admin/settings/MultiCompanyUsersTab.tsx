@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { invokeAdminFunction } from "@/lib/admin/invokeAdminFunction";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,9 @@ import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { cn } from "@/lib/utils";
+import { logAdminAuditAction } from "@/lib/admin/auditLog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmWithPasswordDialog } from "@/components/admin/ConfirmWithPasswordDialog";
 import ResetPasswordDialog from "./ResetPasswordDialog";
 import CreateMultiCompanyUserDialog from "./CreateMultiCompanyUserDialog";
 import AddCompanyAccessForm from "./AddCompanyAccessForm";
@@ -85,132 +88,182 @@ export default function MultiCompanyUsersTab() {
   const [userSearch, setUserSearch] = useState("");
   // Search per le aziende dentro al detail panel (utile su utenti con molti accessi)
   const [accessSearch, setAccessSearch] = useState("");
-  // Track quale companyId si sta rimuovendo / aggiornando per spinner per-row
-  const [removingCompanyId, setRemovingCompanyId] = useState<string | null>(null);
-  const [updatingRoleCompanyId, setUpdatingRoleCompanyId] = useState<string | null>(null);
+  // Track quali companyId stanno facendo remove/update per spinner per-row.
+  // Set invece di stringa singola → niente collisioni se l'utente fa 2 azioni
+  // concorrenti su righe diverse (race condition fix).
+  const [removingCompanyIds, setRemovingCompanyIds] = useState<Set<string>>(() => new Set());
+  const [updatingRoleCompanyIds, setUpdatingRoleCompanyIds] = useState<Set<string>>(() => new Set());
+
+  const trackBusy = (
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+    companyId: string,
+    busy: boolean,
+  ) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      if (busy) next.add(companyId);
+      else next.delete(companyId);
+      return next;
+    });
 
   const { data: users = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: [...queryKeys.admin.superAdmins, "multi-company"],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-platform-users", {
-        body: { action: "list-multi-company" },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const body = await res.error.context?.json?.();
-        throw new Error(body?.error || res.error.message);
-      }
-      return (res.data?.users || []) as MultiCompanyUser[];
+      const data = await invokeAdminFunction<{ users?: MultiCompanyUser[] }>(
+        "manage-platform-users",
+        { action: "list-multi-company" },
+      );
+      return (data?.users ?? []) as MultiCompanyUser[];
     },
   });
 
   // Keep selectedUser in sync con i dati live (prevents stale data dopo invalidate)
   const activeUser = selectedUser ? users.find((u) => u.id === selectedUser.id) || null : null;
 
-  // Filtered list users (search by name or email)
+  // Filtered list users (search by name, email, OR azienda accessibile).
+  // Estensione: cerchi "Acme" → vedi tutti gli utenti con accesso ad Acme.
   const filteredUsers = useMemo(() => {
     const q = userSearch.trim().toLowerCase();
     if (!q) return users;
     return users.filter((u) => {
       const name = `${u.first_name} ${u.last_name}`.toLowerCase();
-      return name.includes(q) || u.email.toLowerCase().includes(q);
+      if (name.includes(q) || u.email.toLowerCase().includes(q)) return true;
+      // Cerca anche tra le aziende accessibili dell'utente
+      return u.accesses.some((a) =>
+        (a.companies?.name ?? "").toLowerCase().includes(q),
+      );
     });
   }, [users, userSearch]);
 
-  // Filtered company accesses for the selected user
+  // Filtered company accesses — match anche su ruolo (label IT).
   const filteredAccesses = useMemo(() => {
     if (!activeUser) return [];
     const q = accessSearch.trim().toLowerCase();
     if (!q) return activeUser.accesses;
-    return activeUser.accesses.filter((a) =>
-      (a.companies?.name ?? "").toLowerCase().includes(q)
-    );
+    return activeUser.accesses.filter((a) => {
+      const companyName = (a.companies?.name ?? "").toLowerCase();
+      const roleLabel = (ACCESS_ROLE_LABELS[a.access_role] ?? a.access_role).toLowerCase();
+      return companyName.includes(q) || roleLabel.includes(q);
+    });
   }, [activeUser, accessSearch]);
 
   const deleteMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-platform-users", {
-        body: { action: "delete", userId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const body = await res.error.context?.json?.();
-        throw new Error(body?.error || res.error.message);
-      }
-      if (res.data?.error) throw new Error(res.data.error);
+      await invokeAdminFunction("manage-platform-users", { action: "delete", userId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, userId) => {
+      const target = deleteTarget;
+      void logAdminAuditAction({
+        action: "multi_company_user.delete",
+        targetType: "multi_company_user",
+        targetId: userId,
+        details: target
+          ? {
+              email: target.email,
+              name: `${target.first_name} ${target.last_name}`,
+              accesses_revoked: target.accesses.length,
+              companies: target.accesses.map((a) => a.companies?.name).filter(Boolean),
+            }
+          : { id: userId },
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
+      queryClient.invalidateQueries({ queryKey: ["admin-companies-summary"] });
       setDeleteTarget(null);
       setSelectedUser(null);
       toast.success("Utente multi-azienda rimosso");
     },
-    onError: (e: Error) => { setDeleteTarget(null); toast.error(e.message); },
+    onError: (e: Error) => {
+      setDeleteTarget(null);
+      toast.error(e.message);
+    },
   });
 
   // Update role di un singolo accesso (Asana-style inline edit, no remove+re-add)
   const updateRoleMutation = useMutation({
-    mutationFn: async ({ userId, companyId, newRole }: { userId: string; companyId: string; newRole: string }) => {
-      setUpdatingRoleCompanyId(companyId);
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-platform-users", {
-        body: { action: "update-company-access", userId, companyId, accessRole: newRole, operation: "update-role" },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const body = await res.error.context?.json?.();
-        throw new Error(body?.error || res.error.message);
+    mutationFn: async ({ companyId, userId, newRole }: { companyId: string; userId: string; newRole: string }) => {
+      trackBusy(setUpdatingRoleCompanyIds, companyId, true);
+      try {
+        await invokeAdminFunction("manage-platform-users", {
+          action: "update-company-access",
+          userId,
+          companyId,
+          accessRole: newRole,
+          operation: "update-role",
+        });
+      } finally {
+        trackBusy(setUpdatingRoleCompanyIds, companyId, false);
       }
-      if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
       toast.success("Ruolo accesso aggiornato");
     },
     onError: (e: Error) => toast.error(e.message),
-    onSettled: () => setUpdatingRoleCompanyId(null),
   });
 
   const removeAccessMutation = useMutation({
-    mutationFn: async ({ userId, companyId }: { userId: string; companyId: string }) => {
-      setRemovingCompanyId(companyId);
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-platform-users", {
-        body: { action: "update-company-access", userId, companyId, operation: "remove" },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const body = await res.error.context?.json?.();
-        throw new Error(body?.error || res.error.message);
+    mutationFn: async ({ companyId, userId }: { companyId: string; userId: string }) => {
+      trackBusy(setRemovingCompanyIds, companyId, true);
+      try {
+        await invokeAdminFunction("manage-platform-users", {
+          action: "update-company-access",
+          userId,
+          companyId,
+          operation: "remove",
+        });
+      } finally {
+        trackBusy(setRemovingCompanyIds, companyId, false);
       }
-      if (res.data?.error) throw new Error(res.data.error);
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
+      const target = removeAccessTarget;
+      void logAdminAuditAction({
+        action: "multi_company_access.revoke",
+        targetType: "multi_company_access",
+        targetId: `${vars.userId}:${vars.companyId}`,
+        details: target
+          ? {
+              user_name: target.userName,
+              company_name: target.companyName,
+              user_id: vars.userId,
+              company_id: vars.companyId,
+            }
+          : { user_id: vars.userId, company_id: vars.companyId },
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.superAdmins });
       setRemoveAccessTarget(null);
       toast.success("Accesso azienda rimosso");
     },
     onError: (e: Error) => toast.error(e.message),
-    onSettled: () => setRemovingCompanyId(null),
   });
 
+  /**
+   * Reset password — tenta prima `manage-platform-users` con action
+   * `reset-password`, fallback su legacy `manage-super-admins`.
+   * Vedi PlatformTeamTab per lo stesso pattern.
+   */
   const resetMutation = useMutation({
     mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
-      // NB: il reset password vive in `manage-super-admins` (legacy edge fn),
-      // l'unica che implementa l'action `reset-password`. La nuova
-      // `manage-platform-users` gestisce CRUD utenti ma non i reset password.
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("manage-super-admins", {
-        body: { action: "reset-password", userId, newPassword },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const body = await res.error.context?.json?.();
-        throw new Error(body?.error || res.error.message);
+      try {
+        await invokeAdminFunction("manage-platform-users", {
+          action: "reset-password",
+          userId,
+          newPassword,
+        });
+      } catch (err) {
+        const msg = (err as Error).message?.toLowerCase() ?? "";
+        const isUnknownAction =
+          msg.includes("unknown action") ||
+          msg.includes("invalid action") ||
+          msg.includes("not implemented") ||
+          msg.includes("action not supported");
+        if (!isUnknownAction) throw err;
+        await invokeAdminFunction("manage-super-admins", {
+          action: "reset-password",
+          userId,
+          newPassword,
+        });
       }
-      if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
       setResetTarget(null);
@@ -310,9 +363,17 @@ export default function MultiCompanyUsersTab() {
                 <ScrollArea className="h-[420px]">
                   <div className="space-y-1 pr-2">
                     {filteredUsers.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-6">
-                        Nessun utente corrisponde alla ricerca.
-                      </p>
+                      <EmptyState
+                        icon={Search}
+                        size="sm"
+                        title={<>Nessun utente corrisponde a &quot;{userSearch}&quot;</>}
+                        action={{
+                          label: "Pulisci ricerca",
+                          onClick: () => setUserSearch(""),
+                          icon: X,
+                          variant: "ghost",
+                        }}
+                      />
                     ) : (
                       filteredUsers.map((u) => (
                         <button
@@ -389,13 +450,13 @@ export default function MultiCompanyUsersTab() {
                         <p className="text-sm font-medium">
                           Aziende accessibili ({activeUser.accesses.length})
                         </p>
-                        {activeUser.accesses.length > 5 && (
+                        {activeUser.accesses.length > 1 && (
                           <div className="relative w-48">
                             <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
                             <Input
                               value={accessSearch}
                               onChange={(e) => setAccessSearch(e.target.value)}
-                              placeholder="Filtra…"
+                              placeholder="Filtra azienda o ruolo…"
                               className="pl-7 h-7 text-xs"
                             />
                           </div>
@@ -414,8 +475,8 @@ export default function MultiCompanyUsersTab() {
                         <ScrollArea className="max-h-[280px]">
                           <div className="space-y-2 pr-2">
                             {filteredAccesses.map((a) => {
-                              const isRemoving = removingCompanyId === a.company_id && removeAccessMutation.isPending;
-                              const isUpdatingRole = updatingRoleCompanyId === a.company_id && updateRoleMutation.isPending;
+                              const isRemoving = removingCompanyIds.has(a.company_id);
+                              const isUpdatingRole = updatingRoleCompanyIds.has(a.company_id);
                               return (
                                 <div key={a.id} className="flex items-center justify-between gap-2 border rounded-lg p-3 hover:bg-muted/30 transition-colors">
                                   <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -518,24 +579,24 @@ export default function MultiCompanyUsersTab() {
         userName={resetTarget ? `${resetTarget.first_name} ${resetTarget.last_name}` : ""}
       />
 
-      {/* Confirm dialog: delete utente intero */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovere utente multi-azienda?</AlertDialogTitle>
-            <AlertDialogDescription>
-              L'utente <strong>{deleteTarget?.first_name} {deleteTarget?.last_name}</strong> ({deleteTarget?.email}) perderà l'accesso a tutte le aziende associate. Questa azione è <strong>irreversibile</strong>.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)} disabled={deleteMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Rimuovi utente
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Confirm dialog: delete utente intero — con re-auth password */}
+      <ConfirmWithPasswordDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title="Rimuovere utente multi-azienda?"
+        description={
+          deleteTarget ? (
+            <>
+              L&apos;utente <strong>{deleteTarget.first_name} {deleteTarget.last_name}</strong>{" "}
+              ({deleteTarget.email}) perderà l&apos;accesso a tutte le{" "}
+              <strong>{deleteTarget.accesses.length}</strong> aziende associate.
+              Questa azione è <strong>irreversibile</strong>.
+            </>
+          ) : null
+        }
+        destructiveLabel="Rimuovi utente"
+        onConfirmed={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
 
       {/* Confirm dialog: rimuovi singolo accesso azienda — prima era no-confirm + irreversibile */}
       <AlertDialog

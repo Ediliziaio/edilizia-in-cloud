@@ -350,9 +350,15 @@ interface EmailClientPageProps {
   settingsPath?: string;
   /** Settings path per EmptyConnectionsState (CTA "collega casella") */
   emptyStateSettingsPath?: string;
+  /** Contesto applicativo — influenza il testo dello stato vuoto/loading. */
+  emailContext?: "azienda" | "admin";
 }
 
-export default function EmailClientPage({ settingsPath, emptyStateSettingsPath }: EmailClientPageProps = {}) {
+export default function EmailClientPage({
+  settingsPath,
+  emptyStateSettingsPath,
+  emailContext = "azienda",
+}: EmailClientPageProps = {}) {
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
   const companyId = effectiveCompany?.id;
@@ -398,7 +404,7 @@ export default function EmailClientPage({ settingsPath, emptyStateSettingsPath }
   if (forceDemo) {
     return (
       <div className="container mx-auto max-w-6xl p-4 md:p-6">
-        <EmptyConnectionsState settingsPath={emptyStatePath} />
+        <EmptyConnectionsState settingsPath={emptyStatePath} context={emailContext} />
       </div>
     );
   }
@@ -417,6 +423,7 @@ export default function EmailClientPage({ settingsPath, emptyStateSettingsPath }
         <EmptyConnectionsState
           mode="loading"
           settingsPath={emptyStatePath}
+          context={emailContext}
           onRetry={() => {
             setShowSlowFallback(false);
             void refetch();
@@ -432,6 +439,7 @@ export default function EmailClientPage({ settingsPath, emptyStateSettingsPath }
         <EmptyConnectionsState
           mode="error"
           settingsPath={emptyStatePath}
+          context={emailContext}
           errorMessage={error instanceof Error ? error.message : "Impossibile caricare le caselle email."}
           onRetry={() => void refetch()}
         />
@@ -442,7 +450,7 @@ export default function EmailClientPage({ settingsPath, emptyStateSettingsPath }
   if (!hasConnections) {
     return (
       <div className="container mx-auto max-w-6xl p-4 md:p-6">
-        <EmptyConnectionsState settingsPath={emptyStatePath} />
+        <EmptyConnectionsState settingsPath={emptyStatePath} context={emailContext} />
       </div>
     );
   }
@@ -523,14 +531,35 @@ function EmptyConnectionsState({
   errorMessage,
   onRetry,
   settingsPath = "/azienda/impostazioni/mio-profilo",
+  context = "azienda",
 }: {
   mode?: "empty" | "loading" | "error";
   errorMessage?: string;
   onRetry?: () => void;
   settingsPath?: string;
+  context?: "azienda" | "admin";
 }) {
   const isLoadingMode = mode === "loading";
   const isErrorMode = mode === "error";
+  const isAdmin = context === "admin";
+
+  // Testo + benefit chips adattati al contesto. In azienda il valore è il
+  // cantiere (Acquisti/DDT/fornitori); in admin è la gestione clienti e
+  // operatività piattaforma (CS, outbound, ticket).
+  const adminBenefits = [
+    { icon: Tags, title: "Inbox condivisa team", text: "Florin + collaboratori vedono ognuno la propria casella." },
+    { icon: Sparkles, title: "AI Triage clienti", text: "Classifica ticket, lead e renewals automaticamente." },
+    { icon: Plug, title: "Outbound + CS", text: "Email transazionali, dunning, follow-up sotto controllo." },
+  ];
+  const aziendaBenefits = [
+    { icon: Tags, title: "Cartelle + caselle", text: "Posta, bozze, inviate e account sotto ogni voce." },
+    { icon: Sparkles, title: "AI operativa", text: "Classifica, riassume e propone azioni." },
+    { icon: Truck, title: "Acquisti + DDT", text: "Ritardi, ODA, fornitori e consegne sotto controllo." },
+  ];
+  const benefits = isAdmin ? adminBenefits : aziendaBenefits;
+  const heroDescription = isAdmin
+    ? "Il centro email Superadmin per il team interno: Gmail, Outlook e IMAP/SMTP in un'unica vista, con AI che separa ticket clienti, lead in arrivo, fatture e operations."
+    : "EiC diventa il tuo centro email operativo: Gmail, Outlook e IMAP/SMTP in un'unica vista, con cartelle per ogni casella, ricerca, invio e AI che riconosce priorità, lead e preventivi.";
 
   return (
     <Card className="overflow-hidden border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-orange-50/40 shadow-sm">
@@ -547,14 +576,10 @@ function EmptyConnectionsState({
               ? "La pagina resta utilizzabile anche se il controllo delle connessioni impiega qualche secondo. Puoi riprovare senza ricaricare tutto."
               : isErrorMode
                 ? errorMessage ?? "C'è stato un problema nel leggere le connessioni email. La preview resta disponibile mentre riprovi."
-                : "EiC diventa il tuo centro email operativo: Gmail, Outlook e IMAP/SMTP in un'unica vista, con cartelle per ogni casella, ricerca, invio e AI che riconosce priorità, lead e preventivi."}
+                : heroDescription}
           </p>
           <div className="mt-6 grid gap-2 text-left sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
-            {[
-              { icon: Tags, title: "Cartelle + caselle", text: "Posta, bozze, inviate e account sotto ogni voce." },
-              { icon: Sparkles, title: "AI operativa", text: "Classifica, riassume e propone azioni." },
-              { icon: Truck, title: "Acquisti + DDT", text: "Ritardi, ODA, fornitori e consegne sotto controllo." },
-            ].map((item) => {
+            {benefits.map((item) => {
               const Icon = item.icon;
               return (
                 <div key={item.title} className="rounded-2xl border border-white bg-white/85 p-3 shadow-sm">

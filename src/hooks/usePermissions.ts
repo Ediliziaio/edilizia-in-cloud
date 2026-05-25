@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 import { withClientTimeout } from "@/lib/query-timeout";
 import { resolveSelectedAccessRole } from "@/lib/auth/multiCompany";
+import { useCurrentCommercialistaAccessMode } from "@/hooks/accountant/useAccountantPortalData";
 
 export interface Permissions {
   canViewDashboard: boolean;
@@ -195,6 +196,65 @@ const NO_PERMISSIONS: Permissions = {
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
+// Permessi del commercialista quando opera su un'azienda cliente delegata
+// (currentAccessRole === 'accountant'). Coerente con
+// COMMERCIALISTA_ALLOWED_URLS in CompanyLayout: vede cantieri, magazzino,
+// controllo gestione, finanza, persone — non marketing/vendita/automazioni.
+// Edit per default = false (sola lettura). Per access_mode='operational'
+// in futuro si potranno abilitare i canEdit*.
+const COMMERCIALISTA_PERMISSIONS: Permissions = {
+  canViewDashboard: true,
+  canViewCruscotto: true,
+  canViewControlloGestione: true,
+  // Cantieri & Lavori
+  canViewOrders: true, canEditOrders: false,
+  canViewWarehouse: true, canEditWarehouse: false,
+  canViewCalendar: true,
+  canViewCustomers: true, canEditCustomers: false,
+  canViewSubappaltatori: true,
+  canViewSicurezzaCantiere: true,
+  canViewGiornaleLavori: true,
+  canViewInterventi: true,
+  canViewManutenzione: true,
+  canViewTickets: true, canEditTickets: false,
+  // Finanza
+  canViewBilling: true,
+  canViewScadenzario: true,
+  canViewPrimaNota: true,
+  canViewCosts: true,
+  canViewPrevisionale: true,
+  canViewTesoreria: true,
+  canViewForecast: true,
+  // Persone (lettura HR)
+  canViewPersone: true,
+  canViewEmployees: true,
+  // Settings: ESPLICITAMENTE NO — il commercialista non deve modificare
+  // o vedere la configurazione dell'azienda cliente (anagrafica, fornitori,
+  // listini, branding, abbonamento, utenti, sicurezza)
+  canViewSettingsProfile: false,
+  canViewSettings: false,
+  // ESPLICITAMENTE NO marketing / automazioni / vendita
+  canViewMarketing: false, canEditMarketing: false,
+  canViewMarketingDashboard: false, canViewMarketingContacts: false,
+  canEditMarketingContacts: false, canViewMarketingOpportunities: false,
+  canEditMarketingOpportunities: false, canViewMarketingActivities: false,
+  canViewMarketingAppointments: false, canViewMarketingAutomations: false,
+  canViewMarketingAiAgent: false, canViewMarketingEmail: false,
+  canViewMarketingWhatsapp: false, canViewMarketingReports: false,
+  canViewSmsMarketing: false,
+  canViewSalesOs: false,
+  canViewAutomazioni: false,
+  canViewRenderAi: false,
+  // Settings amministrativi → no
+  canViewUsers: false,
+  canEditSettingsProfile: false,
+  canViewSettingsOrders: false, canEditSettingsOrders: false,
+  canViewSettingsCustomization: false, canEditSettingsCustomization: false,
+  canViewSettingsPeople: false, canEditSettingsPeople: false,
+  canViewSettingsSecurity: false,
+  isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: mappa la riga DB `staff_permissions` → oggetto Permissions.
 // Estratto per essere riusato sia per l'utente loggato sia per "Visualizza come"
@@ -287,6 +347,17 @@ export function usePermissions(): Permissions {
   } = useAuth();
   const queryClient = useQueryClient();
   const effectiveCompanyId = effectiveCompany?.id ?? selectedMultiCompanyId ?? impersonatedCompanyId ?? null;
+
+  // Per commercialista in commercialistaMode: leggi access_mode dalla URL +
+  // fetch a accountant_company_access. Determina se sbloccare canEdit*.
+  // Lettura DOM-safe via window.location (no router hook in questo file).
+  const commercialistaCompanyIdFromUrl =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("commercialistaCompany") ?? null
+      : null;
+  const { data: commercialistaAccessMode } = useCurrentCommercialistaAccessMode(
+    role === "accountant" ? commercialistaCompanyIdFromUrl : null,
+  );
 
   const staffLikeRoles = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
 
@@ -447,6 +518,27 @@ export function usePermissions(): Permissions {
   // Super admin and selected-company admin have all permissions.
   if (role === "super_admin" || currentAccessRole === "company_admin") {
     return ALL_PERMISSIONS;
+  }
+
+  // Commercialista: opera su un'azienda cliente delegata via
+  // accountant_company_access → set di permessi limitati ma sufficienti
+  // per le aree concesse (cantieri, finanza, controllo gestione, persone).
+  // Se access_mode='operational' sblocchiamo anche canEdit* — il
+  // commercialista può creare/modificare/cancellare. Per default (read_only
+  // e approval_required) tutto resta a sola lettura: le azioni write
+  // saranno gestite dalla UI con dialog di approvazione (PRIO-2).
+  if (role === "accountant" || currentAccessRole === "accountant") {
+    const mode = commercialistaAccessMode ?? "read_only";
+    if (mode === "operational") {
+      return {
+        ...COMMERCIALISTA_PERMISSIONS,
+        canEditOrders: true,
+        canEditWarehouse: true,
+        canEditCustomers: true,
+        canEditTickets: true,
+      };
+    }
+    return COMMERCIALISTA_PERMISSIONS;
   }
 
   // Utente multi-azienda senza company selezionata: fail-safe durante il fetch,

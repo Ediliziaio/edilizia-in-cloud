@@ -9,12 +9,15 @@ import {
   Eye,
   EyeOff,
   FileText,
+  Hash,
   Landmark,
   Loader2,
   Lock,
   Mail,
+  Phone,
   ShieldCheck,
   Sparkles,
+  User as UserIcon,
   Users2,
   Wallet,
 } from "lucide-react";
@@ -26,10 +29,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/useSEO";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchWithTimeout } from "@/lib/utils/fetchWithTimeout";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
-type ViewMode = "login" | "forgot" | "2fa";
+type ViewMode = "login" | "forgot" | "2fa" | "signup" | "signup-success";
 
 const allowedAccountantRoles = new Set(["accountant", "super_admin"]);
 
@@ -84,6 +88,16 @@ export default function CommercialistaLogin() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Signup state (firm + owner)
+  const [signupName, setSignupName] = useState("");
+  const [signupPhone, setSignupPhone] = useState("");
+  const [signupFirmName, setSignupFirmName] = useState("");
+  const [signupFirmVat, setSignupFirmVat] = useState("");
+  const [signupFirmFiscalCode, setSignupFirmFiscalCode] = useState("");
+  const [signupFirmEmail, setSignupFirmEmail] = useState("");
+  const [signupTermsAccepted, setSignupTermsAccepted] = useState(false);
+  const [signupSuccessMessage, setSignupSuccessMessage] = useState<string | null>(null);
 
   if (!isLoading && user && role && allowedAccountantRoles.has(role)) {
     return <Navigate to="/commercialista" replace />;
@@ -209,6 +223,96 @@ export default function CommercialistaLogin() {
     setView("login");
     setResetSent(false);
     setFormError(null);
+    setSignupSuccessMessage(null);
+  };
+
+  const switchToSignup = () => {
+    setView("signup");
+    setFormError(null);
+    setPassword("");
+    setSignupSuccessMessage(null);
+  };
+
+  const handleSignup = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setFormError(null);
+
+    if (!signupTermsAccepted) {
+      setFormError("Devi accettare i termini per registrarti.");
+      return;
+    }
+    if (password.length < 8) {
+      setFormError("Password troppo corta (minimo 8 caratteri).");
+      return;
+    }
+    if (signupFirmName.trim().length < 2) {
+      setFormError("Nome studio richiesto (minimo 2 caratteri).");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) {
+        setFormError("Configurazione mancante. Contatta il supporto.");
+        return;
+      }
+
+      const response = await fetchWithTimeout(
+        `${supabaseUrl}/functions/v1/accountant-self-signup`,
+        {
+          method: "POST",
+          timeoutMs: 15_000,
+          context: "commercialista-login.self-signup",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: signupName.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+            phone: signupPhone.trim() || null,
+            firm_name: signupFirmName.trim(),
+            firm_vat_number: signupFirmVat.trim() || null,
+            firm_fiscal_code: signupFirmFiscalCode.trim() || null,
+            firm_email: signupFirmEmail.trim() || null,
+            accepted_terms: signupTermsAccepted,
+          }),
+        },
+      );
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        success?: boolean;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.success) {
+        setFormError(payload.error || "Registrazione non riuscita. Riprova.");
+        return;
+      }
+
+      setSignupSuccessMessage(
+        payload.message ||
+          "Registrazione completata! Controlla la tua email per confermare l'account.",
+      );
+      setView("signup-success");
+      setPassword("");
+      setSignupName("");
+      setSignupPhone("");
+      setSignupFirmName("");
+      setSignupFirmVat("");
+      setSignupFirmFiscalCode("");
+      setSignupFirmEmail("");
+      setSignupTermsAccepted(false);
+
+      toast({
+        title: "Registrazione completata",
+        description: "Controlla la tua email per confermare l'account.",
+      });
+    } catch {
+      setFormError("Errore di rete. Verifica la connessione e riprova.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handle2FAVerified = () => {
@@ -399,22 +503,307 @@ export default function CommercialistaLogin() {
                 >
                   Password dimenticata?
                 </button>
-                <a
-                  href="https://www.ediliziaincloud.com/per/commercialista-edilizia"
+                <button
+                  type="button"
+                  onClick={switchToSignup}
                   className="font-medium text-slate-500 transition-colors hover:text-slate-900"
                 >
-                  Scopri il portale
-                </a>
+                  Registra il tuo studio
+                </button>
               </div>
 
               <div className="mt-7 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex gap-3">
                   <Users2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
                   <p className="text-xs leading-relaxed text-slate-600">
-                    Se hai appena ricevuto l'invito, usa l'email abilitata per lo studio.
-                    Gli account aziendali restano separati dal portale commercialista.
+                    Sei un nuovo studio commercialista? Registrati in 60 secondi: crei lo studio
+                    e diventi automaticamente owner. Gli account aziendali restano separati.
                   </p>
                 </div>
+              </div>
+            </section>
+          )}
+
+          {view === "signup" && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-7 shadow-xl shadow-slate-200/50">
+              <button
+                type="button"
+                onClick={switchToLogin}
+                className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Torna al login
+              </button>
+
+              <div className="mb-6 space-y-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-700 text-white">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-950">
+                    Registra il tuo studio
+                  </h2>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-500">
+                    Crea l'account commercialista e accedi subito alla dashboard dello studio
+                    per gestire le aziende clienti.
+                  </p>
+                </div>
+              </div>
+
+              {formError && (
+                <div className="mb-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSignup} className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Dati personali
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="acc-signup-name">Nome e cognome</Label>
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      id="acc-signup-name"
+                      type="text"
+                      autoComplete="name"
+                      placeholder="Mario Rossi"
+                      value={signupName}
+                      onChange={(event) => setSignupName(event.target.value)}
+                      className="h-11 pl-10"
+                      required
+                      minLength={2}
+                      maxLength={120}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="acc-signup-email">Email personale</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      id="acc-signup-email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      placeholder="mario.rossi@studio.it"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      className="h-11 pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="acc-signup-password">Password (min. 8 caratteri)</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      id="acc-signup-password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Scegli una password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      className="h-11 pl-10 pr-10"
+                      required
+                      minLength={8}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-700"
+                      aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="acc-signup-phone">Telefono (opzionale)</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      id="acc-signup-phone"
+                      type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
+                      placeholder="+39 333 1234567"
+                      value={signupPhone}
+                      onChange={(event) => setSignupPhone(event.target.value)}
+                      className="h-11 pl-10"
+                      maxLength={32}
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200 pt-4 space-y-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Dati studio
+                  </p>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="acc-signup-firm-name">Nome studio / Ragione sociale</Label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        id="acc-signup-firm-name"
+                        type="text"
+                        placeholder="Studio Rossi & Associati"
+                        value={signupFirmName}
+                        onChange={(event) => setSignupFirmName(event.target.value)}
+                        className="h-11 pl-10"
+                        required
+                        minLength={2}
+                        maxLength={200}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="acc-signup-firm-vat">P.IVA (opzionale)</Label>
+                      <div className="relative">
+                        <Hash className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="acc-signup-firm-vat"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="12345678901"
+                          value={signupFirmVat}
+                          onChange={(event) => setSignupFirmVat(event.target.value.replace(/\s/g, ""))}
+                          className="h-11 pl-10"
+                          maxLength={11}
+                          pattern="\d{11}"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="acc-signup-firm-cf">Cod. Fiscale</Label>
+                      <Input
+                        id="acc-signup-firm-cf"
+                        type="text"
+                        placeholder="RSSMRA80A01H501Z"
+                        value={signupFirmFiscalCode}
+                        onChange={(event) => setSignupFirmFiscalCode(event.target.value.toUpperCase())}
+                        className="h-11"
+                        maxLength={16}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="acc-signup-firm-email">
+                      Email studio (se diversa dalla personale)
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        id="acc-signup-firm-email"
+                        type="email"
+                        inputMode="email"
+                        placeholder="info@studio.it"
+                        value={signupFirmEmail}
+                        onChange={(event) => setSignupFirmEmail(event.target.value)}
+                        className="h-11 pl-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-3 cursor-pointer text-sm text-slate-600 pt-2">
+                  <input
+                    type="checkbox"
+                    checked={signupTermsAccepted}
+                    onChange={(event) => setSignupTermsAccepted(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-700"
+                    required
+                  />
+                  <span>
+                    Accetto i{" "}
+                    <a
+                      href="https://www.ediliziaincloud.com/termini-e-condizioni/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-blue-700 hover:underline"
+                    >
+                      Termini
+                    </a>{" "}
+                    e la{" "}
+                    <a
+                      href="https://www.ediliziaincloud.com/privacy-policy/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-blue-700 hover:underline"
+                    >
+                      Privacy Policy
+                    </a>{" "}
+                    del portale commercialista.
+                  </span>
+                </label>
+
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-12 w-full bg-blue-700 text-base font-semibold text-white shadow-lg shadow-blue-200 hover:bg-blue-800"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Registrazione in corso...
+                    </>
+                  ) : (
+                    "Crea studio e account"
+                  )}
+                </Button>
+              </form>
+            </section>
+          )}
+
+          {view === "signup-success" && (
+            <section className="rounded-2xl border border-slate-200 bg-white p-7 shadow-xl shadow-slate-200/50">
+              <div className="space-y-5 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                  <CheckCircle2 className="h-7 w-7" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-slate-950">
+                    Studio creato!
+                  </h2>
+                  <p className="text-sm leading-relaxed text-slate-500">
+                    {signupSuccessMessage ||
+                      "Controlla la tua email per confermare l'account, poi accedi al portale."}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-left">
+                  <p className="text-xs leading-relaxed text-emerald-900">
+                    <span className="font-semibold">Prossimi passi:</span>
+                    <br />
+                    1. Apri l'email che ti abbiamo inviato a{" "}
+                    <span className="font-semibold">{email}</span>
+                    <br />
+                    2. Clicca sul link di conferma
+                    <br />
+                    3. Torna qui e accedi con la password che hai scelto
+                    <br />
+                    4. Invita le aziende clienti dal cruscotto studio
+                  </p>
+                </div>
+                <Button
+                  onClick={switchToLogin}
+                  className="w-full bg-blue-700 text-white hover:bg-blue-800"
+                >
+                  Vai al login
+                </Button>
               </div>
             </section>
           )}

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAIHubNested } from "@/components/admin/ai-shared/AIHubNestedContext";
 import {
   Brain, Plus, Search, Trash2, Edit2, EyeOff, Eye, Sparkles, Building2,
 } from "lucide-react";
@@ -88,6 +89,7 @@ const EMPTY_FORM: FormData = {
 
 export default function AdminAIMemoryPage() {
   const qc = useQueryClient();
+  const { isNested } = useAIHubNested();
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterPersona, setFilterPersona] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
@@ -296,23 +298,38 @@ export default function AdminAIMemoryPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-screen-xl mx-auto space-y-4">
-      <div className="flex items-start gap-3">
-        <div className="shrink-0 h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
-          <Brain className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+    <div className={isNested ? "space-y-4" : "p-4 md:p-6 max-w-screen-xl mx-auto space-y-4"}>
+      {/* Header completo solo se non nested in AdminAIHub */}
+      {!isNested && (
+        <div className="flex items-start gap-3">
+          <div className="shrink-0 h-10 w-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+            <Brain className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">Memoria AI Personas — Cross Company</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Vista super_admin: tutte le memorie delle 18 AI personas su TUTTE le aziende.
+              Aggiornamento in tempo reale.
+            </p>
+          </div>
+          <Button onClick={openCreate} className="gap-2" disabled={companies.length === 0}>
+            <Plus className="h-4 w-4" />
+            Aggiungi memoria
+          </Button>
         </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">Memoria AI Personas — Cross Company</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Vista super_admin: tutte le memorie delle 18 AI personas su TUTTE le aziende.
-            Aggiornamento in tempo reale.
+      )}
+      {/* Quando nested: solo il bottone azione + chiarimento contestuale */}
+      {isNested && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Vista cross-company: 18 AI personas clienti · update real-time
           </p>
+          <Button onClick={openCreate} className="gap-2" disabled={companies.length === 0} size="sm">
+            <Plus className="h-4 w-4" />
+            Aggiungi memoria
+          </Button>
         </div>
-        <Button onClick={openCreate} className="gap-2" disabled={companies.length === 0}>
-          <Plus className="h-4 w-4" />
-          Aggiungi memoria
-        </Button>
-      </div>
+      )}
 
       {/* Stats cross-company */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">

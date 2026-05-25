@@ -1,0 +1,45 @@
+-- Audit log dei commercialisti: traccia ogni navigazione/operazione
+-- per compliance fiscale + GDPR.
+--
+-- Versione MINIMALE che funziona su qualsiasi schema:
+-- solo policy commercialista (insert + select dei propri log).
+-- La policy "azienda owner vede log" verrà aggiunta separatamente
+-- dopo aver identificato il nome corretto della colonna owner in
+-- public.companies (varia fra installazioni Supabase).
+
+DROP TABLE IF EXISTS public.accountant_audit_log CASCADE;
+
+CREATE TABLE public.accountant_audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  firm_id uuid REFERENCES public.accountant_firms(id) ON DELETE SET NULL,
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  action text NOT NULL,
+  resource_type text,
+  resource_id uuid,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX accountant_audit_log_company_at_idx
+  ON public.accountant_audit_log (company_id, created_at DESC);
+CREATE INDEX accountant_audit_log_user_at_idx
+  ON public.accountant_audit_log (user_id, created_at DESC);
+CREATE INDEX accountant_audit_log_action_idx
+  ON public.accountant_audit_log (action, created_at DESC);
+
+ALTER TABLE public.accountant_audit_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "audit_log_accountant_insert" ON public.accountant_audit_log
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = auth.uid()
+    AND public.user_can_read_accountant_company(company_id)
+  );
+
+CREATE POLICY "audit_log_accountant_select_own" ON public.accountant_audit_log
+  FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
+
+COMMENT ON TABLE public.accountant_audit_log IS
+  'Traccia accessi e operazioni commercialista per compliance fiscale + GDPR.';

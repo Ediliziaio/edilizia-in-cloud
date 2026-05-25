@@ -1,14 +1,18 @@
 /**
  * Bottom navigation mobile per l'area SuperAdmin.
- * 5 tab: Dashboard, Aziende, Ticket, Marketing, App (menu grid).
+ * 5 tab: Dashboard, Aziende, Assistenza, AI, App (menu grid).
  * Visibile solo su mobile (< md). Stile nativo con safe-area.
+ *
+ * v2 (2026-05-25): aggiornato agli hub consolidati (no più legacy /admin/ticket).
+ * - "Ticket" → "Assistenza" (CS hub assistenza tab)
+ * - aggiunto "AI" come voce primary mobile (era nascosto, ora pinned)
  */
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Building,
-  MessageSquare,
-  Megaphone,
+  LifeBuoy,
+  Sparkles,
   LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,6 +22,8 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   href: string;
+  /** Path alternativi che attivano la stessa voce (es. URL legacy). */
+  matchPrefixes?: string[];
   exact?: boolean;
   badgeKey?: string;
 }
@@ -25,8 +31,14 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/admin", exact: true },
   { label: "Aziende", icon: Building, href: "/admin/aziende" },
-  { label: "Ticket", icon: MessageSquare, href: "/admin/ticket", badgeKey: "openTickets" },
-  { label: "Marketing", icon: Megaphone, href: "/admin/marketing" },
+  {
+    label: "Assistenza",
+    icon: LifeBuoy,
+    href: "/admin/cs?tab=assistenza",
+    matchPrefixes: ["/admin/cs", "/admin/ticket"], // ticket redirige a /admin/cs?tab=assistenza
+    badgeKey: "openTickets",
+  },
+  { label: "AI", icon: Sparkles, href: "/admin/ai", matchPrefixes: ["/admin/ai", "/admin/ai-"] },
   { label: "App", icon: LayoutGrid, href: "/admin/menu" },
 ];
 
@@ -36,9 +48,16 @@ export function AdminBottomNav() {
 
   const isActive = (item: NavItem) => {
     if (item.exact) return location.pathname === item.href;
-    // Special: "App" is active only on /admin/menu
     if (item.href === "/admin/menu") return location.pathname === "/admin/menu";
-    return location.pathname.startsWith(item.href);
+    // matchPrefixes ha precedenza: utile quando l'href contiene ?queryparam
+    // (es. /admin/cs?tab=assistenza) o per supportare URL legacy che
+    // redirigono al nuovo hub.
+    if (item.matchPrefixes?.length) {
+      return item.matchPrefixes.some((p) => location.pathname.startsWith(p));
+    }
+    // Solo path (no query), startsWith standard.
+    const pathOnly = item.href.split("?")[0];
+    return location.pathname.startsWith(pathOnly);
   };
 
   const getBadgeCount = (item: NavItem): number => {

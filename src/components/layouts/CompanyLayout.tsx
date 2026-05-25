@@ -104,7 +104,6 @@ import { cn } from "@/lib/utils";
 import { macroAreas, type NavItem, type MacroArea } from "@/lib/sidebarConfig";
 import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
-import { accountantCompanies } from "@/lib/accountantPortal";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { NotificationsBellPopover } from "@/components/notifications/NotificationsBellPopover";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
@@ -115,6 +114,8 @@ import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PWAInstallBanner } from "@/components/ui/PWAInstallBanner";
 import { NpsModal } from "@/components/onboarding/NpsModal";
 import { SilvioFAB } from "@/components/silvio/SilvioFAB";
+import { useAuditAccountantPageView } from "@/hooks/accountant/useAccountantAudit";
+import { useAccountantRevocationWatch } from "@/hooks/accountant/useAccountantRevocationWatch";
 
 const CompanyBrandHeader = memo(function CompanyBrandHeader({
   isCollapsed,
@@ -189,11 +190,15 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
   const label = impersonatedCompany?.name ?? "caricamento azienda…";
 
   return (
-    <div className="bg-warning text-warning-foreground px-3 py-2 flex items-center justify-between gap-2">
+    <div className="sticky top-0 z-50 bg-warning text-warning-foreground px-3 py-2 flex items-center justify-between gap-2 shadow-md">
       <div className="flex items-center gap-2 min-w-0">
-        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <AlertTriangle className="h-4 w-4 shrink-0 animate-pulse" />
         <span className="font-medium text-sm truncate">
-          <span className="hidden sm:inline">Stai visualizzando come: </span><strong>{label}</strong>
+          <span className="hidden sm:inline">Stai visualizzando come: </span>
+          <strong>{label}</strong>
+          <span className="hidden md:inline ml-2 text-xs opacity-80">
+            (azioni eseguite come questa azienda)
+          </span>
         </span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
@@ -212,30 +217,32 @@ const ImpersonationBanner = memo(function ImpersonationBanner() {
 });
 
 const CommercialistaModeBanner = memo(function CommercialistaModeBanner({
-  companyId,
   companyName,
   returnTo,
 }: {
-  companyId?: string | null;
   companyName?: string | null;
   returnTo: string;
 }) {
-  const resolvedCompanyName =
-    companyName ??
-    accountantCompanies.find((company) => company.id === companyId)?.name ??
-    "azienda selezionata";
+  const resolvedCompanyName = companyName ?? "azienda selezionata";
 
   return (
-    <div className="border-b border-blue-200 bg-blue-50 px-3 py-2 text-blue-950">
+    <div className="border-b-2 border-blue-300 bg-gradient-to-r from-blue-100 to-blue-50 px-3 py-3 text-blue-950">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-2">
-          <Shield className="h-4 w-4 shrink-0 text-blue-700" />
-          <span className="truncate text-sm">
-            <strong>Vista commercialista:</strong> {resolvedCompanyName} · menu limitato a cantieri, magazzino, controllo gestione e finanza.
-          </span>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <Shield className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-700">
+              Modalità Commercialista — stai operando per
+            </p>
+            <p className="truncate text-sm font-bold text-blue-950">
+              {resolvedCompanyName}
+            </p>
+          </div>
         </div>
-        <Button asChild size="sm" variant="outline" className="h-8 shrink-0 bg-white">
-          <Link to={returnTo}>Torna allo studio</Link>
+        <Button asChild size="sm" variant="outline" className="h-9 shrink-0 border-blue-300 bg-white font-medium hover:bg-blue-50">
+          <Link to={returnTo}>← Torna allo studio</Link>
         </Button>
       </div>
     </div>
@@ -266,19 +273,35 @@ const SCOPRI_LOCKED_ROUTES = [
 // Fonte di verità preferita: `currentPlan.is_full_plan === true`.
 const FULL_PLAN_SLUGS = new Set(["starter", "pro", "enterprise"]);
 
+// Aree permesse in vista commercialista: tutto tranne Marketing, Automazioni
+// e Contenuti (richiesta utente — il commercialista vede ciò che serve allo
+// studio per consulenza/controllo, non gli strumenti di vendita).
 const COMMERCIALISTA_ALLOWED_AREA_IDS = new Set([
+  "area_cruscotto",
   "area_controllo_gestione",
   "area_cantieri",
   "area_finanza",
+  "area_persone",
 ]);
 
 const COMMERCIALISTA_ALLOWED_URLS = new Set([
+  // Cruscotto
+  "/azienda",
+  "/azienda/cruscotto",
+  // Controllo gestione
   "/azienda/controllo-gestione",
+  // Cantieri & Lavori
   "/azienda/ordini",
   "/azienda/magazzino",
+  "/azienda/clienti",
   "/azienda/subappaltatori",
+  "/azienda/firma-elettronica",
+  "/azienda/assistenza",
+  "/azienda/manutenzione",
+  "/azienda/calendario",
   "/azienda/sicurezza-cantiere",
   "/azienda/giornale-lavori",
+  // Finanza
   "/azienda/documenti",
   "/azienda/fatturazione",
   "/azienda/scadenzario",
@@ -286,6 +309,9 @@ const COMMERCIALISTA_ALLOWED_URLS = new Set([
   "/azienda/tesoreria",
   "/azienda/costi",
   "/azienda/previsionale",
+  // Persone & HR
+  "/azienda/personale",
+  "/azienda/personale/portale",
 ]);
 
 const COMMERCIALISTA_EXTRA_CANTIERI_ITEMS: NavItem[] = [
@@ -945,11 +971,16 @@ const CompanySidebar = memo(function CompanySidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const commercialistaParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
-  const commercialistaCompanyId = commercialistaParams.get("commercialistaCompany") ?? "";
+  // Modalità commercialista forzata se:
+  //   1) URL ha ?commercialistaMode=1 (ingresso esplicito dal portale studio), OPPURE
+  //   2) l'utente loggato ha role='accountant' (per sicurezza: anche se entra
+  //      dal company switcher in alto, non gli mostriamo mai la UI admin completa)
+  const isCommercialistaMode =
+    commercialistaParams.get("commercialistaMode") === "1" || role === "accountant";
+  const commercialistaCompanyId =
+    commercialistaParams.get("commercialistaCompany") ?? effectiveCompany?.id ?? "";
   const commercialistaCompanyName =
     commercialistaParams.get("commercialistaCompanyName") ??
-    accountantCompanies.find((company) => company.id === commercialistaCompanyId)?.name ??
     effectiveCompany?.name ??
     "azienda selezionata";
   const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
@@ -969,7 +1000,9 @@ const CompanySidebar = memo(function CompanySidebar() {
   );
   const isSettingsRoute = location.pathname.startsWith("/azienda/impostazioni");
   const isAdmin = role === "company_admin" || role === "super_admin";
-  const showDriveLink = permissions.isLoading || gatingLoading || canAccessMediaLibrary(permissions);
+  const showDriveLink =
+    !isCommercialistaMode &&
+    (permissions.isLoading || gatingLoading || canAccessMediaLibrary(permissions));
   const isDriveRoute = location.pathname.startsWith("/azienda/contenuti-multimediali");
   const { setOpenMobile } = useSidebar();
 
@@ -1277,7 +1310,13 @@ const CompanySidebar = memo(function CompanySidebar() {
                     )}
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Link to="/azienda/impostazioni/mio-profilo">
+                        <Link
+                          to={
+                            isCommercialistaMode
+                              ? commercialistaReturnTo
+                              : "/azienda/impostazioni/mio-profilo"
+                          }
+                        >
                           <Avatar className="h-8 w-8 cursor-pointer ring-2 ring-sidebar-border hover:ring-sidebar-primary transition-colors">
                             <AvatarImage src={profile?.avatar_url ?? undefined} alt="Avatar" />
                             <AvatarFallback className="bg-sidebar-primary/10 text-sidebar-primary text-xs font-semibold">
@@ -1287,7 +1326,9 @@ const CompanySidebar = memo(function CompanySidebar() {
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent side="right">
-                        {profile?.first_name} {profile?.last_name} — Il mio profilo
+                        {isCommercialistaMode
+                          ? "Torna allo studio"
+                          : `${profile?.first_name} ${profile?.last_name} — Il mio profilo`}
                       </TooltipContent>
                     </Tooltip>
                     <Tooltip>
@@ -1340,16 +1381,18 @@ const CompanySidebar = memo(function CompanySidebar() {
                           </Button>
                         </Link>
                       )}
-                      <Link to="/azienda/impostazioni/mio-profilo">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-                        >
-                          <Settings className="h-3.5 w-3.5" />
-                          Impostazioni
-                        </Button>
-                      </Link>
+                      {!isCommercialistaMode && (
+                        <Link to="/azienda/impostazioni/mio-profilo">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-start gap-2.5 h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                            Impostazioni
+                          </Button>
+                        </Link>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1372,7 +1415,14 @@ const CompanySidebar = memo(function CompanySidebar() {
 });
 
 export function CompanyLayout() {
-  const { effectiveCompany, isImpersonating } = useAuth();
+  const {
+    effectiveCompany,
+    isImpersonating,
+    multiCompanyAccesses,
+    selectedMultiCompanyId,
+    switchMultiCompany,
+    role,
+  } = useAuth();
   const permissions = usePermissions();
   const { isModuleEnabled } = useSubscriptionLimits({ includeUsageCounts: false });
   useCustomCSS();
@@ -1385,12 +1435,106 @@ export function CompanyLayout() {
   const { area, areaIcon: AreaIcon, page, pageUrl } = useBreadcrumb();
   const location = useLocation();
   const commercialistaParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
-  const commercialistaCompanyId = commercialistaParams.get("commercialistaCompany");
+  // Modalità commercialista FORZATA se role='accountant', anche se l'utente
+  // è entrato dal company switcher senza i query param. Garantisce sidebar
+  // filtrata + banner blu + pulsante "Torna allo studio" sempre presenti.
+  const isCommercialistaMode =
+    commercialistaParams.get("commercialistaMode") === "1" || role === "accountant";
+  const commercialistaCompanyId =
+    commercialistaParams.get("commercialistaCompany") ?? effectiveCompany?.id ?? null;
   const commercialistaCompanyName =
     commercialistaParams.get("commercialistaCompanyName") ??
-    accountantCompanies.find((company) => company.id === commercialistaCompanyId)?.name;
+    effectiveCompany?.name ??
+    null;
   const commercialistaReturnTo = commercialistaParams.get("returnTo") || "/commercialista";
+
+  // AUTO-SWITCH: se l'URL contiene commercialistaMode=1 + commercialistaCompany=X,
+  // assicuriamoci che effectiveCompany sia X (non l'azienda di sessione del commercialista).
+  // Senza questo, il cruscotto mostra i dati sbagliati.
+  //
+  // EDGE CASE: se l'utente cambia azienda via CompanyContextSwitcher mentre è
+  // in commercialistaMode, selectedMultiCompanyId diventa Y ≠ URL.X. Per evitare
+  // loop di switch (URL forza X, switcher forza Y, ping-pong), aggiorniamo
+  // l'URL alla nuova azienda invece di forzare lo switch indietro.
+  useEffect(() => {
+    if (!isCommercialistaMode || !commercialistaCompanyId) return;
+    if (selectedMultiCompanyId === commercialistaCompanyId) return;
+    const hasAccessUrl = multiCompanyAccesses.some(
+      (a) => a.company_id === commercialistaCompanyId,
+    );
+    if (!hasAccessUrl) return; // azienda non ancora caricata in accessi (loading)
+
+    // L'utente ha già selezionato un'altra azienda accountant via switcher?
+    if (selectedMultiCompanyId) {
+      const userSwitched = multiCompanyAccesses.find(
+        (a) =>
+          a.company_id === selectedMultiCompanyId &&
+          a.access_role === "accountant",
+      );
+      if (userSwitched) {
+        // sincronizza URL con la scelta dell'utente (no switch indietro)
+        const params = new URLSearchParams(location.search);
+        params.set("commercialistaCompany", selectedMultiCompanyId);
+        params.set(
+          "commercialistaCompanyName",
+          userSwitched.company?.name ?? "azienda selezionata",
+        );
+        navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+        return;
+      }
+    }
+
+    switchMultiCompany(commercialistaCompanyId);
+  }, [
+    isCommercialistaMode,
+    commercialistaCompanyId,
+    selectedMultiCompanyId,
+    multiCompanyAccesses,
+    switchMultiCompany,
+    location.search,
+    location.pathname,
+    navigate,
+  ]);
+
+  // Audit log: traccia page view del commercialista per compliance
+  useAuditAccountantPageView(
+    isCommercialistaMode ? commercialistaCompanyId : null,
+    location.pathname,
+  );
+
+  // Real-time: se l'azienda revoca/sospende l'accesso mentre il
+  // commercialista è dentro, esce immediatamente con toast informativo.
+  useAccountantRevocationWatch(commercialistaCompanyId, isCommercialistaMode);
+
+  // Guard URL non-permessi in commercialistaMode: se l'utente digita
+  // direttamente /azienda/marketing o /azienda/impostazioni (non in
+  // COMMERCIALISTA_ALLOWED_URLS), redirect al cruscotto cliente.
+  useEffect(() => {
+    if (!isCommercialistaMode) return;
+    const path = location.pathname;
+    // Match esatto sull'URL principale (ignora query string + sotto-segmenti
+    // appartenenti alla stessa pagina)
+    const baseUrl = path.split("?")[0];
+    const isAllowed =
+      COMMERCIALISTA_ALLOWED_URLS.has(baseUrl) ||
+      // Sotto-pagine consentite (es. /azienda/ordini/123 → ok perché /azienda/ordini è in lista)
+      Array.from(COMMERCIALISTA_ALLOWED_URLS).some(
+        (allowed) => baseUrl.startsWith(allowed + "/") && allowed !== "/azienda",
+      );
+    if (!isAllowed) {
+      // commercialistaSearch è ricalcolato via useMemo: usiamo il valore
+      // corrente leggendo da location.search direttamente per evitare
+      // false-positive double-fire del useEffect.
+      const currentSearch = location.search.startsWith("?")
+        ? location.search.slice(1)
+        : location.search;
+      navigate(
+        appendSearchToAziendaUrl("/azienda/cruscotto", currentSearch),
+        { replace: true },
+      );
+    }
+  }, [isCommercialistaMode, location.pathname, location.search, navigate]);
+
   // True only when the current path goes deeper than the matched nav item (sub-page)
   const isSubPage = !!pageUrl && location.pathname !== pageUrl;
 
@@ -1480,7 +1624,6 @@ export function CompanyLayout() {
           <ViewAsBanner />
           {isCommercialistaMode && (
             <CommercialistaModeBanner
-              companyId={commercialistaCompanyId}
               companyName={commercialistaCompanyName}
               returnTo={commercialistaReturnTo}
             />
@@ -1525,17 +1668,21 @@ export function CompanyLayout() {
             </Button>
             {/* v8.6.70 — Rotellina Impostazioni (mobile): apre l'hub griglia
                 /azienda/impostazioni (SettingsIndexRoute → SettingsMobileHub
-                su mobile, redirect a mio-profilo su desktop). */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative h-9 w-9 shrink-0 md:hidden"
-              onClick={() => navigate("/azienda/impostazioni")}
-              title="Impostazioni"
-              aria-label="Impostazioni"
-            >
-              <SettingsIcon className="h-4 w-4" aria-hidden="true" />
-            </Button>
+                su mobile, redirect a mio-profilo su desktop).
+                Nascosta in modalità commercialista — non deve accedere alle
+                impostazioni dell'azienda cliente. */}
+            {!isCommercialistaMode && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-9 w-9 shrink-0 md:hidden"
+                onClick={() => navigate("/azienda/impostazioni")}
+                title="Impostazioni"
+                aria-label="Impostazioni"
+              >
+                <SettingsIcon className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
             {/* AI: azioni proposte che richiedono OK utente (MP-AIE-03)
                 v8.6.69 — Nascoste su mobile (icona inbox+badge); restano su md+.
                 Motivazione UX: header mobile sovraffollato, l'utente accede

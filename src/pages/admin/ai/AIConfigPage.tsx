@@ -6,7 +6,8 @@
  * Refactor Strategia C — consolida tutto ciò che è "configurazione" del sistema AI
  * in un'unica pagina. La vecchia route fa redirect qui.
  */
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Settings,
@@ -23,6 +24,7 @@ import {
 import { AIPageHeader } from "@/components/admin/ai-shared/AIPageHeader";
 import { AITabsList } from "@/components/admin/ai-shared/AITabsList";
 import { SectionAlert, SectionIntro } from "@/components/admin/ai-shared/SectionIntro";
+import { useAIHubNested } from "@/components/admin/ai-shared/AIHubNestedContext";
 
 const AdminSettingsAIRouter = lazy(() => import("@/pages/admin/settings/AdminSettingsAIRouter"));
 const AdminSettingsAIPersonas = lazy(() => import("@/pages/admin/settings/AdminSettingsAIPersonas"));
@@ -58,21 +60,63 @@ const TABS = [
 ];
 
 export default function AIConfigPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") ?? "routing";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const { isNested, navigateToSection } = useAIHubNested();
+
+  // Sync URL ↔ state — fix bug "ricarico la pagina e torno a routing"
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && t !== activeTab) setActiveTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const handleTabChange = (v: string) => {
+    setActiveTab(v);
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", v);
+    setSearchParams(params, { replace: true });
+  };
+
   return (
-    <div className="p-4 md:p-6 max-w-screen-2xl mx-auto">
-      <AIPageHeader
-        icon={Settings}
-        title="AI · Configurazione"
-        subtitle="Configurazione"
-        description="Imposta come il sistema AI ragiona, parla, costa e si comporta. Routing modelli, personas, knowledge base, pricing e governance — il setup che rende tutto il resto operativo."
-        quickLinks={[
-          { label: "Monitor live", to: "/admin/ai-monitor", icon: Activity },
-          { label: "Operate (azioni)", to: "/admin/ai-operate", icon: Bot },
-        ]}
-      />
+    <div className={isNested ? "" : "p-4 md:p-6 max-w-screen-2xl mx-auto"}>
+      {!isNested && (
+        <AIPageHeader
+          icon={Settings}
+          title="AI · Configurazione"
+          subtitle="Configurazione"
+          description="Imposta come il sistema AI ragiona, parla, costa e si comporta. Routing modelli, personas, knowledge base, pricing e governance — il setup che rende tutto il resto operativo."
+          quickLinks={[
+            { label: "Monitor live", to: "/admin/ai-monitor", icon: Activity },
+            { label: "Operate (azioni)", to: "/admin/ai-operate", icon: Bot },
+          ]}
+        />
+      )}
+      {isNested && navigateToSection && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => navigateToSection("monitor")}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+          >
+            <Activity className="h-3 w-3" />
+            Monitor
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateToSection("operate")}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+          >
+            <Bot className="h-3 w-3" />
+            Operate
+          </button>
+        </div>
+      )}
 
       <AITabsList
-        defaultValue="routing"
+        value={activeTab}
+        onValueChange={handleTabChange}
         tabs={TABS}
         contents={{
           routing: (

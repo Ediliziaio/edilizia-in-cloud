@@ -63,6 +63,16 @@ export const PLATFORM_ROLE_COLORS: Record<PlatformRole, string> = {
   platform_implementation: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
 };
 
+/**
+ * Token brand-level per super_admin (Florin). Mantenuto fuori da
+ * PLATFORM_ROLE_COLORS perché super_admin non è un PlatformRole ma un
+ * `app_role` separato (vedi user_roles). Esposto qui per evitare hardcoding
+ * di "bg-red-100" sparso in tutta la UI.
+ */
+export const SUPER_ADMIN_LABEL = "Super Admin" as const;
+export const SUPER_ADMIN_COLOR =
+  "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" as const;
+
 /** Permission presets per platform role */
 export const PLATFORM_ROLE_PRESETS: Record<PlatformRole, Record<string, boolean>> = {
   platform_manager: {
