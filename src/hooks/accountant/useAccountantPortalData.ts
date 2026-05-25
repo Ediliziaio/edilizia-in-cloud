@@ -318,3 +318,49 @@ export function useDismissNotification() {
     },
   });
 }
+
+// ─── useCurrentCommercialistaAccessMode ────────────────────────────────────
+// Restituisce l'access_mode del commercialista loggato per la company X.
+// Usato fuori dal portale studio (es. CompanyLayout in commercialistaMode)
+// per sbloccare canEdit* e mostrare/nascondere pulsanti "Modifica" o
+// banner "Le tue modifiche richiederanno approvazione".
+
+export function useCurrentCommercialistaAccessMode(
+  companyId: string | null | undefined,
+) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+
+  return useQuery({
+    queryKey: ["accountant-current-access-mode", userId, companyId] as const,
+    enabled: !!userId && !!companyId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<AccountantAccessMode | null> => {
+      if (!userId || !companyId) return null;
+      const { data: members } = await supabase
+        .from("accountant_firm_members")
+        .select("firm_id")
+        .eq("user_id", userId)
+        .eq("status", "active");
+
+      const firmIds = (members ?? [])
+        .map((r: { firm_id: string | null }) => r.firm_id)
+        .filter((id): id is string => !!id);
+      if (firmIds.length === 0) return null;
+
+      const { data: access, error } = await supabase
+        .from("accountant_company_access")
+        .select("access_mode")
+        .in("firm_id", firmIds)
+        .eq("company_id", companyId)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (error) {
+        console.error("[useCurrentCommercialistaAccessMode]", error);
+        return null;
+      }
+      return (access?.access_mode as AccountantAccessMode | undefined) ?? null;
+    },
+  });
+}

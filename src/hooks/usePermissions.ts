@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
 import { withClientTimeout } from "@/lib/query-timeout";
 import { resolveSelectedAccessRole } from "@/lib/auth/multiCompany";
+import { useCurrentCommercialistaAccessMode } from "@/hooks/accountant/useAccountantPortalData";
 
 export interface Permissions {
   canViewDashboard: boolean;
@@ -347,6 +348,17 @@ export function usePermissions(): Permissions {
   const queryClient = useQueryClient();
   const effectiveCompanyId = effectiveCompany?.id ?? selectedMultiCompanyId ?? impersonatedCompanyId ?? null;
 
+  // Per commercialista in commercialistaMode: leggi access_mode dalla URL +
+  // fetch a accountant_company_access. Determina se sbloccare canEdit*.
+  // Lettura DOM-safe via window.location (no router hook in questo file).
+  const commercialistaCompanyIdFromUrl =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("commercialistaCompany") ?? null
+      : null;
+  const { data: commercialistaAccessMode } = useCurrentCommercialistaAccessMode(
+    role === "accountant" ? commercialistaCompanyIdFromUrl : null,
+  );
+
   const staffLikeRoles = ["company_staff", "salesperson", "call_center", "employee", "subcontractor"];
 
   // Risolve il ruolo effettivo per la company corrente. Se l'utente ha una riga
@@ -511,10 +523,21 @@ export function usePermissions(): Permissions {
   // Commercialista: opera su un'azienda cliente delegata via
   // accountant_company_access → set di permessi limitati ma sufficienti
   // per le aree concesse (cantieri, finanza, controllo gestione, persone).
-  // currentAccessRole='accountant' viene risolto da resolveSelectedAccessRole
-  // come fallback al globalRole quando access_role della company selezionata
-  // non è in COMPANY_ACCESS_ROLES (caso delle nostre access_role='accountant').
+  // Se access_mode='operational' sblocchiamo anche canEdit* — il
+  // commercialista può creare/modificare/cancellare. Per default (read_only
+  // e approval_required) tutto resta a sola lettura: le azioni write
+  // saranno gestite dalla UI con dialog di approvazione (PRIO-2).
   if (role === "accountant" || currentAccessRole === "accountant") {
+    const mode = commercialistaAccessMode ?? "read_only";
+    if (mode === "operational") {
+      return {
+        ...COMMERCIALISTA_PERMISSIONS,
+        canEditOrders: true,
+        canEditWarehouse: true,
+        canEditCustomers: true,
+        canEditTickets: true,
+      };
+    }
     return COMMERCIALISTA_PERMISSIONS;
   }
 
