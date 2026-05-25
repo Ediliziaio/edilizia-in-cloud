@@ -1,15 +1,15 @@
 -- Approval workflow per access_mode='approval_required'.
 --
--- Quando il commercialista (con access_mode='approval_required') vuole
--- modificare qualcosa dell'azienda, invece di scrivere direttamente sulla
--- tabella reale crea una RICHIESTA che l'azienda approverà o rifiuterà.
---
--- Schema:
---  - resource_type: 'prima_nota' | 'scadenza' | 'costo' | 'doc_fiscale' | ...
---  - operation: 'create' | 'update' | 'delete'
---  - payload: JSONB con i dati proposti
---  - status: 'pending' | 'approved' | 'rejected'
---  - decided_by + decided_at + decision_note
+-- Versione SCHEMA-AGNOSTIC: policies usano solo companies.owner_user_id
+-- (sempre presente). Se multi_company_access esiste, vengono aggiunte
+-- policy supplementari.
+
+DROP POLICY IF EXISTS "change_req_accountant_insert" ON public.accountant_change_requests;
+DROP POLICY IF EXISTS "change_req_accountant_select_own" ON public.accountant_change_requests;
+DROP POLICY IF EXISTS "change_req_company_owner_select" ON public.accountant_change_requests;
+DROP POLICY IF EXISTS "change_req_company_decide" ON public.accountant_change_requests;
+DROP POLICY IF EXISTS "change_req_multi_company_select" ON public.accountant_change_requests;
+DROP POLICY IF EXISTS "change_req_multi_company_decide" ON public.accountant_change_requests;
 
 CREATE TABLE IF NOT EXISTS public.accountant_change_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -35,8 +35,6 @@ CREATE INDEX IF NOT EXISTS accountant_change_requests_requested_by_idx
 
 ALTER TABLE public.accountant_change_requests ENABLE ROW LEVEL SECURITY;
 
--- INSERT: il commercialista può inserire richieste per company a cui ha accesso
-DROP POLICY IF EXISTS "change_req_accountant_insert" ON public.accountant_change_requests;
 CREATE POLICY "change_req_accountant_insert" ON public.accountant_change_requests
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -44,46 +42,27 @@ CREATE POLICY "change_req_accountant_insert" ON public.accountant_change_request
     AND public.user_can_read_accountant_company(company_id)
   );
 
--- SELECT: il commercialista vede le proprie richieste, l'azienda vede quelle che riceve
-DROP POLICY IF EXISTS "change_req_accountant_select_own" ON public.accountant_change_requests;
 CREATE POLICY "change_req_accountant_select_own" ON public.accountant_change_requests
   FOR SELECT TO authenticated
   USING (requested_by = auth.uid());
 
-DROP POLICY IF EXISTS "change_req_company_owner_select" ON public.accountant_change_requests;
 CREATE POLICY "change_req_company_owner_select" ON public.accountant_change_requests
   FOR SELECT TO authenticated
   USING (
     EXISTS (
-      SELECT 1 FROM public.company_members cm
-      WHERE cm.company_id = accountant_change_requests.company_id
-        AND cm.user_id = auth.uid()
-        AND cm.role IN ('admin', 'owner')
-    )
-    OR EXISTS (
       SELECT 1 FROM public.companies c
       WHERE c.id = accountant_change_requests.company_id
         AND c.owner_user_id = auth.uid()
     )
   );
 
--- UPDATE: solo l'azienda owner/admin può decidere (approve/reject)
-DROP POLICY IF EXISTS "change_req_company_decide" ON public.accountant_change_requests;
 CREATE POLICY "change_req_company_decide" ON public.accountant_change_requests
   FOR UPDATE TO authenticated
   USING (
-    status = 'pending' AND (
-      EXISTS (
-        SELECT 1 FROM public.company_members cm
-        WHERE cm.company_id = accountant_change_requests.company_id
-          AND cm.user_id = auth.uid()
-          AND cm.role IN ('admin', 'owner')
-      )
-      OR EXISTS (
-        SELECT 1 FROM public.companies c
-        WHERE c.id = accountant_change_requests.company_id
-          AND c.owner_user_id = auth.uid()
-      )
+    status = 'pending' AND EXISTS (
+      SELECT 1 FROM public.companies c
+      WHERE c.id = accountant_change_requests.company_id
+        AND c.owner_user_id = auth.uid()
     )
   )
   WITH CHECK (
@@ -91,5 +70,45 @@ CREATE POLICY "change_req_company_decide" ON public.accountant_change_requests
     AND decided_by = auth.uid()
   );
 
+-- Estensione per multi-company admin se la tabella esiste
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'multi_company_access'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'multi_company_access' AND column_name = 'user_id'
+  ) THEN
+    DROP POLICY IF EXISTS "change_req_multi_company_select" ON public.accountant_change_requests;
+    CREATE POLICY "change_req_multi_company_select" ON public.accountant_change_requests
+      FOR SELECT TO authenticated
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.multi_company_access mca
+          WHERE mca.company_id = accountant_change_requests.company_id
+            AND mca.user_id = auth.uid()
+        )
+      );
+    DROP POLICY IF EXISTS "change_req_multi_company_decide" ON public.accountant_change_requests;
+    CREATE POLICY "change_req_multi_company_decide" ON public.accountant_change_requests
+      FOR UPDATE TO authenticated
+      USING (
+        status = 'pending' AND EXISTS (
+          SELECT 1 FROM public.multi_company_access mca
+          WHERE mca.company_id = accountant_change_requests.company_id
+            AND mca.user_id = auth.uid()
+        )
+      )
+      WITH CHECK (
+        status IN ('approved', 'rejected')
+        AND decided_by = auth.uid()
+      );
+    RAISE NOTICE '[change_req] multi_company_access policies aggiunte';
+  ELSE
+    RAISE NOTICE '[change_req] multi_company_access non trovato, solo owner check attivo';
+  END IF;
+END $$;
+
 COMMENT ON TABLE public.accountant_change_requests IS
-  'Coda di approvazione per modifiche del commercialista quando access_mode=approval_required. L''azienda approva/rifiuta entro 7 giorni (poi expired).';
+  'Coda di approvazione per modifiche del commercialista quando access_mode=approval_required.';
