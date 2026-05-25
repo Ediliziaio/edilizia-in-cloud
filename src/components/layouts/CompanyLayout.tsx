@@ -1433,13 +1433,39 @@ export function CompanyLayout() {
   // AUTO-SWITCH: se l'URL contiene commercialistaMode=1 + commercialistaCompany=X,
   // assicuriamoci che effectiveCompany sia X (non l'azienda di sessione del commercialista).
   // Senza questo, il cruscotto mostra i dati sbagliati.
+  //
+  // EDGE CASE: se l'utente cambia azienda via CompanyContextSwitcher mentre è
+  // in commercialistaMode, selectedMultiCompanyId diventa Y ≠ URL.X. Per evitare
+  // loop di switch (URL forza X, switcher forza Y, ping-pong), aggiorniamo
+  // l'URL alla nuova azienda invece di forzare lo switch indietro.
   useEffect(() => {
     if (!isCommercialistaMode || !commercialistaCompanyId) return;
     if (selectedMultiCompanyId === commercialistaCompanyId) return;
-    const hasAccess = multiCompanyAccesses.some(
+    const hasAccessUrl = multiCompanyAccesses.some(
       (a) => a.company_id === commercialistaCompanyId,
     );
-    if (!hasAccess) return; // azienda non ancora caricata in accessi (loading)
+    if (!hasAccessUrl) return; // azienda non ancora caricata in accessi (loading)
+
+    // L'utente ha già selezionato un'altra azienda accountant via switcher?
+    if (selectedMultiCompanyId) {
+      const userSwitched = multiCompanyAccesses.find(
+        (a) =>
+          a.company_id === selectedMultiCompanyId &&
+          a.access_role === "accountant",
+      );
+      if (userSwitched) {
+        // sincronizza URL con la scelta dell'utente (no switch indietro)
+        const params = new URLSearchParams(location.search);
+        params.set("commercialistaCompany", selectedMultiCompanyId);
+        params.set(
+          "commercialistaCompanyName",
+          userSwitched.company?.name ?? "azienda selezionata",
+        );
+        navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+        return;
+      }
+    }
+
     switchMultiCompany(commercialistaCompanyId);
   }, [
     isCommercialistaMode,
@@ -1447,6 +1473,9 @@ export function CompanyLayout() {
     selectedMultiCompanyId,
     multiCompanyAccesses,
     switchMultiCompany,
+    location.search,
+    location.pathname,
+    navigate,
   ]);
 
   // Audit log: traccia page view del commercialista per compliance
