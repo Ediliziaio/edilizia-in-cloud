@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard } from "lucide-react";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, BrainCircuit } from "lucide-react";
 import { TabRegiaHr } from "./tabs/TabRegiaHr";
 import { TabOrganigramma } from "./tabs/TabOrganigramma";
 import { TabTimbrature } from "./tabs/TabTimbrature";
@@ -13,6 +13,7 @@ import { TabProfili } from "./tabs/TabProfili";
 import { TabCedolini } from "./tabs/TabCedolini";
 import { TabGpsPercorsi } from "./tabs/TabGpsPercorsi";
 import { TabDocumenti } from "./tabs/TabDocumenti";
+import { TabSelezioni } from "./tabs/TabSelezioni";
 import { useFleetTrackAccess } from "@/hooks/useFleetTrackAccess";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
@@ -34,6 +35,7 @@ export default function PersonalePage() {
       "festivita",
       "cedolini",
       "documenti",
+      "selezioni",
     ];
     if (hasFleetTrack) tabs.push("gps-percorsi");
     return tabs;
@@ -97,6 +99,9 @@ export default function PersonalePage() {
           <TabsTrigger value="documenti" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <FolderOpen className="h-4 w-4" /> Documenti
           </TabsTrigger>
+          <TabsTrigger value="selezioni" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <BrainCircuit className="h-4 w-4" /> Selezioni
+          </TabsTrigger>
           {hasFleetTrack && (
             <TabsTrigger value="gps-percorsi" className="gap-1.5 shrink-0 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
               <Navigation className="h-4 w-4" /> GPS Percorsi
@@ -133,6 +138,9 @@ export default function PersonalePage() {
         </TabsContent>
         <TabsContent value="documenti">
           <TabDocumenti />
+        </TabsContent>
+        <TabsContent value="selezioni">
+          <TabSelezioni />
         </TabsContent>
         {hasFleetTrack && (
           <TabsContent value="gps-percorsi">

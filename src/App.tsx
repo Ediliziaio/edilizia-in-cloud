@@ -144,6 +144,7 @@ const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
 const FirmaOdV = lazy(() => import("@/pages/public/FirmaOdV"));
 const FirmaDocumento = lazy(() => import("@/pages/public/FirmaDocumento"));
 const SerramentiStimaPubblica = lazy(() => import("@/pages/public/SerramentiStimaPubblica"));
+const TalentProfilePublic = lazy(() => import("@/pages/public/TalentProfilePublic"));
 const AcceptInvite = lazy(() => import("@/pages/admin/AcceptInvite"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
@@ -356,10 +357,10 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|talent-profile)(\/|$)/;
 
 function canTrackMarketingPage(pathname: string) {
   if (typeof window === "undefined") return false;
@@ -533,6 +534,7 @@ const App = () => (
               <Route path="/firma/:token" element={<SignaturePage />} />
               <Route path="/firma-odv/:token" element={<FirmaOdV />} />
               <Route path="/firma-fea/:token" element={<FirmaDocumento />} />
+              <Route path="/talent-profile/:token" element={<TalentProfilePublic />} />
               <Route path="/admin/accept-invite" element={<AcceptInvite />} />
               <Route path="/preventivo/:id" element={<AccettaPreventivo />} />
               <Route path="/feedback/nps" element={<NpsSurvey />} />
