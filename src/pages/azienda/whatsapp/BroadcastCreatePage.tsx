@@ -71,7 +71,7 @@ export default function BroadcastCreatePage() {
     return Array.from({ length: n }, (_, i) => String(i + 1));
   }, [selectedTemplate]);
 
-  // Preview count contatti del segmento
+  // Preview count contatti del segmento (TUTTI quelli con telefono)
   const { data: previewCount } = useQuery({
     queryKey: ["wa", "broadcast", "preview", companyId, tipoFilter, statoFilter, excludeOptOut],
     enabled: !!companyId && step >= 3,
@@ -90,6 +90,28 @@ export default function BroadcastCreatePage() {
     },
   });
 
+  // FIX P1: preview count SOLO contatti con telefono in formato E.164 (+39...).
+  // Meta API rifiuta numeri "3331234567" senza prefisso → invio fallisce silenziosamente.
+  // Mostriamo agli utenti la differenza prima del send così sanno quanti sono spendibili.
+  const { data: previewE164Count } = useQuery({
+    queryKey: ["wa", "broadcast", "preview-e164", companyId, tipoFilter, statoFilter, excludeOptOut],
+    enabled: !!companyId && step >= 3,
+    queryFn: async () => {
+      let q = supabase
+        .from("marketing_contacts")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!)
+        .like("telefono", "+%");
+      if (tipoFilter && tipoFilter !== "all") q = q.eq("tipo", tipoFilter);
+      if (statoFilter) q = q.eq("stato", statoFilter);
+      if (excludeOptOut) q = q.eq("opt_out", false);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const phonesInvalidCount = Math.max(0, (previewCount ?? 0) - (previewE164Count ?? 0));
+
   const canAdvance = (): boolean => {
     if (step === 1) return !!nome.trim() && !!waNumberId;
     if (step === 2) {
@@ -97,7 +119,7 @@ export default function BroadcastCreatePage() {
       const missing = variableIds.some((v) => !variableMapping[v]);
       return !missing;
     }
-    if (step === 3) return (previewCount ?? 0) > 0;
+    if (step === 3) return (previewE164Count ?? 0) > 0;
     if (step === 4) {
       if (scheduleMode === "later" && Number.isNaN(new Date(scheduledDate).getTime())) return false;
       return windowStart < windowEnd;
@@ -324,12 +346,22 @@ export default function BroadcastCreatePage() {
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-sm text-muted-foreground mb-1">Anteprima destinatari</p>
                 <p className="text-3xl font-bold">
-                  {previewCount ?? "…"}
-                  <span className="text-sm text-muted-foreground font-normal ml-2">contatti</span>
+                  {previewE164Count ?? "…"}
+                  <span className="text-sm text-muted-foreground font-normal ml-2">contatti contattabili</span>
                 </p>
-                {(previewCount ?? 0) === 0 && (
+                {(previewE164Count ?? 0) === 0 && (previewCount ?? 0) > 0 && (
+                  <p className="text-xs text-red-600 mt-2">
+                    ⚠️ {previewCount} contatti hanno telefono ma <strong>nessuno è in formato internazionale</strong> (es. +39 333 ...). Meta API rifiuta i numeri senza prefisso paese. Sistema il formato dei contatti prima di inviare.
+                  </p>
+                )}
+                {(previewE164Count ?? 0) === 0 && (previewCount ?? 0) === 0 && (
                   <p className="text-xs text-red-600 mt-2">
                     Nessun contatto con questi filtri. Allenta i criteri.
+                  </p>
+                )}
+                {phonesInvalidCount > 0 && (previewE164Count ?? 0) > 0 && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    🟡 <strong>{phonesInvalidCount} contatti esclusi</strong> perché il telefono non è in formato internazionale (+39...). Meta non li accetterà. Correggi i numeri se vuoi includerli.
                   </p>
                 )}
               </div>
@@ -397,7 +429,7 @@ export default function BroadcastCreatePage() {
                     <ul className="list-disc pl-5 space-y-0.5 text-xs">
                       <li>Campagna: {nome}</li>
                       <li>Template: {templateName}</li>
-                      <li>Destinatari: ~{previewCount ?? "—"}</li>
+                      <li>Destinatari: ~{previewE164Count ?? "—"} contattabili{phonesInvalidCount > 0 ? ` (${phonesInvalidCount} esclusi per formato telefono)` : ""}</li>
                       <li>Invio: {scheduleMode === "now" ? "tra 1 minuto" : new Date(scheduledDate).toLocaleString("it-IT")}</li>
                       <li>Finestra oraria: {windowStart}–{windowEnd}</li>
                     </ul>
