@@ -227,7 +227,7 @@ export default function TalentProfilePublic() {
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/10 px-5 py-4">
           <Loader2 className="h-5 w-5 animate-spin text-orange-300" />
-          <span className="text-sm font-medium">Caricamento Talent Profile...</span>
+          <span className="text-sm font-medium">Caricamento Talent Assessment...</span>
         </div>
       </div>
     );
@@ -314,7 +314,7 @@ export default function TalentProfilePublic() {
                   <BrainCircuit className="h-6 w-6" />
                 </motion.div>
                 <div>
-                  <CardTitle className="text-2xl tracking-tight">Talent Profile</CardTitle>
+                  <CardTitle className="text-2xl tracking-tight">Talent Assessment</CardTitle>
                   <p className="mt-1 text-sm text-slate-600">
                     {session.candidate?.nome} {session.candidate?.cognome} · ruolo valutato: <span className="font-semibold text-slate-900">{session.candidate?.ruolo_richiesto}</span>
                   </p>

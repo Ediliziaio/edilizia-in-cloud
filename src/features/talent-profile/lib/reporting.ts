@@ -363,7 +363,7 @@ export function buildTalentReportPrintHtml({
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Talent Profile - ${escapeHtml(candidateName)}</title>
+  <title>Talent Assessment - ${escapeHtml(candidateName)}</title>
   <style>
     @page { size: A4; margin: 14mm; }
     * { box-sizing: border-box; }
@@ -486,10 +486,10 @@ export function buildTalentReportPrintHtml({
   <main class="page">
     <section class="hero">
       <div class="brand">
-        <strong>Edilizia in Cloud · Talent Profile</strong>
+        <strong>EdiliziaInCloud · Talent Assessment</strong>
         <span class="badge">Report HR V5</span>
       </div>
-      <h1>Report Talent Profile</h1>
+      <h1>Report Talent Assessment</h1>
       <p class="subtitle">Sintesi operativa per selezione, colloquio e piano di inserimento. Il report supporta la decisione HR, ma non sostituisce colloquio, referenze e valutazione umana.</p>
       <div class="meta-grid">
         <div class="meta"><span>Candidato</span><b>${escapeHtml(candidateName)}</b></div>
@@ -582,7 +582,7 @@ export function buildTalentReportPrintHtml({
         Questo documento e un supporto decisionale. La decisione finale deve restare in capo a HR/responsabile aziendale e va confermata con colloquio, referenze, competenze tecniche e requisiti contrattuali.
       </div>
 
-      <footer>Edilizia in Cloud · Talent Profile · ${escapeHtml(companyName)}</footer>
+      <footer>EdiliziaInCloud · Talent Assessment · ${escapeHtml(companyName)}</footer>
     </section>
   </main>
 </body>

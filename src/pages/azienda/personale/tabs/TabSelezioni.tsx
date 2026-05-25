@@ -256,7 +256,7 @@ export function TabSelezioni() {
     },
     onSuccess: (generated) => {
       if (generated > 0) {
-        toast.success(`${generated} report Talent Profile generati automaticamente`);
+        toast.success(`${generated} report Talent Assessment generati automaticamente`);
         queryClient.invalidateQueries({ queryKey: ["hr-talent-reports"] });
       }
     },
@@ -295,7 +295,7 @@ export function TabSelezioni() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-2xl font-bold tracking-tight text-slate-950">Selezioni</h2>
-                <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Talent Profile</Badge>
+                <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Talent Assessment</Badge>
               </div>
               <p className="mt-1 max-w-3xl text-sm text-slate-600">
                 Assessment attitudinale per assunzioni e crescita interna: 242 domande V5, attendibilità, sindromi, matching su {roleNames.length} ruoli e aggancio ai profili HR dopo l'assunzione.
@@ -324,7 +324,7 @@ export function TabSelezioni() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Nuovo candidato Talent Profile</DialogTitle>
+                  <DialogTitle>Nuovo candidato Talent Assessment</DialogTitle>
                   <DialogDescription>
                     Crea la scheda selezione. Il link pubblico del questionario verrà generato dal flusso invito.
                   </DialogDescription>
@@ -410,7 +410,7 @@ export function TabSelezioni() {
                 <Sparkles className="mx-auto h-9 w-9 text-orange-500" />
                 <h3 className="mt-3 text-lg font-semibold text-slate-900">Nessuna selezione ancora</h3>
                 <p className="mx-auto mt-1 max-w-xl text-sm text-slate-600">
-                  Crea il primo candidato, scegli il ruolo e prepara l'invito al questionario Talent Profile.
+                  Crea il primo candidato, scegli il ruolo e prepara l'invito al Talent Assessment.
                 </p>
                 <Button className="mt-4 bg-orange-600 hover:bg-orange-700" onClick={() => setDialogOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -499,7 +499,7 @@ export function TabSelezioni() {
       }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Link Talent Profile generato</DialogTitle>
+            <DialogTitle>Link Talent Assessment generato</DialogTitle>
             <DialogDescription>
               Condividi questo link con {publicLink?.candidateName}. Per sicurezza il token completo viene mostrato solo ora.
             </DialogDescription>
@@ -653,6 +653,19 @@ function formatTalentTrait(value: string) {
   return TRAIT_LABELS[value as TraitCode] || value;
 }
 
+function buildTargetTraitsForRole(ruoloName: string): Record<string, number> | undefined {
+  const profile = ROLE_PROFILES_V5[ruoloName];
+  if (!profile) return undefined;
+  const target: Record<string, number> = {};
+  for (const req of profile.requisiti) {
+    target[req.trait] = Math.max(0, Math.min(100, req.soglia));
+  }
+  for (const t of profile.trattiFondamentali) {
+    if (target[t] === undefined || target[t] < 70) target[t] = 70;
+  }
+  return target;
+}
+
 function clampTalentPercent(value: unknown) {
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return 0;
@@ -713,7 +726,7 @@ function ReportDecisionDialog({
         <DialogHeader>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <DialogTitle>Report Talent Profile</DialogTitle>
+              <DialogTitle>Report Talent Assessment</DialogTitle>
               <DialogDescription>
                 {candidate.nome} {candidate.cognome} · {report.role_requested || candidate.ruolo_richiesto}
               </DialogDescription>
@@ -743,6 +756,8 @@ function ReportDecisionDialog({
           decisionLabel={decision.label}
           decisionTone={decision.tone}
           reliability={report.reliability_index}
+          targetTraits={buildTargetTraitsForRole(report.role_requested || candidate.ruolo_richiesto)}
+          targetRoleLabel={report.role_requested || candidate.ruolo_richiesto}
         />
 
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -1376,7 +1391,7 @@ function TalentQuestionnaireDialog({
       if (candidateError) throw candidateError;
     },
     onSuccess: () => {
-      toast.success("Report Talent Profile generato");
+      toast.success("Report Talent Assessment generato");
       queryClient.invalidateQueries({ queryKey: ["hr-talent-reports"] });
       queryClient.invalidateQueries({ queryKey: ["hr-talent-candidates"] });
       onCompleted();
@@ -1401,7 +1416,7 @@ function TalentQuestionnaireDialog({
         <DialogHeader className="border-b border-slate-200 px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <DialogTitle>Questionario Talent Profile</DialogTitle>
+              <DialogTitle>Questionario Talent Assessment</DialogTitle>
               <DialogDescription>
                 {candidate.nome} {candidate.cognome} · {candidate.ruolo_richiesto}
               </DialogDescription>

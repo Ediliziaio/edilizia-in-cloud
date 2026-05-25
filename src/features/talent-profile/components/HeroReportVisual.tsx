@@ -33,6 +33,7 @@ type HeroReportVisualProps = {
   reliability: string;
   // Optional: target trait profile to overlay on radar (from role match)
   targetTraits?: Record<string, number>;
+  targetRoleLabel?: string;
 };
 
 const TRAIT_DISPLAY_ORDER: TraitCode[] = [
@@ -97,6 +98,7 @@ export function HeroReportVisual({
   decisionTone,
   reliability,
   targetTraits,
+  targetRoleLabel,
 }: HeroReportVisualProps) {
   const traitMap = traits as Record<TraitCode, number>;
 
@@ -194,8 +196,22 @@ export function HeroReportVisual({
             Radar 15 tratti psicometrici
           </CardTitle>
           <p className="text-sm text-slate-500">
-            Confronto visivo del profilo {targetTraits ? "candidato (arancio) vs target ruolo (blu)" : "candidato sui 15 tratti V5"}.
+            {targetTraits
+              ? `Profilo candidato (arancio) sovrapposto al target ${targetRoleLabel ? `"${targetRoleLabel}"` : "del ruolo"} (blu).`
+              : "Profilo candidato sui 15 tratti V5."}
           </p>
+          {targetTraits && (
+            <div className="mt-2 flex flex-wrap gap-3 text-xs">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: BRAND_ORANGE }} />
+                <span className="text-slate-600">Candidato</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: BRAND_BLUE }} />
+                <span className="text-slate-600">Target ruolo</span>
+              </span>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={340}>
