@@ -378,7 +378,7 @@ export function EmailOAuthConnectionsCard() {
                 {connecting === "gmail" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Plus className="h-4 w-4" />
+                  <GmailIcon className="h-4 w-4" />
                 )}
                 Connetti Gmail
               </Button>
@@ -398,7 +398,7 @@ export function EmailOAuthConnectionsCard() {
                 {connecting === "outlook" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Plus className="h-4 w-4" />
+                  <OutlookIcon className="h-4 w-4" />
                 )}
                 Connetti Outlook
               </Button>

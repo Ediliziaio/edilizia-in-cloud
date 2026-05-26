@@ -259,6 +259,104 @@ export function EmailLayout({
     return () => window.removeEventListener("keydown", handler);
   }, [openCompose, selectedThreadId]);
 
+  // Contenuto della list pane condiviso tra il render con ResizablePanel
+  // (thread selezionato) e quello con <section> normale (nessun thread).
+  // Estratto in funzione per evitare duplicazione e mantenere closures stabili.
+  const renderListPaneContent = () => (
+    <>
+      {/* Mobile header — hamburger + folder title + account label + sync */}
+      <div className="md:hidden p-2 border-b flex items-center gap-2">
+        <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} aria-label="Apri caselle">
+          <Menu className="h-4 w-4" />
+        </Button>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold leading-tight truncate">
+            <FolderTitle filter={filter.folder} />
+          </p>
+          {connections && connections.length > 0 && (
+            <p className="truncate text-[10px] text-slate-500">
+              {filter.accountId
+                ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
+                : `${connections.length} ${connections.length === 1 ? "casella" : "caselle"}`}
+            </p>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => forceSync.mutate()}
+          disabled={forceSync.isPending}
+          aria-label="Sincronizza ora"
+        >
+          {forceSync.isPending
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <RefreshCw className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {/* Desktop header — titolo + N collegate badge + bottone Sync */}
+      <div className="hidden md:flex items-center justify-between gap-2 p-3 border-b border-blue-100 bg-white">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+            <Inbox className="h-4 w-4 text-blue-600 shrink-0" />
+            <FolderTitle filter={filter.folder} />
+          </h2>
+          {connections && connections.length > 0 && (
+            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+              {filter.accountId
+                ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
+                : `${connections.length} ${connections.length === 1 ? "casella collegata" : "caselle collegate"}`}
+            </p>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => forceSync.mutate()}
+          disabled={forceSync.isPending}
+          title="Sincronizza ora le caselle email"
+          className="shrink-0"
+        >
+          {forceSync.isPending
+            ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            : <RefreshCw className="h-4 w-4 mr-1" />}
+          <span className="hidden lg:inline">Sync</span>
+        </Button>
+      </div>
+
+      <EmailMailboxToolbar
+        filter={filter}
+        onFilterChange={applyFilter}
+        connections={connections ?? []}
+      />
+      <EmailConnectionHealthPanel
+        connections={connections ?? []}
+        companyIdOverride={companyId}
+        settingsPath={settingsPath}
+        variant="compact"
+      />
+      <EmailAiCommandCenter
+        companyIdOverride={companyId}
+        onSelectThread={handleSelectThread}
+        onFilterCategory={(category) => applyFilter((current) => ({
+          ...current,
+          category,
+          folder: { type: "system", key: "inbox" },
+        }))}
+      />
+      <EmailSearchBar
+        initialValue={queryCustomerEmail}
+        onSearch={(q) => setFilter((f) => ({ ...f, search: q }))}
+      />
+      <EmailList
+        filter={filter}
+        scopedAccountIds={scopedAccountIds ?? (companyIdOverride ? (connections ?? []).map((connection) => connection.id) : undefined)}
+        selectedThreadId={selectedThreadId}
+        onSelectThread={handleSelectThread}
+      />
+    </>
+  );
+
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-slate-50">
       {/* Backdrop mobile — chiude sidebar al click esterno */}
@@ -296,143 +394,56 @@ export function EmailLayout({
         />
       </aside>
 
-      {/* Main panes container — ResizablePanelGroup su desktop, flex normale su mobile.
-          Quando nessuna email è selezionata, il viewer pane scompare e la list occupa
-          tutta la larghezza. Quando si seleziona una email, appare il viewer con un
-          divider draggabile per ridimensionare manualmente (feedback utente 2026-05-27). */}
-      <ResizablePanelGroup
-        direction="horizontal"
-        className="flex-1 flex"
-        autoSaveId="email-layout-panels"
-      >
-        {/* List pane */}
-        <ResizablePanel
-          defaultSize={selectedThreadId ? 38 : 100}
-          minSize={25}
-          maxSize={selectedThreadId ? 65 : 100}
-          className={cn(
-            "bg-white border-r border-blue-100 flex flex-col min-w-0",
-            mobilePane !== "list" && "hidden md:flex",
-          )}
+      {/* Fix 2026-05-27: ResizablePanelGroup crashava ("Total weight must be 100")
+          quando il numero di figli cambiava dinamicamente 1→2 (selectedThreadId).
+          Soluzione: rendering condizionale completo. Quando no thread, layout flex
+          semplice. Quando thread selezionato, ResizablePanelGroup attivo con 2 pannelli. */}
+      {selectedThreadId ? (
+        <ResizablePanelGroup
+          direction="horizontal"
+          className="flex-1 flex"
+          autoSaveId="email-layout-panels-with-viewer"
         >
-          {/* Mobile header — hamburger + folder title + account label */}
-          <div className="md:hidden p-2 border-b flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} aria-label="Apri caselle">
-              <Menu className="h-4 w-4" />
-            </Button>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold leading-tight truncate">
-                <FolderTitle filter={filter.folder} />
-              </p>
-              {connections && connections.length > 0 && (
-                <p className="truncate text-[10px] text-slate-500">
-                  {filter.accountId
-                    ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
-                    : `${connections.length} ${connections.length === 1 ? "casella" : "caselle"}`}
-                </p>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => forceSync.mutate()}
-              disabled={forceSync.isPending}
-              aria-label="Sincronizza ora"
-            >
-              {forceSync.isPending
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <RefreshCw className="h-4 w-4" />}
-            </Button>
-          </div>
-
-          {/* Desktop header — titolo + N collegate badge + bottone Sync */}
-          <div className="hidden md:flex items-center justify-between gap-2 p-3 border-b border-blue-100 bg-white">
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                <Inbox className="h-4 w-4 text-blue-600 shrink-0" />
-                <FolderTitle filter={filter.folder} />
-              </h2>
-              {connections && connections.length > 0 && (
-                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                  {filter.accountId
-                    ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
-                    : `${connections.length} ${connections.length === 1 ? "casella collegata" : "caselle collegate"}`}
-                </p>
-              )}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => forceSync.mutate()}
-              disabled={forceSync.isPending}
-              title="Sincronizza ora le caselle email"
-              className="shrink-0"
-            >
-              {forceSync.isPending
-                ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                : <RefreshCw className="h-4 w-4 mr-1" />}
-              <span className="hidden lg:inline">Sync</span>
-            </Button>
-          </div>
-
-          <EmailMailboxToolbar
-            filter={filter}
-            onFilterChange={applyFilter}
-            connections={connections ?? []}
-          />
-          <EmailConnectionHealthPanel
-            connections={connections ?? []}
-            companyIdOverride={companyId}
-            settingsPath={settingsPath}
-            variant="compact"
-          />
-          <EmailAiCommandCenter
-            companyIdOverride={companyId}
-            onSelectThread={handleSelectThread}
-            onFilterCategory={(category) => applyFilter((current) => ({
-              ...current,
-              category,
-              folder: { type: "system", key: "inbox" },
-            }))}
-          />
-          <EmailSearchBar
-            initialValue={queryCustomerEmail}
-            onSearch={(q) => setFilter((f) => ({ ...f, search: q }))}
-          />
-          <EmailList
-            filter={filter}
-            scopedAccountIds={scopedAccountIds ?? (companyIdOverride ? (connections ?? []).map((connection) => connection.id) : undefined)}
-            selectedThreadId={selectedThreadId}
-            onSelectThread={handleSelectThread}
-          />
-        </ResizablePanel>
-
-        {/* Handle + Viewer pane — visibili SOLO quando una email è selezionata */}
-        {selectedThreadId && (
-          <>
-            <ResizableHandle withHandle className="hidden md:flex" />
-            <ResizablePanel
-              defaultSize={62}
-              minSize={35}
-              className={cn(
-                "flex flex-col min-w-0 bg-white",
-                mobilePane !== "viewer" && "hidden md:flex",
-              )}
-            >
-              <EmailViewer
-                threadId={selectedThreadId}
-                onBack={() => setMobilePane("list")}
-                onClose={() => {
-                  // Su mobile: archive/trash/close devono tornare alla lista
-                  setSelectedThreadId(null);
-                  setMobilePane("list");
-                }}
-                onReply={(src, mode) => openCompose({ mode, source: src })}
-              />
-            </ResizablePanel>
-          </>
-        )}
-      </ResizablePanelGroup>
+          <ResizablePanel
+            defaultSize={38}
+            minSize={25}
+            maxSize={65}
+            className={cn(
+              "bg-white border-r border-blue-100 flex flex-col min-w-0",
+              mobilePane !== "list" && "hidden md:flex",
+            )}
+          >
+            {renderListPaneContent()}
+          </ResizablePanel>
+          <ResizableHandle withHandle className="hidden md:flex" />
+          <ResizablePanel
+            defaultSize={62}
+            minSize={35}
+            className={cn(
+              "flex flex-col min-w-0 bg-white",
+              mobilePane !== "viewer" && "hidden md:flex",
+            )}
+          >
+            <EmailViewer
+              threadId={selectedThreadId}
+              onBack={() => setMobilePane("list")}
+              onClose={() => {
+                setSelectedThreadId(null);
+                setMobilePane("list");
+              }}
+              onReply={(src, mode) => openCompose({ mode, source: src })}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        // Nessun thread selezionato → list pane occupa tutta la larghezza, senza Resizable wrapper.
+        <section className={cn(
+          "flex-1 bg-white flex flex-col min-w-0",
+          mobilePane !== "list" && "hidden md:flex",
+        )}>
+          {renderListPaneContent()}
+        </section>
+      )}
 
       <EmailComposeDialog
         open={composeOpen}
