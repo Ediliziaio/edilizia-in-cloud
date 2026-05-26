@@ -435,3 +435,27 @@ verify_jwt = false
 # Automation Bulk Scheduler Runner — chiamato da pg_cron via x-cron-secret
 [functions.automation-bulk-scheduler-runner]
 verify_jwt = false
+
+# ── OAuth callbacks 2026-05-27: il callback Google/Microsoft arriva senza JWT
+# (è un redirect del browser dell'utente). Verify_jwt=false sull'intera function
+# e il check JWT viene fatto dentro la function per le altre action (start, etc).
+[functions.gbp-oauth]
+verify_jwt = false
+
+[functions.gbp-sync-reviews]
+verify_jwt = true
+
+[functions.gbp-reply-review]
+verify_jwt = true
+
+[functions.outlook-calendar-auth]
+verify_jwt = false
+
+[functions.outlook-calendar-sync]
+verify_jwt = true
+
+[functions.google-ads-oauth]
+verify_jwt = false
+
+[functions.google-ads-sync-campaigns]
+verify_jwt = true
