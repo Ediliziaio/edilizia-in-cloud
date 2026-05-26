@@ -21,35 +21,38 @@ interface Props {
 }
 
 export function SSOButtons({ disabled = false, onError }: Props) {
-  const [pending, setPending] = useState<"google" | "azure" | null>(null);
+  // 2026-05-27: rimosso login Microsoft per scelta prodotto — la quota di
+  // imprese edili italiane con Microsoft 365 personale è marginale, complica UX
+  // senza beneficio. L'account Microsoft resta usabile per la sincronizzazione
+  // Outlook Calendar (separata, in Settings → Calendari → Collegamenti).
+  const [pending, setPending] = useState<boolean>(false);
 
-  const handleOAuth = async (provider: "google" | "azure") => {
+  const handleGoogleOAuth = async () => {
     if (disabled || pending) return;
-    setPending(provider);
+    setPending(true);
     try {
       // v8.6.93 — redirect alla root; AuthProvider monta la sessione e ridirige
       // l'utente alla sua dashboard appropriata (no route /auth/callback dedicata).
       const redirectTo = `${window.location.origin}/`;
       const { error } = await supabase.auth.signInWithOAuth({
-        provider,
+        provider: "google",
         options: {
           redirectTo,
           // Forza la selezione account ad ogni login (no SSO silent)
-          queryParams: provider === "google" ? { prompt: "select_account" } : undefined,
+          queryParams: { prompt: "select_account" },
         },
       });
       if (error) {
-        const msg =
-          error.message.includes("provider is not enabled")
-            ? `Login ${provider === "google" ? "Google" : "Microsoft"} non ancora configurato. Contatta il supporto.`
-            : `Errore SSO: ${error.message}`;
+        const msg = error.message.includes("provider is not enabled")
+          ? "Login Google non ancora configurato. Contatta il supporto."
+          : `Errore SSO: ${error.message}`;
         onError?.(msg);
-        setPending(null);
+        setPending(false);
       }
       // Se non c'è errore, l'utente viene rediretto al provider OAuth
     } catch (e) {
       onError?.((e as Error).message);
-      setPending(null);
+      setPending(false);
     }
   };
 
@@ -64,36 +67,20 @@ export function SSOButtons({ disabled = false, onError }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || pending !== null}
-          onClick={() => handleOAuth("google")}
-          className="h-10"
-        >
-          {pending === "google" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <GoogleIcon className="h-4 w-4 mr-2" />
-          )}
-          Google
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || pending !== null}
-          onClick={() => handleOAuth("azure")}
-          className="h-10"
-        >
-          {pending === "azure" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <MicrosoftIcon className="h-4 w-4 mr-2" />
-          )}
-          Microsoft
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled || pending}
+        onClick={handleGoogleOAuth}
+        className="w-full h-10"
+      >
+        {pending ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <GoogleIcon className="h-4 w-4 mr-2" />
+        )}
+        Accedi con Google
+      </Button>
     </div>
   );
 }
@@ -122,13 +109,5 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-function MicrosoftIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M11.4 11.4H1V1h10.4v10.4z" fill="#F25022" />
-      <path d="M23 11.4H12.6V1H23v10.4z" fill="#7FBA00" />
-      <path d="M11.4 23H1V12.6h10.4V23z" fill="#00A4EF" />
-      <path d="M23 23H12.6V12.6H23V23z" fill="#FFB900" />
-    </svg>
-  );
-}
+// MicrosoftIcon rimossa con il login Microsoft (2026-05-27).
+// Se serve riattivare in futuro, recuperala dalla cronologia git.
