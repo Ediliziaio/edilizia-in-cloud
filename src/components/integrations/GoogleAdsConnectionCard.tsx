@@ -330,12 +330,16 @@ export default function GoogleAdsConnectionCard() {
                       <label className="text-sm font-medium">
                         Manager Account (MCC) <span className="text-muted-foreground">— opzionale</span>
                       </label>
-                      <Select value={selectedManagerId} onValueChange={setSelectedManagerId}>
+                      <Select
+                        value={selectedManagerId || "__none__"}
+                        onValueChange={(v) => setSelectedManagerId(v === "__none__" ? "" : v)}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Nessun MCC (account standalone)" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Nessun MCC</SelectItem>
+                          {/* Fix 2026-05-27: Radix Select non accetta value="" — sentinel "__none__" + map nel handler. */}
+                          <SelectItem value="__none__">Nessun MCC</SelectItem>
                           {managerCustomers.map((c) => (
                             <SelectItem key={c.customer_id} value={c.customer_id}>
                               {c.descriptive_name ?? c.customer_id}

@@ -1,5 +1,5 @@
 import { ScalaCode, SCALE_LABELS } from '../types';
-import { StressZoneSeverity, getStressZoneText, getStressZoneSeverityLabel } from './stressZone';
+import { StressZoneSeverity } from './stressZone';
 import { getScaleRangeText } from './scaleTexts';
 
 export interface InterpretazioneItem {

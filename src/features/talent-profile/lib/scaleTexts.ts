@@ -3,7 +3,7 @@
  * Secondo il Manuale Talent Profiler V3 - Capitolo 13
  */
 
-import { ScalaCode, SCALE_LABELS } from '../types';
+import { ScalaCode } from '../types';
 
 export interface ScaleRangeText {
   scala: ScalaCode;

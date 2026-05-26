@@ -10,12 +10,11 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
-import { TRAIT_LABELS, MACRO_AREA_TRAITS, type TraitCode } from "../types";
+import { TRAIT_LABELS, type TraitCode } from "../types";
 import type { SyndromeResult } from "../lib/syndromes";
 import type { MappaInterioreResult } from "../lib/mappaInteriore";
 import { calculateMappaInteriore, getDimensioniChartData } from "../lib/mappaInteriore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Activity, Compass, Target } from "lucide-react";
 
 const BRAND_BLUE = "#1E3A5F";

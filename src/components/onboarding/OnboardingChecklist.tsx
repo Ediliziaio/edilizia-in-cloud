@@ -117,7 +117,7 @@ export function OnboardingChecklist() {
         const { error } = await supabase
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .from("company_onboarding_completions" as any)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           .insert({
             company_id: companyId,
             step_id: stepId,

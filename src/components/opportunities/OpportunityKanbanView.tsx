@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, memo, forwardRef, useRef } from "react";
 import {
-  DndContext, pointerWithin, rectIntersection, closestCorners, PointerSensor, TouchSensor, KeyboardSensor,
+  DndContext, pointerWithin, rectIntersection, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay,
   type CollisionDetection,
 } from "@dnd-kit/core";

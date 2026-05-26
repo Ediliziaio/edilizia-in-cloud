@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,8 @@ const BTN_GRADIENT =
 
 export default function LavoriLogin() {
   const { user, role, isLoading, signIn, signOut } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   useSEO({ title: "Area Lavori", noindex: true });
   const [view, setView] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
@@ -93,7 +96,6 @@ export default function LavoriLogin() {
       const { error } = await signIn(email, password);
       if (error) {
         setFormError("Email o password non validi. Riprova.");
-        setIsSubmitting(false);
         return;
       }
       // Timeout race 6s: su cold-start manage-totp può prendere 10-30s,
@@ -112,16 +114,29 @@ export default function LavoriLogin() {
         const totpStatus = (result as { data: { enabled?: boolean } | null }).data;
         if (totpStatus?.enabled) {
           setView("2fa");
-          setIsSubmitting(false);
           return;
         }
       } catch {
         // 2FA non configurato — continua
       }
+      // Success: AuthContext rileva la sessione e ridirige via Navigate guard sopra.
+      toast({ title: "Accesso effettuato", description: "Benvenuto!" });
     } catch {
       setFormError("Errore di connessione. Riprova tra qualche secondo.");
+    } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handle2FAVerified = () => {
+    toast({ title: "Accesso effettuato", description: "Benvenuto!" });
+    navigate("/campo", { replace: true });
+  };
+
+  const handle2FACancel = async () => {
+    await signOut();
+    setView("login");
+    toast({ title: "Accesso annullato", description: "Verifica 2FA richiesta." });
   };
 
   // 📧 Gestione reset password
@@ -264,10 +279,7 @@ export default function LavoriLogin() {
               <h2 className="text-xl font-bold text-foreground">Verifica 2FA</h2>
               <p className="text-sm text-muted-foreground">Area Lavori</p>
             </div>
-            <TwoFactorVerify
-              onSuccess={() => setView("login")}
-              onCancel={() => { setView("login"); void signOut(); }}
-            />
+            <TwoFactorVerify onVerified={handle2FAVerified} onCancel={handle2FACancel} />
           </div>
         )}
 

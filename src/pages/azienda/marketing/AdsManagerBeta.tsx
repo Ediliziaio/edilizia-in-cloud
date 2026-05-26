@@ -3880,7 +3880,7 @@ function CampaignBuilderTab({
           {/* LEGACY UI nascosta — vecchio step 2 lasciato come fallback (non usato per nuove campagne).
               Mantenuto nel source per riferimento storico ma reso effettivamente
               dead code via `LEGACY_LOGIC_ENABLED` (constant false alla compile). */}
-          {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */}
+          { }
           {(false as boolean) && step === 2 && (
             <div className="space-y-5">
               <div className="grid gap-3 md:grid-cols-3">

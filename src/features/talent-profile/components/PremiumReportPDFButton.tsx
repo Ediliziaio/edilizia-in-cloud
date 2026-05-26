@@ -16,12 +16,10 @@ import { PremiumReportPDF, PremiumReportPDFProps } from './PremiumReportPDF';
 import { TraitCode, TRAIT_LABELS } from '../types';
 import type { ProfiloTipoV5, ReliabilityIndex } from '../types';
 import { SyndromeResult } from '../lib/syndromes';
-import { RoleMatchResultV5, AllRolesCompatibilityV5, calculateAllRolesCompatibilityV5, mapFunzioneToRuoloV5 } from '../lib/roleMatchingV5';
+import { calculateAllRolesCompatibilityV5, mapFunzioneToRuoloV5 } from '../lib/roleMatchingV5';
 import { calculateRoleMatchingV5Cached } from '../lib/roleMatchingV5Cache';
-import { calculateMappaInteriore, MappaInterioreResult } from '../lib/mappaInteriore';
+import { calculateMappaInteriore } from '../lib/mappaInteriore';
 import { getPersonalizedManagementTips, getPersonalizedClosingText } from '../lib/managementTipsV5';
-import { personalizzaTesto } from '../lib/traitNarrativesV5';
-import { getPersonalizedPatterns, categorizePatterns } from '../lib/crossPatternsV5';
 
 export interface PremiumReportPDFButtonProps {
   candidato: {

@@ -10,12 +10,10 @@ import { TraitCode, TRAIT_LABELS, MACRO_AREA_TRAITS } from '../types';
 import type { ProfiloTipoV5, ReliabilityIndex } from '../types';
 import { SyndromeResult } from '../lib/syndromes';
 import { RoleMatchResultV5, FitVerdictV5, AllRolesCompatibilityV5 } from '../lib/roleMatchingV5';
-import { getProfiloTipoV5Label } from '../lib/scoringV5';
 import { PROFILI_TIPO_V5_EXTENDED } from '../lib/profiloTipoV5Extended';
 import { SYNDROMES_V5_DATA } from '../lib/syndromesV5Data';
 import { MappaInterioreResult, ATTACCAMENTO_FRONTEND, getDimensioniChartData } from '../lib/mappaInteriore';
-import { getPersonalizedManagementTips, getPersonalizedClosingText } from '../lib/managementTipsV5';
-import { personalizzaTesto, getFascia, getTraitNarrative, getGPSpecialNarrative, TRAIT_NARRATIVES } from '../lib/traitNarrativesV5';
+import { getFascia, getTraitNarrative, getGPSpecialNarrative, TRAIT_NARRATIVES } from '../lib/traitNarrativesV5';
 
 // ═══════════════════════════════════════════════════
 // DESIGN SYSTEM v2.0 — Premium Consulting Report

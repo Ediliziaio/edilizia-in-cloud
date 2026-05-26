@@ -1,6 +1,5 @@
 // Mappatura dalle scale del test alle macro-aree del grafico a candele
 // Aggiornato secondo il Manuale di Elaborazione V2
-import { ScalaCode, SCALE_LABELS } from '../types';
 import { calculateSecondaryIndices } from './interpretazioneProfile';
 
 export interface MacroArea {

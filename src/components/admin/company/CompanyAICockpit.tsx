@@ -26,9 +26,7 @@ import {
   Zap,
   AlertTriangle,
   CheckCircle2,
-  RefreshCw,
   Send,
-  Play,
 } from "lucide-react";
 import {
   useCustomerProfile,

@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertTriangle, BarChart3, BrainCircuit, CheckCircle2, ClipboardCheck, Clock3, Copy, ExternalLink, FileText, Link2, Plus, Printer, RefreshCcw, ShieldCheck, Sparkles, Target, UserRoundSearch } from "lucide-react";
 import { toast } from "sonner";
-import { Bar, BarChart, Cell, Pie, PieChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type TalentCandidateStatus = "draft" | "invited" | "in_progress" | "completed" | "archived";
 

@@ -1,5 +1,5 @@
 import {
-  User, Shield, Users, Server, Mail, Bell,
+  User, Users, Server, Mail, Bell,
   ScrollText, Globe, Zap, Plug, Landmark,
   Webhook, Activity, CalendarDays, Wrench,
 } from "lucide-react";
