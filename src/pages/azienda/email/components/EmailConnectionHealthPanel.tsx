@@ -247,13 +247,21 @@ export function EmailConnectionHealthPanel({
   const diagRows = useMemo(() => Object.entries(diagnostic.data?.checklist ?? {}), [diagnostic.data]);
   const compactHealthy = variant === "compact" && rows.length > 0 && unhealthy.length === 0 && !hasLoadIssue;
 
+  // 2026-05-26: nella variante compact, se tutte le caselle sono sane non
+  // mostriamo nulla. La lista delle connessioni è già visibile in
+  // Impostazioni → Mio profilo, quindi nella pagina email il panel ha senso
+  // SOLO come avviso di errore/anomalia. Nascondiamo anche quando l'utente
+  // non ha ancora collegato nessuna casella perché EmailClientPage gestisce
+  // già lo stato "empty" con la CTA dedicata.
+  if (variant === "compact" && (compactHealthy || (rows.length === 0 && !hasLoadIssue))) {
+    return null;
+  }
+
   return (
     <div className={cn(
       "rounded-2xl border bg-white shadow-sm",
       compactHealthy ? "border-emerald-100" : "border-blue-100",
       variant === "compact" ? "mx-3 my-2" : "",
-      // Mobile: nascondo il panel quando tutto è sano per risparmiare spazio verticale
-      compactHealthy && "hidden md:block",
     )}>
       <button
         type="button"

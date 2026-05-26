@@ -1,7 +1,8 @@
-import { useMemo, type ComponentType } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ChevronDown,
   FileText,
   Loader2,
   MailSearch,
@@ -226,20 +227,53 @@ export function EmailAiCommandCenter({
     return { priority, commercial, supplier, admin };
   }, [queue]);
 
+  // Collassabile: default CHIUSO per non occupare spazio prezioso sopra la list.
+  // Auto-apre se ci sono urgenti (l'utente DEVE vederli).
+  const [expanded, setExpanded] = useState(false);
+  const hasUrgent = metrics.priority > 0;
+  const showBody = expanded || hasUrgent;
+  // Pillole compatte mostrate nell'header (sempre visibili anche da chiuso)
+  // per dare un'occhiata immediata ai numeri senza dover espandere.
+  const summaryChips = [
+    { label: "Urgenti", value: metrics.priority, tone: "orange" as const },
+    { label: "Vendita", value: metrics.commercial, tone: "blue" as const },
+    { label: "Forn.", value: metrics.supplier, tone: "emerald" as const },
+    { label: "Amm.", value: metrics.admin, tone: "slate" as const },
+  ];
+
   return (
-    <div className="hidden md:block border-b border-blue-100 bg-white px-3 py-3">
-      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-orange-50/40 p-3 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-slate-950">Regia Email AI</p>
-                <p className="text-[11px] leading-4 text-slate-500">
-                  Smista lead, preventivi, DDT, fatture e urgenze senza aprire ogni email.
-                </p>
+    <div className="hidden md:block border-b border-blue-100 bg-white px-3 py-2">
+      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-orange-50/40 shadow-sm">
+        {/* Header sempre visibile, clickable per toggle. Smista + refresh stoppano la propagazione. */}
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+          aria-expanded={showBody}
+          aria-controls="email-ai-command-body"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+              <Sparkles className="h-3.5 w-3.5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-950 leading-tight">Regia Email AI</p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                {summaryChips.map((chip) => (
+                  <span
+                    key={chip.label}
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                      chip.tone === "orange" && chip.value > 0 && "bg-orange-100 text-orange-700",
+                      chip.tone === "blue" && chip.value > 0 && "bg-blue-100 text-blue-700",
+                      chip.tone === "emerald" && chip.value > 0 && "bg-emerald-100 text-emerald-700",
+                      chip.tone === "slate" && chip.value > 0 && "bg-slate-100 text-slate-700",
+                      chip.value === 0 && "text-slate-400",
+                    )}
+                  >
+                    {chip.label} {chip.value}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
@@ -248,29 +282,37 @@ export function EmailAiCommandCenter({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 gap-1.5 border-blue-200 bg-white text-xs text-blue-700 hover:bg-blue-50"
-              onClick={() => triageInbox.mutate()}
+              className="h-7 gap-1.5 border-blue-200 bg-white text-xs text-blue-700 hover:bg-blue-50"
+              onClick={(e) => { e.stopPropagation(); triageInbox.mutate(); }}
               disabled={triageInbox.isPending}
               title="Smista le email recenti con AI"
             >
               {triageInbox.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              Smista
+              <span className="hidden lg:inline">Smista</span>
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-blue-700"
-              onClick={() => void refetch()}
+              className="h-7 w-7 text-blue-700"
+              onClick={(e) => { e.stopPropagation(); void refetch(); }}
               disabled={isFetching}
               title="Aggiorna regia email"
             >
               {isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             </Button>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-blue-700 transition-transform",
+                showBody && "rotate-180",
+              )}
+            />
           </div>
-        </div>
+        </button>
 
-        <div className="mt-3 grid grid-cols-4 gap-1.5">
+        {showBody && (
+          <div id="email-ai-command-body" className="border-t border-blue-100 p-3">
+            <div className="grid grid-cols-4 gap-1.5">
           <MetricPill
             label="Urgenti"
             value={metrics.priority}
@@ -371,7 +413,9 @@ export function EmailAiCommandCenter({
               </button>
             ))
           )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
