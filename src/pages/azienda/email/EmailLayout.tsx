@@ -558,35 +558,3 @@ function folderTitleText(filter: FolderFilter): string {
 function FolderTitle({ filter }: { filter: FolderFilter }) {
   return <>{folderTitleText(filter)}</>;
 }
-
-function ViewerEmptyState() {
-  return (
-    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-white via-blue-50/30 to-orange-50/30 p-8 text-center">
-      <div className="max-w-lg">
-        <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-white shadow-sm">
-          <Mail className="h-8 w-8 text-blue-600" />
-        </div>
-        <h3 className="text-base font-semibold text-slate-900">Seleziona un'email</h3>
-        <p className="mt-1 text-sm text-slate-500">
-          Scegli un thread dalla lista per leggerlo qui. Silvio può trasformare le email operative in azioni confermabili.
-        </p>
-        <div className="mt-5 grid gap-2 text-left sm:grid-cols-3">
-          {[
-            { icon: Truck, title: "Fornitori", text: "Ritardi, conferme e richieste acquisto." },
-            { icon: ReceiptText, title: "DDT", text: "Numeri, date, materiali e anomalie." },
-            { icon: Sparkles, title: "AI", text: "Bozze email, task e proposte ODA." },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.title} className="rounded-2xl border border-blue-100 bg-white/90 p-3 shadow-sm">
-                <Icon className="h-4 w-4 text-blue-600" />
-                <p className="mt-2 text-xs font-semibold text-slate-900">{item.title}</p>
-                <p className="mt-1 text-[11px] leading-snug text-slate-500">{item.text}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}

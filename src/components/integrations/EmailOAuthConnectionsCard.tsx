@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AlertCircle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Inbox, Loader2, Mail, Plug, Plus, RefreshCw, Server, Settings, Sparkles, Trash2, XCircle,
+  AlertCircle, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, Inbox, Loader2, Mail, Plug, Plus, RefreshCw, Server, Settings, Sparkles, Trash2, XCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
