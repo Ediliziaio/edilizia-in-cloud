@@ -125,12 +125,22 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supa = createClient(
+  // Client per auth verification (passa il JWT utente, ruolo `authenticated`).
+  const supaUser = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     { global: { headers: { Authorization: authHeader } } },
   );
-  const { data: userData } = await supa.auth.getUser(authHeader.replace("Bearer ", ""));
+  // Client per operazioni DB amministrative (NESSUN JWT utente → ruolo `service_role`).
+  // Fix 2026-05-26: prima usavamo un solo client con JWT → la rpc()
+  // veniva eseguita come `authenticated` invece che `service_role`,
+  // generando "permission denied for function email_oauth_upsert_connection"
+  // anche con i GRANT corretti. Cf. Supabase JS client docs su role downgrade.
+  const supa = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  const { data: userData } = await supaUser.auth.getUser(authHeader.replace("Bearer ", ""));
   const user = userData?.user;
   if (!user) {
     return new Response(JSON.stringify({ error: "auth_invalid" }), {
