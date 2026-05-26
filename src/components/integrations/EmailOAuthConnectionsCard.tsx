@@ -26,6 +26,37 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ImapCustomDialog } from "./ImapCustomDialog";
 
+// Brand SVG icons per Gmail / Outlook / IMAP (no extra deps)
+function GmailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" fill="#EA4335"/>
+      <path d="M5.455 4.64L12 9.548V11.73L5.455 4.64z" fill="#FBBC04"/>
+      <path d="M18.546 4.64v7.092L12 16.642V9.548l6.546-4.91z" fill="#34A853"/>
+      <path d="M5.455 11.73L12 16.64V9.548L5.455 4.64v7.09z" fill="#4285F4"/>
+    </svg>
+  );
+}
+
+function OutlookIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 4.5v15c0 .276.224.5.5.5h13c.276 0 .5-.224.5-.5V18l8.5-2.5c.276-.083.5-.337.5-.625v-5.75c0-.288-.224-.542-.5-.625L14 6V4.5c0-.276-.224-.5-.5-.5H.5C.224 4 0 4.224 0 4.5z" fill="#0078D4"/>
+      <circle cx="7" cy="12" r="3.5" fill="#fff"/>
+      <text x="7" y="13.5" fontSize="4" fontWeight="bold" textAnchor="middle" fill="#0078D4">O</text>
+    </svg>
+  );
+}
+
+function ImapIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="6" width="18" height="13" rx="2" />
+      <path d="M3 8l9 7 9-7" />
+    </svg>
+  );
+}
+
 interface OAuthConnectionMeta {
   id: string;
   provider: "gmail" | "outlook" | "imap";
@@ -47,10 +78,10 @@ interface DiagnosticResult {
   next_action: string | null;
 }
 
-const PROVIDER_LABEL: Record<string, { name: string; color: string }> = {
-  gmail: { name: "Gmail (Google)", color: "bg-rose-100 text-rose-700 border-rose-300" },
-  outlook: { name: "Outlook (Microsoft)", color: "bg-blue-100 text-blue-700 border-blue-300" },
-  imap: { name: "IMAP/SMTP", color: "bg-violet-100 text-violet-700 border-violet-300" },
+const PROVIDER_LABEL: Record<string, { name: string; color: string; Icon: (props: { className?: string }) => JSX.Element }> = {
+  gmail: { name: "Gmail (Google)", color: "bg-rose-100 text-rose-700 border-rose-300", Icon: GmailIcon },
+  outlook: { name: "Outlook (Microsoft)", color: "bg-blue-100 text-blue-700 border-blue-300", Icon: OutlookIcon },
+  imap: { name: "IMAP/SMTP", color: "bg-violet-100 text-violet-700 border-violet-300", Icon: ImapIcon },
 };
 
 const STATUS_BADGE: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
@@ -449,13 +480,15 @@ export function EmailOAuthConnectionsCard() {
               const provider = PROVIDER_LABEL[c.provider];
               const status = STATUS_BADGE[c.status];
               const StatusIcon = status.icon;
+              const ProviderIcon = provider.Icon;
               return (
                 <div key={c.id} className="rounded-lg border p-3 flex items-start gap-3">
-                  <Mail className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                  <ProviderIcon className="h-6 w-6 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium truncate">{c.email_address}</span>
-                      <Badge variant="outline" className={cn("text-[10px]", provider.color)}>
+                      <Badge variant="outline" className={cn("text-[10px] gap-1", provider.color)}>
+                        <ProviderIcon className="h-3 w-3" />
                         {provider.name}
                       </Badge>
                       <Badge variant="outline" className={cn("text-[10px] gap-1", status.color)}>
