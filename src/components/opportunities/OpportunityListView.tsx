@@ -2,15 +2,20 @@ import { useState, useMemo, useRef, useEffect, memo } from "react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ArrowRight, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 // Table components removed — desktop view uses flex grid for proper column alignment with virtualizer
 import { OpportunityDetailDialog } from "./OpportunityDetailDialog";
 import { DealHealthBadge } from "./DealHealthBadge";
 import { cn } from "@/lib/utils";
-import { STATUS_MAP, hashColor } from "@/types/opportunities";
+import { STATUS_MAP, hashColor, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import type { OpportunityStage } from "@/types/opportunities";
+import { useUpdateOpportunityStage } from "@/hooks/useOpportunitiesData";
+import { toast } from "sonner";
 
 interface ListProps {
   stages: OpportunityStage[];
@@ -29,7 +34,30 @@ export const OpportunityListView = memo(function OpportunityListView({
 }: ListProps) {
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
   const [mobileStageId, setMobileStageId] = useState<string | null>(null);
+  // Quick-move: opportunità per cui mostrare il selettore di fase (Sheet bottom)
+  const [moveOpp, setMoveOpp] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const updateStage = useUpdateOpportunityStage();
+
+  const handleQuickMove = (targetStageId: string) => {
+    if (!moveOpp || !canEdit) return;
+    if (moveOpp.stage_id === targetStageId) {
+      setMoveOpp(null);
+      return;
+    }
+    const targetStage = stages.find((s) => s.id === targetStageId);
+    const nextStatus = inferOpportunityStatusFromStage(targetStage, "open");
+    updateStage.mutate(
+      { id: moveOpp.id, stage_id: targetStageId, auto_status: nextStatus },
+      {
+        onSuccess: () => {
+          toast.success(`Spostata in "${targetStage?.name ?? "fase"}"`);
+          setMoveOpp(null);
+        },
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
+  };
 
   const stageMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -168,11 +196,26 @@ export const OpportunityListView = memo(function OpportunityListView({
                     </div>
                   </div>
 
-                  {/* Bottom row: stage + health + owner + tags */}
+                  {/* Bottom row: stage (clickable per quick-move) + health + owner + tags */}
                   <div className="flex items-center gap-2 flex-wrap mt-1">
-                    <Badge variant="outline" className="text-[10px] font-normal py-0">
-                      {stageMap[opp.stage_id] || "—"}
-                    </Badge>
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMoveOpp(opp);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-1.5 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/5 active:bg-primary/10 transition-colors"
+                        title="Sposta in un'altra fase"
+                      >
+                        {stageMap[opp.stage_id] || "—"}
+                        <ArrowRight className="h-2.5 w-2.5" />
+                      </button>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] font-normal py-0">
+                        {stageMap[opp.stage_id] || "—"}
+                      </Badge>
+                    )}
                     {opp.status === "open" && <DealHealthBadge opportunity={opp} />}
                     {ownerInitials && (
                       <div className="flex items-center gap-1 ml-auto">
@@ -192,6 +235,44 @@ export const OpportunityListView = memo(function OpportunityListView({
           </div>
         )}
       </div>
+
+      {/* ── Quick-move Sheet (mobile + desktop) ── */}
+      <Sheet open={moveOpp != null} onOpenChange={(v) => { if (!v) setMoveOpp(null); }}>
+        <SheetContent side="bottom" className="max-h-[70vh] flex flex-col">
+          <SheetHeader>
+            <SheetTitle>Sposta opportunità</SheetTitle>
+            <SheetDescription className="text-xs">
+              {moveOpp?.name ?? ""} — seleziona la fase di destinazione
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto mt-3 space-y-1.5 pb-4">
+            {stages.map((s) => {
+              const isCurrent = moveOpp?.stage_id === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => handleQuickMove(s.id)}
+                  disabled={updateStage.isPending}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left transition-colors",
+                    isCurrent
+                      ? "border-primary bg-primary/5 text-primary font-semibold"
+                      : "hover:bg-accent active:bg-accent",
+                  )}
+                >
+                  <span className="text-sm">{s.name}</span>
+                  {isCurrent ? (
+                    <Check className="h-4 w-4 text-primary shrink-0" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ── DESKTOP: griglia con colonne fisse ── */}
       <div className="hidden sm:block border rounded-lg overflow-x-auto">
@@ -290,11 +371,23 @@ export const OpportunityListView = memo(function OpportunityListView({
                         <span className="text-sm truncate">{fullName || "—"}</span>
                       </div>
                     </div>
-                    {/* Fase */}
-                    <div className="w-[150px] shrink-0 px-3 py-2.5">
-                      <Badge variant="outline" className="text-xs font-normal whitespace-nowrap">
-                        {stageMap[opp.stage_id] || "—"}
-                      </Badge>
+                    {/* Fase — clickable per quick-move */}
+                    <div className="w-[150px] shrink-0 px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => setMoveOpp(opp)}
+                          className="inline-flex items-center gap-1 rounded-md border border-dashed border-primary/40 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/5 transition-colors whitespace-nowrap"
+                          title="Sposta in un'altra fase"
+                        >
+                          {stageMap[opp.stage_id] || "—"}
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      ) : (
+                        <Badge variant="outline" className="text-xs font-normal whitespace-nowrap">
+                          {stageMap[opp.stage_id] || "—"}
+                        </Badge>
+                      )}
                     </div>
                     {/* Valore */}
                     <div className="w-[130px] shrink-0 px-3 py-2.5 text-right font-medium text-sm whitespace-nowrap">
