@@ -98,9 +98,9 @@ export default function AdminInvoiceHistory() {
           </h1>
           <p className="text-muted-foreground">Cronologia pagamenti ricevuti dalla piattaforma</p>
         </div>
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:self-auto">
           <Select value={monthFilter} onValueChange={setMonthFilter}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="w-full sm:w-44">
               <SelectValue placeholder="Tutti i mesi" />
             </SelectTrigger>
             <SelectContent>
@@ -112,27 +112,31 @@ export default function AdminInvoiceHistory() {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={handleExport} disabled={data.length === 0}>
+          <Button variant="outline" onClick={handleExport} disabled={data.length === 0} className="w-full sm:w-auto">
             <Download className="h-4 w-4 mr-2" /> Esporta CSV
           </Button>
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <Card className="flex-1">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <Card>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Totale periodo</p>
-            <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalAmount)}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Totale periodo</p>
+            <p className="text-xl sm:text-2xl font-bold text-emerald-600 break-words">{formatCurrency(totalAmount)}</p>
           </CardContent>
         </Card>
-        <Card className="flex-1">
+        <Card>
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Numero fatture</p>
-            <p className="text-2xl font-bold">{data.length}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Numero fatture</p>
+            <p className="text-xl sm:text-2xl font-bold">{data.length}</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Hint scroll orizzontale visibile solo su mobile (la tabella ha min-w-[550px]) */}
+      <p className="md:hidden text-[11px] text-muted-foreground/80 px-1">
+        ← Scorri orizzontalmente per vedere tutte le colonne →
+      </p>
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table className="min-w-[550px]">

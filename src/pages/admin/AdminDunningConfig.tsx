@@ -445,6 +445,10 @@ export default function AdminDunningConfig() {
               <p className="text-muted-foreground text-sm">Nessun tentativo registrato</p>
             </div>
           ) : (
+            <>
+            <p className="md:hidden text-[11px] text-muted-foreground/80 px-4 pb-2">
+              ← Scorri orizzontalmente per vedere tutte le colonne →
+            </p>
             <div className="overflow-x-auto">
             <Table className="min-w-[650px]">
               <TableHeader>
@@ -486,6 +490,7 @@ export default function AdminDunningConfig() {
               </TableBody>
             </Table>
             </div>
+            </>
           )}
         </CardContent>
       </Card>

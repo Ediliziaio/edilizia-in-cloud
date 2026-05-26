@@ -277,11 +277,11 @@ function RevenueTab() {
                 <CardTitle className="text-base">Breakdown operativo</CardTitle>
                 <CardDescription>Quota MRR, ARPU e numero aziende</CardDescription>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 {(data?.byPlan ?? []).length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">Nessun abbonamento pagante</p>
                 ) : (
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[420px]">
                     <thead>
                       <tr className="border-b bg-muted/30">
                         <th className="text-left px-4 py-2">Piano</th>
@@ -479,7 +479,7 @@ function ReconciliationTab() {
           </CardTitle>
           <CardDescription>Ultimi 30 giorni di riconciliazione</CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {isLoading ? (
             <div className="p-6 space-y-3">
               {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
@@ -489,7 +489,7 @@ function ReconciliationTab() {
               Nessuno snapshot disponibile. Clicca "Sincronizza ora" per creare il primo.
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[520px]">
               <thead>
                 <tr className="border-b">
                   <th className="text-left px-4 py-2">Data</th>
@@ -693,7 +693,7 @@ function LTVCACTab() {
           <CardTitle className="text-base">Storico CAC per Mese</CardTitle>
           <CardDescription>Ultimi 12 mesi · usato per calcolo CAC (media 3 mesi recenti)</CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {isLoading ? (
             <div className="p-4 space-y-2">
               {[1,2,3].map(i => <Skeleton key={i} className="h-8 w-full" />)}
@@ -704,7 +704,7 @@ function LTVCACTab() {
               <p>Nessun dato inserito. Usa il form sopra per iniziare.</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[540px]">
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="text-left px-4 py-2 font-medium">Periodo</th>
