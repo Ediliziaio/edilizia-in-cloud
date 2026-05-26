@@ -109,6 +109,7 @@ import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { NotificationsBellPopover } from "@/components/notifications/NotificationsBellPopover";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
+import { useUnreadEmailCount } from "@/hooks/useUnreadEmailCount";
 
 import { CommandPalette } from "@/components/CommandPalette";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -636,6 +637,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
 
 function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem[]) => NavItem[] }) {
   const { data: taskCounts } = useMyTaskCount();
+  const { data: emailCounts } = useUnreadEmailCount();
   const permissions = usePermissions();
   const { role } = useAuth();
   const items = filterNavItems(macroAreas.find(a => a.id === "area_cruscotto")?.items ?? []);
@@ -646,16 +648,36 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
         <SidebarMenu>
           {items.map((item) => {
             const isTaskItem = item.url === "/azienda/attivita";
+            const isEmailItem = item.url === "/azienda/email";
             const itemUrl =
               item.url === "/azienda/cruscotto"
                 ? (permissions.isLoading ? item.url : getSmartCruscottoPath(permissions, role))
                 : item.url;
-            const badgeCount = isTaskItem ? (taskCounts?.total ?? 0) : 0;
-            const badgeVariant = isTaskItem && taskCounts?.overdue ? "destructive" : isTaskItem && taskCounts?.dueToday ? "warning" : "secondary";
+
+            // Badge calcolato in modo coerente con la voce: tasks o email.
+            //   - Tasks: total con tono rosso se overdue, ambra se due today, altrimenti grigio.
+            //   - Email: unread con tono rosso se ci sono urgent (priorità alta), altrimenti grigio.
+            // Titolo tooltip arricchito per dare contesto al numero del badge.
+            const badgeCount = isTaskItem
+              ? (taskCounts?.total ?? 0)
+              : isEmailItem
+                ? (emailCounts?.unread ?? 0)
+                : 0;
+            const badgeVariant = isTaskItem
+              ? (taskCounts?.overdue ? "destructive" : taskCounts?.dueToday ? "warning" : "secondary")
+              : isEmailItem
+                ? ((emailCounts?.urgent ?? 0) > 0 ? "destructive" : "secondary")
+                : "secondary";
+            const showBadge = (isTaskItem || isEmailItem) && badgeCount > 0;
+            const tooltipExtra = isEmailItem && emailCounts
+              ? ` — ${emailCounts.unread} da leggere${emailCounts.urgent ? `, ${emailCounts.urgent} urgenti` : ""}`
+              : isTaskItem && taskCounts && taskCounts.total > 0
+                ? ` — ${taskCounts.total} attività${taskCounts.overdue ? ` (${taskCounts.overdue} scadute)` : ""}`
+                : "";
 
             return (
               <SidebarMenuItem key={item.url}>
-                <SidebarMenuButton asChild tooltip={item.title}>
+                <SidebarMenuButton asChild tooltip={`${item.title}${tooltipExtra}`}>
                   <NavLink
                     to={itemUrl}
                     end={itemUrl === "/azienda"}
@@ -664,7 +686,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                   >
                     <item.icon className="h-4 w-4" />
                     <span className="font-medium">{item.title}</span>
-                    {isTaskItem && badgeCount > 0 && (
+                    {showBadge && (
                       <Badge
                         variant={badgeVariant === "destructive" ? "destructive" : "secondary"}
                         className={cn(
@@ -672,7 +694,7 @@ function CruscottoNavItems({ filterNavItems }: { filterNavItems: (items: NavItem
                           badgeVariant === "warning" && "bg-warning/15 text-warning border-warning/30"
                         )}
                       >
-                        {badgeCount}
+                        {badgeCount > 99 ? "99+" : badgeCount}
                       </Badge>
                     )}
                   </NavLink>

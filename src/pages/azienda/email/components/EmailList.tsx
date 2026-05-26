@@ -456,7 +456,7 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
       ) : isEmpty ? (
         <ListEmptyState filter={filter} />
       ) : (
-        <div className="space-y-1 p-2">
+        <div className="space-y-0.5 p-1.5">
           <div className="flex items-center justify-between px-2 py-1 text-[11px] text-slate-500">
             <span>
               {totalCount !== null
@@ -534,29 +534,36 @@ function ThreadRowItem({
   const category = categoryLabel(thread.ai_category ?? predictiveCategory);
   const highPriority = isHighPriority(thread.ai_priority) || prediction.priority === "alta";
 
+  const hasBadgeRow =
+    highPriority ||
+    !!category ||
+    (!thread.ai_priority && prediction.priority === "media" && prediction.targets.length > 0) ||
+    thread.has_starred ||
+    thread.has_attachments;
+
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "group relative w-full rounded-2xl border px-3 py-3 text-left transition-all",
+        "group relative w-full rounded-xl border px-2.5 py-2 text-left transition-all",
         selected
           ? "border-blue-200 bg-blue-50 shadow-sm"
           : "border-transparent hover:border-blue-100 hover:bg-blue-50/50",
       )}
     >
-      <div className="flex min-w-0 items-start gap-3">
-        <span className={cn("mt-3 h-2 w-2 shrink-0 rounded-full", unread ? "bg-blue-500" : "bg-transparent")} />
+      <div className="flex min-w-0 items-start gap-2">
+        <span className={cn("mt-2 h-1.5 w-1.5 shrink-0 rounded-full", unread ? "bg-blue-500" : "bg-transparent")} />
         <div
           className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ring-2 ring-white shadow-sm",
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ring-2 ring-white shadow-sm",
             avatarColor(thread.last_from_email),
           )}
         >
           {avatarInitial(thread.last_from_name, thread.last_from_email)}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 leading-tight">
             <p className={cn("truncate text-sm text-slate-800", unread && "font-bold text-slate-950")}>
               {senderLabel}
             </p>
@@ -569,44 +576,46 @@ function ThreadRowItem({
               {formatRelTime(thread.last_received_at)}
             </span>
           </div>
-          <p className={cn("mt-0.5 truncate text-xs", unread ? "font-semibold text-slate-800" : "text-slate-600")}>
+          <p className={cn("truncate text-xs leading-snug", unread ? "font-semibold text-slate-800" : "text-slate-600")}>
             {subject}
           </p>
           {preview && (
-            <p className="mt-0.5 truncate text-[11px] text-slate-400">
+            <p className="truncate text-[11px] leading-snug text-slate-400">
               {preview}
             </p>
           )}
-          <div className="mt-2 flex items-center gap-1.5">
-            {highPriority && (
-              <Badge className="h-5 gap-1 rounded-full border border-orange-100 bg-orange-50 px-2 text-[9px] font-semibold text-orange-700 hover:bg-orange-50">
-                <AlertTriangle className="h-2.5 w-2.5" />
-                Priorità
-              </Badge>
-            )}
-            {category && (
-              <Badge
-                variant="outline"
-                title={thread.ai_category
-                  ? "Categoria salvata sulla email"
-                  : `Categoria predittiva senza AI (${Math.round(prediction.confidence * 100)}%): ${prediction.reasons.join(", ") || "pattern contenuto"}`}
-                className="h-5 rounded-full border-blue-100 bg-blue-50 px-2 text-[9px] font-semibold text-blue-700"
-              >
-                {thread.ai_category ? category : `Regole · ${category}`}
-              </Badge>
-            )}
-            {!thread.ai_priority && prediction.priority === "media" && prediction.targets.length > 0 && (
-              <Badge
-                variant="outline"
-                title={prediction.targets.map((target) => `${target.label} ${Math.round(target.confidence * 100)}%`).join(" · ")}
-                className="h-5 rounded-full border-emerald-100 bg-emerald-50 px-2 text-[9px] font-semibold text-emerald-700"
-              >
-                Riconcilia
-              </Badge>
-            )}
-            {thread.has_starred && <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />}
-            {thread.has_attachments && <Paperclip className="h-3.5 w-3.5 text-slate-400" />}
-          </div>
+          {hasBadgeRow && (
+            <div className="mt-1 flex items-center gap-1.5">
+              {highPriority && (
+                <Badge className="h-4 gap-1 rounded-full border border-orange-100 bg-orange-50 px-1.5 text-[9px] font-semibold text-orange-700 hover:bg-orange-50">
+                  <AlertTriangle className="h-2.5 w-2.5" />
+                  Priorità
+                </Badge>
+              )}
+              {category && (
+                <Badge
+                  variant="outline"
+                  title={thread.ai_category
+                    ? "Categoria salvata sulla email"
+                    : `Categoria predittiva senza AI (${Math.round(prediction.confidence * 100)}%): ${prediction.reasons.join(", ") || "pattern contenuto"}`}
+                  className="h-4 rounded-full border-blue-100 bg-blue-50 px-1.5 text-[9px] font-semibold text-blue-700"
+                >
+                  {thread.ai_category ? category : `Regole · ${category}`}
+                </Badge>
+              )}
+              {!thread.ai_priority && prediction.priority === "media" && prediction.targets.length > 0 && (
+                <Badge
+                  variant="outline"
+                  title={prediction.targets.map((target) => `${target.label} ${Math.round(target.confidence * 100)}%`).join(" · ")}
+                  className="h-4 rounded-full border-emerald-100 bg-emerald-50 px-1.5 text-[9px] font-semibold text-emerald-700"
+                >
+                  Riconcilia
+                </Badge>
+              )}
+              {thread.has_starred && <Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
+              {thread.has_attachments && <Paperclip className="h-3 w-3 text-slate-400" />}
+            </div>
+          )}
         </div>
       </div>
     </button>

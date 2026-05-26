@@ -157,9 +157,10 @@ async function pollGmail(
   sinceTimestamp: number,
 ): Promise<NormalizedEmail[]> {
   // Gmail query: recenti, non in spam/trash
+  // 2026-05-26: maxResults da 20 → 50 per supportare backfill iniziale dei 30 giorni.
   const qSince = Math.floor(sinceTimestamp / 1000); // Unix seconds
   const qParam = encodeURIComponent(`in:inbox after:${qSince}`);
-  const listRes = await fetch(`${GMAIL_API}/messages?q=${qParam}&maxResults=20`, {
+  const listRes = await fetch(`${GMAIL_API}/messages?q=${qParam}&maxResults=50`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!listRes.ok) throw new Error(`gmail_list_${listRes.status}`);
@@ -167,7 +168,7 @@ async function pollGmail(
   if (!listJson.messages || listJson.messages.length === 0) return [];
 
   const emails: NormalizedEmail[] = [];
-  for (const m of listJson.messages.slice(0, 20)) {
+  for (const m of listJson.messages.slice(0, 50)) {
     const msgRes = await fetch(`${GMAIL_API}/messages/${m.id}?format=full`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -243,7 +244,8 @@ async function pollOutlook(
   const params = new URLSearchParams({
     "$filter": `receivedDateTime gt ${sinceIso}`,
     "$orderby": "receivedDateTime desc",
-    "$top": "20",
+    // 2026-05-26: top da 20 → 50 per supportare backfill iniziale dei 30 giorni.
+    "$top": "50",
     "$select": "id,conversationId,subject,from,toRecipients,ccRecipients,bccRecipients,body,bodyPreview,receivedDateTime,internetMessageId,isRead,hasAttachments",
   });
   const url = `${GRAPH_API}/messages?${params.toString()}`;
