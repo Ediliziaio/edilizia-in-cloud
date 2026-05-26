@@ -722,12 +722,12 @@
 
   <!-- ── Dedicato a ─────────────────────────────────────────────── -->
   <url>
-    <loc>https://www.ediliziaincloud.com/per/imprese-costruzione/</loc>
-    <lastmod>2026-04-13</lastmod>
+    <loc>https://www.ediliziaincloud.com/per/imprese-edili/</loc>
+    <lastmod>2026-05-26</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/per/imprese-costruzione/"/>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/per/imprese-costruzione/"/>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/per/imprese-edili/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/per/imprese-edili/"/>
   </url>
   <url>
     <loc>https://www.ediliziaincloud.com/per/impiantisti/</loc>

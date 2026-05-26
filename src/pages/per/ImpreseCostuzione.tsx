@@ -5,7 +5,10 @@ const config: PerTipoConfig = {
   seoTitle: "Gestionale per Imprese di Costruzione",
   seoDescription: "Il gestionale per imprese di costruzione con AI: controlla margini reali su ogni commessa, gestisci SAL, subappaltatori e computi metrici.",
   seoKeywords: "gestionale impresa costruzione, software impresa edile, software general contractor, gestione appalti edili, software commesse costruzione, gestionale cantieri multipli, software margini costruzione, SAL software, ERP impresa costruzione italiana",
-  seoCanonical: "/per/imprese-costruzione",
+  // SEO fix 2026-05-26: canonical aggiornato a /per/imprese-edili/ (keyword più
+  // cercata + footer linka questa URL). Il vecchio /per/imprese-costruzione viene
+  // 301 redirettato in public/_redirects per evitare 404 su GSC.
+  seoCanonical: "/per/imprese-edili",
 
   badge: "Imprese di Costruzione & General Contractor",
 

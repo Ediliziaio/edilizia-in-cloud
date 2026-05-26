@@ -20,6 +20,20 @@
 # /register → /demo/ (alias legacy non gestito dal middleware)
 /register                              /demo/                                 301
 
+# ── GSC 404 fixes (2026-05-26) ──────────────────────────────────────────────
+# Search Console mostrava 404 ricorrenti su queste URL: dovuti a
+# (a) link rotto nel footer verso /per/imprese-edili/ mentre il route reale
+#     era /per/imprese-costruzione → ora il route /per/imprese-edili esiste
+#     ed è il canonical. Vecchia URL → 301 → nuova URL.
+# (b) bare path /per senza slug (Google ha provato a salire l'albero).
+# (c) /blog/categoria/ senza slug (il template richiede :slug).
+/per/imprese-costruzione               /per/imprese-edili/                    301
+/per/imprese-costruzione/              /per/imprese-edili/                    301
+/per                                   /per/imprese-edili/                    301
+/per/                                  /per/imprese-edili/                    301
+/blog/categoria                        /blog/                                 301
+/blog/categoria/                       /blog/                                 301
+
 # Legacy legal URLs → canonical legal URLs used in footer and sitemap
 /privacy    /privacy-policy/    301
 /termini    /termini-e-condizioni/    301

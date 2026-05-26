@@ -450,6 +450,8 @@ const App = () => (
               <Route path="/software-gestionale-edilizia" element={<CityHub />} />
               <Route path="/integrazioni" element={<Integrazioni />} />
               <Route path="/per/imprese-costruzione" element={<ImpreseCostuzione />} />
+              {/* SEO alias — il footer linka a /per/imprese-edili/ (keyword più cercata). */}
+              <Route path="/per/imprese-edili" element={<ImpreseCostuzione />} />
               <Route path="/per/impiantisti" element={<Impiantisti />} />
               <Route path="/per/ristrutturatori" element={<Ristrutturatori />} />
               <Route path="/per/fotovoltaico" element={<Fotovoltaico />} />
