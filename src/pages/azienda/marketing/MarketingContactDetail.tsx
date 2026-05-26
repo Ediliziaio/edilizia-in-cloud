@@ -478,112 +478,124 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </div>
         </div>
 
-        {/* ─── MOBILE COMPACT HEADER ─── */}
-        <div className="md:hidden px-3 py-2 space-y-2">
-          {/* Riga 1: back + nome + tier badge + nav */}
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate(`${routePrefix}/contatti`)}>
-              <ArrowLeft className="h-4 w-4" />
+        {/* ─── MOBILE — design pulito stile WhatsApp/Linear ─── */}
+        <div className="md:hidden">
+          {/* Riga 1: back + breadcrumb + nav contatti compact */}
+          <div className="flex items-center justify-between px-3 pt-2 pb-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={() => navigate(`${routePrefix}/contatti`)}>
+              <ArrowLeft className="h-5 w-5" />
             </Button>
-            <div className="relative shrink-0">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className={cn("text-xs font-bold text-white", getAvatarColor(fullName))}>{initials || "?"}</AvatarFallback>
-              </Avatar>
-              <span className={cn("absolute -bottom-0.5 -right-0.5 inline-flex items-center justify-center h-3.5 w-3.5 rounded-full text-[8px] font-bold ring-1 ring-background", tierColor)}>
-                {icpTier}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-sm font-bold leading-tight truncate">{fullName || "Senza nome"}</h1>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {contact.contact_type && (
-                  <span className="text-[9px] uppercase font-semibold text-muted-foreground tracking-wider">{contact.contact_type}</span>
-                )}
-                {aiScore != null && (
-                  <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[9px] h-3.5 px-1 gap-0.5">
-                    <Sparkles className="h-2 w-2" /> {aiScore}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center shrink-0">
-              <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!prevId} onClick={() => prevId && navigate(`${routePrefix}/contatti/${prevId}`)}>
-                <ChevronLeft className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-0.5">
+              {totalContacts > 0 && (
+                <span className="text-[11px] text-muted-foreground mr-1">{currentIdx >= 0 ? currentIdx + 1 : "?"}/{totalContacts}</span>
+              )}
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!prevId} onClick={() => prevId && navigate(`${routePrefix}/contatti/${prevId}`)}>
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!nextId} onClick={() => nextId && navigate(`${routePrefix}/contatti/${nextId}`)}>
-                <ChevronRight className="h-3.5 w-3.5" />
+              <Button variant="ghost" size="icon" className="h-8 w-8" disabled={!nextId} onClick={() => nextId && navigate(`${routePrefix}/contatti/${nextId}`)}>
+                <ChevronRight className="h-4 w-4" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                    <ChevronDown className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                    <span className="text-lg leading-none">⋯</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {canEditContacts && (
-                    <DropdownMenuItem onClick={() => setMergeOpen(true)}>
-                      <Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti
-                    </DropdownMenuItem>
-                  )}
-                  {canEditContacts && (
-                    <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive">
-                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto
-                    </DropdownMenuItem>
-                  )}
+                  {canEditContacts && <DropdownMenuItem onClick={() => setMergeOpen(true)}><Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti</DropdownMenuItem>}
+                  {canEditContacts && <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto</DropdownMenuItem>}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
 
-          {/* Riga 2: Quick action 4 bottoni grandi (touch target 44px) */}
-          <div className="grid grid-cols-4 gap-1.5">
-            {contact.phone ? (
-              <Button asChild size="icon" className="h-11 bg-emerald-500 hover:bg-emerald-600 text-white">
-                <a href={`tel:${contact.phone}`} aria-label="Chiama"><Phone className="h-4 w-4" /></a>
-              </Button>
-            ) : <Button size="icon" disabled className="h-11"><Phone className="h-4 w-4" /></Button>}
-            {contact.email ? (
-              <Button asChild size="icon" className="h-11 bg-violet-500 hover:bg-violet-600 text-white">
-                <a href={`mailto:${contact.email}`} aria-label="Email"><Mail className="h-4 w-4" /></a>
-              </Button>
-            ) : <Button size="icon" disabled className="h-11"><Mail className="h-4 w-4" /></Button>}
-            <Button size="icon" className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMessageChannel("whatsapp")} disabled={!contact.phone} aria-label="WhatsApp">
-              <MessageSquare className="h-4 w-4" />
-            </Button>
-            <Button size="icon" variant="outline" className="h-11" aria-label="Appuntamento">
-              <CalendarDays className="h-4 w-4" />
-            </Button>
+          {/* Identity card — avatar + nome BIG + badges + email/phone clickable */}
+          <div className="px-4 pb-3 flex items-center gap-3">
+            <div className="relative shrink-0">
+              <Avatar className="h-14 w-14 ring-2 ring-background shadow-sm">
+                <AvatarFallback className={cn("text-base font-bold text-white", getAvatarColor(fullName))}>{initials || "?"}</AvatarFallback>
+              </Avatar>
+              <span className={cn("absolute -bottom-1 -right-1 inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold ring-2 ring-background", tierColor)}>
+                {icpTier}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base font-bold leading-tight truncate">{fullName || "Senza nome"}</h1>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {contact.contact_type && (
+                  <Badge variant="secondary" className="text-[9px] h-4 px-1.5 capitalize">{contact.contact_type}</Badge>
+                )}
+                {aiScore != null && (
+                  <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[9px] h-4 px-1.5 gap-0.5">
+                    <Sparkles className="h-2.5 w-2.5" /> {aiScore}
+                  </Badge>
+                )}
+                <span className="text-[10px] text-muted-foreground">·</span>
+                <span className="text-[10px] text-muted-foreground">{lastActivityLabel}</span>
+              </div>
+            </div>
           </div>
 
-          {/* Riga 3: KPI horizontal scroll (no più grid 2x2 che mangia spazio) */}
-          <div className="flex gap-2 overflow-x-auto -mx-3 px-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="rounded-lg border bg-card px-2.5 py-1.5 min-w-[110px] shrink-0">
-              <div className="flex items-center gap-1">
-                <Star className="h-2.5 w-2.5 text-amber-500" />
-                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Lead</span>
-              </div>
-              <p className="text-base font-bold tabular-nums leading-tight">{leadScore}<span className="text-[9px] text-muted-foreground font-normal">/100</span></p>
+          {/* Quick action bar — 4 bottoni FULL equal-width senza disabled */}
+          <div className="px-3 pb-2 grid grid-cols-4 gap-2">
+            <a
+              href={contact.phone ? `tel:${contact.phone}` : undefined}
+              className={cn(
+                "h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-active",
+                contact.phone ? "bg-emerald-500 text-white active:bg-emerald-600" : "bg-muted text-muted-foreground/40 pointer-events-none",
+              )}
+            >
+              <Phone className="h-4 w-4" />
+              <span className="text-[9px] font-medium">Chiama</span>
+            </a>
+            <a
+              href={contact.email ? `mailto:${contact.email}` : undefined}
+              className={cn(
+                "h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-active",
+                contact.email ? "bg-violet-500 text-white active:bg-violet-600" : "bg-muted text-muted-foreground/40 pointer-events-none",
+              )}
+            >
+              <Mail className="h-4 w-4" />
+              <span className="text-[9px] font-medium">Email</span>
+            </a>
+            <button
+              type="button"
+              onClick={() => contact.phone && setMessageChannel("whatsapp")}
+              disabled={!contact.phone}
+              className={cn(
+                "h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-active",
+                contact.phone ? "bg-emerald-600 text-white active:bg-emerald-700" : "bg-muted text-muted-foreground/40",
+              )}
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span className="text-[9px] font-medium">WhatsApp</span>
+            </button>
+            <button
+              type="button"
+              className="h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 bg-amber-100 text-amber-900 active:bg-amber-200"
+            >
+              <CalendarDays className="h-4 w-4" />
+              <span className="text-[9px] font-medium">Appunt.</span>
+            </button>
+          </div>
+
+          {/* KPI strip compatto — 4 inline equal width (no scroll = layout stabile) */}
+          <div className="px-3 pb-2 grid grid-cols-4 gap-1.5">
+            <div className="rounded-lg bg-amber-50 border border-amber-100 px-2 py-1.5 text-center">
+              <p className="text-[8px] text-amber-700 uppercase font-semibold leading-none">Score</p>
+              <p className="text-sm font-bold tabular-nums leading-tight text-amber-900 mt-0.5">{leadScore}</p>
             </div>
-            <div className="rounded-lg border bg-card px-2.5 py-1.5 min-w-[110px] shrink-0">
-              <div className="flex items-center gap-1">
-                <span className="text-emerald-600 text-[10px]">●</span>
-                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Opp. aperte</span>
-              </div>
-              <p className="text-base font-bold tabular-nums leading-tight">{kpis?.openOppsCount ?? 0}<span className="text-[9px] text-muted-foreground font-normal">/{kpis?.totalOpps ?? 0}</span></p>
+            <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1.5 text-center">
+              <p className="text-[8px] text-emerald-700 uppercase font-semibold leading-none">Opp.</p>
+              <p className="text-sm font-bold tabular-nums leading-tight text-emerald-900 mt-0.5">{kpis?.openOppsCount ?? 0}<span className="text-[9px] font-normal opacity-70">/{kpis?.totalOpps ?? 0}</span></p>
             </div>
-            <div className="rounded-lg border bg-card px-2.5 py-1.5 min-w-[120px] shrink-0">
-              <div className="flex items-center gap-1">
-                <CalendarDays className="h-2.5 w-2.5 text-blue-500" />
-                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Appunt.</span>
-              </div>
-              <p className="text-base font-bold tabular-nums leading-tight">{kpis?.apptsCount ?? 0}</p>
+            <div className="rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 text-center">
+              <p className="text-[8px] text-blue-700 uppercase font-semibold leading-none">Appunt.</p>
+              <p className="text-sm font-bold tabular-nums leading-tight text-blue-900 mt-0.5">{kpis?.apptsCount ?? 0}</p>
             </div>
-            <div className="rounded-lg border bg-card px-2.5 py-1.5 min-w-[140px] shrink-0">
-              <div className="flex items-center gap-1">
-                <Bell className="h-2.5 w-2.5 text-rose-500" />
-                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Ultima</span>
-              </div>
-              <p className="text-xs font-bold leading-tight">{lastActivityLabel}</p>
+            <div className="rounded-lg bg-rose-50 border border-rose-100 px-2 py-1.5 text-center">
+              <p className="text-[8px] text-rose-700 uppercase font-semibold leading-none">Attività</p>
+              <p className="text-sm font-bold tabular-nums leading-tight text-rose-900 mt-0.5">{activities.length}</p>
             </div>
           </div>
         </div>
