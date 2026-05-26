@@ -38,13 +38,17 @@ export interface SearchQuery {
   after?: string;  // ISO date
 }
 
+// 2026-05-26 (audit fix P1-14): la regex con flag /g mantiene `lastIndex`
+// tra invocazioni. Usata come singleton di modulo + exec() in loop, dopo la
+// prima chiamata lastIndex resta avanzato → le successive con stringhe più
+// corte saltavano match all'inizio (operator persi sulla seconda search).
+// Soluzione: matchAll() che non condivide stato e itera in modo sicuro.
 const OPERATOR_RE = /(from|to|subject|has|is|before|after):(\S+)/g;
 
 function parseSearchQuery(raw: string): SearchQuery {
   const q: SearchQuery = { raw };
   let textPart = raw;
-  let m;
-  while ((m = OPERATOR_RE.exec(raw)) !== null) {
+  for (const m of raw.matchAll(OPERATOR_RE)) {
     const [, op, val] = m;
     textPart = textPart.replace(m[0], "").trim();
     switch (op) {

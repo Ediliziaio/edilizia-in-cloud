@@ -150,9 +150,23 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset state quando cambia context
+  // 2026-05-26 (audit fix P1-8): reset state SOLO quando cambia l'identità
+  // logica del context, non quando `initial` viene ricreato per re-render del
+  // parent. Prima: ogni re-render di EmailLayout (es. da realtime invalidation)
+  // ricreava `composeContext` → `initial` cambiava identità → effect resettava
+  // i campi → l'utente perdeva la bozza che stava scrivendo.
+  // Ora tracciamo con useRef la "chiave" dell'ultima inizializzazione e
+  // resettiamo solo se è davvero un nuovo compose (mode/source.id diversi).
+  const initKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      // Dialog chiuso → resetta la sentinel così la prossima apertura ripopola.
+      initKeyRef.current = null;
+      return;
+    }
+    const key = `${context.mode}::${context.source?.id ?? ""}::${context.source?.thread_id ?? ""}::${(context.initialTo ?? []).join("|")}::${context.initialSubject ?? ""}`;
+    if (initKeyRef.current === key) return; // già inizializzato per questo context
+    initKeyRef.current = key;
     setTo(initial.to);
     setCc(initial.cc);
     setBcc(initial.bcc);
@@ -166,7 +180,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     setShowCcBcc(initial.cc.length > 0 || initial.bcc.length > 0);
     setOutboxId(null);
     setAttachments([]);
-  }, [open, initial]);
+  }, [open, context, initial]);
 
   // Upload allegati: storage path = <user_id>/<outbox_id|tmp>/<uuid>-<filename>
   const handleFileUpload = async (files: FileList | null) => {
@@ -295,11 +309,17 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   });
 
   // Debounce auto-save
+  // 2026-05-26 (audit fix P1-9): aspetta che accountId sia popolato prima di
+  // salvare. Prima: il debounce partiva subito → poteva inserire bozza con
+  // oauth_connection_id=null → bozza "orfana" non inviabile da Bozze.
   const debounceTimerRef = useRef<number | null>(null);
   useEffect(() => {
     if (!open) return;
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     if (!to && !subject && !bodyText && !bodyHtml && attachments.length === 0) return; // niente da salvare
+    // Non salvare bozze senza account mittente: lascerebbe orphan row in
+    // email_outbox non recuperabile per l'invio. Aspettiamo il prossimo trigger.
+    if (!accountId) return;
     debounceTimerRef.current = window.setTimeout(() => {
       saveDraft.mutate();
     }, 5000);

@@ -318,13 +318,15 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
   });
 
   const archiveAll = useMutation({
+    // 2026-05-26 (audit fix P1-10): chiamate parallele invece di seriali.
+    // Thread con 20 messaggi prima impiegava 20 × ~150ms = 3s. Ora ~150ms tot.
     mutationFn: async () => {
       if (!messages) return;
-      for (const m of messages) {
-        await supabase.rpc("email_inbox_toggle_flag", {
+      await Promise.allSettled(
+        messages.map((m) => supabase.rpc("email_inbox_toggle_flag", {
           p_email_id: m.id, p_flag: "archived", p_value: true,
-        });
-      }
+        })),
+      );
     },
     onSuccess: () => {
       toast.success("Conversazione archiviata");
@@ -423,13 +425,14 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
   });
 
   const trashAll = useMutation({
+    // 2026-05-26 (audit fix P1-10): chiamate parallele come archiveAll.
     mutationFn: async () => {
       if (!messages) return;
-      for (const m of messages) {
-        await supabase.rpc("email_inbox_toggle_flag", {
+      await Promise.allSettled(
+        messages.map((m) => supabase.rpc("email_inbox_toggle_flag", {
           p_email_id: m.id, p_flag: "trashed", p_value: true,
-        });
-      }
+        })),
+      );
     },
     onSuccess: () => {
       toast.success("Spostato nel cestino");

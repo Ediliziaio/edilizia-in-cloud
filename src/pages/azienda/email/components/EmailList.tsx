@@ -10,6 +10,7 @@
  *
  * Mostra empty states diversi per cartella (Inbox vuoto vs Sent vuoto).
  */
+import { useMemo } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { format, isToday, isYesterday } from "date-fns";
 import { it } from "date-fns/locale";
@@ -396,6 +397,23 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
   const userId = user?.id;
   const scopeKey = scopedAccountIds?.join("|") ?? "all";
 
+  // 2026-05-26 (audit fix P1-7): queryKey deve essere stabile su identità.
+  // Prima passavamo `filter` come oggetto → ogni render del parent creava una
+  // nuova identità → React Query trattava ogni render come query diversa →
+  // refetch a cascata + cache miss anche quando l'utente faceva avanti/indietro
+  // tra categorie. Serializzando in una stringa canonica risolviamo entrambi.
+  const filterKey = useMemo(() => {
+    return JSON.stringify({
+      folderType: filter.folder.type,
+      folderKey: filter.folder.type === "system" ? filter.folder.key : null,
+      folderId: filter.folder.type === "folder" ? filter.folder.folderId : null,
+      labelId: filter.folder.type === "label" ? filter.folder.labelId : null,
+      accountId: filter.accountId ?? null,
+      category: filter.category ?? null,
+      search: filter.search?.raw ?? null,
+    });
+  }, [filter]);
+
   const {
     data,
     isLoading,
@@ -407,7 +425,7 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
     isFetching,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ["email-threads", userId, filter, scopeKey],
+    queryKey: ["email-threads", userId, filterKey, scopeKey],
     enabled: !!userId,
     initialPageParam: 0,
     staleTime: 20_000,

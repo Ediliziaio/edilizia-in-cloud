@@ -346,17 +346,24 @@ async function storePersonalEmail(
     throw new Error("connection_missing_owner");
   }
 
+  // 2026-05-26 (audit fix P0-1, P0-2):
+  // BUG: il payload precedente forzava is_archived=false, is_trashed=false e
+  // is_read=email.is_read su OGNI UPDATE → email archiviate/cestinate
+  // dall'utente "ritornavano in inbox" al prossimo sync e l'is_read locale
+  // veniva sovrascritto.
+  // FIX: leggere lo stato locale e su UPDATE preservare i flag utente.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const existing = await (supa as any)
     .from("email_inbox")
-    .select("id, ai_category, status")
+    .select("id, ai_category, status, is_read, is_archived, is_trashed, is_starred")
     .eq("company_id", conn.company_id)
     .eq("user_id", conn.user_id)
     .eq("message_id", email.message_id)
     .maybeSingle();
   if (existing.error) throw existing.error;
 
-  const payload = {
+  // Base payload — solo metadata provider-side (mai locale).
+  const basePayload = {
     company_id: conn.company_id,
     user_id: conn.user_id,
     oauth_connection_id: conn.id,
@@ -376,15 +383,24 @@ async function storePersonalEmail(
     raw_text: email.text,
     raw_html: email.html,
     attachments: email.attachments ?? [],
-    is_read: !!email.is_read,
-    is_archived: false,
-    is_trashed: false,
   };
 
   if (existing.data?.id) {
+    // UPDATE: aggiorna SOLO i campi provider, preserva i flag utente (is_archived,
+    // is_trashed, is_starred). Per is_read scegliamo la posizione conservativa:
+    // se l'utente ha già letto in EiC (is_read=true locale) → resta true anche
+    // se Gmail lo torna a unread; viceversa se Gmail dice read e locale dice
+    // unread, aggiorniamo (l'utente ha letto su mobile).
+    const preserveIsRead = existing.data.is_read === true ? true : !!email.is_read;
+    const updatePayload = {
+      ...basePayload,
+      is_read: preserveIsRead,
+      // is_archived / is_trashed / is_starred: NON tocchiamo, il valore locale
+      // viene preservato perché non li includiamo nel payload UPDATE.
+    };
     const { error } = await supa
       .from("email_inbox")
-      .update(payload)
+      .update(updatePayload)
       .eq("id", existing.data.id);
     if (error) throw error;
     const needsTriage =
@@ -394,8 +410,12 @@ async function storePersonalEmail(
     return { stored: false, id: existing.data.id, needsTriage };
   }
 
+  // INSERT: nuova email — flag inizializzati dal provider o default.
   const insertPayload = {
-    ...payload,
+    ...basePayload,
+    is_read: !!email.is_read,
+    is_archived: false,
+    is_trashed: false,
     status: "new",
     ai_category: "pending",
     ai_priority: "nessuna",
