@@ -527,9 +527,9 @@ export default function CompanyLifecycle() {
       {/* KPI */}
       <LifecycleKPIs healthScores={healthScores} loading={isLoading} />
 
-      {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center flex-wrap">
-        <div className="relative flex-1 max-w-sm min-w-[200px]">
+      {/* Toolbar — mobile: stack full-width, sm+: inline */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+        <div className="relative w-full sm:flex-1 sm:max-w-sm sm:min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Cerca azienda o settore…"
@@ -547,30 +547,32 @@ export default function CompanyLifecycle() {
             </button>
           )}
         </div>
-        <Select value={healthFilter} onValueChange={(v) => setHealthFilter(v as HealthFilter)}>
-          <SelectTrigger className="w-[160px]">
-            <Heart className="h-4 w-4 mr-1 inline" />
-            <SelectValue placeholder="Health" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Ogni health</SelectItem>
-            <SelectItem value="healthy">💚 Healthy</SelectItem>
-            <SelectItem value="at_risk">🟡 At risk</SelectItem>
-            <SelectItem value="critical">🔴 Critical</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
-          <SelectTrigger className="w-[200px]">
-            <TrendingUp className="h-4 w-4 mr-1 inline" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="score_asc">Score crescente (peggio in alto)</SelectItem>
-            <SelectItem value="score_desc">Score decrescente</SelectItem>
-            <SelectItem value="daysLeft">Giorni trial rimanenti</SelectItem>
-            <SelectItem value="name">Nome A→Z</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="grid grid-cols-2 gap-2 sm:contents">
+          <Select value={healthFilter} onValueChange={(v) => setHealthFilter(v as HealthFilter)}>
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <Heart className="h-4 w-4 mr-1 inline" />
+              <SelectValue placeholder="Health" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Ogni health</SelectItem>
+              <SelectItem value="healthy">💚 Healthy</SelectItem>
+              <SelectItem value="at_risk">🟡 At risk</SelectItem>
+              <SelectItem value="critical">🔴 Critical</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <TrendingUp className="h-4 w-4 mr-1 inline" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="score_asc">Score crescente (peggio in alto)</SelectItem>
+              <SelectItem value="score_desc">Score decrescente</SelectItem>
+              <SelectItem value="daysLeft">Giorni trial rimanenti</SelectItem>
+              <SelectItem value="name">Nome A→Z</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         {hasFilters && (
           <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => {
             setSearch(""); setHealthFilter("all");
@@ -586,7 +588,8 @@ export default function CompanyLifecycle() {
         </div>
       ) : (
         <Tabs defaultValue="trial">
-          <TabsList className="h-auto flex-wrap justify-start">
+          {/* Su mobile: scroll orizzontale (no wrap caotico). Su sm+: wrap normale */}
+          <TabsList className="h-auto justify-start overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
             <TabsTrigger value="trial">
               Trial attivi
               <span className="ml-1.5 rounded bg-muted-foreground/15 px-1.5 text-[10px]">
