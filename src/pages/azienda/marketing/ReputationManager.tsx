@@ -45,6 +45,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Integration } from "@/types/integrations";
+import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 
 type ReputationTab = "dashboard" | "richieste" | "recensioni" | "automazioni" | "integrazioni";
 type ReviewSource = "Google" | "Facebook" | "Sito" | "Manuale";
@@ -1841,7 +1842,13 @@ export default function ReputationManager() {
           </Alert>
 
           <div className="grid gap-4 md:grid-cols-3">
-            {reputationSources.map((source) => {
+            {/* Google Business Profile — card dedicata con OAuth reale */}
+            <GbpConnectionCard />
+
+            {/* Altre fonti (Facebook + sito) — card placeholder generiche */}
+            {reputationSources
+              .filter((source) => source.name !== "Google Business Profile")
+              .map((source) => {
               const Icon = source.icon;
               return (
                 <Card key={source.name} className={cn("border-l-4", source.connected ? "border-l-emerald-500" : "border-l-slate-300")}>
