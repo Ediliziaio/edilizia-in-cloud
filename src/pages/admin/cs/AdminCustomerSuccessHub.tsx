@@ -19,6 +19,7 @@ import {
   ListChecks,
   BookOpen,
   HeartHandshake,
+  Brain,
 } from "lucide-react";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,10 +31,12 @@ const GlobalTickets = lazy(() => import("@/pages/admin/GlobalTickets"));
 const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
 const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 const PlaybooksPage = lazy(() => import("@/pages/admin/PlaybooksPage"));
+// Cockpit Customer OS — daily brief + at-risk + upsell + action queue
+const CockpitTab = lazy(() => import("./CockpitTab").then((m) => ({ default: m.CockpitTab })));
 
-type CSTab = "dashboard" | "assistenza" | "lifecycle" | "onboarding" | "playbook";
+type CSTab = "cockpit" | "dashboard" | "assistenza" | "lifecycle" | "onboarding" | "playbook";
 
-const VALID_TABS: readonly CSTab[] = ["dashboard", "assistenza", "lifecycle", "onboarding", "playbook"];
+const VALID_TABS: readonly CSTab[] = ["cockpit", "dashboard", "assistenza", "lifecycle", "onboarding", "playbook"];
 
 function isValidTab(value: string | null): value is CSTab {
   return value != null && (VALID_TABS as readonly string[]).includes(value);
@@ -44,9 +47,16 @@ export default function AdminCustomerSuccessHub() {
   const { permissions } = useSuperAdminPermissions();
 
   const tabParam = searchParams.get("tab");
-  const requestedTab: CSTab = isValidTab(tabParam) ? tabParam : "dashboard";
+  const requestedTab: CSTab = isValidTab(tabParam) ? tabParam : "cockpit";
 
   const tabs = [
+    {
+      id: "cockpit" as const,
+      label: "Cockpit AI",
+      icon: Brain,
+      show: permissions.can_manage_companies,
+      description: "Daily brief + at-risk + upsell + action queue (Customer OS)",
+    },
     {
       id: "dashboard" as const,
       label: "Dashboard",
@@ -86,13 +96,14 @@ export default function AdminCustomerSuccessHub() {
 
   const activeTab: CSTab = tabs.some((t) => t.id === requestedTab)
     ? requestedTab
-    : (tabs[0]?.id ?? "dashboard");
+    : (tabs[0]?.id ?? "cockpit");
 
   const handleTabChange = (tab: CSTab) => {
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
-        if (tab === "dashboard") next.delete("tab");
+        // Cockpit è il default → no ?tab= in URL per pulizia
+        if (tab === "cockpit") next.delete("tab");
         else next.set("tab", tab);
         return next;
       },
@@ -119,6 +130,7 @@ export default function AdminCustomerSuccessHub() {
 
       {/* ─── Tab content ────────────────────────────────────────────────── */}
       <Suspense fallback={<HubTabSkeleton />}>
+        {activeTab === "cockpit" && <CockpitTab />}
         {activeTab === "dashboard" && <AdminCSDashboard />}
         {activeTab === "assistenza" && <GlobalTickets />}
         {activeTab === "lifecycle" && <CompanyLifecycle />}

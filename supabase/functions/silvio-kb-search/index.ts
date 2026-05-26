@@ -1,15 +1,22 @@
 /**
  * silvio-kb-search — Search semantica nella KB di Silvio Admin.
  *
- * Body: { query: string, persona_key?: string, kb_sections?: string[], top_k?: number }
+ * Body: {
+ *   query: string,
+ *   persona_key?: string,
+ *   kb_sections?: string[],
+ *   top_k?: number,
+ *   company_id?: string,   // se passato → applica override aziendali (search_v2)
+ *   session_id?: string,   // per audit log citation
+ * }
  *
  * Flusso:
  *   1. Embedda la query via OpenAI text-embedding-3-small
- *   2. Vector search (top_k * 3 candidati) via search_silvio_knowledge RPC
- *   3. [opzionale] Rerank via Cohere rerank-3.5 → riordina per relevanza semantica
- *      (fallback al solo vector se COHERE_API_KEY assente o errore)
- *   4. Ritorna top_k chunks finali con citation pre-formattata
- *   5. Track usage (hits_count++) async
+ *   2. Vector search via `search_silvio_knowledge_v2` (con override azienda
+ *      se company_id presente) o fallback `search_silvio_knowledge` (v1)
+ *   3. [opzionale] Rerank via Cohere → riordina per relevanza semantica
+ *   4. Ritorna top_k chunks (SENZA citation visibile — Decisione 2)
+ *   5. `log_kb_citation` → audit interno chunk + override usati
  *
  * Auth: super_admin O service_role (chiamato da silvio-admin-chat).
  */
@@ -55,7 +62,18 @@ Deno.serve(async (req) => {
     const kbSections: string[] | null = body.kb_sections ?? null;
     const topK: number = Math.min(Math.max(body.top_k ?? 6, 1), 12);
     const minSimilarity: number = body.min_similarity ?? 0.30;
-    const useRerank: boolean = body.rerank !== false; // default true se COHERE_API_KEY presente
+    const companyId: string | null = body.company_id ?? null;
+    const sessionId: string | null = body.session_id ?? null;
+
+    // OTTIMIZZAZIONE adaptive rerank:
+    //  - default ON solo se la query "sembra strategica" (lunga + parole chiave)
+    //  - skip rerank per query operative corte → -300ms per messaggio
+    //  - override esplicito via body.rerank (true|false) ha precedenza
+    const STRATEGIC_RX =
+      /\b(strategi[ao]|analisi|valutar?e?|conviene|meglio|rischio|decisione|framework|priorit[aà]|investimento|trade.?off|scegliere|confronto|benchmark|metric[ae])\b/i;
+    const looksStrategic = query.length > 40 || STRATEGIC_RX.test(query);
+    const useRerank: boolean =
+      typeof body.rerank === "boolean" ? body.rerank : looksStrategic;
 
     if (query.trim().length < 3) {
       return jsonRes({ error: "Query troppo corta (min 3 char)" }, 400);
@@ -71,14 +89,31 @@ Deno.serve(async (req) => {
     const willRerank = useRerank && !!cohereKey;
     const candidatePool = willRerank ? Math.min(topK * 3, 30) : topK;
 
+    // V2 se presente (supporta override aziendali + kb_priority filter)
+    // V1 come fallback se v2 non disponibile (deploy graduale)
     const tVec = Date.now();
-    const { data: results, error } = await supabase.rpc("search_silvio_knowledge", {
+    let { data: results, error } = await supabase.rpc("search_silvio_knowledge_v2", {
       p_query_embedding: embedding,
       p_top_k: candidatePool,
       p_min_similarity: minSimilarity,
       p_persona_key: personaKey,
       p_kb_sections: kbSections,
+      p_company_id: companyId,
     });
+
+    // Fallback v1 se v2 non esiste
+    if (error && /function .* does not exist/i.test(error.message ?? "")) {
+      console.warn("[silvio-kb-search] v2 unavailable, falling back to v1");
+      const v1 = await supabase.rpc("search_silvio_knowledge", {
+        p_query_embedding: embedding,
+        p_top_k: candidatePool,
+        p_min_similarity: minSimilarity,
+        p_persona_key: personaKey,
+        p_kb_sections: kbSections,
+      });
+      results = v1.data;
+      error = v1.error;
+    }
     const vectorMs = Date.now() - tVec;
 
     if (error) {
@@ -86,14 +121,19 @@ Deno.serve(async (req) => {
     }
 
     let chunks = (results ?? []) as Array<{
+      result_type?: string;
       doc_id: string;
       chunk_id: string;
       title: string;
       content: string;
       kb_section: string;
       kb_subsection: string;
+      kb_priority?: string;
+      kb_source_book?: string;
       persona_keys: string[];
       similarity: number;
+      override_id?: string;
+      override_rationale?: string;
       rerank_score?: number;
     }>;
 
@@ -117,10 +157,37 @@ Deno.serve(async (req) => {
       chunks = chunks.slice(0, topK);
     }
 
-    // 4. Track citation (fire-and-forget)
+    // 4. Audit log (fire-and-forget) — Decisione 2: niente citation visibile,
+    //    ma tracciamo internamente cosa ha alimentato la risposta.
     if (chunks.length > 0) {
-      const docIds = chunks.map((c) => c.doc_id);
-      void supabase.rpc("silvio_kb_track_citation", { p_doc_ids: docIds });
+      const docIds = chunks
+        .filter((c) => c.result_type !== "company_override")
+        .map((c) => c.doc_id)
+        .filter(Boolean);
+      const overrideIds = chunks
+        .filter((c) => c.result_type === "company_override" && c.override_id)
+        .map((c) => c.override_id!)
+        .filter(Boolean);
+      const sims = chunks.map((c) => Number(c.similarity) || 0);
+
+      // Nuovo: log_kb_citation (v2) con audit completo
+      void supabase
+        .rpc("log_kb_citation", {
+          p_session_id: sessionId,
+          p_persona_key: personaKey,
+          p_company_id: companyId,
+          p_user_query: query.slice(0, 500),
+          p_doc_ids: docIds,
+          p_override_ids: overrideIds,
+          p_similarity_scores: sims,
+          p_used_in_response: true,
+        })
+        .then((res) => {
+          // Fallback al tracker v1 se la nuova RPC non esiste
+          if (res.error && /function .* does not exist/i.test(res.error.message ?? "")) {
+            void supabase.rpc("silvio_kb_track_citation", { p_doc_ids: docIds });
+          }
+        });
     }
 
     return jsonRes({
@@ -128,6 +195,7 @@ Deno.serve(async (req) => {
       query,
       persona_key: personaKey,
       kb_sections: kbSections,
+      company_id: companyId,
       embed_ms: embedMs,
       vector_ms: vectorMs,
       rerank_ms: rerankMs,
@@ -135,6 +203,7 @@ Deno.serve(async (req) => {
       candidates_fetched: results?.length ?? 0,
       total_ms: Date.now() - t0,
       results: chunks.map((c) => ({
+        result_type: c.result_type ?? "kb_chunk",
         doc_id: c.doc_id,
         chunk_id: c.chunk_id,
         title: c.title,
@@ -142,10 +211,14 @@ Deno.serve(async (req) => {
         content: c.content.slice(0, 800),
         kb_section: c.kb_section,
         kb_subsection: c.kb_subsection,
+        kb_priority: c.kb_priority,
+        kb_source_book: c.kb_source_book,
         persona_keys: c.persona_keys,
         similarity: Number(c.similarity),
         rerank_score: c.rerank_score,
-        citation: `[fonte: §${c.kb_section}.${c.kb_subsection} — ${c.title}]`,
+        // ⚠️ DECISIONE 2: nessuna `citation` field nel response payload.
+        // Silvio integra il contenuto nella sua voce nativa senza citare.
+        override_rationale: c.override_rationale,
       })),
     });
   } catch (e) {

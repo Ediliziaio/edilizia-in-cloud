@@ -48,7 +48,7 @@ async function getCompanyByStripeCustomer(
 ) {
   const { data } = await supabase
     .from("companies")
-    .select("id, status")
+    .select("id, status, stripe_subscription_status")
     .eq("stripe_customer_id", stripeCustomerId)
     .maybeSingle();
   return data;
@@ -512,6 +512,30 @@ async function handleInvoicePaymentFailed(
       console.error("[stripe-webhook] Failed to trigger process-dunning:", (e as Error).message)
     );
   }
+
+  // ─── CUSTOMER OS — enqueue Beatrice CFO alert ────────────────────────────
+  // Fire-and-forget: Beatrice prepara una bozza interna a Florin con contesto
+  // cliente, urgenza (failure count), prossima azione consigliata.
+  // Skip silenzioso se la RPC enqueue_customer_workflow non è ancora deployata.
+  try {
+    await supabase.rpc("enqueue_customer_workflow", {
+      p_workflow_key: "cfo.payment_failed_alert",
+      p_company_id: company.id,
+      p_payload: {
+        invoice_id: invoice.id,
+        amount_due: invoice.amount_due ?? 0,
+        failure_count: failureCount,
+        dunning_status: dunningStatus,
+        triggered_at: new Date().toISOString(),
+      },
+    });
+  } catch (e) {
+    // RPC non esiste ancora oppure errore non bloccante
+    const msg = (e as Error).message ?? "";
+    if (!/function .* does not exist/i.test(msg)) {
+      console.warn("[stripe-webhook] enqueue cfo.payment_failed_alert failed:", msg);
+    }
+  }
 }
 
 async function handleSubscriptionDeleted(
@@ -554,6 +578,9 @@ async function handleSubscriptionUpdated(
   if (!company) return;
 
   const stripeStatus = subscription.status; // active, past_due, canceled, unpaid, etc.
+  const previousStatus = (company as { stripe_subscription_status?: string })
+    .stripe_subscription_status;
+
   await supabase
     .from("companies")
     .update({ stripe_subscription_status: stripeStatus })
@@ -569,6 +596,31 @@ async function handleSubscriptionUpdated(
         current_period_end: period.end,
       })
       .eq("company_id", company.id);
+  }
+
+  // ─── CUSTOMER OS — Sofia onboarding kickoff su PRIMA attivazione ────────
+  // Trigger SOLO se il vecchio status NON era active (transizione null→active
+  // o trial→active, NON re-attivazioni dopo past_due).
+  const isFirstActivation =
+    stripeStatus === "active" &&
+    (!previousStatus || previousStatus === "trialing" || previousStatus === "incomplete");
+  if (isFirstActivation) {
+    try {
+      await supabase.rpc("enqueue_customer_workflow", {
+        p_workflow_key: "onboarding.kickoff_email",
+        p_company_id: company.id,
+        p_payload: {
+          stripe_subscription_id: subscription.id,
+          previous_status: previousStatus ?? null,
+          triggered_at: new Date().toISOString(),
+        },
+      });
+    } catch (e) {
+      const msg = (e as Error).message ?? "";
+      if (!/function .* does not exist/i.test(msg)) {
+        console.warn("[stripe-webhook] enqueue onboarding.kickoff_email failed:", msg);
+      }
+    }
   }
 }
 
