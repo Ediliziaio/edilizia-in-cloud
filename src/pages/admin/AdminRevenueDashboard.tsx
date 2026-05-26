@@ -762,7 +762,7 @@ export default function AdminRevenueDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex-wrap h-auto">
+        <TabsList className="h-auto overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
           <TabsTrigger value="revenue" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Revenue

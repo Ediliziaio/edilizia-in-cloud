@@ -40,7 +40,8 @@ export default function SilvioAdminHub() {
       </div>
 
       <Tabs defaultValue="approvals" className="space-y-4">
-        <TabsList className="h-auto flex-wrap justify-start">
+        {/* Scroll-x su mobile (8+ tab), wrap su sm+ */}
+        <TabsList className="h-auto justify-start overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
           <TabsTrigger value="approvals" className="gap-2">
             <Inbox className="h-4 w-4" />
             Approvazioni

@@ -369,7 +369,7 @@ export default function ReferralDashboard() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-muted/60 p-1">
+        <TabsList className="flex h-auto justify-start gap-1 bg-muted/60 p-1 overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
           <TabsTrigger value="regia">
             <Compass className="h-4 w-4 mr-2" /> Regia
           </TabsTrigger>
