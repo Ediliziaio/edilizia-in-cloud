@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useURLFilters } from "@/hooks/useURLFilters";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Loader2, Target, Search, Filter, ArrowUpDown, LayoutGrid, List, Upload, MoreHorizontal, Settings2, Trash2, Pencil, Download, Check, X, Minimize2, Maximize2, AlertTriangle, RefreshCw } from "lucide-react";
 import { CardCustomizeSheet } from "@/components/opportunities/CardCustomizeSheet";
 import { useCardFieldPreferences, CardFieldPreferencesProvider } from "@/hooks/useCardFieldPreferences";
@@ -77,6 +78,9 @@ function MarketingOpportunitiesContent() {
   const permissions = usePermissions();
   const canEditOpportunities = permissions.canEditMarketingOpportunities || permissions.canEditMarketing;
   const { data: pipelines = [], isLoading: loadingPipelines, error: pipelinesError, refetch: refetchPipelines } = usePipelines();
+  const isMobile = useIsMobile();
+  // Tiene traccia se l'utente ha già fatto switch manuale (cosi non sovrascrivo intenzionalità)
+  const userTouchedViewMode = useRef(false);
 
   const { params: urlFilters, setParam: setURLParam } = useURLFilters({
     selectedPipelineId: { key: "pipeline", defaultValue: "" },
@@ -105,11 +109,31 @@ function MarketingOpportunitiesContent() {
   const searchQuery = useDebounce(searchInput, 350);
   const safeSearchQuery = useMemo(() => sanitizeOpportunitySearchTerm(searchQuery), [searchQuery]);
   const viewMode = normalizedUrlState.viewMode;
-  const setViewMode = useCallback((v: "kanban" | "list") => setURLParam("viewMode", v), [setURLParam]);
+  const setViewMode = useCallback(
+    (v: "kanban" | "list") => {
+      userTouchedViewMode.current = true;
+      setURLParam("viewMode", v);
+    },
+    [setURLParam],
+  );
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Sprint 2: seed filters from drill-down URL params (status, assigned_to, source)
   const [searchParamsRaw, setSearchParamsRaw] = useSearchParams();
+
+  // Auto-switch a list view su mobile se l'utente non ha settato `?view=` esplicitamente
+  // e non ha mai toccato il toggle. Kanban su 360px = UX terribile (5+ colonne scrollabili).
+  const hasExplicitViewParam = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (hasExplicitViewParam.current === null) {
+      hasExplicitViewParam.current = searchParamsRaw.has("view");
+    }
+    if (isMobile && viewMode === "kanban" && !userTouchedViewMode.current && !hasExplicitViewParam.current) {
+      setURLParam("viewMode", "list");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
+
   const initialDrillRef = useRef<OpportunityFilters | null>(null);
   if (initialDrillRef.current === null) {
     const seeded: OpportunityFilters = { ...EMPTY_FILTERS };
@@ -794,7 +818,13 @@ function MarketingOpportunitiesContent() {
           {viewMode === "list" ? (
             <OpportunityListView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} />
           ) : (
-            <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} /></div>
+            <>
+              {/* Su mobile, hint utente per swipe orizzontale tra stage del kanban */}
+              <p className="md:hidden text-[11px] text-muted-foreground/80 px-1">
+                ← Scorri orizzontalmente per passare tra le fasi della pipeline →
+              </p>
+              <div className="flex-1 min-h-0 overflow-auto"><OpportunityKanbanView stages={stages} opportunities={filteredOpportunities} selectedIds={selectedIds} onSelect={handleSelect} canEdit={canEditOpportunities} /></div>
+            </>
           )}
         </>
       )}
