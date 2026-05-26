@@ -24,16 +24,20 @@ import { EmailViewer } from "./components/EmailViewer";
 import { EmailComposeDialog, type ComposeContext } from "./components/EmailComposeDialog";
 import { EmailSearchBar, type SearchQuery } from "./components/EmailSearchBar";
 import { Button } from "@/components/ui/button";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Building2,
   FileText,
   Inbox,
   LifeBuoy,
+  Loader2,
   Mail,
   Menu,
   PenLine,
   ReceiptText,
+  RefreshCw,
   ShieldAlert,
   Sparkles,
   Truck,
@@ -114,6 +118,30 @@ export function EmailLayout({
   const userId = user?.id;
   const companyId = companyIdOverride ?? effectiveCompany?.id;
   const qc = useQueryClient();
+
+  // Manual sync — invoca email-poll-inbox (function pubblica con x-cron-secret)
+  // e invalida le query email per refetch immediato.
+  const forceSync = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("email-poll-inbox", {
+        body: { source: "manual_force_layout" },
+      });
+      if (error) throw new Error(error.message);
+      return data as { connections_checked?: number; emails_fetched?: number; emails_stored?: number };
+    },
+    onSuccess: (data) => {
+      const stored = data?.emails_stored ?? 0;
+      toast.success("Sync completato", {
+        description: stored === 0
+          ? "Nessuna nuova email."
+          : `${stored} nuova email scaricata.`,
+      });
+      void qc.invalidateQueries({ queryKey: ["email-threads"] });
+      void qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
+      void qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
+    },
+    onError: (e) => toast.error("Errore sync", { description: String(e) }),
+  });
 
   useEffect(() => {
     if (queryCustomerEmail) {
@@ -268,85 +296,143 @@ export function EmailLayout({
         />
       </aside>
 
-      {/* List pane */}
-      <section
-        className={cn(
-          "flex-1 md:flex-none md:w-[390px] lg:w-[470px] border-r border-blue-100 bg-white flex flex-col min-w-0",
-          mobilePane !== "list" && "hidden md:flex",
-        )}
+      {/* Main panes container — ResizablePanelGroup su desktop, flex normale su mobile.
+          Quando nessuna email è selezionata, il viewer pane scompare e la list occupa
+          tutta la larghezza. Quando si seleziona una email, appare il viewer con un
+          divider draggabile per ridimensionare manualmente (feedback utente 2026-05-27). */}
+      <ResizablePanelGroup
+        direction="horizontal"
+        className="flex-1 flex"
+        autoSaveId="email-layout-panels"
       >
-        {/* Mobile header — hamburger + folder title + account label */}
-        <div className="md:hidden p-2 border-b flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} aria-label="Apri caselle">
-            <Menu className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight truncate">
-              <FolderTitle filter={filter.folder} />
-            </p>
-            {connections && connections.length > 0 && (
-              <p className="truncate text-[10px] text-slate-500">
-                {filter.accountId
-                  ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
-                  : `${connections.length} ${connections.length === 1 ? "casella" : "caselle"}`}
+        {/* List pane */}
+        <ResizablePanel
+          defaultSize={selectedThreadId ? 38 : 100}
+          minSize={25}
+          maxSize={selectedThreadId ? 65 : 100}
+          className={cn(
+            "bg-white border-r border-blue-100 flex flex-col min-w-0",
+            mobilePane !== "list" && "hidden md:flex",
+          )}
+        >
+          {/* Mobile header — hamburger + folder title + account label */}
+          <div className="md:hidden p-2 border-b flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} aria-label="Apri caselle">
+              <Menu className="h-4 w-4" />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold leading-tight truncate">
+                <FolderTitle filter={filter.folder} />
               </p>
-            )}
+              {connections && connections.length > 0 && (
+                <p className="truncate text-[10px] text-slate-500">
+                  {filter.accountId
+                    ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
+                    : `${connections.length} ${connections.length === 1 ? "casella" : "caselle"}`}
+                </p>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => forceSync.mutate()}
+              disabled={forceSync.isPending}
+              aria-label="Sincronizza ora"
+            >
+              {forceSync.isPending
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <RefreshCw className="h-4 w-4" />}
+            </Button>
           </div>
-        </div>
-        <EmailMailboxToolbar
-          filter={filter}
-          onFilterChange={applyFilter}
-          connections={connections ?? []}
-        />
-        <EmailConnectionHealthPanel
-          connections={connections ?? []}
-          companyIdOverride={companyId}
-          settingsPath={settingsPath}
-          variant="compact"
-        />
-        <EmailAiCommandCenter
-          companyIdOverride={companyId}
-          onSelectThread={handleSelectThread}
-          onFilterCategory={(category) => applyFilter((current) => ({
-            ...current,
-            category,
-            folder: { type: "system", key: "inbox" },
-          }))}
-        />
-        <EmailSearchBar
-          initialValue={queryCustomerEmail}
-          onSearch={(q) => setFilter((f) => ({ ...f, search: q }))}
-        />
-        <EmailList
-          filter={filter}
-          scopedAccountIds={scopedAccountIds ?? (companyIdOverride ? (connections ?? []).map((connection) => connection.id) : undefined)}
-          selectedThreadId={selectedThreadId}
-          onSelectThread={handleSelectThread}
-        />
-      </section>
 
-      {/* Viewer pane */}
-      <section
-        className={cn(
-          "flex-1 flex flex-col min-w-0 bg-white",
-          mobilePane !== "viewer" && "hidden md:flex",
-        )}
-      >
-        {selectedThreadId ? (
-          <EmailViewer
-            threadId={selectedThreadId}
-            onBack={() => setMobilePane("list")}
-            onClose={() => {
-              // Su mobile: archive/trash/close devono tornare alla lista
-              setSelectedThreadId(null);
-              setMobilePane("list");
-            }}
-            onReply={(src, mode) => openCompose({ mode, source: src })}
+          {/* Desktop header — titolo + N collegate badge + bottone Sync */}
+          <div className="hidden md:flex items-center justify-between gap-2 p-3 border-b border-blue-100 bg-white">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <Inbox className="h-4 w-4 text-blue-600 shrink-0" />
+                <FolderTitle filter={filter.folder} />
+              </h2>
+              {connections && connections.length > 0 && (
+                <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                  {filter.accountId
+                    ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
+                    : `${connections.length} ${connections.length === 1 ? "casella collegata" : "caselle collegate"}`}
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => forceSync.mutate()}
+              disabled={forceSync.isPending}
+              title="Sincronizza ora le caselle email"
+              className="shrink-0"
+            >
+              {forceSync.isPending
+                ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                : <RefreshCw className="h-4 w-4 mr-1" />}
+              <span className="hidden lg:inline">Sync</span>
+            </Button>
+          </div>
+
+          <EmailMailboxToolbar
+            filter={filter}
+            onFilterChange={applyFilter}
+            connections={connections ?? []}
           />
-        ) : (
-          <ViewerEmptyState />
+          <EmailConnectionHealthPanel
+            connections={connections ?? []}
+            companyIdOverride={companyId}
+            settingsPath={settingsPath}
+            variant="compact"
+          />
+          <EmailAiCommandCenter
+            companyIdOverride={companyId}
+            onSelectThread={handleSelectThread}
+            onFilterCategory={(category) => applyFilter((current) => ({
+              ...current,
+              category,
+              folder: { type: "system", key: "inbox" },
+            }))}
+          />
+          <EmailSearchBar
+            initialValue={queryCustomerEmail}
+            onSearch={(q) => setFilter((f) => ({ ...f, search: q }))}
+          />
+          <EmailList
+            filter={filter}
+            scopedAccountIds={scopedAccountIds ?? (companyIdOverride ? (connections ?? []).map((connection) => connection.id) : undefined)}
+            selectedThreadId={selectedThreadId}
+            onSelectThread={handleSelectThread}
+          />
+        </ResizablePanel>
+
+        {/* Handle + Viewer pane — visibili SOLO quando una email è selezionata */}
+        {selectedThreadId && (
+          <>
+            <ResizableHandle withHandle className="hidden md:flex" />
+            <ResizablePanel
+              defaultSize={62}
+              minSize={35}
+              className={cn(
+                "flex flex-col min-w-0 bg-white",
+                mobilePane !== "viewer" && "hidden md:flex",
+              )}
+            >
+              <EmailViewer
+                threadId={selectedThreadId}
+                onBack={() => setMobilePane("list")}
+                onClose={() => {
+                  // Su mobile: archive/trash/close devono tornare alla lista
+                  setSelectedThreadId(null);
+                  setMobilePane("list");
+                }}
+                onReply={(src, mode) => openCompose({ mode, source: src })}
+              />
+            </ResizablePanel>
+          </>
         )}
-      </section>
+      </ResizablePanelGroup>
 
       <EmailComposeDialog
         open={composeOpen}
