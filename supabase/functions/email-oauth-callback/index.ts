@@ -267,13 +267,24 @@ Deno.serve(async (req) => {
   }
 
   // Seed idempotente delle cartelle personali (Inbox/Inviati/Bozze/Spam/Cestino).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (supa as any).rpc("email_seed_user_folders", {
-    p_user_id: user.id,
-    p_company_id: stateDecoded.company_id,
-  }).catch((e: unknown) => {
-    console.warn("[email-oauth-callback] folder seed failed:", e);
-  });
+  // Fix 2026-05-27: supabase-js v2 rpc() ritorna PostgrestBuilder che è
+  // thenable ma non ha .catch() → usavamo .catch() inline e produceva
+  // "TypeError: rpc(...).catch is not a function" DOPO il salvataggio
+  // della connection (il save funzionava ma il callback frontend riceveva
+  // 500 e mostrava "Connessione fallita" all'utente). Wrappato in try/catch
+  // standard: errori di seed sono non-bloccanti.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const seedResult = await (supa as any).rpc("email_seed_user_folders", {
+      p_user_id: user.id,
+      p_company_id: stateDecoded.company_id,
+    });
+    if (seedResult?.error) {
+      console.warn("[email-oauth-callback] folder seed returned error:", seedResult.error);
+    }
+  } catch (e) {
+    console.warn("[email-oauth-callback] folder seed threw:", e);
+  }
 
   return new Response(JSON.stringify({
     success: true,
