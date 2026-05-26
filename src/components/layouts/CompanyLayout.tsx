@@ -94,6 +94,8 @@ import { AnnouncementBanner } from "@/components/company/AnnouncementBanner";
 
 import { LifecycleNotificationsBanner } from "@/components/company/LifecycleNotificationsBanner";
 import { SilvioBellPopover } from "@/components/silvio/SilvioBellPopover";
+import { MobileChatTeamButton } from "@/components/layouts/MobileChatTeamButton";
+import { MobileBrandSwitcher } from "@/components/layouts/MobileBrandSwitcher";
 // MP-AIE-03: badge realtime con conteggio proposte azione AI pending
 import { ActionProposalsBadge } from "@/components/ai/ActionProposals/ActionProposalsBadge";
 import { ChangelogDrawer } from "@/components/changelog/ChangelogDrawer";
@@ -1630,7 +1632,7 @@ export function CompanyLayout() {
           )}
           <AnnouncementBanner />
           <SubscriptionBanner />
-          <header className="h-14 border-b flex items-center px-3 gap-2 md:gap-4 bg-background">
+          <header className="h-14 border-b flex items-center px-2 md:px-3 gap-1.5 md:gap-4 bg-background">
             {/* Mobile: back arrow on sub-pages (no hamburger — bottom nav "App" replaces sidebar) */}
             {isSubPage && (
               <Button variant="ghost" size="icon" className="md:hidden h-10 w-10 -ml-1 shrink-0" onClick={() => navigate(-1)} aria-label="Torna indietro">
@@ -1641,10 +1643,10 @@ export function CompanyLayout() {
             {/* Desktop: sidebar trigger */}
             <SidebarTrigger className="hidden md:flex" />
 
-            {/* Mobile: current page title */}
-            <span className="md:hidden font-semibold text-base truncate flex-1">
-              {page || area || effectiveCompany?.name || ""}
-            </span>
+            {/* Mobile: brand stack (logo EiC + nome azienda) + company switcher
+                v8.6.72 — Sostituisce il vecchio span page/area/companyName.
+                Se l'utente è collegato a più aziende, tap apre il selector. */}
+            <MobileBrandSwitcher />
 
             {/* Desktop: breadcrumb */}
             {area && (
@@ -1663,7 +1665,9 @@ export function CompanyLayout() {
             <div className="hidden md:block flex-1" />
             {/* ViewAsDropdown — visibile SOLO durante impersonazione super_admin */}
             <ViewAsDropdown />
-            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
+            {/* v8.6.72 — Search Command Palette nascosta su mobile: spazio header limitato,
+                la ricerca dentro l'App grid + le ricerche per-pagina coprono i casi mobile. */}
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 shrink-0 hidden md:inline-flex" onClick={() => setCommandOpen(true)} title="Cerca (⌘K)" aria-label="Cerca (⌘K)">
               <Search className="h-4 w-4" aria-hidden="true" />
             </Button>
             {/* v8.6.70 — Rotellina Impostazioni (mobile): apre l'hub griglia
@@ -1692,10 +1696,41 @@ export function CompanyLayout() {
                 <ActionProposalsBadge />
               </div>
             )}
-            {/* v8.6.90 — Changelog "Cosa c'è di nuovo" con badge non-letti */}
-            <ChangelogDrawer />
-            {/* Silvio: cose da sapere proattive */}
-            {deferredRealtimeReady && <SilvioBellPopover />}
+            {/* v8.6.90 — Changelog "Cosa c'è di nuovo" con badge non-letti
+                v8.6.72 — Nascosto su mobile per liberare header.
+                Resta accessibile dalle impostazioni / drawer admin. */}
+            <div className="hidden md:block">
+              <ChangelogDrawer />
+            </div>
+            {/* v8.6.70 — Silvio chat header button (solo mobile).
+                Desktop usa il SilvioFAB in basso a destra; su mobile invece
+                serve un accesso veloce in alto perché lo schermo è ridotto. */}
+            {deferredRealtimeReady && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-9 w-9 shrink-0 md:hidden"
+                onClick={() => window.dispatchEvent(new Event("silvio:open-chat"))}
+                aria-label="Apri chat con Silvio"
+                title="Silvio"
+              >
+                <Brain className="h-4 w-4 text-orange-600" aria-hidden="true" />
+              </Button>
+            )}
+            {/* v8.6.71 — Chat Team header button (solo mobile).
+                Sostituisce SilvioBellPopover su mobile (che resta su desktop
+                accanto alla campanella notifiche). Mostra badge con il numero
+                di messaggi chat non letti. Tap → /azienda/chat. */}
+            {deferredRealtimeReady && (
+              <MobileChatTeamButton />
+            )}
+            {/* Silvio: cose da sapere proattive — NASCOSTA su mobile (v8.6.71)
+                per liberare spazio header. Resta su desktop dove c'è più posto. */}
+            {deferredRealtimeReady && (
+              <div className="hidden md:block">
+                <SilvioBellPopover />
+              </div>
+            )}
             {deferredRealtimeReady && <NotificationsBellPopover />}
             {showSupport && (
               <Button variant="outline" size="sm" className="relative hidden sm:flex" onClick={() => setChannelDialogOpen(true)}>

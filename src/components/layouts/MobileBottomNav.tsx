@@ -21,9 +21,9 @@ import {
   CalendarDays,
   Euro,
   NotebookPen,
-  MessagesSquare,
   Package,
   BarChart3,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -242,14 +242,18 @@ export function MobileBottomNav() {
     return location.pathname.startsWith(href);
   };
 
-  // Layout fisso 5 tab: Home | [dynamic1] | Chat | [dynamic2] | App
+  // v8.6.70 — Slot centrale Silvio (punch button):
+  // Layout fisso 5 tab: Home | [dynamic1] | ⚫ Silvio | [dynamic2] | App
+  // La voce Chat Team viene esposta via App grid (Cruscotto > Chat Team).
+  // Silvio è "il cuore pulsante" → 1 tap dalla bottom nav, qualunque pagina.
   const navSlots: Array<
     | { type: "link"; label: string; icon: React.ComponentType<{ className?: string }>; href: string; exact?: boolean; active?: boolean }
+    | { type: "silvio" }
     | { type: "app" }
   > = [
     { type: "link", label: "Home", icon: LayoutDashboard, href: homeHref, active: isHomeActive },
     ...(dynamicItems[0] ? [{ type: "link" as const, label: dynamicItems[0].label, icon: dynamicItems[0].icon, href: dynamicItems[0].href }] : []),
-    { type: "link", label: "Chat", icon: MessagesSquare, href: "/azienda/chat" },
+    { type: "silvio" },
     ...(dynamicItems[1] ? [{ type: "link" as const, label: dynamicItems[1].label, icon: dynamicItems[1].icon, href: dynamicItems[1].href }] : []),
     { type: "app" },
   ];
@@ -292,6 +296,26 @@ export function MobileBottomNav() {
                   appGridOpen ? "text-blue-600 font-semibold" : "text-muted-foreground"
                 )}>
                   App
+                </span>
+              </button>
+            );
+          }
+
+          if (slot.type === "silvio") {
+            return (
+              <button
+                key="silvio"
+                className="flex-1 flex flex-col items-center justify-end gap-1 relative min-w-0 pb-1"
+                onClick={() => window.dispatchEvent(new Event("silvio:open-chat"))}
+                aria-label="Apri chat con Silvio"
+                type="button"
+              >
+                {/* Punch button: tondo, gradient arancione, leggermente sollevato */}
+                <div className="-mt-4 h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shadow-lg shadow-orange-300/50 ring-4 ring-background active:scale-95 transition-transform">
+                  <Sparkles className="h-5 w-5 stroke-[2.5]" />
+                </div>
+                <span className="text-[10px] leading-none font-semibold text-orange-600">
+                  Silvio
                 </span>
               </button>
             );

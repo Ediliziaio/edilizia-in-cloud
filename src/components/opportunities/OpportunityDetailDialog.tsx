@@ -393,28 +393,28 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         <Label className="text-xs text-muted-foreground">{field.name}</Label>
         {field.field_type === "select" ? (
           <Select value={val || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
-            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">—</SelectItem>
               {(field.options || []).map((opt: string) => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
             </SelectContent>
           </Select>
         ) : field.field_type === "number" ? (
-          <Input value={val} onChange={(e) => onChange(e.target.value)} type="number" className="h-8 text-sm" />
+          <Input value={val} onChange={(e) => onChange(e.target.value)} type="number" className="h-10 sm:h-8 text-sm" />
         ) : field.field_type === "date" ? (
-          <Input value={val} onChange={(e) => onChange(e.target.value)} type="date" className="h-8 text-sm" />
+          <Input value={val} onChange={(e) => onChange(e.target.value)} type="date" className="h-10 sm:h-8 text-sm" />
         ) : field.field_type === "textarea" ? (
           <Textarea value={val} onChange={(e) => onChange(e.target.value)} rows={2} className="text-sm" />
         ) : (
-          <Input value={val} onChange={(e) => onChange(e.target.value)} className="h-8 text-sm" />
+          <Input value={val} onChange={(e) => onChange(e.target.value)} className="h-10 sm:h-8 text-sm" />
         )}
       </div>
     );
   };
 
-  const sidebarTabs: { key: Tab; label: string; icon: React.ReactNode; enabled: boolean }[] = [
-    { key: "details", label: "Dettagli dell'opportunità", icon: <FileText className="h-4 w-4" />, enabled: true },
-    { key: "appointments", label: "Prenota/aggiorna appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
+  const sidebarTabs: { key: Tab; label: string; mobileLabel?: string; icon: React.ReactNode; enabled: boolean }[] = [
+    { key: "details", label: "Dettagli dell'opportunità", mobileLabel: "Dettagli", icon: <FileText className="h-4 w-4" />, enabled: true },
+    { key: "appointments", label: "Prenota/aggiorna appuntamento", mobileLabel: "Appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
@@ -426,116 +426,120 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-[calc(100vw-1rem)] sm:w-auto max-h-[92vh] sm:max-h-[92vh] h-[92vh] sm:h-auto flex flex-col p-0 gap-0">
+      <DialogContent className="w-screen h-[100dvh] max-w-none max-h-[100dvh] rounded-none sm:w-full sm:max-w-5xl sm:h-auto sm:max-h-[92vh] sm:rounded-lg flex flex-col p-0 gap-0 [&>button]:hidden">
         {/* Header */}
-        <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3">
-          <div className="flex items-center gap-2 flex-wrap pr-8">
-            <DialogTitle className="text-base sm:text-lg font-semibold leading-tight">Modifica "{fullName}{cityPart}"</DialogTitle>
-            {/* SALES OS: Badge opportunità ferma */}
-            {(() => {
-              const stageTouchedAt = opportunity.stage_changed_at || opportunity.updated_at;
-              const daysSince = stageTouchedAt
-                ? Math.floor((Date.now() - new Date(stageTouchedAt).getTime()) / 86400000)
-                : 0;
-              return daysSince >= 14 && opportunity.status === "open" ? (
-                <Badge variant="destructive" className="text-xs">
-                  ⚠ Ferma da {daysSince}gg
-                </Badge>
-              ) : null;
-            })()}
+        <div className="sticky top-0 z-10 bg-background px-3 sm:px-6 pt-3 sm:pt-5 pb-2 sm:pb-3 border-b sm:border-b-0">
+          <div className="flex items-start gap-2 pr-1">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="sm:hidden shrink-0 -ml-1 mt-0.5 h-9 w-9 inline-flex items-center justify-center rounded-full hover:bg-muted active:bg-muted/70 transition-colors"
+              aria-label="Chiudi"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+            </button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <DialogTitle className="text-[15px] sm:text-lg font-semibold leading-tight truncate max-w-full">
+                  <span className="hidden sm:inline">Modifica "</span>{fullName}{cityPart}<span className="hidden sm:inline">"</span>
+                </DialogTitle>
+                {/* SALES OS: Badge opportunità ferma */}
+                {(() => {
+                  const stageTouchedAt = opportunity.stage_changed_at || opportunity.updated_at;
+                  const daysSince = stageTouchedAt
+                    ? Math.floor((Date.now() - new Date(stageTouchedAt).getTime()) / 86400000)
+                    : 0;
+                  return daysSince >= 14 && opportunity.status === "open" ? (
+                    <Badge variant="destructive" className="text-[10px] sm:text-xs h-5 px-1.5 shrink-0">
+                      ⚠ {daysSince}gg
+                    </Badge>
+                  ) : null;
+                })()}
+              </div>
+              <DialogDescription className="hidden sm:block text-xs text-muted-foreground mt-0.5">
+                Aggiungi e Modifica opportunità Dettagli, attività, note e Appuntamento.
+              </DialogDescription>
+            </div>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="hidden sm:inline-flex shrink-0 h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition-colors"
+              aria-label="Chiudi"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
           </div>
-          <DialogDescription className="hidden sm:block text-xs text-muted-foreground mt-0.5">
-            Aggiungi e Modifica opportunità Dettagli, attività, note e Appuntamento.
-          </DialogDescription>
         </div>
 
         <Separator />
 
-        {/* MOBILE: tabs orizzontali scrollabili (sostituisce sidebar verticale) */}
-        <div className="md:hidden border-b bg-muted/20">
-          <div className="flex overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {sidebarTabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => {
-                  if (!t.enabled) { toast.info(`${t.label}: in arrivo`); return; }
-                  setTab(t.key);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs whitespace-nowrap shrink-0 transition-colors border-b-2 ${
-                  tab === t.key
-                    ? "border-primary text-primary font-semibold bg-primary/5"
-                    : "border-transparent text-muted-foreground hover:bg-muted/50"
-                } ${!t.enabled ? "opacity-50" : ""}`}
-              >
-                {t.icon}
-                <span>{t.label.replace("Prenota/aggiorna appuntamento", "Appuntamento").replace("Dettagli dell'opportunità", "Dettagli")}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-1 min-h-0">
-          {/* DESKTOP: Sidebar verticale (nascosta su mobile) */}
-          <div className="hidden md:block w-[200px] border-r bg-muted/20 py-2 shrink-0">
-            {sidebarTabs.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => {
-                  if (!t.enabled) { toast.info(`${t.label}: in arrivo`); return; }
-                  setTab(t.key);
-                }}
-                className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs transition-colors text-left ${
-                  tab === t.key
-                    ? "bg-primary/10 text-primary font-medium border-r-2 border-primary"
-                    : "text-muted-foreground hover:bg-muted/50"
-                } ${!t.enabled ? "opacity-50" : ""}`}
-              >
-                {t.icon}
-                <span className="leading-tight">{t.label}</span>
-              </button>
-            ))}
+        <div className="flex flex-col sm:flex-row flex-1 min-h-0">
+          {/* Sidebar — vertical su desktop, tabs orizzontali su mobile */}
+          <div className="sm:w-[200px] sm:border-r border-b sm:border-b-0 bg-muted/20 py-1 sm:py-2 shrink-0 overflow-x-auto sm:overflow-x-visible">
+            <div className="flex sm:flex-col gap-0.5 sm:gap-0 px-1 sm:px-0 scrollbar-none">
+              {sidebarTabs.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => {
+                    if (!t.enabled) { toast.info(`${t.label}: in arrivo`); return; }
+                    setTab(t.key);
+                  }}
+                  className={`shrink-0 sm:w-full flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 text-xs whitespace-nowrap sm:whitespace-normal transition-colors text-left rounded-lg sm:rounded-none ${
+                    tab === t.key
+                      ? "bg-primary/10 text-primary font-medium sm:border-r-2 sm:border-primary border-b-2 sm:border-b-0 border-primary"
+                      : "text-muted-foreground hover:bg-muted/50"
+                  } ${!t.enabled ? "opacity-50" : ""}`}
+                  aria-label={t.label}
+                  aria-current={tab === t.key ? "page" : undefined}
+                >
+                  {t.icon}
+                  <span className="leading-tight sm:hidden">{t.mobileLabel || t.label}</span>
+                  <span className="leading-tight hidden sm:inline">{t.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Content */}
           <ScrollArea className="flex-1">
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
               {tab === "details" && (
-                <div className="space-y-6">
+                <div className="space-y-5 sm:space-y-6">
                   {/* Contatto Dettagli */}
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold">Contatto Dettagli</h3>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-                          <Checkbox checked={hideEmpty} onCheckedChange={(c) => setHideEmpty(!!c)} className="h-3.5 w-3.5" />
-                          Nascondi campi vuoti
-                        </label>
-                      </div>
+                    <div className="flex items-center justify-between mb-2.5 sm:mb-3 gap-2">
+                      <h3 className="text-sm font-semibold">Contatto</h3>
+                      <label className="flex items-center gap-1.5 text-[11px] sm:text-xs text-muted-foreground cursor-pointer shrink-0">
+                        <Checkbox checked={hideEmpty} onCheckedChange={(c) => setHideEmpty(!!c)} className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                        <span className="hidden sm:inline">Nascondi campi vuoti</span>
+                        <span className="sm:hidden">Nascondi vuoti</span>
+                      </label>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5 sm:space-y-3">
                       {/* Contact name - with change button */}
                       {!changingContact ? (
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Nome del contatto primario</Label>
+                          <Label className="text-[11px] sm:text-xs text-muted-foreground">Nome contatto</Label>
                           <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2 h-8 px-3 border rounded-md bg-muted/30 text-sm flex-1">
+                            <div className="flex items-center gap-2 h-10 sm:h-8 px-3 border rounded-md bg-muted/30 text-sm flex-1 min-w-0">
                               <User className="h-3.5 w-3.5 text-muted-foreground" />
                               {pendingContactId ? contactSearch : (fullName || "—")}
                             </div>
                             <Button
                               variant="outline"
-                              size="sm"
-                              className="h-8 text-xs gap-1"
+                              size="icon"
+                              className="h-10 w-10 sm:h-8 sm:w-auto sm:px-3 sm:gap-1 shrink-0"
                               onClick={() => {
                                 setChangingContact(true);
                                 setContactSearch("");
                                 setShowNewContactForm(false);
                                 setPendingContactId(null);
                               }}
+                              aria-label="Cambia contatto"
                             >
-                              <RefreshCw className="h-3 w-3" />
-                              Cambia
+                              <RefreshCw className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                              <span className="hidden sm:inline text-xs">Cambia</span>
                             </Button>
                           </div>
                         </div>
@@ -553,7 +557,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                               }}
                               onFocus={() => setShowContactDropdown(true)}
                               onBlur={() => setTimeout(() => setShowContactDropdown(false), 200)}
-                              className="h-8 text-sm"
+                              className="h-10 sm:h-8 text-sm"
                             />
                             {showContactDropdown && (
                               <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto">
@@ -617,10 +621,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             <Label className="text-xs font-semibold flex items-center gap-1.5"><UserPlus className="h-3.5 w-3.5" /> Nuovo contatto</Label>
                             <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowNewContactForm(false)}>Annulla</button>
                           </div>
-                          <Input placeholder="Nome e cognome *" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} className="h-8 text-sm" />
+                          <Input placeholder="Nome e cognome *" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} className="h-10 sm:h-8 text-sm" />
                           <div className="grid grid-cols-2 gap-2">
-                            <Input placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-8 text-sm" type="email" />
-                            <Input placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-8 text-sm" type="tel" />
+                            <Input placeholder="Email" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} className="h-10 sm:h-8 text-sm" type="email" />
+                            <Input placeholder="Telefono" value={newContactPhone} onChange={(e) => setNewContactPhone(e.target.value)} className="h-10 sm:h-8 text-sm" type="tel" />
                           </div>
                         </div>
                       )}
@@ -629,8 +633,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Email primaria</Label>
                           <div className="relative">
-                            <Mail className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                            <Input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className="h-8 text-sm pl-8" />
+                            <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} type="email" inputMode="email" className="h-10 sm:h-8 text-sm pl-8" />
                           </div>
                         </div>
                       )}
@@ -639,8 +643,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Telefono primario</Label>
                           <div className="relative">
-                            <Phone className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                            <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className="h-8 text-sm pl-8" />
+                            <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} type="tel" inputMode="tel" className="h-10 sm:h-8 text-sm pl-8" />
                           </div>
                         </div>
                       )}
@@ -648,7 +652,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       {(!hideEmpty || contactCity) && !showNewContactForm && (
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Città</Label>
-                          <Input value={contactCity} onChange={(e) => setContactCity(e.target.value)} className="h-8 text-sm" />
+                          <Input value={contactCity} onChange={(e) => setContactCity(e.target.value)} className="h-10 sm:h-8 text-sm" />
                         </div>
                       )}
                     </div>
@@ -658,17 +662,17 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                   {/* Opportunità Dettagli */}
                   <div>
-                    <h3 className="text-sm font-semibold mb-3">Opportunità Dettagli</h3>
-                    <div className="space-y-3">
+                    <h3 className="text-sm font-semibold mb-2.5 sm:mb-3">Opportunità</h3>
+                    <div className="space-y-2.5 sm:space-y-3">
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">Nome opportunità</Label>
-                        <Input value={name} onChange={(e) => setName(e.target.value)} className="h-8 text-sm" />
+                        <Input value={name} onChange={(e) => setName(e.target.value)} className="h-10 sm:h-8 text-sm" />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Sequenza</Label>
-                          <div className="h-8 px-3 border rounded-md bg-muted/30 text-sm flex items-center">
+                          <div className="h-10 sm:h-8 px-3 border rounded-md bg-muted/30 text-sm flex items-center truncate">
                             {pipelineName || "—"}
                           </div>
                         </div>
@@ -681,7 +685,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             const targetStage = pipeline?.marketing_pipeline_stages?.find((s: any) => s.id === newStageId);
                             setStatus(inferOpportunityStatusFromStage(targetStage, "open"));
                           }}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
@@ -689,11 +693,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Stato</Label>
                           <Select value={status} onValueChange={handleStatusChange}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {STATUS_OPTIONS.map((s) => (
                                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
@@ -703,15 +707,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Valore dell'opportunità (€)</Label>
-                          <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" className="h-8 text-sm" />
+                          <Input value={value} onChange={(e) => setValue(e.target.value)} type="number" inputMode="decimal" className="h-10 sm:h-8 text-sm" />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Titolare</Label>
                           <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Non assegnato</SelectItem>
                               {salespeople.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -721,7 +725,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Follower</Label>
                           <Select value={followerId || "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Nessuno</SelectItem>
                               {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -731,7 +735,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Call Center</Label>
                           <Select value={callCenterId || "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Nessuno</SelectItem>
                               {callCenterUsers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -740,14 +744,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Nome dell'azienda</Label>
-                          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="h-8 text-sm" />
+                          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="h-10 sm:h-8 text-sm" />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Fonte dell'opportunità</Label>
-                          <Input value={source} onChange={(e) => setSource(e.target.value)} className="h-8 text-sm" />
+                          <Input value={source} onChange={(e) => setSource(e.target.value)} className="h-10 sm:h-8 text-sm" />
                         </div>
                       </div>
 
@@ -781,7 +785,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     <CardContent className="space-y-4 px-4 pb-4">
 
                       {/* Riga 1: Data chiusura prevista + Probabilità */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground flex items-center gap-1">
                             Data chiusura prevista
@@ -792,7 +796,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Input
                             type="date"
                             defaultValue={opportunity.expected_close_date ?? ""}
-                            className="h-8 text-sm"
+                            className="h-10 sm:h-8 text-sm"
                             onChange={(e) =>
                               updateOpportunity.mutate({
                                 id: opportunity.id,
@@ -811,7 +815,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             max="100"
                             placeholder="Auto da stage"
                             defaultValue={opportunity.probability ?? ""}
-                            className="h-8 text-sm"
+                            className="h-10 sm:h-8 text-sm"
                             onChange={(e) => {
                               const val = e.target.value ? parseInt(e.target.value) : null;
                               updateOpportunity.mutate({
@@ -847,7 +851,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           type="date"
                           defaultValue={opportunity.next_action_date ?? ""}
                           placeholder="Data scadenza azione"
-                          className="mt-1 h-8 text-sm"
+                          className="mt-1 h-10 sm:h-8 text-sm"
                           onChange={(e) =>
                             updateOpportunity.mutate({
                               id: opportunity.id,
@@ -946,27 +950,27 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
         <Separator />
 
-        {/* Footer — stack su mobile, side-by-side su sm+ */}
-        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 py-3">
-          <div className="flex items-center gap-3 flex-wrap">
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-background pb-safe sm:pb-3">
+          <div className="hidden sm:flex items-center gap-3 min-w-0">
             <button
               onClick={() => { navigate("/azienda/impostazioni/campi-personalizzati"); onOpenChange(false); }}
-              className="text-xs text-primary hover:underline flex items-center gap-1"
+              className="text-xs text-primary hover:underline flex items-center gap-1 shrink-0"
             >
               <Settings2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Aggiungi/gestisci campi</span>
               <span className="sm:hidden">Gestisci campi</span>
             </button>
-            <span className="text-[11px] text-muted-foreground">
-              Creato: {format(new Date(opportunity.created_at), "d MMM yyyy", { locale: it })}
+            <span className="text-[11px] text-muted-foreground truncate">
+              Creato il: {format(new Date(opportunity.created_at), "d MMM yyyy", { locale: it })}
             </span>
           </div>
-          <div className="flex items-center gap-2 justify-end">
-            <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending || !canEditOpportunity} className="text-destructive hover:text-destructive shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+            <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending || !canEditOpportunity} className="h-10 w-10 sm:h-9 sm:w-9 text-destructive hover:text-destructive shrink-0" aria-label="Elimina opportunità">
               <Trash2 className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-initial">Annulla</Button>
-            <Button size="sm" onClick={handleSave} disabled={isSaving || !canEditOpportunity} className="flex-1 sm:flex-initial">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="h-10 sm:h-9 px-3 sm:px-4">Annulla</Button>
+            <Button size="sm" onClick={handleSave} disabled={isSaving || !canEditOpportunity} className="h-10 sm:h-9 px-4">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Aggiorna
             </Button>

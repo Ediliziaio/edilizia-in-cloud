@@ -7,7 +7,7 @@
  * Se nessuna connessione è presente mostra una CTA verso le impostazioni
  * profilo; altrimenti apre il client 3-pane con compose, sync e AI.
  */
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { cn } from "@/lib/utils";
 import {
   Archive,
+  ArrowLeft,
   ArrowRight,
   Bot,
   CalendarClock,
@@ -35,6 +36,7 @@ import {
   Loader2,
   Mail,
   Maximize2,
+  Menu,
   Minimize2,
   MoreHorizontal,
   PackageCheck,
@@ -206,6 +208,12 @@ function withClientTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, messag
   return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
     if (timer) window.clearTimeout(timer);
   });
+}
+
+function getDemoTimeBucket(time: string): "Oggi" | "Ieri" | "Più vecchie" {
+  if (/^\d{1,2}:\d{2}$/.test(time)) return "Oggi";
+  if (time.toLowerCase() === "ieri") return "Ieri";
+  return "Più vecchie";
 }
 
 function getDemoEmailMessage(row: DemoEmailRow): string {
@@ -884,18 +892,18 @@ function MailboxPreview() {
 
 function EmailDemoDialog() {
   return (
-    <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-1.25rem)] max-w-[1500px] overflow-hidden rounded-2xl border-blue-100 p-0 shadow-2xl">
-      <DialogHeader className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/80 to-orange-50/50 px-4 py-3">
-        <div className="flex flex-col gap-2 pr-8 md:flex-row md:items-center md:justify-between">
-          <div>
-            <DialogTitle className="text-lg text-slate-950">Demo casella email operativa</DialogTitle>
-            <DialogDescription className="mt-0.5 text-sm text-slate-500">
+    <DialogContent className="max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)] w-[calc(100vw-0.75rem)] sm:w-[calc(100vw-1.25rem)] max-w-[1500px] overflow-hidden rounded-2xl border-blue-100 p-0 shadow-2xl">
+      <DialogHeader className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/80 to-orange-50/50 px-3 py-2 sm:px-4 sm:py-3">
+        <div className="flex flex-col gap-1.5 pr-8 md:flex-row md:items-center md:justify-between md:gap-2">
+          <div className="min-w-0">
+            <DialogTitle className="text-base sm:text-lg text-slate-950">Demo casella email operativa</DialogTitle>
+            <DialogDescription className="mt-0.5 hidden sm:block text-sm text-slate-500">
               Vista realistica con più caselle, storico, categorie e azioni AI su lead, fornitori e DDT.
             </DialogDescription>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 font-medium text-emerald-700">email@demo.srl sincronizzata</span>
-            <span className="rounded-full border border-blue-100 bg-white px-3 py-1">244 email</span>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+            <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 font-medium text-emerald-700">email@demo.srl</span>
+            <span className="rounded-full border border-blue-100 bg-white px-2.5 py-0.5">244 email</span>
           </div>
         </div>
       </DialogHeader>
@@ -913,6 +921,17 @@ function DemoMailboxExperience() {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [compactView, setCompactView] = useState(true);
   const [detailVisible, setDetailVisible] = useState(true);
+  // Mobile stack-pane navigation: list (default) → detail (tap email) → sidebar (tap hamburger)
+  const [demoMobilePane, setDemoMobilePane] = useState<"list" | "detail" | "sidebar">("list");
+  // Mobile gesture: swipe-to-archive / swipe-to-trash su email row
+  const [swipeRowKey, setSwipeRowKey] = useState<string | null>(null);
+  const [swipeDeltaX, setSwipeDeltaX] = useState(0);
+  // Mobile multi-select: long-press attiva selezione multipla
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedDemoRowKeys, setSelectedDemoRowKeys] = useState<Set<string>>(new Set());
+  // Mobile pull-to-refresh
+  const [pullDeltaY, setPullDeltaY] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState("Tutte");
   const [quickMailFilter, setQuickMailFilter] = useState<DemoQuickMailFilter>("all");
   const [selectedFolderLabel, setSelectedFolderLabel] = useState("Posta in arrivo");
@@ -1005,6 +1024,7 @@ function DemoMailboxExperience() {
     const nextRows = getRowsForFolder(folderLabel);
     setSelectedFolderLabel(folderLabel);
     setQuickMailFilter("all");
+    setActiveCategory("Tutte"); // reset category filter
     setActionStatus(`Cartella "${folderLabel}" selezionata.`);
     setDetailVisible(true);
     if (nextRows[0]) {
@@ -1013,6 +1033,13 @@ function DemoMailboxExperience() {
       setAiPanelOpen(false);
       setTimelineOpen(false);
     }
+    // Reset stato mobile: chiudi drawer, esci da multi-select, annulla swipe pendenti, torna alla lista
+    setDemoMobilePane("list");
+    setIsMultiSelectMode(false);
+    setSelectedDemoRowKeys(new Set());
+    setSwipeRowKey(null);
+    setSwipeDeltaX(0);
+    setPullDeltaY(0);
   };
 
   const selectNextVisibleRow = (currentSubject: string) => {
@@ -1060,6 +1087,167 @@ function DemoMailboxExperience() {
     );
     selectNextVisibleRow(selectedRow.subject);
     setActionStatus("Email demo spostata nel cestino.");
+  };
+
+  // ── Mobile gestures: helpers ──────────────────────────────────────────
+  const archiveRowBySubject = (subject: string) => {
+    setEmailRows((current) =>
+      current.map((row) => (row.subject === subject ? { ...row, status: "archived" } : row)),
+    );
+    setActionStatus("Email archiviata.");
+  };
+  const trashRowBySubject = (subject: string) => {
+    setEmailRows((current) =>
+      current.map((row) => (row.subject === subject ? { ...row, status: "trash" } : row)),
+    );
+    setActionStatus("Email spostata nel cestino.");
+  };
+
+  // Long-press timer ref
+  const longPressTimerRef = (typeof window !== "undefined" ? (window as unknown as { __demoLongPressTimer?: ReturnType<typeof setTimeout> }) : null);
+  const startLongPress = (rowSubject: string) => {
+    if (!longPressTimerRef) return;
+    if (longPressTimerRef.__demoLongPressTimer) clearTimeout(longPressTimerRef.__demoLongPressTimer);
+    longPressTimerRef.__demoLongPressTimer = setTimeout(() => {
+      setIsMultiSelectMode(true);
+      setSelectedDemoRowKeys(new Set([rowSubject]));
+      // Haptic feedback se disponibile
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate?.(10);
+      }
+    }, 500);
+  };
+  const cancelLongPress = () => {
+    if (!longPressTimerRef) return;
+    if (longPressTimerRef.__demoLongPressTimer) {
+      clearTimeout(longPressTimerRef.__demoLongPressTimer);
+      longPressTimerRef.__demoLongPressTimer = undefined;
+    }
+  };
+  const toggleRowSelection = (rowSubject: string) => {
+    setSelectedDemoRowKeys((current) => {
+      const next = new Set(current);
+      if (next.has(rowSubject)) next.delete(rowSubject);
+      else next.add(rowSubject);
+      return next;
+    });
+  };
+  const exitMultiSelect = () => {
+    setIsMultiSelectMode(false);
+    setSelectedDemoRowKeys(new Set());
+  };
+  const bulkArchive = () => {
+    const subjects = selectedDemoRowKeys;
+    setEmailRows((current) =>
+      current.map((row) => (subjects.has(row.subject) ? { ...row, status: "archived" } : row)),
+    );
+    setActionStatus(`${subjects.size} email archiviate.`);
+    exitMultiSelect();
+  };
+  const bulkTrash = () => {
+    const subjects = selectedDemoRowKeys;
+    setEmailRows((current) =>
+      current.map((row) => (subjects.has(row.subject) ? { ...row, status: "trash" } : row)),
+    );
+    setActionStatus(`${subjects.size} email spostate nel cestino.`);
+    exitMultiSelect();
+  };
+  const bulkMarkRead = () => {
+    const subjects = selectedDemoRowKeys;
+    setEmailRows((current) =>
+      current.map((row) => (subjects.has(row.subject) ? { ...row, unread: false } : row)),
+    );
+    setActionStatus(`${subjects.size} email segnate come lette.`);
+    exitMultiSelect();
+  };
+
+  // Pull-to-refresh handlers
+  const pullStartYRef = (typeof window !== "undefined" ? (window as unknown as { __demoPullStartY?: number }) : null);
+  const handlePullTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    if (target.scrollTop > 0) return; // pull-to-refresh solo se siamo in cima
+    if (!pullStartYRef) return;
+    pullStartYRef.__demoPullStartY = event.touches[0]?.clientY;
+  };
+  const handlePullTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!pullStartYRef || pullStartYRef.__demoPullStartY == null) return;
+    const target = event.currentTarget;
+    if (target.scrollTop > 0) {
+      pullStartYRef.__demoPullStartY = undefined;
+      setPullDeltaY(0);
+      return;
+    }
+    const delta = (event.touches[0]?.clientY ?? 0) - pullStartYRef.__demoPullStartY;
+    if (delta > 0) {
+      // Resistenza progressiva
+      setPullDeltaY(Math.min(120, delta * 0.5));
+    }
+  };
+  const handlePullTouchEnd = () => {
+    if (!pullStartYRef) return;
+    if (pullDeltaY > 60) {
+      setIsRefreshing(true);
+      setActionStatus("Posta demo aggiornata. Nessun nuovo messaggio.");
+      setTimeout(() => {
+        setIsRefreshing(false);
+        setPullDeltaY(0);
+      }, 800);
+    } else {
+      setPullDeltaY(0);
+    }
+    pullStartYRef.__demoPullStartY = undefined;
+  };
+
+  // Swipe gesture handlers per email row
+  // __demoWasSwipe usato come ref sincrono per anti-click-after-swipe (state batching React produce race)
+  const swipeStartXRef = (typeof window !== "undefined" ? (window as unknown as { __demoSwipeStartX?: number; __demoSwipeStartY?: number; __demoWasSwipe?: boolean; __demoSwipeDx?: number }) : null);
+  const handleRowTouchStart = (rowKey: string, event: React.TouchEvent<HTMLDivElement>) => {
+    if (isMultiSelectMode) return;
+    if (!swipeStartXRef) return;
+    swipeStartXRef.__demoSwipeStartX = event.touches[0]?.clientX;
+    swipeStartXRef.__demoSwipeStartY = event.touches[0]?.clientY;
+    swipeStartXRef.__demoWasSwipe = false; // reset flag a ogni nuovo touch
+    swipeStartXRef.__demoSwipeDx = 0;
+    setSwipeRowKey(rowKey);
+    startLongPress(rowKey);
+  };
+  const handleRowTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (isMultiSelectMode || !swipeStartXRef || swipeStartXRef.__demoSwipeStartX == null) return;
+    const dx = (event.touches[0]?.clientX ?? 0) - swipeStartXRef.__demoSwipeStartX;
+    const dy = (event.touches[0]?.clientY ?? 0) - (swipeStartXRef.__demoSwipeStartY ?? 0);
+    // Se l'utente scorre verticalmente, annulla swipe e long-press
+    if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) {
+      cancelLongPress();
+      setSwipeRowKey(null);
+      setSwipeDeltaX(0);
+      swipeStartXRef.__demoSwipeStartX = undefined;
+      return;
+    }
+    // Se l'utente si muove abbastanza orizzontalmente, annulla long-press e marca come swipe
+    if (Math.abs(dx) > 8) {
+      cancelLongPress();
+      swipeStartXRef.__demoWasSwipe = true; // sync flag — sopravvive ai re-render React
+    }
+    const clamped = Math.max(-180, Math.min(180, dx));
+    swipeStartXRef.__demoSwipeDx = clamped;
+    setSwipeDeltaX(clamped);
+  };
+  const handleRowTouchEnd = (rowSubject: string) => {
+    cancelLongPress();
+    if (!swipeStartXRef) return;
+    const dx = swipeStartXRef.__demoSwipeDx ?? swipeDeltaX;
+    swipeStartXRef.__demoSwipeStartX = undefined;
+    swipeStartXRef.__demoSwipeDx = 0;
+    setSwipeRowKey(null);
+    setSwipeDeltaX(0);
+    if (Math.abs(dx) < 80) return; // soglia minima per commit
+    if (dx < 0) {
+      // Swipe sinistra → Archivia
+      archiveRowBySubject(rowSubject);
+    } else {
+      // Swipe destra → Cestino
+      trashRowBySubject(rowSubject);
+    }
   };
 
   const linkSelectedContact = () => {
@@ -1155,6 +1343,9 @@ function DemoMailboxExperience() {
       attachments: [],
     });
     setActionStatus("Nuova email demo aperta con identità e firma già pronte.");
+    // Reset stato mobile pendente
+    setIsMultiSelectMode(false);
+    setSelectedDemoRowKeys(new Set());
   };
 
   const handleDemoAction = (action: string) => {
@@ -1230,17 +1421,49 @@ function DemoMailboxExperience() {
 
   return (
     <div
-      className={
+      className={cn(
+        // Mobile: flex column con altezza determinata, container interno scrolla
+        "relative flex flex-col h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] min-h-[420px] sm:min-h-[560px] overflow-hidden bg-white",
+        // Desktop lg+: grid a 2 o 3 colonne
         detailVisible
-          ? "relative grid h-[calc(100vh-8rem)] min-h-[560px] overflow-hidden bg-white lg:grid-cols-[210px_minmax(390px,0.92fr)_minmax(390px,1.08fr)]"
-          : "relative grid h-[calc(100vh-8rem)] min-h-[560px] overflow-hidden bg-white lg:grid-cols-[210px_minmax(520px,1fr)]"
-      }
+          ? "lg:grid lg:grid-cols-[210px_minmax(390px,0.92fr)_minmax(390px,1.08fr)]"
+          : "lg:grid lg:grid-cols-[210px_minmax(520px,1fr)]",
+      )}
     >
-      <aside className="hidden min-h-0 border-r border-blue-100 bg-slate-50/80 p-2.5 lg:flex lg:flex-col">
+      {/* Backdrop mobile per sidebar drawer */}
+      {demoMobilePane === "sidebar" && (
+        <button
+          type="button"
+          aria-label="Chiudi caselle"
+          className="lg:hidden fixed inset-0 z-40 bg-black/40"
+          onClick={() => setDemoMobilePane("list")}
+        />
+      )}
+      <aside
+        className={
+          demoMobilePane === "sidebar"
+            ? "fixed inset-y-0 left-0 z-50 flex w-[85vw] max-w-[300px] min-h-0 flex-col border-r border-blue-100 bg-slate-50/95 p-2.5 shadow-2xl lg:relative lg:inset-auto lg:w-auto lg:max-w-none lg:shadow-none lg:bg-slate-50/80"
+            : "hidden min-h-0 border-r border-blue-100 bg-slate-50/80 p-2.5 lg:flex lg:flex-col"
+        }
+      >
+        {/* Header drawer mobile con X */}
+        <div className="lg:hidden mb-2 flex items-center justify-between">
+          <span className="text-sm font-semibold text-slate-800">Caselle e cartelle</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setDemoMobilePane("list")}
+            aria-label="Chiudi"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
         <Button
           type="button"
           className="h-10 justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm hover:bg-blue-700"
-          onClick={openNewCompose}
+          onClick={() => { openNewCompose(); setDemoMobilePane("list"); }}
         >
           <PencilLine className="h-4 w-4" />
           Scrivi
@@ -1317,6 +1540,8 @@ function DemoMailboxExperience() {
                           setSelectedIdentityEmail(account.email);
                           setComposeDraft((draft) => ({ ...draft, from: account.email }));
                           setActionStatus(`Casella ${account.email} selezionata.`);
+                          // Chiudi drawer su mobile dopo selezione
+                          setDemoMobilePane("list");
                         }}
                         className={selected && accountIndex === 0
                           ? "flex w-full items-center gap-2 rounded-lg bg-white/90 px-2 py-1.5 text-left text-[11px] text-slate-700"
@@ -1411,12 +1636,87 @@ function DemoMailboxExperience() {
         </div>
       </aside>
 
-      <main className={detailVisible ? "min-h-0 overflow-hidden lg:border-r lg:border-blue-100" : "min-h-0 overflow-hidden"}>
-        <div className="border-b border-blue-100 bg-white p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-base font-semibold text-slate-950">{selectedFolderLabel}</p>
-              <p className="text-xs text-slate-500">{selectedIdentity.email} · 1-25 di {selectedFolderTotal} email</p>
+      <main
+        className={cn(
+          // Mobile: flex column che prende tutto lo spazio rimanente, header fisso + lista scrolla
+          "flex flex-1 min-h-0 flex-col overflow-hidden",
+          detailVisible && "lg:border-r lg:border-blue-100",
+          // Mobile: hide main when in detail mode (full-screen detail)
+          demoMobilePane === "detail" && "hidden lg:flex",
+        )}
+      >
+        {/* Multi-select toolbar mobile (sostituisce header normale quando attivo) */}
+        {isMultiSelectMode && (
+          <div className="lg:hidden flex items-center gap-2 border-b border-blue-100 bg-blue-600 px-2 py-2 text-white">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 text-white hover:bg-white/15 hover:text-white"
+              onClick={exitMultiSelect}
+              aria-label="Esci da selezione multipla"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+            <span className="flex-1 text-sm font-semibold">
+              {selectedDemoRowKeys.size} {selectedDemoRowKeys.size === 1 ? "selezionata" : "selezionate"}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 text-white hover:bg-white/15 hover:text-white disabled:opacity-50"
+              onClick={bulkMarkRead}
+              disabled={selectedDemoRowKeys.size === 0}
+              aria-label="Segna come letta"
+              title="Segna come letta"
+            >
+              <CheckCheck className="h-5 w-5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 text-white hover:bg-white/15 hover:text-white disabled:opacity-50"
+              onClick={bulkArchive}
+              disabled={selectedDemoRowKeys.size === 0}
+              aria-label="Archivia selezionate"
+              title="Archivia"
+            >
+              <Archive className="h-5 w-5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 text-white hover:bg-white/15 hover:text-white disabled:opacity-50"
+              onClick={bulkTrash}
+              disabled={selectedDemoRowKeys.size === 0}
+              aria-label="Sposta nel cestino"
+              title="Cestino"
+            >
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          </div>
+        )}
+        <div className={cn("border-b border-blue-100 bg-white p-2.5 sm:p-3", isMultiSelectMode && "lg:block hidden")}>
+          <div className="flex items-start justify-between gap-2 sm:gap-3">
+            <div className="flex min-w-0 items-start gap-2">
+              {/* Hamburger mobile — apre sidebar */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="lg:hidden h-9 w-9 shrink-0 -ml-1"
+                onClick={() => setDemoMobilePane("sidebar")}
+                aria-label="Apri caselle e cartelle"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+              <div className="min-w-0">
+                <p className="text-base font-semibold text-slate-950">{selectedFolderLabel}</p>
+                <p className="truncate text-xs text-slate-500">{selectedIdentity.email} · 1-25 di {selectedFolderTotal} email</p>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button
@@ -1430,7 +1730,7 @@ function DemoMailboxExperience() {
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-lg border-blue-100"
+                className="hidden lg:inline-flex h-8 w-8 rounded-lg border-blue-100"
                 title={detailVisible ? "Nascondi colonna lettura" : "Mostra colonna lettura"}
                 aria-label={detailVisible ? "Nascondi colonna lettura" : "Mostra colonna lettura"}
                 onClick={() => setDetailVisible((visible) => !visible)}
@@ -1450,7 +1750,7 @@ function DemoMailboxExperience() {
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-lg border-blue-100"
+                className="hidden lg:inline-flex h-8 w-8 rounded-lg border-blue-100"
                 title="Apri impostazioni caselle"
                 aria-label="Apri impostazioni caselle"
                 onClick={() => {
@@ -1463,12 +1763,12 @@ function DemoMailboxExperience() {
             </div>
           </div>
           <label className="mt-3 flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/40 px-3 py-2 text-sm text-slate-400">
-            <Search className="h-4 w-4 text-blue-500" />
+            <Search className="h-4 w-4 text-blue-500 shrink-0" />
             <input
               aria-label="Cerca email demo"
               className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
               value={demoSearch}
-              placeholder="Cerca nello storico: from:fornitore ODA after:2026-05-01"
+              placeholder="Cerca email…"
               onChange={(event) => setDemoSearch(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
@@ -1477,7 +1777,7 @@ function DemoMailboxExperience() {
               }}
             />
           </label>
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {["Tutte", "Da fare", "Lead", "Fornitori", "DDT", "Contabilità"].map((chip) => (
               <button
                 key={`demo-chip-${chip}`}
@@ -1487,14 +1787,14 @@ function DemoMailboxExperience() {
                   setActionStatus(`Filtro "${chip}" applicato nella demo.`);
                 }}
                 className={activeCategory === chip
-                  ? "rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
-                  : "rounded-full border border-blue-100 bg-white px-3 py-1 text-xs text-slate-600"}
+                  ? "shrink-0 rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white"
+                  : "shrink-0 rounded-full border border-blue-100 bg-white px-2.5 py-1 text-xs text-slate-600"}
               >
                 {chip}
               </button>
             ))}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-blue-50 pt-2">
+          <div className="mt-2 flex items-center gap-1.5 border-t border-blue-50 pt-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {quickFilterOptions.map((filter) => {
               const Icon = filter.icon;
               const active = quickMailFilter === filter.key;
@@ -1504,8 +1804,8 @@ function DemoMailboxExperience() {
                   type="button"
                   onClick={() => applyQuickMailFilter(filter.key)}
                   className={active
-                    ? "inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
-                    : "inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-blue-200 hover:bg-blue-50/70"}
+                    ? "shrink-0 inline-flex items-center gap-1.5 rounded-full bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white shadow-sm"
+                    : "shrink-0 inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-blue-200 hover:bg-blue-50/70"}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   {filter.label}
@@ -1514,99 +1814,199 @@ function DemoMailboxExperience() {
               );
             })}
           </div>
-          {actionStatus && !detailVisible && (
+          {actionStatus && demoMobilePane !== "detail" && (
             <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
               {actionStatus}
             </div>
           )}
         </div>
-        <div className="min-h-0 overflow-y-auto bg-white">
-          <div className="border-b border-orange-100 bg-orange-50/80 px-4 py-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-orange-900">
-              <Sparkles className="h-4 w-4 text-orange-600" />
-              Silvio ha trovato 3 email operative
+        <div
+          className="flex-1 min-h-0 overflow-y-auto bg-white"
+          onTouchStart={handlePullTouchStart}
+          onTouchMove={handlePullTouchMove}
+          onTouchEnd={handlePullTouchEnd}
+          onTouchCancel={() => { setPullDeltaY(0); }}
+        >
+          {/* Pull-to-refresh indicator */}
+          {(pullDeltaY > 0 || isRefreshing) && (
+            <div
+              className="flex items-center justify-center bg-blue-50/80 text-blue-700 transition-all"
+              style={{ height: `${Math.min(80, isRefreshing ? 56 : pullDeltaY)}px` }}
+            >
+              {isRefreshing ? (
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Aggiornamento…
+                </span>
+              ) : pullDeltaY > 60 ? (
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <RefreshCw className="h-4 w-4" />
+                  Rilascia per aggiornare
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 text-sm font-medium opacity-60">
+                  <RefreshCw className="h-4 w-4" />
+                  Continua a tirare…
+                </span>
+              )}
             </div>
-            <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-3">
-              {["Aggiorna ritardi ODA", "Abbina DDT", "Prepara acquisti"].map((action) => (
-                <button
-                  key={`quick-${action}`}
-                  type="button"
-                  className="rounded-lg bg-white px-3 py-2 text-left font-medium hover:bg-orange-100/70"
-                  onClick={() => handleDemoAction(action)}
-                >
-                  {action}
-                </button>
-              ))}
-            </div>
-          </div>
-          {visibleEmailRows.map((row) => {
-            const rowIndex = emailRows.findIndex((item) => item.subject === row.subject);
-            const selected = row.subject === selectedRow.subject;
-            const rowTone = selected
-              ? "border-l-blue-600 bg-blue-50/80 shadow-[inset_0_0_0_1px_rgba(37,99,235,0.08)]"
-              : row.unread
-                ? "border-l-transparent bg-white hover:bg-blue-50/40"
-                : "border-l-transparent bg-slate-50/70 hover:bg-blue-50/30";
+          )}
+          {/* AI block "Silvio operative": solo in Posta in arrivo, dove ha senso */}
+          {selectedFolderLabel === "Posta in arrivo" && visibleEmailRows.length > 0 && (
+            <details className="group border-b border-orange-100 bg-orange-50/80 px-3 py-2 sm:px-4 sm:py-3">
+              <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-orange-900 [&::-webkit-details-marker]:hidden">
+                <Sparkles className="h-4 w-4 shrink-0 text-orange-600" />
+                <span className="flex-1 truncate">Silvio ha trovato 3 email operative</span>
+                <span className="text-xs font-normal text-orange-700 transition-transform group-open:rotate-180">▾</span>
+              </summary>
+              <div className="mt-2 grid gap-1.5 text-xs text-slate-600 sm:grid-cols-3 sm:gap-2">
+                {["Aggiorna ritardi ODA", "Abbina DDT", "Prepara acquisti"].map((action) => (
+                  <button
+                    key={`quick-${action}`}
+                    type="button"
+                    className="rounded-lg bg-white px-3 py-2 text-left text-sm font-medium hover:bg-orange-100/70 sm:text-xs"
+                    onClick={() => handleDemoAction(action)}
+                  >
+                    {action}
+                  </button>
+                ))}
+              </div>
+            </details>
+          )}
+          {(() => {
+            let lastBucket: "Oggi" | "Ieri" | "Più vecchie" | null = null;
+            return visibleEmailRows.map((row, rowMapIndex) => {
+              const rowIndex = emailRows.findIndex((item) => item.subject === row.subject);
+              const selected = row.subject === selectedRow.subject;
+              const bucket = getDemoTimeBucket(row.time);
+              const showBucketHeader = bucket !== lastBucket;
+              lastBucket = bucket;
+            const isRowSelected = selectedDemoRowKeys.has(row.subject);
+            const isSwipingThisRow = swipeRowKey === row.subject;
+            // bg-row OPACO per evitare che il reveal swipe trasparisca attraverso
+            const rowBg = isRowSelected
+              ? "bg-blue-100"
+              : selected
+                ? "bg-blue-50 border-l-blue-600"
+                : row.unread
+                  ? "bg-white border-l-transparent"
+                  : "bg-slate-50 border-l-transparent";
             return (
-              <button
+              <React.Fragment key={`demo-row-frag-${row.subject}-${rowMapIndex}`}>
+                {showBucketHeader && (
+                  <div className="sticky top-0 z-[5] bg-slate-100/95 backdrop-blur supports-[backdrop-filter]:bg-slate-100/80 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    {bucket}
+                  </div>
+                )}
+              <div
                 key={`demo-row-${row.subject}`}
-                type="button"
-                aria-label={`Apri email ${row.subject}`}
-                onClick={() => {
-                  setSelectedRowIndex(rowIndex);
-                  setAiPanelOpen(false);
-                  setTimelineOpen(false);
-                  setActionStatus(null);
-                  setDetailVisible(true);
-                }}
-                className={`w-full border-b border-slate-100 border-l-4 px-3 text-left transition-colors ${rowTone} ${compactView ? "py-2" : "py-3"}`}
+                className="relative overflow-hidden border-b border-slate-100"
+                onTouchStart={(e) => handleRowTouchStart(row.subject, e)}
+                onTouchMove={handleRowTouchMove}
+                onTouchEnd={() => handleRowTouchEnd(row.subject)}
+                onTouchCancel={() => { cancelLongPress(); setSwipeRowKey(null); setSwipeDeltaX(0); }}
               >
-                <div className="flex items-start gap-2.5">
-                  <span className={`flex shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${compactView ? "h-8 w-8" : "h-9 w-9"} ${row.color}`}>
-                    {row.from.slice(0, 2).toUpperCase()}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-2">
-                      {row.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600" title="Da leggere" />}
-                      <p className={`truncate text-sm ${row.unread ? "font-bold text-slate-950" : "font-semibold text-slate-700"}`}>
-                        {row.from}
-                      </p>
-                      {row.starred && (
-                        <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="Contrassegnata" />
-                      )}
-                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{row.badge}</span>
-                      {row.unread && (
-                        <span className="hidden rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 sm:inline-flex">
-                          Da leggere
-                        </span>
-                      )}
-                      <span className={`ml-auto shrink-0 text-xs ${row.unread ? "font-semibold text-slate-700" : "text-slate-400"}`}>
-                        {row.time}
+                {/* Reveal sfondi: SOLO durante swipe attivo su questa row + solo il lato corretto */}
+                {isSwipingThisRow && swipeDeltaX < 0 && (
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center justify-end bg-emerald-500 pr-5 text-white" style={{ width: `${Math.min(180, Math.abs(swipeDeltaX))}px` }}>
+                    <Archive className="h-5 w-5" />
+                    <span className="ml-2 text-sm font-semibold">Archivia</span>
+                  </div>
+                )}
+                {isSwipingThisRow && swipeDeltaX > 0 && (
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center bg-rose-500 pl-5 text-white" style={{ width: `${Math.min(180, swipeDeltaX)}px` }}>
+                    <Trash2 className="h-5 w-5" />
+                    <span className="ml-2 text-sm font-semibold">Cestino</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  aria-label={isMultiSelectMode ? `Seleziona email ${row.subject}` : `Apri email ${row.subject}`}
+                  onClick={() => {
+                    // Suppress click se l'utente ha appena fatto uno swipe (flag sincrono in ref)
+                    if (swipeStartXRef?.__demoWasSwipe) {
+                      swipeStartXRef.__demoWasSwipe = false;
+                      return;
+                    }
+                    if (isMultiSelectMode) {
+                      toggleRowSelection(row.subject);
+                      return;
+                    }
+                    setSelectedRowIndex(rowIndex);
+                    setAiPanelOpen(false);
+                    setTimelineOpen(false);
+                    setActionStatus(null);
+                    setDetailVisible(true);
+                    setDemoMobilePane("detail");
+                  }}
+                  className={cn(
+                    "relative w-full border-l-4 px-3 text-left hover:bg-blue-50/40",
+                    rowBg,
+                    compactView ? "py-2" : "py-3",
+                    !isSwipingThisRow && "transition-transform duration-150",
+                  )}
+                  style={isSwipingThisRow ? { transform: `translateX(${swipeDeltaX}px)` } : undefined}
+                >
+                  <div className="flex items-start gap-2.5">
+                    {isMultiSelectMode && (
+                      <span
+                        className={cn(
+                          "mt-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2",
+                          isRowSelected ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white",
+                        )}
+                      >
+                        {isRowSelected && <CheckCheck className="h-3 w-3 text-white" />}
                       </span>
-                    </div>
-                    <p className={`mt-0.5 truncate text-sm ${row.unread ? "font-bold text-slate-900" : "font-medium text-slate-600"}`}>
-                      {row.subject}
-                    </p>
-                    <div className={`mt-0.5 flex min-w-0 items-center gap-2 text-xs ${row.unread ? "text-slate-500" : "text-slate-400"}`}>
-                      <span className="min-w-0 flex-1 truncate">{row.preview}</span>
-                      {row.attachments > 0 && (
-                        <span className="inline-flex items-center gap-1">
-                          <Paperclip className="h-3 w-3" />
-                          {row.attachments}
+                    )}
+                    <span className={`flex shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${compactView ? "h-8 w-8" : "h-9 w-9"} ${row.color}`}>
+                      {row.from.slice(0, 2).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {row.unread && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600" title="Da leggere" />}
+                        <p className={`truncate text-sm ${row.unread ? "font-bold text-slate-950" : "font-semibold text-slate-700"}`}>
+                          {row.from}
+                        </p>
+                        {row.starred && (
+                          <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="Contrassegnata" />
+                        )}
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">{row.badge}</span>
+                        {row.unread && (
+                          <span className="hidden rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-700 sm:inline-flex">
+                            Da leggere
+                          </span>
+                        )}
+                        <span className={`ml-auto shrink-0 text-xs ${row.unread ? "font-semibold text-slate-700" : "text-slate-400"}`}>
+                          {row.time}
                         </span>
-                      )}
+                      </div>
+                      <p className={`mt-0.5 truncate text-sm ${row.unread ? "font-bold text-slate-900" : "font-medium text-slate-600"}`}>
+                        {row.subject}
+                      </p>
+                      <div className={`mt-0.5 flex min-w-0 items-center gap-2 text-xs ${row.unread ? "text-slate-500" : "text-slate-400"}`}>
+                        <span className="min-w-0 flex-1 truncate">{row.preview}</span>
+                        {row.attachments > 0 && (
+                          <span className="inline-flex items-center gap-1">
+                            <Paperclip className="h-3 w-3" />
+                            {row.attachments}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
+                </button>
+              </div>
+              </React.Fragment>
             );
-          })}
+            });
+          })()}
           {visibleEmailRows.length === 0 && (
             <div className="p-4 text-sm text-slate-500">
               Nessuna email demo per questo filtro rapido.
             </div>
           )}
-          <div className="border-t border-blue-100 bg-blue-50/50 p-3 lg:hidden">
+          {/* Anteprima selezionata: nascosta su mobile (detail full-screen è già la lettura), visibile solo su tablet medio per coerenza */}
+          <div className="hidden md:block lg:hidden border-t border-blue-100 bg-blue-50/50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Anteprima selezionata</p>
             <p className="mt-1 text-sm font-semibold text-slate-950">{selectedRow.subject}</p>
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{getDemoEmailMessage(selectedRow)}</p>
@@ -1628,10 +2028,29 @@ function DemoMailboxExperience() {
       </main>
 
       {detailVisible && (
-      <section className="hidden min-h-0 flex-col bg-white lg:flex">
-        <div className="border-b border-blue-100 p-4">
+      <section
+        className={cn(
+          "min-h-0 flex-col bg-white",
+          // Desktop: shown when detailVisible (already gated by parent)
+          "hidden lg:flex",
+          // Mobile: full-screen when in detail mode
+          demoMobilePane === "detail" && "fixed inset-0 z-20 flex lg:relative lg:inset-auto lg:z-auto",
+        )}
+      >
+        <div className="border-b border-blue-100 p-3 sm:p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {/* Back button mobile — torna alla lista */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="lg:hidden h-8 w-8 shrink-0 -ml-1"
+                onClick={() => setDemoMobilePane("list")}
+                aria-label="Torna alla lista"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
               <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">{selectedRow.badge}</span>
               {selectedRow.unread ? (
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Da leggere</span>
@@ -1642,12 +2061,12 @@ function DemoMailboxExperience() {
                 <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Contatto collegato</span>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 sm:gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-lg border-blue-100"
+                className="hidden sm:inline-flex h-8 w-8 rounded-lg border-blue-100"
                 onClick={toggleSelectedReadStatus}
                 title={selectedRow.unread ? "Segna come letta" : "Segna come da leggere"}
                 aria-label={selectedRow.unread ? "Segna come letta" : "Segna come da leggere"}
@@ -1680,7 +2099,7 @@ function DemoMailboxExperience() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-lg border-blue-100"
+                className="hidden sm:inline-flex h-8 w-8 rounded-lg border-blue-100"
                 onClick={linkSelectedContact}
                 title="Aggiungi contatto"
                 aria-label="Aggiungi contatto email demo"
@@ -1702,7 +2121,7 @@ function DemoMailboxExperience() {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-lg border-blue-100"
+                className="hidden lg:inline-flex h-8 w-8 rounded-lg border-blue-100"
                 onClick={() => setDetailVisible(false)}
                 title="Chiudi pannello lettura"
                 aria-label="Chiudi pannello lettura"
@@ -1864,11 +2283,24 @@ function DemoMailboxExperience() {
       </section>
       )}
 
+      {/* FAB compose mobile — semplice e non invasivo: visibile solo in lista, no multi-select, no compose */}
+      {demoMobilePane === "list" && !composeMode && !isMultiSelectMode && (
+        <Button
+          type="button"
+          onClick={openNewCompose}
+          aria-label="Scrivi nuova email demo"
+          className="lg:hidden absolute right-4 bottom-4 z-30 h-14 w-14 rounded-full p-0 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-300/40"
+          style={{ bottom: "max(env(safe-area-inset-bottom), 1rem)" }}
+        >
+          <PencilLine className="h-6 w-6" />
+        </Button>
+      )}
+
       {composeMode && (
         <div
           className={composeExpanded
-            ? "absolute inset-4 z-30 flex flex-col overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl"
-            : "absolute bottom-4 right-4 z-30 flex w-[min(560px,calc(100%-2rem))] flex-col overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl"}
+            ? "absolute inset-2 sm:inset-4 z-30 flex flex-col overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl"
+            : "absolute inset-2 sm:inset-auto sm:bottom-4 sm:right-4 z-30 flex sm:w-[min(560px,calc(100%-2rem))] flex-col overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-2xl"}
         >
           <div className="flex items-center justify-between border-b border-blue-100 bg-blue-50 px-4 py-3">
             <div>

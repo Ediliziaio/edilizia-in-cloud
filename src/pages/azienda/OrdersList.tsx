@@ -1523,29 +1523,30 @@ function OrdersListInner() {
   return (
     <div className="flex flex-col gap-4 pb-20 sm:gap-6 sm:pb-0">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-            <Package className="h-5 w-5" />
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Commesse</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Commesse</h1>
+            <p className="hidden sm:block text-sm text-slate-500 mt-0.5">
               Cantieri, ODA, DDT, anomalie e marginalità in un'unica vista.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* Filtri avanzati */}
           <Button
             variant="outline"
             size="sm"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Apri filtri avanzati"
           >
-            <SlidersHorizontal className="h-4 w-4 mr-1" />
-            Filtri
+            <SlidersHorizontal className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Filtri</span>
             {countActiveFilters(sidebarFilters) > 0 && (
-              <span className="ml-1 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center">
+              <span className="ml-1 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
                 {countActiveFilters(sidebarFilters)}
               </span>
             )}
@@ -1693,26 +1694,26 @@ function OrdersListInner() {
         />
       )}
 
-      <section className="order-4 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
+      <section className="order-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden sm:order-none">
         <div className="grid gap-0 xl:grid-cols-[minmax(320px,0.58fr)_minmax(520px,1fr)]">
-          <div className="bg-[#173b67] p-5 sm:p-6 text-white">
+          <div className="bg-[#173b67] p-3 sm:p-5 md:p-6 text-white">
             <div className="flex items-start gap-3">
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
-                  <Target className="h-5 w-5" />
+              <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+                <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+                  <Target className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-100">Riepilogo commesse</p>
-                  <h2 className="mt-1 text-xl font-semibold text-white">Vista economica e operativa</h2>
-                  <p className="mt-1 max-w-xl text-sm leading-6 text-blue-50/85">
+                  <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-orange-100">Riepilogo commesse</p>
+                  <h2 className="mt-0.5 sm:mt-1 text-base sm:text-xl font-semibold text-white">Vista economica e operativa</h2>
+                  <p className="hidden sm:block mt-1 max-w-xl text-sm leading-6 text-blue-50/85">
                     Numeri principali sempre visibili, senza azioni automatiche sui filtri.
                   </p>
                 </div>
               </div>
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-white/12 bg-white/9 p-4">
-                <div className="flex items-center gap-3">
+            <div className="mt-3 sm:mt-6 grid gap-2 sm:gap-3 grid-cols-2">
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
                     <ShoppingBag className="h-4 w-4" />
                   </span>
@@ -1735,8 +1736,8 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/12 bg-white/9 p-4">
-                <div className="flex items-center gap-3">
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
                     <Euro className="h-4 w-4" />
                   </span>
@@ -1761,8 +1762,8 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/12 bg-white/9 p-4">
-                <div className="flex items-center gap-3">
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-emerald-100">
                     <TrendingUp className="h-4 w-4" />
                   </span>
@@ -1787,8 +1788,8 @@ function OrdersListInner() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-white/12 bg-white/9 p-4">
-                <div className="flex items-center gap-3">
+              <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-orange-100">
                     <AlertCircle className="h-4 w-4" />
                   </span>
@@ -1815,7 +1816,7 @@ function OrdersListInner() {
             </div>
           </div>
 
-          <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
+          <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-3 sm:p-5 xl:border-l xl:border-t-0">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase text-slate-500">
@@ -1929,7 +1930,7 @@ function OrdersListInner() {
         </div>
       </section>
 
-      <section className="order-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4 sm:order-none">
+      <section className="order-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4 sm:order-none">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md hover:shadow-slate-950/10">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-600 ring-1 ring-orange-100">
@@ -2286,7 +2287,7 @@ export default function OrdersList() {
   }, [activeTab, requestedTab, setSearchParams]);
 
   return (
-    <div className="space-y-4 pb-20 sm:space-y-6 sm:pb-0">
+    <div className="space-y-4 pb-20 sm:space-y-6 sm:pb-0 overflow-x-hidden">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
         <nav

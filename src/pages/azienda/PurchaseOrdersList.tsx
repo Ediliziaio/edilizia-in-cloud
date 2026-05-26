@@ -431,7 +431,8 @@ export default function PurchaseOrdersList() {
         />
       </div>
 
-      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm lg:grid-cols-3">
+      {/* "Come funziona" educational box — nascosto su mobile per dare priorità alla lista */}
+      <div className="hidden md:grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm shadow-sm lg:grid-cols-3">
         <div className="flex gap-3">
           <ShoppingCart className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
           <div>

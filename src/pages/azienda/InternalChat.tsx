@@ -532,6 +532,8 @@ function useInternalChat(companyIdOverride?: string) {
   // la sidebar preview si aggiorni anche per i canali NON attivi (es. quando
   // Silvio in un canale di background risponde). La sub channel-specific in
   // useChannelMessages copre solo il canale aperto.
+  // Le notifiche browser sono gestite a livello componente (vedi InternalChat
+  // default export) per avere accesso a selectedChannelId/profileMap/handleSelect.
   useEffect(() => {
     if (!companyId || channelIds.length === 0) return;
     const sub = supabase
@@ -1220,6 +1222,68 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     setShowMobile(true);
     markChannelRead(channelId);
   }, [markChannelRead]);
+
+  // ─── Browser Notifications for incoming chat messages ──────────────
+  // Trigger notifica nativa quando arriva un messaggio se:
+  // - non è il mio messaggio
+  // - tab non in focus OPPURE canale aperto diverso
+  // Su mobile (PWA installata) usa la notifica nativa del SO.
+  // Su desktop browser mostra notifica Chrome/Safari/Firefox standard.
+  useEffect(() => {
+    if (!companyId || !userId) return;
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    const sub = supabase
+      .channel(`chat-notify-${companyId}-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "internal_chat_messages",
+          filter: `company_id=eq.${companyId}`,
+        },
+        (payload) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const msg = payload.new as any;
+          if (!msg || msg.sender_id === userId) return;
+          // Skip se sto leggendo questo canale ed il tab è in focus
+          const channelOpen = msg.channel_id === selectedChannelId;
+          const tabFocused = !document.hidden;
+          if (channelOpen && tabFocused) return;
+          // Notifica solo se utente ha dato permesso
+          if (Notification.permission !== "granted") return;
+          const senderName = profileMap.get(msg.sender_id)?.full_name || profileMap.get(msg.sender_id)?.email || "Nuovo messaggio";
+          const body = (msg.content || msg.text || "").slice(0, 140) || "Hai ricevuto un messaggio";
+          try {
+            const n = new Notification(senderName, {
+              body,
+              icon: "/favicon.ico",
+              tag: `chat-${msg.channel_id}`,
+              renotify: true,
+              silent: false,
+            });
+            n.onclick = () => {
+              window.focus();
+              if (msg.channel_id) handleSelectChannel(msg.channel_id);
+              n.close();
+            };
+          } catch {
+            // Silent fail se Notification non disponibile (iOS Safari < 16.4)
+          }
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(sub); };
+  }, [companyId, userId, selectedChannelId, profileMap, handleSelectChannel]);
+
+  // Richiedi permission browser notifications al primo mount (se default)
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      // Auto-request silenzioso (browser mostrerà il prompt nativo)
+      void Notification.requestPermission().catch(() => { /* silent */ });
+    }
+  }, []);
 
   // Deep-link via ?channel=<id|name>: reagisce ai cambi URL (es. click su
   // "Apri chat con Silvio" dal bell popover quando si è già sulla pagina chat).
@@ -1949,7 +2013,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="h-[calc(100vh-200px)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-xl border shadow-sm bg-[#efeae2] dark:bg-gray-950">
+    <div className="h-[calc(100vh-120px)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-none sm:rounded-xl border-y sm:border shadow-sm bg-[#efeae2] dark:bg-gray-950 -mx-3 sm:mx-0">
       {/* ═══ LEFT PANEL: Chat List ═══ */}
       <div className={cn(
         "w-full md:w-[380px] lg:w-[420px] md:min-w-[320px] flex flex-col bg-white dark:bg-[#111b21] border-r border-[#e9edef] dark:border-gray-800",

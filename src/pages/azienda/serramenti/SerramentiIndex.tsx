@@ -412,35 +412,36 @@ export default function SerramentiIndex() {
         <div className="absolute right-8 top-6 opacity-10 select-none" aria-hidden>
           <RectangleVertical className="h-28 w-28" strokeWidth={1.5} />
         </div>
-        <div className="relative max-w-[1400px] mx-auto px-4 sm:px-8 py-6 sm:py-8 flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <div className="text-[11px] uppercase tracking-widest font-semibold mb-1 text-orange-200">
+        <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] sm:text-[11px] uppercase tracking-widest font-semibold mb-1 text-orange-200">
               ★ MARKETING & VENDITA
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <RectangleVertical className="h-7 w-7 text-orange-400" />
-              Preventivatore Serramenti
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+              <RectangleVertical className="h-6 w-6 sm:h-7 sm:w-7 text-orange-400 shrink-0" />
+              <span className="truncate">Preventivatore Serramenti</span>
             </h1>
-            <p className="text-sm text-blue-100 mt-1">
+            <p className="hidden sm:block text-sm text-blue-100 mt-1">
               I tuoi preventivi di finestre, porte e persiane sotto controllo.
             </p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
               onClick={() => navigate("/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti")}
-              size="lg" variant="outline"
-              className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial"
+              variant="outline"
+              className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm"
+              aria-label="Impostazioni serramenti"
             >
-              <Settings className="h-4 w-4 mr-1.5" />
-              Impostazioni
+              <Settings className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Impostazioni</span>
             </Button>
             <Button
               onClick={() => navigate("/azienda/serramenti/nuovo")}
-              size="lg"
-              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial"
+              className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm"
             >
               <Plus className="h-4 w-4 mr-1.5" />
-              Nuovo preventivo
+              <span className="sm:hidden">Nuovo</span>
+              <span className="hidden sm:inline">Nuovo preventivo</span>
             </Button>
           </div>
         </div>
@@ -655,37 +656,39 @@ export default function SerramentiIndex() {
 
         {/* Toolbar: Search inline + Filtri sheet trigger */}
         <Card>
-          <CardContent className="p-3 flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[200px]">
+          <CardContent className="p-2.5 sm:p-3 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[160px] sm:min-w-[200px] w-full sm:w-auto">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Cerca per codice, cliente o città…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-9"
+                className="pl-8 h-10 sm:h-9"
+                aria-label="Cerca preventivo serramenti"
               />
             </div>
             <Button
               variant="outline"
               size="sm"
-              className="h-9 gap-1.5"
+              className="h-10 sm:h-9 gap-1.5"
               onClick={() => setFiltersOpen(true)}
+              aria-label="Apri filtri"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filtri
+              <span className="hidden sm:inline">Filtri</span>
               {activeFiltersCount > 0 && (
-                <Badge className="ml-1 h-5 px-1.5 bg-orange-500 hover:bg-orange-500 text-[10px]">
+                <Badge className="ml-0.5 sm:ml-1 h-5 px-1.5 bg-orange-500 hover:bg-orange-500 text-[10px]">
                   {activeFiltersCount}
                 </Badge>
               )}
             </Button>
             {(search || activeFiltersCount > 0) && (
-              <Button variant="ghost" size="sm" onClick={resetFiltri} className="h-9 text-xs gap-1">
+              <Button variant="ghost" size="sm" onClick={resetFiltri} className="h-10 sm:h-9 text-xs gap-1" aria-label="Azzera filtri">
                 <X className="h-3.5 w-3.5" />
-                Azzera
+                <span className="hidden sm:inline">Azzera</span>
               </Button>
             )}
-            <span className="text-xs text-muted-foreground ml-auto">
+            <span className="text-xs text-muted-foreground ml-auto whitespace-nowrap">
               {progettiFiltrati.length} di {progetti.length}
               {totalPages > 1 && ` · pag ${currentPage}/${totalPages}`}
             </span>

@@ -115,7 +115,8 @@ const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
     switch (role) {
       case "company_admin":
       case "company_staff":
-        return <Navigate to="/azienda" replace />;
+        // Post-login: prima pagina = /azienda/attivita (centralizza scadenze, task, meteo, timbrature)
+        return <Navigate to="/azienda/attivita" replace />;
       case "customer":
         return <Navigate to="/cliente" replace />;
       case "employee":
@@ -128,7 +129,7 @@ const Login = forwardRef<HTMLDivElement>(function Login(_props, _ref) {
       case "accountant":
         return <Navigate to="/commercialista" replace />;
       case "call_center":
-        return <Navigate to="/azienda" replace />;
+        return <Navigate to="/azienda/attivita" replace />;
       default:
         return <Navigate to="/" replace />;
     }

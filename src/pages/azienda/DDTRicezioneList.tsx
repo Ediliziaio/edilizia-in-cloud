@@ -386,19 +386,19 @@ export default function DDTRicezioneList() {
   return (
     <div className="space-y-5">
       {/* ─── Header ──────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 sm:px-6 pt-5 pb-5 shadow-sm flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-            <FileCheck className="h-5 w-5" />
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <FileCheck className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight truncate">DDT Fornitori</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight truncate">DDT Fornitori</h1>
+            <p className="hidden sm:block text-sm text-slate-500 mt-0.5">
               Ricezioni merce, corrieri, verifica e non conformità in un'unica vista.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* Export */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -425,11 +425,11 @@ export default function DDTRicezioneList() {
           {/* Filtri avanzati */}
           <Popover open={filterOpen} onOpenChange={setFilterOpen}>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="relative">
-                <Filter className="h-4 w-4 mr-1.5" />
-                Filtri
+              <Button variant="outline" size="sm" className="relative" aria-label="Filtri avanzati">
+                <Filter className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Filtri</span>
                 {activeFiltersCount > 0 && (
-                  <Badge className="ml-2 h-5 px-1.5 text-[10px] bg-primary">{activeFiltersCount}</Badge>
+                  <Badge className="ml-1 sm:ml-2 h-4 w-4 sm:h-5 sm:w-auto sm:px-1.5 p-0 text-[10px] bg-primary flex items-center justify-center">{activeFiltersCount}</Badge>
                 )}
               </Button>
             </PopoverTrigger>

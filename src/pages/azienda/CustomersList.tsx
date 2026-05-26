@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -116,6 +117,8 @@ function CustomersListInner() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterSalesperson, setFilterSalesperson] = useState<string>("all");
   const [filterOrders, setFilterOrders] = useState<string>("all");
+  // Filtri quick mobile collapsible (uniformato a pattern OrdersFilters)
+  const [quickFiltersOpen, setQuickFiltersOpen] = useState(false);
 
   // Advanced filters
   const [filterHasPhone, setFilterHasPhone] = useState<YesNoAll>("all");
@@ -806,28 +809,28 @@ function CustomersListInner() {
 
   // ── Render ─────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 py-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-              <Users className="h-5 w-5" />
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 sm:py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-2.5 sm:gap-3">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Clienti</h1>
-              <p className="mt-0.5 text-sm text-slate-500">
+              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">Clienti</h1>
+              <p className="hidden sm:block mt-0.5 text-sm text-slate-500">
                 Gestisci anagrafica, ordini, accessi al portale e import da file o AI.
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* Export */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-1.5" />
-                Esporta
+              <Button variant="outline" size="sm" aria-label="Esporta clienti">
+                <Download className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Esporta</span>
                 <ChevronDown className="h-3.5 w-3.5 ml-1" />
               </Button>
             </DropdownMenuTrigger>
@@ -874,9 +877,9 @@ function CustomersListInner() {
           </DropdownMenu>
 
           {/* Import */}
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4 mr-1.5" />
-            Importa
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)} aria-label="Importa clienti con AI">
+            <Upload className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Importa</span>
             <Sparkles className="h-3.5 w-3.5 ml-1 text-primary" />
           </Button>
 
@@ -979,16 +982,20 @@ function CustomersListInner() {
         )}
       </div>
 
-      {/* Search + Filters */}
+      {/* Search + Filters — pattern uniformato a OrdersFilters (Commesse):
+          Mobile: search + Filtri avanzati sempre visibili → toggle "Filtri rapidi" mostra 2 select
+          Desktop: tutto inline una riga */}
       <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-          <div className="relative flex-1">
+        {/* Riga 1: Search + Filtri avanzati button + Clear */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Cerca per nome, email, telefono, CF..."
+              placeholder="Cerca cliente…"
               value={searchQuery}
               onChange={(e) => wrapSet(setSearchQuery)(e.target.value)}
-              className="pl-10 pr-9"
+              className="pl-10 pr-9 h-10 sm:h-9"
+              aria-label="Cerca per nome, email, telefono o codice fiscale"
             />
             {searchQuery && (
               <button
@@ -1001,62 +1008,92 @@ function CustomersListInner() {
               </button>
             )}
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Select value={filterSalesperson} onValueChange={wrapSet(setFilterSalesperson)}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <div className="flex items-center gap-2">
-                  <UserCheck className="h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Venditore" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti i venditori</SelectItem>
-                <SelectItem value="none">Senza venditore</SelectItem>
-                {salespeople.map((sp) => (
-                  <SelectItem key={sp.id} value={sp.id}>
-                    {sp.first_name} {sp.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={filterOrders} onValueChange={wrapSet(setFilterOrders)}>
-              <SelectTrigger className="w-full sm:w-[160px]">
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Ordini" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
-                <SelectItem value="with">Con ordini</SelectItem>
-                <SelectItem value="without">Senza ordini</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button
-              variant="outline"
-              size="default"
-              className="relative"
-              onClick={() => setAdvOpen(true)}
-            >
-              <Filter className="h-4 w-4 mr-1.5" />
-              Filtri avanzati
-              {activeFiltersCount > 0 && (
-                <Badge className="ml-2 h-5 px-1.5 text-[10px] bg-primary">
-                  {activeFiltersCount}
-                </Badge>
-              )}
-            </Button>
-
+          <Button
+            variant="outline"
+            size="sm"
+            className="relative h-10 sm:h-9 shrink-0"
+            onClick={() => setAdvOpen(true)}
+            aria-label="Apri filtri avanzati"
+            title="Filtri avanzati"
+          >
+            <Filter className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Filtri avanzati</span>
             {activeFiltersCount > 0 && (
-              <Button variant="ghost" size="default" onClick={clearAllFilters} className="text-muted-foreground">
-                <X className="h-4 w-4 mr-1.5" />
-                Azzera filtri
-              </Button>
+              <Badge className="ml-1 sm:ml-2 h-5 min-w-[20px] px-1 text-[10px] bg-primary flex items-center justify-center">
+                {activeFiltersCount}
+              </Badge>
             )}
-          </div>
+          </Button>
+          {activeFiltersCount > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clearAllFilters}
+              className="text-muted-foreground h-10 w-10 sm:h-9 sm:w-9 shrink-0"
+              aria-label="Azzera tutti i filtri"
+              title="Azzera filtri"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Toggle "Filtri rapidi" — solo mobile (su desktop i 2 select sono sempre visibili) */}
+        <button
+          type="button"
+          onClick={() => setQuickFiltersOpen((v) => !v)}
+          className="mt-2 sm:hidden flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          aria-expanded={quickFiltersOpen}
+          aria-label="Apri filtri rapidi"
+        >
+          <span className="flex items-center gap-1.5">
+            <UserCheck className="h-3.5 w-3.5 text-slate-400" />
+            Filtri rapidi
+            {(filterSalesperson !== "all" || filterOrders !== "all") && (
+              <span className="bg-orange-500 text-white text-[10px] rounded-full w-4 h-4 inline-flex items-center justify-center font-bold">
+                {[filterSalesperson !== "all", filterOrders !== "all"].filter(Boolean).length}
+              </span>
+            )}
+          </span>
+          <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", quickFiltersOpen && "rotate-180")} />
+        </button>
+
+        {/* Filtri rapidi (Venditore + Ordini): collapsed mobile, sempre visibili desktop */}
+        <div className={cn(
+          "mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2 sm:mt-2.5",
+          !quickFiltersOpen && "hidden sm:flex",
+        )}>
+          <Select value={filterSalesperson} onValueChange={wrapSet(setFilterSalesperson)}>
+            <SelectTrigger className="w-full h-10 sm:h-9 sm:w-[180px] min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <UserCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Venditore" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i venditori</SelectItem>
+              <SelectItem value="none">Senza venditore</SelectItem>
+              {salespeople.map((sp) => (
+                <SelectItem key={sp.id} value={sp.id}>
+                  {sp.first_name} {sp.last_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterOrders} onValueChange={wrapSet(setFilterOrders)}>
+            <SelectTrigger className="w-full h-10 sm:h-9 sm:w-[160px] min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <ClipboardList className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Ordini" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti</SelectItem>
+              <SelectItem value="with">Con ordini</SelectItem>
+              <SelectItem value="without">Senza ordini</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

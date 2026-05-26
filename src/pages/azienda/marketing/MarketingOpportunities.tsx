@@ -607,14 +607,14 @@ function MarketingOpportunitiesContent() {
           <Button variant="outline" size="sm" className="hidden md:inline-flex h-8 text-xs" onClick={() => setImportOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
             <Upload className="mr-1.5 h-3.5 w-3.5" /> Importa
           </Button>
-          <Button size="sm" className="h-8 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities}>
+          <Button size="sm" className="h-9 sm:h-8 bg-gradient-to-r from-orange-500 to-amber-500 text-xs text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => setDialogOpen(true)} disabled={stages.length === 0 || !canEditOpportunities} aria-label="Aggiungi opportunità">
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             <span className="hidden sm:inline">Aggiungi opportunità</span>
             <span className="sm:hidden">Aggiungi</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-9 w-9 sm:h-8 sm:w-8" aria-label="Altre azioni">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -661,17 +661,17 @@ function MarketingOpportunitiesContent() {
         <Button
           variant="ghost"
           size="sm"
-          className={`h-8 rounded-xl text-xs ${!activeListId ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-slate-50"}`}
+          className={`h-9 sm:h-8 shrink-0 rounded-xl text-xs ${!activeListId ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-slate-50"}`}
           onClick={() => { setActiveListId(null); setFilters(EMPTY_FILTERS); }}
         >
           Tutto
         </Button>
         {savedLists.map((list: any) => (
-          <div key={list.id} className="flex items-center group">
+          <div key={list.id} className="flex items-center group shrink-0">
             <Button
               variant="ghost"
               size="sm"
-              className={`h-8 rounded-xl text-xs ${activeListId === list.id ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-slate-50"}`}
+              className={`h-9 sm:h-8 shrink-0 rounded-xl text-xs ${activeListId === list.id ? "bg-orange-50 font-semibold text-orange-700" : "text-muted-foreground hover:bg-slate-50"}`}
               onClick={() => {
                 setActiveListId(list.id);
                 if (list.filters && typeof list.filters === "object") {
@@ -684,8 +684,9 @@ function MarketingOpportunitiesContent() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+              className="h-7 w-7 sm:h-5 sm:w-5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
               onClick={(e) => { e.stopPropagation(); deleteListMutation.mutate(list.id); }}
+              aria-label={`Elimina elenco ${list.name}`}
             >
               <X className="h-3 w-3" />
             </Button>
@@ -694,40 +695,49 @@ function MarketingOpportunitiesContent() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 rounded-xl text-xs text-muted-foreground hover:bg-slate-50"
+          className="h-9 sm:h-8 shrink-0 rounded-xl text-xs text-muted-foreground hover:bg-slate-50"
           onClick={() => setCreateListOpen(true)}
         >
           + Elenco
         </Button>
       </div>
 
-      <div className="flex shrink-0 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex shrink-0 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3 shadow-sm">
         <div className="relative w-full">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="Cerca opportunità, contatto, azienda, email o telefono..." value={searchInput} onChange={(e) => setSearchInput(e.target.value)} className="h-8 w-full pl-8 text-xs" />
+          <Input
+            placeholder="Cerca opportunità…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="h-10 sm:h-8 w-full pl-8 text-sm sm:text-xs"
+            aria-label="Cerca opportunità, contatto, azienda, email o telefono"
+          />
         </div>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">
             <Button
               variant={onlyMine ? "default" : "outline"}
               size="sm"
-              className={`h-8 text-xs ${onlyMine ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600" : ""}`}
+              className={`h-10 sm:h-8 text-xs ${onlyMine ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600" : ""}`}
               onClick={() => setOnlyMine(!onlyMine)}
+              aria-label={onlyMine ? "Mostra tutti i deal" : "Mostra solo i miei deal"}
             >
               {onlyMine ? "I miei deal" : "Tutti i deal"}
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs relative" onClick={() => setFiltersOpen(true)}>
-              <Filter className="mr-1.5 h-3.5 w-3.5" /> Filtri
+            <Button variant="outline" size="sm" className="h-10 sm:h-8 text-xs relative" onClick={() => setFiltersOpen(true)} aria-label="Apri filtri">
+              <Filter className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Filtri</span>
               {activeFilterCount > 0 && (
-                <Badge className="ml-1.5 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary text-primary-foreground">
+                <Badge className="ml-1 sm:ml-1.5 h-5 min-w-[20px] px-1 flex items-center justify-center text-[10px] bg-primary text-primary-foreground">
                   {activeFilterCount}
                 </Badge>
               )}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 text-xs">
-                  <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" /> Ordina
+                <Button variant="outline" size="sm" className="h-10 sm:h-8 text-xs" aria-label="Ordina opportunità">
+                  <ArrowUpDown className="h-3.5 w-3.5 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Ordina</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
@@ -771,7 +781,7 @@ function MarketingOpportunitiesContent() {
       ) : (
         <>
            {selectedIds.size > 0 && canEditOpportunities && (
-            <div className="flex items-center gap-3 px-4 py-2 bg-primary/5 border rounded-lg shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap px-3 sm:px-4 py-2 bg-primary/5 border rounded-lg shrink-0">
               <Badge variant="secondary" className="text-xs font-semibold">
                 {selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}
               </Badge>
@@ -782,11 +792,11 @@ function MarketingOpportunitiesContent() {
               )}
               <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={clearSelection}>Deseleziona</Button>
               <div className="ml-auto flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setBulkEditOpen(true)}>
-                  <Pencil className="h-3 w-3" /> Modifica
+                <Button variant="outline" size="sm" className="h-9 sm:h-7 text-xs gap-1" onClick={() => setBulkEditOpen(true)} aria-label="Modifica selezionati">
+                  <Pencil className="h-3 w-3" /> <span className="hidden sm:inline">Modifica</span>
                 </Button>
-                <Button variant="destructive" size="sm" className="h-7 text-xs gap-1" onClick={() => setConfirmBulkDelete(true)}>
-                  <Trash2 className="h-3 w-3" /> Elimina
+                <Button variant="destructive" size="sm" className="h-9 sm:h-7 text-xs gap-1" onClick={() => setConfirmBulkDelete(true)} aria-label="Elimina selezionati">
+                  <Trash2 className="h-3 w-3" /> <span className="hidden sm:inline">Elimina</span>
                 </Button>
               </div>
             </div>

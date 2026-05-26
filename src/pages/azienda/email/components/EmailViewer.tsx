@@ -23,8 +23,14 @@ import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward,
   Paperclip, Sparkles, AlertTriangle, X, Wand2, Loader2, ListChecks,
-  Truck, CalendarClock, PackageCheck, Send, ClipboardCheck,
+  Truck, CalendarClock, PackageCheck, Send, ClipboardCheck, MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -450,25 +456,27 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
 
   return (
     <>
-      <div className="border-b p-3 flex items-center gap-2">
+      <div className="border-b p-2 sm:p-3 flex items-center gap-1 sm:gap-2">
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden"
+          className="md:hidden shrink-0"
           onClick={onBack}
           aria-label="Torna alla lista"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h2 className="font-semibold truncate flex-1">{subject}</h2>
+        <h2 className="font-semibold truncate flex-1 text-sm sm:text-base">{subject}</h2>
         {messageCount > 0 && (
-          <Badge variant="secondary" className="text-[10px] shrink-0">
+          <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] shrink-0">
             {messageCount} {messageCount === 1 ? "messaggio" : "messaggi"}
           </Badge>
         )}
+        {/* Icon actions: desktop only — su mobile la bottom action bar ne replica il subset essenziale */}
         <Button
           variant="ghost"
           size="icon"
+          className="hidden md:flex"
           onClick={() => {
             if (!messages || messages.length === 0) return;
             const firstId = messages[0].id;
@@ -481,6 +489,7 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
         <Button
           variant="ghost"
           size="icon"
+          className="hidden md:flex"
           onClick={() => archiveAll.mutate()}
           disabled={archiveAll.isPending}
           title="Archivia"
@@ -493,7 +502,7 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
           onClick={() => summarizeMutation.mutate()}
           disabled={summarizeMutation.isPending}
           title="Riassumi thread con AI"
-          className="text-violet-600 hover:text-violet-700"
+          className="hidden md:flex text-violet-600 hover:text-violet-700"
         >
           {summarizeMutation.isPending
             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -505,7 +514,7 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
           onClick={() => analyzeMutation.mutate()}
           disabled={analyzeMutation.isPending || !messages || messages.length === 0}
           title="Analizza email con AI"
-          className="text-violet-600 hover:text-violet-700"
+          className="hidden md:flex text-violet-600 hover:text-violet-700"
         >
           {analyzeMutation.isPending
             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -514,10 +523,10 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
         <Button
           variant="ghost"
           size="icon"
+          className="hidden md:flex hover:text-rose-600"
           onClick={() => trashAll.mutate()}
           disabled={trashAll.isPending}
           title="Sposta nel cestino"
-          className="hover:text-rose-600"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -665,8 +674,8 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
         </div>
       )}
 
-      {/* Action bar bottom: Reply/ReplyAll/Forward */}
-      <div className="border-t p-3 bg-muted/20 flex flex-wrap gap-2">
+      {/* Action bar bottom: Reply/ReplyAll/Forward (desktop only — mobile usa la mobile-bottom-bar sotto) */}
+      <div className="hidden md:flex border-t p-3 bg-muted/20 flex-wrap gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -744,6 +753,177 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
             </Button>
           );
         })}
+      </div>
+
+      {/* MOBILE-only bottom action bar — stile Spark, 5 azioni primarie + menu "Altro", rispetta safe area iOS */}
+      <div
+        className="md:hidden border-t bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 px-1 pt-2 flex items-center justify-around gap-0.5 shrink-0"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 rounded-full"
+          onClick={() => {
+            if (!onReply || !messages || messages.length === 0) return;
+            const last = messages[messages.length - 1];
+            onReply(
+              {
+                id: last.id,
+                thread_id: last.thread_id,
+                from_email: last.from_email,
+                from_name: last.from_name,
+                to_email: last.to_email,
+                cc_emails: last.cc_emails ?? null,
+                subject: last.subject,
+                received_at: last.received_at,
+                raw_text: last.raw_text,
+                raw_html: last.raw_html,
+              },
+              "reply",
+            );
+          }}
+          disabled={!messages || messages.length === 0}
+          aria-label="Rispondi"
+        >
+          <Reply className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 rounded-full"
+          onClick={() => {
+            if (!onReply || !messages || messages.length === 0) return;
+            const last = messages[messages.length - 1];
+            onReply(
+              {
+                id: last.id,
+                thread_id: last.thread_id,
+                from_email: last.from_email,
+                from_name: last.from_name,
+                to_email: last.to_email,
+                cc_emails: last.cc_emails ?? null,
+                subject: last.subject,
+                received_at: last.received_at,
+                raw_text: last.raw_text,
+                raw_html: last.raw_html,
+              },
+              "forward",
+            );
+          }}
+          disabled={!messages || messages.length === 0}
+          aria-label="Inoltra"
+        >
+          <Forward className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 rounded-full"
+          onClick={() => {
+            if (!messages || messages.length === 0) return;
+            const firstId = messages[0].id;
+            toggleFlag.mutate({ id: firstId, flag: "starred", value: !hasStarred });
+          }}
+          aria-label={hasStarred ? "Rimuovi stella" : "Aggiungi stella"}
+        >
+          <Star className={cn("h-5 w-5", hasStarred && "fill-amber-400 text-amber-400")} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 rounded-full"
+          onClick={() => archiveAll.mutate()}
+          disabled={archiveAll.isPending}
+          aria-label="Archivia"
+        >
+          {archiveAll.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Archive className="h-5 w-5" />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 rounded-full text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+          onClick={() => trashAll.mutate()}
+          disabled={trashAll.isPending}
+          aria-label="Sposta nel cestino"
+        >
+          {trashAll.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-11 w-11 rounded-full"
+              aria-label="Altre azioni"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="w-56">
+            <DropdownMenuItem
+              onClick={() => summarizeMutation.mutate()}
+              disabled={summarizeMutation.isPending}
+            >
+              {summarizeMutation.isPending
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <Wand2 className="h-4 w-4 mr-2 text-violet-600" />}
+              Riassumi thread con AI
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => analyzeMutation.mutate()}
+              disabled={analyzeMutation.isPending || !messages || messages.length === 0}
+            >
+              {analyzeMutation.isPending
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <Sparkles className="h-4 w-4 mr-2 text-violet-600" />}
+              Analizza email
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => operationProposalsMutation.mutate()}
+              disabled={operationProposalsMutation.isPending || !messages || messages.length === 0}
+            >
+              {operationProposalsMutation.isPending
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <Truck className="h-4 w-4 mr-2 text-blue-600" />}
+              Operativo
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => suggestRepliesMutation.mutate()}
+              disabled={suggestRepliesMutation.isPending || !messages || messages.length === 0}
+            >
+              {suggestRepliesMutation.isPending
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <Sparkles className="h-4 w-4 mr-2 text-violet-600" />}
+              Suggerisci risposte
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (!onReply || !messages || messages.length === 0) return;
+                const last = messages[messages.length - 1];
+                onReply(
+                  {
+                    id: last.id,
+                    thread_id: last.thread_id,
+                    from_email: last.from_email,
+                    from_name: last.from_name,
+                    to_email: last.to_email,
+                    cc_emails: last.cc_emails ?? null,
+                    subject: last.subject,
+                    received_at: last.received_at,
+                    raw_text: last.raw_text,
+                    raw_html: last.raw_html,
+                  },
+                  "replyAll",
+                );
+              }}
+              disabled={!messages || messages.length === 0}
+            >
+              <ReplyAll className="h-4 w-4 mr-2" />
+              Rispondi a tutti
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </>
   );

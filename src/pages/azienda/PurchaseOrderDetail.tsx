@@ -145,11 +145,18 @@ export default function PurchaseOrderDetail() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Back link */}
+    <div className="space-y-4 sm:space-y-6">
+      {/* Back link — visible on all viewports */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" className="hidden md:inline-flex" onClick={() => navigate("/azienda/ordini-acquisto")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Ordini Acquisto
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate("/azienda/ordini?tab=acquisto")}
+          aria-label="Torna alla lista Ordini d'Acquisto"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          <span className="hidden sm:inline">Ordini Acquisto</span>
+          <span className="sm:hidden">Indietro</span>
         </Button>
       </div>
 

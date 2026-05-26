@@ -252,6 +252,8 @@ export function EmailConnectionHealthPanel({
       "rounded-2xl border bg-white shadow-sm",
       compactHealthy ? "border-emerald-100" : "border-blue-100",
       variant === "compact" ? "mx-3 my-2" : "",
+      // Mobile: nascondo il panel quando tutto è sano per risparmiare spazio verticale
+      compactHealthy && "hidden md:block",
     )}>
       <button
         type="button"

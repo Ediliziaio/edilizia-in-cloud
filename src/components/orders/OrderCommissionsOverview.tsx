@@ -485,14 +485,14 @@ function KpiCard({
 
   return (
     <Card>
-      <CardContent className="flex min-h-[104px] items-center justify-between gap-3 p-4">
+      <CardContent className="flex min-h-[80px] sm:min-h-[104px] items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-4">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="mt-1 truncate text-2xl font-semibold tabular-nums">{value}</p>
-          {hint && <p className="mt-1 truncate text-xs text-muted-foreground">{hint}</p>}
+          <p className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">{label}</p>
+          <p className="mt-0.5 sm:mt-1 truncate text-base sm:text-2xl font-semibold tabular-nums">{value}</p>
+          {hint && <p className="hidden sm:block mt-1 truncate text-xs text-muted-foreground">{hint}</p>}
         </div>
-        <div className={`shrink-0 rounded-md p-2 ${toneClass}`}>
-          <Icon className="h-5 w-5" />
+        <div className={`shrink-0 rounded-md p-1.5 sm:p-2 ${toneClass}`}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
         </div>
       </CardContent>
     </Card>
@@ -1117,8 +1117,8 @@ export function OrderCommissionsOverview() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+    <div className="space-y-4 min-w-0">
+      <div className="grid gap-2 sm:gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard label="Da liquidare" value={formatCurrency(totals.payable)} icon={WalletCards} tone="green" />
         <KpiCard label="In maturazione" value={formatCurrency(totals.held)} icon={Clock3} tone="orange" />
         <KpiCard label="Pagate" value={formatCurrency(totals.paid)} icon={CheckCircle2} tone="green" />
@@ -1128,62 +1128,65 @@ export function OrderCommissionsOverview() {
       </div>
 
       <Card>
-        <CardContent className="grid gap-3 p-4 lg:grid-cols-[1fr_180px_220px_180px_auto_auto]">
+        <CardContent className="p-3 sm:p-4">
+          {/* Search full-row */}
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Cerca commessa, cliente o beneficiario"
-              className="pl-9"
+              aria-label="Cerca commessa, cliente o beneficiario"
+              className="pl-9 h-10"
             />
           </div>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(STATUS_FILTER_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={beneficiaryFilter} onValueChange={setBeneficiaryFilter}>
-            <SelectTrigger>
-              <SelectValue placeholder="Beneficiario" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i beneficiari</SelectItem>
-              {beneficiarySummaries.map((summary) => (
-                <SelectItem key={summary.id} value={summary.id}>{summary.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as PeriodFilter)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i periodi</SelectItem>
-              <SelectItem value="current_month">Mese corrente</SelectItem>
-              <SelectItem value="last_month">Mese scorso</SelectItem>
-              <SelectItem value="current_year">Anno corrente</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button asChild variant="outline" className="gap-2">
-            <Link to="/azienda/impostazioni/persone?tab=venditori">
-              <Sparkles className="h-4 w-4" />
-              Regole AI
-            </Link>
-          </Button>
-          <Button className="gap-2" onClick={openAddDialog}>
-            <Plus className="h-4 w-4" />
-            Aggiungi compenso
-          </Button>
+          {/* Selects: 2x2 grid mobile, 1 row desktop */}
+          <div className="mt-3 grid gap-2 grid-cols-2 lg:grid-cols-[180px_220px_180px] lg:gap-3 min-w-0">
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+              <SelectTrigger className="h-10 min-w-0"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(STATUS_FILTER_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={beneficiaryFilter} onValueChange={setBeneficiaryFilter}>
+              <SelectTrigger className="h-10 min-w-0"><SelectValue placeholder="Beneficiario" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i beneficiari</SelectItem>
+                {beneficiarySummaries.map((summary) => (
+                  <SelectItem key={summary.id} value={summary.id}>{summary.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={periodFilter} onValueChange={(value) => setPeriodFilter(value as PeriodFilter)}>
+              <SelectTrigger className="h-10 col-span-2 lg:col-span-1 min-w-0"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i periodi</SelectItem>
+                <SelectItem value="current_month">Mese corrente</SelectItem>
+                <SelectItem value="last_month">Mese scorso</SelectItem>
+                <SelectItem value="current_year">Anno corrente</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Actions: primary full-width mobile, secondary outline */}
+          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+            <Button className="gap-2 h-10 flex-1 sm:flex-none" onClick={openAddDialog}>
+              <Plus className="h-4 w-4" />
+              <span className="sm:hidden">Compenso</span>
+              <span className="hidden sm:inline">Aggiungi compenso</span>
+            </Button>
+            <Button asChild variant="outline" className="gap-2 h-10 flex-1 sm:flex-none">
+              <Link to="/azienda/impostazioni/persone?tab=venditori">
+                <Sparkles className="h-4 w-4" />
+                Regole AI
+              </Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)] min-w-0">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -1248,8 +1251,8 @@ export function OrderCommissionsOverview() {
             <CardDescription>Include storico venditori e nuovi compensi generici.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+              <Table className="min-w-[720px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Beneficiario</TableHead>

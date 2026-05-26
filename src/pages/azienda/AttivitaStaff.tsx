@@ -161,8 +161,8 @@ function AttivitaHeader() {
 
   return (
     <div>
-      <p className="text-muted-foreground text-sm capitalize">{oggi}</p>
-      <h1 className="text-2xl font-bold">
+      <p className="text-muted-foreground text-xs sm:text-sm capitalize">{oggi}</p>
+      <h1 className="text-xl sm:text-2xl font-bold">
         {saluto}, {profile?.first_name ?? ""}
       </h1>
     </div>
@@ -309,14 +309,14 @@ function MiniCalendario({ onAddTask }: { onAddTask?: (date: string) => void }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <CalendarDays className="h-4 w-4" />Calendario
           </CardTitle>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentMonth(m => subMonths(m, 1))}><ChevronLeft className="h-4 w-4" /></Button>
-            <span className="text-sm font-medium min-w-[120px] text-center capitalize">{format(currentMonth, "MMMM yyyy", { locale: it })}</span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentMonth(m => addMonths(m, 1))}><ChevronRight className="h-4 w-4" /></Button>
+          <div className="flex items-center gap-0.5 sm:gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(m => subMonths(m, 1))} aria-label="Mese precedente"><ChevronLeft className="h-4 w-4" /></Button>
+            <span className="text-xs sm:text-sm font-medium min-w-[90px] sm:min-w-[120px] text-center capitalize">{format(currentMonth, "MMMM yyyy", { locale: it })}</span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(m => addMonths(m, 1))} aria-label="Mese successivo"><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       </CardHeader>
@@ -493,9 +493,9 @@ function TimbraturaSede() {
             </div>
             {!isUscito && (
               <div className="flex flex-wrap gap-2">
-                {nonHaTimbrato && <Button className="flex-1 min-w-[120px] gap-2 bg-green-600 hover:bg-green-700 text-white" disabled={isMutating} onClick={() => timbraMutation.mutate("entrata")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}Entrata</Button>}
-                {isEntrato && <><Button variant="outline" className="flex-1 min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_inizio")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}Pausa</Button><Button variant="destructive" className="flex-1 min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}Uscita</Button></>}
-                {isInPausa && <><Button className="flex-1 min-w-[120px] gap-2 bg-amber-600 hover:bg-amber-700 text-white" disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_fine")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}Fine Pausa</Button><Button variant="destructive" className="flex-1 min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}Uscita</Button></>}
+                {nonHaTimbrato && <Button className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2 bg-green-600 hover:bg-green-700 text-white" disabled={isMutating} onClick={() => timbraMutation.mutate("entrata")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}Entrata</Button>}
+                {isEntrato && <><Button variant="outline" className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_inizio")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}Pausa</Button><Button variant="destructive" className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}Uscita</Button></>}
+                {isInPausa && <><Button className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2 bg-amber-600 hover:bg-amber-700 text-white" disabled={isMutating} onClick={() => timbraMutation.mutate("pausa_fine")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}Fine Pausa</Button><Button variant="destructive" className="flex-1 min-w-[100px] sm:min-w-[120px] gap-2" disabled={isMutating} onClick={() => timbraMutation.mutate("uscita")}>{isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}Uscita</Button></>}
               </div>
             )}
             {timbratureOggi.length > 0 && (
@@ -828,7 +828,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
     if (compact) {
       // Vista compatta — riga singola
       return (
-        <div key={t.id} className={`group flex items-center gap-2 rounded border px-3 py-1.5 transition-all text-sm ${isDone ? "opacity-50 bg-muted/30" : ""} ${scaduta ? "border-red-200 bg-red-50/20" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/30"}`}>
+        <div key={t.id} className={`group flex items-center gap-1.5 sm:gap-2 rounded border px-2 sm:px-3 py-1.5 transition-all text-sm ${isDone ? "opacity-50 bg-muted/30" : ""} ${scaduta ? "border-red-200 bg-red-50/20" : ""} ${isSelected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/30"}`}>
           {/* Checkbox select */}
           <input
             type="checkbox"
@@ -861,13 +861,13 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
               {isToday(new Date(t.due_date)) ? "Oggi" : format(new Date(t.due_date), "d/MM", { locale: it })}
             </span>
           )}
-          {/* Quick actions on hover */}
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => openEdit(t)} className="p-0.5 text-muted-foreground hover:text-foreground" title="Modifica">
-              <Pencil className="h-3 w-3" />
+          {/* Quick actions: visibili sempre su mobile (no hover), opacity transition solo su md+ */}
+          <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
+            <button onClick={() => openEdit(t)} className="p-1 -m-0.5 text-muted-foreground hover:text-foreground" title="Modifica" aria-label="Modifica attività">
+              <Pencil className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => setTaskToDelete(t.id)} className="p-0.5 text-muted-foreground hover:text-red-500" title="Elimina">
-              <Trash2 className="h-3 w-3" />
+            <button onClick={() => setTaskToDelete(t.id)} className="p-1 -m-0.5 text-muted-foreground hover:text-red-500" title="Elimina" aria-label="Elimina attività">
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -920,7 +920,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
         {/* Actions */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"><MoreHorizontal className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 md:h-7 md:w-7 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity" aria-label="Azioni attività"><MoreHorizontal className="h-4 w-4" /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5 mr-2" />Modifica</DropdownMenuItem>
@@ -1015,57 +1015,63 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
             ))}
           </div>
 
-          {/* Search + view controls */}
-          <div className="flex items-center gap-2 mt-2">
+          {/* Search + view controls — mobile: search full-row, controls below */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
             <div className="flex-1 relative">
               <Input
                 placeholder="Cerca attività..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="h-8 text-xs pl-8"
+                className="h-9 text-sm pl-8"
               />
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3 w-3" /></button>}
+              {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground" aria-label="Pulisci ricerca"><X className="h-3 w-3" /></button>}
             </div>
-            {/* Group by */}
-            <Select value={groupBy} onValueChange={v => { setGroupBy(v as GroupBy); setCollapsedGroups(new Set()); }}>
-              <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue placeholder="Raggruppa" /></SelectTrigger>
-              <SelectContent>{GROUP_OPTIONS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}</SelectContent>
-            </Select>
-            {/* Compact toggle */}
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant={compact ? "default" : "outline"} size="sm" className="h-8 w-8 p-0" onClick={() => setCompact(!compact)}>
-                    <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="0.5" /><rect x="1" y="7" width="14" height="2" rx="0.5" /><rect x="1" y="12" width="14" height="2" rx="0.5" /></svg>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{compact ? "Vista espansa" : "Vista compatta"}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <div className="flex items-center gap-2">
+              {/* Group by */}
+              <Select value={groupBy} onValueChange={v => { setGroupBy(v as GroupBy); setCollapsedGroups(new Set()); }}>
+                <SelectTrigger className="h-9 flex-1 sm:w-[110px] sm:flex-none text-xs"><SelectValue placeholder="Raggruppa" /></SelectTrigger>
+                <SelectContent>{GROUP_OPTIONS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}</SelectContent>
+              </Select>
+              {/* Compact toggle */}
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant={compact ? "default" : "outline"} size="sm" className="h-9 w-9 p-0 shrink-0" onClick={() => setCompact(!compact)} aria-label="Cambia vista compatta">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="14" height="2" rx="0.5" /><rect x="1" y="7" width="14" height="2" rx="0.5" /><rect x="1" y="12" width="14" height="2" rx="0.5" /></svg>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{compact ? "Vista espansa" : "Vista compatta"}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
         </CardHeader>
 
         <CardContent>
-          {/* Bulk action bar */}
+          {/* Bulk action bar — su mobile wrap, su desktop 1 riga */}
           {hasSelection && (
-            <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
-              <input type="checkbox" checked={selectedIds.size === filteredTasks.length} onChange={selectAll} className="h-3.5 w-3.5 accent-primary" />
-              <span className="text-xs font-medium">{selectedIds.size} selezionate</span>
-              <div className="flex-1" />
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "completata" })}>
-                <CheckCircle className="h-3 w-3" />Fatte
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "in_corso" })}>
-                <PlayCircle className="h-3 w-3" />In corso
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
-                <Circle className="h-3 w-3" />Da fare
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-red-600 hover:text-red-700" onClick={() => setBulkConfirmOpen(true)}>
-                <Trash2 className="h-3 w-3" />Elimina
-              </Button>
-              <button onClick={() => setSelectedIds(new Set())} className="text-muted-foreground hover:text-foreground ml-1"><X className="h-3.5 w-3.5" /></button>
+            <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <input type="checkbox" checked={selectedIds.size === filteredTasks.length} onChange={selectAll} className="h-4 w-4 accent-primary shrink-0" aria-label="Seleziona tutte" />
+                <span className="text-xs font-medium truncate">{selectedIds.size} {selectedIds.size === 1 ? "selezionata" : "selezionate"}</span>
+                <button onClick={() => setSelectedIds(new Set())} className="p-1 text-muted-foreground hover:text-foreground ml-auto sm:hidden" aria-label="Annulla selezione"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "completata" })}>
+                  <CheckCircle className="h-3.5 w-3.5" />Fatte
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "in_corso" })}>
+                  <PlayCircle className="h-3.5 w-3.5" />In corso
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 flex-1 sm:flex-none" onClick={() => bulkUpdateStatus.mutate({ ids: [...selectedIds], status: "da_fare" })}>
+                  <Circle className="h-3.5 w-3.5" />Da fare
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1 flex-1 sm:flex-none text-red-600 hover:text-red-700" onClick={() => setBulkConfirmOpen(true)}>
+                  <Trash2 className="h-3.5 w-3.5" />Elimina
+                </Button>
+                <button onClick={() => setSelectedIds(new Set())} className="hidden sm:inline-flex p-1 text-muted-foreground hover:text-foreground ml-1" aria-label="Annulla selezione"><X className="h-3.5 w-3.5" /></button>
+              </div>
             </div>
           )}
 
@@ -1142,7 +1148,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
 
       {/* ── Dialog crea/modifica task ── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="max-w-[calc(100vw-1.5rem)] max-h-[90vh] overflow-y-auto sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>{editingTask ? "Modifica attività" : "Nuova attività"}</DialogTitle>
             <DialogDescription>{editingTask ? "Modifica i dettagli dell'attività." : "Crea una nuova attività."}</DialogDescription>
@@ -1292,7 +1298,7 @@ function TabAttivita() {
   return (
     <div className="space-y-6">
       {/* Riga 1: Meteo (1/3) + Timbratura o TaskTeam (2/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
         <MeteoWidget />
         <div className="lg:col-span-2">
           {isAdmin ? <TaskTeam /> : <TimbraturaSede />}
@@ -1300,7 +1306,7 @@ function TabAttivita() {
       </div>
       {isAdmin && <TeamTaskPulse />}
       {/* Riga 2: Calendario (1/2) + Le mie attività (1/2) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
         <MiniCalendario onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })} />
         <MieAttivita initialDueDate={addTaskDate} />
       </div>
@@ -1599,20 +1605,20 @@ export default function AttivitaStaff() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
       <AttivitaHeader />
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         {isAdmin ? (
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Dashboard</span></TabsTrigger>
-            <TabsTrigger value="regia" className="gap-1.5"><Users className="h-4 w-4" /><span className="hidden sm:inline">Regia attività</span></TabsTrigger>
+          <TabsList className="grid w-full max-w-full sm:max-w-md grid-cols-2 h-auto">
+            <TabsTrigger value="attivita" className="gap-1.5 text-xs sm:text-sm py-2"><ClipboardCheck className="h-4 w-4" /><span>Dashboard</span></TabsTrigger>
+            <TabsTrigger value="regia" className="gap-1.5 text-xs sm:text-sm py-2"><Users className="h-4 w-4" /><span className="truncate"><span className="hidden sm:inline">Regia </span>attività</span></TabsTrigger>
           </TabsList>
         ) : (
-          <TabsList className="grid w-full grid-cols-4 max-w-xl">
-            <TabsTrigger value="attivita" className="gap-1.5"><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Attività</span></TabsTrigger>
-            <TabsTrigger value="timbrature" className="gap-1.5"><Clock className="h-4 w-4" /><span className="hidden sm:inline">Timbrature</span></TabsTrigger>
-            <TabsTrigger value="ferie" className="gap-1.5"><Palmtree className="h-4 w-4" /><span className="hidden sm:inline">Ferie</span></TabsTrigger>
-            <TabsTrigger value="cedolini" className="gap-1.5"><Receipt className="h-4 w-4" /><span className="hidden sm:inline">Cedolini</span></TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 max-w-xl h-auto">
+            <TabsTrigger value="attivita" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><ClipboardCheck className="h-4 w-4" /><span className="truncate">Attività</span></TabsTrigger>
+            <TabsTrigger value="timbrature" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Clock className="h-4 w-4" /><span className="truncate">Timbra</span></TabsTrigger>
+            <TabsTrigger value="ferie" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Palmtree className="h-4 w-4" /><span className="truncate">Ferie</span></TabsTrigger>
+            <TabsTrigger value="cedolini" className="gap-1 sm:gap-1.5 text-[11px] sm:text-sm py-2 px-1 sm:px-3"><Receipt className="h-4 w-4" /><span className="truncate">Cedolini</span></TabsTrigger>
           </TabsList>
         )}
         <TabsContent value="attivita" className="mt-6"><TabAttivita /></TabsContent>

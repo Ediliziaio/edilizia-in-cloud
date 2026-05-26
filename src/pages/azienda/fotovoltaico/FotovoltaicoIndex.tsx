@@ -199,38 +199,39 @@ export default function FotovoltaicoIndex() {
         >
           ☀
         </div>
-        <div className="relative max-w-[1400px] mx-auto px-4 sm:px-8 py-8 flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <div className="text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200">
+        <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] sm:text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200">
               ★ MARKETING & VENDITA
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">Fotovoltaico</h1>
-            <p className="text-sm text-blue-100 mt-1">
+            <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Fotovoltaico</h1>
+            <p className="hidden sm:block text-sm text-blue-100 mt-1">
               I tuoi preventivi fotovoltaici, sempre sotto controllo.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             {isAdmin && (
               <>
                 <Button
                   asChild
-                  size="lg"
+                  size="default"
                   variant="outline"
-                  className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20"
+                  className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm"
                 >
-                  <Link to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=fotovoltaico">
-                    <Settings className="h-4 w-4 mr-1.5" />
-                    Impostazioni
+                  <Link to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=fotovoltaico" aria-label="Impostazioni modulo fotovoltaico">
+                    <Settings className="h-4 w-4 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Impostazioni</span>
                   </Link>
                 </Button>
                 <Button
                   asChild
-                  size="lg"
-                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0"
+                  size="default"
+                  className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm"
                 >
                   <Link to="/azienda/marketing/fotovoltaico/nuovo">
                     <Plus className="h-4 w-4 mr-1.5" />
-                    Nuovo progetto
+                    <span className="sm:hidden">Nuovo</span>
+                    <span className="hidden sm:inline">Nuovo progetto</span>
                   </Link>
                 </Button>
               </>
@@ -239,9 +240,9 @@ export default function FotovoltaicoIndex() {
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-5">
+      <div className="max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
         {/* KPI Dashboard */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-3">
           <FvKpi
             label="Progetti totali"
             value={stats?.progetti_totali ?? 0}
@@ -293,43 +294,46 @@ export default function FotovoltaicoIndex() {
 
         {/* Filtri */}
         <FvCard>
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-64 max-w-md">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400 pointer-events-none" />
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 sm:items-center">
+            <div className="relative w-full sm:flex-1 sm:min-w-64 sm:max-w-md">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               <Input
                 placeholder="Cerca per numero, cliente, indirizzo…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8"
+                className="pl-8 h-10 sm:h-10"
+                aria-label="Cerca progetto fotovoltaico"
               />
             </div>
-            <Select value={filtroStato} onValueChange={setFiltroStato}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="Stato" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti gli stati</SelectItem>
-                {Object.entries(STATI_LABEL).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>
-                    {v.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filtroArchetipo} onValueChange={setFiltroArchetipo}>
-              <SelectTrigger className="w-52">
-                <SelectValue placeholder="Archetipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutti gli archetipi</SelectItem>
-                {Object.entries(ARCHETIPI_LABEL).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>
-                    {v}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-xs text-slate-500 ml-auto">
+            <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3">
+              <Select value={filtroStato} onValueChange={setFiltroStato}>
+                <SelectTrigger className="w-full sm:w-44 h-10">
+                  <SelectValue placeholder="Stato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  {Object.entries(STATI_LABEL).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filtroArchetipo} onValueChange={setFiltroArchetipo}>
+                <SelectTrigger className="w-full sm:w-52 h-10">
+                  <SelectValue placeholder="Archetipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli archetipi</SelectItem>
+                  {Object.entries(ARCHETIPI_LABEL).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="text-xs text-slate-500 sm:ml-auto">
               {progettiFiltrati.length} di {progetti.length}
             </span>
           </div>
@@ -375,7 +379,74 @@ export default function FotovoltaicoIndex() {
         )}
 
         {progetti.length > 0 && (
-          <FvCard compact>
+          <>
+          {/* ── MOBILE: card list ── */}
+          <div className="sm:hidden space-y-2">
+            {progettiFiltrati.length === 0 ? (
+              <FvCard compact>
+                <div className="text-center py-8 text-sm text-slate-500">
+                  Nessun progetto trovato con i filtri attuali.
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="ml-1 h-auto px-1 text-orange-600"
+                    onClick={() => {
+                      setSearch("");
+                      setFiltroStato("all");
+                      setFiltroArchetipo("all");
+                    }}
+                  >
+                    Azzera filtri
+                  </Button>
+                </div>
+              </FvCard>
+            ) : (
+              progettiFiltrati.map((p) => {
+                const stato = STATI_LABEL[p.stato as keyof typeof STATI_LABEL] ?? STATI_LABEL.bozza;
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => navigate(`/azienda/marketing/fotovoltaico/${p.id}`)}
+                    className="bg-white border border-slate-200 rounded-xl p-3 active:scale-[0.99] transition-transform cursor-pointer shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-[10px] text-slate-500 font-semibold mb-0.5">{p.numero}</div>
+                        <div className="font-semibold text-sm text-slate-900 truncate">{p.cliente_nome ?? "—"}</div>
+                        <div className="text-xs text-slate-500 truncate">{p.titolo}</div>
+                      </div>
+                      <FvChip variant={stato.variant}>{stato.label}</FvChip>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Potenza</div>
+                        <div className="font-semibold text-slate-700 tabular-nums">
+                          {p.potenza_kwp != null ? `${Number(p.potenza_kwp).toFixed(2)} kWp` : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Importo</div>
+                        <div className="font-semibold text-slate-900 tabular-nums">
+                          {p.prezzo_vendita_iva_inclusa != null
+                            ? `€ ${Number(p.prezzo_vendita_iva_inclusa).toLocaleString("it-IT", { maximumFractionDigits: 0 })}`
+                            : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">Payback</div>
+                        <div className="font-semibold text-emerald-600 tabular-nums">
+                          {p.payback_anni != null ? `${p.payback_anni}a` : "—"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* ── DESKTOP: tabella ── */}
+          <FvCard compact className="hidden sm:block">
             <div className="overflow-x-auto -mx-4 sm:mx-0">
               <Table>
                 <TableHeader>
@@ -502,6 +573,7 @@ export default function FotovoltaicoIndex() {
               </Table>
             </div>
           </FvCard>
+          </>
         )}
       </div>
     </div>

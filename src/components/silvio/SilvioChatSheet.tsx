@@ -36,6 +36,7 @@ import {
   Sparkles,
   Paperclip,
   Mic,
+  Camera,
   Square,
   FileText,
   X,
@@ -317,6 +318,10 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   const qc = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // v8.6.75 — Input dedicato per la camera: stesso onChange ma con
+  // `capture="environment"` per aprire direttamente la fotocamera retro
+  // su mobile (su desktop apre comunque il file picker, accept="image/*").
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [draft, setDraft] = useState("");
   // Textarea auto-grow stile WhatsApp: 1 → 5 righe, poi scroll interno
@@ -370,6 +375,15 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Mirror del recordingMs in ref per leggerlo dentro callback (onstop)
   const recordingMsRef = useRef<number>(0);
+
+  // v8.6.74 — Hold-to-talk pattern (WhatsApp-style):
+  //   tap rapido sul mic     → modalità classica: registra → preview → conferma
+  //   premi e tieni (>250ms) → modalità rapida: registra → rilascia per inviare
+  // autoSendAfterStop dice all'effetto che monitora pendingAudio se al prossimo
+  // blob deve auto-confermare (saltare preview e trascrivere subito).
+  const [autoSendAfterStop, setAutoSendAfterStop] = useState(false);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdActiveRef = useRef<boolean>(false);
 
   // PERF/LEAK FIX: cleanup unmount con deps=[] cattura attachments/pendingAudio
   // del primo render (sempre vuoti) -> i blob URL non venivano mai revocati.
@@ -590,6 +604,43 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [liveLength, lastLiveContent]);
+
+  // v8.6.73 — Bug fix robusto: all'apertura del sheet, scroll all'ultimo
+  // messaggio. Senza questo, l'utente vedeva i messaggi dall'alto e doveva
+  // scrollare manualmente.
+  // Pattern WhatsApp: chat sempre in basso, vecchi caricati in alto.
+  // Approccio: sentinel <div ref={messagesEndRef} /> + scrollIntoView dopo
+  // un tick (con `instant` per non animare). Triggera anche dopo che le
+  // motion animations dei MessageBubble cambiano l'altezza.
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasScrolledOnOpenRef = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      hasScrolledOnOpenRef.current = false;
+      return;
+    }
+    if (hasScrolledOnOpenRef.current) return;
+    if (messages.length === 0) return;
+    // Multi-frame scroll: ripetiamo lo scroll su più tick per beccare anche
+    // i ricalcoli di layout dopo i mount delle motion bubble. Cap a 6 frame.
+    let frameCount = 0;
+    const scrollNow = () => {
+      const el = scrollRef.current;
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+      }
+      // Fallback con sentinel per browser che ignorano scrollHeight asincrono
+      messagesEndRef.current?.scrollIntoView({ block: "end", behavior: "instant" as ScrollBehavior });
+      frameCount++;
+      if (frameCount < 6) {
+        rafId = requestAnimationFrame(scrollNow);
+      } else {
+        hasScrolledOnOpenRef.current = true;
+      }
+    };
+    let rafId = requestAnimationFrame(scrollNow);
+    return () => cancelAnimationFrame(rafId);
+  }, [open, messages.length]);
 
   // Ticker secondo-per-secondo durante l'invio. Senza questo l'utente vede
   // solo i tre puntini animati e dopo 30s di silenzio pensa che la chat
@@ -913,6 +964,56 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     await transcribeAudio(blob);
   };
 
+  // v8.6.74 — Hold-to-talk: quando l'utente rilascia il mic dopo press-and-hold,
+  // stopRecording() salva il blob in pendingAudio. Se la modalità "auto-send"
+  // era attiva (= hold detected), saltiamo la preview e trascriviamo subito.
+  useEffect(() => {
+    if (!pendingAudio || !autoSendAfterStop) return;
+    setAutoSendAfterStop(false);
+    void confirmTranscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAudio, autoSendAfterStop]);
+
+  // Hold-to-talk handlers — innescano lo startRecording dopo 250ms di tenuta.
+  // Su rilascio: se hold attivo → stop + auto-confirm; se tap rapido → cancel.
+  const handleMicHoldStart = useCallback(() => {
+    if (recording || sending || loadingChannel || transcribing) return;
+    holdActiveRef.current = false;
+    holdTimerRef.current = setTimeout(() => {
+      holdActiveRef.current = true;
+      setAutoSendAfterStop(true);
+      // Vibrazione di feedback se supportata
+      if ("vibrate" in navigator) {
+        try { navigator.vibrate(15); } catch { /* ignora */ }
+      }
+      void startRecording();
+    }, 250);
+  }, [recording, sending, loadingChannel, transcribing]);
+
+  const handleMicHoldEnd = useCallback(() => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (holdActiveRef.current) {
+      holdActiveRef.current = false;
+      stopRecording();
+      // autoSendAfterStop è già true, l'effetto sopra confermerà la trascrizione.
+    }
+  }, []);
+
+  const handleMicClick = useCallback(() => {
+    // Se hold ha appena gestito → ignora il click (evita doppio toggle)
+    if (holdActiveRef.current) {
+      holdActiveRef.current = false;
+      return;
+    }
+    // Tap rapido = comportamento classico: toggle recording con preview
+    setAutoSendAfterStop(false);
+    if (recording) stopRecording();
+    else void startRecording();
+  }, [recording]);
+
   const discardPendingAudio = () => {
     if (!pendingAudio) return;
     URL.revokeObjectURL(pendingAudio.url);
@@ -1096,9 +1197,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         className="w-full sm:max-w-xl p-0 flex flex-col gap-0 bg-slate-50"
       >
         {/* Header migliorato 2026-05-10 con menu kebab + quick actions */}
-        <SheetHeader className="px-4 py-3 border-b bg-white/95 backdrop-blur">
+        <SheetHeader className="px-3 sm:px-4 py-2 sm:py-3 border-b bg-white/95 backdrop-blur">
           <SheetTitle className="flex items-center gap-2 text-base">
-            <div className="relative h-9 w-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-sm">
+            <div className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-sm shrink-0">
               <Brain className="h-4 w-4 text-white" />
               <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
             </div>
@@ -1121,11 +1222,14 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                       : "Analizza testi, foto, PDF, DDT e vocali"}
               </p>
             </div>
-            {/* 🆕 Bottoni azione header */}
+            {/* 🆕 Bottoni azione header.
+                v8.6.73 — Maximize2 e MoreVertical nascosti su mobile: l'utente
+                vede header sovraffollato (X + ⋮ + ↗ + tre dots Radix Close).
+                Su mobile la X di chiusura di Radix basta. */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0"
+              className="hidden sm:inline-flex h-8 w-8 shrink-0"
               title="Espandi in pagina dedicata"
               onClick={() => {
                 onOpenChange(false);
@@ -1139,7 +1243,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0"
+                  className="hidden sm:inline-flex h-8 w-8 shrink-0"
                   title="Altre opzioni"
                 >
                   <MoreVertical className="h-4 w-4" />
@@ -1180,8 +1284,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           </SheetTitle>
         </SheetHeader>
 
-        {/* 🆕 Quick actions toolbar — sempre visibile (non solo nell'empty state) */}
-        <div className="px-3 py-2 border-b bg-white/60 flex gap-1.5 overflow-x-auto scrollbar-thin shrink-0">
+        {/* 🆕 Quick actions toolbar — sempre visibile (non solo nell'empty state)
+            v8.6.72 — Padding ridotto su mobile per recuperare verticale. */}
+        <div className="px-2 sm:px-3 py-1.5 sm:py-2 border-b bg-white/60 flex gap-1.5 overflow-x-auto scrollbar-thin shrink-0">
           <SilvioQuickAction
             icon={FileSpreadsheet}
             label="Computo → Preventivo"
@@ -1335,6 +1440,10 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               </div>
             </div>
           )}
+          {/* v8.6.73 — Sentinel per scrollIntoView all'apertura: ancora il
+              viewport in fondo anche quando le animazioni di mount delle
+              motion.div fanno crescere l'altezza in modo asincrono. */}
+          <div ref={messagesEndRef} aria-hidden="true" />
         </div>
 
         {/* Attachments preview */}
@@ -1462,11 +1571,33 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           </div>
         )}
 
+        {/* Hold-to-talk overlay — appare quando l'utente sta tenendo premuto
+            il mic in modalità rapida. Pattern WhatsApp: indicatore rosso con
+            timer + suggerimento "rilascia per inviare". */}
+        {recording && autoSendAfterStop && (
+          <div className="border-t bg-red-50/90 backdrop-blur px-4 py-2 flex items-center gap-3 text-sm shrink-0">
+            <span className="flex items-center justify-center h-7 w-7 rounded-full bg-red-500 shrink-0 animate-pulse">
+              <Mic className="h-4 w-4 text-white" />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-red-900 leading-tight">
+                Registrazione · {Math.floor(recordingMs / 1000)}s
+              </p>
+              <p className="text-[11px] text-red-700 leading-tight">
+                Rilascia per inviare l'audio
+              </p>
+            </div>
+            <span className="flex h-2 w-2 rounded-full bg-red-500 animate-ping" />
+          </div>
+        )}
+
         {/* Input footer */}
         <div className="border-t bg-white p-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
-          {/* AI Test Lab — selettore modello (visibile solo Demo Azienda) */}
+          {/* AI Test Lab — selettore modello (visibile solo Demo Azienda)
+              v8.6.72 — Nascosto su mobile: dev/debug tool, su mobile l'input
+              deve avere il massimo spazio. Resta da tablet (sm+) in su. */}
           {aiSelector.showSelector && aiSelector.availableModels.length > 0 && (
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 hidden sm:flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">AI Test Lab:</span>
               <AIModelSelector
                 models={aiSelector.availableModels}
@@ -1488,6 +1619,16 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               onChange={handleFilePick}
               className="hidden"
             />
+            {/* Camera input — su mobile apre la fotocamera diretta grazie a
+                capture="environment". Su desktop apre il file picker immagini. */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFilePick}
+              className="hidden"
+            />
             {/* Skill picker — "+" che apre menu di shortcut prompts (slash command style) */}
             <Popover open={skillPickerOpen} onOpenChange={setSkillPickerOpen}>
               <PopoverTrigger asChild>
@@ -1496,7 +1637,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   variant="ghost"
                   type="button"
                   disabled={sending || loadingChannel}
-                  className="h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50"
+                  className="h-11 w-11 sm:h-10 sm:w-10 rounded-2xl sm:rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 shrink-0"
                   title="Skill di Silvio (azioni rapide)"
                 >
                   <Plus className="h-5 w-5" strokeWidth={2.5} />
@@ -1512,11 +1653,31 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 <div className="bg-gradient-to-br from-orange-500 to-amber-400 px-3 py-2 text-white shrink-0">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4" fill="currentColor" />
-                    <p className="text-xs font-semibold">Skill rapide di Silvio</p>
+                    <p className="text-xs font-semibold">Azioni rapide</p>
                   </div>
-                  <p className="text-[10px] opacity-90 leading-tight">Click su una skill → riempie il messaggio</p>
+                  <p className="text-[10px] opacity-90 leading-tight">Allega file, foto o usa una skill di Silvio</p>
                 </div>
                 <div className="overflow-y-auto p-2 space-y-3 flex-1 min-h-0">
+                  {/* Quick actions: allega file (mobile-friendly entry, replica
+                      la paperclip che su mobile è nascosta per UX WhatsApp) */}
+                  <div className="sm:hidden">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSkillPickerOpen(false);
+                        fileInputRef.current?.click();
+                      }}
+                      disabled={attachments.length >= MAX_ATTACHMENTS}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-left hover:bg-orange-50 transition-colors disabled:opacity-50"
+                    >
+                      <Paperclip className="h-4 w-4 shrink-0 text-orange-600" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-slate-800 leading-tight">Allega file</p>
+                        <p className="text-[11px] text-slate-500 leading-tight">Foto, PDF, DDT, audio, Excel</p>
+                      </div>
+                    </button>
+                    <div className="h-px bg-slate-200 my-2" />
+                  </div>
                   {(["data", "doc", "operations", "advisor"] as const).map((cat) => {
                     const items = SILVIO_SKILLS.filter((s) => s.category === cat);
                     if (items.length === 0) return null;
@@ -1565,35 +1726,19 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 </div>
               </PopoverContent>
             </Popover>
-            {/* Paperclip button */}
+            {/* Paperclip — solo desktop (su mobile sta dentro al "+" skill picker) */}
             <Button
               size="icon"
               variant="ghost"
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={sending || loadingChannel || attachments.length >= MAX_ATTACHMENTS}
-              className="h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50"
+              className="hidden sm:inline-flex h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 shrink-0"
               title="Allega file (immagine o PDF)"
             >
               <Paperclip className="h-4 w-4" />
             </Button>
-            {/* Microphone button */}
-            <Button
-              size="icon"
-              variant="ghost"
-              type="button"
-              onClick={recording ? stopRecording : startRecording}
-              disabled={sending || loadingChannel || transcribing}
-              className={`h-10 w-10 rounded-xl ${
-                recording
-                  ? "bg-red-50 text-red-600 hover:bg-red-100"
-                  : "text-slate-600 hover:text-orange-600 hover:bg-orange-50"
-              }`}
-              title={recording ? "Ferma registrazione" : "Registra messaggio vocale"}
-            >
-              {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </Button>
-            {/* Emoji picker stile WhatsApp */}
+            {/* Emoji picker — solo desktop (su mobile c'è già la tastiera native) */}
             <EmojiPicker
               accent="orange"
               onPick={(emoji) => setDraft((cur) => cur + emoji)}
@@ -1602,7 +1747,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   size="icon"
                   variant="ghost"
                   type="button"
-                  className="h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50"
+                  className="hidden sm:inline-flex h-10 w-10 rounded-xl text-slate-600 hover:text-orange-600 hover:bg-orange-50 shrink-0"
                   title="Inserisci emoji"
                   aria-label="Inserisci emoji"
                 >
@@ -1610,6 +1755,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 </Button>
               }
             />
+            {/* Input pill — WhatsApp-style: arrotondato pieno, fondo pastello,
+                cresce in altezza con il contenuto, nessun bordo visibile a riposo. */}
             <textarea
               ref={draftTextareaRef}
               value={draft}
@@ -1622,24 +1769,91 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               }}
               placeholder={attachments.length > 0 ? "Descrivi cosa vuoi che analizzi…" : "Scrivi a Silvio…"}
               rows={1}
-              className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm leading-relaxed focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              className="flex-1 resize-none rounded-full bg-slate-100 border border-transparent focus:border-orange-300 focus:bg-white px-4 py-2.5 text-[15px] sm:text-sm leading-relaxed focus:outline-none focus:ring-1 focus:ring-orange-200 min-h-[44px] placeholder:text-slate-500"
               disabled={sending || loadingChannel}
             />
-            <Button
-              size="icon"
-              onClick={handleSend}
-              disabled={
-                (!draft.trim() && attachments.length === 0) ||
-                sending ||
-                loadingChannel ||
-                attachments.some((a) => a.uploading)
-              }
-              className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500"
-            >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
+            {/* Right-side buttons — pattern WhatsApp:
+                  draft vuoto    → 📷 Camera + 🎤 Mic
+                  draft con testo → ➤ Send (Camera+Mic spariscono)
+                v8.6.75 — Camera + transizione animata WhatsApp-style:
+                  fade-out + scale-down sui due bottoni che spariscono,
+                  fade-in + scale-up con leggera rotazione su Send che entra.
+                  mode="wait" così l'uscita finisce prima dell'ingresso. */}
+            <AnimatePresence mode="wait" initial={false}>
+              {(draft.trim() || attachments.length > 0) ? (
+                <motion.div
+                  key="send"
+                  initial={{ scale: 0, opacity: 0, rotate: -45 }}
+                  animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                  exit={{ scale: 0, opacity: 0, rotate: 45 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="flex items-center gap-1 sm:gap-2 shrink-0"
+                >
+                  <Button
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={
+                      (!draft.trim() && attachments.length === 0) ||
+                      sending ||
+                      loadingChannel ||
+                      attachments.some((a) => a.uploading)
+                    }
+                    className="h-11 w-11 sm:h-10 sm:w-10 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 shadow-md shadow-orange-300/30 shrink-0"
+                    aria-label="Invia messaggio"
+                  >
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="camera-mic"
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.7, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="flex items-center gap-1 sm:gap-2 shrink-0"
+                >
+                  {/* Camera button — apre la fotocamera (capture="environment") */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={sending || loadingChannel || attachments.length >= MAX_ATTACHMENTS}
+                    className="h-11 w-11 sm:h-10 sm:w-10 rounded-full text-slate-600 hover:text-orange-600 hover:bg-orange-50 shrink-0 active:scale-95 transition-transform"
+                    aria-label="Scatta foto"
+                    title="Scatta foto"
+                  >
+                    <Camera className="h-5 w-5 sm:h-4 sm:w-4" />
+                  </Button>
+                  {/* Mic button — tap classico / hold WhatsApp-style per audio veloce */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    type="button"
+                    onClick={handleMicClick}
+                    onPointerDown={handleMicHoldStart}
+                    onPointerUp={handleMicHoldEnd}
+                    onPointerLeave={handleMicHoldEnd}
+                    onPointerCancel={handleMicHoldEnd}
+                    disabled={sending || loadingChannel || transcribing}
+                    className={`h-11 w-11 sm:h-10 sm:w-10 rounded-full shrink-0 select-none touch-none transition-transform ${
+                      recording
+                        ? "bg-red-500 text-white scale-110 ring-4 ring-red-200 animate-pulse"
+                        : "text-slate-600 hover:text-orange-600 hover:bg-orange-50 active:scale-95"
+                    }`}
+                    aria-label={recording ? "Ferma registrazione" : "Tap registra · Tieni premuto per audio veloce"}
+                    title={recording ? "Ferma registrazione" : "Tap = registra · Tieni premuto = audio veloce (rilascia per inviare)"}
+                  >
+                    <Mic className="h-5 w-5 sm:h-4 sm:w-4" />
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          <div className="flex items-center justify-between mt-2 px-1">
+          {/* Footer hint — solo desktop; su mobile gli affordance sono già
+              evidenti dai bottoni rotondi e dalla tastiera native. */}
+          <div className="hidden sm:flex items-center justify-between mt-2 px-1">
             <p className="text-[10px] text-muted-foreground">
               📎 file · 🎙 vocale · ⏎ invio
               {recordingSeconds >= 60 && recordingSeconds < 240 && " · audio max 5 min"}
@@ -1656,6 +1870,13 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
               Apri chat completa <ExternalLink className="h-2.5 w-2.5" />
             </button>
           </div>
+          {/* Su mobile mostriamo solo eventuali warning attivi (recording timer) */}
+          {(recordingSeconds >= 60) && (
+            <p className="sm:hidden text-[10px] text-muted-foreground mt-1.5 px-1">
+              {recordingSeconds < 240 && "🎙 audio max 5 min"}
+              {recordingSeconds >= 240 && recordingSeconds < 300 && `🎙 stop auto tra ${300 - recordingSeconds}s`}
+            </p>
+          )}
         </div>
       </SheetContent>
     </Sheet>
@@ -1895,16 +2116,20 @@ function MessageBubble({
             onAskFollowup={onAskFollowup}
           />
         )}
-        {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo) */}
+        {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo)
+            v8.6.72 — Nascosto su mobile: meta dev/debug, su mobile occupa
+            spazio prezioso. Resta su tablet/desktop (sm+). */}
         {isSilvio && !isStillTyping && message.last_model_id && (
-          <AIRunFooter meta={{
-            model_id: message.last_model_id,
-            latency_ms: message.last_latency_ms,
-            cost_usd: message.last_cost_usd,
-            input_tokens: message.last_input_tokens,
-            output_tokens: message.last_output_tokens,
-            requested_model_id: message.requested_model_id,
-          }} />
+          <div className="hidden sm:block">
+            <AIRunFooter meta={{
+              model_id: message.last_model_id,
+              latency_ms: message.last_latency_ms,
+              cost_usd: message.last_cost_usd,
+              input_tokens: message.last_input_tokens,
+              output_tokens: message.last_output_tokens,
+              requested_model_id: message.requested_model_id,
+            }} />
+          </div>
         )}
       </div>
       {isMe && (

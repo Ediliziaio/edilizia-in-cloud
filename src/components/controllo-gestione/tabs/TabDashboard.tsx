@@ -921,18 +921,18 @@ function KPIMacro({
 
   const inner = (
     <Card className={cn("rounded-2xl border-0 transition hover:shadow-sm", palette[tone])}>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-          <span className="text-muted-foreground">{icon}</span>
+      <CardContent className="p-2.5 sm:p-4 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] sm:text-[11px] uppercase tracking-wide text-muted-foreground truncate">{label}</p>
+          <span className="text-muted-foreground shrink-0">{icon}</span>
         </div>
-        <p className="mt-1 text-xl font-bold tabular-nums">{value}</p>
-        <p className="text-[11px] text-muted-foreground">{sub}</p>
+        <p className="mt-1 text-base sm:text-xl font-bold tabular-nums truncate">{value}</p>
+        <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate">{sub}</p>
       </CardContent>
     </Card>
   );
 
-  return href ? <Link to={href}>{inner}</Link> : inner;
+  return href ? <Link to={href} className="block min-w-0">{inner}</Link> : inner;
 }
 
 function buildCfoAnswer(question: string, context: CfoContext): CfoAnswer {

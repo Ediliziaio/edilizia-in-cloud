@@ -126,7 +126,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="right" className="w-[340px] sm:w-[380px] flex flex-col">
+      <SheetContent side="right" className="w-full sm:w-[380px] sm:max-w-[380px] flex flex-col p-4 sm:p-6">
         <SheetHeader>
           <SheetTitle className="text-base">Filtri Avanzati</SheetTitle>
         </SheetHeader>
@@ -134,13 +134,13 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
         <div className="flex-1 overflow-y-auto space-y-1 mt-4">
           {/* Status */}
           <FilterSection title="Stato" defaultOpen>
-            <div className="space-y-2">
+            <div className="space-y-2.5 sm:space-y-2">
               {STATUS_OPTIONS.map((opt) => (
-                <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                <label key={opt.value} className="flex items-center gap-2.5 text-sm cursor-pointer py-1 sm:py-0">
                   <Checkbox
                     checked={local.statuses.includes(opt.value)}
                     onCheckedChange={() => toggleStatus(opt.value)}
-                    className="h-4 w-4"
+                    className="h-5 w-5 sm:h-4 sm:w-4"
                   />
                   {opt.label}
                 </label>
@@ -151,7 +151,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           {/* Titolare */}
           <FilterSection title="Titolare">
             <Select value={local.assignedTo || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, assignedTo: v === "all" ? "" : v }))}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti</SelectItem>
                 {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -162,7 +162,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           {/* Follower */}
           <FilterSection title="Follower">
             <Select value={local.followerId || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, followerId: v === "all" ? "" : v }))}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti</SelectItem>
                 {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -173,7 +173,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           {/* Call Center */}
           <FilterSection title="Call Center">
             <Select value={local.callCenterId || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, callCenterId: v === "all" ? "" : v }))}>
-              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutti</SelectItem>
                 {staff.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -187,7 +187,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
               placeholder="Es: Facebook, Sito web..."
               value={local.source}
               onChange={(e) => setLocal((p) => ({ ...p, source: e.target.value }))}
-              className="h-8 text-sm"
+              className="h-10 sm:h-8 text-sm"
             />
           </FilterSection>
 
@@ -199,10 +199,11 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                 <Input
                   type="number"
                   min="0"
+                  inputMode="decimal"
                   placeholder="0"
                   value={local.valueMin}
                   onChange={(e) => setLocal((p) => ({ ...p, valueMin: e.target.value }))}
-                  className="h-8 text-sm"
+                  className="h-10 sm:h-8 text-sm"
                 />
               </div>
               <div className="flex-1">
@@ -210,10 +211,11 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                 <Input
                   type="number"
                   min="0"
+                  inputMode="decimal"
                   placeholder="∞"
                   value={local.valueMax}
                   onChange={(e) => setLocal((p) => ({ ...p, valueMax: e.target.value }))}
-                  className="h-8 text-sm"
+                  className="h-10 sm:h-8 text-sm"
                 />
               </div>
             </div>
@@ -228,7 +230,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                   type="date"
                   value={local.dateFrom}
                   onChange={(e) => setLocal((p) => ({ ...p, dateFrom: e.target.value }))}
-                  className="h-8 text-sm"
+                  className="h-10 sm:h-8 text-sm"
                 />
               </div>
               <div className="flex-1">
@@ -237,7 +239,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                   type="date"
                   value={local.dateTo}
                   onChange={(e) => setLocal((p) => ({ ...p, dateTo: e.target.value }))}
-                  className="h-8 text-sm"
+                  className="h-10 sm:h-8 text-sm"
                 />
               </div>
             </div>
@@ -251,7 +253,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
                   <button
                     key={tag}
                     onClick={() => toggleTag(tag)}
-                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                    className={`px-3 py-1.5 sm:py-1 text-xs rounded-full border transition-colors ${
                       local.tags.includes(tag)
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
@@ -270,7 +272,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 gap-1.5"
+            className="flex-1 h-10 sm:h-9 gap-1.5"
             onClick={() => {
               setLocal(EMPTY_FILTERS);
               onApply(EMPTY_FILTERS);
@@ -281,7 +283,7 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
           </Button>
           <Button
             size="sm"
-            className="flex-1"
+            className="flex-1 h-10 sm:h-9"
             onClick={applyFilters}
           >
             Applica filtri

@@ -1158,18 +1158,18 @@ export default function GlobalErrors() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 pb-5 pt-5 shadow-sm sm:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-              <AlertTriangle className="h-5 w-5" />
+    <div className="space-y-4 sm:space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 py-3 sm:py-5 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-2.5 sm:gap-3">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
                 Anomalie operative
               </h1>
-              <p className="mt-0.5 text-sm text-slate-500">
+              <p className="hidden sm:block mt-0.5 text-sm text-slate-500">
                 Capisci dove nasce la perdita, chi deve intervenire e quali cause si ripetono.
               </p>
             </div>
@@ -1178,24 +1178,26 @@ export default function GlobalErrors() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-          <div className="relative min-w-[260px] flex-1">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
+          <div className="relative w-full sm:min-w-[260px] sm:flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Cerca commessa, causa, responsabile..."
+              placeholder="Cerca anomalia…"
+              aria-label="Cerca commessa, causa o responsabile"
               className="h-10 w-full rounded-md border border-slate-200 bg-background pl-9 pr-3 text-sm shadow-none outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
           <Button
             variant="outline"
             size="sm"
-            className="relative h-10 shrink-0 text-xs"
+            className="relative h-10 shrink-0 text-xs w-full sm:w-auto"
             onClick={handleOpenFilters}
+            aria-label="Apri filtri anomalie"
           >
-            <Filter className="mr-1.5 h-3.5 w-3.5" />
-            Filtri
+            <Filter className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span>Filtri</span>
             {activeFilterCount > 0 && (
               <span className="ml-1.5 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                 {activeFilterCount}

@@ -240,6 +240,7 @@ function OrderDetailInner() {
   const [editedNotes, setEditedNotes] = useState("");
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<string>("stato");
   const [creaFatturaOpen, setCreaFatturaOpen] = useState(false);
   const [creaDDTOpen, setCreaDDTOpen] = useState(false);
   const [creaProformaOpen, setCreaProformaOpen] = useState(false);
@@ -949,8 +950,21 @@ function OrderDetailInner() {
         onDuplica={() => setDuplicateDialogOpen(true)}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
         onNuovoSAL={() => {
-          const salEl = document.getElementById('section-sal');
-          if (salEl) salEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Su mobile: cambia tab Tabs a "sal" + scroll in cima
+          // Su desktop: scroll to #section-sal (desktop layout)
+          const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
+          if (isMobile) {
+            setMobileTab("sal");
+            // Aspetta che il tab si renderizzi prima dello scroll
+            setTimeout(() => {
+              const mobileSalContent = document.querySelector('[data-state="active"][data-radix-collection-item][role="tabpanel"], [role="tabpanel"][data-state="active"]');
+              const target = mobileSalContent || document.querySelector('[role="tablist"]');
+              if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 50);
+          } else {
+            const salEl = document.getElementById('section-sal');
+            if (salEl) salEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
         }}
         onElimina={() => setDeleteConfirmOpen(true)}
         onDownloadPDF={handleDownloadPDF}
@@ -958,7 +972,7 @@ function OrderDetailInner() {
       />
 
       {/* ── Status strip ──────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-100 px-6 py-3">
+      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3">
         <OrdineStatusStrip
           statuses={statuses}
           currentStatusId={order.current_status_id}
@@ -967,7 +981,7 @@ function OrderDetailInner() {
         />
       </div>
 
-      <div className="px-6 py-6 space-y-6">
+      <div className="px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* ── Alerts ──────────────────────────────────────────── */}
         {orderAlerts.length > 0 && (
           <div className="space-y-3">
@@ -992,7 +1006,7 @@ function OrderDetailInner() {
 
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
-          <Tabs defaultValue="stato">
+          <Tabs value={mobileTab} onValueChange={setMobileTab}>
             <TabsList className="w-full flex overflow-x-auto scrollbar-hide h-auto gap-0.5 bg-white border border-slate-200 rounded-lg p-1">
               <TabsTrigger value="stato" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Stato</TabsTrigger>
               <TabsTrigger value="articoli" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Articoli</TabsTrigger>

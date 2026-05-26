@@ -312,24 +312,24 @@ export default function WarehouseManager() {
     setForm((prev) => ({ ...prev, [field]: value || null }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+      <div className="flex items-center gap-2 sm:gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Indietro">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <WarehouseIcon className="h-6 w-6" />
-            Gestione Magazzini
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg sm:text-2xl font-bold flex items-center gap-2">
+            <WarehouseIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+            <span className="truncate">Gestione Magazzini</span>
           </h1>
-          <p className="text-muted-foreground">
+          <p className="hidden sm:block text-muted-foreground">
             Crea e gestisci i magazzini fisici della tua azienda
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Magazzino
+        <Button onClick={openCreate} className="shrink-0" aria-label="Nuovo magazzino">
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Nuovo Magazzino</span>
         </Button>
       </div>
 
@@ -353,10 +353,10 @@ export default function WarehouseManager() {
         <p className="text-muted-foreground">Caricamento…</p>
       ) : warehouses.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center">
-            <WarehouseIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground/40" />
+          <CardContent className="py-8 sm:py-12 text-center px-4">
+            <WarehouseIcon className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground/40" />
             <p className="text-muted-foreground">Nessun magazzino configurato.</p>
-            <Button className="mt-4" onClick={openCreate}>
+            <Button className="mt-4 w-full sm:w-auto" onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" />
               Crea il primo magazzino
             </Button>

@@ -385,7 +385,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
 
   return (
     <Dialog open={open} onOpenChange={(o) => !isSending && onOpenChange(o)}>
-      <DialogContent className="flex max-h-[90vh] max-w-4xl flex-col overflow-hidden rounded-2xl border-blue-100 p-0 shadow-2xl">
+      <DialogContent className="flex h-[calc(100vh-2rem)] max-h-[90vh] w-[calc(100vw-1rem)] max-w-4xl flex-col overflow-hidden rounded-2xl border-blue-100 p-0 shadow-2xl">
         <DialogHeader className="shrink-0 border-b border-blue-100 bg-blue-50/60 px-4 py-3">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Mail className="h-4 w-4 text-blue-600" />

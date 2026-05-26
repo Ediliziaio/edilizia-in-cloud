@@ -32,6 +32,7 @@ import {
   LifeBuoy,
   Mail,
   Menu,
+  PenLine,
   ReceiptText,
   ShieldAlert,
   Sparkles,
@@ -232,6 +233,15 @@ export function EmailLayout({
 
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-slate-50">
+      {/* Backdrop mobile — chiude sidebar al click esterno */}
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Chiudi sidebar"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       {/* Sidebar — fixed on desktop, sheet on mobile */}
       <aside
         className={cn(
@@ -239,11 +249,11 @@ export function EmailLayout({
           // Desktop
           "hidden md:flex md:w-72 lg:w-80",
           // Mobile sheet
-          sidebarOpen && "fixed inset-y-0 left-0 z-50 w-80 flex shadow-xl bg-white",
+          sidebarOpen && "fixed inset-y-0 left-0 z-50 w-[85vw] max-w-xs flex shadow-xl bg-white",
         )}
       >
         <div className="md:hidden p-2 flex justify-end border-b">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)}>
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} aria-label="Chiudi">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -265,13 +275,23 @@ export function EmailLayout({
           mobilePane !== "list" && "hidden md:flex",
         )}
       >
+        {/* Mobile header — hamburger + folder title + account label */}
         <div className="md:hidden p-2 border-b flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} aria-label="Apri caselle">
             <Menu className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium">
-            <FolderTitle filter={filter.folder} />
-          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-tight truncate">
+              <FolderTitle filter={filter.folder} />
+            </p>
+            {connections && connections.length > 0 && (
+              <p className="truncate text-[10px] text-slate-500">
+                {filter.accountId
+                  ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
+                  : `${connections.length} ${connections.length === 1 ? "casella" : "caselle"}`}
+              </p>
+            )}
+          </div>
         </div>
         <EmailMailboxToolbar
           filter={filter}
@@ -316,7 +336,11 @@ export function EmailLayout({
           <EmailViewer
             threadId={selectedThreadId}
             onBack={() => setMobilePane("list")}
-            onClose={() => setSelectedThreadId(null)}
+            onClose={() => {
+              // Su mobile: archive/trash/close devono tornare alla lista
+              setSelectedThreadId(null);
+              setMobilePane("list");
+            }}
             onReply={(src, mode) => openCompose({ mode, source: src })}
           />
         ) : (
@@ -330,6 +354,18 @@ export function EmailLayout({
         context={composeContext}
         companyIdOverride={companyId}
       />
+
+      {/* FAB compose — visibile solo su mobile e solo quando l'utente è nella lista, rispetta safe area */}
+      {mobilePane === "list" && !composeOpen && (
+        <Button
+          onClick={() => openCompose({ mode: "new" })}
+          aria-label="Scrivi nuova email"
+          className="md:hidden fixed right-5 z-30 h-14 w-14 rounded-full p-0 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200"
+          style={{ bottom: "max(env(safe-area-inset-bottom), 1.25rem)" }}
+        >
+          <PenLine className="h-6 w-6" />
+        </Button>
+      )}
     </div>
   );
 }
@@ -365,8 +401,9 @@ function EmailMailboxToolbar({
   const folderLabel = folderTitleText(filter.folder);
 
   return (
-    <div className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-4 py-3 space-y-3">
-      <div className="flex items-start justify-between gap-3">
+    <div className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-4 py-2 sm:py-3 space-y-2 sm:space-y-3">
+      {/* Header desktop con icon + folder label + account: ridondante su mobile dove già c'è hamburger row */}
+      <div className="hidden md:flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-100">

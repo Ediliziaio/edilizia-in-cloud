@@ -459,7 +459,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 <span className="text-xs text-muted-foreground">{filteredTasks.length} attività visualizzate</span>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-xs">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Cerca attività..."
@@ -639,39 +639,41 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
                 <BulkActionsBar selectedIds={selectedIds} onClear={() => setSelectedIds(new Set())} statusOptions={statusOptions} />
                 <Card>
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-6 px-1" />
-                          <TableHead className="w-10">
-                            <Checkbox checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length} onCheckedChange={toggleSelectAll} />
-                          </TableHead>
-                          <TableHead>Titolo</TableHead>
-                          <TableHead>Assegnatario</TableHead>
-                          <TableHead>Collegamento</TableHead>
-                          <TableHead>Categoria</TableHead>
-                          <TableHead>Priorità</TableHead>
-                          <TableHead>Scadenza</TableHead>
-                          <TableHead>Stato</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                          {filteredTasks.map((task) => (
-                            <SortableTaskRow
-                              key={task.id}
-                              task={task}
-                              isSelected={selectedIds.has(task.id)}
-                              onToggleSelect={() => toggleSelect(task.id)}
-                              onSelect={() => setSelectedTask(task)}
-                              onToggleComplete={() => handleToggleComplete(task)}
-                              dragDisabled={isDragDisabled}
-                              statusOptions={statusOptions}
-                            />
-                          ))}
-                        </SortableContext>
-                      </TableBody>
-                    </Table>
+                    <div className="overflow-x-auto">
+                      <Table className="min-w-[800px]">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-6 px-1" />
+                            <TableHead className="w-10">
+                              <Checkbox checked={filteredTasks.length > 0 && selectedIds.size === filteredTasks.length} onCheckedChange={toggleSelectAll} />
+                            </TableHead>
+                            <TableHead>Titolo</TableHead>
+                            <TableHead>Assegnatario</TableHead>
+                            <TableHead>Collegamento</TableHead>
+                            <TableHead>Categoria</TableHead>
+                            <TableHead>Priorità</TableHead>
+                            <TableHead>Scadenza</TableHead>
+                            <TableHead>Stato</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                            {filteredTasks.map((task) => (
+                              <SortableTaskRow
+                                key={task.id}
+                                task={task}
+                                isSelected={selectedIds.has(task.id)}
+                                onToggleSelect={() => toggleSelect(task.id)}
+                                onSelect={() => setSelectedTask(task)}
+                                onToggleComplete={() => handleToggleComplete(task)}
+                                dragDisabled={isDragDisabled}
+                                statusOptions={statusOptions}
+                              />
+                            ))}
+                          </SortableContext>
+                        </TableBody>
+                      </Table>
+                    </div>
                   </DndContext>
                 </Card>
               </>

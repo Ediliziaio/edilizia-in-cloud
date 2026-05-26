@@ -645,29 +645,29 @@ export default function MarginalitaCantieri() {
     .sort((a, b) => b.margine_pct - a.margine_pct);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* ── Header ─────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-4 sm:px-6 pt-5 pb-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
-            <BarChart3 className="h-5 w-5" />
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-2.5 sm:gap-3">
+          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Marginalità Cantieri</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">Marginalità Cantieri</h1>
+            <p className="hidden sm:block text-sm text-slate-500 mt-0.5">
               Controlla preventivo, acquisti, errori e overhead per capire quali commesse stanno erodendo margine.
             </p>
           </div>
         </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={exportFilteredCsv} disabled={isLoading || filtered.length === 0} className="shrink-0">
-              <FileDown className="mr-1.5 h-3.5 w-3.5" />
-              Esporta vista
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
+            <Button variant="outline" size="sm" onClick={exportFilteredCsv} disabled={isLoading || filtered.length === 0} className="shrink-0" aria-label="Esporta vista CSV">
+              <FileDown className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Esporta vista</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="shrink-0">
-              <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
-              Aggiorna dati
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="shrink-0" aria-label="Aggiorna dati">
+              <RefreshCw className={cn("h-3.5 w-3.5 sm:mr-1.5", isFetching && "animate-spin")} />
+              <span className="hidden sm:inline">Aggiorna dati</span>
             </Button>
           </div>
         </div>

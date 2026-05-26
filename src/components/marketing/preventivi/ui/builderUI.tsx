@@ -55,7 +55,7 @@ export function QuotePageHeader({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-200 bg-white px-4 sm:px-6 pt-5 pb-5 shadow-sm",
+        "rounded-2xl border border-slate-200 bg-white px-3 sm:px-6 pt-3 sm:pt-5 pb-3 sm:pb-5 shadow-sm",
         className,
       )}
     >
@@ -71,26 +71,26 @@ export function QuotePageHeader({
           {lastModified && <span>· {lastModified}</span>}
         </div>
       )}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-start gap-3 min-w-0">
+      <div className="flex items-start justify-between gap-3 sm:gap-4 flex-wrap">
+        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
           {icon && (
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(249,115,22,0.3)]">
               {icon}
             </div>
           )}
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight truncate">
               {title}
             </h1>
             {subtitle && (
-              <p className="text-slate-500 text-sm mt-1 truncate max-w-xl">
+              <p className="hidden sm:block text-slate-500 text-sm mt-1 truncate max-w-xl">
                 {subtitle}
               </p>
             )}
           </div>
         </div>
         {actions && (
-          <div className="flex gap-2 items-center flex-wrap">{actions}</div>
+          <div className="flex gap-1.5 sm:gap-2 items-center flex-wrap w-full sm:w-auto">{actions}</div>
         )}
       </div>
     </div>

@@ -54,27 +54,27 @@ export default function SopralluoghiList() {
   });
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-6xl space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg">
-            <ClipboardList className="h-6 w-6" />
+    <div className="mx-auto max-w-6xl p-0 sm:p-2 md:p-6 space-y-3 sm:space-y-4">
+      {/* Header — compatto mobile: title + icon + CTA "Nuovo" full-width */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-lg shrink-0">
+            <ClipboardList className="h-4 w-4 sm:h-6 sm:w-6" />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold">Sopralluoghi</h1>
-              <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200">
+              <h1 className="text-lg sm:text-2xl font-bold">Sopralluoghi</h1>
+              <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 text-[10px] sm:text-xs">
                 <Sparkles className="h-3 w-3 mr-1" />
                 Beta
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className="hidden sm:block text-sm text-muted-foreground mt-0.5">
               Rilievi tecnici sul cantiere — multi-template, foto, audio, firma cliente
             </p>
           </div>
         </div>
-        <Button asChild className="gap-2 bg-orange-600 hover:bg-orange-700">
+        <Button asChild className="gap-2 bg-orange-600 hover:bg-orange-700 w-full sm:w-auto">
           <Link to="/azienda/sopralluoghi/nuovo">
             <Plus className="h-4 w-4" />
             Nuovo sopralluogo
@@ -82,19 +82,20 @@ export default function SopralluoghiList() {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[240px]">
+      {/* Filters — mobile: search full + status select full */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="relative flex-1 w-full sm:min-w-[240px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Cerca codice, indirizzo, città…"
+            placeholder="Cerca sopralluogo…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-9"
+            className="pl-8 h-10 sm:h-9 text-sm"
+            aria-label="Cerca per codice, indirizzo o città"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-44 h-9">
+          <SelectTrigger className="w-full sm:w-44 h-10 sm:h-9 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -113,17 +114,18 @@ export default function SopralluoghiList() {
         </div>
       ) : filtered.length === 0 ? (
         <Card className="border-dashed">
-          <CardContent className="p-12 text-center">
-            <div className="mx-auto h-16 w-16 rounded-full bg-orange-100 flex items-center justify-center mb-3">
-              <ClipboardList className="h-8 w-8 text-orange-600" />
+          <CardContent className="p-6 sm:p-12 text-center">
+            <div className="mx-auto h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-orange-100 flex items-center justify-center mb-3">
+              <ClipboardList className="h-7 w-7 sm:h-8 sm:w-8 text-orange-600" />
             </div>
             <p className="font-semibold">Nessun sopralluogo</p>
             <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
               {searchQuery || statusFilter !== "all"
                 ? "Nessun risultato per i filtri attivi."
-                : "Crea il primo sopralluogo per iniziare a fare rilievi sul cantiere."}
+                : "Usa il pulsante \"Nuovo sopralluogo\" in alto per crearne uno."}
             </p>
-            <Button asChild className="mt-4 gap-2 bg-orange-600 hover:bg-orange-700">
+            {/* CTA Desktop only: su mobile è già visibile nell'header full-width */}
+            <Button asChild className="hidden sm:inline-flex mt-4 gap-2 bg-orange-600 hover:bg-orange-700">
               <Link to="/azienda/sopralluoghi/nuovo">
                 <Plus className="h-4 w-4" />
                 Nuovo sopralluogo
@@ -139,12 +141,12 @@ export default function SopralluoghiList() {
             return (
               <Card
                 key={s.id}
-                className="hover:border-orange-300 hover:shadow-sm transition-all cursor-pointer"
+                className="hover:border-orange-300 hover:shadow-sm active:bg-orange-50/40 transition-all cursor-pointer"
                 onClick={() => navigate(`/azienda/sopralluoghi/${s.id}`)}
               >
-                <CardContent className="p-4 flex items-center gap-3 flex-wrap">
-                  <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                    <ClipboardList className="h-5 w-5 text-orange-600" />
+                <CardContent className="p-3 sm:p-4 flex items-start gap-2.5 sm:gap-3">
+                  <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                    <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -154,20 +156,20 @@ export default function SopralluoghiList() {
                         {statusCfg.label}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-0.5 text-xs text-muted-foreground mt-1">
                       {(s.address || s.city) && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {[s.address, s.city].filter(Boolean).join(", ")}
+                        <span className="flex items-start gap-1 min-w-0">
+                          <MapPin className="h-3 w-3 shrink-0 mt-0.5" />
+                          <span className="truncate">{[s.address, s.city].filter(Boolean).join(", ")}</span>
                         </span>
                       )}
                       {s.scheduled_at && (
                         <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {format(new Date(s.scheduled_at), "d MMM yyyy HH:mm", { locale: it })}
+                          <Calendar className="h-3 w-3 shrink-0" />
+                          {format(new Date(s.scheduled_at), "d MMM yy HH:mm", { locale: it })}
                         </span>
                       )}
-                      <span>
+                      <span className="hidden sm:inline">
                         Creato {format(new Date(s.created_at), "d MMM yyyy", { locale: it })}
                       </span>
                     </div>
