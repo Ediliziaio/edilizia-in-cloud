@@ -16,7 +16,7 @@
  *
  * Responsive: tabella su md+, card view su mobile.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Plus, Pencil, Trash2, Percent, AlertCircle, Info, Calculator,
   CheckCircle2, XCircle, AlertTriangle, Loader2, ChevronRight,
@@ -26,6 +26,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,8 +81,8 @@ const schema = z
     tipo_lavoro: z.string().trim().nullable().optional(),
     importo_min: z.coerce.number().min(0, "Min ≥ 0").nullable().optional(),
     importo_max: z.coerce.number().min(0, "Max ≥ 0").nullable().optional(),
-    margine_min_pct: z.coerce.number().min(0).max(100),
-    sconto_max_pct: z.coerce.number().min(0).max(100),
+    margine_min_pct: z.coerce.number().min(0).max(99, "Margine min deve essere < 100% (altrimenti nessuno sconto applicabile)"),
+    sconto_max_pct: z.coerce.number().min(0.1, "Sconto max deve essere > 0% (altrimenti la regola non concede sconti)").max(100),
     approva_oltre_pct: z.coerce.number().min(0).max(100).nullable().optional(),
     priority: z.coerce.number().int().min(1).max(1000),
     is_active: z.boolean(),
@@ -168,7 +169,11 @@ export default function SettingsScontistica() {
 
   const openEdit = (rule: DiscountRule) => {
     setEditing(rule);
+    // Spread di DEFAULT_VALUES PRIMA → garantisce che eventuali campi nulli
+    // sulla regola siano normalizzati ai default (no field "fantasma" da
+    // precedente edit). Pattern difensivo contro contaminazione stato form.
     form.reset({
+      ...DEFAULT_VALUES,
       name: rule.name,
       scope: rule.scope,
       salesperson_id: rule.salesperson_id,
@@ -186,6 +191,7 @@ export default function SettingsScontistica() {
   };
 
   const onSubmit = (values: FormValues) => {
+    const isEdit = !!editing?.id;
     upsert.mutate(
       {
         id: editing?.id,
@@ -201,13 +207,85 @@ export default function SettingsScontistica() {
         onSuccess: () => {
           setDialogOpen(false);
           setEditing(null);
+          toast.success(isEdit ? "Regola aggiornata" : "Regola creata", {
+            description: `"${values.name}" è ora attiva nel matching sconti.`,
+          });
+        },
+        onError: (err: Error) => {
+          toast.error(isEdit ? "Errore aggiornamento" : "Errore creazione", {
+            description: err.message,
+          });
         },
       }
     );
   };
 
+  // Toggle attiva/disattiva con UNDO 4s — niente dialog modale per non
+  // rallentare power user, ma sicuro: click accidentale recuperabile.
+  const handleToggleActive = (rule: DiscountRule, checked: boolean) => {
+    upsert.mutate(
+      { id: rule.id, is_active: checked },
+      {
+        onSuccess: () => {
+          toast.success(
+            checked
+              ? `Regola "${rule.name}" attivata`
+              : `Regola "${rule.name}" disattivata`,
+            {
+              duration: 4000,
+              action: {
+                label: "Annulla",
+                onClick: () => {
+                  upsert.mutate(
+                    { id: rule.id, is_active: !checked },
+                    {
+                      onSuccess: () =>
+                        toast.info("Modifica annullata", {
+                          description: `Stato di "${rule.name}" ripristinato.`,
+                        }),
+                    },
+                  );
+                },
+              },
+            },
+          );
+        },
+        onError: (err: Error) => {
+          toast.error("Errore toggle regola", { description: err.message });
+        },
+      },
+    );
+  };
+
+  const handleDelete = (rule: DiscountRule) => {
+    del.mutate(rule.id, {
+      onSuccess: () => {
+        toast.success("Regola eliminata", {
+          description: `"${rule.name}" è stata rimossa dalle regole attive.`,
+        });
+      },
+      onError: (err: Error) => {
+        toast.error("Errore eliminazione", { description: err.message });
+      },
+    });
+  };
+
   const scope = form.watch("scope");
+  // C3: pulizia campi scope-dependent al cambio scope. Evita "fantasmi"
+  // (salesperson_id che resta valorizzato quando scope=globale, ecc.).
+  // useEffect su scope: resetField solo se NON corrispondenti al nuovo scope.
+  useEffect(() => {
+    if (scope !== "per_commerciale") form.setValue("salesperson_id", null);
+    if (scope !== "per_cliente_cat") form.setValue("client_category", null);
+  }, [scope, form]);
+
   const activeCount = rules.filter((r) => r.is_active).length;
+  // A3: sort esplicito per priority asc → garanzia di ordine visivo
+  // coerente con la regola di matching SQL.
+  const sortedRules = useMemo(
+    () => [...rules].sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100)),
+    [rules],
+  );
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -293,14 +371,16 @@ export default function SettingsScontistica() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rules.map((r) => (
+                      {sortedRules.map((r) => (
                         <RuleRow
                           key={r.id}
                           rule={r}
                           salespeople={salespeople}
-                          onToggle={(checked) => upsert.mutate({ id: r.id, is_active: checked })}
+                          onToggle={(checked) => handleToggleActive(r, checked)}
                           onEdit={() => openEdit(r)}
-                          onDelete={() => del.mutate(r.id)}
+                          onDelete={() => handleDelete(r)}
+                          toggleDisabled={upsert.isPending}
+                          deleteDisabled={del.isPending}
                         />
                       ))}
                     </TableBody>
@@ -309,14 +389,16 @@ export default function SettingsScontistica() {
 
                 {/* Mobile: card list */}
                 <div className="md:hidden space-y-2">
-                  {rules.map((r) => (
+                  {sortedRules.map((r) => (
                     <RuleCard
                       key={r.id}
                       rule={r}
                       salespeople={salespeople}
-                      onToggle={(checked) => upsert.mutate({ id: r.id, is_active: checked })}
+                      onToggle={(checked) => handleToggleActive(r, checked)}
                       onEdit={() => openEdit(r)}
-                      onDelete={() => del.mutate(r.id)}
+                      onDelete={() => handleDelete(r)}
+                      toggleDisabled={upsert.isPending}
+                      deleteDisabled={del.isPending}
                     />
                   ))}
                 </div>
@@ -622,13 +704,15 @@ export default function SettingsScontistica() {
 
 /* ─── Riga tabella (desktop) ──────────────────────────────────────────── */
 function RuleRow({
-  rule, salespeople, onToggle, onEdit, onDelete,
+  rule, salespeople, onToggle, onEdit, onDelete, toggleDisabled, deleteDisabled,
 }: {
   rule: DiscountRule;
   salespeople: Array<{ id: string; first_name: string; last_name: string }>;
   onToggle: (checked: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
+  toggleDisabled?: boolean;
+  deleteDisabled?: boolean;
 }) {
   const salesperson = rule.scope === "per_commerciale" && rule.salesperson_id
     ? salespeople.find((s) => s.id === rule.salesperson_id)
@@ -664,7 +748,12 @@ function RuleRow({
       </TableCell>
       <TableCell className="text-right text-xs">{rule.priority}</TableCell>
       <TableCell>
-        <Switch checked={rule.is_active} onCheckedChange={onToggle} />
+        <Switch
+          checked={rule.is_active}
+          onCheckedChange={onToggle}
+          disabled={toggleDisabled}
+          aria-label={`Toggle attivazione regola ${rule.name}`}
+        />
       </TableCell>
       <TableCell className="text-right">
         <div className="flex gap-1 justify-end">
@@ -676,7 +765,7 @@ function RuleRow({
             </TooltipTrigger>
             <TooltipContent>Modifica</TooltipContent>
           </Tooltip>
-          <DeleteRuleButton rule={rule} onDelete={onDelete} />
+          <DeleteRuleButton rule={rule} onDelete={onDelete} disabled={deleteDisabled} />
         </div>
       </TableCell>
     </TableRow>
@@ -685,13 +774,15 @@ function RuleRow({
 
 /* ─── Card mobile ─────────────────────────────────────────────────────── */
 function RuleCard({
-  rule, salespeople, onToggle, onEdit, onDelete,
+  rule, salespeople, onToggle, onEdit, onDelete, toggleDisabled, deleteDisabled,
 }: {
   rule: DiscountRule;
   salespeople: Array<{ id: string; first_name: string; last_name: string }>;
   onToggle: (checked: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
+  toggleDisabled?: boolean;
+  deleteDisabled?: boolean;
 }) {
   const salesperson = rule.scope === "per_commerciale" && rule.salesperson_id
     ? salespeople.find((s) => s.id === rule.salesperson_id)
@@ -715,7 +806,12 @@ function RuleCard({
             <p className="text-[11px] text-muted-foreground">Tipo: {rule.tipo_lavoro}</p>
           )}
         </div>
-        <Switch checked={rule.is_active} onCheckedChange={onToggle} />
+        <Switch
+          checked={rule.is_active}
+          onCheckedChange={onToggle}
+          disabled={toggleDisabled}
+          aria-label={`Toggle attivazione regola ${rule.name}`}
+        />
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-xs">
@@ -741,11 +837,11 @@ function RuleCard({
       </div>
 
       <div className="flex gap-2 pt-1">
-        <Button variant="outline" size="sm" onClick={onEdit} className="flex-1 h-8">
-          <Pencil className="h-3.5 w-3.5 mr-1.5" />
+        <Button variant="outline" size="sm" onClick={onEdit} className="flex-1 h-10">
+          <Pencil className="h-4 w-4 mr-1.5" />
           Modifica
         </Button>
-        <DeleteRuleButton rule={rule} onDelete={onDelete} mobile />
+        <DeleteRuleButton rule={rule} onDelete={onDelete} mobile disabled={deleteDisabled} />
       </div>
     </div>
   );
@@ -753,21 +849,32 @@ function RuleCard({
 
 /* ─── Bottone elimina con conferma ────────────────────────────────────── */
 function DeleteRuleButton({
-  rule, onDelete, mobile = false,
-}: { rule: DiscountRule; onDelete: () => void; mobile?: boolean }) {
+  rule, onDelete, mobile = false, disabled = false,
+}: { rule: DiscountRule; onDelete: () => void; mobile?: boolean; disabled?: boolean }) {
   return (
     <AlertDialog>
       {mobile ? (
         <AlertDialogTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8">
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10 px-3"
+            disabled={disabled}
+            aria-label={`Elimina regola ${rule.name}`}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </AlertDialogTrigger>
       ) : (
         <Tooltip>
           <TooltipTrigger asChild>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Elimina regola">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={disabled}
+                aria-label={`Elimina regola ${rule.name}`}
+              >
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </AlertDialogTrigger>
