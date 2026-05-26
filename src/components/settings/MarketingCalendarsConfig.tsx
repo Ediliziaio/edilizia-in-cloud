@@ -24,6 +24,7 @@ import { it } from "date-fns/locale";
 import CalendarDialog, { type CalendarFormData } from "./CalendarDialog";
 import GoogleCalendarConnectionTab from "./GoogleCalendarConnectionTab";
 import AppleCalendarConnectionTab from "./AppleCalendarConnectionTab";
+import OutlookCalendarConnectionTab from "./OutlookCalendarConnectionTab";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { buildBookingButtonCode, buildBookingEmbedCode, buildBookingUrl, normalizeBookingSlug } from "@/lib/bookingLinks";
 
@@ -1044,6 +1045,7 @@ export default function MarketingCalendarsConfig() {
         {/* TAB: COLLEGAMENTI */}
         <TabsContent value="connections" forceMount className="space-y-6">
           <GoogleCalendarConnectionTab />
+          <OutlookCalendarConnectionTab />
           <AppleCalendarConnectionTab />
         </TabsContent>
       </Tabs>
