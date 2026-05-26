@@ -30,7 +30,8 @@ import {
   Building2,
   Brain,
 } from "lucide-react";
-import { useCustomerProfiles, healthLabelStyle, type CustomerProfile } from "@/lib/customer-os/customerProfile";
+import { useCustomerProfiles, type CustomerProfile } from "@/lib/customer-os/customerProfile";
+import { healthLabelStyle } from "@/lib/customer-os/healthScore";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
