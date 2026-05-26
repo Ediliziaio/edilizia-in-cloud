@@ -1,6 +1,15 @@
 /**
  * Resizable — wrapper shadcn/ui per react-resizable-panels.
- * Da usare per pannelli con bordo draggabile per ridimensionare colonne.
+ *
+ * ⚠️ ATTENZIONE: questo wrapper era basato sulla vecchia API di react-resizable-panels
+ * (PanelGroup / PanelResizeHandle). Dalla v4 quei nomi sono stati rinominati in
+ * Group / Separator. La conseguenza era catastrofica: `ResizablePrimitive.PanelGroup`
+ * risolveva a `undefined` → React lanciava "Element type is invalid" → ErrorBoundary
+ * → "Errore nel caricamento della pagina" (es. /azienda/email).
+ *
+ * Aggiornato 2026-05-26 alla v4 API mantenendo gli stessi PROPS di shadcn:
+ *   - `direction="horizontal"|"vertical"` → tradotto in `orientation` per la lib v4
+ *   - `withHandle` su ResizableHandle continua a funzionare (grip visivo opzionale)
  *
  * Esempio:
  *   <ResizablePanelGroup direction="horizontal">
@@ -10,35 +19,42 @@
  *   </ResizablePanelGroup>
  */
 import { GripVertical } from "lucide-react";
-import * as ResizablePrimitive from "react-resizable-panels";
+import { Group, Panel, Separator, type GroupProps, type SeparatorProps } from "react-resizable-panels";
 import { cn } from "@/lib/utils";
+
+type ResizablePanelGroupProps = Omit<GroupProps, "orientation"> & {
+  /** Direzione del layout. Mappata internamente su `orientation` della lib v4. */
+  direction?: "horizontal" | "vertical";
+};
 
 const ResizablePanelGroup = ({
   className,
+  direction = "horizontal",
   ...props
-}: React.ComponentProps<typeof ResizablePrimitive.PanelGroup>) => (
-  <ResizablePrimitive.PanelGroup
+}: ResizablePanelGroupProps) => (
+  <Group
+    orientation={direction}
     className={cn(
-      "flex h-full w-full data-[panel-group-direction=vertical]:flex-col",
+      "flex h-full w-full data-[orientation=vertical]:flex-col",
       className,
     )}
     {...props}
   />
 );
 
-const ResizablePanel = ResizablePrimitive.Panel;
+const ResizablePanel = Panel;
 
 const ResizableHandle = ({
   withHandle,
   className,
   ...props
-}: React.ComponentProps<typeof ResizablePrimitive.PanelResizeHandle> & {
+}: SeparatorProps & {
   withHandle?: boolean;
 }) => (
-  <ResizablePrimitive.PanelResizeHandle
+  <Separator
     className={cn(
-      "relative flex w-px items-center justify-center bg-border transition-colors hover:bg-blue-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full data-[panel-group-direction=vertical]:after:left-0 data-[panel-group-direction=vertical]:after:h-1 data-[panel-group-direction=vertical]:after:w-full data-[panel-group-direction=vertical]:after:-translate-y-1/2 data-[panel-group-direction=vertical]:after:translate-x-0 [&[data-panel-group-direction=vertical]>div]:rotate-90",
-      "after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 cursor-col-resize",
+      "relative flex w-px items-center justify-center bg-border transition-colors hover:bg-blue-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 data-[orientation=vertical]:h-px data-[orientation=vertical]:w-full",
+      "after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 cursor-col-resize data-[orientation=vertical]:cursor-row-resize",
       className,
     )}
     {...props}
@@ -48,7 +64,7 @@ const ResizableHandle = ({
         <GripVertical className="h-2.5 w-2.5" />
       </div>
     )}
-  </ResizablePrimitive.PanelResizeHandle>
+  </Separator>
 );
 
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle };

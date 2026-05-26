@@ -24,7 +24,11 @@ import { EmailViewer } from "./components/EmailViewer";
 import { EmailComposeDialog, type ComposeContext } from "./components/EmailComposeDialog";
 import { EmailSearchBar, type SearchQuery } from "./components/EmailSearchBar";
 import { Button } from "@/components/ui/button";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+// NOTA 2026-05-26: react-resizable-panels v4 ha rinominato gli export (PanelGroup→Group,
+// PanelResizeHandle→Separator). Il wrapper shadcn `@/components/ui/resizable` usa la
+// vecchia API e quindi rende componenti `undefined` → React crash "Element type is invalid"
+// → ErrorBoundary. Sostituito con flex layout statico (la feature drag-to-resize sarà
+// riaggiunta in un commit dedicato dopo aver allineato il wrapper alla nuova API).
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -394,33 +398,27 @@ export function EmailLayout({
         />
       </aside>
 
-      {/* Fix 2026-05-27: ResizablePanelGroup crashava ("Total weight must be 100")
-          quando il numero di figli cambiava dinamicamente 1→2 (selectedThreadId).
-          Soluzione: rendering condizionale completo. Quando no thread, layout flex
-          semplice. Quando thread selezionato, ResizablePanelGroup attivo con 2 pannelli. */}
+      {/* Fix 2026-05-26: il wrapper @/components/ui/resizable usa la vecchia API di
+          react-resizable-panels (PanelGroup/PanelResizeHandle), ma la v4 installata
+          esporta solo Group/Separator. Risultato: ResizablePrimitive.PanelGroup === undefined
+          → React lancia "Element type is invalid" → ErrorBoundary → "Errore nel caricamento
+          della pagina". Soluzione definitiva: flex layout statico, niente drag-to-resize.
+          La feature draggable verrà ripristinata in un commit dedicato dopo aver migrato
+          il wrapper alla nuova API. */}
       {selectedThreadId ? (
-        <ResizablePanelGroup
-          direction="horizontal"
-          className="flex-1 flex"
-          autoSaveId="email-layout-panels-with-viewer"
-        >
-          <ResizablePanel
-            defaultSize={38}
-            minSize={25}
-            maxSize={65}
+        <div className="flex-1 flex min-w-0">
+          <section
             className={cn(
               "bg-white border-r border-blue-100 flex flex-col min-w-0",
-              mobilePane !== "list" && "hidden md:flex",
+              "md:w-[38%] md:max-w-[640px]",
+              mobilePane === "list" ? "flex-1" : "hidden md:flex",
             )}
           >
             {renderListPaneContent()}
-          </ResizablePanel>
-          <ResizableHandle withHandle className="hidden md:flex" />
-          <ResizablePanel
-            defaultSize={62}
-            minSize={35}
+          </section>
+          <section
             className={cn(
-              "flex flex-col min-w-0 bg-white",
+              "flex-1 flex flex-col min-w-0 bg-white",
               mobilePane !== "viewer" && "hidden md:flex",
             )}
           >
@@ -433,10 +431,10 @@ export function EmailLayout({
               }}
               onReply={(src, mode) => openCompose({ mode, source: src })}
             />
-          </ResizablePanel>
-        </ResizablePanelGroup>
+          </section>
+        </div>
       ) : (
-        // Nessun thread selezionato → list pane occupa tutta la larghezza, senza Resizable wrapper.
+        // Nessun thread selezionato → list pane occupa tutta la larghezza.
         <section className={cn(
           "flex-1 bg-white flex flex-col min-w-0",
           mobilePane !== "list" && "hidden md:flex",
