@@ -4,11 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, Mail, Phone, AlertTriangle, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2, Save, Loader2, Star, Link2 } from "lucide-react";
+import { Search, Mail, Phone, AlertTriangle, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2, Save, Loader2, Star, Link2, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 // 🆕 GAP 7b: card connessioni OAuth Gmail/Outlook native
 import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
+import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
+import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1050,8 +1052,17 @@ export default function SettingsIntegrations() {
           <Star className="h-5 w-5 text-muted-foreground" />
           <h2 className="text-lg font-semibold">Reputazione</h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {reputationCards.map((card) => {
+
+        {/* Google Business Profile — OAuth REALE in questa pagina (2026-05-27).
+            Prima era una card statica che ridirigeva su /azienda/marketing/reputazione.
+            Ora il flow OAuth completo (start + select location + sync) si fa qui. */}
+        <GbpConnectionCard />
+
+        {/* Altre fonti reputazione (Facebook Reviews + modulo sito) — placeholder */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {reputationCards
+            .filter((card) => card.key !== "google-business-profile")
+            .map((card) => {
             const Icon = card.icon;
             const connected = card.status === "connected";
             return (
@@ -1099,6 +1110,17 @@ export default function SettingsIntegrations() {
             );
           })}
         </div>
+      </div>
+
+      {/* ── Pubblicità — Google Ads OAuth ─────────────────────────── */}
+      <div className="pt-2 space-y-4">
+        <div className="flex items-center gap-2">
+          <Megaphone className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">Pubblicità — OAuth</h2>
+        </div>
+        {/* Google Ads OAuth REALE in questa pagina (2026-05-27).
+            La card precedente per "Customer ID manuale" resta più in alto come fallback. */}
+        <GoogleAdsConnectionCard />
       </div>
 
       {/* WhatsApp Bot AI Card */}

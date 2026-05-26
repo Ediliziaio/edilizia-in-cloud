@@ -45,7 +45,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Integration } from "@/types/integrations";
-import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 
 type ReputationTab = "dashboard" | "richieste" | "recensioni" | "automazioni" | "integrazioni";
 type ReviewSource = "Google" | "Facebook" | "Sito" | "Manuale";
@@ -1833,22 +1832,28 @@ export default function ReputationManager() {
         </TabsContent>
 
         <TabsContent value="integrazioni" className="space-y-4">
-          <Alert>
-            <Link2 className="h-4 w-4" />
-            <AlertTitle>Connessioni reputazione</AlertTitle>
-            <AlertDescription>
-              Google Business Profile usera OAuth Google; Facebook Reviews usa Meta; il modulo sito funziona con link pubblico e form builder.
+          <Alert className="border-amber-300 bg-amber-50">
+            <Link2 className="h-4 w-4 text-amber-700" />
+            <AlertTitle className="text-amber-900">Le connessioni si configurano in Impostazioni → Integrazioni</AlertTitle>
+            <AlertDescription className="text-amber-800">
+              Per collegare Google Business Profile e gestire l'OAuth vai alla pagina dedicata.
+              Qui in Reputazione vedi solo lo stato — la configurazione effettiva è centralizzata.
+              <div className="mt-3">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="bg-amber-700 hover:bg-amber-800"
+                  onClick={() => navigate("/azienda/impostazioni/integrazioni")}
+                >
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Apri Integrazioni
+                </Button>
+              </div>
             </AlertDescription>
           </Alert>
 
           <div className="grid gap-4 md:grid-cols-3">
-            {/* Google Business Profile — card dedicata con OAuth reale */}
-            <GbpConnectionCard />
-
-            {/* Altre fonti (Facebook + sito) — card placeholder generiche */}
-            {reputationSources
-              .filter((source) => source.name !== "Google Business Profile")
-              .map((source) => {
+            {reputationSources.map((source) => {
               const Icon = source.icon;
               return (
                 <Card key={source.name} className={cn("border-l-4", source.connected ? "border-l-emerald-500" : "border-l-slate-300")}>
