@@ -68,6 +68,21 @@ export interface FloorPlanWall {
   type: "external" | "internal";
 }
 
+// Tipologie estese porte (preventivi serramenti, computo metrico)
+export type FloorPlanDoorStyle =
+  | "single"      // singola anta battente
+  | "double"      // doppia anta battente
+  | "sliding"     // scorrevole interna
+  | "bifold"      // a libro / soffietto
+  | "armored";    // blindata
+// Tipologie estese finestre
+export type FloorPlanWindowStyle =
+  | "single"      // anta singola
+  | "double"      // doppia anta
+  | "fixed"       // fissa (non apribile)
+  | "skylight"    // lucernario
+  | "panoramic";  // panoramica (>2m)
+
 export interface FloorPlanOpening {
   id: string;
   type: FloorPlanOpeningType;
@@ -76,6 +91,9 @@ export interface FloorPlanOpening {
   y: number;
   width: number;
   swing?: "left" | "right" | "sliding";
+  // Stile esteso (opzionale, retrocompat): se assente si assume "single".
+  doorStyle?: FloorPlanDoorStyle;
+  windowStyle?: FloorPlanWindowStyle;
 }
 
 export interface FloorPlanFurniture {
@@ -90,6 +108,26 @@ export interface FloorPlanFurniture {
   height: number;
   rotation: number;
   unitPrice?: number;
+}
+
+// G3: annotazioni libere sulla planimetria (testo, freccia, simbolo nord, scala grafica).
+// Opzionali in FloorPlanAnalysis per retrocompat con plan salvati senza queste info.
+export type FloorPlanAnnotationType = "text" | "arrow" | "north" | "scale_bar";
+
+export interface FloorPlanAnnotation {
+  id: string;
+  type: FloorPlanAnnotationType;
+  x: number;            // CAD coords
+  y: number;
+  rotation?: number;    // gradi (default 0)
+  text?: string;        // contenuto se type="text" o etichetta arrow
+  fontSize?: number;    // pt (default 14)
+  color?: string;       // hex (default #f8fafc)
+  // Per arrow: punto di destinazione (relativo o assoluto)
+  toX?: number;
+  toY?: number;
+  // Per scale_bar: lunghezza in metri reali da rappresentare
+  meters?: number;
 }
 
 export interface FloorPlanAnalysis {
@@ -118,6 +156,7 @@ export interface FloorPlanAnalysis {
   outputModes: FloorPlanOutputMode[];
   warnings: string[];
   revisions: FloorPlanRevision[];
+  annotations?: FloorPlanAnnotation[];  // G3: opzionale, default vuoto
 }
 
 export interface FloorPlanSourceScanInput {
@@ -1388,7 +1427,7 @@ export function updateFloorPlanRoom(
 
 export function addFloorPlanOpening(
   plan: FloorPlanAnalysis,
-  input: Pick<FloorPlanOpening, "type" | "wallId" | "x" | "y" | "width" | "swing">,
+  input: Pick<FloorPlanOpening, "type" | "wallId" | "x" | "y" | "width" | "swing" | "doorStyle" | "windowStyle">,
 ): FloorPlanAnalysis {
   const nextOpening: FloorPlanOpening = {
     id: `${input.type}-${plan.openings.length + 1}`,
@@ -1398,11 +1437,53 @@ export function addFloorPlanOpening(
     y: roundTo(input.y, 2),
     width: Math.max(roundTo(input.width, 2), 0.5),
     swing: input.swing,
+    // Stili opzionali — passati direttamente se forniti
+    doorStyle: input.doorStyle,
+    windowStyle: input.windowStyle,
   };
 
   return {
     ...clonePlan(plan),
     openings: [...plan.openings.map((opening) => ({ ...opening })), nextOpening],
+  };
+}
+
+// G3: gestione annotazioni (testo / freccia / simbolo nord / scala grafica).
+export function addFloorPlanAnnotation(
+  plan: FloorPlanAnalysis,
+  input: Omit<FloorPlanAnnotation, "id">,
+): FloorPlanAnalysis {
+  const list = plan.annotations ?? [];
+  const nextAnnotation: FloorPlanAnnotation = {
+    id: `ann-${input.type}-${list.length + 1}-${Date.now().toString(36).slice(-4)}`,
+    ...input,
+  };
+  return {
+    ...clonePlan(plan),
+    annotations: [...list, nextAnnotation],
+  };
+}
+
+export function removeFloorPlanAnnotation(
+  plan: FloorPlanAnalysis,
+  annotationId: string,
+): FloorPlanAnalysis {
+  return {
+    ...clonePlan(plan),
+    annotations: (plan.annotations ?? []).filter((a) => a.id !== annotationId),
+  };
+}
+
+export function updateFloorPlanAnnotation(
+  plan: FloorPlanAnalysis,
+  annotationId: string,
+  patch: Partial<Omit<FloorPlanAnnotation, "id">>,
+): FloorPlanAnalysis {
+  return {
+    ...clonePlan(plan),
+    annotations: (plan.annotations ?? []).map((a) =>
+      a.id === annotationId ? { ...a, ...patch } : a,
+    ),
   };
 }
 

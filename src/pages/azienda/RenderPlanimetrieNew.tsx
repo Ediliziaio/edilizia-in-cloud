@@ -71,6 +71,8 @@ import {
   createInitialFloorPlanFromSketch,
   addFloorPlanOpening,
   addFloorPlanFurniture,
+  addFloorPlanAnnotation,
+  removeFloorPlanAnnotation,
   buildFloorPlanWorkStudio,
   estimateFloorPlanQuoteItems,
   exportFloorPlanToDxf,
@@ -102,7 +104,21 @@ import {
   type FloorPlanStyle,
   type FloorPlanToolId,
   type FloorPlanWorkPhase,
+  type FloorPlanDoorStyle,
+  type FloorPlanWindowStyle,
+  type FloorPlanAnnotation,
+  type FloorPlanAnnotationType,
 } from "@/lib/render/floorPlanAi";
+import {
+  validateAbitabilita,
+  abitabilitaSuggestion,
+  type AbitabilitaIssue,
+} from "@/lib/render/abitabilitaValidation";
+import {
+  exportSvgAsPng,
+  exportFloorPlanAsPdf,
+} from "@/lib/render/exportFloorPlanRaster";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 const styleOptions: Array<{ value: FloorPlanStyle; label: string; className: string }> = [
@@ -168,7 +184,11 @@ interface WorkflowStep {
 
 export default function RenderPlanimetrieNew() {
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Ref al container del canvas SVG planimetria — usato per export PNG/PDF
+  // (querySelector('svg') trova l'SVG renderizzato da FloorPlanCanvas).
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const [plan, setPlan] = useState<FloorPlanAnalysis>(() => loadPlanDraft());
   const [activeTool, setActiveTool] = useState<FloorPlanToolId>("select");
   const [selectedRoomId, setSelectedRoomId] = useState("living");
@@ -191,10 +211,20 @@ export default function RenderPlanimetrieNew() {
   const [dragTarget, setDragTarget] = useState<CadDragTarget | null>(null);
   const [undoStack, setUndoStack] = useState<FloorPlanAnalysis[]>([]);
   const [redoStack, setRedoStack] = useState<FloorPlanAnalysis[]>([]);
+  // F4: stato durante mutation sincrone (calibrazione, export) per
+  // bloccare double-click su bottoni. Default false → nessun cambio UX.
+  const [isCalibrating, setIsCalibrating] = useState(false);
+  const [exportingType, setExportingType] = useState<"svg" | "dxf" | "json" | null>(null);
+  // F5: dirty flag — true quando user ha modifiche non explicitly "salvate"
+  // (in questo editor non c'è un "Salva" backend, ma il flag protegge
+  // dalla chiusura accidentale del tab/back browser su lavoro in corso).
+  const [isDirty, setIsDirty] = useState(false);
 
   const metrics = useMemo(() => calculateFloorPlanMetrics(plan), [plan]);
   const brief = useMemo(() => buildFloorPlanGenerationBrief(plan), [plan]);
   const qualityIssues = useMemo(() => runFloorPlanQualityChecks(plan), [plan]);
+  // G1: validazione norme DM Sanità 5/7/1975 abitabilità
+  const abitabilitaIssues = useMemo(() => validateAbitabilita(plan), [plan]);
   const quoteItems = useMemo(() => estimateFloorPlanQuoteItems(plan), [plan]);
   const workStudio = useMemo(() => buildFloorPlanWorkStudio(plan, { contactId: "demo-contact", opportunityId: "demo-opportunity" }), [plan]);
   const photoReviewQuestions = useMemo(() => buildFloorPlanPhotoReviewQuestions(plan), [plan]);
@@ -289,6 +319,19 @@ export default function RenderPlanimetrieNew() {
     }
   }, [plan]);
 
+  // F5: warning su unload se ci sono modifiche non confermate.
+  // Il browser mostra il proprio dialog nativo "Vuoi lasciare la pagina?"
+  // (testo custom è ignorato dai browser moderni per ragioni di sicurezza).
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = ""; // Chrome requires returnValue set
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -317,6 +360,7 @@ export default function RenderPlanimetrieNew() {
       setRedoStack([]);
       return updater(current);
     });
+    setIsDirty(true);
   };
 
   const handleUndo = () => {
@@ -353,27 +397,69 @@ export default function RenderPlanimetrieNew() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // F1: validazione size + formato. Reject early con toast chiaro,
+    // evita crash su file enormi (foto DSLR 100MB+) o tipi non supportati.
+    const MAX_FILE_SIZE_MB = 30;
+    const ALLOWED_TYPES = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "application/pdf",
+    ];
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      toast.error("File troppo grande", {
+        description: `Limite: ${MAX_FILE_SIZE_MB}MB. Comprimi l'immagine o usa un PDF.`,
+      });
+      event.target.value = ""; // permette di riselezionare stesso file dopo
+      return;
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error("Formato non supportato", {
+        description: "Formati ammessi: JPG, PNG, WebP, GIF, PDF.",
+      });
+      event.target.value = "";
+      return;
+    }
+
     setAnalysisState("analyzing");
     const sourceType = file.type === "application/pdf" ? "pdf" : file.type.startsWith("image/") ? "photo" : "floor_plan";
-    const imageMeta = file.type.startsWith("image/") ? await inspectImageFile(file) : {};
-    setSourcePreviewUrl(imageMeta.previewUrl);
-    window.setTimeout(() => {
-      const nextPlan = createInitialFloorPlanFromSketch({
-        fileName: file.name,
-        sourceType,
-        mimeType: file.type,
-        sizeBytes: file.size,
-        width: imageMeta.width,
-        height: imageMeta.height,
+
+    // F3: try/catch — se inspectImageFile fallisce (rete down su blob? memoria?)
+    // mostra toast chiaro invece di lasciare lo stato in "analyzing" infinito.
+    try {
+      const imageMeta = file.type.startsWith("image/") ? await inspectImageFile(file) : {};
+      setSourcePreviewUrl(imageMeta.previewUrl);
+      // F2: setTimeout 650ms mantenuto come UX "AI processing feedback" (intenzionale),
+      // ma adesso imageMeta è garantito completo grazie al timeout interno di inspectImageFile.
+      window.setTimeout(() => {
+        const nextPlan = createInitialFloorPlanFromSketch({
+          fileName: file.name,
+          sourceType,
+          mimeType: file.type,
+          sizeBytes: file.size,
+          width: imageMeta.width,
+          height: imageMeta.height,
+        });
+        setPlan(nextPlan);
+        setStyle(nextPlan.style);
+        setSelectedRoomId(nextPlan.rooms[0]?.id ?? "living");
+        setSelectedFurnitureId(undefined);
+        setSourceLayerVisibility(getDefaultSourceLayerVisibility(nextPlan.source.scan?.layers));
+        setAnalysisState("reviewed");
+        setIsDirty(true);
+        toast.success("Foto ottimizzata", {
+          description: "Ricalco CAD e revisione guidata pronti.",
+        });
+      }, 650);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Errore inatteso";
+      toast.error("Caricamento fallito", {
+        description: `${message}. Riprova o seleziona un altro file.`,
       });
-      setPlan(nextPlan);
-      setStyle(nextPlan.style);
-      setSelectedRoomId(nextPlan.rooms[0]?.id ?? "living");
-      setSelectedFurnitureId(undefined);
-      setSourceLayerVisibility(getDefaultSourceLayerVisibility(nextPlan.source.scan?.layers));
-      setAnalysisState("reviewed");
-      toast.success("Foto ottimizzata: ricalco CAD e revisione guidata pronti.");
-    }, 650);
+      setAnalysisState("idle");
+      event.target.value = "";
+    }
   };
 
   const handleStyleChange = (nextStyle: FloorPlanStyle) => {
@@ -382,6 +468,7 @@ export default function RenderPlanimetrieNew() {
   };
 
   const handleCalibrateScale = () => {
+    if (isCalibrating) return; // F4: race protection contro double-click
     const measuredUnits = Number(calibrationUnits.replace(",", "."));
     const knownLengthMeters = Number(calibrationMeters.replace(",", "."));
     if (!Number.isFinite(measuredUnits) || measuredUnits <= 0 || !Number.isFinite(knownLengthMeters) || knownLengthMeters <= 0) {
@@ -389,20 +476,25 @@ export default function RenderPlanimetrieNew() {
       return;
     }
 
-    commitPlanChange((current) => calibrationDraft.from && calibrationDraft.to
-      ? calibrateFloorPlanScaleFromPoints(current, {
-          from: calibrationDraft.from,
-          to: calibrationDraft.to,
-          knownLengthMeters,
-          label: "quota canvas",
-        })
-      : calibrateFloorPlanScale(current, {
-          measuredUnits,
-          knownLengthMeters,
-          label: "quota manuale",
-        }));
-    setCalibrationDraft({});
-    toast.success("Scala confermata: metriche, computo ed export tecnico aggiornati.");
+    setIsCalibrating(true);
+    try {
+      commitPlanChange((current) => calibrationDraft.from && calibrationDraft.to
+        ? calibrateFloorPlanScaleFromPoints(current, {
+            from: calibrationDraft.from,
+            to: calibrationDraft.to,
+            knownLengthMeters,
+            label: "quota canvas",
+          })
+        : calibrateFloorPlanScale(current, {
+            measuredUnits,
+            knownLengthMeters,
+            label: "quota manuale",
+          }));
+      setCalibrationDraft({});
+      toast.success("Scala confermata: metriche, computo ed export tecnico aggiornati.");
+    } finally {
+      setIsCalibrating(false);
+    }
   };
 
   const handleCreateRevision = () => {
@@ -413,15 +505,48 @@ export default function RenderPlanimetrieNew() {
     toast.success("Revisione salvata nella bozza planimetria.");
   };
 
-  const handleExport = (type: "svg" | "dxf" | "json") => {
-    if (type === "svg") {
-      downloadTextFile(`${plan.id}.svg`, exportFloorPlanToSvg(plan), "image/svg+xml");
-    } else if (type === "dxf") {
-      downloadTextFile(`${plan.id}.dxf`, exportFloorPlanToDxf(plan), "application/dxf");
-    } else {
-      downloadTextFile(`${plan.id}.json`, JSON.stringify(plan, null, 2), "application/json");
+  const handleExport = async (type: "svg" | "dxf" | "json" | "png" | "pdf") => {
+    if (exportingType) return; // F4: race protection contro double-click rapido
+    setExportingType(type);
+    try {
+      if (type === "png" || type === "pdf") {
+        // Raster export: trova SVG dentro canvasContainerRef
+        const svgEl = canvasContainerRef.current?.querySelector("svg") as SVGSVGElement | null;
+        if (!svgEl) {
+          throw new Error("Canvas non disponibile. Carica prima una planimetria.");
+        }
+        if (type === "png") {
+          await exportSvgAsPng(svgEl, plan.id, { scale: 2 });
+          toast.success("PNG pronto", {
+            description: `Esportato ad alta risoluzione (2x). File: ${plan.id}.png`,
+          });
+        } else {
+          const companyName = effectiveCompany?.name ?? "Edilizia in Cloud";
+          await exportFloorPlanAsPdf(svgEl, plan, companyName);
+          toast.success("PDF pronto", {
+            description: `Tavola A4 landscape con titoletto. File: ${plan.id}.pdf`,
+          });
+        }
+      } else {
+        const fileName = `${plan.id}.${type}`;
+        if (type === "svg") {
+          downloadTextFile(fileName, exportFloorPlanToSvg(plan), "image/svg+xml");
+        } else if (type === "dxf") {
+          downloadTextFile(fileName, exportFloorPlanToDxf(plan), "application/dxf");
+        } else {
+          downloadTextFile(fileName, JSON.stringify(plan, null, 2), "application/json");
+        }
+        toast.success(`Export ${type.toUpperCase()} pronto`, {
+          description: `File scaricato: ${fileName}`,
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Errore inatteso";
+      toast.error(`Export ${type.toUpperCase()} fallito`, { description: message });
+    } finally {
+      // Piccolo delay per evitare click rapidi consecutivi (UX: no spam download)
+      setTimeout(() => setExportingType(null), 400);
     }
-    toast.success(`Export ${type.toUpperCase()} preparato.`);
   };
 
   const toggleLayer = (layerId: FloorPlanLayerId) => {
@@ -454,16 +579,60 @@ export default function RenderPlanimetrieNew() {
     setPlan((current) => updateFloorPlanRoom(current, selectedRoom.id, patch));
   };
 
-  const handleQuickOpening = (type: FloorPlanOpening["type"]) => {
+  const handleQuickOpening = (
+    type: FloorPlanOpening["type"],
+    style?: FloorPlanDoorStyle | FloorPlanWindowStyle,
+  ) => {
+    // G2: width adattata allo stile reale (porte doppie/scorrevoli più larghe)
+    const widthByStyle: Record<string, number> = {
+      single: type === "door" ? 7 : 10,
+      double: type === "door" ? 14 : 18,
+      sliding: type === "door" ? 9 : 12,
+      bifold: 9,
+      armored: 8,
+      fixed: 8,
+      skylight: 8,
+      panoramic: 22,
+    };
+    const w = widthByStyle[style ?? "single"] ?? (type === "door" ? 7 : 12);
     commitPlanChange((current) => addFloorPlanOpening(current, {
       type,
       wallId: type === "door" ? "w-hall-bedrooms" : "w-ext-n",
       x: type === "door" ? 66 : 45,
       y: type === "door" ? 33 : 8,
-      width: type === "door" ? 7 : 12,
-      swing: type === "door" ? "left" : undefined,
+      width: w,
+      swing: type === "door" ? (style === "sliding" ? "sliding" : "left") : undefined,
+      doorStyle: type === "door" ? (style as FloorPlanDoorStyle | undefined) ?? "single" : undefined,
+      windowStyle: type === "window" ? (style as FloorPlanWindowStyle | undefined) ?? "single" : undefined,
     }));
-    toast.success(type === "door" ? "Porta aggiunta alla bozza CAD." : "Finestra aggiunta alla bozza CAD.");
+    const styleLabel = style ? ` (${style})` : "";
+    toast.success(
+      type === "door"
+        ? `Porta${styleLabel} aggiunta alla bozza CAD.`
+        : `Finestra${styleLabel} aggiunta alla bozza CAD.`,
+    );
+  };
+
+  // G3: helper annotazioni preset (utente li aggiunge da pannello dedicato).
+  const handleAddAnnotation = (type: FloorPlanAnnotationType) => {
+    const presets: Record<FloorPlanAnnotationType, Omit<FloorPlanAnnotation, "id">> = {
+      text: { type: "text", x: 50, y: 50, text: "Nota libera", fontSize: 14, color: "#0f172a" },
+      arrow: { type: "arrow", x: 30, y: 30, toX: 50, toY: 30, color: "#0f172a" },
+      north: { type: "north", x: 90, y: 8, rotation: 0, color: "#0f172a" },
+      scale_bar: { type: "scale_bar", x: 50, y: 92, meters: 1, color: "#0f172a" },
+    };
+    commitPlanChange((current) => addFloorPlanAnnotation(current, presets[type]));
+    const labels: Record<FloorPlanAnnotationType, string> = {
+      text: "Testo",
+      arrow: "Freccia",
+      north: "Simbolo Nord",
+      scale_bar: "Scala grafica",
+    };
+    toast.success(`${labels[type]} aggiunta al disegno.`);
+  };
+
+  const handleRemoveAnnotation = (annotationId: string) => {
+    commitPlanChange((current) => removeFloorPlanAnnotation(current, annotationId));
   };
 
   const handleAddFurniture = (catalogItemId: string) => {
@@ -946,11 +1115,18 @@ export default function RenderPlanimetrieNew() {
                 </div>
               </div>
 
-              <div className="relative flex flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_1px_1px,rgba(148,163,184,0.24)_1px,transparent_0)] p-4 [background-size:22px_22px] sm:p-6">
+              {/* F6: overflow-x-auto + touch-pan-x abilita pan tablet/mobile
+                  quando il canvas overflowsa il viewport. min-w-[640px] tiene
+                  il canvas leggibile anche su schermi stretti. */}
+              <div
+                className="relative flex flex-1 items-center justify-center overflow-auto bg-[radial-gradient(circle_at_1px_1px,rgba(148,163,184,0.24)_1px,transparent_0)] p-4 [background-size:22px_22px] sm:p-6"
+                style={{ touchAction: "pan-x pan-y pinch-zoom" }}
+              >
                 <CanvasRulers />
                 <DrawingAssistantPanel context={drawingContext} />
                 <div
-                  className="w-full max-w-[940px] origin-center rounded-2xl border border-cyan-400/20 bg-slate-950/80 p-4 shadow-2xl shadow-black/30 transition-transform"
+                  ref={canvasContainerRef}
+                  className="w-full min-w-[640px] max-w-[940px] origin-center rounded-2xl border border-cyan-400/20 bg-slate-950/80 p-4 shadow-2xl shadow-black/30 transition-transform"
                   style={{ transform: `scale(${zoom / 100})` }}
                 >
                   <FloorPlanCanvas
@@ -1129,15 +1305,98 @@ export default function RenderPlanimetrieNew() {
                   <p className="text-sm font-semibold">Correzioni rapide</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button id="floor-plan-quick-door" variant="secondary" className="gap-2" aria-label="Aggiungi porta rapida" onClick={() => handleQuickOpening("door")}>
+                  <Button id="floor-plan-quick-door" variant="secondary" className="gap-2" aria-label="Aggiungi porta singola" onClick={() => handleQuickOpening("door", "single")}>
                     <DoorOpen className="h-4 w-4" />
                     Porta
                   </Button>
-                  <Button id="floor-plan-quick-window" variant="secondary" className="gap-2" aria-label="Aggiungi finestra rapida" onClick={() => handleQuickOpening("window")}>
+                  <Button id="floor-plan-quick-window" variant="secondary" className="gap-2" aria-label="Aggiungi finestra singola" onClick={() => handleQuickOpening("window", "single")}>
                     <PanelTopOpen className="h-4 w-4" />
                     Finestra
                   </Button>
                 </div>
+                {/* G2: catalog porte/finestre esteso per preventivi serramenti.
+                    Stili distinti per width predefinita e label in toast. */}
+                <p className="text-[10px] uppercase tracking-wider text-white/40">Varianti porte</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Button variant="ghost" size="sm" className="h-7 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleQuickOpening("door", "double")}>
+                    + Doppia
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleQuickOpening("door", "sliding")}>
+                    + Scorrevole
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleQuickOpening("door", "bifold")}>
+                    + A libro
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleQuickOpening("door", "armored")}>
+                    + Blindata
+                  </Button>
+                </div>
+                <p className="text-[10px] uppercase tracking-wider text-white/40">Varianti finestre</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Button variant="ghost" size="sm" className="h-7 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleQuickOpening("window", "double")}>
+                    + Doppia anta
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleQuickOpening("window", "fixed")}>
+                    + Fissa
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleQuickOpening("window", "panoramic")}>
+                    + Panoramica
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleQuickOpening("window", "skylight")}>
+                    + Lucernario
+                  </Button>
+                </div>
+              </div>
+
+              {/* G3: Annotazioni libere sul disegno. Bottoni preset spawnano
+                  elementi default in posizioni standard, l'utente li sposta. */}
+              <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-amber-300" />
+                  <p className="text-sm font-semibold">Annotazioni</p>
+                  {(plan.annotations?.length ?? 0) > 0 && (
+                    <Badge variant="outline" className="ml-auto border-white/20 bg-white/10 text-[10px] text-white">
+                      {plan.annotations?.length ?? 0}
+                    </Badge>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Button variant="ghost" size="sm" className="h-8 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleAddAnnotation("text")}>
+                    + Testo
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleAddAnnotation("arrow")}>
+                    + Freccia
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleAddAnnotation("north")}>
+                    + Nord
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8 justify-start gap-1.5 text-[11px] text-white/80 hover:text-white" onClick={() => handleAddAnnotation("scale_bar")}>
+                    + Scala
+                  </Button>
+                </div>
+                {(plan.annotations?.length ?? 0) > 0 && (
+                  <div className="space-y-1 border-t border-white/10 pt-2">
+                    {(plan.annotations ?? []).slice(0, 6).map((ann) => (
+                      <div key={ann.id} className="flex items-center justify-between gap-2 text-[11px] text-white/70">
+                        <span className="truncate">
+                          {ann.type === "text" ? `T: "${(ann.text ?? "").slice(0, 18)}"` :
+                           ann.type === "arrow" ? "→ Freccia" :
+                           ann.type === "north" ? "↑ Nord" :
+                           `▭ Scala ${ann.meters ?? 1}m`}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 text-white/40 hover:text-red-400"
+                          onClick={() => handleRemoveAnnotation(ann.id)}
+                          aria-label="Rimuovi annotazione"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-3">
@@ -1423,6 +1682,36 @@ export default function RenderPlanimetrieNew() {
           </CardContent>
         </Card>
 
+        {/* G1: Card validazione norme DM Sanità 5/7/1975 abitabilità.
+            Mostra warning per stanze sotto-soglia (es. soggiorno <14mq).
+            Card si auto-nasconde se non ci sono issue (no clutter). */}
+        {abitabilitaIssues.length > 0 && (
+          <Card className="border-amber-200 bg-amber-50/30 shadow-sm xl:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ShieldCheck className="h-4 w-4 text-amber-600" />
+                Norme abitabilità
+                <Badge variant="secondary" className="ml-1 bg-amber-100 text-amber-800">
+                  {abitabilitaIssues.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {abitabilitaIssues.slice(0, 5).map((issue, idx) => (
+                <AbitabilitaIssueRow key={`${issue.code}-${idx}`} issue={issue} />
+              ))}
+              {abitabilitaIssues.length > 5 && (
+                <p className="text-xs text-amber-700">
+                  +{abitabilitaIssues.length - 5} altre segnalazioni — verifica con tecnico abilitato.
+                </p>
+              )}
+              <p className="border-t border-amber-200 pt-2 text-[10px] italic text-amber-700">
+                Riferimento DM Sanità 5/7/1975. Alcuni Comuni applicano regolamenti più restrittivi.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="border-slate-200 shadow-sm xl:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -1474,15 +1763,65 @@ export default function RenderPlanimetrieNew() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* G4: aggiunto PNG (2x retina). #3-light: aggiunto PDF A4 con
+                titoletto azienda. SVG/DXF/JSON invariati. Tutti disabilitati
+                quando exportingType è settato (F4 race protection). */}
             <div className="grid grid-cols-3 gap-2">
-              <Button variant="outline" className="gap-2" onClick={() => handleExport("svg")}>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => handleExport("svg")}
+                disabled={exportingType !== null}
+              >
+                {exportingType === "svg" && <Loader2 className="h-3 w-3 animate-spin" />}
                 SVG
               </Button>
-              <Button variant="outline" className="gap-2" disabled={!canExportDxf} onClick={() => handleExport("dxf")}>
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={!canExportDxf || exportingType !== null}
+                onClick={() => handleExport("dxf")}
+              >
+                {exportingType === "dxf" && <Loader2 className="h-3 w-3 animate-spin" />}
                 DXF
               </Button>
-              <Button variant="outline" className="gap-2" onClick={() => handleExport("json")}>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => handleExport("json")}
+                disabled={exportingType !== null}
+              >
+                {exportingType === "json" && <Loader2 className="h-3 w-3 animate-spin" />}
                 JSON
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => handleExport("png")}
+                disabled={exportingType !== null}
+                title="Immagine PNG ad alta risoluzione (2x retina)"
+              >
+                {exportingType === "png" && <Loader2 className="h-3 w-3 animate-spin" />}
+                PNG
+              </Button>
+              <Button
+                variant="default"
+                className="col-span-2 gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:opacity-90"
+                onClick={() => handleExport("pdf")}
+                disabled={exportingType !== null}
+                title="Tavola PDF A4 landscape pronta da inviare al cliente"
+              >
+                {exportingType === "pdf" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generazione tavola...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Tavola PDF cliente
+                  </>
+                )}
               </Button>
             </div>
             <div className="rounded-xl border bg-slate-50 p-3 text-xs leading-5 text-slate-600">
@@ -1656,6 +1995,28 @@ function QualityIssueRow({ issue }: { issue: FloorPlanQualityIssue }) {
       <p className="text-sm font-semibold">{issue.title}</p>
       <p className="mt-1 text-xs leading-5 opacity-85">{issue.description}</p>
       <p className="mt-2 text-xs font-medium">{issue.action}</p>
+    </div>
+  );
+}
+
+// G1: row di una violazione norme abitabilità (DM 5/7/1975).
+// Differenzia visivamente blocking (rosso) vs warning (giallo) vs info (blu).
+function AbitabilitaIssueRow({ issue }: { issue: AbitabilitaIssue }) {
+  const styles: Record<AbitabilitaIssue["severity"], string> = {
+    blocking: "border-red-200 bg-red-50 text-red-900",
+    warning: "border-amber-200 bg-amber-50 text-amber-900",
+    info: "border-sky-200 bg-sky-50 text-sky-900",
+  };
+  return (
+    <div className={cn("rounded-lg border p-2", styles[issue.severity])}>
+      <p className="text-xs font-semibold">
+        {issue.roomName ?? "Stanza"}
+        <span className="ml-1 font-normal opacity-70">
+          ({issue.actual.toFixed(1)}/{issue.required} {issue.unit})
+        </span>
+      </p>
+      <p className="mt-1 text-[11px] leading-4 opacity-85">{issue.message}</p>
+      <p className="mt-1 text-[10px] italic opacity-70">{abitabilitaSuggestion(issue)}</p>
     </div>
   );
 }
@@ -2034,6 +2395,16 @@ function FloorPlanCanvas({
         <OpeningMarker key={opening.id} opening={opening} />
       ))}
 
+      {/* G3: render annotazioni libere (testo, freccia, nord, scala).
+          Layer "notes" controlla la visibilità (toggle dalla sidebar layers). */}
+      {visibleLayers.notes && (plan.annotations ?? []).map((annotation) => (
+        <AnnotationMarker
+          key={annotation.id}
+          annotation={annotation}
+          metersPerUnit={plan.source.metersPerUnit}
+        />
+      ))}
+
       {visibleLayers.furniture && plan.furniture.map((item) => (
         <g
           key={item.id}
@@ -2133,25 +2504,191 @@ function getRoomDisplayLabel(name: string, width: number) {
   return name;
 }
 
+// G2: render visivo per ogni stile porta/finestra. Coerente con stile CAD
+// architettonico standard (archi battenti, doppia anta = 2 archi opposti,
+// scorrevole = doppia freccia, panoramica = retino, blindata = bordo spesso).
 function OpeningMarker({ opening }: { opening: FloorPlanOpening }) {
+  const halfW = opening.width / 2;
+  const xL = opening.x - halfW;
+  const xR = opening.x + halfW;
+  const y = opening.y;
+
+  // ── FINESTRE ──────────────────────────────────────────────────
   if (opening.type === "window") {
+    const style = opening.windowStyle ?? "single";
+
+    if (style === "double") {
+      // Doppia anta: rettangolo + linea verticale di divisione al centro
+      return (
+        <g>
+          <rect x={xL} y={y - 0.8} width={opening.width} height="1.6" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="0.25" />
+          <line x1={opening.x} y1={y - 0.8} x2={opening.x} y2={y + 0.8} stroke="#e0f2fe" strokeWidth="0.3" />
+        </g>
+      );
+    }
+    if (style === "fixed") {
+      // Fissa: rettangolo + X interna (no apertura)
+      return (
+        <g>
+          <rect x={xL} y={y - 0.8} width={opening.width} height="1.6" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="0.25" />
+          <line x1={xL} y1={y - 0.8} x2={xR} y2={y + 0.8} stroke="#0c4a6e" strokeWidth="0.2" opacity="0.7" />
+          <line x1={xL} y1={y + 0.8} x2={xR} y2={y - 0.8} stroke="#0c4a6e" strokeWidth="0.2" opacity="0.7" />
+        </g>
+      );
+    }
+    if (style === "skylight") {
+      // Lucernario: rombo (vista pianta indica copertura)
+      return (
+        <g>
+          <path d={`M ${xL} ${y} L ${opening.x} ${y - 1} L ${xR} ${y} L ${opening.x} ${y + 1} Z`} fill="#7dd3fc" stroke="#0c4a6e" strokeWidth="0.25" />
+          <line x1={xL} y1={y} x2={xR} y2={y} stroke="#0c4a6e" strokeWidth="0.15" opacity="0.6" />
+        </g>
+      );
+    }
+    if (style === "panoramic") {
+      // Panoramica: rettangolo più alto + retino interno
+      return (
+        <g>
+          <rect x={xL} y={y - 1.1} width={opening.width} height="2.2" fill="#bae6fd" stroke="#e0f2fe" strokeWidth="0.3" />
+          <line x1={xL + opening.width * 0.33} y1={y - 1.1} x2={xL + opening.width * 0.33} y2={y + 1.1} stroke="#0c4a6e" strokeWidth="0.2" />
+          <line x1={xL + opening.width * 0.66} y1={y - 1.1} x2={xL + opening.width * 0.66} y2={y + 1.1} stroke="#0c4a6e" strokeWidth="0.2" />
+        </g>
+      );
+    }
+    // single (default)
     return (
       <g>
-        <rect x={opening.x - opening.width / 2} y={opening.y - 0.8} width={opening.width} height="1.6" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="0.25" />
+        <rect x={xL} y={y - 0.8} width={opening.width} height="1.6" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="0.25" />
       </g>
     );
   }
 
+  // ── PORTE ────────────────────────────────────────────────────
+  const style = opening.doorStyle ?? "single";
+
+  if (style === "double") {
+    // Doppia anta: 2 archi opposti dal centro
+    return (
+      <g>
+        <line x1={xL} y1={y} x2={xR} y2={y} stroke="#fb923c" strokeWidth="1.1" />
+        <path d={`M ${xL} ${y} A ${halfW} ${halfW} 0 0 1 ${opening.x} ${y - halfW}`} fill="none" stroke="#fdba74" strokeWidth="0.4" />
+        <path d={`M ${xR} ${y} A ${halfW} ${halfW} 0 0 0 ${opening.x} ${y - halfW}`} fill="none" stroke="#fdba74" strokeWidth="0.4" />
+      </g>
+    );
+  }
+  if (style === "sliding") {
+    // Scorrevole: rettangolo sottile + 2 frecce orizzontali ↔
+    return (
+      <g>
+        <rect x={xL} y={y - 0.4} width={opening.width} height="0.8" fill="#fed7aa" stroke="#fb923c" strokeWidth="0.2" />
+        <path d={`M ${xL + 0.6} ${y - 0.15} L ${xL + 0.1} ${y} L ${xL + 0.6} ${y + 0.15}`} fill="none" stroke="#9a3412" strokeWidth="0.18" />
+        <path d={`M ${xR - 0.6} ${y - 0.15} L ${xR - 0.1} ${y} L ${xR - 0.6} ${y + 0.15}`} fill="none" stroke="#9a3412" strokeWidth="0.18" />
+      </g>
+    );
+  }
+  if (style === "bifold") {
+    // A libro: 2 segmenti spezzati ad angolo
+    return (
+      <g>
+        <line x1={xL} y1={y} x2={xR} y2={y} stroke="#fb923c" strokeWidth="0.8" />
+        <path d={`M ${xL} ${y} L ${opening.x - halfW * 0.3} ${y - halfW * 0.6} L ${opening.x} ${y - halfW * 0.2} L ${opening.x + halfW * 0.3} ${y - halfW * 0.6} L ${xR} ${y}`} fill="none" stroke="#fdba74" strokeWidth="0.4" />
+      </g>
+    );
+  }
+  if (style === "armored") {
+    // Blindata: linea spessa + simbolo lucchetto piccolo
+    return (
+      <g>
+        <line x1={xL} y1={y} x2={xR} y2={y} stroke="#dc2626" strokeWidth="1.8" />
+        <path d={`M ${xL} ${y} A ${opening.width} ${opening.width} 0 0 1 ${xR} ${y - halfW}`} fill="none" stroke="#fdba74" strokeWidth="0.45" opacity="0.85" />
+        <circle cx={opening.x} cy={y - 0.3} r="0.3" fill="#dc2626" />
+      </g>
+    );
+  }
+  // single (default): linea + arco apertura
   return (
     <g>
-      <line x1={opening.x - opening.width / 2} y1={opening.y} x2={opening.x + opening.width / 2} y2={opening.y} stroke="#fb923c" strokeWidth="1.1" />
+      <line x1={xL} y1={y} x2={xR} y2={y} stroke="#fb923c" strokeWidth="1.1" />
       <path
-        d={`M ${opening.x - opening.width / 2} ${opening.y} A ${opening.width} ${opening.width} 0 0 1 ${opening.x + opening.width / 2} ${opening.y - opening.width / 2}`}
+        d={`M ${xL} ${y} A ${opening.width} ${opening.width} 0 0 1 ${xR} ${y - halfW}`}
         fill="none"
         stroke="#fdba74"
         strokeWidth="0.45"
         opacity="0.85"
       />
+    </g>
+  );
+}
+
+// G3: render visivo delle annotazioni (testo / freccia / nord / scala grafica).
+// Tutte cliccabili sul canvas in iter futura — per ora solo render statico.
+function AnnotationMarker({ annotation, metersPerUnit }: { annotation: FloorPlanAnnotation; metersPerUnit: number }) {
+  const color = annotation.color ?? "#f8fafc";
+  if (annotation.type === "text") {
+    const fontSize = (annotation.fontSize ?? 14) / 8; // scala per SVG viewBox 100x76
+    return (
+      <text
+        x={annotation.x}
+        y={annotation.y}
+        fontSize={fontSize}
+        fill={color}
+        stroke="#020617"
+        strokeWidth="0.15"
+        paintOrder="stroke"
+        transform={annotation.rotation ? `rotate(${annotation.rotation} ${annotation.x} ${annotation.y})` : undefined}
+        className="select-none font-semibold"
+      >
+        {annotation.text ?? ""}
+      </text>
+    );
+  }
+  if (annotation.type === "arrow") {
+    const toX = annotation.toX ?? annotation.x + 10;
+    const toY = annotation.toY ?? annotation.y;
+    return (
+      <g>
+        <defs>
+          <marker id={`arrow-head-${annotation.id}`} markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+            <polygon points="0 0, 4 2, 0 4" fill={color} />
+          </marker>
+        </defs>
+        <line
+          x1={annotation.x}
+          y1={annotation.y}
+          x2={toX}
+          y2={toY}
+          stroke={color}
+          strokeWidth="0.4"
+          markerEnd={`url(#arrow-head-${annotation.id})`}
+        />
+      </g>
+    );
+  }
+  if (annotation.type === "north") {
+    // Simbolo Nord: cerchio con freccia ↑ + lettera N
+    return (
+      <g transform={`translate(${annotation.x} ${annotation.y}) rotate(${annotation.rotation ?? 0})`}>
+        <circle cx="0" cy="0" r="3" fill="rgba(15,23,42,0.85)" stroke={color} strokeWidth="0.25" />
+        <path d="M 0 -2.2 L -1 1.5 L 0 0.5 L 1 1.5 Z" fill={color} />
+        <text x="0" y="-3.6" fontSize="1.6" fill={color} textAnchor="middle" className="font-bold select-none">N</text>
+      </g>
+    );
+  }
+  // scale_bar
+  const meters = annotation.meters ?? 1;
+  const lengthUnits = meters / metersPerUnit; // in unità CAD
+  const ticks = 5;
+  return (
+    <g transform={`translate(${annotation.x} ${annotation.y})`}>
+      {/* barra principale + tick */}
+      <rect x="0" y="0" width={lengthUnits} height="0.5" fill={color} stroke="#020617" strokeWidth="0.1" />
+      {Array.from({ length: ticks + 1 }).map((_, i) => {
+        const tickX = (i * lengthUnits) / ticks;
+        return <line key={i} x1={tickX} y1="-0.4" x2={tickX} y2="0.9" stroke="#020617" strokeWidth="0.12" />;
+      })}
+      <text x={lengthUnits / 2} y="-1" fontSize="1.4" fill={color} stroke="#020617" strokeWidth="0.1" paintOrder="stroke" textAnchor="middle" className="font-semibold select-none">
+        {meters}m
+      </text>
     </g>
   );
 }
@@ -2188,7 +2725,15 @@ function inspectImageFile(file: File): Promise<{ width?: number; height?: number
   const previewUrl = URL.createObjectURL(file);
   return new Promise((resolve) => {
     const image = new Image();
+    // F2: safety timeout 15s. Se il browser non triggera né onload né onerror
+    // (es. file corrotto, decoder stuck, rete 2G), risolviamo comunque con il
+    // solo previewUrl per evitare UI freeze indefinito.
+    const timeoutId = window.setTimeout(() => {
+      resolve({ previewUrl });
+    }, 15_000);
+
     image.onload = () => {
+      window.clearTimeout(timeoutId);
       resolve({
         width: image.naturalWidth,
         height: image.naturalHeight,
@@ -2196,6 +2741,7 @@ function inspectImageFile(file: File): Promise<{ width?: number; height?: number
       });
     };
     image.onerror = () => {
+      window.clearTimeout(timeoutId);
       resolve({ previewUrl });
     };
     image.src = previewUrl;
