@@ -449,18 +449,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         <ApiHealthBanner filter={["whatsapp", "email_marketing"]} />
       </div>
 
-      {/* ══════════ HERO HEADER — full width, sticky-feel ══════════ */}
+      {/* ══════════ HERO HEADER — full width ══════════
+          MOBILE: ultra-compact (1 riga identity + 3 quick action max, KPI scroll horizontal)
+          DESKTOP: full layout (avatar XL, badges, KPI grid 4 col) */}
       <div className="border-b bg-gradient-to-b from-card to-background shrink-0">
-        {/* Breadcrumb + nav */}
-        <div className="flex items-center justify-between px-3 sm:px-5 pt-2.5 pb-1.5">
+        {/* Breadcrumb + nav — solo desktop */}
+        <div className="hidden md:flex items-center justify-between px-3 sm:px-5 pt-2.5 pb-1.5">
           <div className="flex items-center gap-2 min-w-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={() => navigate(`${routePrefix}/contatti`)}
-              title="Torna ai contatti"
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate(`${routePrefix}/contatti`)} title="Torna ai contatti">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <span className="text-xs text-muted-foreground truncate">
@@ -482,9 +478,119 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           </div>
         </div>
 
-        {/* Hero: Avatar XL + Nome + Tier badge + AI Score + Quick actions */}
-        <div className="px-3 sm:px-5 pb-3">
-          <div className="flex flex-col md:flex-row md:items-center md:gap-5 gap-3">
+        {/* ─── MOBILE COMPACT HEADER ─── */}
+        <div className="md:hidden px-3 py-2 space-y-2">
+          {/* Riga 1: back + nome + tier badge + nav */}
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => navigate(`${routePrefix}/contatti`)}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="relative shrink-0">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className={cn("text-xs font-bold text-white", getAvatarColor(fullName))}>{initials || "?"}</AvatarFallback>
+              </Avatar>
+              <span className={cn("absolute -bottom-0.5 -right-0.5 inline-flex items-center justify-center h-3.5 w-3.5 rounded-full text-[8px] font-bold ring-1 ring-background", tierColor)}>
+                {icpTier}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-sm font-bold leading-tight truncate">{fullName || "Senza nome"}</h1>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {contact.contact_type && (
+                  <span className="text-[9px] uppercase font-semibold text-muted-foreground tracking-wider">{contact.contact_type}</span>
+                )}
+                {aiScore != null && (
+                  <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[9px] h-3.5 px-1 gap-0.5">
+                    <Sparkles className="h-2 w-2" /> {aiScore}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center shrink-0">
+              <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!prevId} onClick={() => prevId && navigate(`${routePrefix}/contatti/${prevId}`)}>
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!nextId} onClick={() => nextId && navigate(`${routePrefix}/contatti/${nextId}`)}>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {canEditContacts && (
+                    <DropdownMenuItem onClick={() => setMergeOpen(true)}>
+                      <Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti
+                    </DropdownMenuItem>
+                  )}
+                  {canEditContacts && (
+                    <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive">
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Riga 2: Quick action 4 bottoni grandi (touch target 44px) */}
+          <div className="grid grid-cols-4 gap-1.5">
+            {contact.phone ? (
+              <Button asChild size="icon" className="h-11 bg-emerald-500 hover:bg-emerald-600 text-white">
+                <a href={`tel:${contact.phone}`} aria-label="Chiama"><Phone className="h-4 w-4" /></a>
+              </Button>
+            ) : <Button size="icon" disabled className="h-11"><Phone className="h-4 w-4" /></Button>}
+            {contact.email ? (
+              <Button asChild size="icon" className="h-11 bg-violet-500 hover:bg-violet-600 text-white">
+                <a href={`mailto:${contact.email}`} aria-label="Email"><Mail className="h-4 w-4" /></a>
+              </Button>
+            ) : <Button size="icon" disabled className="h-11"><Mail className="h-4 w-4" /></Button>}
+            <Button size="icon" className="h-11 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setMessageChannel("whatsapp")} disabled={!contact.phone} aria-label="WhatsApp">
+              <MessageSquare className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="outline" className="h-11" aria-label="Appuntamento">
+              <CalendarDays className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Riga 3: KPI horizontal scroll (no più grid 2x2 che mangia spazio) */}
+          <div className="flex gap-2 overflow-x-auto -mx-3 px-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="rounded-lg border bg-card px-2.5 py-1.5 min-w-[110px] shrink-0">
+              <div className="flex items-center gap-1">
+                <Star className="h-2.5 w-2.5 text-amber-500" />
+                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Lead</span>
+              </div>
+              <p className="text-base font-bold tabular-nums leading-tight">{leadScore}<span className="text-[9px] text-muted-foreground font-normal">/100</span></p>
+            </div>
+            <div className="rounded-lg border bg-card px-2.5 py-1.5 min-w-[110px] shrink-0">
+              <div className="flex items-center gap-1">
+                <span className="text-emerald-600 text-[10px]">●</span>
+                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Opp. aperte</span>
+              </div>
+              <p className="text-base font-bold tabular-nums leading-tight">{kpis?.openOppsCount ?? 0}<span className="text-[9px] text-muted-foreground font-normal">/{kpis?.totalOpps ?? 0}</span></p>
+            </div>
+            <div className="rounded-lg border bg-card px-2.5 py-1.5 min-w-[120px] shrink-0">
+              <div className="flex items-center gap-1">
+                <CalendarDays className="h-2.5 w-2.5 text-blue-500" />
+                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Appunt.</span>
+              </div>
+              <p className="text-base font-bold tabular-nums leading-tight">{kpis?.apptsCount ?? 0}</p>
+            </div>
+            <div className="rounded-lg border bg-card px-2.5 py-1.5 min-w-[140px] shrink-0">
+              <div className="flex items-center gap-1">
+                <Bell className="h-2.5 w-2.5 text-rose-500" />
+                <span className="text-[9px] text-muted-foreground uppercase font-semibold">Ultima</span>
+              </div>
+              <p className="text-xs font-bold leading-tight">{lastActivityLabel}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── DESKTOP HERO (md+) ─── */}
+        <div className="hidden md:block px-3 sm:px-5 pb-3">
+          <div className="flex items-center gap-5">
             {/* Identity */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <div className="relative shrink-0">
@@ -493,25 +599,15 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     {initials || "?"}
                   </AvatarFallback>
                 </Avatar>
-                <span
-                  className={cn(
-                    "absolute -bottom-1 -right-1 inline-flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold ring-2 ring-background",
-                    tierColor,
-                  )}
-                  title={`ICP Tier ${icpTier}`}
-                >
+                <span className={cn("absolute -bottom-1 -right-1 inline-flex items-center justify-center h-6 w-6 rounded-full text-[10px] font-bold ring-2 ring-background", tierColor)} title={`ICP Tier ${icpTier}`}>
                   {icpTier}
                 </span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate">
-                    {fullName || "Senza nome"}
-                  </h1>
+                  <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate">{fullName || "Senza nome"}</h1>
                   {contact.contact_type && (
-                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 capitalize">
-                      {contact.contact_type}
-                    </Badge>
+                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 capitalize">{contact.contact_type}</Badge>
                   )}
                   {aiScore != null && (
                     <Badge className="bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white border-0 text-[10px] h-5 px-1.5 gap-1">
@@ -535,122 +631,63 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               </div>
             </div>
 
-            {/* Quick actions */}
-            <div className="flex items-center gap-1.5 flex-wrap md:flex-nowrap md:shrink-0">
+            {/* Quick actions desktop */}
+            <div className="flex items-center gap-1.5 shrink-0">
               {contact.phone && (
                 <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
-                  <a href={`tel:${contact.phone}`}>
-                    <Phone className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Chiama</span>
-                  </a>
+                  <a href={`tel:${contact.phone}`}><Phone className="h-3.5 w-3.5" /> Chiama</a>
                 </Button>
               )}
               {contact.email && (
                 <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100">
-                  <a href={`mailto:${contact.email}`}>
-                    <Mail className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Email</span>
-                  </a>
+                  <a href={`mailto:${contact.email}`}><Mail className="h-3.5 w-3.5" /> Email</a>
                 </Button>
               )}
               {contact.phone && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 h-9 border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-                  onClick={() => setMessageChannel("whatsapp")}
-                  title="Invia WhatsApp"
-                >
-                  <MessageSquare className="h-3.5 w-3.5" /> <span className="hidden sm:inline">WhatsApp</span>
+                <Button variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200" onClick={() => setMessageChannel("whatsapp")}>
+                  <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
                 </Button>
               )}
-              <Button variant="outline" size="sm" className="gap-1.5 h-9" title="Crea appuntamento">
-                <CalendarDays className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Appuntam.</span>
-              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5 h-9"><CalendarDays className="h-3.5 w-3.5" /> Appuntam.</Button>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9">
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
+                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><ChevronDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {canEditContacts && (
-                    <DropdownMenuItem onClick={() => setMergeOpen(true)}>
-                      <Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti
-                    </DropdownMenuItem>
-                  )}
-                  {canEditContacts && (
-                    <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive">
-                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto
-                    </DropdownMenuItem>
-                  )}
+                  {canEditContacts && (<DropdownMenuItem onClick={() => setMergeOpen(true)}><Merge className="h-3.5 w-3.5 mr-2" /> Unisci contatti</DropdownMenuItem>)}
+                  {canEditContacts && (<DropdownMenuItem onClick={() => setDeleteOpen(true)} className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina contatto</DropdownMenuItem>)}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
 
-          {/* KPI strip — 4 metriche chiave */}
-          <div className="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {/* KPI strip 4 col desktop */}
+          <div className="mt-3 grid grid-cols-4 gap-2">
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Lead Score</span>
-                <Star className="h-3 w-3 text-amber-500" />
-              </div>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-xl font-bold tabular-nums">{leadScore}</span>
-                <span className="text-[10px] text-muted-foreground">/ 100</span>
-              </div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Lead Score</span><Star className="h-3 w-3 text-amber-500" /></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{leadScore}</span><span className="text-[10px] text-muted-foreground">/ 100</span></div>
               <Progress value={leadScore} className="h-1 mt-1" />
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Opp. aperte</span>
-                <span className="text-[10px] text-emerald-600 font-bold">●</span>
-              </div>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-xl font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>
-                {kpis && kpis.totalOpps > 0 && (
-                  <span className="text-[10px] text-muted-foreground">/ {kpis.totalOpps} tot</span>
-                )}
-              </div>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Opp. aperte</span><span className="text-[10px] text-emerald-600 font-bold">●</span></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.openOppsCount ?? 0}</span>{kpis && kpis.totalOpps > 0 && <span className="text-[10px] text-muted-foreground">/ {kpis.totalOpps} tot</span>}</div>
               <p className="text-[10px] text-muted-foreground mt-1 truncate">{fmtMoney(kpis?.openValue ?? 0)}</p>
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Appuntam.</span>
-                <CalendarDays className="h-3 w-3 text-blue-500" />
-              </div>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-xl font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span>
-                <span className="text-[10px] text-muted-foreground">totali</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate">N. appuntamenti</p>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Appuntam.</span><CalendarDays className="h-3 w-3 text-blue-500" /></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-xl font-bold tabular-nums">{kpis?.apptsCount ?? 0}</span><span className="text-[10px] text-muted-foreground">totali</span></div>
             </div>
             <div className="rounded-lg border bg-card px-3 py-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Ultima att.</span>
-                <Bell className="h-3 w-3 text-rose-500" />
-              </div>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-sm font-bold leading-tight">{lastActivityLabel}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-1 truncate">
-                {activities.length} attività totali
-              </p>
+              <div className="flex items-center justify-between"><span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Ultima att.</span><Bell className="h-3 w-3 text-rose-500" /></div>
+              <div className="flex items-baseline gap-1.5 mt-1"><span className="text-sm font-bold leading-tight">{lastActivityLabel}</span></div>
+              <p className="text-[10px] text-muted-foreground mt-1 truncate">{activities.length} attività totali</p>
             </div>
           </div>
 
-          {/* Convertito in cliente banner inline */}
+          {/* Convertito banner */}
           {contact.customer_profile_id && (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs">
               <UserCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span className="text-emerald-700 font-medium flex-1">
-                Questo contatto è già stato convertito in cliente
-              </span>
-              <Button
-                variant="link"
-                size="sm"
-                className="h-auto p-0 text-xs text-emerald-700 underline"
-                onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}
-              >
+              <span className="text-emerald-700 font-medium flex-1">Questo contatto è già stato convertito in cliente</span>
+              <Button variant="link" size="sm" className="h-auto p-0 text-xs text-emerald-700 underline" onClick={() => navigate(`/azienda/clienti/${contact.customer_profile_id}`)}>
                 Apri scheda cliente →
               </Button>
             </div>
@@ -1118,7 +1155,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       {/* ══════════ RIGHT SIDEBAR ══════════ */}
       {/* Content panel (conditionally shown) */}
       {rightPanelOpen && (
-        <div className="w-64 border-l flex flex-col bg-background">
+        <div className="hidden md:flex w-64 border-l flex-col bg-background">
           {/* Panel header */}
           <div className="h-11 border-b flex items-center justify-between px-3 shrink-0">
             <div className="flex items-center gap-2">
@@ -1333,8 +1370,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </div>
       )}
 
-      {/* Vertical icon strip */}
-      <div className="w-10 border-l flex flex-col items-center py-2 gap-1 bg-muted/30 shrink-0">
+      {/* Vertical icon strip — solo desktop (su mobile usa l'hero quick actions) */}
+      <div className="hidden md:flex w-10 border-l flex-col items-center py-2 gap-1 bg-muted/30 shrink-0">
         {RIGHT_TABS.map((tab) => (
           <Tooltip key={tab.key}>
             <TooltipTrigger asChild>
