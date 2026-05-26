@@ -459,3 +459,14 @@ verify_jwt = false
 
 [functions.google-ads-sync-campaigns]
 verify_jwt = true
+
+# email-thread-resolver: chiamata internamente da email-poll-inbox con
+# Bearer SUPABASE_SERVICE_ROLE_KEY oppure x-cron-secret. La function valida
+# l'auth internamente. verify_jwt=false necessario perché il gateway rifiuterebbe
+# la service_role key (non è un JWT user-firmato).
+[functions.email-thread-resolver]
+verify_jwt = false
+
+# email-poll-inbox: chiamata da pg_cron con x-cron-secret. Public + internal auth.
+[functions.email-poll-inbox]
+verify_jwt = false
