@@ -38,7 +38,7 @@ async function getFreshAccessToken(connectionId: string): Promise<string> {
   const encKey = getEncryptionKey();
   const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : 0;
   if (Date.now() < expiresAt - 60_000 && conn.access_token_encrypted) {
-    return decrypt(conn.access_token_encrypted, encKey);
+    return await decrypt(conn.access_token_encrypted, encKey);
   }
   if (!conn.refresh_token_encrypted) throw new Error("No refresh token");
 
@@ -46,7 +46,7 @@ async function getFreshAccessToken(connectionId: string): Promise<string> {
   const clientSecret = await getPlatformSetting("google_ads_client_secret", "GOOGLE_ADS_CLIENT_SECRET");
   if (!clientId || !clientSecret) throw new Error("OAuth credentials missing");
 
-  const refreshToken = decrypt(conn.refresh_token_encrypted, encKey);
+  const refreshToken = await decrypt(conn.refresh_token_encrypted, encKey);
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -62,7 +62,7 @@ async function getFreshAccessToken(connectionId: string): Promise<string> {
   const tokens = await res.json() as { access_token: string; expires_in: number };
 
   await db.from("google_ads_connections").update({
-    access_token_encrypted: encrypt(tokens.access_token, encKey),
+    access_token_encrypted: await encrypt(tokens.access_token, encKey),
     token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
   }).eq("id", connectionId);
 
