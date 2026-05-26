@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
+import { SSOButtons } from "@/components/auth/SSOButtons";
 import { useSEO } from "@/hooks/useSEO";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
@@ -391,6 +392,9 @@ export default function ClientiLogin() {
                   )}
                 </Button>
               </form>
+
+              {/* SSO Google + Microsoft — il role check filtra chi non è cliente */}
+              <SSOButtons disabled={isSubmitting} onError={(msg) => setFormError(msg)} />
 
               <div className="text-center space-y-1">
                 <p className="text-xs text-muted-foreground">

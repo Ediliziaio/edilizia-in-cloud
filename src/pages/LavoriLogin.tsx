@@ -21,6 +21,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
+import { SSOButtons } from "@/components/auth/SSOButtons";
 import { CAMPO_ROLES } from "@/types/auth";
 import { useSEO } from "@/hooks/useSEO";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
@@ -374,6 +375,9 @@ export default function LavoriLogin() {
                   )}
                 </Button>
               </form>
+
+              {/* SSO Google + Microsoft — il role check filtra chi non è operatore */}
+              <SSOButtons disabled={isSubmitting} onError={(msg) => setFormError(msg)} />
 
               <div className="text-center space-y-1">
                 <p className="text-xs text-muted-foreground">Non hai le credenziali?</p>

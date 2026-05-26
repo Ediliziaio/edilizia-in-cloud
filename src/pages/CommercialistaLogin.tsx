@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
+import { SSOButtons } from "@/components/auth/SSOButtons";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/useSEO";
@@ -494,6 +495,11 @@ export default function CommercialistaLogin() {
                   )}
                 </Button>
               </form>
+
+              {/* SSO Google + Microsoft — il role check filtra chi non è commercialista */}
+              <div className="mt-5">
+                <SSOButtons disabled={isSubmitting} onError={(msg) => setFormError(msg)} />
+              </div>
 
               <div className="mt-5 flex items-center justify-between gap-3 text-sm">
                 <button

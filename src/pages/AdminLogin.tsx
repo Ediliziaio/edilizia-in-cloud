@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Lock, Shield, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwoFactorVerify } from "@/components/auth/TwoFactorVerify";
+import { SSOButtons } from "@/components/auth/SSOButtons";
 import { ADMIN_PLATFORM_ROLES, type AppRole } from "@/types/auth";
 import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { useSEO } from "@/hooks/useSEO";
@@ -418,6 +419,9 @@ export default function AdminLogin() {
                 )}
               </Button>
             </form>
+
+            {/* SSO Google + Microsoft — il role check post-login filtra chi non è admin */}
+            <SSOButtons disabled={isSubmitting} onError={(msg) => setFormError(msg)} />
 
             <button
               type="button"
