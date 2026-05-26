@@ -90,7 +90,7 @@ function WebhookRow({
   });
 
   return (
-    <div className="flex items-center gap-3 py-2.5 px-3 rounded-lg border text-sm hover:bg-accent/20">
+    <div className="flex items-center gap-3 py-2.5 px-3 rounded-lg border text-sm hover:bg-accent/20 min-w-[600px]">
       <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-0 grid grid-cols-4 gap-2 items-center">
         <span className="text-xs text-muted-foreground truncate">{timeAgo}</span>
@@ -292,9 +292,9 @@ export function WebhookAlertsPanel() {
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {/* Header */}
-          <div className="grid grid-cols-4 gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground border-b mb-1">
+        <CardContent className="overflow-x-auto">
+          {/* Header — 4 cols ≥600px (su mobile scroll orizzontale) */}
+          <div className="grid grid-cols-4 gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground border-b mb-1 min-w-[600px]">
             <span>Quando</span>
             <span>Provider</span>
             <span>Evento</span>

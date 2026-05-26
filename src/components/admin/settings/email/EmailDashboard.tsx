@@ -248,18 +248,18 @@ export function EmailDashboard() {
                   </CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="grid grid-cols-3 gap-3">
+              <CardContent className="grid grid-cols-3 gap-2 sm:gap-3">
                 <div>
-                  <p className="text-xs text-muted-foreground">Inviate</p>
-                  <p className="text-xl font-bold">{streamBreakdown.mktg.sent.toLocaleString()}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Inviate</p>
+                  <p className="text-base sm:text-xl font-bold">{streamBreakdown.mktg.sent.toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Fallite</p>
-                  <p className="text-xl font-bold text-red-600">{streamBreakdown.mktg.failed.toLocaleString()}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Fallite</p>
+                  <p className="text-base sm:text-xl font-bold text-red-600">{streamBreakdown.mktg.failed.toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Ricavi</p>
-                  <p className="text-xl font-bold text-green-700">{formatEur(streamBreakdown.mktg.revenue)}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Ricavi</p>
+                  <p className="text-base sm:text-xl font-bold text-green-700">{formatEur(streamBreakdown.mktg.revenue)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -272,7 +272,7 @@ export function EmailDashboard() {
                   </CardTitle>
                 </div>
               </CardHeader>
-              <CardContent className="grid grid-cols-4 gap-3">
+              <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">Inviate</p>
                   <p className="text-xl font-bold">{streamBreakdown.trans.sent.toLocaleString()}</p>

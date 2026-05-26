@@ -138,7 +138,7 @@ export function WhatsAppPricingConfig() {
               className="w-24 text-center text-lg font-mono"
             />
           </div>
-          <div className="bg-background border rounded-lg px-5 py-3 mt-4 grid grid-cols-3 gap-4 text-center">
+          <div className="bg-background border rounded-lg px-3 sm:px-5 py-3 mt-4 grid grid-cols-3 gap-2 sm:gap-4 text-center">
             <div>
               <p className="text-xs text-muted-foreground">Costo reale</p>
               <p className="text-sm font-mono">{formatEur(previewReal, 4)}/msg</p>

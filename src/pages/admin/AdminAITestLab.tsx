@@ -349,9 +349,9 @@ export default function AdminAITestLab() {
         </TabsList>
       </Tabs>
 
-      {/* Filtro feature */}
+      {/* Filtro feature — scroll-x mobile, wrap su sm+ */}
       <Tabs value={feature} onValueChange={setFeature}>
-        <TabsList className="flex-wrap h-auto">
+        <TabsList className="h-auto overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
           <TabsTrigger value="all">Tutte le feature</TabsTrigger>
           {Object.entries(FEATURE_LABELS).map(([k, v]) => (
             <TabsTrigger key={k} value={k}>{v}</TabsTrigger>
