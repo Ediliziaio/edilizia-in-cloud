@@ -426,11 +426,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-5xl w-[calc(100vw-1rem)] sm:w-auto max-h-[92vh] sm:max-h-[92vh] h-[92vh] sm:h-auto flex flex-col p-0 gap-0">
         {/* Header */}
-        <div className="px-6 pt-5 pb-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <DialogTitle className="text-lg font-semibold">Modifica "{fullName}{cityPart}"</DialogTitle>
+        <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3">
+          <div className="flex items-center gap-2 flex-wrap pr-8">
+            <DialogTitle className="text-base sm:text-lg font-semibold leading-tight">Modifica "{fullName}{cityPart}"</DialogTitle>
             {/* SALES OS: Badge opportunità ferma */}
             {(() => {
               const stageTouchedAt = opportunity.stage_changed_at || opportunity.updated_at;
@@ -444,16 +444,39 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
               ) : null;
             })()}
           </div>
-          <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+          <DialogDescription className="hidden sm:block text-xs text-muted-foreground mt-0.5">
             Aggiungi e Modifica opportunità Dettagli, attività, note e Appuntamento.
           </DialogDescription>
         </div>
 
         <Separator />
 
+        {/* MOBILE: tabs orizzontali scrollabili (sostituisce sidebar verticale) */}
+        <div className="md:hidden border-b bg-muted/20">
+          <div className="flex overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {sidebarTabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => {
+                  if (!t.enabled) { toast.info(`${t.label}: in arrivo`); return; }
+                  setTab(t.key);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs whitespace-nowrap shrink-0 transition-colors border-b-2 ${
+                  tab === t.key
+                    ? "border-primary text-primary font-semibold bg-primary/5"
+                    : "border-transparent text-muted-foreground hover:bg-muted/50"
+                } ${!t.enabled ? "opacity-50" : ""}`}
+              >
+                {t.icon}
+                <span>{t.label.replace("Prenota/aggiorna appuntamento", "Appuntamento").replace("Dettagli dell'opportunità", "Dettagli")}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex flex-1 min-h-0">
-          {/* Sidebar */}
-          <div className="w-[200px] border-r bg-muted/20 py-2 shrink-0">
+          {/* DESKTOP: Sidebar verticale (nascosta su mobile) */}
+          <div className="hidden md:block w-[200px] border-r bg-muted/20 py-2 shrink-0">
             {sidebarTabs.map((t) => (
               <button
                 key={t.key}
@@ -923,26 +946,27 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
         <Separator />
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-3">
+        {/* Footer — stack su mobile, side-by-side su sm+ */}
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 px-4 sm:px-6 py-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => { navigate("/azienda/impostazioni/campi-personalizzati"); onOpenChange(false); }}
               className="text-xs text-primary hover:underline flex items-center gap-1"
             >
               <Settings2 className="h-3.5 w-3.5" />
-              Aggiungi/gestisci campi
+              <span className="hidden sm:inline">Aggiungi/gestisci campi</span>
+              <span className="sm:hidden">Gestisci campi</span>
             </button>
             <span className="text-[11px] text-muted-foreground">
-              Creato il: {format(new Date(opportunity.created_at), "d MMM yyyy", { locale: it })}
+              Creato: {format(new Date(opportunity.created_at), "d MMM yyyy", { locale: it })}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending || !canEditOpportunity} className="text-destructive hover:text-destructive">
+          <div className="flex items-center gap-2 justify-end">
+            <Button variant="ghost" size="icon" onClick={handleDelete} disabled={deleteOpp.isPending || !canEditOpportunity} className="text-destructive hover:text-destructive shrink-0">
               <Trash2 className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Annulla</Button>
-            <Button size="sm" onClick={handleSave} disabled={isSaving || !canEditOpportunity}>
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-initial">Annulla</Button>
+            <Button size="sm" onClick={handleSave} disabled={isSaving || !canEditOpportunity} className="flex-1 sm:flex-initial">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Aggiorna
             </Button>
