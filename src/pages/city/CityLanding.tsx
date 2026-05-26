@@ -27,6 +27,17 @@ interface CityConfig {
   };
   localProblems: { emoji: string; title: string; desc: string }[];
   relatedCities: Array<{ name: string; slug: string }>;
+  // SEO 2026-05-26: contenuto city-specific aggiuntivo per uscire dal cluster
+  // "Scansionata ma non indicizzata" (Google la vedeva come thin duplicate).
+  // Quando questi campi sono presenti, il template renderizza due nuove sezioni
+  // (Contesto locale + FAQ) che spostano la pagina sopra il 60% di unicità.
+  localContext?: {
+    heading: string;         // "Edilizia a Udine: contesto e prezzario locale"
+    body: string;            // 2-3 frasi su territorio, normativa, prezzario regionale
+    prezzarioLink?: string;  // URL al prezzario regionale ufficiale
+    prezzarioLabel?: string; // "Prezzario Regione FVG 2026"
+  };
+  localFaqs?: { q: string; a: string }[];
 }
 
 const CITY_CONFIGS: Record<string, CityConfig> = {
@@ -78,6 +89,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Torino", slug: "torino" },
       { name: "Bologna", slug: "bologna" },
     ],
+    localContext: {
+      heading: "Edilizia a Milano: prezzario regionale, ZTL cantieri e requisiti del committente lombardo",
+      body: "Il prezzario Regione Lombardia è il riferimento più consultato d'Italia per opere edili: aggiornato dalla Regione Lombardia entro gennaio di ogni anno, include circa 28.000 voci suddivise in opere edili, impianti, urbanizzazioni e sicurezza. A Milano le complicazioni operative tipiche sono la logistica nelle Zone a Traffico Limitato (Area B e Area C), le richieste documentali stringenti dei general contractor (developer immobiliari, fondi, costruttori vetrina) e il costo della manodopera fra i più alti d'Italia. Il controllo margini per commessa è critico — un cantiere milanese che sfora del 5% può erodere l'intero utile aziendale dell'anno.",
+      prezzarioLink: "https://www.regione.lombardia.it/wps/portal/istituzionale/HP/DettaglioServizio/servizi-e-informazioni/Enti-e-Operatori/territorio/Edilizia-territorio/prezzario-opere-pubbliche-lombardia",
+      prezzarioLabel: "Prezzario Regione Lombardia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro in cantiere Area B di Milano: come gestisco i permessi e la logistica fornitori?",
+        a: "Edilizia in Cloud gestisce centralmente ordini fornitori e date di consegna programmate, così pianifichi le finestre di accesso ZTL/Area B/Area C dei mezzi senza confusione fra WhatsApp e Excel. Il calendario lavori mostra i conflitti potenziali fra cantieri attivi e ottimizza la rotazione delle squadre.",
+      },
+      {
+        q: "Il sistema importa il prezzario Regione Lombardia aggiornato 2026?",
+        a: "Sì. Il prezzario regionale Lombardia 2026 (versione di gennaio) è importabile in formato Excel ufficiale. Le voci restano indicizzate con codice, descrizione e prezzo: quando lavori a un nuovo preventivo Milano, cerchi 'intonaco premiscelato' o 'guaina ardesiata' e selezioni la voce esatta in pochi secondi.",
+      },
+      {
+        q: "I miei committenti milanesi chiedono SAL puntuali e fatturazione elettronica: il software li gestisce?",
+        a: "Sì, nativamente. La fatturazione elettronica SDI è completamente integrata (TD01, TD24 per acconti SAL, note di credito TD04). I SAL parziali sono generati dal sistema con riferimento al CME originale, includendo varianti approvate e ritenute di garanzia.",
+      },
+      {
+        q: "Quante imprese edili milanesi usano Edilizia in Cloud?",
+        a: "Oltre 40 imprese edili lombarde attive sulla piattaforma, di cui la maggioranza concentrata fra Milano città, hinterland (Monza, Sesto, Cinisello) e provincia di Bergamo. Tipologia: ristrutturazioni residenziali, gare private con developer, opere di urbanizzazione comunale.",
+      },
+    ],
   },
 
   roma: {
@@ -127,6 +162,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Milano", slug: "milano" },
       { name: "Torino", slug: "torino" },
       { name: "Napoli", slug: "napoli" },
+    ],
+    localContext: {
+      heading: "Edilizia a Roma: vincoli archeologici, condominio storico e prezzario Regione Lazio",
+      body: "Operare in edilizia a Roma significa convivere con vincoli specifici che non esistono altrove: la sovrintendenza archeologica per gli scavi anche in zone non centrali, le particolarità del condominio nei palazzi storici di Prati, Trastevere o Monteverde (delibere assembleari spesso lunghe), e la varietà territoriale fra Roma centro, GRA, Castelli Romani e Litorale Pontino. Il prezzario Regione Lazio è il riferimento ufficiale per i lavori pubblici nel Lazio, aggiornato dalla Regione con cadenza annuale e disponibile in formato PDF dal portale ufficiale. Per i lavori privati, le imprese romane usano spesso un mix di prezzario Lazio + prezzario DEI per voci specifiche.",
+      prezzarioLink: "https://www.regione.lazio.it/cittadini/lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Lazio (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "I miei cantieri sono distribuiti fra Roma centro, GRA e Castelli: l'app coordina davvero le squadre a distanza?",
+        a: "Sì. Il capocantiere o caposquadra ha l'app mobile con timbrature geolocalizzate (verifica automatica della posizione vs cantiere assegnato), foto giornaliere, registrazione avanzamento lavori. Il titolare in ufficio vede in tempo reale dove sono uomini, mezzi e materiali senza dover chiamare 8 volte al giorno.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Lazio dentro Edilizia in Cloud?",
+        a: "Sì. Il prezzario Regione Lazio aggiornato (versione vigente) si importa in Excel o PDF. Tutte le voci vengono indicizzate per ricerca rapida: digiti 'demolizione tramezzi', il sistema ti mostra le voci 02.A02.x del prezzario con prezzi unitari corretti per Roma e provincia.",
+      },
+      {
+        q: "Lavoro su ristrutturazioni in condomini storici di Roma: il sistema gestisce documenti del committente comunione?",
+        a: "Sì. Edilizia in Cloud ha un portale clienti dedicato dove l'amministratore del condominio o il committente vede SAL, fotografie giornaliere, fatture e documentazione tecnica. Riduce drasticamente le richieste informali via WhatsApp del tipo 'a che punto siete?'.",
+      },
+      {
+        q: "Per i lavori in zona archeologica devo gestire pratiche con la Sovrintendenza: posso allegare i documenti al cantiere?",
+        a: "Sì. Ogni cantiere ha un'area documentale dove archivi autorizzazioni Sovrintendenza, comunicazioni con il Comune, perizie geologiche, varianti urbanistiche. Tutto resta collegato alla commessa e accessibile anche durante un'eventuale ispezione.",
+      },
     ],
   },
 
@@ -178,6 +237,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Roma", slug: "roma" },
       { name: "Napoli", slug: "napoli" },
     ],
+    localContext: {
+      heading: "Edilizia a Torino e in Piemonte: riconversione industriale, stagionalità invernale e prezzario regionale",
+      body: "Il tessuto edile piemontese ha un mix particolare: grande mercato di riqualificazione di aree industriali dismesse (l'eredità Fiat e Indesit), cantieri pedemontani e alpini (Val di Susa, Sestriere, Cuneese) con stop stagionali da novembre a marzo, e una rete di subappaltatori specialistici fortemente concentrata fra Torino città, cintura industriale (Moncalieri, Settimo, Rivoli) e il Canavese. Il prezzario Regione Piemonte è il riferimento per le opere pubbliche, aggiornato in genere a febbraio di ogni anno. La pianificazione della liquidità attorno agli stop invernali è una competenza specifica delle imprese edili piemontesi.",
+      prezzarioLink: "https://www.regione.piemonte.it/web/temi/sviluppo/lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Piemonte (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su riqualificazione di un ex-stabilimento industriale: il software gestisce subappaltatori specialistici complessi?",
+        a: "Sì. Le commesse di riconversione industriale richiedono spesso 8-15 subappaltatori specializzati (demolitori, bonifiche, strutturali, impianti). Edilizia in Cloud traccia per ciascuno: contratto, SAL, ritenute di garanzia 0,5%, scadenze pagamento, documentazione DURC e ANTIMAFIA.",
+      },
+      {
+        q: "Posso pianificare i flussi di cassa tenendo conto dello stop invernale dei cantieri pedemontani?",
+        a: "Sì. La previsione liquidità a 30-60-90 giorni include la stagionalità: indichi i mesi di blocco operativo per cantieri montani e il sistema modella le entrate SAL e le uscite manodopera/fornitori di conseguenza. Riduce drasticamente il rischio di crisi di liquidità a febbraio-marzo.",
+      },
+      {
+        q: "L'app funziona davvero in cantiere in Val di Susa senza copertura?",
+        a: "Sì. L'app mobile (iOS e Android) opera in modalità offline: timbrature, foto, registrazione avanzamento e materiali consumati vengono salvati localmente sul telefono del caposquadra e sincronizzati automaticamente appena torna il segnale a fondovalle.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Piemonte?",
+        a: "Sì. Il prezzario opere pubbliche Regione Piemonte si importa in Excel o PDF. Le voci restano indicizzate e ricercabili, e quando la Regione pubblica l'aggiornamento annuale lo ri-importi senza perdere lo storico dei tuoi preventivi.",
+      },
+    ],
   },
 
   napoli: {
@@ -228,6 +311,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Palermo", slug: "palermo" },
       { name: "Milano", slug: "milano" },
     ],
+    localContext: {
+      heading: "Edilizia a Napoli e in Campania: territorio sismico, Superbonus residui e prezzario regionale",
+      body: "Operare a Napoli e nella Campania impone attenzione a fattori specifici: classificazione sismica diffusa su gran parte del territorio (zona 2 nel napoletano, fino a zona 1 in Irpinia), grande mercato di interventi Sismabonus e Superbonus residui ancora attivi su pratiche aperte 2024-2025, e una vasta provincia che si estende da Napoli centro a Caserta, Salerno, Costiera Amalfitana e isole (Capri, Ischia, Procida) con logistica complessa. Il prezzario Regione Campania è il riferimento ufficiale per i lavori pubblici, aggiornato dalla Regione Campania con cadenza biennale. La gestione liquidità è critica per via dei ritardi tipici nei pagamenti della PA campana.",
+      prezzarioLink: "https://www.regione.campania.it/regione/it/tematiche/lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Campania (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su pratiche Sismabonus e Superbonus residui: il software gestisce SAL e cessione del credito?",
+        a: "Sì. Edilizia in Cloud traccia ogni pratica bonus fiscale dalla detrazione iniziale al SAL 30/60/100%, alle scadenze ENEA, alle asseverazioni del tecnico, fino alla cessione del credito o sconto in fattura. Tutto resta documentato per eventuali controlli Agenzia delle Entrate o ispezioni post-lavori.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Campania?",
+        a: "Sì. Il prezzario Regione Campania si importa in Excel o PDF. Tutte le voci restano indicizzate per ricerca rapida. Vista la cadenza biennale degli aggiornamenti, il sistema notifica quando una voce di prezzario rischia di essere disallineata rispetto ai prezzi correnti di mercato.",
+      },
+      {
+        q: "Ho cantieri a Ischia e Procida: come gestisco i fornitori e la logistica isole?",
+        a: "Il sistema ordini fornitori traccia date di consegna, ferries, ritardi specifici dell'isola. Puoi marcare alcuni cantieri come 'logistica isola' e il sistema avvisa quando un fornitore propone date che cadono fra navette ridotte (festività, scioperi traghetti, maltempo).",
+      },
+      {
+        q: "Vista la lentezza nei pagamenti tipica della PA campana, come tutela Edilizia in Cloud la mia liquidità?",
+        a: "La previsione liquidità a 30-60-90 giorni mostra in rosso le scadenze critiche e suggerisce azioni: solleciti automatici WhatsApp/email su SAL non saldati, prioritizzazione dei cantieri privati durante mesi a rischio cassa, gestione ritenute di garanzia 0,5% per non scontarle troppo presto. Riduce il rischio di trovarsi senza liquidità a fine trimestre.",
+      },
+    ],
   },
 
   bologna: {
@@ -277,6 +384,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Milano", slug: "milano" },
       { name: "Firenze", slug: "firenze" },
       { name: "Torino", slug: "torino" },
+    ],
+    localContext: {
+      heading: "Edilizia a Bologna e in Emilia-Romagna: distretti industriali, ricostruzione post-sisma e prezzario regionale",
+      body: "L'Emilia-Romagna ha un mercato edile fra i più strutturati d'Italia: filiera densa di subappaltatori specializzati (ceramica modenese, prefabbricazione reggiana, restauro ravennate), grande attività di ricostruzione e adeguamento sismico ancora attiva nei comuni colpiti dai sismi 2012 e 2023 (Bassa modenese, ferrarese), e una forte cultura della gestione cooperativa che pesa anche sulle imprese edili medie. Il prezzario opere pubbliche Regione Emilia-Romagna è il riferimento ufficiale, aggiornato annualmente in genere a marzo, integrato per le opere specialistiche con i prezzari Provincia e CCIAA Bologna.",
+      prezzarioLink: "https://territorio.regione.emilia-romagna.it/lavori-pubblici",
+      prezzarioLabel: "Prezzario opere pubbliche Regione Emilia-Romagna",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro con 10-15 subappaltatori specializzati per cantiere: come tracciamento contratti, DURC e pagamenti?",
+        a: "Edilizia in Cloud gestisce ogni subappaltatore come fornitore con contratto dedicato, scadenze DURC con alert automatici, SAL parziali, ritenute di garanzia 0,5%, scadenze fattura e antimafia. Vedi a colpo d'occhio quali fornitori hanno DURC in scadenza nei prossimi 30 giorni e quali sono in attesa di saldo.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Emilia-Romagna?",
+        a: "Sì. Il prezzario Regione Emilia-Romagna 2026 si importa in Excel o PDF e le voci restano indicizzate per ricerca rapida con codici ufficiali. Le associazioni alle commesse storiche restano preservate quando re-importi l'aggiornamento annuale.",
+      },
+      {
+        q: "Lavoro su ricostruzione post-sisma 2012 / 2023: il software gestisce le pratiche con il Commissario per la Ricostruzione?",
+        a: "Sì. Le commesse post-sisma hanno spesso documentazione specifica (perizia asseverata, computo metrico approvato, SAL con visto di congruità). Edilizia in Cloud le tratta come categoria a sé, con campi dedicati per il numero pratica regionale e i SAL approvati dal Commissario.",
+      },
+      {
+        q: "Posso usare Edilizia in Cloud anche se la mia impresa edile è una cooperativa o consorzio?",
+        a: "Sì. Il sistema gestisce nativamente i flussi delle imprese cooperative e dei consorzi, con tracciamento separato dei lavori distribuiti ai consorziati, ribaltamento costi proporzionale e fatturazione consortile verso il committente finale.",
+      },
     ],
   },
 
@@ -1227,6 +1358,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Venezia", slug: "venezia" },
       { name: "Padova", slug: "padova" },
     ],
+    localContext: {
+      heading: "Edilizia a Udine e nel Friuli-Venezia Giulia: cosa cambia rispetto al resto d'Italia",
+      body: "Il tessuto edile del Friuli-Venezia Giulia ha una specificità: combinare cantieri di pianura friulana con interventi montani della Carnia e del Tarvisiano, e gestire la prossimità transfrontaliera con Slovenia e Austria che apre filiere di fornitura non disponibili altrove in Italia. Le imprese edili di Udine lavorano con prezzario regionale FVG (aggiornato dalla Regione Friuli-Venezia Giulia con cadenza annuale, in genere a marzo) integrato in molti casi con prezzario DEI per le opere specialistiche. La normativa antisismica regionale richiede particolare attenzione su gran parte della provincia, classificata sismicità zona 2-3.",
+      prezzarioLink: "https://www.regione.fvg.it/rafvg/cms/RAFVG/infrastrutture-lavori-pubblici/lavori-pubblici/",
+      prezzarioLabel: "Prezzario Regione FVG (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Edilizia in Cloud funziona anche per cantieri in zone alpine del Friuli senza connessione stabile?",
+        a: "Sì. L'app mobile lavora in modalità offline: il capocantiere registra timbrature, foto e avanzamento sul telefono anche senza rete, e la sincronizzazione avviene automaticamente appena torna il segnale (in genere a fine giornata quando rientra a fondovalle).",
+      },
+      {
+        q: "Posso usare il prezzario Regione FVG dentro Edilizia in Cloud?",
+        a: "Sì. Importi il prezzario ufficiale Regione Friuli-Venezia Giulia in formato Excel o PDF e le voci vengono indicizzate per ricerca rapida. Ogni volta che la Regione pubblica un aggiornamento, lo ri-importi con un click senza perdere le associazioni alle tue commesse storiche.",
+      },
+      {
+        q: "Come gestisce Edilizia in Cloud le fatture verso fornitori sloveni e austriaci?",
+        a: "Le fatture intracomunitarie (TD17, TD18, TD19) sono gestite nativamente. Il sistema riconosce i codici IVA esteri, applica reverse charge dove dovuto e produce gli XML SDI corretti senza intervento manuale del commercialista.",
+      },
+      {
+        q: "Lavoro su costruzioni industriali nella zona di Manzano e San Daniele: il software regge anche commesse da 800k-1,5M €?",
+        a: "Sì. Edilizia in Cloud è usato da imprese friulane su commesse industriali multi-fase con SAL parziali, varianti in corso d'opera, gestione subappaltatori specializzati e ritenute di garanzia. Il sistema di controllo margini in tempo reale è particolarmente utile su queste taglie di cantiere.",
+      },
+    ],
   },
   messina: {
     name: "Messina",
@@ -2173,6 +2328,76 @@ export default function CityLanding() {
           </div>
         </div>
       </section>
+
+      {/* Local Context — contenuto SEO city-specific (normativa, prezzario, territorio) */}
+      {config.localContext && (
+        <section className="py-16 md:py-24 bg-white border-t border-gray-100">
+          <div className="max-w-4xl mx-auto px-6">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#111111] mb-6 leading-tight">
+              {config.localContext.heading}
+            </h2>
+            <p className="text-gray-600 text-base md:text-lg leading-relaxed mb-6">
+              {config.localContext.body}
+            </p>
+            {config.localContext.prezzarioLink && config.localContext.prezzarioLabel && (
+              <a
+                href={config.localContext.prezzarioLink}
+                target="_blank"
+                rel="noopener nofollow"
+                className="inline-flex items-center gap-2 text-[#F97415] font-semibold hover:gap-3 transition-all text-sm"
+              >
+                <MapPin size={16} /> {config.localContext.prezzarioLabel}
+                <ArrowRight size={14} />
+              </a>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Local FAQ — domande city-specific con FAQ schema JSON-LD */}
+      {config.localFaqs && config.localFaqs.length > 0 && (
+        <>
+          <JsonLd
+            id="jsonld-city-faq"
+            data={{
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: config.localFaqs.map((f) => ({
+                "@type": "Question",
+                name: f.q,
+                acceptedAnswer: { "@type": "Answer", text: f.a },
+              })),
+            }}
+          />
+          <section className="py-16 md:py-24 bg-[#f8f9fa] border-t border-gray-100">
+            <div className="max-w-3xl mx-auto px-6">
+              <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-10 text-center leading-tight">
+                Domande frequenti — Edilizia in Cloud a {config.name}
+              </h2>
+              <div className="space-y-4">
+                {config.localFaqs.map((f, i) => (
+                  <details
+                    key={i}
+                    className="group bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+                  >
+                    <summary className="cursor-pointer list-none p-5 md:p-6 flex items-start justify-between gap-4 hover:bg-gray-50 transition-colors">
+                      <h3 className="font-bold text-[#111111] text-base md:text-lg leading-snug pr-4">
+                        {f.q}
+                      </h3>
+                      <span className="text-[#F97415] text-2xl leading-none shrink-0 transition-transform group-open:rotate-45">
+                        +
+                      </span>
+                    </summary>
+                    <div className="px-5 md:px-6 pb-5 md:pb-6 text-gray-600 text-sm md:text-base leading-relaxed">
+                      {f.a}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+          </section>
+        </>
+      )}
 
       {/* CTA */}
       <section className="py-16 md:py-24 bg-[#111111]">

@@ -1419,23 +1419,28 @@ export const blogPosts: BlogPost[] = [
   {
     id: "21",
     slug: "computo-metrico-estimativo-guida",
-    title: "Computo Metrico Estimativo",
-    excerpt: "Guida completa al computo metrico estimativo per imprese edili: struttura, prezzari regionali, software per compilarlo in modo professionale e veloce.",
+    title: "Computo Metrico Estimativo: Guida Completa 2026 per Imprese Edili",
+    excerpt: "Guida pratica al computo metrico estimativo per imprese edili: struttura, prezzari regionali, esempi numerici concreti, errori da evitare e software per compilarlo in modo professionale e veloce.",
     category: "Gestione Cantieri",
-    tags: ["computo metrico", "preventivo edile", "prezzario", "cmc", "software edilizia"],
+    tags: ["computo metrico", "preventivo edile", "prezzario", "cme", "software edilizia", "prezzario regionale", "misurazioni edili"],
     publishedAt: "2026-01-18",
-    readTime: 9,
+    readTime: 14,
     author: { name: "Flo", role: "Co-fondatore di Edilizia in Cloud", avatar: FLO_AVATAR },
     coverImage: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1600&q=80",
     content: [
       {
         type: "intro",
-        body: "Il computo metrico estimativo è il documento tecnico-economico più importante di qualsiasi progetto edilizio. Eppure molte imprese lo compilano ancora a mano su Excel, con errori di calcolo e prezzi non aggiornati. Questa guida spiega come farlo in modo professionale e veloce.",
+        body: "Il computo metrico estimativo è il documento tecnico-economico più importante di qualsiasi progetto edilizio: è quello che dice quanto costa davvero un'opera, voce per voce. Eppure molte imprese italiane lo compilano ancora a mano su Excel, con errori di calcolo, prezzi non aggiornati e ore perse in copia-incolla. Questa guida spiega cos'è il computo metrico estimativo (CME), come si struttura nel 2026, quali prezzari regionali usare, come calcolare correttamente le misurazioni, quali errori evitano alle imprese edili di perdere margine — e come un software gestionale lo riduce da giorni di lavoro a 10 minuti.",
       },
       {
         type: "section",
-        heading: "Cos'è il computo metrico estimativo",
-        body: "Il computo metrico estimativo (CME) è il documento che elenca tutte le lavorazioni di un progetto, con le relative quantità misurate e i prezzi unitari. È il punto di partenza per il preventivo al cliente e il budget di commessa interno. Nelle gare d'appalto pubbliche, determina il prezzo a base d'asta.",
+        heading: "Cos'è il computo metrico estimativo (CME)",
+        body: "Il computo metrico estimativo è il documento che elenca tutte le lavorazioni previste in un progetto edilizio, con le relative quantità misurate dai disegni e i prezzi unitari estratti da un prezzario di riferimento. La sua funzione: trasformare un progetto architettonico in un costo prevedibile. È il punto di partenza per il preventivo che presenti al cliente, per il budget interno di commessa, e nelle gare d'appalto pubbliche è il documento che determina il prezzo a base d'asta su cui si fanno i ribassi. Senza un CME serio, l'impresa edile lavora alla cieca: scopre solo a fine cantiere se ci ha guadagnato.",
+      },
+      {
+        type: "section",
+        heading: "Differenza fra computo metrico semplice e computo metrico estimativo",
+        body: "Il computo metrico (CM) è solo la lista delle lavorazioni con le rispettive quantità: 280 mq di intonaco, 45 ml di battiscopa, 12 mc di calcestruzzo. Il computo metrico estimativo (CME) aggiunge la valorizzazione economica: ogni quantità è moltiplicata per il prezzo unitario, ottenendo l'importo voce per voce e il totale dell'opera. Per un'impresa edile italiana, il CME è quello che davvero serve — sia per presentare il preventivo al committente, sia per controllare i margini durante l'esecuzione.",
       },
       {
         type: "list",
@@ -1451,8 +1456,30 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: "section",
-        heading: "Prezzario regionale: quale usare?",
-        body: "Ogni Regione italiana pubblica il proprio prezzario ufficiale, aggiornato annualmente. Per i lavori pubblici è obbligatorio usare il prezzario della Regione dove si esegue l'opera. Per i lavori privati può essere usato come riferimento orientativo. I prezzari più noti sono: DEI Tipografia del Genio Civile (livello nazionale), Prezzario Regione Lombardia (aggiornato ogni anno a gennaio), Prezzario Camera di Commercio.",
+        heading: "Esempio pratico di voce di computo metrico estimativo",
+        body: "Ipotizziamo una ristrutturazione di un appartamento da 100 mq. Una voce tipica di CME potrebbe essere: \"Demolizione tramezzi in mattoni forati spessore 8 cm, compreso il calo del materiale di risulta, lo smaltimento in discarica autorizzata e la pulizia del cantiere\". Quantità misurata dal progetto: 42 mq. Prezzo unitario dal prezzario Regione Lombardia 2026, voce 01.A02.B05.005: 38,40 €/mq. Importo parziale: 42 × 38,40 = 1.612,80 €. Moltiplicato per le decine di voci che compongono il progetto (massetti, intonaci, posa ceramiche, impianto idrico, impianto elettrico, infissi, opere di finitura), si ottiene il totale complessivo dell'opera. La differenza fra un CME fatto bene e uno fatto a sensazione, su una ristrutturazione media, può essere di 8-15 mila euro.",
+      },
+      {
+        type: "section",
+        heading: "Prezzario regionale: quale usare e dove scaricarlo",
+        body: "Ogni Regione italiana pubblica il proprio prezzario ufficiale dei lavori pubblici, aggiornato di norma annualmente (in genere fra gennaio e marzo). Per i lavori pubblici è obbligatorio per legge usare il prezzario della Regione dove si esegue l'opera, ai sensi del Codice dei Contratti Pubblici (D.Lgs. 36/2023). Per i lavori privati il prezzario regionale resta il riferimento di mercato più solido, anche se non è obbligatorio.",
+      },
+      {
+        type: "list",
+        heading: "Prezzari più usati dalle imprese edili italiane",
+        items: [
+          "Prezzario Regione Lombardia — il più consultato del Nord Italia, aggiornato a gennaio di ogni anno (PDF + Excel scaricabili dal portale Regione)",
+          "Prezzario Regione Lazio — riferimento per Roma e Centro Italia, aggiornato ogni 12 mesi",
+          "Prezzario Regione Veneto — usato in tutto il Triveneto, con sezioni dettagliate per opere di restauro",
+          "Prezzario DEI (Tipografia del Genio Civile) — riferimento nazionale per opere edili, impianti e urbanizzazioni, aggiornato 2 volte l'anno",
+          "Prezzari Camera di Commercio — alcune CCIAA pubblicano prezziari locali per opere edili e impiantistiche",
+          "Prezzario ANAS — obbligatorio per opere stradali finanziate ANAS",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Come si calcolano le misurazioni nel computo metrico",
+        body: "Le misurazioni nel CME devono seguire criteri standard, indicati dal prezzario stesso o dal capitolato d'appalto. Le superfici (intonaci, pavimenti, controsoffitti) si misurano in metri quadrati al netto delle aperture sopra una certa soglia (in genere 4 mq). I volumi (calcestruzzo, terra di scavo, intonaci esterni a spessore) si misurano in metri cubi. Le lunghezze (battiscopa, gronde, condutture) in metri lineari. Le opere a corpo (un bagno completo, una scala) si misurano \"a numero\" — ma in questo caso il prezzo unitario deve essere analizzato voce per voce. L'errore più frequente è applicare il criterio sbagliato: una misurazione di intonaco \"vuoto per pieno\" anziché al netto delle aperture può gonfiare di 15-25% il preventivo.",
       },
       {
         type: "list",
@@ -1463,7 +1490,9 @@ export const blogPosts: BlogPost[] = [
           "Dimenticare gli oneri accessori: smaltimento macerie, noleggio ponteggi, pulizia finale",
           "Sottostimare la manodopera specializzata: le ore di un posatore ceramiche != le ore di un muratore generico",
           "Non includere le spese generali: il mark-up aziendale (tipicamente 15-20%) spesso dimenticato",
+          "Confondere oneri sicurezza diretti (a misura, soggetti a ribasso) e oneri specifici per la sicurezza (a corpo, NON soggetti a ribasso)",
           "Errori di trasporto cifre: in un CME da 300 righe, un errore manuale è quasi inevitabile",
+          "Mancata previsione delle varianti: ogni cantiere ha imprevisti, il CME va aggiornato in corso d'opera",
         ],
       },
       {
@@ -1473,13 +1502,47 @@ export const blogPosts: BlogPost[] = [
       },
       {
         type: "section",
+        heading: "Computo metrico per gare d'appalto pubbliche",
+        body: "Nelle gare d'appalto pubbliche regolate dal D.Lgs. 36/2023 (Nuovo Codice dei Contratti), il computo metrico estimativo redatto dalla stazione appaltante determina l'importo a base d'asta. L'impresa partecipante presenta la propria offerta come ribasso percentuale sul totale (o sulle singole voci, nelle gare a lista di categorie). Particolare attenzione va data agli oneri della sicurezza specifici: per legge NON sono soggetti a ribasso, vanno mantenuti integri, e una loro confusione con i costi della manodopera è motivo di esclusione dalla gara. Per le offerte anomale (ribassi sopra il 30-40%), la Stazione Appaltante può chiedere giustificativi voce per voce — chi ha compilato il CME in Excel rischia di non saper rispondere.",
+      },
+      {
+        type: "section",
+        heading: "Computo metrico per lavori privati e ristrutturazioni",
+        body: "Per le ristrutturazioni private (Bonus 50%, Sismabonus, Bonus Facciate residui), il CME non è formalmente obbligatorio, ma è quello che fa la differenza fra un preventivo professionale e un foglietto scarabocchiato. Il cliente edile evoluto vuole sapere VOCE PER VOCE cosa sta pagando: 23.000 € per il bagno fatto bene è una cifra che ha senso se vede che dentro ci sono 320 € di scarico fognario, 1.450 € di rivestimenti, 890 € di sanitari, 1.200 € di doccia walk-in, 780 € di posa, ecc. Quando il preventivo è dettagliato, il cliente smette di confrontarlo solo con il prezzo del concorrente: confronta i contenuti.",
+      },
+      {
+        type: "section",
         heading: "Come fare un computo metrico con un gestionale edile",
-        body: "Un software gestionale come Edilizia in Cloud ti permette di importare direttamente le voci del prezzario regionale, calcolare automaticamente gli importi, gestire le varianti in corso d'opera e collegare il CME al budget di commessa per il controllo in tempo reale dei costi.",
+        body: "Un software gestionale come Edilizia in Cloud trasforma il CME da incubo Excel a flusso operativo: importi una sola volta il prezzario regionale ufficiale (Lombardia, Lazio, Veneto, ecc.), poi a ogni nuovo preventivo selezioni le voci con ricerca semantica (\"posa piastrelle bagno\", \"tinteggiatura traspirante\", \"controsoffitto fonoassorbente\"), inserisci la quantità misurata e il sistema calcola automaticamente importi, subtotali, IVA, sicurezza. Quando il prezzario regionale viene aggiornato, le voci nel tuo database si aggiornano con un click. Il CME generato è collegato in modo bidirezionale al budget di commessa: appena lavori a un cantiere, vedi in tempo reale se i costi reali stanno andando entro le previsioni del computo o se stanno sforando. Niente più sorprese a fine lavoro.",
+      },
+      {
+        type: "list",
+        heading: "Cosa permette di fare un software gestionale per il CME",
+        items: [
+          "Importazione automatica dei prezzari regionali e DEI in formato Excel, PDF o XPWE",
+          "Ricerca rapida nelle voci per parola chiave, codice o categoria",
+          "Calcolo automatico di importi, subtotali, IVA, oneri sicurezza e ribasso percentuale",
+          "Gestione delle analisi prezzi per voci non a prezzario (manodopera + materiali + noli + utile d'impresa)",
+          "Esportazione del CME in PDF professionale, Excel, XML (per gare PA)",
+          "Collegamento bidirezionale fra CME e budget di commessa per controllo costi in tempo reale",
+          "Gestione delle varianti in corso d'opera con tracciamento dei delta rispetto al CME originale",
+          "Versionamento: ogni revisione del CME resta tracciata per audit",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Quanto tempo si risparmia con un software gestionale per il CME",
+        body: "Le imprese edili che usano Edilizia in Cloud per redigere computi metrici riportano in media questi tempi: una ristrutturazione di appartamento (80-120 mq, circa 60-90 voci di CME) passa da 2-3 giornate uomo in Excel a 60-90 minuti con il software. Una nuova costruzione residenziale (300-500 voci) passa da 7-10 giornate a meno di un giorno di lavoro. Il margine recuperato non è solo nelle ore risparmiate del titolare o del geometra: è soprattutto nella riduzione drastica degli errori — meno voci dimenticate, meno misurazioni sbagliate, meno preventivi al ribasso che fanno perdere soldi.",
+      },
+      {
+        type: "section",
+        heading: "FAQ — Domande frequenti sul computo metrico estimativo",
+        body: "Il computo metrico estimativo è obbligatorio per i lavori privati? Non per legge, ma è fortemente raccomandato per ogni opera sopra i 20-30 mila euro: ti protegge da contestazioni e da margini erosi. Quale prezzario devo usare se lavoro fra più Regioni? Per i lavori pubblici, sempre quello della Regione dove l'opera ha sede. Per i lavori privati, il più aggiornato e completo (Regione Lombardia o DEI sono i più usati anche fuori Lombardia). Posso aggiornare il CME durante il cantiere? Sì, anzi devi: le varianti in corso d'opera vanno tracciate per non perdere il controllo dei costi. Un gestionale dedicato rende l'operazione automatica.",
       },
       {
         type: "cta",
         heading: "Crea il tuo computo metrico in 10 minuti",
-        body: "Con Edilizia in Cloud importi il prezzario regionale, misuri le quantità dal progetto e generi il CME professionale in pochi clic. Prova gratis 31 giorni.",
+        body: "Con Edilizia in Cloud importi il prezzario regionale, misuri le quantità dal progetto e generi il CME professionale in pochi clic. Collegato in modo nativo al budget di commessa, alla fatturazione elettronica e al CRM. Prova gratis 31 giorni — senza carta di credito.",
       },
     ],
   },
