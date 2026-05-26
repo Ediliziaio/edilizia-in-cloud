@@ -101,17 +101,19 @@ DROP POLICY IF EXISTS company_kb_overrides_read ON public.company_kb_overrides;
 CREATE POLICY company_kb_overrides_read ON public.company_kb_overrides
   FOR SELECT TO authenticated
   USING (
-    public.is_silvio_superadmin()
+    public.has_role(auth.uid(), 'super_admin'::public.app_role)
     OR company_id IN (
-      SELECT company_id FROM public.user_companies WHERE user_id = auth.uid()
+      SELECT company_id FROM public.profiles WHERE id = auth.uid()
+      UNION
+      SELECT company_id FROM public.multi_company_access WHERE user_id = auth.uid()
     )
   );
 
 DROP POLICY IF EXISTS company_kb_overrides_write ON public.company_kb_overrides;
 CREATE POLICY company_kb_overrides_write ON public.company_kb_overrides
   FOR ALL TO authenticated
-  USING (public.is_silvio_superadmin())
-  WITH CHECK (public.is_silvio_superadmin());
+  USING (public.has_role(auth.uid(), 'super_admin'::public.app_role))
+  WITH CHECK (public.has_role(auth.uid(), 'super_admin'::public.app_role));
 
 COMMENT ON TABLE public.company_kb_overrides IS
   'Per-company override del metodo Imprenditore Edile 3.0. L''azienda può chiedere "per noi cambia questa regola" — vale SOLO per quell''azienda.';
@@ -147,7 +149,7 @@ ALTER TABLE public.silvio_kb_citation_log ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS silvio_kb_citation_log_read ON public.silvio_kb_citation_log;
 CREATE POLICY silvio_kb_citation_log_read ON public.silvio_kb_citation_log
   FOR SELECT TO authenticated
-  USING (public.is_silvio_superadmin());
+  USING (public.has_role(auth.uid(), 'super_admin'::public.app_role));
 
 COMMENT ON TABLE public.silvio_kb_citation_log IS
   'Audit interno chunk citati. Non visibile all''utente — solo per quality monitoring lato founder.';
@@ -189,7 +191,7 @@ DECLARE
   v_session_role TEXT;
 BEGIN
   v_session_role := current_setting('role', true);
-  IF v_session_role <> 'service_role' AND NOT public.is_silvio_superadmin() THEN
+  IF v_session_role <> 'service_role' AND NOT public.has_role(auth.uid(), 'super_admin'::public.app_role) THEN
     RAISE EXCEPTION 'Permesso negato' USING ERRCODE = '42501';
   END IF;
 
@@ -301,7 +303,7 @@ DECLARE
   v_session_role TEXT;
 BEGIN
   v_session_role := current_setting('role', true);
-  IF v_session_role <> 'service_role' AND NOT public.is_silvio_superadmin() THEN
+  IF v_session_role <> 'service_role' AND NOT public.has_role(auth.uid(), 'super_admin'::public.app_role) THEN
     RAISE EXCEPTION 'Permesso negato' USING ERRCODE = '42501';
   END IF;
 
@@ -391,20 +393,30 @@ GRANT EXECUTE ON FUNCTION public.log_kb_citation(UUID, TEXT, UUID, TEXT, UUID[],
 
 CREATE OR REPLACE VIEW public.v_kb_imprenditore_edile_stats AS
 SELECT
-  kb_source_book,
-  kb_section,
-  kb_priority,
+  d.kb_source_book,
+  d.kb_section,
+  d.kb_priority,
   COUNT(*) AS n_chunks,
-  SUM(LENGTH(content)) AS total_chars,
-  COUNT(DISTINCT unnest(persona_keys)) FILTER (WHERE persona_keys <> '{}') AS n_personas_assigned,
-  SUM(hits_count) FILTER (WHERE hits_count > 0) AS total_hits,
-  MAX(updated_at) AS last_updated
-FROM public.ai_brain_documents
-WHERE scope = 'silvio_admin'
-  AND deleted_at IS NULL
-  AND kb_source_book IS NOT NULL
-GROUP BY kb_source_book, kb_section, kb_priority
-ORDER BY kb_source_book, kb_section;
+  SUM(LENGTH(d.content)) AS total_chars,
+  (
+    SELECT COUNT(DISTINCT pk)
+    FROM public.ai_brain_documents d2,
+         LATERAL unnest(d2.persona_keys) AS pk
+    WHERE d2.scope = 'silvio_admin'
+      AND d2.deleted_at IS NULL
+      AND d2.kb_source_book = d.kb_source_book
+      AND d2.kb_section = d.kb_section
+      AND d2.kb_priority = d.kb_priority
+      AND d2.persona_keys <> '{}'
+  ) AS n_personas_assigned,
+  SUM(d.hits_count) FILTER (WHERE d.hits_count > 0) AS total_hits,
+  MAX(d.updated_at) AS last_updated
+FROM public.ai_brain_documents d
+WHERE d.scope = 'silvio_admin'
+  AND d.deleted_at IS NULL
+  AND d.kb_source_book IS NOT NULL
+GROUP BY d.kb_source_book, d.kb_section, d.kb_priority
+ORDER BY d.kb_source_book, d.kb_section;
 
 GRANT SELECT ON public.v_kb_imprenditore_edile_stats TO authenticated;
 
