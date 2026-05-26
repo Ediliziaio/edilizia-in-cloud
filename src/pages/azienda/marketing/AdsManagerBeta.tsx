@@ -76,6 +76,7 @@ import { cn } from "@/lib/utils";
 import { metaCampaignKeys, useMetaCampaigns } from "@/hooks/useMetaCampaigns";
 import { useGoogleAdsCampaigns } from "@/hooks/useGoogleAdsCampaigns";
 import { useGoogleAdsStats } from "@/hooks/useGoogleAdsStats";
+import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
 import { useAdsAi, type VideoScript, type VideoScriptStyle } from "@/hooks/useAdsAi";
 import { useAdSpendGuard, type AdSpendGuardConfig } from "@/hooks/useAdSpendGuard";
 import { useMetaPixelConfig } from "@/hooks/useMetaPixelConfig";
@@ -7423,6 +7424,9 @@ function SettingsTab({
 
   return (
     <div className="space-y-5">
+
+      {/* ─── OAuth Google Ads — collegamento + selezione customer + sync */}
+      <GoogleAdsConnectionCard />
 
       {/* ─── 1. SETUP STATUS — hero checklist ────────────────────── */}
       <Card className="border-slate-200">
