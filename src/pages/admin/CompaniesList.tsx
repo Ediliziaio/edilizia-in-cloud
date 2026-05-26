@@ -2,7 +2,8 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { navigateToSubdomain, getSubdomainUrl } from "@/utils/subdomainNav";
 import { safeRedirect } from "@/utils/safeRedirect";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X, ChevronRight as ChevronRightIcon } from "lucide-react";
+import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X, ChevronRight as ChevronRightIcon, Filter } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetClose } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInDays, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 import { sectorLabels, statusConfig, sectors, calculateHealthScore } from "@/lib/companyUtils";
 import type { CompanyStatus } from "@/types/auth";
@@ -1155,113 +1156,197 @@ export default function CompaniesList() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Cerca per nome o email..."
-            value={inputSearch}
-            onChange={(e) => { setInputSearch(e.target.value); setActivePreset(null); }}
-            className="pl-10"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={(v) => { setFilter({ status: v }); setActivePreset(null); }}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti gli stati</SelectItem>
-            <SelectItem value="trial">Trial</SelectItem>
-            <SelectItem value="active">Attivo</SelectItem>
-            <SelectItem value="suspended">Sospeso</SelectItem>
-            <SelectItem value="expired">Scaduto</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={sectorFilter} onValueChange={(v) => { setFilter({ sector: v }); setActivePreset(null); }}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Settore" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i settori</SelectItem>
-            {sectors.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={planFilter} onValueChange={(v) => { setFilter({ plan: v }); setActivePreset(null); }}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Piano" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i piani</SelectItem>
-            {uniquePlans.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={healthFilter} onValueChange={(v) => { setFilter({ health: v }); setActivePreset(null); }}>
-          <SelectTrigger className="w-[130px]"><SelectValue placeholder="Health" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti</SelectItem>
-            <SelectItem value="healthy">Healthy</SelectItem>
-            <SelectItem value="at_risk">A rischio</SelectItem>
-            <SelectItem value="critical">Critico</SelectItem>
-          </SelectContent>
-        </Select>
-        {/* Revenue State filter — segmenta per tipo di rapporto economico */}
-        <Select
-          value={revenueFilter}
-          onValueChange={(v) => {
-            // Mutuamente esclusivo con noPayment legacy: se attivo, lo resetta
-            setFilter({ revenue: v === "all" ? null : v, noPayment: null });
-            setActivePreset(null);
-          }}
-        >
-          <SelectTrigger className="w-[160px]" title="Filtra per tipo di rapporto economico"><SelectValue placeholder="Tipo cliente" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i tipi</SelectItem>
-            <SelectItem value="paying">💰 Paganti</SelectItem>
-            <SelectItem value="complimentary">🎁 Regalate</SelectItem>
-            <SelectItem value="free_plan">🆓 Piano gratuito</SelectItem>
-            <SelectItem value="nopay">⚪ Non paganti (tutti)</SelectItem>
-            <SelectItem value="stripe_issue">⚠️ Stripe non attivo</SelectItem>
-          </SelectContent>
-        </Select>
-        {/* Feature 6 — Segmentazione avanzata */}
-        <CompanySegmentFilters
-          filters={segmentFilters}
-          onFiltersChange={(f) => { setSegmentFilters(f); setCurrentPage(1); }}
-          activeCount={segmentActiveCount}
-        />
-        <Button variant="outline" className="gap-2" onClick={handleExportCSV} title="Esporta CSV">
-          <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">
-            {selectedIds.size > 0 ? `Esporta ${selectedIds.size}` : "Esporta pagina"}
-          </span>
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" title="Colonne visibili">
-              <SlidersHorizontal className="h-4 w-4" />
+      {/* Toolbar filtri:
+          - MOBILE (< sm): Search full-width + Bottone "Filtri" (Sheet) + ViewToggle
+          - DESKTOP (sm+): tutti i filtri inline come prima
+          activeFilterCount usato per badge sul bottone "Filtri" mobile. */}
+      {(() => {
+        const activeFilterCount =
+          (statusFilter !== "all" ? 1 : 0) +
+          (sectorFilter !== "all" ? 1 : 0) +
+          (planFilter !== "all" ? 1 : 0) +
+          (healthFilter !== "all" ? 1 : 0) +
+          (revenueFilter !== "all" ? 1 : 0) +
+          segmentActiveCount;
+
+        // I 5 Select renderizzati identici sia in toolbar desktop che dentro lo Sheet mobile.
+        const filterSelects = (
+          <>
+            <Select value={statusFilter} onValueChange={(v) => { setFilter({ status: v }); setActivePreset(null); }}>
+              <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli stati</SelectItem>
+                <SelectItem value="trial">Trial</SelectItem>
+                <SelectItem value="active">Attivo</SelectItem>
+                <SelectItem value="suspended">Sospeso</SelectItem>
+                <SelectItem value="expired">Scaduto</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sectorFilter} onValueChange={(v) => { setFilter({ sector: v }); setActivePreset(null); }}>
+              <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="Settore" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i settori</SelectItem>
+                {sectors.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={planFilter} onValueChange={(v) => { setFilter({ plan: v }); setActivePreset(null); }}>
+              <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="Piano" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i piani</SelectItem>
+                {uniquePlans.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={healthFilter} onValueChange={(v) => { setFilter({ health: v }); setActivePreset(null); }}>
+              <SelectTrigger className="w-full sm:w-[130px]"><SelectValue placeholder="Health" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti</SelectItem>
+                <SelectItem value="healthy">Healthy</SelectItem>
+                <SelectItem value="at_risk">A rischio</SelectItem>
+                <SelectItem value="critical">Critico</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={revenueFilter}
+              onValueChange={(v) => {
+                setFilter({ revenue: v === "all" ? null : v, noPayment: null });
+                setActivePreset(null);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[160px]" title="Filtra per tipo di rapporto economico"><SelectValue placeholder="Tipo cliente" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti i tipi</SelectItem>
+                <SelectItem value="paying">💰 Paganti</SelectItem>
+                <SelectItem value="complimentary">🎁 Regalate</SelectItem>
+                <SelectItem value="free_plan">🆓 Piano gratuito</SelectItem>
+                <SelectItem value="nopay">⚪ Non paganti (tutti)</SelectItem>
+                <SelectItem value="stripe_issue">⚠️ Stripe non attivo</SelectItem>
+              </SelectContent>
+            </Select>
+            <CompanySegmentFilters
+              filters={segmentFilters}
+              onFiltersChange={(f) => { setSegmentFilters(f); setCurrentPage(1); }}
+              activeCount={segmentActiveCount}
+            />
+          </>
+        );
+
+        const exportBtn = (
+          <Button variant="outline" className="gap-2 w-full sm:w-auto" onClick={handleExportCSV} title="Esporta CSV">
+            <Download className="h-4 w-4" />
+            <span>
+              {selectedIds.size > 0 ? `Esporta ${selectedIds.size}` : "Esporta pagina"}
+            </span>
+          </Button>
+        );
+
+        const columnsBtn = (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-full sm:w-auto sm:size-default gap-2" title="Colonne visibili">
+                <SlidersHorizontal className="h-4 w-4" />
+                <span className="sm:hidden">Colonne visibili</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {ALL_COLUMNS.map(({ key, label }) => (
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  checked={col(key)}
+                  onCheckedChange={() => toggleCol(key)}
+                >
+                  {label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+
+        const viewToggle = (
+          <div className="flex border rounded-md shrink-0">
+            <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" onClick={() => setFilter({ view: null })} title="Vista Lista">
+              <LayoutList className="h-4 w-4" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Colonne visibili</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {ALL_COLUMNS.map(({ key, label }) => (
-              <DropdownMenuCheckboxItem
-                key={key}
-                checked={col(key)}
-                onCheckedChange={() => toggleCol(key)}
-              >
-                {label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className="flex border rounded-md">
-          <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" onClick={() => setFilter({ view: null })} title="Vista Lista">
-            <LayoutList className="h-4 w-4" />
-          </Button>
-          <Button variant={viewMode === "pipeline" ? "secondary" : "ghost"} size="icon" onClick={() => setFilter({ view: "pipeline" })} title="Vista Pipeline">
-            <Kanban className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+            <Button variant={viewMode === "pipeline" ? "secondary" : "ghost"} size="icon" onClick={() => setFilter({ view: "pipeline" })} title="Vista Pipeline">
+              <Kanban className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+
+        return (
+          <>
+            {/* Search bar — sempre visibile in cima */}
+            <div className="flex gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca per nome o email..."
+                  value={inputSearch}
+                  onChange={(e) => { setInputSearch(e.target.value); setActivePreset(null); }}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* MOBILE: bottone "Filtri" che apre Sheet, sostituisce gli 8 Select inline */}
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="sm:hidden gap-1 shrink-0" title="Filtri">
+                    <Filter className="h-4 w-4" />
+                    Filtri
+                    {activeFilterCount > 0 && (
+                      <Badge className="ml-0.5 h-5 min-w-[20px] px-1.5 text-[10px]" variant="default">
+                        {activeFilterCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[85vh] flex flex-col">
+                  <SheetHeader>
+                    <SheetTitle>Filtri aziende</SheetTitle>
+                  </SheetHeader>
+                  <div className="flex-1 overflow-y-auto py-4 space-y-3">
+                    {filterSelects}
+                  </div>
+                  <SheetFooter className="flex-row gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        clearAllFilters();
+                      }}
+                    >
+                      Reset filtri
+                    </Button>
+                    <SheetClose asChild>
+                      <Button className="flex-1">Applica</Button>
+                    </SheetClose>
+                  </SheetFooter>
+                </SheetContent>
+              </Sheet>
+
+              {viewToggle}
+            </div>
+
+            {/* DESKTOP: tutti i filtri inline come prima */}
+            <div className="hidden sm:flex sm:flex-wrap sm:gap-3">
+              {filterSelects}
+              {exportBtn}
+              {columnsBtn}
+            </div>
+
+            {/* MOBILE: Export + Columns sotto la search (in 2 colonne) */}
+            <div className="grid grid-cols-2 gap-2 sm:hidden">
+              {exportBtn}
+              {columnsBtn}
+            </div>
+          </>
+        );
+      })()}
 
       <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>
@@ -1384,6 +1469,12 @@ export default function CompaniesList() {
                           </Badge>
                         )}
                       </div>
+                      {/* Ultimo accesso — info chiave per "ferme da X giorni" check rapido */}
+                      {company.last_login_at && (
+                        <p className="text-[10px] text-muted-foreground mt-1.5">
+                          Ultimo accesso {formatDistanceToNow(new Date(company.last_login_at), { locale: it, addSuffix: true })}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1396,11 +1487,12 @@ export default function CompaniesList() {
                 {(currentPage - 1) * SERVER_PAGE_SIZE + 1}–{Math.min(currentPage * SERVER_PAGE_SIZE, serverTotalCount)} di {serverTotalCount}
               </span>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                {/* Touch target ≥ 44×44 per Apple HIG / Material guidelines */}
+                <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} aria-label="Pagina precedente">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="px-2 tabular-nums text-xs">{currentPage}/{totalPages}</span>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                <span className="px-3 tabular-nums text-sm font-medium">{currentPage}/{totalPages}</span>
+                <Button variant="outline" size="icon" className="h-11 w-11" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} aria-label="Pagina successiva">
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
