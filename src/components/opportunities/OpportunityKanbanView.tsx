@@ -1,7 +1,8 @@
 import { useMemo, useState, useCallback, memo, forwardRef, useRef } from "react";
 import {
-  DndContext, closestCorners, PointerSensor, TouchSensor, KeyboardSensor,
+  DndContext, pointerWithin, rectIntersection, closestCorners, PointerSensor, TouchSensor, KeyboardSensor,
   useSensor, useSensors, DragEndEvent, DragStartEvent, DragOverlay,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
@@ -56,9 +57,12 @@ const StageColumn = memo(forwardRef<HTMLDivElement, {
           (scrollRef as any).current = node;
         }}
         className={cn(
-          "flex-1 p-2 rounded-b-lg border border-t-0 transition-colors overflow-y-auto",
+          "flex-1 p-2 rounded-b-lg border-2 border-t-0 transition-all overflow-y-auto",
           "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40",
-          isOver ? "bg-primary/5" : "bg-muted/10"
+          // Visual aggressivo durante drag-over: ring colorato + bg blu + scale leggero
+          isOver
+            ? "bg-primary/10 border-primary border-dashed scale-[1.01] shadow-inner"
+            : "bg-muted/10 border-transparent"
         )}
       >
         <SortableContext items={opportunities.map((o: any) => o.id)} strategy={verticalListSortingStrategy}>
@@ -116,10 +120,26 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
   const [activeItem, setActiveItem] = useState<any>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    // Desktop: distance 5px è il minimo che evita click accidentali — sotto si
+    // attivava drag su semplice click. Tuned per ridurre "lag percepito".
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    // Mobile: 180ms long-press + tolerance 8px. 200ms era ai limiti per
+    // distinguere tap vs drag — 180ms più reattivo. Tolerance 8 evita drag
+    // accidentali durante scroll verticale della colonna.
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
     useSensor(KeyboardSensor)
   );
+
+  // Collision detection custom: usa pointerWithin (più stabile per kanban
+  // multi-colonna con scroll orizzontale), fallback a rectIntersection se il
+  // puntatore esce dal viewport (es. scroll auto bordi).
+  // closestCorners (default precedente) era impreciso con colonne strette
+  // affiancate — droppava nella colonna sbagliata.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) return pointerCollisions;
+    return rectIntersection(args);
+  }, []);
 
   const opportunitiesByStage = useMemo(() => {
     const map: Record<string, any[]> = {};
@@ -170,7 +190,7 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
       <div className="w-full h-full overflow-x-auto overflow-y-hidden">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -190,7 +210,8 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
           </div>
           <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
             {activeItem ? (
-              <div className="opacity-90 rotate-2 scale-105">
+              // Card "in volo": rotazione + ombra forte + ring colorato = feedback chiaro
+              <div className="rotate-2 scale-105 shadow-2xl ring-2 ring-primary rounded-md cursor-grabbing">
                 <OpportunityCard opportunity={activeItem} isOverlay canEdit={canEdit} />
               </div>
             ) : null}
