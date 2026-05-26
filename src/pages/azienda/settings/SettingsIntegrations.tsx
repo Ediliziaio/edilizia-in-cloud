@@ -589,18 +589,10 @@ export default function SettingsIntegrations() {
   }, [search, gcalIntegrationLike, appleCalIntegrationLike, googleAdsIntegration]);
 
   const statusCards = useMemo(() => {
+    // 2026-05-27: card WhatsApp rimossa da statusCards — l'unica card WhatsApp
+    // della pagina è ora la "WhatsApp Bot AI per Cantiere" più in basso, che
+    // copre sia il bot AI sia WhatsApp Business (no doppioni).
     const cards = [
-      {
-        key: "whatsapp",
-        name: "WhatsApp Business",
-        description: "Invio messaggi e gestione conversazioni WhatsApp.",
-        icon: WhatsAppLogo,
-        iconColor: "",
-        status: (waConfig?.phone_number_id ? "connected" : "not_configured") as "connected" | "not_configured",
-        detail: waConfig?.phone_number
-          ? `Numero: ${waConfig.phone_number} · WABA: ${waConfig.waba_id || "N/A"}`
-          : undefined,
-      },
       {
         key: "email",
         name: "Email Provider",
@@ -628,18 +620,23 @@ export default function SettingsIntegrations() {
   }, [search, waConfig]);
 
   const assetCards = useMemo(() => {
+    // 2026-05-27: una SOLA card Meta che copre TUTTI gli use case (recensioni
+    // pagina Facebook, Business Manager, Lead Ads, Instagram Business per post
+    // social). Le card duplicate "facebook-reviews" e "Meta Pages & Instagram
+    // Content" sono state rimosse — Meta = un click, tutti gli asset.
     const cards = [
       {
         key: "meta-assets",
-        name: "Pagina Facebook / Instagram",
-        description: "Dopo OAuth scegli pagina Facebook, account Instagram Business e moduli Lead Ads da sincronizzare.",
+        name: "Facebook + Instagram (Meta)",
+        description:
+          "Un solo collegamento per tutti gli asset Meta: pagina e recensioni Facebook, Business Manager, Lead Ads e Instagram Business per i post social.",
         status: metaIntegration?.status === "connected" ? "connected" : "not_configured",
         detail:
           metaIntegration?.status === "connected"
-            ? "Meta collegato: gestisci pagina, moduli e mapping da Lead Facebook."
-            : "Collega Meta dalla sezione Lead Facebook e scegli gli asset dell'azienda.",
+            ? "Meta collegato: gestisci pagina, recensioni, moduli Lead Ads e Instagram da Lead Facebook."
+            : "Collega Facebook e Instagram con un click dalla sezione Lead Facebook. Copre recensioni, Business Manager, Lead Ads e post social.",
         icon: <BrandIconShell><MetaAssetLogo /></BrandIconShell>,
-        actionLabel: "Apri Lead Facebook",
+        actionLabel: "Collega Facebook + Instagram",
         action: () => navigate("/azienda/impostazioni/lead-forms"),
       },
       // 2026-05-27: rimosse card statiche "Account Google Ads" e "Google Business
@@ -660,7 +657,10 @@ export default function SettingsIntegrations() {
   ]);
 
   const googleHubAssets = useMemo(() => {
-    const googleAccountLabel = gcalConnection?.google_account_email || googleAdsAccountLabel || "Account Google non scelto";
+    // 2026-05-27: Google Ads e Google Business Profile rimossi dal Google Hub
+    // modale — sono già coperti dalle card OAuth reali GoogleAdsConnectionCard
+    // (sezione Pubblicità) e GbpConnectionCard (sezione Reputazione). Il modale
+    // resta come hub leggero per Calendar + YouTube.
     return [
       {
         key: "google-calendar",
@@ -678,38 +678,6 @@ export default function SettingsIntegrations() {
         },
       },
       {
-        key: "google-ads",
-        name: "Google Ads",
-        description: "Scegli Customer ID, MCC e conversioni offline CRM.",
-        status: selectedGoogleAdsAccount ? "connected" : "not_configured",
-        detail: googleAdsAccountLabel
-          ? `Account Ads: ${googleAdsAccountLabel}`
-          : "Nessun Customer ID selezionato per campagne e attribution.",
-        icon: <BrandIconShell><GoogleAdsLogo /></BrandIconShell>,
-        actionLabel: "Configura Ads",
-        action: () => {
-          if (!canManageIntegrations) {
-            toast.error("Solo un amministratore aziendale può collegare integrazioni.");
-            return;
-          }
-          setGoogleHubDialogOpen(false);
-          setGoogleAdsDialogOpen(true);
-        },
-      },
-      {
-        key: "google-business-profile",
-        name: "Google Business Profile",
-        description: "Gestisci scheda locale, recensioni e segnali reputazione.",
-        status: "not_configured",
-        detail: `Ecosistema: ${googleAccountLabel}. La scheda Google resta un asset separato da Ads e Calendar.`,
-        icon: <BrandIconShell><GoogleBusinessProfileLogo /></BrandIconShell>,
-        actionLabel: "Apri reputazione",
-        action: () => {
-          setGoogleHubDialogOpen(false);
-          navigate("/azienda/marketing/reputazione?tab=integrazioni");
-        },
-      },
-      {
         key: "youtube",
         name: "YouTube",
         description: "Asset video e Shorts collegabili allo stesso ecosistema Google.",
@@ -724,38 +692,16 @@ export default function SettingsIntegrations() {
       },
     ];
   }, [
-    canManageIntegrations,
     gcalConnection?.google_account_email,
     gcalConnection?.status,
-    googleAdsAccountLabel,
     navigate,
-    selectedGoogleAdsAccount,
   ]);
 
   const reputationCards = useMemo(() => {
+    // 2026-05-27: rimosse card duplicate "google-business-profile" (ora gestita
+    // da GbpConnectionCard OAuth reale) e "facebook-reviews" (ora coperta dalla
+    // card unica Meta in assetCards — un click collega anche le recensioni).
     const cards = [
-      {
-        key: "google-business-profile",
-        name: "Google Business Profile",
-        description: "Recensioni Google, link diretto, rating locale e alert su nuove recensioni.",
-        icon: GoogleBusinessProfileLogo,
-        iconColor: "",
-        status: "not_configured" as const,
-        detail: googleAdsIntegration?.status === "connected"
-          ? "Account Google Ads presente. Completa OAuth Business Profile dalla sezione Reputazione."
-          : "Da collegare con OAuth Google Business Profile.",
-      },
-      {
-        key: "facebook-reviews",
-        name: "Facebook Reviews",
-        description: "Legge recensioni e segnali reputazione dalla pagina Facebook collegata.",
-        icon: FacebookLogo,
-        iconColor: "",
-        status: "not_configured" as const,
-        detail: metaIntegration?.status === "connected"
-          ? "Meta base collegato. Mancano ancora i permessi specifici per recensioni e rating pagina."
-          : "Richiede integrazione Meta attiva.",
-      },
       {
         key: "site-review-link",
         name: "Link recensione sito",
@@ -769,7 +715,7 @@ export default function SettingsIntegrations() {
     if (!search.trim()) return cards;
     const q = search.toLowerCase();
     return cards.filter((card) => card.name.toLowerCase().includes(q) || card.description.toLowerCase().includes(q));
-  }, [googleAdsIntegration?.status, metaIntegration?.status, search]);
+  }, [search]);
 
   // KPI integrazioni collegate
   const connectedCount = mainIntegrations.filter((i) => i.integration?.status === "connected").length;
@@ -1031,11 +977,11 @@ export default function SettingsIntegrations() {
             Ora il flow OAuth completo (start + select location + sync) si fa qui. */}
         <GbpConnectionCard />
 
-        {/* Altre fonti reputazione (Facebook Reviews + modulo sito) — placeholder */}
+        {/* Altre fonti reputazione (modulo recensione sito) — placeholder.
+            2026-05-27: rimosse card duplicate Facebook Reviews + GBP — coperte
+            rispettivamente dalla card Meta unica e da GbpConnectionCard sopra. */}
         <div className="grid gap-4 md:grid-cols-2">
-          {reputationCards
-            .filter((card) => card.key !== "google-business-profile")
-            .map((card) => {
+          {reputationCards.map((card) => {
             const Icon = card.icon;
             const connected = card.status === "connected";
             return (
@@ -1096,7 +1042,8 @@ export default function SettingsIntegrations() {
         <GoogleAdsConnectionCard />
       </div>
 
-      {/* WhatsApp Bot AI Card */}
+      {/* WhatsApp — UNICA card che copre WhatsApp Business + Bot AI Cantiere.
+          2026-05-27: rimossa card duplicata "WhatsApp Business" da statusCards. */}
       <Card
         className="cursor-pointer hover:border-primary/50 transition-colors"
         onClick={() => navigate("/azienda/impostazioni/whatsapp-bot")}
@@ -1107,12 +1054,25 @@ export default function SettingsIntegrations() {
           </BrandIconShell>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <CardTitle className="text-base">WhatsApp Bot AI per Cantiere</CardTitle>
-              <Badge variant="secondary" className="text-[10px]">Nuovo</Badge>
+              <CardTitle className="text-base">WhatsApp Business + Bot AI Cantiere</CardTitle>
+              {waConfig?.phone_number_id ? (
+                <Badge className="text-[10px] gap-1 bg-emerald-600 hover:bg-emerald-600">
+                  <CheckCircle2 className="h-2.5 w-2.5" />
+                  Connesso
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px]">Da configurare</Badge>
+              )}
             </div>
             <CardDescription className="mt-1">
-              Ricevi rapportini, DDT, foto e presenze dagli operai via WhatsApp con elaborazione AI automatica.
+              Un solo collegamento per WhatsApp Business (invio messaggi e conversazioni clienti) e per il Bot AI Cantiere
+              (rapportini, DDT, foto e presenze dagli operai con elaborazione AI automatica).
             </CardDescription>
+            {waConfig?.phone_number && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Numero: {waConfig.phone_number} · WABA: {waConfig.waba_id || "N/A"}
+              </p>
+            )}
           </div>
         </CardHeader>
       </Card>
@@ -1144,68 +1104,9 @@ export default function SettingsIntegrations() {
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
 
-          {/* ── Meta Pages & Instagram Content ─────────────────────── */}
-          <Card className="flex flex-col overflow-hidden border-l-4 border-l-blue-500">
-            <CardHeader className="flex-row items-start gap-3 space-y-0 pb-2">
-              {/* Facebook + Instagram dual logo */}
-              <BrandIconShell>
-                <MetaAssetLogo />
-              </BrandIconShell>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-base">Meta Pages &amp; Instagram Content</CardTitle>
-                  {metaIntegration?.status === "connected" ? (
-                    <Badge className="text-[10px] gap-1 bg-amber-500 hover:bg-amber-500">
-                      <AlertTriangle className="h-2.5 w-2.5" />
-                      Parzialmente abilitato
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                      Non configurato
-                    </Badge>
-                  )}
-                </div>
-                <CardDescription className="mt-1">
-                  Pubblica post, immagini e Reel su Pagine Facebook e account Instagram Business dal gestionale.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-3">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-1">OAuth scopes richiesti</p>
-                <div className="flex flex-wrap gap-1">
-                  {["pages_manage_posts", "instagram_content_publish", "instagram_manage_insights"].map((s) => (
-                    <span key={s} className="px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground">{s}</span>
-                  ))}
-                </div>
-              </div>
-              {metaIntegration?.status === "connected" ? (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  La connessione Meta Lead Ads è attiva. Per la pubblicazione social servono permessi OAuth aggiuntivi.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Richiede una connessione Meta attiva. Collega prima Meta dalla pagina Lead Facebook.
-                </p>
-              )}
-              <button
-                type="button"
-                className="text-xs text-primary hover:underline font-medium"
-                onClick={() => {
-                  if (metaIntegration?.status === "connected") {
-	                    toast.info("Estendi permessi Meta", {
-	                      description: "La gestione base di Meta vive in Lead Facebook. Da quella pagina potrai riconnettere Meta quando saranno disponibili gli scope social publishing.",
-	                    });
-                    navigate("/azienda/impostazioni/lead-forms");
-                  } else {
-                    navigate("/azienda/impostazioni/lead-forms");
-                  }
-                }}
-              >
-                Apri Lead Facebook →
-              </button>
-            </CardContent>
-          </Card>
+          {/* 2026-05-27: card "Meta Pages & Instagram Content" rimossa — Meta è
+              gestito da un'unica card "Facebook + Instagram (Meta)" più in alto
+              negli Asset aziendali, che copre TUTTI gli use case Meta. */}
 
           {/* ── LinkedIn Company Pages ─────────────────────────────── */}
           <Card className="flex flex-col overflow-hidden border-l-4 border-l-slate-300">
