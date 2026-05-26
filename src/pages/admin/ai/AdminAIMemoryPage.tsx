@@ -378,10 +378,10 @@ export default function AdminAIMemoryPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Filters — su mobile diventano full-width stack; su sm+ inline */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
         <Select value={filterCompany} onValueChange={setFilterCompany}>
-          <SelectTrigger className="h-9 w-56">
+          <SelectTrigger className="h-9 w-full sm:w-56">
             <SelectValue placeholder="Tutte le aziende" />
           </SelectTrigger>
           <SelectContent>
@@ -392,7 +392,7 @@ export default function AdminAIMemoryPage() {
           </SelectContent>
         </Select>
         <Select value={filterPersona} onValueChange={setFilterPersona}>
-          <SelectTrigger className="h-9 w-48">
+          <SelectTrigger className="h-9 w-full sm:w-48">
             <SelectValue placeholder="Tutte le personas" />
           </SelectTrigger>
           <SelectContent>
@@ -403,7 +403,7 @@ export default function AdminAIMemoryPage() {
           </SelectContent>
         </Select>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="h-9 w-40">
+          <SelectTrigger className="h-9 w-full sm:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -413,7 +413,7 @@ export default function AdminAIMemoryPage() {
             ))}
           </SelectContent>
         </Select>
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative w-full sm:flex-1 sm:min-w-[180px]">
           <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
           <Input
             placeholder="Cerca nel contenuto…"
@@ -426,7 +426,7 @@ export default function AdminAIMemoryPage() {
           variant={showDisabled ? "default" : "outline"}
           size="sm"
           onClick={() => setShowDisabled((v) => !v)}
-          className="h-9 gap-1.5"
+          className="h-9 gap-1.5 w-full sm:w-auto"
         >
           {showDisabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
           Disabilitate

@@ -42,7 +42,8 @@ export function AITabsList({ tabs, contents, value, onValueChange, defaultValue 
   return (
     <Tabs {...tabsProps} className="space-y-5">
       <div className="border-b sticky top-0 z-10 bg-background/95 backdrop-blur-sm -mx-4 md:-mx-6 px-4 md:px-6 -mt-2 pt-2">
-        <TabsList className="h-auto p-0 bg-transparent gap-0.5 flex-wrap justify-start overflow-x-auto scrollbar-thin">
+        {/* No flex-wrap su mobile → scroll orizzontale pulito. Su md+ resta multi-row se necessario */}
+        <TabsList className="h-auto p-0 bg-transparent gap-0.5 justify-start overflow-x-auto md:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
           {tabs.map((t) => {
             const Icon = t.icon;
             return (
