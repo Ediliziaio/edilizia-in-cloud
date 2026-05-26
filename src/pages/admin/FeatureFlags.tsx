@@ -453,7 +453,7 @@ export default function FeatureFlags() {
           />
         </div>
         <Tabs value={categoryFilter} onValueChange={setCategoryFilter}>
-          <TabsList>
+          <TabsList className="overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
             <TabsTrigger value="all">
               Tutti
               {globalStats.totalFlags > 0 && (
