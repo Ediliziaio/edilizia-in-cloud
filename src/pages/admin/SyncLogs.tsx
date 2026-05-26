@@ -338,7 +338,8 @@ function SyncLogs() {
         </TabsContent>
 
         <TabsContent value="edge" className="space-y-4 mt-4">
-          <div className="grid grid-cols-3 gap-3">
+          {/* Stat cards: stack su mobile, 3 cols su sm+ */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card>
               <CardContent className="p-4">
                 <p className="text-xs text-muted-foreground">Chiamate (24h)</p>

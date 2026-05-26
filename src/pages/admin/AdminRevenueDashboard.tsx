@@ -597,9 +597,9 @@ function LTVCACTab() {
         </div>
       )}
 
-      {/* Secondary metrics */}
+      {/* Secondary metrics — stack su mobile, 3 cols su sm+ */}
       {!isLoading && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
             { label: "ARPU", value: `${fmt(metrics.arpu)}/mese`, sub: "Ricavo medio per azienda" },
             { label: "Churn Rate", value: `${metrics.churnRate.toFixed(2)}%`, sub: "Tasso abbandono mensile", alert: metrics.churnRate > 5 },

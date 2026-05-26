@@ -302,8 +302,8 @@ export function PublicChatbotSettings() {
             </div>
           </div>
 
-          {/* Limits */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Limits — stack su mobile per leggibilità input numerici */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Limit sessioni/giorno</Label>
               <Input

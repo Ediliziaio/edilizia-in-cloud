@@ -148,7 +148,7 @@ function BankingRow({ row }: { row: BankingOverviewRow }) {
     : "-";
 
   return (
-    <div className="grid grid-cols-7 gap-2 items-center px-3 py-2.5 text-sm border-b last:border-0 hover:bg-accent/20">
+    <div className="grid grid-cols-7 gap-2 items-center px-3 py-2.5 text-sm border-b last:border-0 hover:bg-accent/20 min-w-[720px]">
       <span className="font-medium truncate col-span-1">{row.company_name}</span>
       <span className="text-xs truncate text-muted-foreground">
         {row.bank_name ?? "-"}
@@ -378,9 +378,9 @@ export function BankingOverviewPanel() {
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          {/* Header */}
-          <div className="grid grid-cols-7 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/40 border-b">
+        <CardContent className="p-0 overflow-x-auto">
+          {/* Header — 7 colonne illeggibili su mobile, scroll orizzontale con min-width */}
+          <div className="grid grid-cols-7 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/40 border-b min-w-[720px]">
             <span>Azienda</span>
             <span>Banca</span>
             <span>Stato</span>

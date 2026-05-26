@@ -711,7 +711,8 @@ export function CompanyOverviewTab({
           </CardHeader>
           <CardContent className="space-y-4">
             <TooltipProvider delayDuration={150}>
-              <div className="grid grid-cols-5 gap-4">
+              {/* Health score 5 dimensioni: 2 cols su mobile (~140px/cella), 5 su sm+ */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                 {[
                   { label: "Login", value: serverHealth.login_score, max: 25, icon: "🔑" },
                   { label: "Ordini", value: serverHealth.orders_score, max: 25, icon: "📦" },

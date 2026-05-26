@@ -109,7 +109,7 @@ function AnnouncementForm({
             <Label>Contenuto</Label>
             <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Testo dell'annuncio..." rows={3} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Tipo</Label>
               <Select value={type} onValueChange={setType}>

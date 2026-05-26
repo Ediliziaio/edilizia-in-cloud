@@ -321,8 +321,8 @@ export function SuperAdminCompanyOverrides({
               </div>
             </div>
 
-            {/* ── Status Cards ── */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* ── Status Cards ── (stack su mobile, 3 cols su sm+) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Card>
                 <CardContent className="pt-4 pb-3">
                   <div className="flex items-center gap-2 mb-1">
