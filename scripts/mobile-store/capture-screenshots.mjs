@@ -65,47 +65,52 @@ const DEVICES = {
 const PAGES = [
   {
     slug: "01-dashboard",
-    title: "Dashboard cantieri",
+    title: "Dashboard",
     path: "/azienda",
-    waitFor: "h1, [data-testid='dashboard-title'], main",
+    waitFor: "main",
     description: "Vista d'insieme attività",
   },
   {
-    slug: "02-cantieri-list",
-    title: "Lista cantieri",
-    path: "/azienda/cantieri",
-    waitFor: "main",
-    description: "I tuoi cantieri attivi",
-  },
-  {
-    slug: "03-commesse",
+    slug: "02-commesse",
     title: "Commesse e marginalità",
     path: "/azienda/ordini",
     waitFor: "main",
-    description: "Margine in tempo reale",
+    description: "Margine in tempo reale per commessa",
   },
   {
-    slug: "04-silvio-chat",
-    title: "Silvio AI assistente",
-    path: "/azienda/chat",
+    slug: "03-magazzino",
+    title: "Magazzino",
+    path: "/azienda/magazzino",
     waitFor: "main",
-    description: "AI sempre disponibile",
+    description: "Inventario materiali",
   },
   {
-    slug: "05-personale",
+    slug: "04-personale",
     title: "Personale e timbrature",
     path: "/azienda/personale",
     waitFor: "main",
     description: "Operai, ore, presenze",
   },
   {
-    slug: "06-fatturato",
-    title: "Fatturato",
-    path: "/azienda/fatturato",
+    slug: "05-clienti",
+    title: "Clienti",
+    path: "/azienda/clienti",
     waitFor: "main",
-    description: "Cassa, pagamenti, scadenze",
+    description: "Anagrafica clienti",
+  },
+  {
+    slug: "06-silvio-chat",
+    title: "Silvio AI assistente",
+    path: "/azienda/chat",
+    waitFor: "main",
+    description: "AI sempre disponibile per cantiere, preventivo, normativa",
   },
 ];
+
+// Tempo massimo da aspettare che gli skeleton/loader spariscano (ms)
+const SKELETON_WAIT_MS = 12000;
+// Wait dopo che gli skeleton sono spariti (per animazioni di entrata)
+const SETTLE_AFTER_DATA_MS = 1500;
 
 // ─── Main ───────────────────────────────────────────────────────────────────
 async function captureForDevice(device) {
@@ -161,7 +166,33 @@ async function captureForDevice(device) {
       await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
       // Aspetta che il contenuto principale sia visibile
       await page.waitForSelector(p.waitFor, { timeout: 15000 });
-      await page.waitForTimeout(1500); // assestamento animazioni
+
+      // ─── ATTENDI CHE GLI SKELETON SPARISCANO ──────────────────────
+      // EiC usa tailwind `animate-pulse` per gli skeleton + classe `Skeleton`
+      // di shadcn-ui. Aspettiamo che il conteggio sia 0, o che il timeout scada.
+      const tSkeleton = Date.now();
+      await page
+        .waitForFunction(
+          () => {
+            const pulses = document.querySelectorAll(
+              '[class*="animate-pulse"], [class*="skeleton"], [data-state="loading"]',
+            );
+            // Considera "ok" se ci sono <=2 elementi (alcune dashboard tengono skeleton
+            // sempre presenti per sezioni opzionali). Trade-off pragmatico.
+            return pulses.length <= 2;
+          },
+          { timeout: SKELETON_WAIT_MS },
+        )
+        .catch(() => {
+          // Timeout: procediamo comunque, registriamo il problema
+          console.warn(`       ⚠️ skeleton ancora visibili dopo ${SKELETON_WAIT_MS}ms`);
+        });
+      const skeletonMs = Date.now() - tSkeleton;
+      if (skeletonMs > 500) console.log(`       ⏱ skeleton wait: ${skeletonMs}ms`);
+
+      // Settle finale per animazioni di entrata (fade-in card, ecc.)
+      await page.waitForTimeout(SETTLE_AFTER_DATA_MS);
+
       // Scrolla in alto (sanity)
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(500);
