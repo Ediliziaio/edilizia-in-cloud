@@ -155,24 +155,54 @@ async function pollGmail(
   accessToken: string,
   emailAddress: string,
   sinceTimestamp: number,
+  /**
+   * Hard cap di messaggi totali da scaricare in un singolo run.
+   * Il backfill iniziale (first sync) può sforare i 500; lo lasciamo
+   * generoso per coprire utenti con inbox grande, ma con un soft-stop
+   * per non bruciare timeout Edge Function (max ~150s).
+   */
+  hardCap = 1000,
 ): Promise<NormalizedEmail[]> {
   // Gmail query: recenti, non in spam/trash
-  // 2026-05-26: maxResults da 20 → 50 per supportare backfill iniziale dei 30 giorni.
+  // 2026-05-26: paginazione completa via nextPageToken. maxResults=100 per pagina
+  // (max consentito da Gmail), cap totale = hardCap. Sufficiente per inbox grandi.
   const qSince = Math.floor(sinceTimestamp / 1000); // Unix seconds
   const qParam = encodeURIComponent(`in:inbox after:${qSince}`);
-  const listRes = await fetch(`${GMAIL_API}/messages?q=${qParam}&maxResults=50`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!listRes.ok) throw new Error(`gmail_list_${listRes.status}`);
-  const listJson = await listRes.json() as { messages?: Array<{ id: string }> };
-  if (!listJson.messages || listJson.messages.length === 0) return [];
 
-  const emails: NormalizedEmail[] = [];
-  for (const m of listJson.messages.slice(0, 50)) {
-    const msgRes = await fetch(`${GMAIL_API}/messages/${m.id}?format=full`, {
+  // 1) Lista TUTTI i messaggi del periodo, paginando.
+  const messageIds: string[] = [];
+  let pageToken: string | null = null;
+  let safety = 0;
+  do {
+    safety++;
+    if (safety > 20) break; // 20 pagine × 100 = 2000 msg max, hard stop
+    const url = `${GMAIL_API}/messages?q=${qParam}&maxResults=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`;
+    const listRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!listRes.ok) throw new Error(`gmail_list_${listRes.status}`);
+    const listJson = await listRes.json() as { messages?: Array<{ id: string }>; nextPageToken?: string };
+    if (listJson.messages?.length) {
+      for (const m of listJson.messages) {
+        messageIds.push(m.id);
+        if (messageIds.length >= hardCap) break;
+      }
+    }
+    pageToken = listJson.nextPageToken ?? null;
+    if (messageIds.length >= hardCap) break;
+  } while (pageToken);
+
+  if (messageIds.length === 0) return [];
+
+  // 2026-05-26: fetch dettagli in PARALLELO con batch size 15.
+  // Serie (1 alla volta) → 1000 messaggi × 100ms = 100s = timeout.
+  // Parallelo (15 alla volta) → 1000/15 × 100ms = ~7s. 14× più veloce.
+  // Limite 15: stiamo sotto il quota Gmail (250 quota units / second per user;
+  // un messages.get costa 5 quota → 50 req/s teorici, prendo margine).
+  const BATCH_SIZE = 15;
+  const fetchOne = async (messageId: string): Promise<NormalizedEmail | null> => {
+    const msgRes = await fetch(`${GMAIL_API}/messages/${messageId}?format=full`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!msgRes.ok) continue;
+    if (!msgRes.ok) return null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const msg = await msgRes.json() as any;
     const headers = (msg.payload?.headers ?? []) as Array<{ name: string; value: string }>;
@@ -181,7 +211,6 @@ async function pollGmail(
     const fromMatch = /^(?:"?([^"<]+?)"?\s*)?<?([^\s<>]+@[^\s<>]+)>?$/.exec(fromRaw);
     const fromEmail = fromMatch?.[2] ?? fromRaw;
     const fromName = fromMatch?.[1]?.trim() ?? null;
-    // Body: cerchiamo text/plain + text/html, poi snippet
     let text = "";
     let html: string | null = null;
     const findBody = (parts: unknown[]): { text: string; html: string | null } => {
@@ -212,7 +241,7 @@ async function pollGmail(
       else text = decoded;
     }
     if (!text) text = msg.snippet ?? "";
-    emails.push({
+    return {
       message_id: getHeader("Message-ID") || msg.id,
       provider_message_id: msg.id ?? null,
       provider_thread_id: msg.threadId ?? null,
@@ -226,7 +255,16 @@ async function pollGmail(
       html,
       received_at: msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : new Date().toISOString(),
       is_read: Array.isArray(msg.labelIds) ? !msg.labelIds.includes("UNREAD") : false,
-    });
+    };
+  };
+
+  const emails: NormalizedEmail[] = [];
+  for (let i = 0; i < messageIds.length; i += BATCH_SIZE) {
+    const slice = messageIds.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(slice.map(fetchOne));
+    for (const r of results) {
+      if (r) emails.push(r);
+    }
   }
   return emails;
 }
@@ -239,26 +277,43 @@ async function pollOutlook(
   accessToken: string,
   emailAddress: string,
   sinceTimestamp: number,
+  hardCap = 1000,
 ): Promise<NormalizedEmail[]> {
+  // 2026-05-26: paginazione via @odata.nextLink, $top=100 per pagina.
   const sinceIso = new Date(sinceTimestamp).toISOString();
   const params = new URLSearchParams({
     "$filter": `receivedDateTime gt ${sinceIso}`,
     "$orderby": "receivedDateTime desc",
-    // 2026-05-26: top da 20 → 50 per supportare backfill iniziale dei 30 giorni.
-    "$top": "50",
+    "$top": "100",
     "$select": "id,conversationId,subject,from,toRecipients,ccRecipients,bccRecipients,body,bodyPreview,receivedDateTime,internetMessageId,isRead,hasAttachments",
   });
-  const url = `${GRAPH_API}/messages?${params.toString()}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) throw new Error(`outlook_list_${res.status}`);
+
+  // Collect TUTTE le pagine
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const json = await res.json() as { value?: any[] };
-  if (!json.value || json.value.length === 0) return [];
+  const allMessages: any[] = [];
+  let nextUrl: string | null = `${GRAPH_API}/messages?${params.toString()}`;
+  let safety = 0;
+  while (nextUrl) {
+    safety++;
+    if (safety > 20) break; // hard stop
+    const res: Response = await fetch(nextUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) throw new Error(`outlook_list_${res.status}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const json = await res.json() as { value?: any[]; "@odata.nextLink"?: string };
+    if (json.value?.length) {
+      for (const v of json.value) {
+        allMessages.push(v);
+        if (allMessages.length >= hardCap) break;
+      }
+    }
+    if (allMessages.length >= hardCap) break;
+    nextUrl = json["@odata.nextLink"] ?? null;
+  }
+
+  if (allMessages.length === 0) return [];
 
   const emails: NormalizedEmail[] = [];
-  for (const m of json.value) {
+  for (const m of allMessages) {
     emails.push({
       message_id: m.internetMessageId ?? m.id,
       provider_message_id: m.id ?? null,
@@ -561,30 +616,44 @@ Deno.serve(async (req) => {
         }
         const tokens = tokensData[0] as DecryptedTokens;
         const accessToken = await refreshTokenIfNeeded(supa, tokens, conn.id, conn.user_id ?? null);
+        // First sync (mai sincronizzato) → backfill aggressivo (max 1000 messaggi).
+        // Sync incrementale (already synced once) → solo i messaggi nuovi dopo
+        // last_synced_at: cap basso (200) per restare ben sotto i timeout Edge.
+        const isFirstSync = !conn.last_synced_at;
+        const hardCap = isFirstSync ? 1000 : 200;
         emails = conn.provider === "gmail"
-          ? await pollGmail(accessToken, conn.email_address, sinceTs)
-          : await pollOutlook(accessToken, conn.email_address, sinceTs);
+          ? await pollGmail(accessToken, conn.email_address, sinceTs, hardCap)
+          : await pollOutlook(accessToken, conn.email_address, sinceTs, hardCap);
       }
 
       summary.emails_fetched += emails.length;
 
       // Salvataggio diretto nel client personale, senza perdere ownership utente/account.
+      // 2026-05-26: storage parallelo a batch di 10 per non saturare il pool
+      // di connessioni Postgres. Riduce ~10× il tempo storage per i first sync.
+      const STORE_BATCH = 10;
       let stored = 0;
       let triageCandidates = 0;
-      for (const e of emails) {
-        const result = await storePersonalEmail(
-          supa,
-          {
-            id: conn.id,
-            company_id: conn.company_id,
-            user_id: conn.user_id,
-            email_address: conn.email_address,
-            provider: conn.provider,
-          },
-          e,
+      const connContext = {
+        id: conn.id,
+        company_id: conn.company_id,
+        user_id: conn.user_id,
+        email_address: conn.email_address,
+        provider: conn.provider,
+      };
+      for (let i = 0; i < emails.length; i += STORE_BATCH) {
+        const slice = emails.slice(i, i + STORE_BATCH);
+        const results = await Promise.allSettled(
+          slice.map((e) => storePersonalEmail(supa, connContext, e)),
         );
-        if (result.stored) stored++;
-        if (result.needsTriage) triageCandidates++;
+        for (const r of results) {
+          if (r.status === "fulfilled") {
+            if (r.value.stored) stored++;
+            if (r.value.needsTriage) triageCandidates++;
+          } else {
+            console.warn("[email-poll] storePersonalEmail failed:", r.reason?.message ?? r.reason);
+          }
+        }
       }
       summary.emails_stored += stored;
       if (emails.length > 0) {

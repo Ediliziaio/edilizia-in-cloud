@@ -12,7 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  AlertTriangle,
   Archive,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   FileEdit,
@@ -24,8 +26,10 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { EmailFilter, FolderFilter } from "../EmailLayout";
+import type { EmailConnectionSummary } from "../EmailLayout";
 
 type SystemFolderKey = "inbox" | "sent" | "drafts" | "starred" | "spam" | "trash" | "archive";
 
@@ -50,7 +54,27 @@ interface EmailSidebarProps {
   filter: EmailFilter;
   onFilterChange: (filter: EmailFilter) => void;
   onCompose: () => void;
-  connections: Array<{ id: string; provider: string; email_address: string; status: string }>;
+  /**
+   * Connessioni email con metadata health. Accettiamo la versione "extended"
+   * (EmailConnectionSummary) così possiamo mostrare lo stato sync nella
+   * sezione bottom della sidebar senza un secondo fetch.
+   */
+  connections: Array<EmailConnectionSummary | { id: string; provider: string; email_address: string; status: string }>;
+  /** Path impostazioni email — passato dal layout (azienda vs admin). */
+  settingsPath?: string;
+}
+
+function syncLabelFor(value: string | null | undefined): string {
+  if (!value) return "mai";
+  const ts = new Date(value).getTime();
+  if (!Number.isFinite(ts)) return "—";
+  const diff = Date.now() - ts;
+  const minutes = Math.round(diff / 60_000);
+  if (minutes < 1) return "adesso";
+  if (minutes < 60) return `${minutes} min fa`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h fa`;
+  return new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
 }
 
 interface FolderCount {
@@ -120,7 +144,7 @@ function providerLabel(provider: string): string {
   return provider || "Email";
 }
 
-export function EmailSidebar({ filter, onFilterChange, onCompose, connections }: EmailSidebarProps) {
+export function EmailSidebar({ filter, onFilterChange, onCompose, connections, settingsPath = "/azienda/impostazioni/mio-profilo" }: EmailSidebarProps) {
   const { user } = useAuth();
   const userId = user?.id;
   const [openFolders, setOpenFolders] = useState<Record<SystemFolderKey, boolean>>({
@@ -357,6 +381,14 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections }:
           })}
         </nav>
 
+        {/* Stato sync caselle — compatto, in fondo. Solo se l'utente ha
+            collegato almeno una casella. Lo mostriamo sempre (anche tutto OK)
+            così l'utente vede a colpo d'occhio "Ultimo sync XX min fa"; ma
+            la versione con errori è ben visibile (icona rossa + msg). */}
+        {connections.length > 0 && (
+          <SyncStatusPanel connections={connections} settingsPath={settingsPath} />
+        )}
+
         <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-3">
           <div className="flex items-start gap-2">
             <Mail className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
@@ -370,5 +402,78 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections }:
         </div>
       </div>
     </ScrollArea>
+  );
+}
+
+/**
+ * SyncStatusPanel — pannello compatto sync caselle, in fondo alla sidebar.
+ *
+ * Mostra in 1 riga: stato salute (CheckCircle verde o AlertTriangle ambra),
+ * conteggio caselle attive su totale, e "ultimo sync XX min fa".
+ * In caso di errori (status != active, consecutive_errors, last_sync_error)
+ * mostra la riga in tono ambra/rosso + un link "Risolvi" verso le impostazioni.
+ *
+ * Nessun fetch aggiuntivo: usa i dati già passati come prop dal layout.
+ */
+function SyncStatusPanel({
+  connections,
+  settingsPath,
+}: {
+  connections: EmailSidebarProps["connections"];
+  settingsPath: string;
+}) {
+  const extendedConnections = connections as EmailConnectionSummary[];
+  const active = extendedConnections.filter((c) => c.status === "active").length;
+  const unhealthy = extendedConnections.filter((c) =>
+    c.status !== "active"
+    || (c.consecutive_errors ?? 0) > 0
+    || Boolean(c.last_sync_error)
+    || c.poll_enabled === false,
+  );
+  const hasError = unhealthy.length > 0;
+  // "Ultimo sync" = il più recente fra le caselle
+  const lastSyncAt = extendedConnections
+    .map((c) => c.last_synced_at)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+  const lastSyncLabel = syncLabelFor(lastSyncAt);
+
+  return (
+    <Link
+      to={settingsPath}
+      className={cn(
+        "block rounded-2xl border p-3 transition-colors",
+        hasError
+          ? "border-rose-200 bg-rose-50 hover:bg-rose-100/70"
+          : "border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/70",
+      )}
+      title={hasError ? "Una o più caselle hanno problemi di sync — clicca per risolvere" : "Stato sync caselle — clicca per impostazioni"}
+    >
+      <div className="flex items-start gap-2">
+        {hasError ? (
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+        ) : (
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className={cn(
+            "text-xs font-semibold",
+            hasError ? "text-rose-900" : "text-emerald-900",
+          )}>
+            {hasError
+              ? `${unhealthy.length} ${unhealthy.length === 1 ? "casella" : "caselle"} con problemi`
+              : `${active}/${extendedConnections.length} ${extendedConnections.length === 1 ? "casella attiva" : "caselle attive"}`}
+          </p>
+          <p className={cn(
+            "mt-0.5 truncate text-[11px] leading-snug",
+            hasError ? "text-rose-700" : "text-emerald-800/80",
+          )}>
+            {hasError
+              ? "Riconnetti o verifica le impostazioni"
+              : `Ultimo sync ${lastSyncLabel}`}
+          </p>
+        </div>
+      </div>
+    </Link>
   );
 }

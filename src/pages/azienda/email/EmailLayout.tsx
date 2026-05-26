@@ -333,12 +333,9 @@ export function EmailLayout({
         onFilterChange={applyFilter}
         connections={connections ?? []}
       />
-      <EmailConnectionHealthPanel
-        connections={connections ?? []}
-        companyIdOverride={companyId}
-        settingsPath={settingsPath}
-        variant="compact"
-      />
+      {/* EmailConnectionHealthPanel rimosso 2026-05-26: lo stato sync è ora
+          in fondo alla sidebar (SyncStatusPanel). La diagnostica completa
+          resta accessibile via Impostazioni → Mio profilo → Email. */}
       <EmailAiCommandCenter
         companyIdOverride={companyId}
         onSelectThread={handleSelectThread}
@@ -395,6 +392,7 @@ export function EmailLayout({
           }}
           onCompose={() => openCompose({ mode: "new" })}
           connections={connections ?? []}
+          settingsPath={settingsPath}
         />
       </aside>
 
