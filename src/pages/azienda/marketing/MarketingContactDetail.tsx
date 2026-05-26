@@ -444,7 +444,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     "bg-slate-400 text-white";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-3.5rem)] overflow-hidden bg-background">
+    <div className="flex flex-col min-h-[calc(100vh-8rem)] md:h-[calc(100vh-3.5rem)] md:overflow-hidden bg-background">
       <div className="px-3 pt-2">
         <ApiHealthBanner filter={["whatsapp", "email_marketing"]} />
       </div>
@@ -707,9 +707,18 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-      {/* ══════════ LEFT COLUMN ══════════ */}
-      <div className="hidden lg:flex w-[340px] min-w-[340px] border-r flex-col">
+      <div className="flex flex-col-reverse lg:flex-row flex-1 lg:overflow-hidden">
+      {/* ══════════ LEFT COLUMN / Anagrafica
+          Desktop (lg+): colonna fissa 340px sinistra, scroll interno.
+          Mobile/Tablet: stacked SOTTO la timeline, full width, no scroll interno. */}
+      <div className="flex lg:w-[340px] lg:min-w-[340px] border-t lg:border-t-0 lg:border-r flex-col">
+        {/* Header mobile della sezione anagrafica */}
+        <div className="lg:hidden px-4 py-2 border-b bg-muted/30 sticky top-0 z-10">
+          <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <User className="h-4 w-4 text-muted-foreground" />
+            Anagrafica completa
+          </h3>
+        </div>
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-4">
             {/* Titolare, Follower & Call Center */}
@@ -1074,8 +1083,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         </ScrollArea>
       </div>
 
-      {/* ══════════ CENTER COLUMN — Timeline (Hero gestisce header/banner) ══════════ */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* ══════════ CENTER COLUMN — Timeline (Hero gestisce header/banner)
+          Mobile: altezza limitata 60vh per non spingere troppo in basso l'anagrafica.
+          Desktop: prende tutto lo spazio rimanente. */}
+      <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-auto">
         {/* Unified Timeline */}
         <div className="flex-1 overflow-hidden">
           <UnifiedContactTimeline contactId={id!} companyId={companyId!} />
