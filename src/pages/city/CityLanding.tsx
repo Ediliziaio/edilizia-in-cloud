@@ -459,6 +459,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Roma", slug: "roma" },
       { name: "Milano", slug: "milano" },
     ],
+    localContext: {
+      heading: "Edilizia a Firenze: Soprintendenza, restauro centro storico UNESCO e prezzario Regione Toscana",
+      body: "A Firenze ogni cantiere nel centro storico passa dalla Soprintendenza Archeologia, Belle Arti e Paesaggio: tempi di autorizzazione lunghi, vincoli sulla scelta dei materiali e documentazione fotografica obbligatoria prima/durante/dopo. Le imprese edili fiorentine vivono fra restauro conservativo, ristrutturazioni in palazzi storici e riqualificazione energetica nei comuni della cintura (Scandicci, Sesto, Bagno a Ripoli). Il prezzario Regione Toscana è il riferimento ufficiale per opere pubbliche e per i computi metrici da presentare agli enti.",
+      prezzarioLink: "https://www.regione.toscana.it/-/prezzario-dei-lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Toscana (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su un palazzo storico in centro a Firenze con vincoli Soprintendenza: come gestisco la documentazione fotografica?",
+        a: "Ogni intervento ha la sua scheda con foto ante/in corso/post, geolocalizzate e archiviate per pratica. Quando la Soprintendenza chiede integrazioni dopo mesi, ritrovi tutto in due secondi senza scavare in vecchie chat WhatsApp.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Toscana nei miei preventivi?",
+        a: "Sì. Importi il prezzario Toscana in Excel o PDF, le voci restano indicizzate per categoria e le riusi nei computi metrici delle gare. Quando esce l'aggiornamento annuale lo re-importi senza perdere lo storico commesse.",
+      },
+      {
+        q: "Lavoro in restauro conservativo: come gestisco i preventivi che cambiano durante l'opera?",
+        a: "Sul restauro il preventivo iniziale è solo un punto di partenza. Edilizia in Cloud gestisce varianti in corso d'opera con SAL intermedi: aggiorni il computo, generi la perizia di variante e il cliente vede in tempo reale dove sta andando il budget.",
+      },
+      {
+        q: "Le mie commesse mescolano committenti privati alto-spendenti e enti pubblici: come tengo separati i flussi?",
+        a: "Ogni cantiere ha tipologia committente (privato, ente pubblico, condominio) con flussi fattura e SAL differenziati. I pagamenti PA con split payment e ritenute di garanzia restano isolati dal flusso privato — niente confusione a fine mese.",
+      },
+    ],
   },
 
   genova: {
@@ -508,6 +532,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Milano", slug: "milano" },
       { name: "Torino", slug: "torino" },
       { name: "Firenze", slug: "firenze" },
+    ],
+    localContext: {
+      heading: "Edilizia a Genova: dissesto idrogeologico, ricostruzione ponte e prezzario Regione Liguria",
+      body: "Genova lavora in verticale: caruggi, palazzi nobiliari del centro storico, terrazzamenti collinari fra Albaro e Quarto, frane stagionali in Val Polcevera. Dopo il crollo del Morandi e le alluvioni ricorrenti, una parte importante del mercato è ricostruzione strutturale e consolidamenti finanziati con fondi commissariali e Regione Liguria. Il prezzario regionale ligure è aggiornato dalla Regione e include voci specifiche per opere di difesa del suolo e contenimento — un capitolo che a Genova pesa sul fatturato di quasi ogni impresa.",
+      prezzarioLink: "https://www.regione.liguria.it/homepage-territorio-ambiente-infrastrutture/prezzario-regionale-opere-edili.html",
+      prezzarioLabel: "Prezzario Regione Liguria (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "I miei cantieri sono in caruggi del centro: niente accesso mezzi, materiali a spalla. Come imputo i costi reali?",
+        a: "Su cantieri logisticamente complessi il costo orario manodopera vera è molto più alto del nominale. Imputi ogni movimento materiale come voce a sé e a fine commessa vedi il costo reale di trasporto interno — utile per preventivare meglio il prossimo cantiere in caruggio.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Liguria nelle mie offerte?",
+        a: "Sì. Il prezzario Liguria si importa in formato Excel o PDF, le voci restano indicizzate per ricerca rapida con codice ufficiale. Comodo quando partecipi a gare di Comune di Genova, ASL3 o Autorità di Sistema Portuale che lo richiedono.",
+      },
+      {
+        q: "Lavoro su consolidamenti post-frana finanziati dal Commissario: come gestisco la rendicontazione?",
+        a: "Le commesse finanziate da fondi commissariali hanno SAL certificati e documentazione tecnica obbligatoria. Edilizia in Cloud le gestisce come categoria dedicata con numero pratica regionale, perizia e quadro economico approvato — tutto pronto per i controlli.",
+      },
+      {
+        q: "Le squadre sono spesso senza segnale nei cantieri collinari: l'app funziona offline?",
+        a: "Sì. I capocantiere registrano presenze, ore, foto e materiali offline. Quando rientrano in 4G o WiFi tutto si sincronizza automaticamente — niente fogli appesi al muro del baraccone che si bagnano alla prima pioggia.",
+      },
     ],
   },
 
@@ -559,6 +607,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Palermo", slug: "palermo" },
       { name: "Roma", slug: "roma" },
     ],
+    localContext: {
+      heading: "Edilizia a Bari: appalti PNRR, mercato agrivoltaico pugliese e prezzario Regione Puglia",
+      body: "Bari è la porta dei fondi europei verso il Mezzogiorno: PNRR, FESR, fondi di coesione e PSR pugliese alimentano un mercato di appalti pubblici che le imprese baresi e della BAT vincono spesso in ATI. Il tessuto è duplice — da una parte ristrutturazioni in Bari Vecchia con vincoli storici e calcestruzzi tufacei, dall'altra cantieri industriali, logistici e agrivoltaici nel resto della provincia. Il prezzario Regione Puglia è il riferimento ufficiale per opere pubbliche, integrato con i prezzari ANCE provinciali per le specialistiche.",
+      prezzarioLink: "https://www.regione.puglia.it/web/lavori-pubblici/prezzario-regionale",
+      prezzarioLabel: "Prezzario Regione Puglia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Partecipo a gare PNRR in ATI con altre imprese pugliesi: come tengo i conti separati per ciascun mandante?",
+        a: "Ogni commessa in ATI ha la sua quota di partecipazione percentuale, i costi imputati al mandante e i ricavi ribaltati pro-quota. A fine commessa generi il rendiconto interno per il mandatario e ciascun mandante vede chiaramente il proprio risultato economico.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Puglia nei computi metrici di gara?",
+        a: "Sì. Importi il prezzario Puglia in Excel o PDF, le voci restano indicizzate per codice ufficiale e categoria. Nei computi metrici di gara le richiami direttamente con il codice — niente errori di trascrizione che fanno escludere l'offerta.",
+      },
+      {
+        q: "Gestisco impianti agrivoltaici nel Tavoliere: il software traccia componenti specialistici e rendicontazione GSE?",
+        a: "Sì. Le commesse FER hanno tipologia dedicata con campi per potenza installata, componentistica (pannelli, inverter, strutture), date di connessione e documentazione GSE. Generi rendicontazioni Terna e fatture in regime IVA agevolata senza errori manuali.",
+      },
+      {
+        q: "Ho cantieri sparsi fra Bari, BAT, Foggia e Brindisi. Come monitoro tutto senza essere ovunque?",
+        a: "Ogni cantiere è geolocalizzato e ha la sua dashboard con SAL, costi consuntivati, ore lavorate e margine residuo. Dal tuo telefono vedi in tempo reale dove un cantiere sta sforando — prima che diventi un buco da 30k a fine commessa.",
+      },
+    ],
   },
 
   verona: {
@@ -608,6 +680,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Milano", slug: "milano" },
       { name: "Bologna", slug: "bologna" },
       { name: "Brescia", slug: "brescia" },
+    ],
+    localContext: {
+      heading: "Edilizia a Verona: arena UNESCO, logistica del Quadrilatero e prezzario Regione Veneto",
+      body: "Verona è snodo logistico nazionale fra il Brennero, l'A4 e il porto di Venezia: il mercato edile veronese ruota su capannoni e centri logistici nella Bassa, ristrutturazioni nei borghi della Valpolicella e cantieri delicati nel centro storico UNESCO attorno all'Arena. Le cantine vinicole della Valpolicella e del Soave commissionano regolarmente ampliamenti produttivi con vincoli paesaggistici. Il prezzario Regione Veneto è il riferimento ufficiale, aggiornato annualmente — ed è obbligatorio nelle gare di Comune di Verona e ULSS 9 Scaligera.",
+      prezzarioLink: "https://www.regione.veneto.it/web/lavori-pubblici/prezzario-regionale",
+      prezzarioLabel: "Prezzario Regione Veneto (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su capannoni logistici nella Bassa veronese con tempi di consegna serrati: come monitoro lo stato avanzamento ogni giorno?",
+        a: "I capocantiere aggiornano percentuali di avanzamento e ore lavorate dall'app cantiere. Tu vedi in dashboard il SAL aggiornato giornaliero e ricevi alert se un'attività sta scivolando — il committente logistico vuole il capannone consegnato al giorno, non c'è margine.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Veneto nelle mie offerte di gara?",
+        a: "Sì. Il prezzario Veneto si importa in Excel o PDF e le voci restano indicizzate con codice ufficiale. Nei computi metrici di gara richiami direttamente la voce: il sistema controlla automaticamente se stai usando l'edizione vigente al momento della pubblicazione del bando.",
+      },
+      {
+        q: "Lavoro su una cantina in Valpolicella con vincolo paesaggistico: come gestisco i preventivi e le varianti?",
+        a: "Le cantine sono cantieri tecnicamente complessi: vasche inox, locali climatizzati, vincoli paesaggistici. Generi preventivi articolati per fase (strutture, impianti, finiture) e quando il vincolo paesaggistico impone variante, aggiorni computo e quadro economico in pochi click.",
+      },
+      {
+        q: "Ho cantieri in provincia di Verona, Vicenza e Trento: posso gestire tutto in una sola installazione?",
+        a: "Sì. La piattaforma è un singolo accesso multi-cantiere, multi-regione. Anche se passi un cantiere in PAT (Trento ha prezzario suo), il sistema gestisce prezzari diversi per commessa senza che tu debba duplicare l'anagrafica fornitori o aprire installazioni separate.",
+      },
     ],
   },
 
@@ -659,6 +755,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Verona", slug: "verona" },
       { name: "Torino", slug: "torino" },
     ],
+    localContext: {
+      heading: "Edilizia a Brescia: distretto siderurgico, Franciacorta vinicola e prezzario Regione Lombardia",
+      body: "Brescia è la seconda provincia industriale della Lombardia: distretto siderurgico e meccanico in Val Trompia, vinicolo in Franciacorta, alpino in Val Camonica e Val Sabbia. Le imprese edili bresciane lavorano molto su capannoni produttivi, ampliamenti aziendali e bonifiche di siti industriali dismessi (Caffaro), accanto al residenziale del lago di Garda con vincoli paesaggistici. Il prezzario di riferimento è quello della Regione Lombardia (lo stesso usato a Milano), aggiornato annualmente con oltre 28.000 voci.",
+      prezzarioLink: "https://www.regione.lombardia.it/wps/portal/istituzionale/HP/DettaglioServizio/servizi-e-informazioni/Enti-e-Operatori/territorio/Edilizia-territorio/prezzario-opere-pubbliche-lombardia",
+      prezzarioLabel: "Prezzario Regione Lombardia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su ampliamenti per aziende meccaniche in Val Trompia: come gestisco commesse industriali con tante varianti?",
+        a: "I cantieri industriali raramente finiscono come sono partiti: l'azienda cliente aggiunge linee produttive in corso d'opera. Edilizia in Cloud gestisce le varianti come SAL aggiuntivi con propria perizia e quadro economico, senza scombinare i conti del contratto base.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Lombardia nelle gare con committenti pubblici bresciani?",
+        a: "Sì. Il prezzario Lombardia si importa in Excel o PDF, le voci restano indicizzate con codice ufficiale. Comodo quando partecipi a gare di Comune di Brescia, ATS Brescia o A2A che richiedono il riferimento al prezzario regionale vigente.",
+      },
+      {
+        q: "Cantieri sul lago di Garda con vincolo paesaggistico: come gestisco autorizzazioni e documentazione?",
+        a: "I cantieri lacuali richiedono autorizzazione paesaggistica e spesso documentazione fotografica obbligatoria. Ogni pratica ha la sua scheda con scadenze, foto geolocalizzate e documenti firmati — tutto archiviato e ricercabile anche anni dopo per eventuali controlli.",
+      },
+      {
+        q: "Bonifica e demolizione di sito industriale dismesso: il software gestisce i piani di lavoro amianto e i flussi rifiuti?",
+        a: "Sì. Le commesse bonifica hanno categoria dedicata con piani di lavoro amianto, FIR rifiuti speciali, scadenze SISTRI/RENTRI e tracciabilità del committente bonifica. A fine cantiere generi il dossier completo per il certificato di restituibilità.",
+      },
+    ],
   },
 
   palermo: {
@@ -708,6 +828,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Napoli", slug: "napoli" },
       { name: "Roma", slug: "roma" },
       { name: "Milano", slug: "milano" },
+    ],
+    localContext: {
+      heading: "Edilizia a Palermo: prezzario Regione Sicilia, cantieri isole minori e fondi POR FESR",
+      body: "Palermo è il capoluogo di una regione con prezzario proprio: il prezzario Regione Sicilia è obbligatorio per tutte le opere pubbliche dell'isola, aggiornato dal Dipartimento Tecnico ARTA con voci dedicate al contesto siciliano (tufo calcareo, malte specifiche, trasporto via mare per le isole minori). Il tessuto edile palermitano lavora fra restauro nei mandamenti del centro storico, residenziale a Mondello e cantieri pubblici finanziati con POR FESR e PNRR. Le imprese che operano su Eolie, Egadi e Ustica devono mettere a budget il trasporto marittimo come voce significativa.",
+      prezzarioLink: "https://pti.regione.sicilia.it/portal/page/portal/PIR_PORTALE/PIR_LaStrutturaRegionale/PIR_AssInfrastruttureMobilita/PIR_Areedinteresse/PIR_PrezzarioRegionale",
+      prezzarioLabel: "Prezzario Regione Sicilia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su un cantiere alle Eolie: come metto a budget il trasporto materiali via nave?",
+        a: "Il trasporto marittimo è una voce di costo che a volte vale il 15-20% del cantiere. Crei una voce di preventivo dedicata (m³ o ton via nave) con prezzo per tratta, e a consuntivo vedi quanto hai effettivamente speso fra noli, traghetti e movimentazione a terra.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Sicilia nei computi di gara?",
+        a: "Sì. Il prezzario Sicilia si importa in Excel o PDF, le voci restano indicizzate per codice ufficiale. Nei computi metrici di gara richiami direttamente la voce — utile soprattutto per gare di Città Metropolitana di Palermo, ASP e Genio Civile.",
+      },
+      {
+        q: "Restauro in un palazzo nobiliare nei mandamenti: come gestisco la rendicontazione per i fondi regionali?",
+        a: "I fondi regionali siciliani per restauro richiedono documentazione fotografica datata, perizia asseverata e SAL certificati. Edilizia in Cloud archivia tutto per pratica con numero protocollo regionale — quando arrivano i controlli (anche dopo 2-3 anni) trovi ogni documento in pochi secondi.",
+      },
+      {
+        q: "Ho cantieri sparsi fra Palermo città e provincia: come tengo sotto controllo squadre e ore lavorate?",
+        a: "Ogni cantiere è geolocalizzato e i capocantiere timbrano ingresso/uscita con GPS dall'app. Vedi in tempo reale chi è dove, ore lavorate per commessa e produttività per squadra. Le ore confluiscono direttamente sulla commessa giusta — niente fogli excel a fine mese da ricostruire.",
+      },
     ],
   },
 
@@ -759,6 +903,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Napoli", slug: "napoli" },
       { name: "Bari", slug: "bari" },
     ],
+    localContext: {
+      heading: "Edilizia a Catania: zona sismica Etna, polo tecnologico STMicroelectronics e prezzario Regione Sicilia",
+      body: "Catania è zona sismica di prima categoria: tutti i nuovi edifici e gli adeguamenti su esistenti passano per relazione sismica e collaudo. Le imprese edili catanesi lavorano in tre mercati distinti — adeguamento sismico finanziato (Sismabonus), espansione del polo tecnologico Etna Valley con capannoni e uffici per STMicroelectronics e indotto, ricettivo lungo la costa ionica e nei borghi della Riviera dei Ciclopi. Il prezzario di riferimento è quello Regione Sicilia, vincolante per opere pubbliche e per le pratiche legate al Genio Civile.",
+      prezzarioLink: "https://pti.regione.sicilia.it/portal/page/portal/PIR_PORTALE/PIR_LaStrutturaRegionale/PIR_AssInfrastruttureMobilita/PIR_Areedinteresse/PIR_PrezzarioRegionale",
+      prezzarioLabel: "Prezzario Regione Sicilia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Faccio adeguamento sismico con Sismabonus 110/85: come gestisco asseverazioni, SAL 30/60/100 e cessione del credito?",
+        a: "Le commesse Sismabonus hanno tipologia dedicata con scadenze SAL al 30%/60%/saldo, asseverazioni tecniche di congruità e tracciamento cessione del credito. Generi il fascicolo per il visto di conformità in pochi click — senza ricostruirlo manualmente da Excel sparsi.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Sicilia nei miei preventivi?",
+        a: "Sì. Il prezzario Sicilia si importa in Excel o PDF, le voci restano indicizzate per ricerca rapida con codice ufficiale. Quando il Genio Civile chiede il computo metrico per pratica sismica, lo generi direttamente con i codici di prezzario richiesti.",
+      },
+      {
+        q: "Lavoro come fornitore di costruzioni per Etna Valley (STM, uffici tecnologici): come gestisco capitolati con tempi e qualità da multinazionale?",
+        a: "I committenti tech vogliono SAL settimanali, foto-report giornalieri e SLA contrattuali sui ritardi. Edilizia in Cloud gestisce le commesse industriali con dashboard pubblica per il committente — gli dai accesso in lettura e smettono di chiamarti ogni due giorni per gli aggiornamenti.",
+      },
+      {
+        q: "Cantieri ricettivi sulla Riviera dei Ciclopi con apertura estiva fissa: come garantisco la consegna nei tempi?",
+        a: "Sui ricettivi la data di apertura non si sposta. Lavori a ritroso dal 1° giugno e Edilizia in Cloud ti avvisa con alert quando una lavorazione critica sta scivolando. Vedi a colpo d'occhio se sei in linea o se devi mettere un'altra squadra per recuperare.",
+      },
+    ],
   },
 
   venezia: {
@@ -808,6 +976,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Verona", slug: "verona" },
       { name: "Padova", slug: "padova" },
       { name: "Bologna", slug: "bologna" },
+    ],
+    localContext: {
+      heading: "Edilizia a Venezia: restauro lagunare, MOSE e prezzario Regione Veneto",
+      body: "Venezia non è una città normale per chi fa edilizia: trasporto materiali esclusivamente via acqua con motonavi e pontoni, fondazioni su pali in larice, vincolo Soprintendenza praticamente ovunque, acqua alta che blocca i cantieri in laguna per giorni. Le imprese veneziane lavorano fra restauro nei sestieri storici, manutenzione delle opere del MOSE su Lido e Pellestrina, riqualificazione alberghi di lusso e residenze in terraferma (Mestre, Marghera). Il prezzario Regione Veneto include voci specifiche per opere in laguna e trasporti acquei.",
+      prezzarioLink: "https://www.regione.veneto.it/web/lavori-pubblici/prezzario-regionale",
+      prezzarioLabel: "Prezzario Regione Veneto (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Trasporto materiali via barca costa 3-4 volte la gomma: come metto a budget i noli motonave per ogni cantiere?",
+        a: "Ogni cantiere veneziano ha voce di costo dedicata 'trasporto acqueo' con tariffa al m³ o al viaggio. Imputi noli, attese alla bocca di porto e maree. A consuntivo vedi il costo logistico reale per separarlo dal costo opera — utile per imparare a preventivare il prossimo cantiere lagunare.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Veneto nei computi per Soprintendenza e Provveditorato Opere Pubbliche?",
+        a: "Sì. Il prezzario Veneto si importa in Excel o PDF, le voci restano indicizzate con codice ufficiale. Comodo soprattutto per le pratiche con Soprintendenza Speciale di Venezia e Provveditorato OOPP del Triveneto che richiedono prezzario regionale aggiornato.",
+      },
+      {
+        q: "L'acqua alta blocca il cantiere per 5-7 giorni l'anno: come tengo traccia dei giorni di forza maggiore per i SAL?",
+        a: "Apri un giornale dei lavori con voci di sospensione per causa di forza maggiore, foto del cantiere allagato e durata effettiva. Il computo SAL si aggiorna automaticamente e hai documentazione pronta da allegare a varianti o richieste di proroga al committente.",
+      },
+      {
+        q: "Restauro in un palazzo storico con vincolo Soprintendenza: come gestisco la documentazione fotografica obbligatoria?",
+        a: "Ogni intervento ha scheda con foto ante/in corso/post, geolocalizzate e datate, archiviate per pratica con numero protocollo Soprintendenza. Quando arriva l'ispezione (anche dopo 5 anni) hai tutto in archivio digitale ricercabile per data, fase o operatore.",
+      },
     ],
   },
 
@@ -859,6 +1051,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Verona", slug: "verona" },
       { name: "Bologna", slug: "bologna" },
     ],
+    localContext: {
+      heading: "Edilizia a Padova: hub universitario, polo produttivo della Marca padovana e prezzario Regione Veneto",
+      body: "Padova vive di una doppia anima: capitale universitaria con domanda forte di studentati, residence e edilizia legata ad Azienda Ospedaliera, e centro produttivo veneto con cantieri industriali nei comuni della cintura (Limena, Vigodarzere, Albignasego). La provincia è anche fra le aree più dense d'Italia per ristrutturazioni energetiche di immobili anni '70-'80. Il prezzario di riferimento per opere pubbliche è quello della Regione Veneto, vincolante nelle gare di Comune di Padova, ULSS 6 Euganea e Università.",
+      prezzarioLink: "https://www.regione.veneto.it/web/lavori-pubblici/prezzario-regionale",
+      prezzarioLabel: "Prezzario Regione Veneto (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Costruisco uno studentato finanziato con DM 481/2020 (housing universitario): come gestisco SAL e rendicontazione MUR?",
+        a: "Le commesse housing universitario hanno scadenze rigide e rendicontazione al Ministero. Edilizia in Cloud le gestisce come categoria dedicata con SAL allineati al cronoprogramma di gara, foto-report mensili e documentazione MUR pronta da inviare — niente ricostruzioni manuali a fine anno.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Veneto nei computi per Università di Padova e ULSS 6?",
+        a: "Sì. Il prezzario Veneto si importa in Excel o PDF, le voci restano indicizzate per codice ufficiale. Negli appalti universitari e sanitari richiami le voci direttamente — riduci errori di trascrizione che fanno escludere offerte ben fatte.",
+      },
+      {
+        q: "Lavoro su 15 ristrutturazioni residenziali con Bonus Casa simultaneamente: come tengo separati cantieri, SAL e fatture?",
+        a: "Ogni cantiere è una commessa a sé con il proprio cliente, computo, SAL e fatture. Dalla dashboard vedi quali sono in linea, quali in ritardo e quali stanno erodendo margine. Le fatture viaggiano col codice commessa — il commercialista non ti chiama più alle 22.",
+      },
+      {
+        q: "Polo industriale Padova Est: capannoni con tempi di consegna serrati. Come monitoro produttività squadre e cronoprogramma?",
+        a: "Dashboard cantiere con percentuale di avanzamento lavorazioni, ore squadra giornaliere e produttività confrontata con il preventivo. Se una squadra sta sotto-produttiva ricevi alert e puoi intervenire prima che il ritardo diventi penale contrattuale.",
+      },
+    ],
   },
 
   bergamo: {
@@ -909,6 +1125,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Brescia", slug: "brescia" },
       { name: "Verona", slug: "verona" },
     ],
+    localContext: {
+      heading: "Edilizia a Bergamo: distretto produttivo della Bassa, ricostruzione post-Covid e prezzario Regione Lombardia",
+      body: "Bergamo è una delle province più imprenditoriali d'Italia: la Bassa bergamasca (Treviglio, Caravaggio) è cintura industriale con cantieri continui per capannoni e logistica, mentre l'area pedemontana e le valli orobiche (Val Seriana, Val Brembana) hanno cantieri stagionali in montagna con stagionalità neve. Dopo il 2020 la spinta su housing privato e ristrutturazioni energetiche è stata fortissima. Il prezzario di riferimento è quello della Regione Lombardia, lo stesso di Milano e Brescia.",
+      prezzarioLink: "https://www.regione.lombardia.it/wps/portal/istituzionale/HP/DettaglioServizio/servizi-e-informazioni/Enti-e-Operatori/territorio/Edilizia-territorio/prezzario-opere-pubbliche-lombardia",
+      prezzarioLabel: "Prezzario Regione Lombardia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su capannoni logistici nella Bassa per committenti come Amazon o Maersk: come gestisco SAL settimanali e penali sui tempi?",
+        a: "I committenti logistici grandi vogliono SAL settimanali con foto e percentuali per lavorazione. Edilizia in Cloud genera SAL automatici dal cronoprogramma e dalla raccolta dati cantiere — niente più nottate a costruire il report del lunedì mattina.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Lombardia nei miei preventivi?",
+        a: "Sì. Il prezzario Lombardia si importa in Excel o PDF, voci indicizzate con codice ufficiale. Utile soprattutto per gare di Comune di Bergamo, ATS Bergamo e ASST Papa Giovanni XXIII che lo richiedono esplicitamente nei documenti di gara.",
+      },
+      {
+        q: "Cantieri stagionali in Val Seriana con neve: come gestisco le sospensioni e l'avvio primaverile?",
+        a: "Apri commessa a inizio anno con cronoprogramma stagionale: tieni in sospensione i mesi non operativi, riprendi a primavera senza ricreare la commessa. I costi sostenuti in inverno (sorveglianza, accantonamenti) restano correttamente attribuiti.",
+      },
+      {
+        q: "Ho 20 cantieri di ristrutturazione residenziale aperti in città e in valle: come faccio a sapere quali stanno erodendo margine?",
+        a: "Dashboard con tutti i cantieri visualizzati per margine residuo, percentuale di completamento e scostamento da preventivo. I cantieri in rosso (margine sotto soglia) emergono subito — intervieni prima che il buco si chiuda solo a fine commessa.",
+      },
+    ],
   },
 
   modena: {
@@ -958,6 +1198,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Bologna", slug: "bologna" },
       { name: "Reggio Emilia", slug: "reggio-emilia" },
       { name: "Parma", slug: "parma" },
+    ],
+    localContext: {
+      heading: "Edilizia a Modena: distretto motor valley, ricostruzione post-sisma 2012 e prezzario Regione Emilia-Romagna",
+      body: "Modena è il cuore della Motor Valley (Ferrari, Maserati, Lamborghini, Pagani, Ducati nella vicina Bologna): le imprese edili modenesi costruiscono e ampliano stabilimenti automotive con esigenze tecniche elevate. La Bassa modenese — Mirandola, Cavezzo, San Felice — sta ancora completando la ricostruzione post-sisma maggio 2012 con commesse seguite dal Commissario Delegato. La Food Valley genera continuamente cantieri agroalimentari con vincoli HACCP. Il prezzario di riferimento è quello Regione Emilia-Romagna, aggiornato annualmente.",
+      prezzarioLink: "https://territorio.regione.emilia-romagna.it/lavori-pubblici",
+      prezzarioLabel: "Prezzario opere pubbliche Regione Emilia-Romagna",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su un ampliamento per un fornitore Ferrari: standard qualitativi alti e tempi rigidi. Come gestisco SAL e foto-report?",
+        a: "Le commesse automotive hanno SAL spesso settimanali con foto e percentuali per lavorazione. Edilizia in Cloud genera report personalizzabili che invii direttamente al committente — perfetto quando lavori per fornitori di primo livello che vogliono visibilità totale.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Emilia-Romagna nei computi metrici per gare pubbliche?",
+        a: "Sì. Il prezzario Emilia-Romagna 2026 si importa in Excel o PDF e le voci restano indicizzate con codici ufficiali. Nelle gare di Comune di Modena, ASL Modena o Provincia richiami direttamente le voci richieste — senza errori manuali che fanno escludere.",
+      },
+      {
+        q: "Ho ancora commesse ricostruzione post-sisma 2012 aperte nella Bassa: come gestisco SAL Commissario e perizia di variante?",
+        a: "Le commesse post-sisma hanno categoria dedicata con campo numero pratica regionale, perizia asseverata, SAL approvati dal Commissario per la Ricostruzione e tracciamento contributo. Generi il fascicolo per il controllo in pochi click — anche per pratiche aperte da anni.",
+      },
+      {
+        q: "Stabilimento agroalimentare con vincoli HACCP: come gestisco i preventivi con materiali certificati food-grade?",
+        a: "Crei voci di prezzario personalizzate con materiali certificati food-grade (resine epossidiche alimentari, pannelli isotermici, pavimenti drenanti) e le riusi su tutti i cantieri food. Le specifiche tecniche restano allegate al preventivo per il certificatore HACCP.",
+      },
     ],
   },
 
@@ -1059,6 +1323,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Modena", slug: "modena" },
       { name: "Bologna", slug: "bologna" },
     ],
+    localContext: {
+      heading: "Edilizia a Parma: Food Valley, polo ospedaliero universitario e prezzario Regione Emilia-Romagna",
+      body: "Parma è il centro della Food Valley italiana: Barilla, Parmalat, Mutti e centinaia di caseifici e prosciuttifici alimentano un mercato continuo di stabilimenti agroalimentari nuovi e ampliati, con normativa HACCP e celle frigorifere certificate. Il polo ospedaliero universitario (Maggiore) genera commesse sanitarie con specifiche tecniche stringenti. Il centro storico di Parma e i palazzi nobiliari (Palazzo della Pilotta, Reggia di Colorno) richiedono restauri sotto vincolo Soprintendenza. Il prezzario di riferimento è quello Regione Emilia-Romagna.",
+      prezzarioLink: "https://territorio.regione.emilia-romagna.it/lavori-pubblici",
+      prezzarioLabel: "Prezzario opere pubbliche Regione Emilia-Romagna",
+    },
+    localFaqs: [
+      {
+        q: "Costruisco un caseificio per stagionatura Parmigiano-Reggiano: tempi e umidità sono critici. Come gestisco la commessa?",
+        a: "I caseifici hanno specifiche edili rigide (pendenze pavimento, ventilazione, umidità controllata). Edilizia in Cloud gestisce il computo per fase con materiali certificati, e i SAL si allineano alle pause per le ispezioni del Consorzio. Niente improvvisazione su un cantiere che vale milioni.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Emilia-Romagna nei computi metrici delle gare?",
+        a: "Sì. Il prezzario Emilia-Romagna 2026 si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo nelle gare di Azienda Ospedaliero-Universitaria di Parma, Comune e Università che lo richiedono nei capitolati.",
+      },
+      {
+        q: "Lavoro all'Ospedale Maggiore: standard tecnici sanitari + tempi rigidi senza fermare l'attività. Come gestisco la commessa?",
+        a: "Le commesse ospedaliere lavorano in cantiere occupato: fasi notturne, isolamento polveri, percorsi sporchi/puliti. Crei un cronoprogramma per fasi con vincoli operativi annotati e il committente sanitario vede in tempo reale dove sei.",
+      },
+      {
+        q: "Restauro in un palazzo nobiliare del centro storico: come gestisco fotodocumentazione Soprintendenza e varianti?",
+        a: "Foto ante/in corso/post geolocalizzate per ogni lavorazione, archiviate per pratica con numero protocollo Soprintendenza. Quando emergono varianti (e su un palazzo storico emergono sempre) aggiorni computo e perizia in pochi click senza perdere lo storico delle decisioni prese.",
+      },
+    ],
   },
 
   salerno: {
@@ -1108,6 +1396,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Napoli", slug: "napoli" },
       { name: "Bari", slug: "bari" },
       { name: "Roma", slug: "roma" },
+    ],
+    localContext: {
+      heading: "Edilizia a Salerno: Costiera Amalfitana, Piana del Sele e prezzario Regione Campania",
+      body: "Salerno è provincia spezzata in tre realtà edili diverse: città capoluogo con riqualificazione del waterfront e zona portuale, Costiera Amalfitana con cantieri logisticamente impossibili (strade strette, materiali calati con grù dal mare, vincoli UNESCO totali), Piana del Sele e Cilento con edilizia agricola e turistica diffusa. La provincia ha attratto importanti fondi PNRR e POR Campania per riqualificazione urbana e infrastrutture. Il prezzario di riferimento è quello Regione Campania, vincolante per opere pubbliche regionali e comunali.",
+      prezzarioLink: "https://www.regione.campania.it/regione/it/tematiche/lavori-pubblici/prezzario-regionale-dei-lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Campania (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su una villa in Costiera Amalfitana: niente accesso mezzi pesanti, materiali via mare con calcestruzzo a pompa. Come imputo i costi reali?",
+        a: "La Costiera ti costringe a voci di costo che a Eboli non hai: nolo motonave, gruisti, sospensioni, calatura con pompa. Imputi tutto come voci dedicate e a fine commessa hai un vero benchmark: la prossima volta che preventivi in Costiera sai esattamente dove stai andando.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Campania nei computi metrici di gara?",
+        a: "Sì. Il prezzario Campania si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Salerno, ASL Salerno, ARSAC e tutte le opere pubbliche regionali — richiami le voci direttamente senza errori.",
+      },
+      {
+        q: "Cantiere ricettivo in Cilento con apertura 1° giugno: come garantisco la consegna nei tempi?",
+        a: "Sui ricettivi la data non si sposta. Lavori a ritroso dal 1° giugno con cronoprogramma e Edilizia in Cloud ti avvisa con alert quando una lavorazione critica sta scivolando. Decidi se mettere una squadra extra o avvertire il committente prima del disastro.",
+      },
+      {
+        q: "Partecipo a gare PNRR di Comune di Salerno: come gestisco SAL, anticipazione 20%, DURC e rendicontazione?",
+        a: "Le commesse PNRR hanno tipologia dedicata con tracciamento anticipazione, SAL certificati, DURC con alert in scadenza e rendicontazione pronta per Regis. Generi i documenti per i controlli ANAC e Corte dei Conti senza ricostruirli da zero a posteriori.",
+      },
     ],
   },
 
@@ -1159,6 +1471,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Udine", slug: "udine" },   // udine config aggiunto in Fix 65
       { name: "Padova", slug: "padova" },
     ],
+    localContext: {
+      heading: "Edilizia a Trieste: porto, restauro asburgico e prezzario Regione FVG",
+      body: "Trieste è città di confine: cantieri portuali con normativa specifica per le aree demaniali (Autorità di Sistema Portuale del Mare Adriatico Orientale), restauro del patrimonio asburgico (palazzi neoclassici e Liberty del centro), cantieri transfrontalieri con squadre italiane, slovene e croate (occorre gestire CCNL diversi e documentazione bilingue). Il prezzario Regione Friuli-Venezia Giulia è il riferimento ufficiale, aggiornato annualmente dalla Direzione Centrale Infrastrutture e Territorio.",
+      prezzarioLink: "https://www.regione.fvg.it/rafvg/cms/RAFVG/infrastrutture-lavori-pubblici/lavori-pubblici/prezziario-regionale-opere/",
+      prezzarioLabel: "Prezzario Regione FVG (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro nel porto di Trieste su concessioni demaniali: come gestisco autorizzazioni Autorità Portuale e tempi di accesso?",
+        a: "I cantieri portuali hanno vincoli rigidi su orari, accessi merci e coordinamento con operatività navale. Ogni commessa ha numero pratica Autorità Portuale, autorizzazioni scadenze e documenti archiviati per pratica — tutto pronto quando arrivano ispezioni.",
+      },
+      {
+        q: "Posso importare il prezzario Regione FVG nelle gare di Comune di Trieste e Università?",
+        a: "Sì. Il prezzario FVG si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Trieste, ASUGI e Università degli Studi di Trieste che richiedono il riferimento al prezzario regionale vigente.",
+      },
+      {
+        q: "Restauro in palazzo Liberty del centro storico: come gestisco fotodocumentazione Soprintendenza e materiali certificati?",
+        a: "Ogni intervento ha scheda con foto ante/in corso/post e specifica tecnica del materiale (stucchi, dorature, calci aeree). Edilizia in Cloud archivia tutto per pratica con numero protocollo Soprintendenza — utile anche quando, dopo anni, devi dimostrare cosa hai fatto.",
+      },
+      {
+        q: "Ho squadre miste italiane e slovene su un cantiere: come gestisco contratti, ore lavorate e documentazione bilingue?",
+        a: "Gestisci squadre miste con CCNL e tariffe orarie differenziate per nazionalità del lavoratore. Le ore confluiscono sulla commessa col costo corretto e generi documenti bilingue (italiano/sloveno) per il committente transfrontaliero.",
+      },
+    ],
   },
 
   cagliari: {
@@ -1208,6 +1544,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Palermo", slug: "palermo" },
       { name: "Catania", slug: "catania" },
       { name: "Napoli", slug: "napoli" },
+    ],
+    localContext: {
+      heading: "Edilizia a Cagliari: prezzario Regione Sardegna, trasporto materiali via nave e fondi PNRR per l'isola",
+      body: "Cagliari è il punto di ingresso del materiale edile in Sardegna: lo stoccaggio del cemento di cementeria locale (Cementir) è ridotto, e quasi tutto l'acciaio, le finiture e i componenti specialistici arrivano via traghetto. Il costo logistico via nave incide tipicamente del 10-15% sul cantiere — voce che a Milano non esiste. La provincia mescola residenziale costiero (Poetto, Quartu, Villasimius), capannoni industriali nella zona di Macchiareddu, riqualificazioni nel centro storico (Castello, Marina, Stampace) e cantieri PNRR distribuiti. Il prezzario di riferimento è quello Regione Sardegna.",
+      prezzarioLink: "https://www.regione.sardegna.it/index.php?xsl=509&s=1&v=9&c=42",
+      prezzarioLabel: "Prezzario Regione Sardegna (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Materiali in arrivo via traghetto da Civitavecchia o Genova: come gestisco i ritardi nave e impatto sui cantieri?",
+        a: "Ogni ordine fornitore ha tracciamento data di partenza e arrivo prevista. Quando una nave salta o slitta vedi subito quali cantieri saranno impattati e puoi avvisare il committente prima che diventi un problema — invece di scoprirlo solo quando manca il materiale in cantiere.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Sardegna nei computi metrici per gare in Sardegna?",
+        a: "Sì. Il prezzario Sardegna si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Cagliari, Città Metropolitana, ATS Sardegna e Regione che lo richiedono nei documenti di gara.",
+      },
+      {
+        q: "Cantieri ricettivi sul Poetto con apertura stagionale: come gestisco cronoprogramma e penali da contratto?",
+        a: "Sul ricettivo non si scherza con i tempi: prima del 1° giugno tutto deve essere pronto. Lavori con cronoprogramma a ritroso e Edilizia in Cloud ti avvisa con alert quando una lavorazione critica sta scivolando. Decidi se rinforzare squadra o avvertire il committente.",
+      },
+      {
+        q: "Lavoro su un appalto PNRR di scuola a Cagliari: come gestisco SAL, anticipazione 20% e rendicontazione?",
+        a: "Le commesse PNRR hanno tipologia dedicata con tracciamento anticipazione, SAL approvati, DURC con alert in scadenza e documentazione pronta per Regis e controlli ANAC. Generi il fascicolo per qualsiasi controllo senza ricostruire mesi di carte da Excel sparsi.",
+      },
     ],
   },
 
@@ -1259,6 +1619,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Roma", slug: "roma" },
       { name: "Ancona", slug: "ancona" },
     ],
+    localContext: {
+      heading: "Edilizia a Perugia: ricostruzione post-sisma 2016, borghi medievali e prezzario Regione Umbria",
+      body: "L'Umbria è ancora in piena ricostruzione: il sisma 2016 ha colpito la fascia appenninica (Norcia, Cascia, Preci) e i cantieri seguono ancora protocolli del Commissario Straordinario alla Ricostruzione. La provincia di Perugia ha inoltre una densità altissima di borghi medievali vincolati (Assisi UNESCO, Spello, Bevagna, Trevi) dove ogni intervento passa da Soprintendenza, e una vivacità di agriturismi e cantine vinicole (Sagrantino, Grechetto) che commissionano regolarmente ampliamenti. Il prezzario di riferimento è quello Regione Umbria, integrato con i prezzari del Commissario Sisma per le opere finanziate.",
+      prezzarioLink: "https://www.regione.umbria.it/lavori-pubblici/elenco-prezzi",
+      prezzarioLabel: "Prezzario Regione Umbria (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su una ricostruzione post-sisma in Valnerina: come gestisco SAL Commissario, contributo concesso e cessione del credito?",
+        a: "Le commesse sisma 2016 hanno categoria dedicata con campi numero pratica regionale, perizia asseverata, importo contributo concesso, SAL approvati dal Commissario e tracciamento cessione del credito. Generi il fascicolo per i controlli ASR senza ricostruirlo da Excel.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Umbria nei computi metrici di gara?",
+        a: "Sì. Il prezzario Umbria si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Perugia, USL Umbria 1 e Regione Umbria. Per le commesse sisma puoi affiancare il prezzario Commissario dove richiesto.",
+      },
+      {
+        q: "Restauro in un borgo medievale di Assisi UNESCO: come gestisco autorizzazioni Soprintendenza e fotodocumentazione?",
+        a: "Ogni intervento ha scheda con foto ante/in corso/post, geolocalizzate e datate, archiviate per pratica con numero protocollo Soprintendenza. La documentazione resta consultabile anche anni dopo per eventuali ispezioni o varianti.",
+      },
+      {
+        q: "Ristrutturo un agriturismo con vincolo paesaggistico: come gestisco preventivo, varianti in corso d'opera e contributi PSR?",
+        a: "Gli agriturismi con contributo PSR Umbria richiedono perizia approvata e SAL coerenti con il programma di spesa. Edilizia in Cloud gestisce le commesse PSR con campi dedicati per il numero pratica e la rendicontazione di spesa pronta per i controlli AGEA.",
+      },
+    ],
   },
 
   ancona: {
@@ -1308,6 +1692,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Perugia", slug: "perugia" },
       { name: "Bologna", slug: "bologna" },
       { name: "Roma", slug: "roma" },
+    ],
+    localContext: {
+      heading: "Edilizia ad Ancona: ricostruzione post-sisma 2016, riviera adriatica e prezzario Regione Marche",
+      body: "Ancona è capoluogo di una regione ancora segnata dal sisma 2016: l'entroterra marchigiano (Camerino, Visso, Tolentino, Macerata) ha cantieri di ricostruzione ancora attivi sotto il Commissario Straordinario. La costa adriatica vive di edilizia ricettiva e residenziale stagionale (Conero, Senigallia, Civitanova), mentre il porto di Ancona genera commesse infrastrutturali con Autorità di Sistema Portuale del Mare Adriatico Centrale. Il prezzario di riferimento è quello Regione Marche, integrato con i prezzari Commissario per le opere finanziate dal sisma.",
+      prezzarioLink: "https://www.regione.marche.it/Regione-Utile/Edilizia",
+      prezzarioLabel: "Prezzario Regione Marche (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su ricostruzione post-sisma 2016 nell'entroterra marchigiano: come gestisco la pratica con il Commissario Straordinario?",
+        a: "Le commesse sisma 2016 hanno categoria dedicata con numero scheda AeDES, perizia asseverata, importo contributo concesso, SAL certificati e tracciamento cessione del credito. Tutto il fascicolo è pronto per i controlli ASR senza ricostruirlo manualmente.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Marche nei computi metrici di gara?",
+        a: "Sì. Il prezzario Marche si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Ancona, ASUR Marche e Provincia. Per le commesse sisma affianchi il prezzario Commissario quando richiesto dalla pratica.",
+      },
+      {
+        q: "Cantieri ricettivi sulla riviera del Conero con apertura entro fine maggio: come monitoro produttività e cronoprogramma?",
+        a: "Sul ricettivo non si sgarra coi tempi. Lavori a ritroso dalla data di apertura con cronoprogramma e Edilizia in Cloud ti avvisa con alert quando una lavorazione critica sta scivolando. Decidi se rinforzare squadra o aprire variante prima del disastro.",
+      },
+      {
+        q: "Lavoro nel porto di Ancona su concessioni demaniali: come gestisco le autorizzazioni di Autorità Portuale?",
+        a: "I cantieri portuali hanno vincoli rigidi su orari, accessi e coordinamento con operatività navale. Ogni commessa ha numero pratica Autorità Portuale, scadenze autorizzazioni con alert e documenti archiviati per pratica — utile per le ispezioni demaniali.",
+      },
     ],
   },
   udine: {
@@ -1431,6 +1839,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Palermo", slug: "palermo" },
       { name: "Reggio Calabria", slug: "reggio-calabria" },
     ],
+    localContext: {
+      heading: "Edilizia a Messina: zona sismica Stretto, isole Eolie e prezzario Regione Sicilia",
+      body: "Messina è la provincia siciliana con maggiore complessità sismica: l'intera area dello Stretto è classificata zona 1, eredità del terremoto del 1908. Ogni nuovo edificio o adeguamento richiede relazione sismica con calcoli dedicati. La provincia gestisce anche le Eolie (Lipari, Salina, Vulcano, Stromboli, Panarea, Filicudi, Alicudi) dove l'edilizia ha vincoli paesaggistici stringenti, trasporto materiali via mare e stagionalità turistica forte. Il prezzario di riferimento è quello Regione Sicilia con voci specifiche per isole minori.",
+      prezzarioLink: "https://pti.regione.sicilia.it/portal/page/portal/PIR_PORTALE/PIR_LaStrutturaRegionale/PIR_AssInfrastruttureMobilita/PIR_Areedinteresse/PIR_PrezzarioRegionale",
+      prezzarioLabel: "Prezzario Regione Sicilia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Adeguamento sismico su edificio storico a Messina con Sismabonus: come gestisco asseverazioni e SAL?",
+        a: "Le commesse Sismabonus hanno categoria dedicata con scadenze SAL 30/60/saldo, asseverazioni tecniche di congruità, classe di rischio sismico ante/post e tracciamento cessione del credito. Generi il fascicolo per il visto di conformità senza ricostruirlo da Excel sparsi.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Sicilia nei miei preventivi?",
+        a: "Sì. Il prezzario Sicilia si importa in Excel o PDF, voci indicizzate per codice ufficiale. Quando il Genio Civile chiede il computo metrico per pratica sismica lo generi direttamente con i codici di prezzario richiesti dalla normativa.",
+      },
+      {
+        q: "Lavoro su un cantiere a Lipari: trasporto via nave, stagionalità turistica, niente reperibilità a settembre. Come gestisco?",
+        a: "Il cantiere isola ha voci di trasporto marittimo dedicate (m³ via nave, traghetti, movimentazione a terra) e cronoprogramma con sospensione estiva forzata. A consuntivo vedi il costo logistico reale e impari a preventivare correttamente il prossimo cantiere alle Eolie.",
+      },
+      {
+        q: "Cantieri ricettivi sulla costa tirrenica messinese con apertura entro maggio: come gestisco penali e cronoprogramma?",
+        a: "Sui ricettivi i tempi sono ferro. Lavori a ritroso dalla data di apertura, ricevi alert sulle lavorazioni critiche in ritardo e decidi se rinforzare la squadra o avvertire il committente prima che diventi una causa per inadempimento.",
+      },
+    ],
   },
   livorno: {
     name: "Livorno",
@@ -1479,6 +1911,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Firenze", slug: "firenze" },
       { name: "Pisa", slug: "pisa" },
       { name: "Prato", slug: "prato" },
+    ],
+    localContext: {
+      heading: "Edilizia a Livorno: porto, costa etrusca e prezzario Regione Toscana",
+      body: "Livorno è la seconda città portuale italiana per traffico merci: cantieri sul demanio portuale con autorizzazioni Autorità di Sistema Portuale del Mar Tirreno Settentrionale, edifici Art Nouveau del centro con vincoli Soprintendenza, e cantieri lungo la costa etrusca (Castiglioncello, Cecina, San Vincenzo, Piombino) tipicamente ricettivi. La provincia include anche l'isola d'Elba con logistica via traghetto e stagionalità turistica forte. Il prezzario di riferimento è quello Regione Toscana.",
+      prezzarioLink: "https://www.regione.toscana.it/-/prezzario-dei-lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Toscana (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Cantiere sul demanio portuale di Livorno: come gestisco autorizzazioni Autorità Portuale e accessi cantierizzazione?",
+        a: "I cantieri portuali hanno vincoli rigidi su orari, accessi merci e coordinamento con operatività navale. Ogni commessa ha numero pratica Autorità Portuale, scadenze autorizzazioni con alert e foto-report archiviati per pratica — utile per ispezioni demaniali.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Toscana nei computi metrici di gara?",
+        a: "Sì. Il prezzario Toscana si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Livorno, ASL Toscana Nord-Ovest e Provincia che lo richiedono nei capitolati.",
+      },
+      {
+        q: "Cantiere ricettivo all'Elba con stagionalità: come gestisco trasporto materiali via traghetto e tempi rigidi?",
+        a: "Il cantiere isola ha voci dedicate per traghetto (nolo, andata/ritorno, movimentazione), cronoprogramma con apertura entro 1° giugno fisso e alert sulle lavorazioni critiche in ritardo. Decidi se rinforzare squadra prima che il committente apra una controversia.",
+      },
+      {
+        q: "Restauro di un edificio Liberty in centro Livorno con vincolo Soprintendenza: come gestisco fotodocumentazione?",
+        a: "Ogni intervento ha scheda con foto ante/in corso/post geolocalizzate, archiviate per pratica con numero protocollo Soprintendenza. Quando la pratica torna dopo mesi con richieste integrazioni, ritrovi tutto in due secondi senza scavare in vecchie chat.",
+      },
     ],
   },
   prato: {
@@ -1529,6 +1985,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Livorno", slug: "livorno" },
       { name: "Bologna", slug: "bologna" },
     ],
+    localContext: {
+      heading: "Edilizia a Prato: distretto tessile, capannoni industriali e prezzario Regione Toscana",
+      body: "Prato è il distretto tessile più grande d'Europa: il tessuto edile pratese lavora prevalentemente su capannoni industriali, espansioni di laboratori tessili e logistica per moda fast (Macrolotto). La componente residenziale è cresciuta molto con la comunità cinese (sopra i 25.000 residenti) che ha ridisegnato il mercato immobiliare di seconda fascia. La provincia ha vincoli idraulici importanti per il rischio esondazione Bisenzio. Il prezzario di riferimento è quello Regione Toscana, lo stesso usato a Firenze e Livorno.",
+      prezzarioLink: "https://www.regione.toscana.it/-/prezzario-dei-lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Toscana (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Capannone tessile con esigenze specifiche (impianti aspirazione, fognature industriali): come gestisco il preventivo?",
+        a: "I capannoni tessili hanno impiantistica specialistica (aspirazione polveri, scarichi industriali, antincendio AIB). Crei voci di prezzario personalizzate riusabili e a fine commessa hai un benchmark vero per il prossimo capannone con stessa destinazione d'uso.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Toscana nei computi metrici?",
+        a: "Sì. Il prezzario Toscana si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Prato, ASL Toscana Centro e Provincia che lo richiedono nei capitolati.",
+      },
+      {
+        q: "Cantiere nella fascia esondabile del Bisenzio: come gestisco vincoli idraulici e autorizzazioni Genio Civile?",
+        a: "Le commesse in fascia esondabile hanno categoria dedicata con vincoli annotati, scadenze autorizzazioni Genio Civile, perizia idraulica e documentazione asseverata. Tutto archiviato per pratica — ricerca rapida quando arrivano controlli o subentra una variante.",
+      },
+      {
+        q: "Lavoro con committenti cinesi che vogliono tempi rapidi e costi chiari: come gestisco preventivi e cronoprogramma?",
+        a: "Il committente cinese vuole certezza su costo e tempo. Generi preventivi articolati per fase con cronoprogramma allegato, e dai accesso in lettura alla dashboard cantiere — il committente vede in tempo reale dove sei senza chiamarti ogni due giorni.",
+      },
+    ],
   },
   vicenza: {
     name: "Vicenza",
@@ -1577,6 +2057,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Verona", slug: "verona" },
       { name: "Padova", slug: "padova" },
       { name: "Venezia", slug: "venezia" },
+    ],
+    localContext: {
+      heading: "Edilizia a Vicenza: distretto orafo, architettura palladiana UNESCO e prezzario Regione Veneto",
+      body: "Vicenza è il triangolo del Nordest produttivo: distretto orafo nel comune capoluogo (oltre 1.000 aziende), concerie nell'area di Arzignano, meccanica nella pedemontana (Schio, Thiene, Bassano). Le imprese edili vicentine lavorano molto su capannoni industriali con esigenze specifiche (camere bianche per orafo, scarichi industriali per conceria), ma anche su restauro nelle ville palladiane UNESCO (Villa Rotonda, Villa Pisani) e nei centri storici di pregio. Il prezzario di riferimento è quello Regione Veneto.",
+      prezzarioLink: "https://www.regione.veneto.it/web/lavori-pubblici/prezzario-regionale",
+      prezzarioLabel: "Prezzario Regione Veneto (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Capannone per orafo con camere bianche e impianti antifurto: come gestisco preventivo specialistico?",
+        a: "I cantieri orafi hanno specifiche tecniche stringenti (camere bianche, sistemi antintrusione, aspirazione fumi processi). Crei voci di prezzario personalizzate riusabili e il preventivo articolato per fase tiene separate strutture, impianti e finiture certificate.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Veneto nei computi metrici di gara?",
+        a: "Sì. Il prezzario Veneto si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Vicenza, ULSS 8 Berica e Provincia che lo richiedono nei capitolati. Negli appalti Soprintendenza richiami direttamente la voce ufficiale.",
+      },
+      {
+        q: "Restauro in villa palladiana UNESCO: come gestisco fotodocumentazione Soprintendenza e materiali certificati?",
+        a: "Le ville palladiane sono cantieri delicatissimi: foto ante/in corso/post geolocalizzate, specifica tecnica di ogni materiale (calci aeree, stucchi, dorature), archiviate per pratica con numero protocollo Soprintendenza. Tutto pronto se arriva ispezione anche anni dopo.",
+      },
+      {
+        q: "Conceria in Valle del Chiampo con vincoli ambientali: come gestisco autorizzazioni e SAL?",
+        a: "Le concerie hanno vincoli ambientali pesanti (AIA, scarichi, emissioni). Crei commessa con scadenze autorizzazioni AIA, perizia ambientale, SAL con foto degli interventi conformi. Quando arrivano controlli ARPAV hai il dossier pronto da mostrare.",
+      },
     ],
   },
   "reggio-calabria": {
@@ -1646,6 +2150,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Taranto", slug: "taranto" },
       { name: "Napoli", slug: "napoli" },
     ],
+    localContext: {
+      heading: "Edilizia a Foggia: Tavoliere agricolo, agrivoltaico in espansione e prezzario Regione Puglia",
+      body: "La Capitanata è la più grande pianura agricola d'Italia: il tessuto edile foggiano vive di edilizia rurale (magazzini, stalle, frantoi, agriturismi), grandi impianti agrivoltaici (la provincia è capofila in Italia per potenza installata) e infrastrutture viarie e scolastiche finanziate con PNRR. Le estati superano stabilmente i 38°C — la produttività in cantiere ne risente e va misurata. Il prezzario di riferimento è quello Regione Puglia, integrato con i prezzari ANCE provinciali per le specialistiche agroalimentari.",
+      prezzarioLink: "https://www.regione.puglia.it/web/lavori-pubblici/prezzario-regionale",
+      prezzarioLabel: "Prezzario Regione Puglia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Costruisco un impianto agrivoltaico nel Tavoliere: come gestisco SAL, rendicontazione GSE e fatturazione in regime agevolato?",
+        a: "Le commesse FER hanno tipologia dedicata con campi per potenza installata, componentistica (pannelli, inverter, strutture), date di connessione e documentazione GSE. Generi rendicontazioni Terna e fatture in regime IVA agevolata senza errori manuali.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Puglia nei computi metrici di gara?",
+        a: "Sì. Il prezzario Puglia si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Foggia, ASL Foggia e Provincia che lo richiedono nei capitolati — riduci errori di trascrizione che fanno escludere offerte.",
+      },
+      {
+        q: "Le estati a 40°C bloccano la produttività delle squadre: come traccio ore reali e impatto sul margine commessa?",
+        a: "I capocantiere registrano ore effettive in cantiere e Edilizia in Cloud calcola la produttività per squadra confrontandola col preventivo. Se nei mesi caldi cala del 25%, lo vedi nero su bianco e impari a preventivare correttamente i mesi estivi.",
+      },
+      {
+        q: "Lavoro su un agriturismo finanziato con PSR Puglia: come gestisco perizia, SAL e rendicontazione AGEA?",
+        a: "Le commesse PSR hanno categoria dedicata con numero pratica regionale, perizia approvata, SAL coerenti con programma di spesa e documentazione pronta per i controlli AGEA. Niente ricostruzioni a posteriori — il fascicolo è sempre completo.",
+      },
+    ],
   },
   pescara: {
     name: "Pescara",
@@ -1679,6 +2207,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Ancona", slug: "ancona" },
       { name: "Roma", slug: "roma" },
       { name: "Napoli", slug: "napoli" },
+    ],
+    localContext: {
+      heading: "Edilizia a Pescara: costa adriatica, ricostruzione post-sisma 2009 e prezzario Regione Abruzzo",
+      body: "Pescara è il capoluogo economico dell'Abruzzo: città giovane (ricostruita dopo i bombardamenti) con forte espansione residenziale, mercato ricettivo importante lungo la Riviera (da Montesilvano a Francavilla), e cantieri di ricostruzione post-sisma 2009 ancora attivi nei comuni del cratere aquilano (a circa un'ora di distanza). L'area metropolitana Pescara-Chieti-Montesilvano è in crescita demografica costante. Il prezzario di riferimento è quello Regione Abruzzo, aggiornato annualmente dalla Direzione Lavori Pubblici.",
+      prezzarioLink: "https://www.regione.abruzzo.it/content/prezziario-regionale-opere-pubbliche",
+      prezzarioLabel: "Prezzario Regione Abruzzo (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Cantieri ricettivi sulla Riviera con apertura entro maggio: come gestisco cronoprogramma e penali da contratto?",
+        a: "Sui ricettivi non si scherza coi tempi. Lavori a ritroso dalla data di apertura con cronoprogramma e ricevi alert quando una lavorazione critica sta scivolando. Decidi se rinforzare squadra o avvertire il committente prima che diventi causa.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Abruzzo nei computi metrici di gara?",
+        a: "Sì. Il prezzario Abruzzo si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Pescara, ASL Pescara e Provincia che lo richiedono nei capitolati di appalto pubblico.",
+      },
+      {
+        q: "Lavoro su ricostruzione post-sisma 2009 nel cratere aquilano: come gestisco SAL Commissario e perizia di variante?",
+        a: "Le commesse post-sisma hanno tipologia dedicata con numero scheda AeDES, perizia asseverata, importo contributo concesso, SAL approvati dall'Ufficio Speciale Ricostruzione e tracciamento cessione del credito. Tutto pronto per i controlli.",
+      },
+      {
+        q: "Espansione residenziale nell'area metropolitana Pescara-Chieti: come gestisco più cantieri privati con committenti diversi?",
+        a: "Ogni cantiere è una commessa autonoma con committente, computo, SAL e fatture separate. Dalla dashboard vedi quali sono in linea, quali in ritardo e quali stanno erodendo margine. Le fatture viaggiano col codice commessa — il commercialista non ti chiama più alle 22.",
+      },
     ],
   },
   taranto: {
@@ -1714,6 +2266,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Foggia", slug: "foggia" },
       { name: "Salerno", slug: "salerno" },
     ],
+    localContext: {
+      heading: "Edilizia a Taranto: riconversione ex-ILVA, Borgo Antico e prezzario Regione Puglia",
+      body: "Taranto vive una transizione storica: la riconversione del polo siderurgico ex-ILVA con piano DRI e impianti di decarbonizzazione mobilita miliardi di investimento pubblico, e parallelamente il recupero del Borgo Antico (Città Vecchia) sta finalmente partendo dopo decenni di abbandono. Il porto militare e commerciale genera commesse infrastrutturali con Marina Militare e Autorità Portuale del Mar Ionio. I cantieri edili tarantini lavorano fra grandi appalti pubblici, ricettivo costiero (Marina di Pulsano, Lizzano) e bonifiche industriali. Prezzario di riferimento: Regione Puglia.",
+      prezzarioLink: "https://www.regione.puglia.it/web/lavori-pubblici/prezzario-regionale",
+      prezzarioLabel: "Prezzario Regione Puglia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su una bonifica nell'area ILVA: come gestisco piani amianto, FIR rifiuti e tracciabilità?",
+        a: "Le commesse bonifica hanno categoria dedicata con piani di lavoro amianto, FIR rifiuti speciali, scadenze RENTRI e tracciabilità del committente bonifica. A fine cantiere generi il dossier completo per il certificato di restituibilità — niente improvvisazione su un cantiere normato così rigidamente.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Puglia nei computi metrici per gare di Comune di Taranto?",
+        a: "Sì. Il prezzario Puglia si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Taranto, ASL Taranto e Autorità Portuale del Mar Ionio che lo richiedono come base di gara.",
+      },
+      {
+        q: "Restauro nel Borgo Antico con fondi PNRR rigenerazione urbana: come gestisco SAL, asseverazioni e fotodocumentazione?",
+        a: "Le commesse rigenerazione urbana PNRR hanno tipologia dedicata con scadenze SAL, asseverazioni tecniche, foto-report archiviati per pratica e tracciamento avanzamento per Regis. Il fascicolo è sempre pronto per i controlli ANAC e Corte dei Conti.",
+      },
+      {
+        q: "Lavoro come fornitore per Arsenale Militare di Taranto: come gestisco capitolati con clausole NATO e tempi rigidi?",
+        a: "I capitolati militari hanno requisiti di sicurezza e tempi non negoziabili. Crei commessa con accessi limitati al personale autorizzato, documentazione segregata per pratica e SAL approvati dal Direttore dei Lavori militare — tutto archiviato secondo norme di riservatezza.",
+      },
+    ],
   },
   cosenza: {
     name: "Cosenza",
@@ -1747,6 +2323,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Reggio Calabria", slug: "reggio-calabria" },
       { name: "Palermo", slug: "palermo" },
       { name: "Napoli", slug: "napoli" },
+    ],
+    localContext: {
+      heading: "Edilizia a Cosenza: Sila, costa tirrenica e prezzario Regione Calabria",
+      body: "La provincia di Cosenza è la più estesa della Calabria: include la Sila (Altopiano Silano, parchi nazionali con cantieri in quota oltre i 1.200 m), la costa tirrenica turistica da Diamante a Scalea, e il capoluogo con espansione residenziale verso Rende e Università della Calabria. Il sisma del 2018 nel cosentino ha lasciato cantieri di ricostruzione ancora attivi in alcuni comuni interni. Le imprese edili cosentine si muovono fra cantieri PNRR per scuole e infrastrutture, ricettivo costiero e residenziale urbano. Il prezzario di riferimento è quello Regione Calabria.",
+      prezzarioLink: "https://www.regione.calabria.it/website/portaltemplates/view/view.cfm?13415",
+      prezzarioLabel: "Prezzario Regione Calabria (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Cantiere in Sila a 1.400 m di quota: come gestisco stagionalità (chiuso da novembre ad aprile) e logistica neve?",
+        a: "I cantieri di montagna hanno cronoprogramma stagionale con sospensione invernale. Tieni in pausa i mesi non operativi, riprendi a primavera senza ricreare la commessa. I costi di sorveglianza invernale restano imputati correttamente — sai esattamente quanto ti costa tenere fermo il cantiere.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Calabria nei computi metrici di gara?",
+        a: "Sì. Il prezzario Calabria si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Cosenza, Provincia, ASP Cosenza e Università della Calabria che lo richiedono nei capitolati pubblici.",
+      },
+      {
+        q: "Cantiere ricettivo sulla costa tra Diamante e Scalea con apertura tassativa entro giugno: come monitoro avanzamento?",
+        a: "Sui ricettivi i tempi sono ferro. Dashboard cantiere con percentuale lavorazioni, ore squadra giornaliere e alert sui ritardi delle attività critiche. Decidi se rinforzare squadra prima che il committente apra contenzioso per ritardata consegna.",
+      },
+      {
+        q: "Partecipo a gare PNRR di scuole nei comuni del cosentino: come gestisco anticipazione, SAL e rendicontazione Regis?",
+        a: "Le commesse PNRR hanno tipologia dedicata con tracciamento anticipazione 20%, SAL approvati, DURC con alert in scadenza e rendicontazione pronta per Regis. Generi il fascicolo per controlli ANAC e Corte dei Conti senza ricostruire mesi di carte da Excel.",
+      },
     ],
   },
   trento: {
@@ -1782,6 +2382,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Verona", slug: "verona" },
       { name: "Vicenza", slug: "vicenza" },
     ],
+    localContext: {
+      heading: "Edilizia a Trento: cantieri alpini, standard CasaClima e prezzario PAT Trento",
+      body: "Il Trentino ha un prezzario provinciale autonomo: il prezzario Provincia Autonoma di Trento (PAT) è obbligatorio per opere pubbliche provinciali — diverso da quello della Regione Veneto o Lombardia. La provincia è leader in Italia per costruzione in legno (X-Lam), bioedilizia e certificazioni energetiche elevate (CasaClima A, A+, Gold). I cantieri alpini hanno finestre stagionali strette (sospensione invernale per quote sopra i 1.000 m). Il mercato è prevalentemente residenziale, ricettivo turistico e infrastrutture sciistiche.",
+      prezzarioLink: "https://www.provincia.tn.it/Argomenti/Lavori-pubblici/Strumenti-tecnici/Elenco-prezzi-provinciale",
+      prezzarioLabel: "Elenco Prezzi PAT (Provincia Autonoma di Trento)",
+    },
+    localFaqs: [
+      {
+        q: "Lavoro su una casa CasaClima A+: come gestisco materiali certificati, dettagli costruttivi e documentazione per Agenzia CasaClima?",
+        a: "Le commesse CasaClima richiedono materiali certificati con scheda tecnica (isolanti, serramenti, ventilazione meccanica controllata) e fotodocumentazione di dettagli costruttivi critici. Edilizia in Cloud archivia tutto per pratica con numero protocollo Agenzia CasaClima — pronto per il sopralluogo di certificazione.",
+      },
+      {
+        q: "Posso importare il prezzario PAT Trento nei computi metrici di gara provinciale?",
+        a: "Sì. L'Elenco Prezzi PAT si importa in Excel o PDF, voci indicizzate per codice ufficiale. Vincolante in gare di Provincia Autonoma di Trento, Comune capoluogo, APSS e Servizio Strade — richiami le voci direttamente senza errori di trascrizione.",
+      },
+      {
+        q: "Costruzione in legno X-Lam con fornitore Rubner o Holzhof: come gestisco ordini, consegne e SAL?",
+        a: "I cantieri X-Lam hanno fornitura prefabbricata con consegne just-in-time. Gestisci ordine fornitore con data prevista, conferma e tracciamento in cantiere. Se il fornitore slitta, vedi subito l'impatto sul cronoprogramma e avvisi il committente prima del disastro.",
+      },
+      {
+        q: "Cantiere in malga a 1.800 m: come gestisco stagionalità (chiuso nov-apr) e ore squadre con tariffe quota?",
+        a: "I cantieri in quota hanno cronoprogramma stagionale con sospensione forzata e tariffe orarie maggiorate per disagio quota. Le ore confluiscono sulla commessa col costo corretto e a fine commessa hai un benchmark vero per preventivare il prossimo cantiere alpino.",
+      },
+    ],
   },
   bolzano: {
     name: "Bolzano",
@@ -1816,6 +2440,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Verona", slug: "verona" },
       { name: "Udine", slug: "udine" },
     ],
+    localContext: {
+      heading: "Edilizia a Bolzano: standard KlimaHaus, bilinguismo e prezzario PAB Bolzano",
+      body: "L'Alto Adige ha un prezzario provinciale autonomo: il prezzario Provincia Autonoma di Bolzano (PAB) è obbligatorio per opere pubbliche provinciali — pubblicato in italiano e tedesco. Bolzano è la sede dell'Agenzia CasaClima e impone standard energetici fra i più alti d'Europa (KlimaHaus A, A+, Gold sono ormai la norma anche nel residenziale privato). Le imprese altoatesine lavorano molto in legno (X-Lam Holz Italia, Rubner), con committenti bilingui italofoni e germanofoni che pretendono documentazione completa in entrambe le lingue.",
+      prezzarioLink: "https://www.provincia.bz.it/lavori-pubblici-beni-immobili-foreste/lavori-pubblici/edilizia/elenco-prezzi-informativo.asp",
+      prezzarioLabel: "Elenco Prezzi PAB Bolzano (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Costruisco una casa KlimaHaus Gold: come gestisco materiali certificati, blower door test e fascicolo per Agenzia CasaClima?",
+        a: "Le commesse KlimaHaus richiedono materiali certificati con scheda tecnica, dettagli costruttivi fotografati e risultati blower door. Edilizia in Cloud archivia tutto per pratica con numero protocollo Agenzia CasaClima — il fascicolo è pronto per il sopralluogo di certificazione.",
+      },
+      {
+        q: "Posso importare il prezzario PAB Bolzano nei computi metrici di gara provinciale?",
+        a: "Sì. L'Elenco Prezzi PAB si importa in Excel o PDF, voci indicizzate per codice ufficiale (italiano/tedesco). Vincolante in gare di Provincia Autonoma di Bolzano, ASL Alto Adige e tutti gli enti provinciali — richiami le voci direttamente bilingui.",
+      },
+      {
+        q: "Committenti bilingui (italiani e tedeschi): come gestisco preventivi, fatture e documentazione in due lingue?",
+        a: "Edilizia in Cloud genera documenti bilingui (italiano/tedesco): preventivi, fatture, SAL e contratti. Il committente di Bressanone riceve il documento in tedesco senza che tu debba ritradurre — risparmi ore di lavoro e elimini errori di traduzione.",
+      },
+      {
+        q: "Costruzione in legno X-Lam con fornitore Rubner: come gestisco ordini, consegne just-in-time e SAL?",
+        a: "I cantieri X-Lam hanno fornitura prefabbricata con consegne a giorno fisso. Gestisci ordine fornitore con data prevista, conferma e tracciamento. Se Rubner slitta vedi subito l'impatto sul cronoprogramma e avvisi il committente prima del disastro.",
+      },
+    ],
   },
   ferrara: {
     name: "Ferrara",
@@ -1849,6 +2497,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Bologna", slug: "bologna" },
       { name: "Modena", slug: "modena" },
       { name: "Reggio Emilia", slug: "reggio-emilia" },
+    ],
+    localContext: {
+      heading: "Edilizia a Ferrara: patrimonio UNESCO, ricostruzione post-sisma 2012 e prezzario Regione Emilia-Romagna",
+      body: "Ferrara è città UNESCO nel suo centro storico rinascimentale: il restauro nei palazzi estensi (Diamanti, Schifanoia, Castello Estense) richiede materiali certificati e Soprintendenza presente in ogni fase. La Bassa ferrarese ha completato gran parte della ricostruzione post-sisma maggio 2012, ma alcune commesse rimangono ancora aperte presso il Commissario. Il Delta del Po ha rischio idrogeologico significativo con vincoli idraulici dell'AIPO. Il prezzario di riferimento è quello Regione Emilia-Romagna.",
+      prezzarioLink: "https://territorio.regione.emilia-romagna.it/lavori-pubblici",
+      prezzarioLabel: "Prezzario opere pubbliche Regione Emilia-Romagna",
+    },
+    localFaqs: [
+      {
+        q: "Restauro nel centro storico UNESCO di Ferrara: come gestisco autorizzazioni Soprintendenza e fotodocumentazione?",
+        a: "Ogni intervento ha scheda con foto ante/in corso/post geolocalizzate, archiviate per pratica con numero protocollo Soprintendenza. Materiali certificati con scheda tecnica allegata. Quando dopo mesi arrivano richieste integrazioni, ritrovi tutto in due secondi.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Emilia-Romagna nei computi metrici di gara?",
+        a: "Sì. Il prezzario Emilia-Romagna si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Ferrara, AUSL Ferrara, Università e Provincia che lo richiedono nei capitolati di appalto pubblico.",
+      },
+      {
+        q: "Ho ancora commesse ricostruzione post-sisma 2012 aperte nella Bassa ferrarese: come gestisco SAL Commissario e perizia di variante?",
+        a: "Le commesse post-sisma hanno categoria dedicata con numero pratica regionale, perizia asseverata, importo contributo concesso, SAL approvati dal Commissario e tracciamento cessione del credito. Il fascicolo è pronto anche per pratiche aperte da anni.",
+      },
+      {
+        q: "Cantiere nel Delta del Po con vincoli idraulici AIPO: come gestisco autorizzazioni e perizia idraulica?",
+        a: "Le commesse in fascia esondabile hanno categoria dedicata con scadenze autorizzazioni AIPO, perizia idraulica e documentazione asseverata. Quando arrivano controlli o subentra variante, hai il dossier pronto da mostrare senza ricostruirlo manualmente.",
+      },
     ],
   },
 
@@ -1886,6 +2558,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Lecco", slug: "lecco" },
       { name: "Varese", slug: "varese" },
     ],
+    localContext: {
+      heading: "Edilizia a Como: ville lago, restauro centro storico vincolato e prezzario Regione Lombardia",
+      body: "Como è territorio di nicchia ad altissimo valore: il lago attrae committenti internazionali (americani, britannici, mediorientali, hollywoodiani) che vogliono ville premium con finiture importate, gru flottanti per accesso via lago, tempi di consegna che ammettono ritardi solo se motivati. Il centro storico di Como è vincolato Soprintendenza per il tessuto medievale e l'asse Liberty. La Brianza comasca ha invece tessuto industriale e residenziale tradizionale. Prezzario di riferimento: Regione Lombardia.",
+      prezzarioLink: "https://www.regione.lombardia.it/wps/portal/istituzionale/HP/DettaglioServizio/servizi-e-informazioni/Enti-e-Operatori/territorio/Edilizia-territorio/prezzario-opere-pubbliche-lombardia",
+      prezzarioLabel: "Prezzario Regione Lombardia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Villa sul lago di Como con accesso solo via acqua: come gestisco logistica con motonavi, gru flottanti e tempi di consegna materiali?",
+        a: "Le ville lago hanno voce di costo dedicata 'logistica fluviale' con nolo motonave, gru flottante e movimentazione. Ogni ordine fornitore ha data prevista di arrivo via lago — vedi subito quali materiali rischiano di arrivare in ritardo e avvisi il direttore lavori prima del fermo cantiere.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Lombardia nei miei preventivi su ville premium?",
+        a: "Sì. Il prezzario Lombardia si importa in Excel o PDF, voci indicizzate per codice ufficiale. Sulle ville premium però i committenti vogliono finiture extra-prezzario (marmi italiani, parquet francese): crei voci personalizzate riusabili con prezzo netto e ricarico configurabile.",
+      },
+      {
+        q: "Restauro su villa storica vincolata con Soprintendenza presente in cantiere: come gestisco varianti e documentazione?",
+        a: "Le ville storiche hanno Soprintendenza che entra in cantiere continuamente. Ogni intervento ha scheda foto ante/in corso/post, materiali certificati con scheda allegata e varianti tracciate con SAL aggiuntivi. Quando arriva il sopralluogo hai il dossier completo.",
+      },
+      {
+        q: "Clienti internazionali esigenti (americani, mediorientali): come gestisco rendiconti settimanali e dashboard accessibile a distanza?",
+        a: "Il committente internazionale vuole visibilità in tempo reale. Edilizia in Cloud ha dashboard cantiere accessibile in lettura dal committente con SAL aggiornato, foto-report settimanale e budget residuo. Smettono di chiamarti alle 2 di notte per chiedere aggiornamenti.",
+      },
+    ],
   },
 
   lecco: {
@@ -1920,6 +2616,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Como", slug: "como" },
       { name: "Bergamo", slug: "bergamo" },
       { name: "Milano", slug: "milano" },
+    ],
+    localContext: {
+      heading: "Edilizia a Lecco: pendenze prealpine, ville sul ramo orientale del Lario e prezzario Regione Lombardia",
+      body: "Lecco è territorio verticale: cantieri quasi sempre in pendenza con opere di contenimento, fondazioni speciali e scarificazioni che a Milano non esistono. Il ramo orientale del Lario (da Mandello a Bellano, Varenna, Colico) ha ville di pregio con accessi via lago, e i nuclei antichi della Valsassina/Valassina hanno vincoli paesaggistici. Le imprese lecchesi coordinano squadre su cantieri sparsi fra capoluogo, sponda lago e valli prealpine. Prezzario di riferimento: Regione Lombardia, lo stesso di Milano e Como.",
+      prezzarioLink: "https://www.regione.lombardia.it/wps/portal/istituzionale/HP/DettaglioServizio/servizi-e-informazioni/Enti-e-Operatori/territorio/Edilizia-territorio/prezzario-opere-pubbliche-lombardia",
+      prezzarioLabel: "Prezzario Regione Lombardia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Cantieri in pendenza con opere di contenimento e fondazioni speciali: come metto a budget queste voci specialistiche?",
+        a: "Le opere di contenimento (paratie, micropali, berlinesi) sono voci di costo specialistiche con prezzi non standard. Le crei come voci personalizzate riusabili e a fine commessa hai un benchmark vero per il prossimo cantiere in pendenza — niente più preventivi a tentoni.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Lombardia nei computi metrici di gara?",
+        a: "Sì. Il prezzario Lombardia si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Lecco, ASST Lecco e Provincia che lo richiedono nei capitolati di appalto pubblico.",
+      },
+      {
+        q: "Ristrutturazione in nucleo antico di Mandello con vincolo paesaggistico: come gestisco autorizzazioni e tempi Comune?",
+        a: "Le pratiche con vincolo hanno scadenze autorizzazioni paesaggistiche, scia, e tempi di rilascio variabili. Tracciamento per pratica con scadenze e documenti allegati — quando il committente chiede 'a che punto siamo col Comune?' rispondi in 5 secondi senza scartabellare.",
+      },
+      {
+        q: "Squadre disperse su 6 cantieri fra capoluogo e Valsassina: come coordino ore lavorate e materiali?",
+        a: "Dall'app cantiere i capocantiere timbrano ingresso/uscita con GPS e registrano materiali consegnati. Tu vedi in tempo reale chi è dove, ore per commessa e produttività per squadra. Le ore confluiscono direttamente sulla commessa giusta — niente fogli mensili da ricostruire.",
+      },
     ],
   },
 
@@ -1956,6 +2676,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Como", slug: "como" },
       { name: "Bergamo", slug: "bergamo" },
     ],
+    localContext: {
+      heading: "Edilizia a Monza e Brianza: hinterland milanese, capannoni industriali brianzoli e prezzario Regione Lombardia",
+      body: "La provincia di Monza e Brianza è uno dei distretti produttivi più densi d'Europa: design (Vimercate), mobile (Lissone, Meda, Seveso), meccanica diffusa. Le imprese edili brianzole gestiscono in parallelo cantieri industriali con committenti che pretendono SAL settimanali e zero ritardi, residenziale di pregio per committenti milanesi che lavorano in città e abitano in Brianza, ristrutturazioni urbane nei centri storici di Monza, Seregno, Desio. Prezzario di riferimento: Regione Lombardia.",
+      prezzarioLink: "https://www.regione.lombardia.it/wps/portal/istituzionale/HP/DettaglioServizio/servizi-e-informazioni/Enti-e-Operatori/territorio/Edilizia-territorio/prezzario-opere-pubbliche-lombardia",
+      prezzarioLabel: "Prezzario Regione Lombardia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Capannone per azienda di design brianzola con tempi rigidi (penali pesanti sui ritardi): come gestisco SAL e cronoprogramma?",
+        a: "I committenti industriali brianzoli pretendono SAL settimanali con foto e percentuali per lavorazione. Edilizia in Cloud genera SAL automatici dal cronoprogramma e dai dati cantiere — niente più nottate a costruire il report. Se sei in ritardo lo vedi prima del committente e proponi recupero.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Lombardia nei computi metrici di gara?",
+        a: "Sì. Il prezzario Lombardia si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Monza, ATS Brianza e Provincia MB che lo richiedono nei capitolati di appalto pubblico.",
+      },
+      {
+        q: "Committenti milanesi che vivono in Brianza: vogliono foto cantiere quotidiane e WhatsApp ordinato. Come gestisco la comunicazione?",
+        a: "Edilizia in Cloud genera report giornaliero automatico con foto, ore lavorate e avanzamento. Il committente lo riceve via email o dashboard accessibile — smette di mandarti WhatsApp ogni due ore e tu eviti di dover ricostruire la giornata da zero.",
+      },
+      {
+        q: "Ho 5 cantieri attivi in parallelo con 2 tecnici di studio: come evito sovrapposizioni di squadre e fornitori?",
+        a: "Pianificazione settimanale centralizzata: vedi a colpo d'occhio quale squadra è impegnata dove e quale slot fornitore è disponibile per ogni cantiere. Niente più 'pensavo che la squadra fosse qui' o 'avevo prenotato la pompa per un altro cantiere'.",
+      },
+    ],
   },
 
   varese: {
@@ -1990,6 +2734,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Milano", slug: "milano" },
       { name: "Como", slug: "como" },
       { name: "Bergamo", slug: "bergamo" },
+    ],
+    localContext: {
+      heading: "Edilizia a Varese: confine svizzero, frontalieri e prezzario Regione Lombardia",
+      body: "Varese è provincia di confine: i committenti italo-svizzeri pretendono standard di puntualità e ordine documentale fuori scala, le maestranze migliori spesso si spostano oltreconfine per stipendi 2-3x più alti, lasciando le imprese italiane a faticare sulla manodopera qualificata. I cantieri delle prealpi varesine (Valcuvia, Val Veddasca, Campo dei Fiori) hanno accesso stagionale e i comuni del lago Maggiore (Sesto Calende, Angera, Laveno) accolgono ville premium per committenti elvetici. Prezzario di riferimento: Regione Lombardia.",
+      prezzarioLink: "https://www.regione.lombardia.it/wps/portal/istituzionale/HP/DettaglioServizio/servizi-e-informazioni/Enti-e-Operatori/territorio/Edilizia-territorio/prezzario-opere-pubbliche-lombardia",
+      prezzarioLabel: "Prezzario Regione Lombardia (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Committente svizzero pretende ordine totale e SAL puntuali al minuto: come mi presento con documentazione 'svizzera'?",
+        a: "Edilizia in Cloud genera SAL professionali con grafica pulita, foto di cantiere, percentuali e budget residuo. Il committente svizzero riceve un report che può confrontare con quelli dei suoi cantieri in CH — e tu non sembri il classico cantiere italiano fatto di fogli scarabocchiati.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Lombardia nei computi metrici di gara?",
+        a: "Sì. Il prezzario Lombardia si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Varese, ASST Sette Laghi e Provincia che lo richiedono nei capitolati di appalto pubblico.",
+      },
+      {
+        q: "Le mie maestranze migliori vanno in Svizzera per il doppio dello stipendio: come ottimizzo il tempo di chi resta?",
+        a: "Tracciamento ore preciso per commessa con produttività per squadra. Vedi chi è realmente produttivo e chi no, e puoi rimodulare squadre per concentrare i migliori sui cantieri critici. La produttività non è un dato astratto ma un numero che paga lo stipendio.",
+      },
+      {
+        q: "Cantieri in alta Valcuvia con accesso invernale impossibile: come gestisco sospensione stagionale e ripresa primaverile?",
+        a: "I cantieri alpini hanno cronoprogramma con sospensione stagionale forzata. Tieni in pausa i mesi non operativi, riprendi senza ricreare la commessa. I costi di sorveglianza invernale restano imputati correttamente — sai esattamente quanto costa tenere fermo il cantiere.",
+      },
     ],
   },
 
@@ -2026,6 +2794,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Venezia", slug: "venezia" },
       { name: "Vicenza", slug: "vicenza" },
     ],
+    localContext: {
+      heading: "Edilizia a Treviso: Marca trevigiana, distretto del Prosecco e prezzario Regione Veneto",
+      body: "La Marca trevigiana è uno dei distretti più dinamici d'Italia: vinicolo (Prosecco DOCG fra Conegliano e Valdobbiadene, Asolo), alimentare (Veneto Banca, food&beverage), tessile-moda (Benetton, Geox, Stefanel). I cantieri trevigiani lavorano spesso su cantine vinicole con esigenze tecniche specifiche (vasche inox, sale d'invecchiamento, climatizzazione tunnel), ristrutturazioni di rustici e ville venete nelle colline UNESCO del Prosecco, capannoni industriali a Treviso, Mogliano, Castelfranco. Prezzario di riferimento: Regione Veneto.",
+      prezzarioLink: "https://www.regione.veneto.it/web/lavori-pubblici/prezzario-regionale",
+      prezzarioLabel: "Prezzario Regione Veneto (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Cantina vinicola in Valdobbiadene con vincolo paesaggistico UNESCO: come gestisco autorizzazioni e fotodocumentazione?",
+        a: "Le colline del Prosecco sono Patrimonio UNESCO: ogni intervento richiede autorizzazione paesaggistica e fotodocumentazione obbligatoria. Edilizia in Cloud archivia foto ante/in corso/post geolocalizzate per pratica — tutto pronto per controlli anche anni dopo.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Veneto nei computi metrici di gara?",
+        a: "Sì. Il prezzario Veneto si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Treviso, ULSS 2 Marca Trevigiana e Provincia che lo richiedono nei capitolati di appalto pubblico.",
+      },
+      {
+        q: "Ristrutturazione di un rustico in Asolo con vincolo paesaggistico e committente esigente: come gestisco varianti in corso d'opera?",
+        a: "I rustici hanno preventivo che cambia in corso d'opera: trovi un solaio in legno marcio, una muratura non portante. Gestisci varianti come SAL aggiuntivi con perizia e foto giustificativa — il committente vede chiaramente cosa è emerso e perché serve un extra-budget.",
+      },
+      {
+        q: "Capannone alimentare con vincoli HACCP per stagionatura: come gestisco preventivi con materiali certificati food-grade?",
+        a: "Crei voci di prezzario personalizzate con materiali food-grade (resine epossidiche alimentari, pannelli isotermici, pavimenti drenanti) e le riusi su tutti i cantieri food. Le specifiche tecniche restano allegate al preventivo per il certificatore HACCP — pronto per ispezione USL.",
+      },
+    ],
   },
 
   latina: {
@@ -2061,6 +2853,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Napoli", slug: "napoli" },
       { name: "Pescara", slug: "pescara" },
     ],
+    localContext: {
+      heading: "Edilizia a Latina: Agro Pontino bonificato, costa tirrenica e prezzario Regione Lazio",
+      body: "Latina è città di fondazione (1932): l'Agro Pontino è la più grande pianura bonificata d'Italia con grandi aziende agricole che commissionano regolarmente capannoni, magazzini e celle frigo. La costa pontina (Sabaudia, San Felice Circeo, Sperlonga, Terracina) è destinazione turistica con cantieri stagionali. Il patrimonio edilizio razionalista degli anni '30 nei centri di fondazione (Latina, Aprilia, Pomezia, Sabaudia) richiede interventi di adeguamento sismico. Prezzario di riferimento: Regione Lazio, lo stesso usato a Roma.",
+      prezzarioLink: "https://www.regione.lazio.it/cittadini/lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Lazio (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Capannone agricolo nell'Agro Pontino con celle frigo e impianti di refrigerazione: come gestisco preventivo specialistico?",
+        a: "I capannoni agroalimentari hanno impiantistica specifica (celle frigo, impianti di refrigerazione industriale, fognature). Crei voci di prezzario personalizzate riusabili e il preventivo articolato per fase tiene separate strutture, impianti e finiture certificate.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Lazio nei computi metrici di gara?",
+        a: "Sì. Il prezzario Lazio si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Latina, ASL Latina e Provincia che lo richiedono nei capitolati di appalto pubblico.",
+      },
+      {
+        q: "Cantieri stagionali sulla costa pontina con consegna tassativa entro maggio: come gestisco cronoprogramma e penali?",
+        a: "Sui ricettivi e sulle seconde case costiere i tempi sono ferro. Lavori a ritroso dalla data di apertura e ricevi alert quando una lavorazione critica sta scivolando. Decidi se rinforzare squadra o avvertire il committente prima che diventi contenzioso.",
+      },
+      {
+        q: "Riqualificazione energetica di case popolari anni '70 con Bonus Casa: come gestisco SAL, asseverazioni e fatturazione?",
+        a: "Le commesse con bonus fiscali hanno scadenze SAL 30/60/100, asseverazioni tecniche di congruità e tracciamento sconto in fattura o cessione del credito. Generi il fascicolo per il visto di conformità in pochi click — senza ricostruirlo da Excel sparsi.",
+      },
+    ],
   },
 
   pisa: {
@@ -2095,6 +2911,30 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       { name: "Firenze", slug: "firenze" },
       { name: "Livorno", slug: "livorno" },
       { name: "Prato", slug: "prato" },
+    ],
+    localContext: {
+      heading: "Edilizia a Pisa: torre, edilizia universitaria e prezzario Regione Toscana",
+      body: "Pisa è città piccola con tre università di livello nazionale (Università di Pisa, Scuola Normale Superiore, Sant'Anna): l'edilizia universitaria genera cantieri concentrati nei mesi estivi (giugno-settembre) per non interrompere le lezioni. Il centro storico con la Piazza dei Miracoli UNESCO ha vincoli Soprintendenza totali. La costa pisana (Marina di Pisa, Tirrenia) e la Versilia (Forte dei Marmi, Pietrasanta) accolgono seconde case e ville costiere con manutenzione continua per resistere alla salsedine. Prezzario di riferimento: Regione Toscana.",
+      prezzarioLink: "https://www.regione.toscana.it/-/prezzario-dei-lavori-pubblici",
+      prezzarioLabel: "Prezzario Regione Toscana (sito ufficiale)",
+    },
+    localFaqs: [
+      {
+        q: "Lavori di adeguamento aule dell'Università di Pisa concentrati giugno-settembre: come gestisco cronoprogramma serrato e SAL settimanali?",
+        a: "Le commesse universitarie hanno finestra temporale rigida (tre mesi estivi, riapertura a settembre tassativa). Dashboard cantiere con percentuale lavorazioni giornaliera, alert sui ritardi e SAL settimanali pronti per il RUP — non si scherza coi tempi sull'edilizia universitaria.",
+      },
+      {
+        q: "Posso importare il prezzario Regione Toscana nei computi metrici di gara?",
+        a: "Sì. Il prezzario Toscana si importa in Excel o PDF, voci indicizzate per codice ufficiale. Comodo per gare di Comune di Pisa, AOUP, Università di Pisa, Scuola Normale e Sant'Anna che lo richiedono nei capitolati di appalto pubblico.",
+      },
+      {
+        q: "Restauro in Piazza dei Miracoli con Soprintendenza presente continuamente: come gestisco fotodocumentazione e materiali certificati?",
+        a: "Su Piazza dei Miracoli ogni movimento è documentato: foto ante/in corso/post geolocalizzate, materiali certificati con scheda tecnica, archiviato per pratica con numero protocollo Soprintendenza. Il fascicolo è pronto per qualsiasi sopralluogo o richiesta integrazioni.",
+      },
+      {
+        q: "Manutenzione di case versiliesi con problemi di salsedine: come traccio interventi nel tempo e garanzie?",
+        a: "Ogni cliente ha la sua scheda con storico interventi (date, lavorazioni, materiali, garanzie residue). Quando il committente chiama per un problema, vedi subito se è in garanzia, quando hai fatto l'ultimo intervento e con quali materiali — niente improvvisazione.",
+      },
     ],
   },
 };
