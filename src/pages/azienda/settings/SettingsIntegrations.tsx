@@ -642,36 +642,9 @@ export default function SettingsIntegrations() {
         actionLabel: "Apri Lead Facebook",
         action: () => navigate("/azienda/impostazioni/lead-forms"),
       },
-      {
-        key: "google-ads-account",
-        name: "Account Google Ads",
-        description: "Seleziona Customer ID e, se serve, MCC. Pubblicita usera questo account per campagne e conversioni CRM.",
-        status: selectedGoogleAdsAccount ? "connected" : "not_configured",
-        detail: googleAdsAccountLabel
-          ? `Account selezionato: ${googleAdsAccountLabel}`
-          : "Nessun Customer ID selezionato per questa azienda.",
-        icon: <BrandIconShell><GoogleAdsLogo /></BrandIconShell>,
-        actionLabel: "Configura Google Ads",
-        action: () => {
-          if (!canManageIntegrations) {
-            toast.error("Solo un amministratore aziendale può collegare integrazioni.");
-            return;
-          }
-          setGoogleAdsDialogOpen(true);
-        },
-      },
-      {
-        key: "google-business-profile",
-        name: "Google Business Profile",
-        description: "Collega la scheda Google dell'azienda per recensioni, sede locale e segnali reputazione.",
-        status: "not_configured",
-        detail: googleAdsIntegration?.status === "connected"
-          ? "Account Google presente: completa la scheda dalla sezione Reputazione."
-          : "Puoi usare lo stesso ecosistema Google, ma Ads e scheda Business restano asset separati.",
-        icon: <BrandIconShell><GoogleBusinessProfileLogo /></BrandIconShell>,
-        actionLabel: "Apri Reputazione",
-        action: () => navigate("/azienda/marketing/reputazione?tab=integrazioni"),
-      },
+      // 2026-05-27: rimosse card statiche "Account Google Ads" e "Google Business
+      // Profile" — ora gestite dalle card OAuth reali GoogleAdsConnectionCard e
+      // GbpConnectionCard più in basso nelle rispettive sezioni dedicate.
     ];
     if (!search.trim()) return cards;
     const q = search.toLowerCase();
