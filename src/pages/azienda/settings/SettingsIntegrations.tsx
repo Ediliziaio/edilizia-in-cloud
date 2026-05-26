@@ -8,7 +8,6 @@ import { Search, Mail, Phone, AlertTriangle, Plug, CheckCircle2, Activity, Shiel
 import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 // 🆕 GAP 7b: card connessioni OAuth Gmail/Outlook native
-import { EmailOAuthConnectionsCard } from "@/components/integrations/EmailOAuthConnectionsCard";
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -239,7 +238,7 @@ export default function SettingsIntegrations() {
   const userId = user?.id;
   const canManageIntegrations = role === "company_admin" || role === "super_admin";
   const [search, setSearch] = useState("");
-  const [googleHubDialogOpen, setGoogleHubDialogOpen] = useState(false);
+  // googleHubDialogOpen RIMOSSO 2026-05-27 insieme al modale "Google Hub"
   const [googleAdsDialogOpen, setGoogleAdsDialogOpen] = useState(false);
   const [googleAdsForm, setGoogleAdsForm] = useState<GoogleAdsFormState>(DEFAULT_GOOGLE_ADS_FORM);
   const queryClient = useQueryClient();
@@ -656,46 +655,9 @@ export default function SettingsIntegrations() {
     selectedGoogleAdsAccount,
   ]);
 
-  const googleHubAssets = useMemo(() => {
-    // 2026-05-27: Google Ads e Google Business Profile rimossi dal Google Hub
-    // modale — sono già coperti dalle card OAuth reali GoogleAdsConnectionCard
-    // (sezione Pubblicità) e GbpConnectionCard (sezione Reputazione). Il modale
-    // resta come hub leggero per Calendar + YouTube.
-    return [
-      {
-        key: "google-calendar",
-        name: "Google Calendar",
-        description: "Sincronizza appuntamenti, disponibilità e slot commerciali.",
-        status: gcalConnection?.status === "connected" ? "connected" : "not_configured",
-        detail: gcalConnection?.google_account_email
-          ? `Account calendario: ${gcalConnection.google_account_email}`
-          : "Collega il calendario Google usato per appuntamenti e follow-up.",
-        icon: <BrandIconShell><GoogleCalendarLogo /></BrandIconShell>,
-        actionLabel: "Gestisci calendario",
-        action: () => {
-          setGoogleHubDialogOpen(false);
-          navigate("/azienda/impostazioni/calendari");
-        },
-      },
-      {
-        key: "youtube",
-        name: "YouTube",
-        description: "Asset video e Shorts collegabili allo stesso ecosistema Google.",
-        status: "not_configured",
-        detail: "Pronto per il futuro OAuth YouTube upload quando l'app avrà gli scope approvati.",
-        icon: <BrandIconShell><YouTubeLogo /></BrandIconShell>,
-        actionLabel: "Vedi roadmap",
-        action: () =>
-          toast.info("YouTube — Prossimamente", {
-            description: "Sara collegato allo stesso Google Hub, ma con scope YouTube dedicati e consenso separato.",
-          }),
-      },
-    ];
-  }, [
-    gcalConnection?.google_account_email,
-    gcalConnection?.status,
-    navigate,
-  ]);
+  // googleHubAssets array RIMOSSO 2026-05-27: il modale "Google Hub" è stato
+  // eliminato perché creava doppioni con le card OAuth reali (GbpConnectionCard,
+  // GoogleAdsConnectionCard) e con la sezione Calendari di MioProfilo.
 
   const reputationCards = useMemo(() => {
     // 2026-05-27: rimosse card duplicate "google-business-profile" (ora gestita
@@ -837,31 +799,12 @@ export default function SettingsIntegrations() {
         </Card>
       </div>
 
-      <Card className="overflow-hidden border-blue-200 bg-blue-50/50 dark:border-blue-900/40 dark:bg-blue-950/10">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <BrandIconShell className="h-8 w-8">
-                  <GoogleLogo />
-                </BrandIconShell>
-                <CardTitle className="text-lg">Google Hub</CardTitle>
-                <Badge variant="secondary" className="text-[10px]">
-                  {googleHubAssets.filter((asset) => asset.status === "connected").length}/{googleHubAssets.length} asset
-                </Badge>
-              </div>
-              <CardDescription>
-                Collega Google una volta, poi scegli quale asset aziendale usare: Calendar, Ads, Business Profile o YouTube.
-                Ogni asset resta separato per non mischiare dati, permessi e statistiche tra moduli.
-              </CardDescription>
-            </div>
-            <Button type="button" onClick={() => setGoogleHubDialogOpen(true)} className="shrink-0">
-              <Link2 className="h-4 w-4" />
-              Scegli asset Google
-            </Button>
-          </div>
-        </CardHeader>
-      </Card>
+      {/* Google Hub modale RIMOSSO 2026-05-27: il pulsante apriva un modale con
+          Calendar/Ads/Business Profile/YouTube che erano tutti già presenti
+          come card OAuth dedicate più in basso — generava confusione di
+          doppioni. I servizi Google si gestiscono direttamente dalle sezioni
+          Reputazione (GBP), Pubblicità (Ads), Calendari (Cal) sulla stessa
+          pagina o in Impostazioni → Calendari. */}
 
       {assetCards.length > 0 && (
         <Card className="border-primary/20 bg-primary/[0.02]">
@@ -960,10 +903,9 @@ export default function SettingsIntegrations() {
         ))}
       </div>
 
-      {/* GAP 7b: Email OAuth — connessioni personali dell'utente.
-          Spostato sotto la griglia principale: le calendar/ads connections
-          sono primarie, le email/triage sono integrazioni avanzate AI. */}
-      <EmailOAuthConnectionsCard />
+      {/* Email OAuth — SPOSTATO 2026-05-27 in MioProfilo.tsx perché è una
+          connessione personale (mailbox individuale), non aziendale.
+          L'utente trova "Connetti email" in /azienda/impostazioni/mio-profilo. */}
 
       {/* ── Reputazione ───────────────────────────────────────────── */}
       <div className="pt-2 space-y-4">
@@ -1250,47 +1192,9 @@ export default function SettingsIntegrations() {
         </div>
       )}
 
-      <Dialog open={googleHubDialogOpen} onOpenChange={setGoogleHubDialogOpen}>
-        <DialogContent className="sm:max-w-[820px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Google Hub</DialogTitle>
-            <DialogDescription>
-              Collega Google una volta e assegna solo gli asset necessari a questa azienda.
-              Ads, calendari, scheda locale e YouTube hanno dati e permessi separati.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3 md:grid-cols-2">
-            {googleHubAssets.map((asset) => {
-              const connected = asset.status === "connected";
-              return (
-                <Card key={asset.key} className={cn("border-l-4", connected ? "border-l-emerald-500" : "border-l-slate-300")}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        {asset.icon}
-                        <div className="space-y-1">
-                          <CardTitle className="text-base">{asset.name}</CardTitle>
-                          <CardDescription>{asset.description}</CardDescription>
-                        </div>
-                      </div>
-                      <Badge variant={connected ? "default" : "outline"} className={cn("text-[10px]", connected && "bg-emerald-600 hover:bg-emerald-600")}>
-                        {connected ? "Collegato" : "Da collegare"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 pt-0">
-                    <p className="text-xs text-muted-foreground">{asset.detail}</p>
-                    <Button type="button" variant={connected ? "outline" : "secondary"} size="sm" className="w-full" onClick={asset.action}>
-                      {asset.actionLabel}
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Google Hub Dialog RIMOSSO 2026-05-27: tutti i servizi erano già nelle
+          sezioni dedicate (Reputazione/Pubblicità/Calendari). Il modale creava
+          doppioni e confusione. */}
 
       <Dialog open={googleAdsDialogOpen} onOpenChange={setGoogleAdsDialogOpen}>
         <DialogContent className="sm:max-w-[760px] max-h-[90vh] overflow-y-auto">
