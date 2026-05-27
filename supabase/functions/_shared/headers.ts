@@ -38,33 +38,56 @@ const ALLOW_HEADERS =
 // ── Cache in-memory per custom domains verificati (TTL 5 min) ────────────────
 const verifiedDomainCache = new Set<string>();
 let cacheLoadedAt = 0;
+let refreshInProgress = false; // 2026-05-27 EMERGENCY: anti-loop guard
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-/** Carica i custom domain verificati dal DB in background (fire-and-forget). */
+/** Carica i custom domain verificati dal DB in background (fire-and-forget).
+ *
+ * 2026-05-27 (EMERGENCY FIX): aggiunto `refreshInProgress` guard + aggiorno
+ * `cacheLoadedAt` PRIMA della query (anche in caso di errore). Prima:
+ * - cacheLoadedAt = 0 di default → condizione "scaduta" SEMPRE true
+ * - N edge function in parallelo chiamavano `refreshDomainCacheInBackground`
+ *   simultaneamente → N query a /rest/v1/company_branding
+ * - Se la query falliva (522 Cloudflare timeout), cacheLoadedAt restava 0,
+ *   quindi la PROSSIMA chiamata triggerava ancora N refresh → loop infinito
+ *   che saturava il pool PostgREST → tutto il database inaccessibile.
+ * - Sintomo lato utente: "Server lento (cold-start)" → impossibile fare login.
+ */
 function refreshDomainCacheInBackground(): void {
+  if (refreshInProgress) return;
+  // Aggiorna cacheLoadedAt SUBITO: anche se la query fallisce, evita di
+  // ripetere il tentativo per 5 min. Meglio cache stale che loop infinito.
+  cacheLoadedAt = Date.now();
+  refreshInProgress = true;
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!supabaseUrl || !serviceKey) return;
+  if (!supabaseUrl || !serviceKey) {
+    refreshInProgress = false;
+    return;
+  }
 
   const sb = createClient(supabaseUrl, serviceKey);
   void (async () => {
-    const { data } = await sb.from("company_branding")
-      .select("custom_domain")
-      .eq("custom_domain_verified", true)
-      .eq("is_active", true)
-      .not("custom_domain", "is", null);
+    try {
+      const { data } = await sb.from("company_branding")
+        .select("custom_domain")
+        .eq("custom_domain_verified", true)
+        .eq("is_active", true)
+        .not("custom_domain", "is", null);
 
-    verifiedDomainCache.clear();
-    if (data) {
-      for (const row of data) {
-        if (row.custom_domain) verifiedDomainCache.add(row.custom_domain);
+      verifiedDomainCache.clear();
+      if (data) {
+        for (const row of data) {
+          if (row.custom_domain) verifiedDomainCache.add(row.custom_domain);
+        }
       }
+    } catch {
+      /* silently fail — cache stale, but cacheLoadedAt già aggiornato sopra */
+    } finally {
+      refreshInProgress = false;
     }
-    cacheLoadedAt = Date.now();
-  })()
-    .catch(() => {
-      /* silently fail — cache remains stale */
-    });
+  })();
 }
 
 /** Verifica sincrona se un Origin è ammesso. */
@@ -90,11 +113,17 @@ function isAllowedOriginSync(origin: string): boolean {
   // 4. Custom domain — check in-memory cache
   if (verifiedDomainCache.has(hostname)) return true;
 
-  // 5. Trigger background refresh se cache è scaduta
-  if (Date.now() - cacheLoadedAt > CACHE_TTL_MS) {
-    refreshDomainCacheInBackground();
-  }
-
+  // 5. (DISABILITATO 2026-05-27 EMERGENCY)
+  // Prima qui c'era `refreshDomainCacheInBackground()` ma in serverless ogni
+  // istanza Deno parte con cache vuota → ogni cron invocation triggerava una
+  // nuova query a /rest/v1/company_branding. Quando una di queste falliva
+  // (522 Cloudflare), il pool PostgREST si saturava → tutto il DB diventava
+  // inaccessibile per ~5 minuti, bloccando il login utenti.
+  //
+  // La whitelist statica copre il 99% dei casi (sottodomini *.ediliziaincloud.*
+  // + localhost dev). I custom domain veri sono rari e gestiti manualmente.
+  // Quando servirà, ripristinare con vero rate-limit cross-invocation (es.
+  // Deno KV o flag in DB) — non in-memory.
   return false;
 }
 
