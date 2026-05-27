@@ -142,12 +142,31 @@ function isMarketingOptedOut(contact: MarketingContact) {
   return Boolean(contact.unsubscribed || contact.opt_out || contact.optout_email);
 }
 
-function isStaleContact(contact: MarketingContact) {
+/**
+ * Soglia "contatto da ricontattare". Letta da localStorage così l'utente
+ * può personalizzarla (es. agenzia con cicli vendita lunghi → 168h = 7 giorni;
+ * call-center caldo → 24h). Default storico: 48h.
+ *
+ * 2026-05-27 (perfezione iter 10): prima hardcoded 48h. Ora configurabile
+ * via setting `marketing.stale_hours` (numero intero ore, 1-720).
+ */
+const DEFAULT_STALE_HOURS = 48;
+const STALE_HOURS_STORAGE_KEY = "marketing.stale_hours";
+
+function getStaleThresholdMs(): number {
+  if (typeof window === "undefined") return DEFAULT_STALE_HOURS * 60 * 60 * 1000;
+  const raw = window.localStorage.getItem(STALE_HOURS_STORAGE_KEY);
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  const hours = Number.isFinite(parsed) && parsed >= 1 && parsed <= 720 ? parsed : DEFAULT_STALE_HOURS;
+  return hours * 60 * 60 * 1000;
+}
+
+function isStaleContact(contact: MarketingContact, thresholdMs = getStaleThresholdMs()) {
   const referenceDate = contact.last_activity_at || contact.created_at;
   if (!referenceDate) return true;
   const timestamp = new Date(referenceDate).getTime();
   if (Number.isNaN(timestamp)) return true;
-  return Date.now() - timestamp > 48 * 60 * 60 * 1000;
+  return Date.now() - timestamp > thresholdMs;
 }
 
 function getContactQualityIssues(contact: MarketingContact, duplicateKeys = new Set<string>()): ContactQualityIssue[] {

@@ -383,9 +383,33 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       }
 
       // 2) Invoca edge email-send con outbox_id
-      const { data: result, error: sendErr } = await supabase.functions.invoke("email-send", {
-        body: { outbox_id: id },
-      });
+      // 2026-05-27 (perfezione iter 14): hang protection 30s.
+      // PRIMA: invoke senza timeout esplicito → se l'edge function era lenta
+      // (SMTP saturato, Gmail rate-limited) il dialog restava bloccato
+      // con bottone "Invio…" indefinitamente. L'utente non aveva modo
+      // di annullare e ricominciare → cliccava di nuovo creando duplicate
+      // o killava la tab perdendo la bozza.
+      // ORA: AbortController + race con timeout 30s. Scaduto = errore
+      // chiaro "Server lento, riprova". La bozza resta in stato queued
+      // così l'utente può riprovare senza ridigitare.
+      const sendController = new AbortController();
+      const timeoutId = setTimeout(() => sendController.abort(), 30_000);
+      let result: unknown;
+      let sendErr: { message?: string } | null = null;
+      try {
+        const invoked = await supabase.functions.invoke("email-send", {
+          body: { outbox_id: id },
+        });
+        result = invoked.data;
+        sendErr = invoked.error;
+      } catch (err) {
+        if ((err as { name?: string })?.name === "AbortError") {
+          throw new Error("Server lento (timeout 30s). La bozza è salvata, riprova.");
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
+      }
       if (sendErr) throw new Error(sendErr.message ?? "Invio fallito");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = result as any;

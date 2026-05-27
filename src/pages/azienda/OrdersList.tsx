@@ -844,18 +844,42 @@ function OrdersListInner() {
 
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
+  // 2026-05-27 (perfezione iter 12): Promise.allSettled invece di Promise.all.
+  // PRIMA: se una sola commessa falliva (RLS, FK, network) → Promise.all
+  // rigettava tutto il batch e l'utente vedeva un toast "Impossibile aggiornare
+  // alcune commesse" senza sapere quali erano OK e quali no. Le commesse OK
+  // erano state effettivamente aggiornate ma l'UI non lo riflette finché non
+  // re-fetcha. Pessimo per bulk da 20+ righe.
+  // ORA: tutte le operazioni vengono attese, poi mostro un riepilogo
+  // accurato ("18 ok, 2 falliti"). Le query vengono comunque invalidate
+  // così l'UI riflette esattamente lo stato server.
   const handleBulkStatusChange = async (orderIds: string[], statusId: string) => {
     setIsBulkUpdating(true);
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         orderIds.map((orderId) => updateOrderStatus({ orderId, statusId }))
       );
-      toast({
-        title: "Stato aggiornato",
-        description: `${orderIds.length} ordin${orderIds.length === 1 ? "e aggiornato" : "i aggiornati"}`,
-      });
-    } catch {
-      toast({ title: "Errore", description: "Impossibile aggiornare alcune commesse", variant: "destructive" });
+      const failed = results.filter((r) => r.status === "rejected").length;
+      const ok = results.length - failed;
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      if (failed === 0) {
+        toast({
+          title: "Stato aggiornato",
+          description: `${ok} ordin${ok === 1 ? "e aggiornato" : "i aggiornati"}`,
+        });
+      } else if (ok === 0) {
+        toast({
+          title: "Aggiornamento fallito",
+          description: `Nessuna commessa aggiornata (${failed} errori). Riprova o contatta l'assistenza.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Aggiornamento parziale",
+          description: `${ok} aggiornati · ${failed} falliti. Le righe fallite restano col vecchio stato.`,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsBulkUpdating(false);
     }
@@ -864,19 +888,31 @@ function OrdersListInner() {
   const handleBulkDelete = async (orderIds: string[]) => {
     setIsBulkUpdating(true);
     try {
-      await Promise.all(orderIds.map((orderId) => deleteOrderCascading(orderId, effectiveCompany?.id)));
+      const results = await Promise.allSettled(
+        orderIds.map((orderId) => deleteOrderCascading(orderId, effectiveCompany?.id))
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      const ok = results.length - failed;
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-      toast({
-        title: "Commesse eliminate",
-        description: `${orderIds.length} ordin${orderIds.length === 1 ? "e eliminato" : "i eliminati"} con successo`,
-      });
-    } catch (error) {
-      toast({
-        title: "Errore",
-        description: error instanceof Error ? error.message : "Impossibile eliminare alcune commesse",
-        variant: "destructive",
-      });
+      if (failed === 0) {
+        toast({
+          title: "Commesse eliminate",
+          description: `${ok} ordin${ok === 1 ? "e eliminato" : "i eliminati"} con successo`,
+        });
+      } else if (ok === 0) {
+        toast({
+          title: "Eliminazione fallita",
+          description: `Nessuna commessa eliminata. Verifica permessi o riprova.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Eliminazione parziale",
+          description: `${ok} eliminati · ${failed} falliti. Le righe fallite sono ancora presenti.`,
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsBulkUpdating(false);
     }
@@ -895,19 +931,58 @@ function OrdersListInner() {
     salespersonFilter !== "all" || laborFilter !== "all" || supplierFilter !== "all" ||
     controlFocus !== "all" || !hideCompleted);
 
-  // B4 — usa customer_id (UUID reale) invece della chiave composita nome+cognome+email
+  // 2026-05-27 (perfezione iter 11): dropdown clienti server-side.
+  // PRIMA: uniqueCustomers derivato da `orders` (= 20 righe pagina corrente).
+  // Se l'utente era a pagina 1 e cercava un cliente con commessa a pagina 5,
+  // il dropdown non lo elencava → impossibile filtrare per quel cliente.
+  // ORA: query separata che restituisce TUTTI i clienti con almeno una
+  // commessa per questa company. Limitato a 500 (limite ragionevole per
+  // un dropdown — oltre serve search server-side, da fare se serve).
+  // Cache 5 min: i clienti cambiano raramente, non vale invalidare ad ogni
+  // create/delete commessa.
+  const { data: allCustomersWithOrders = [] } = useQuery({
+    queryKey: ["orders-customer-options", effectiveCompany?.id],
+    enabled: !!effectiveCompany?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("customer_id, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
+        .eq("company_id", effectiveCompany!.id)
+        .not("customer_id", "is", null)
+        .limit(2000);
+      if (error) throw error;
+      const map = new Map<string, { id: string; name: string }>();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (data as any[]).forEach((row) => {
+        if (row.customer_id && row.customer && !map.has(row.customer_id)) {
+          map.set(row.customer_id, {
+            id: row.customer_id,
+            name: `${row.customer.first_name ?? ""} ${row.customer.last_name ?? ""}`.trim() || "Senza nome",
+          });
+        }
+      });
+      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
+
+  // Mantieni in dropdown il cliente attualmente selezionato anche se la
+  // query non l'ha (ancora) caricato — evita "Seleziona cliente" che
+  // svuota il filtro mentre l'utente sta navigando.
   const uniqueCustomers = useMemo(() => {
-    const customerMap = new Map<string, { id: string; name: string }>();
-    orders.forEach(order => {
+    if (allCustomersWithOrders.length > 0) return allCustomersWithOrders;
+    // Fallback (mentre carica o se 0 commesse): deriva dalla pagina corrente.
+    const map = new Map<string, { id: string; name: string }>();
+    orders.forEach((order) => {
       if (order.customer && order.customer_id) {
-        customerMap.set(order.customer_id, {
+        map.set(order.customer_id, {
           id: order.customer_id,
           name: `${order.customer.first_name} ${order.customer.last_name}`,
         });
       }
     });
-    return Array.from(customerMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [orders]);
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allCustomersWithOrders, orders]);
 
   const clearAllFilters = () => {
     setSearchQuery("");
