@@ -162,6 +162,7 @@ const Integrazioni = lazy(() => import("@/pages/Integrazioni"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const TerminiServizio = lazy(() => import("@/pages/TerminiServizio"));
 const CookiePolicy = lazy(() => import("@/pages/CookiePolicy"));
+const DataDeletion = lazy(() => import("@/pages/DataDeletion"));
 const AvvisoLegale = lazy(() => import("@/pages/AvvisoLegale"));
 const CondizioniUtilizzoSito = lazy(() => import("@/pages/CondizioniUtilizzoSito"));
 const DPA = lazy(() => import("@/pages/DPA"));
@@ -553,6 +554,9 @@ const App = () => (
               <Route path="/termini-e-condizioni" element={<TerminiServizio />} />
               <Route path="/cookie" element={<CookiePolicy />} />
               <Route path="/cookie-policy" element={<CookiePolicy />} />
+              {/* /data-deletion: obbligatoria Meta App Review + GDPR diritto oblio */}
+              <Route path="/data-deletion" element={<DataDeletion />} />
+              <Route path="/cancellazione-dati" element={<DataDeletion />} />
               <Route path="/avviso-legale" element={<AvvisoLegale />} />
               <Route path="/condizioni-utilizzo" element={<CondizioniUtilizzoSito />} />
               <Route path="/dpa" element={<DPA />} />
