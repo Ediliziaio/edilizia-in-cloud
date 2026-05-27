@@ -453,6 +453,18 @@ export default function CompanyLifecycle() {
   const [search, setSearch] = useState("");
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("score_asc");
+  const [activeTab, setActiveTab] = useState("trial");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["trial"]));
+  const onTabChange = (v: string) => {
+    setActiveTab(v);
+    setVisitedTabs((prev) => {
+      if (prev.has(v)) return prev;
+      const next = new Set(prev);
+      next.add(v);
+      return next;
+    });
+  };
+  const isMounted = (k: string) => visitedTabs.has(k);
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
 
@@ -587,7 +599,7 @@ export default function CompanyLifecycle() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <Tabs defaultValue="trial">
+        <Tabs value={activeTab} onValueChange={onTabChange}>
           {/* Su mobile: scroll orizzontale (no wrap caotico). Su sm+: wrap normale */}
           <TabsList className="h-auto justify-start overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
             <TabsTrigger value="trial">
@@ -617,7 +629,7 @@ export default function CompanyLifecycle() {
           </TabsList>
 
           <TabsContent value="trial" className="space-y-4 mt-4">
-            {filteredTrial.length === 0 ? (
+            {isMounted("trial") && (filteredTrial.length === 0 ? (
               <EmptyState
                 title="Nessun trial attivo"
                 subtitle={hasFilters ? "Nessun risultato per i filtri applicati" : "Non ci sono aziende in fase trial"}
@@ -625,11 +637,11 @@ export default function CompanyLifecycle() {
               />
             ) : (
               filteredTrial.map((c) => <CompanyCard key={c.companyId} company={c} variant="trial" showOnboarding />)
-            )}
+            ))}
           </TabsContent>
 
           <TabsContent value="active" className="space-y-4 mt-4">
-            {filteredActive.length === 0 ? (
+            {isMounted("active") && (filteredActive.length === 0 ? (
               <EmptyState
                 title="Nessuna azienda attiva"
                 subtitle={hasFilters ? "Nessun risultato per i filtri applicati" : "Non ci sono aziende paganti"}
@@ -637,11 +649,11 @@ export default function CompanyLifecycle() {
               />
             ) : (
               filteredActive.map((c) => <CompanyCard key={c.companyId} company={c} variant="active" showOnboarding={false} />)
-            )}
+            ))}
           </TabsContent>
 
           <TabsContent value="suspended" className="space-y-4 mt-4">
-            {filteredSuspended.length === 0 ? (
+            {isMounted("suspended") && (filteredSuspended.length === 0 ? (
               <EmptyState
                 title="Nessuna azienda sospesa"
                 subtitle={hasFilters ? "Nessun risultato per i filtri applicati" : "Nessun account sospeso al momento"}
@@ -649,11 +661,11 @@ export default function CompanyLifecycle() {
               />
             ) : (
               filteredSuspended.map((c) => <CompanyCard key={c.companyId} company={c} variant="suspended" showOnboarding={false} />)
-            )}
+            ))}
           </TabsContent>
 
           <TabsContent value="expired" className="space-y-4 mt-4">
-            {filteredExpired.length === 0 ? (
+            {isMounted("expired") && (filteredExpired.length === 0 ? (
               <EmptyState
                 title="Nessun win-back disponibile"
                 subtitle={hasFilters ? "Nessun risultato per i filtri applicati" : "Tutte le aziende scadute sono già state contattate"}
@@ -661,7 +673,7 @@ export default function CompanyLifecycle() {
               />
             ) : (
               filteredExpired.map((c) => <CompanyCard key={c.companyId} company={c} variant="expired" showOnboarding />)
-            )}
+            ))}
           </TabsContent>
         </Tabs>
       )}

@@ -38,6 +38,18 @@ function SyncLogs() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [dateRange, setDateRange] = useState<DateRange>("week");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("sync");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["sync"]));
+  const onTabChange = (v: string) => {
+    setActiveTab(v);
+    setVisitedTabs((prev) => {
+      if (prev.has(v)) return prev;
+      const next = new Set(prev);
+      next.add(v);
+      return next;
+    });
+  };
+  const isMounted = (k: string) => visitedTabs.has(k);
 
   const { data: logs = [], isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["sync-logs", statusFilter, dateRange],
@@ -154,7 +166,7 @@ function SyncLogs() {
   return (
     <div className="space-y-4 md:space-y-6">
       <h1 className="text-2xl font-bold hidden md:block">Log di Sistema</h1>
-      <Tabs defaultValue="sync">
+      <Tabs value={activeTab} onValueChange={onTabChange}>
         <TabsList>
           <TabsTrigger value="sync">Sync Calendar</TabsTrigger>
           <TabsTrigger value="stripe" className="gap-1">
@@ -329,15 +341,16 @@ function SyncLogs() {
 
         {/* Stripe Events Tab */}
         <TabsContent value="stripe" className="space-y-4 mt-4">
-          <StripeEventsTab />
+          {isMounted("stripe") && <StripeEventsTab />}
         </TabsContent>
 
         {/* Dunning Tab */}
         <TabsContent value="dunning" className="space-y-4 mt-4">
-          <DunningAttemptsTab />
+          {isMounted("dunning") && <DunningAttemptsTab />}
         </TabsContent>
 
         <TabsContent value="edge" className="space-y-4 mt-4">
+          {isMounted("edge") && <>
           {/* Stat cards: stack su mobile, 3 cols su sm+ */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Card>
@@ -406,6 +419,7 @@ function SyncLogs() {
               )}
             </CardContent>
           </Card>
+          </>}
         </TabsContent>
       </Tabs>
     </div>

@@ -81,6 +81,19 @@ interface ParametroRow {
 }
 
 export default function AdminFvModulo() {
+  const [activeTab, setActiveTab] = useState("incentivi");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["incentivi"]));
+  const onTabChange = (v: string) => {
+    setActiveTab(v);
+    setVisitedTabs((prev) => {
+      if (prev.has(v)) return prev;
+      const next = new Set(prev);
+      next.add(v);
+      return next;
+    });
+  };
+  const isMounted = (k: string) => visitedTabs.has(k);
+
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
       <div className="flex items-center gap-3">
@@ -93,7 +106,7 @@ export default function AdminFvModulo() {
         </div>
       </div>
 
-      <Tabs defaultValue="incentivi">
+      <Tabs value={activeTab} onValueChange={onTabChange}>
         <TabsList>
           <TabsTrigger value="incentivi">
             <Sparkles className="h-4 w-4 mr-1" />
@@ -114,16 +127,16 @@ export default function AdminFvModulo() {
         </TabsList>
 
         <TabsContent value="incentivi" className="mt-3">
-          <TabIncentivi />
+          {isMounted("incentivi") && <TabIncentivi />}
         </TabsContent>
         <TabsContent value="parametri" className="mt-3">
-          <TabParametri />
+          {isMounted("parametri") && <TabParametri />}
         </TabsContent>
         <TabsContent value="api" className="mt-3">
-          <TabApiSecrets />
+          {isMounted("api") && <TabApiSecrets />}
         </TabsContent>
         <TabsContent value="stats" className="mt-3">
-          <TabStatistiche />
+          {isMounted("stats") && <TabStatistiche />}
         </TabsContent>
       </Tabs>
     </div>

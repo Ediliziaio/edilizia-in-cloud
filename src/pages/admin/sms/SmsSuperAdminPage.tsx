@@ -301,6 +301,18 @@ function SmsPLChart() {
 
 export default function SmsSuperAdminPage() {
   const { plStats, isLoadingPL } = useSmsSuperAdmin();
+  const [activeTab, setActiveTab] = useState("tenant");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["tenant"]));
+  const onTabChange = (v: string) => {
+    setActiveTab(v);
+    setVisitedTabs((prev) => {
+      if (prev.has(v)) return prev;
+      const next = new Set(prev);
+      next.add(v);
+      return next;
+    });
+  };
+  const isMounted = (k: string) => visitedTabs.has(k);
 
   const kpis = [
     {
@@ -346,7 +358,7 @@ export default function SmsSuperAdminPage() {
         ))}
       </div>
 
-      <Tabs defaultValue="tenant">
+      <Tabs value={activeTab} onValueChange={onTabChange}>
         <TabsList>
           <TabsTrigger value="tenant">Tenant</TabsTrigger>
           <TabsTrigger value="pl">P&L</TabsTrigger>
@@ -355,16 +367,16 @@ export default function SmsSuperAdminPage() {
         </TabsList>
 
         <TabsContent value="tenant" className="mt-4">
-          <SmsTenantTable />
+          {isMounted("tenant") && <SmsTenantTable />}
         </TabsContent>
         <TabsContent value="pl" className="mt-4">
-          <SmsPLChart />
+          {isMounted("pl") && <SmsPLChart />}
         </TabsContent>
         <TabsContent value="prezzi" className="mt-4">
-          <SmsPricingEditor />
+          {isMounted("prezzi") && <SmsPricingEditor />}
         </TabsContent>
         <TabsContent value="pacchetti" className="mt-4">
-          <SmsPacchettiEditor />
+          {isMounted("pacchetti") && <SmsPacchettiEditor />}
         </TabsContent>
       </Tabs>
     </div>
