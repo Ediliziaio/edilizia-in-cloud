@@ -1,19 +1,47 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
-/** Verify that the caller is either a cron job (with x-cron-secret) or an authenticated user. */
-function verifyCronOrAuth(req: Request): void {
+/**
+ * Verify that the caller is either a cron job (with x-cron-secret),
+ * service-role server-to-server, or an authenticated user.
+ *
+ * 2026-05-27 SECURITY FIX: prima accettava QUALSIASI Bearer senza
+ * validazione. Ora verifica che il token sia service-role o un JWT
+ * utente valido via supabase.auth.getUser.
+ */
+async function verifyCronOrAuth(req: Request): Promise<void> {
   const cronSecret = Deno.env.get("CRON_SECRET");
   const reqSecret = req.headers.get("x-cron-secret");
   if (cronSecret && reqSecret === cronSecret) return; // cron OK
 
   const authHeader = req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) return; // has JWT (will be validated by service role usage context)
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new Response(JSON.stringify({ error: "Unauthorized: missing cron secret or JWT" }), {
+      status: 401,
+      headers: secureHeaders,
+    });
+  }
+  const token = authHeader.slice(7);
 
-  throw new Response(JSON.stringify({ error: "Unauthorized: missing cron secret or JWT" }), {
-    status: 401,
-    headers: secureHeaders,
-  });
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (serviceRoleKey && token === serviceRoleKey) return; // server-to-server
+
+  const sbUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!sbUrl || !anonKey) {
+    throw new Response(JSON.stringify({ error: "Server misconfigured" }), {
+      status: 503,
+      headers: secureHeaders,
+    });
+  }
+  const client = createClient(sbUrl, anonKey);
+  const { data: { user }, error } = await client.auth.getUser(token);
+  if (error || !user) {
+    throw new Response(JSON.stringify({ error: "Unauthorized: invalid JWT" }), {
+      status: 401,
+      headers: secureHeaders,
+    });
+  }
 }
 
 Deno.serve(async (req) => {
@@ -22,7 +50,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    verifyCronOrAuth(req);
+    await verifyCronOrAuth(req);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

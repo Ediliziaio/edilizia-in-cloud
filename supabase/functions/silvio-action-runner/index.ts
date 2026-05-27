@@ -111,6 +111,20 @@ async function dispatch(action: ActionRow): Promise<{ ok: boolean; result?: unkn
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
+  // 2026-05-27 SECURITY FIX: prima auth-zero → chiunque poteva triggerare
+  // lo svuotamento della queue → invio email Resend a massa (FROM
+  // silvio@ediliziaincloud.it) → consumo crediti / spam catapulta.
+  // Ora richiede Bearer service-role oppure CRON_SECRET (per pg_cron).
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+  const isServiceRole = token === SERVICE_ROLE_KEY;
+  const isCron = cronSecret && token === cronSecret;
+  if (!isServiceRole && !isCron) {
+    console.warn("[silvio-action-runner] unauthorized request rejected");
+    return jsonRes({ error: "Unauthorized" }, 401);
+  }
+
   const t0 = Date.now();
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);

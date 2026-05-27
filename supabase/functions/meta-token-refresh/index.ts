@@ -6,20 +6,50 @@ import { encrypt, decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 // Soglia: rinnova token che scadono entro 15 giorni
 const REFRESH_THRESHOLD_DAYS = 15;
 
-function verifyCronOrAuth(req: Request): void {
+/**
+ * 2026-05-27 SECURITY FIX: prima accettava QUALSIASI Bearer senza validare.
+ * Ora verifica che il token sia service-role o un JWT utente valido.
+ */
+async function verifyCronOrAuth(req: Request): Promise<void> {
   const cronSecret = Deno.env.get("CRON_SECRET");
   const reqSecret = req.headers.get("x-cron-secret");
   if (cronSecret && reqSecret === cronSecret) return;
+
   const authHeader = req.headers.get("Authorization");
-  if (authHeader?.startsWith("Bearer ")) return;
-  throw new Error("Unauthorized: missing cron secret or JWT");
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw new Response(JSON.stringify({ error: "Unauthorized: missing cron secret or JWT" }), {
+      status: 401,
+      headers: secureHeaders,
+    });
+  }
+  const token = authHeader.slice(7);
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (serviceRoleKey && token === serviceRoleKey) return;
+
+  const sbUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!sbUrl || !anonKey) {
+    throw new Response(JSON.stringify({ error: "Server misconfigured" }), {
+      status: 503,
+      headers: secureHeaders,
+    });
+  }
+  const client = createClient(sbUrl, anonKey);
+  const { data: { user }, error } = await client.auth.getUser(token);
+  if (error || !user) {
+    throw new Response(JSON.stringify({ error: "Unauthorized: invalid JWT" }), {
+      status: 401,
+      headers: secureHeaders,
+    });
+  }
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
   try {
-    verifyCronOrAuth(req);
+    await verifyCronOrAuth(req);
   } catch {
     console.error("meta-token-refresh: accesso non autorizzato");
     return errorResponse("Unauthorized", 401);

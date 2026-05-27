@@ -15,6 +15,49 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  // ──────────────────────────────────────────────────────────────────────
+  // 2026-05-27 SECURITY FIX: prima zero-auth → anyone could modify orders,
+  // create tickets/notes, send SMS Telnyx (at company expense) on ANY
+  // company. Now requires HMAC-SHA256 signature via xi-signature header
+  // matching ELEVENLABS_WEBHOOK_SECRET. Same pattern as internal-agent-webhook.
+  // ──────────────────────────────────────────────────────────────────────
+  const webhookSecret = Deno.env.get("ELEVENLABS_WEBHOOK_SECRET");
+  if (!webhookSecret) {
+    console.error("[INTERNAL-AGENT-TOOLS] ELEVENLABS_WEBHOOK_SECRET not configured — reject all");
+    return errorResponse("Webhook secret not configured on server", 503);
+  }
+  const signature = req.headers.get("xi-signature");
+  if (!signature) {
+    console.warn("[INTERNAL-AGENT-TOOLS] Missing xi-signature header");
+    return errorResponse("Missing signature", 401);
+  }
+  const rawBody = await req.clone().text();
+  {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(webhookSecret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+    const expectedSig = Array.from(new Uint8Array(sig))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const sigBytes = new TextEncoder().encode(signature);
+    const expBytes = new TextEncoder().encode(expectedSig);
+    if (sigBytes.length !== expBytes.length) {
+      return errorResponse("Invalid signature", 401);
+    }
+    let diff = 0;
+    for (let i = 0; i < sigBytes.length; i++) diff |= sigBytes[i] ^ expBytes[i];
+    if (diff !== 0) {
+      console.warn("[INTERNAL-AGENT-TOOLS] Invalid signature");
+      return errorResponse("Invalid signature", 401);
+    }
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -22,7 +65,7 @@ Deno.serve(async (req) => {
   });
 
   try {
-    const body = await req.json();
+    const body = JSON.parse(rawBody);
 
     // ElevenLabs sends tool calls in different formats depending on config.
     // We normalize to: tool_name + parameters

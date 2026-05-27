@@ -120,11 +120,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 2026-05-27 SECURITY FIX: prima la password generata veniva ritornata in
+    // chiaro nel body JSON → loggata in DevTools/HAR, leak via extension
+    // malevole, screen recording. Ora la password è solo nell'email che il
+    // sistema invia direttamente al cliente. Il company_admin riceve solo
+    // conferma che l'email è stata inviata. Non più embedded nel response.
     return jsonResponse({
       success: true,
-      message: "Password reset successfully",
-      newPassword: finalPassword,
-      temporaryPassword: finalPassword,
+      message: "Password reset successfully. The customer will receive the new password via email.",
+      passwordSentByEmail: true,
       customer: {
         id: targetProfile.id,
         email: targetProfile.email,
