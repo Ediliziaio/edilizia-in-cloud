@@ -121,8 +121,9 @@ export default function MarketingCalendar() {
   const busySlots = [...googleBusySlots, ...appleBusySlots];
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
-  // Marketing e vendite: lettura unica mensile per lead, sopralluoghi e appuntamenti commerciali.
-  const [calendarView] = useState<CalendarView>("month");
+  // 2026-05-27: ripristinato lo switcher Day/Week/Month dopo bug in cui mancava
+  // il setter — la vista era hardcoded "month" e i tasti non facevano nulla.
+  const [calendarView, setCalendarView] = useState<CalendarView>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1063,10 +1064,56 @@ export default function MarketingCalendar() {
                 </SheetContent>
               </Sheet>
 
-              {/* Vista unica Marketing & Vendite */}
-              <div className="inline-flex h-9 items-center gap-1.5 rounded-md border bg-primary px-3 text-xs font-semibold text-primary-foreground md:text-sm">
-                <Grid3x3 className="h-3.5 w-3.5" />
-                Vista mese
+              {/* 2026-05-27: switcher Day/Week/Month ripristinato.
+                  Era stato sostituito da un badge statico "Vista mese" — UI
+                  ingannevole perché il rendering condizionale a valle
+                  supportava già tutte e 3 le viste. */}
+              <div className="inline-flex h-9 items-center rounded-md border bg-background p-0.5 text-xs font-medium md:text-sm">
+                <button
+                  type="button"
+                  onClick={() => setCalendarView("day")}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 transition-colors md:px-3",
+                    calendarView === "day"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                  aria-pressed={calendarView === "day"}
+                  title="Vista giornaliera"
+                >
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Giorno</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarView("week")}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 transition-colors md:px-3",
+                    calendarView === "week"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                  aria-pressed={calendarView === "week"}
+                  title="Vista settimanale"
+                >
+                  <ListIcon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Settimana</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarView("month")}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-sm px-2.5 transition-colors md:px-3",
+                    calendarView === "month"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )}
+                  aria-pressed={calendarView === "month"}
+                  title="Vista mensile"
+                >
+                  <Grid3x3 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Mese</span>
+                </button>
               </div>
             </div>
 
