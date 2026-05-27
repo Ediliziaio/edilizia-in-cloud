@@ -572,6 +572,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             </button>
             <button
               type="button"
+              onClick={() => setRightTab("appointments")}
               className="h-12 rounded-xl flex flex-col items-center justify-center gap-0.5 bg-amber-100 text-amber-900 active:bg-amber-200"
             >
               <CalendarDays className="h-4 w-4" />
@@ -660,7 +661,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
                 </Button>
               )}
-              <Button variant="outline" size="sm" className="gap-1.5 h-9"><CalendarDays className="h-3.5 w-3.5" /> Appuntam.</Button>
+              <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setRightTab("appointments")}><CalendarDays className="h-3.5 w-3.5" /> Appuntam.</Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><ChevronDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">

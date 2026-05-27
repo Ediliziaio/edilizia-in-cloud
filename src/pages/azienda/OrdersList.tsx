@@ -2107,9 +2107,17 @@ function OrdersListInner() {
                       ? "Nessuna commessa corrisponde al focus operativo selezionato in questa pagina."
                       : "Nessuna commessa corrisponde ai filtri selezionati."}
                 </p>
+                {/* 2026-05-26 (audit fix P1): aggiunto bottone "Pulisci filtri"
+                    quando ci sono commesse in DB ma i filtri attivi le nascondono.
+                    Prima l'utente vedeva solo "Mostra tutte" se controlFocus≠"all",
+                    ma non aveva escape per altri filtri (status/cliente/anno/etc). */}
                 {controlFocus !== "all" ? (
                   <Button variant="outline" onClick={() => setControlFocus("all")}>
                     Mostra tutte le commesse
+                  </Button>
+                ) : stats.totalOrders > 0 && hasAnyFilter ? (
+                  <Button variant="outline" onClick={clearAllFilters} className="gap-2">
+                    Pulisci tutti i filtri
                   </Button>
                 ) : stats.totalOrders === 0 && !isCommercialistaMode && (
                   appaltatoreEnabled ? (

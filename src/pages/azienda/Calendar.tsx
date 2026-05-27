@@ -521,7 +521,14 @@ function CalendarInner() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const busySlots = [...googleBusySlots, ...appleBusySlots];
+  // 2026-05-26 (audit fix P2): memoizzato per evitare re-render cascata su
+  // CalendarDayView/WeekView/MonthView ad ogni cambio filtri/toggle. Senza
+  // memo, l'array veniva ricreato ad ogni render → reference inequality →
+  // sub-components ri-render anche se i dati non cambiavano.
+  const busySlots = useMemo(
+    () => [...googleBusySlots, ...appleBusySlots],
+    [googleBusySlots, appleBusySlots],
+  );
 
   // Fetch synced appointment IDs for badge display
   const { data: syncedAppointmentIds } = useQuery({
@@ -869,19 +876,25 @@ function CalendarInner() {
     return workAppointments.filter(apt => apt.assigned_to === assignedToFilter);
   }, [enrichedAppointments, assignedToFilter]);
 
-  // Compute hidden event types for views
+  // Compute hidden event types for views.
+  // 2026-05-26 (audit fix P0): i toggle dei layer "Arrivo Merce", "Google Busy",
+  // "Ferie/Assenze", "Interventi", "Manutenzioni" venivano SEMPRE aggiunti a
+  // hidden, ignorando le flag show*. Le query si attivavano correttamente
+  // (carregavano i dati dal DB) ma poi le view filtravano sempre via tutto →
+  // l'utente vedeva loading→nulla. Solo posa/lavoro/appuntamento rispettavano
+  // il toggle. Ora ogni layer ha il suo `if (!show...) hidden.add(...)`.
   const hiddenEventTypes = useMemo(() => {
     const hidden = new Set<string>();
     if (!showPosa) hidden.add("posa");
     if (!showLavoro) hidden.add("lavoro");
     if (!showAppuntamento) hidden.add("appuntamento");
-    hidden.add("merce");
-    hidden.add("google_busy");
-    hidden.add("leaves");
-    hidden.add("intervento");
-    hidden.add("manutenzione");
+    if (!showMerce) hidden.add("merce");
+    if (!showGoogleBusy) hidden.add("google_busy");
+    if (!showLeaves) hidden.add("leaves");
+    if (!showInterventi) hidden.add("intervento");
+    if (!showManutenzioni) hidden.add("manutenzione");
     return hidden;
-  }, [showPosa, showLavoro, showAppuntamento]);
+  }, [showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showInterventi, showManutenzioni]);
 
   // Effective visible sets for layer panel
   const effectiveVisibleEmployees = effectiveWorkVisibleEmployeeIds;

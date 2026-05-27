@@ -96,7 +96,9 @@ function getDateLabel(dateStr: string) {
 export function UnifiedContactTimeline({ contactId, companyId }: { contactId: string; companyId: string }) {
   const [filter, setFilter] = useState<FilterCategory>("all");
 
-  const queryOpts = { enabled: !!contactId, refetchInterval: 30000 };
+  // 2026-05-26 (audit fix P1): refetchIntervalInBackground:false → no spam
+  // Postgres ogni 30s quando l'utente lascia il tab in background.
+  const queryOpts = { enabled: !!contactId, refetchInterval: 30000, refetchIntervalInBackground: false };
 
   // Fetch all data sources in parallel
   const { data: activities = [], isLoading: loadingAct, isError: errAct } = useQuery({
@@ -174,6 +176,7 @@ export function UnifiedContactTimeline({ contactId, companyId }: { contactId: st
     },
     enabled: !!contactId && !!companyId,
     refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 
   const { data: notes = [], isLoading: loadingNote, isError: errNote } = useQuery({

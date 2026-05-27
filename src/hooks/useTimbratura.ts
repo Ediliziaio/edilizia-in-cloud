@@ -80,6 +80,7 @@ export function useMyTodayTimbrature(profiloId: string | undefined) {
     enabled: !!companyId && !!profiloId,
     staleTime: 30 * 1000,
     refetchInterval: 60000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -211,5 +212,6 @@ export function useLiveStatus() {
     },
     enabled: !!companyId,
     refetchInterval: 60000,
+    refetchIntervalInBackground: false,
   });
 }

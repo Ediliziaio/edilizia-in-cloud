@@ -284,8 +284,14 @@ function CreateOrderInner() {
     }
   }, [statuses, statusId, setValue]);
 
+  // 2026-05-26 (audit fix P0): timezone bug.
+  // PRIMA: `d.toISOString().split("T")[0]` convertiva una Date locale in UTC.
+  // Utente italiano (CET/CEST) che selezionava "30 ottobre" alle 23:30 →
+  // toISOString → "2026-10-29T22:00:00Z" → DB salvava expected_date="2026-10-29".
+  // La data si "spostava indietro di un giorno" per scelte fatte a fine giornata.
+  // ORA: format(d, "yyyy-MM-dd") da date-fns usa fuso orario locale.
   const toDateStr = (d: Date | undefined): string | null =>
-    d ? d.toISOString().split("T")[0] : null;
+    d ? format(d, "yyyy-MM-dd") : null;
 
   // Create order mutation
   const createOrderMutation = useMutation({
@@ -417,12 +423,25 @@ function CreateOrderInner() {
       setCreatedOrderId(order.id);
 
       // v8.6.89 — analytics
-      track(ANALYTICS_EVENTS.ORDER_CREATED, {
-        order_id: order.id,
-        order_value: values.importo_totale,
-        has_customer: !!values.cliente_id,
-        plan_slug: currentPlan?.slug,
-      });
+      // 2026-05-26 (audit fix P0): `values` non è in scope qui (era una const
+      // della mutationFn). Inoltre le chiavi erano in italiano (importo_totale,
+      // cliente_id) mentre il form schema usa nomi inglesi (total_amount,
+      // customer_id). Risultato: ReferenceError silenzioso interrompeva
+      // onSuccess → niente navigate, niente upload allegati, niente toast.
+      // FIX: leggo i values direttamente dal form via getValues(), e wrap
+      // in try/catch così un fail analytics non rompe il flow utente.
+      try {
+        const formValues = getValues();
+        track(ANALYTICS_EVENTS.ORDER_CREATED, {
+          order_id: order.id,
+          order_value: parseFloat(formValues.total_amount) || 0,
+          has_customer: !!formValues.customer_id,
+          plan_slug: currentPlan?.slug,
+        });
+      } catch (analyticsErr) {
+        // Non-blocking: i log analytics non devono fermare il salvataggio
+        logger.warn("[CreateOrder] analytics track failed", analyticsErr);
+      }
 
       // Upload pending files
       if (pendingFiles.length > 0) {
