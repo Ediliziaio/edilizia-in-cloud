@@ -18,11 +18,13 @@ import { ArrowLeft, AlertCircle, Plus, Loader2, Wrench } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ImpiantoDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { effectiveCompany, user } = useAuth();
   const [esecuzioneOpen, setEsecuzioneOpen] = useState(false);
   const [selectedPianoId, setSelectedPianoId] = useState<string | null>(null);
   const [esecuzioneForm, setEsecuzioneForm] = useState({ data: new Date().toISOString().split("T")[0], esito: "ok", note: "" });
@@ -101,9 +103,17 @@ export default function ImpiantoDetail() {
 
   const registraEsecuzioneMutation = useMutation({
     mutationFn: async () => {
+      // 2026-05-27 (UX audit): precondizioni esplicite + payload completo.
+      // Prima: data poteva essere "" (Input non-required) → insert rifiutato.
+      // company_id/tecnico_id mancanti → orfanaggio + zero traccia "chi ha eseguito".
       if (!selectedPianoId) throw new Error("Seleziona un piano");
+      if (!esecuzioneForm.data) throw new Error("La data è obbligatoria");
+      if (!effectiveCompany?.id) throw new Error("Azienda non disponibile");
+
       const { error } = await supabase.from("esecuzioni_manutenzione").insert({
         piano_id: selectedPianoId,
+        company_id: effectiveCompany.id,
+        tecnico_id: user?.id ?? null,
         data_esecuzione: esecuzioneForm.data,
         esito: esecuzioneForm.esito,
         note: esecuzioneForm.note.trim() || null,
@@ -117,7 +127,7 @@ export default function ImpiantoDetail() {
       queryClient.invalidateQueries({ queryKey: ["piani-impianto", contratto?.id] });
       setEsecuzioneOpen(false);
     },
-    onError: () => toast.error("Errore nella registrazione"),
+    onError: (e: Error) => toast.error(e.message || "Errore nella registrazione"),
   });
 
   if (isLoading) return (
@@ -335,8 +345,13 @@ export default function ImpiantoDetail() {
               </div>
             )}
             <div className="space-y-1.5">
-              <Label>Data esecuzione</Label>
-              <Input type="date" value={esecuzioneForm.data} onChange={(e) => setEsecuzioneForm((f) => ({ ...f, data: e.target.value }))} />
+              <Label>Data esecuzione <span className="text-destructive">*</span></Label>
+              <Input
+                type="date"
+                value={esecuzioneForm.data}
+                onChange={(e) => setEsecuzioneForm((f) => ({ ...f, data: e.target.value }))}
+                required
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Esito</Label>

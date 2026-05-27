@@ -10,6 +10,7 @@ import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -230,6 +231,7 @@ function OrderDetailInner() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
+  const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
   const queryClient = useQueryClient();
@@ -969,6 +971,8 @@ function OrderDetailInner() {
         onElimina={() => setDeleteConfirmOpen(true)}
         onDownloadPDF={handleDownloadPDF}
         isGeneratingPDF={isGeneratingPDF}
+        canEdit={permissions.canEditOrders}
+        canDelete={permissions.canEditOrders}
       />
 
       {/* ── Status strip ──────────────────────────────────────── */}

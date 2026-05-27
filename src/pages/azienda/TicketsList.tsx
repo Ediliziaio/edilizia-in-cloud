@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +141,8 @@ function compareSortValues(a: string | number, b: string | number): number {
 }
 
 const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
+  const permissions = usePermissions();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
@@ -168,7 +170,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
 
   const { data: queryResult, isLoading, isError, refetch } = useQuery({
-    queryKey: [...queryKeys.companyTickets.list(effectiveCompany?.id), tipoFilter, statusFilter, priorityFilter],
+    queryKey: [...queryKeys.companyTickets.list(effectiveCompany?.id), tipoFilter, statusFilter, priorityFilter, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), TICKETS_QUERY_TIMEOUT_MS);
@@ -192,6 +194,14 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       }
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
       if (priorityFilter !== "all") query = query.eq("priority", priorityFilter);
+
+      // 2026-05-27 (Security audit): tecnico/sopralluoghista con
+      // only_assigned=true deve vedere SOLO i suoi ticket. RLS già filtra a
+      // monte (check_staff_visibility), ma applichiamo anche qui per ridurre
+      // banda + caricamento (no count completo dell'azienda).
+      if (permissions.onlyAssigned && user?.id) {
+        query = query.eq("assigned_to", user.id);
+      }
 
       try {
         const { data, error, count } = await query

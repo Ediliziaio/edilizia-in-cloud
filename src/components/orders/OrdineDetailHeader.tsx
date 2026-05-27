@@ -26,6 +26,13 @@ interface OrdineDetailHeaderProps {
   onElimina: () => void;
   onDownloadPDF?: () => void;
   isGeneratingPDF?: boolean;
+  /**
+   * 2026-05-27 (UX audit fix): permessi opzionali per nascondere le voci
+   * distruttive quando l'utente non ha il diritto. Backward-compat: se
+   * undefined, tutto è visibile (comportamento legacy admin).
+   */
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export function OrdineDetailHeader({
@@ -41,6 +48,8 @@ export function OrdineDetailHeader({
   onElimina,
   onDownloadPDF,
   isGeneratingPDF = false,
+  canEdit = true,
+  canDelete = true,
 }: OrdineDetailHeaderProps) {
   const isAppaltatoreLavoro = orderType === "appaltatore_lavoro";
   const navigate = useNavigate();
@@ -91,18 +100,20 @@ export function OrdineDetailHeader({
             <TrendingUp className="h-3.5 w-3.5" />
             + SAL
           </QuotePrimaryButton>
-          {/* Modifica — sempre visibile (primaria) */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onModifica}
-            className="text-xs flex-1 sm:flex-none"
-            aria-label="Modifica commessa"
-          >
-            <Pencil className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Modifica</span>
-            <span className="sm:hidden">Modifica</span>
-          </Button>
+          {/* Modifica — visibile solo se canEdit */}
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onModifica}
+              className="text-xs flex-1 sm:flex-none"
+              aria-label="Modifica commessa"
+            >
+              <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Modifica</span>
+              <span className="sm:hidden">Modifica</span>
+            </Button>
+          )}
           {/* Azioni secondarie: dropdown su mobile */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -126,15 +137,21 @@ export function OrdineDetailHeader({
                   Scarica PDF
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={onDuplica}>
-                <Copy className="h-4 w-4 mr-2" />
-                Duplica
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onElimina} className="text-red-600 focus:text-red-700">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Elimina
-              </DropdownMenuItem>
+              {canEdit && (
+                <DropdownMenuItem onClick={onDuplica}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplica
+                </DropdownMenuItem>
+              )}
+              {canDelete && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onElimina} className="text-red-600 focus:text-red-700">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Elimina
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           {/* Desktop: tutti visibili */}
@@ -163,24 +180,28 @@ export function OrdineDetailHeader({
               Scarica PDF
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onDuplica}
-            className="hidden sm:inline-flex text-xs"
-          >
-            <Copy className="h-3.5 w-3.5 mr-1" />
-            Duplica
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onElimina}
-            className="hidden sm:inline-flex text-xs text-red-600 border-red-200 hover:bg-red-50"
-            aria-label="Elimina commessa"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDuplica}
+              className="hidden sm:inline-flex text-xs"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1" />
+              Duplica
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onElimina}
+              className="hidden sm:inline-flex text-xs text-red-600 border-red-200 hover:bg-red-50"
+              aria-label="Elimina commessa"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
     </div>

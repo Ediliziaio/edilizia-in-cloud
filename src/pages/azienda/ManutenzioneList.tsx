@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -95,7 +96,8 @@ function GaranziaScadenzaBadge({ date }: { date: string | null }) {
 }
 
 export default function ManutenzioneList() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
+  const permissions = usePermissions();
   const queryClient = useQueryClient();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [selectedPianoIds, setSelectedPianoIds] = useState<Set<string>>(new Set());
@@ -104,16 +106,23 @@ export default function ManutenzioneList() {
 
   const { data: staffList = [] } = useCompanyStaffUsers(effectiveCompany?.id);
 
+  // 2026-05-27 (Security audit): tecnico con only_assigned=true vede SOLO
+  // impianti / contratti / piani col proprio tecnico_preferito. Senza filtro
+  // server-side il tecnico scaricava tutto e vedeva su UI dati di colleghi.
   const { data: impianti = [], isLoading: loadingImpianti } = useQuery({
-    queryKey: ["impianti", effectiveCompany?.id],
+    queryKey: ["impianti", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("impianti_cliente")
         .select("*, customer:profiles!impianti_cliente_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .order("created_at", { ascending: false });
+      if (permissions.onlyAssigned && user?.id) {
+        query = query.eq("tecnico_preferito", user.id);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as ImpiantoCliente[];
     },
@@ -121,14 +130,18 @@ export default function ManutenzioneList() {
   });
 
   const { data: contratti = [], isLoading: loadingContratti } = useQuery({
-    queryKey: ["contratti-manutenzione", effectiveCompany?.id],
+    queryKey: ["contratti-manutenzione", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .from("contratti_manutenzione")
         .select("*, impianto:impianti_cliente(tipo_impianto, marca, modello), customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .order("created_at", { ascending: false });
+      if (permissions.onlyAssigned && user?.id) {
+        query = query.eq("tecnico_preferito", user.id);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as ContrattoManutenzione[];
     },
@@ -136,17 +149,21 @@ export default function ManutenzioneList() {
   });
 
   const { data: pianiInScadenza = [], isLoading: loadingPiani } = useQuery({
-    queryKey: ["piani-scadenza", effectiveCompany?.id],
+    queryKey: ["piani-scadenza", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
       const scadenza14 = addDays(new Date(), 14).toISOString().split("T")[0];
-      const { data, error } = await supabase
+      let query = supabase
         .from("piani_manutenzione")
         .select("*, contratto:contratti_manutenzione(nome_contratto, customer_id, impianto_id, customer:profiles!contratti_manutenzione_customer_id_fkey(first_name, last_name)), tecnico:profiles!piani_manutenzione_tecnico_preferito_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany.id)
         .eq("attivo", true)
         .lte("prossima_scadenza", scadenza14)
         .order("prossima_scadenza", { ascending: true });
+      if (permissions.onlyAssigned && user?.id) {
+        query = query.eq("tecnico_preferito", user.id);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []) as unknown as MaintenancePlan[];
     },
