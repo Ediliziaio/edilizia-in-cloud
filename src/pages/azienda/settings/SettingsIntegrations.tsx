@@ -17,10 +17,11 @@ import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ShieldCheck, Plug } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-// Vista admin company-wide dei calendari (NON i miei personali — quelli stanno
-// in Mio Profilo → tab Calendari, gestiti da GoogleCalendarConnectionTab +
-// AppleCalendarConnectionTab embedded lì).
+// Viste admin company-wide (NON i miei personali — quelli stanno in Mio Profilo).
+// - Calendari: GoogleCalendarConnectionTab + AppleCalendarConnectionTab in Mio Profilo
+// - Email: EmailOAuthConnectionsCard in Mio Profilo
 import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendarsOverview";
+import CompanyEmailsOverview from "@/components/integrations/CompanyEmailsOverview";
 // Popup components per integrazioni in modalità "popup"
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
@@ -343,10 +344,11 @@ export default function SettingsIntegrations() {
         </Alert>
       )}
 
-      {/* Vista admin: panoramica calendari AZIENDALI (chi ha collegato cosa).
-          La gestione dei MIEI calendari personali è in Mio Profilo → Calendari.
-          Per non-admin questo componente mostra solo un placeholder con CTA. */}
+      {/* Viste admin: panoramica aziendale di calendari + email (chi ha collegato cosa).
+          La gestione dei MIEI account personali è in Mio Profilo → Calendari / Email.
+          Per non-admin entrambi i componenti mostrano solo un placeholder con CTA. */}
       <CompanyCalendarsOverview />
+      <CompanyEmailsOverview />
 
       {/* Grid integrazioni */}
       <IntegrationsGrid
