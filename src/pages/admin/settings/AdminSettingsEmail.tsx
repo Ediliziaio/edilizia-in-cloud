@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmailTestPanel } from "@/components/admin/settings/EmailTestPanel";
@@ -31,6 +31,21 @@ const PlatformCustomFieldsPanel = lazy(() =>
 );
 
 export default function AdminSettingsEmail() {
+  // PERF: lazy-mount delle 8 tab. Senza, tutti i 7 lazy chunk vengono
+  // scaricati al primo paint anche se l'utente vede solo "Configurazione".
+  const [activeTab, setActiveTab] = useState("settings");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["settings"]));
+  const onTabChange = (v: string) => {
+    setActiveTab(v);
+    setVisitedTabs((prev) => {
+      if (prev.has(v)) return prev;
+      const next = new Set(prev);
+      next.add(v);
+      return next;
+    });
+  };
+  const isMounted = (k: string) => visitedTabs.has(k);
+
   return (
     <div className="space-y-6">
       <div>
@@ -40,7 +55,7 @@ export default function AdminSettingsEmail() {
         </p>
       </div>
 
-      <Tabs defaultValue="settings" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" />
@@ -77,49 +92,63 @@ export default function AdminSettingsEmail() {
         </TabsList>
 
         <TabsContent value="settings">
-          <Suspense fallback={<Skeleton className="h-[400px]" />}>
-            <EmailSettingsTab />
-          </Suspense>
+          {isMounted("settings") && (
+            <Suspense fallback={<Skeleton className="h-[400px]" />}>
+              <EmailSettingsTab />
+            </Suspense>
+          )}
         </TabsContent>
 
         <TabsContent value="templates">
-          <Suspense fallback={<Skeleton className="h-[500px]" />}>
-            <EmailTemplatesPanel />
-          </Suspense>
+          {isMounted("templates") && (
+            <Suspense fallback={<Skeleton className="h-[500px]" />}>
+              <EmailTemplatesPanel />
+            </Suspense>
+          )}
         </TabsContent>
 
         <TabsContent value="custom-fields">
-          <Suspense fallback={<Skeleton className="h-[500px]" />}>
-            <PlatformCustomFieldsPanel />
-          </Suspense>
+          {isMounted("custom-fields") && (
+            <Suspense fallback={<Skeleton className="h-[500px]" />}>
+              <PlatformCustomFieldsPanel />
+            </Suspense>
+          )}
         </TabsContent>
 
         <TabsContent value="signature">
-          <Suspense fallback={<Skeleton className="h-[400px]" />}>
-            <PlatformEmailSignaturePanel />
-          </Suspense>
+          {isMounted("signature") && (
+            <Suspense fallback={<Skeleton className="h-[400px]" />}>
+              <PlatformEmailSignaturePanel />
+            </Suspense>
+          )}
         </TabsContent>
 
         <TabsContent value="deliverability">
-          <Suspense fallback={<Skeleton className="h-[400px]" />}>
-            <EmailDeliverabilityDashboard />
-          </Suspense>
+          {isMounted("deliverability") && (
+            <Suspense fallback={<Skeleton className="h-[400px]" />}>
+              <EmailDeliverabilityDashboard />
+            </Suspense>
+          )}
         </TabsContent>
 
         <TabsContent value="suppressions">
-          <Suspense fallback={<Skeleton className="h-[400px]" />}>
-            <EmailSuppressionsTable />
-          </Suspense>
+          {isMounted("suppressions") && (
+            <Suspense fallback={<Skeleton className="h-[400px]" />}>
+              <EmailSuppressionsTable />
+            </Suspense>
+          )}
         </TabsContent>
 
         <TabsContent value="rate-limits">
-          <Suspense fallback={<Skeleton className="h-[300px]" />}>
-            <EmailRateLimitsPanel />
-          </Suspense>
+          {isMounted("rate-limits") && (
+            <Suspense fallback={<Skeleton className="h-[300px]" />}>
+              <EmailRateLimitsPanel />
+            </Suspense>
+          )}
         </TabsContent>
 
         <TabsContent value="test">
-          <EmailTestPanel />
+          {isMounted("test") && <EmailTestPanel />}
         </TabsContent>
       </Tabs>
     </div>
