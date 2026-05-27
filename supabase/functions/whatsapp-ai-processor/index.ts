@@ -45,6 +45,21 @@ import {
 const OPENAI_MODEL_DEFAULT = Deno.env.get("OPENAI_MODEL_DEFAULT") ?? "gpt-4o";
 const MAX_ITERATIONS = 3;
 
+/**
+ * Comparison costant-time per evitare timing attacks su credenziali statiche.
+ * Se le due stringhe hanno lunghezze diverse ritorna comunque false ma scorre
+ * sull'intera lunghezza per non rivelare via timing dove avviene il mismatch.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 interface ProcessRequest {
   message_id: string;
 }
@@ -57,25 +72,40 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // SECURITY: questa edge function gira con SERVICE_ROLE e processa un
-  // messaggio WhatsApp arbitrario (costo OpenAI, side-effect su DB). Va
-  // chiamata SOLO da worker interni (whatsapp-webhook → handlers/*) che
-  // possiedono INTERNAL_WORKER_KEY. Senza il check, un caller esterno
-  // potrebbe triggerare elaborazione AI ripetuta su qualsiasi message_id.
+  // SECURITY (v8.6.74 — FIX B2): questa edge function gira con SERVICE_ROLE
+  // e processa un messaggio WhatsApp arbitrario (costo OpenAI + send_whatsapp
+  // come side-effect). Va chiamata SOLO da worker interni (whatsapp-webhook →
+  // handlers/*) che possiedono INTERNAL_WORKER_KEY.
+  //
+  // PRIMA del fix: se INTERNAL_WORKER_KEY non era settato, il check era
+  // bypassato con un warning → endpoint pubblico in pratica. Un attaccante
+  // poteva chiamare /functions/v1/whatsapp-ai-processor con qualsiasi
+  // message_id e far ripartire l'elaborazione AI (drain budget OpenAI +
+  // possibile invio di messaggi WhatsApp duplicati).
+  //
+  // DOPO: se la env manca, restituiamo 503 (Service Unavailable) — non si
+  // procede MAI senza chiave. Header check obbligatorio. Comparison
+  // costant-time per evitare timing attacks.
   const workerKey = Deno.env.get("INTERNAL_WORKER_KEY");
-  if (workerKey) {
-    const provided = req.headers.get("x-internal-worker-key");
-    if (provided !== workerKey) {
-      console.warn("[whatsapp-ai-processor] worker key mismatch — rejecting");
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  } else {
-    console.warn(
-      "[whatsapp-ai-processor] INTERNAL_WORKER_KEY non configurato — endpoint senza protezione header.",
+  if (!workerKey) {
+    console.error(
+      "[whatsapp-ai-processor] FATAL: INTERNAL_WORKER_KEY non configurato. Edge function disabilitata per sicurezza.",
     );
+    return new Response(
+      JSON.stringify({ error: "service_unavailable", reason: "missing_worker_key" }),
+      {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  }
+  const provided = req.headers.get("x-internal-worker-key");
+  if (!provided || !timingSafeEqual(provided, workerKey)) {
+    console.warn("[whatsapp-ai-processor] worker key mismatch — rejecting");
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const supabase = createClient(

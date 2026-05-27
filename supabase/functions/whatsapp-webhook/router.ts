@@ -27,14 +27,29 @@ interface MetaStatus {
   timestamp: string;
 }
 
+interface MetaTemplateStatusUpdate {
+  event?: "APPROVED" | "REJECTED" | "FLAGGED" | "PENDING_DELETION" | "PAUSED" | "DISABLED";
+  message_template_id?: string;
+  message_template_name?: string;
+  message_template_language?: string;
+  reason?: string;
+}
+
 interface MetaValue {
   metadata?: { phone_number_id?: string };
   messages?: IncomingWhatsAppMessage[];
   statuses?: MetaStatus[];
   contacts?: Array<{ wa_id: string; profile?: { name?: string } }>;
+  // v8.6.74 — Campi extra per message_template_status_update
+  event?: string;
+  message_template_id?: string;
+  message_template_name?: string;
+  message_template_language?: string;
+  reason?: string;
 }
 
 interface MetaEntry {
+  id?: string; // WABA id
   changes?: Array<{ field?: string; value?: MetaValue }>;
 }
 
@@ -48,8 +63,17 @@ export async function routeIncoming(
 ): Promise<void> {
   const entries = payload?.entry ?? [];
   for (const entry of entries) {
+    const wabaId = entry.id;
     const changes = entry.changes ?? [];
     for (const change of changes) {
+      // v8.6.74 — Branch per template status updates (separato da messages).
+      // Meta invia field = "message_template_status_update" per approvazioni,
+      // rejection e pausing dei template. Lo logghiamo per analitica + futuro
+      // sync DB (oggi i template vivono solo lato Meta, fetched on-demand).
+      if (change.field === "message_template_status_update") {
+        await handleTemplateStatusUpdate(supabase, wabaId, change.value as MetaTemplateStatusUpdate);
+        continue;
+      }
       if (change.field !== "messages") continue;
       const value = change.value ?? {};
 
@@ -68,7 +92,7 @@ export async function routeIncoming(
       // ── Lookup numero destinatario ─────────────────────────────────────
       const { data: waNumber, error: waErr } = await supabase
         .from("ai_whatsapp_numbers")
-        .select("id, company_id, purpose, agent_id, stato, display_name")
+        .select("id, company_id, purpose, agent_id, stato, display_name, operational_settings")
         .eq("phone_number_id", phoneNumberId)
         .is("deleted_at", null)
         .maybeSingle();
@@ -191,4 +215,92 @@ async function handleDeliveryStatus(
     .from("whatsapp_broadcast_recipients")
     .update(broadcastUpdate)
     .eq("meta_message_id", metaMessageId);
+}
+
+/**
+ * v8.6.74 — Handler per "message_template_status_update".
+ *
+ * Meta invia questo evento quando lo stato di un template message cambia
+ * (approvazione richiesta dal cliente, rifiuto per policy, pausa per
+ * performance, disabilitazione). Tracciamo l'evento per analitica e per
+ * notificare il cliente nell'app.
+ *
+ * Field di interesse:
+ *   - event: APPROVED | REJECTED | FLAGGED | PENDING_DELETION | PAUSED | DISABLED
+ *   - message_template_id: ID univoco template
+ *   - message_template_name: nome assegnato dal cliente
+ *   - message_template_language: locale (es. it_IT, en_US)
+ *   - reason: motivo del rejection (se presente)
+ *
+ * Comportamento attuale:
+ *   - Logghiamo in wa_routing_errors come livello "info" per audit
+ *   - Identifichiamo la company tramite WABA id (whatsapp_business_account_id
+ *     su ai_whatsapp_numbers) → notify futuro
+ *
+ * TODO future: tabella whatsapp_templates dedicata + push notification al
+ * cliente quando un template viene approvato/rifiutato.
+ */
+async function handleTemplateStatusUpdate(
+  supabase: SupabaseClient,
+  wabaId: string | undefined,
+  value: MetaTemplateStatusUpdate | undefined,
+): Promise<void> {
+  if (!value) return;
+
+  // Lookup company tramite WABA id (può corrispondere a uno o più numeri)
+  let companyId: string | null = null;
+  if (wabaId) {
+    const { data } = await supabase
+      .from("ai_whatsapp_numbers")
+      .select("company_id")
+      .eq("waba_id", wabaId)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+    companyId = data?.company_id ?? null;
+  }
+
+  console.log(
+    JSON.stringify({
+      level: "info",
+      fn: "handleTemplateStatusUpdate",
+      msg: "template status changed",
+      waba_id: wabaId,
+      company_id: companyId,
+      template_id: value.message_template_id,
+      template_name: value.message_template_name,
+      language: value.message_template_language,
+      event: value.event,
+      reason: value.reason,
+    }),
+  );
+
+  // Log evento in wa_routing_errors (canale "audit" non bloccante).
+  // Riusiamo la tabella per non aggiungere schema in questa iterazione.
+  try {
+    await supabase.from("wa_routing_errors").insert({
+      error_kind: "template_status_update",
+      phone_number_id: null,
+      wa_message_id: null,
+      company_id: companyId,
+      error_detail: JSON.stringify({
+        event: value.event,
+        template_id: value.message_template_id,
+        template_name: value.message_template_name,
+        language: value.message_template_language,
+        reason: value.reason,
+        waba_id: wabaId,
+      }),
+    });
+  } catch (err) {
+    // Best-effort: se la tabella non accetta il kind, ignoriamo
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        fn: "handleTemplateStatusUpdate",
+        msg: "audit log insert failed",
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
 }

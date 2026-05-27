@@ -17,24 +17,71 @@ export async function handleBotOperativo(
   const { waNumber, phoneNumberId, msg, extracted, senderPhone, senderName } = ctx;
   const companyId = waNumber.company_id;
 
-  // IDEMPOTENCY: se wa_message_id già visto in whatsapp_messages, skip.
-  // Meta può ritrasmettere lo stesso payload se non riceve 200 rapidamente.
+  // v8.6.74 (FIX B6) — IDEMPOTENCY ATOMICA via reserve-insert su
+  // whatsapp_messages PRIMA di toccare messaging_conversations/messages.
+  //
+  // PRIMA: il check faceva SELECT su whatsapp_messages.wa_message_id; tra
+  // SELECT (vuoto) e successivo INSERT messaging_messages c'era una race
+  // condition — se Meta reinviava lo stesso payload, due webhook concorrenti
+  // arrivavano qui contemporaneamente, entrambi vedevano "non visto" e
+  // inserivano due messaging_messages (doppione in UI admin chat).
+  //
+  // DOPO: facciamo subito un INSERT su whatsapp_messages con
+  //   ON CONFLICT (wa_message_id) DO NOTHING (vincolo unique già esistente).
+  // Se l'insert ritorna 0 righe → un altro worker ha già preso in carico →
+  // skip totale. Garantisce single-execution end-to-end del side-effect.
+  let reservedWaMsgId: string | null = null;
   if (msg.id) {
-    const { data: seen } = await supabase
+    const placeholderMessageType = extracted.messageType ?? "text";
+    const { data: reserved, error: reserveErr } = await supabase
       .from("whatsapp_messages")
+      .insert({
+        company_id: companyId,
+        wa_number_id: waNumber.id,
+        wa_message_id: msg.id,
+        direction: "inbound",
+        from_phone: senderPhone,
+        to_phone: phoneNumberId,
+        message_type: placeholderMessageType,
+        content_text: extracted.content,
+        media_url: extracted.mediaId ? `wa-media://${extracted.mediaId}` : null,
+        metadata: extracted.metadata,
+        processing_status: "received",
+      })
       .select("id")
-      .eq("wa_message_id", msg.id)
       .maybeSingle();
-    if (seen) {
-      console.log(
+
+    if (reserveErr) {
+      // Se è un conflict UNIQUE su wa_message_id → duplicato. Skip silenzioso.
+      // Codice 23505 = unique_violation in Postgres.
+      const isDuplicate =
+        reserveErr.code === "23505" ||
+        (reserveErr.message ?? "").toLowerCase().includes("duplicate") ||
+        (reserveErr.message ?? "").toLowerCase().includes("unique");
+      if (isDuplicate) {
+        console.log(
+          JSON.stringify({
+            level: "info",
+            fn: "handleBotOperativo",
+            msg: "skip duplicate (atomic insert conflict)",
+            wa_message_id: msg.id,
+          }),
+        );
+        return;
+      }
+      // Altri errori → log e prosegui senza reservation (best-effort, no race
+      // protection ma evitiamo perdere il messaggio per errori transitori).
+      console.error(
         JSON.stringify({
-          level: "info",
+          level: "error",
           fn: "handleBotOperativo",
-          msg: "skip duplicate",
+          msg: "whatsapp_messages reservation insert failed",
+          error: reserveErr.message,
           wa_message_id: msg.id,
         }),
       );
-      return;
+    } else {
+      reservedWaMsgId = reserved?.id ?? null;
     }
   }
 
@@ -105,75 +152,83 @@ export async function handleBotOperativo(
     );
   }
 
-  // ── whatsapp_messages (log bot + coda AI) ─────────────────────────────────
-  // Leggi bot_enabled / ai_auto_process dalla config legacy per retro-compat.
-  // In MP2 questi flag verranno migrati su ai_whatsapp_numbers.
-  const { data: botConfig } = await supabase
-    .from("messaging_whatsapp_config")
-    .select("bot_enabled, ai_auto_process")
-    .eq("company_id", companyId)
-    .eq("is_connected", true)
-    .maybeSingle();
+  // ── Bot config (dual-read MP2 + legacy fallback) ─────────────────────────
+  // v8.6.74 (FIX B1) — Prima si leggeva SOLO da messaging_whatsapp_config
+  // (legacy). Se il cliente disconnetteva la config legacy ma manteneva il
+  // numero in ai_whatsapp_numbers, perdeva il controllo bot. Ora:
+  //   1. preferenza: ai_whatsapp_numbers.operational_settings (MP2)
+  //   2. fallback:   messaging_whatsapp_config (retro-compat)
+  //   3. default:    bot_enabled=true, ai_auto_process=true
+  const opSettings = (waNumber as Record<string, unknown>).operational_settings as
+    | { bot_enabled?: boolean; ai_auto_process?: boolean }
+    | null
+    | undefined;
 
-  const botEnabled = botConfig?.bot_enabled ?? true;
-  const autoProcess = botConfig?.ai_auto_process ?? true;
+  let botEnabled: boolean | undefined = opSettings?.bot_enabled;
+  let autoProcess: boolean | undefined = opSettings?.ai_auto_process;
 
-  if (botEnabled) {
-    const waMessageId =
-      msg.id ??
-      `wa_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  if (botEnabled === undefined || autoProcess === undefined) {
+    const { data: botConfig } = await supabase
+      .from("messaging_whatsapp_config")
+      .select("bot_enabled, ai_auto_process")
+      .eq("company_id", companyId)
+      .eq("is_connected", true)
+      .maybeSingle();
+    if (botEnabled === undefined) botEnabled = botConfig?.bot_enabled;
+    if (autoProcess === undefined) autoProcess = botConfig?.ai_auto_process;
+  }
 
-    const { data: waMsg, error: waMsgErr } = await supabase
-      .from("whatsapp_messages")
-      .insert({
-        company_id: companyId,
-        wa_number_id: waNumber.id,
-        wa_message_id: waMessageId,
-        direction: "inbound",
-        from_phone: senderPhone,
-        to_phone: phoneNumberId,
-        message_type: extracted.messageType,
-        content_text: extracted.content,
-        media_url: extracted.mediaId ? `wa-media://${extracted.mediaId}` : null,
-        metadata: extracted.metadata,
-        processing_status: autoProcess ? "received" : "processed",
-      })
-      .select("id")
-      .single();
+  // Default permissivo se nessuna fonte ha valori (nuovo onboarding)
+  if (botEnabled === undefined) botEnabled = true;
+  if (autoProcess === undefined) autoProcess = true;
 
-    if (waMsgErr) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          fn: "handleBotOperativo",
-          msg: "whatsapp_messages insert failed",
-          error: waMsgErr.message,
-        }),
-      );
-    } else if (autoProcess && waMsg) {
+  // ── whatsapp_messages (coda AI) ──────────────────────────────────────────
+  // L'insert principale è già stato fatto in fase di reservation (sopra)
+  // come parte del fix B6. Qui aggiorniamo solo il processing_status se
+  // l'auto-process è disabilitato (mark immediato "processed" così la
+  // recovery cron non lo riprende per retry).
+  if (botEnabled && reservedWaMsgId) {
+    if (!autoProcess) {
+      await supabase
+        .from("whatsapp_messages")
+        .update({ processing_status: "processed" })
+        .eq("id", reservedWaMsgId);
+    } else {
       // Invoca AI processor in fire-and-forget.
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const workerKey = Deno.env.get("INTERNAL_WORKER_KEY") ?? "";
-      fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-cron-secret": serviceKey,
-          // Worker key per autenticare la chiamata interna verso ai-processor
-          "x-internal-worker-key": workerKey,
-        },
-        body: JSON.stringify({ message_id: waMsg.id }),
-      }).catch((err) =>
+      // v8.6.74 — Se workerKey è vuoto NON chiamiamo: ai-processor ora rifiuta
+      // hard 503/401 senza key (vedi fix B2). Loggiamo per setup operativo.
+      if (!workerKey) {
         console.error(
           JSON.stringify({
             level: "error",
             fn: "handleBotOperativo",
-            msg: "ai-processor invoke failed",
-            error: String(err),
+            msg: "INTERNAL_WORKER_KEY mancante — ai-processor non invocato",
+            wa_message_id: reservedWaMsgId,
           }),
-        ),
-      );
+        );
+      } else {
+        fetch(`${supabaseUrl}/functions/v1/whatsapp-ai-processor`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-cron-secret": serviceKey,
+            "x-internal-worker-key": workerKey,
+          },
+          body: JSON.stringify({ message_id: reservedWaMsgId }),
+        }).catch((err) =>
+          console.error(
+            JSON.stringify({
+              level: "error",
+              fn: "handleBotOperativo",
+              msg: "ai-processor invoke failed",
+              error: String(err),
+            }),
+          ),
+        );
+      }
     }
   }
 

@@ -85,7 +85,10 @@ Deno.serve(async (req) => {
   );
 
   try {
-    const { company_id } = await req.json();
+    // v8.6.74 — Body opzionale: { company_id, wa_number_id? }.
+    // Se wa_number_id presente → aggiorna ai_whatsapp_numbers (MP2).
+    // Se assente → fallback retro-compat su messaging_whatsapp_config (legacy).
+    const { company_id, wa_number_id } = await req.json();
 
     if (!company_id) {
       return new Response(
@@ -99,25 +102,65 @@ Deno.serve(async (req) => {
 
     await assertMetaCompanyAdminAccess(supabase, userId, company_id);
 
-    // Get WhatsApp config
-    const { data: config, error: configErr } = await supabase
-      .from("messaging_whatsapp_config")
-      .select("*")
-      .eq("company_id", company_id)
-      .maybeSingle();
+    // Risolvi config: preferisci ai_whatsapp_numbers, fallback su legacy.
+    let waba_id: string | null = null;
+    let phone_number_id: string | null = null;
+    let access_token_encrypted: string | null = null;
+    let priorAccountStatus: string | null = null;
+    let priorQualityRating: string | null = null;
+    let configSource: "ai_whatsapp_numbers" | "messaging_whatsapp_config" = "messaging_whatsapp_config";
 
-    if (configErr || !config || !config.is_connected) {
-      return new Response(
-        JSON.stringify({ error: "WhatsApp not connected" }),
-        {
-          status: 404,
-          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
-        }
-      );
+    if (wa_number_id) {
+      // Path MP2: numero specifico in ai_whatsapp_numbers
+      const { data: waNumber, error: waErr } = await supabase
+        .from("ai_whatsapp_numbers")
+        .select("id, company_id, waba_id, phone_number_id, access_token_encrypted, stato, quality_rating")
+        .eq("id", wa_number_id)
+        .eq("company_id", company_id)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (waErr || !waNumber) {
+        return new Response(
+          JSON.stringify({ error: "wa_number not found" }),
+          {
+            status: 404,
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          }
+        );
+      }
+      waba_id = waNumber.waba_id;
+      phone_number_id = waNumber.phone_number_id;
+      access_token_encrypted = waNumber.access_token_encrypted;
+      priorAccountStatus = waNumber.stato;
+      priorQualityRating = waNumber.quality_rating;
+      configSource = "ai_whatsapp_numbers";
+    } else {
+      // Path legacy
+      const { data: config, error: configErr } = await supabase
+        .from("messaging_whatsapp_config")
+        .select("*")
+        .eq("company_id", company_id)
+        .maybeSingle();
+
+      if (configErr || !config || !config.is_connected) {
+        return new Response(
+          JSON.stringify({ error: "WhatsApp not connected" }),
+          {
+            status: 404,
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          }
+        );
+      }
+      waba_id = config.waba_id;
+      phone_number_id = config.phone_number_id;
+      access_token_encrypted = config.access_token_encrypted;
+      priorAccountStatus = config.account_status;
+      priorQualityRating = config.quality_rating;
     }
 
     const accessToken = await decryptMaybeEncrypted(
-      config.access_token_encrypted,
+      access_token_encrypted,
       getEncryptionKey(),
     );
     if (!accessToken) {
@@ -130,15 +173,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    let accountStatus = config.account_status;
-    let qualityRating = config.quality_rating;
+    let accountStatus = priorAccountStatus;
+    let qualityRating = priorQualityRating;
     let messagingLimitTier: string | null = null;
 
     // Fetch WABA account status
-    if (config.waba_id) {
+    if (waba_id) {
       try {
         const wabaRes = await fetch(
-          `https://graph.facebook.com/v21.0/${config.waba_id}?fields=account_review_status,business_verification_status&access_token=${accessToken}`
+          `https://graph.facebook.com/v21.0/${waba_id}?fields=account_review_status,business_verification_status&access_token=${accessToken}`
         );
         const wabaData = await wabaRes.json();
         if (!wabaData.error) {
@@ -152,10 +195,10 @@ Deno.serve(async (req) => {
     }
 
     // Fetch phone number quality and limits
-    if (config.phone_number_id) {
+    if (phone_number_id) {
       try {
         const phoneRes = await fetch(
-          `https://graph.facebook.com/v21.0/${config.phone_number_id}?fields=quality_rating,messaging_limit_tier,display_phone_number,verified_name&access_token=${accessToken}`
+          `https://graph.facebook.com/v21.0/${phone_number_id}?fields=quality_rating,messaging_limit_tier,display_phone_number,verified_name&access_token=${accessToken}`
         );
         const phoneData = await phoneRes.json();
         if (!phoneData.error) {
@@ -169,18 +212,37 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update config in DB
-    const { error: updateErr } = await supabase
-      .from("messaging_whatsapp_config")
-      .update({
-        account_status: accountStatus,
+    // Update sulla tabella corretta in base alla sorgente
+    if (configSource === "ai_whatsapp_numbers" && wa_number_id) {
+      const updateData: Record<string, unknown> = {
         quality_rating: qualityRating,
         updated_at: new Date().toISOString(),
-      })
-      .eq("company_id", company_id);
+      };
+      // Aggiorna stato solo se Meta restituisce qualcosa di significativo
+      if (accountStatus) updateData.stato = accountStatus;
+      if (messagingLimitTier) updateData.messaging_limit_tier = messagingLimitTier;
 
-    if (updateErr) {
-      console.error("Update error:", updateErr);
+      const { error: updateErr } = await supabase
+        .from("ai_whatsapp_numbers")
+        .update(updateData)
+        .eq("id", wa_number_id);
+
+      if (updateErr) {
+        console.error("ai_whatsapp_numbers update error:", updateErr);
+      }
+    } else {
+      const { error: updateErr } = await supabase
+        .from("messaging_whatsapp_config")
+        .update({
+          account_status: accountStatus,
+          quality_rating: qualityRating,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("company_id", company_id);
+
+      if (updateErr) {
+        console.error("Update error:", updateErr);
+      }
     }
 
     return new Response(
