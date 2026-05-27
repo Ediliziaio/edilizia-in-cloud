@@ -186,21 +186,30 @@ export default function CompanyCustomerDetail() {
   });
 
   // ── Tickets ─────────────────────────────────────────────────────────────────
+  // 2026-05-27 (audit dettaglio cliente): soft-fail su errori di permessi/schema.
+  // Definito qui per evitare hoisting issues con useQuery sopra.
+  const isSoftTableError = (e: unknown): boolean => {
+    const code = (e as { code?: string })?.code;
+    return code === "42P01" || code === "42501" || code === "PGRST116" || code === "PGRST301";
+  };
+
   const { data: tickets = [], error: ticketsError } = useQuery({
     queryKey: ["customer-tickets", id, effectiveCompany?.id],
     queryFn: async () => {
-      try {
-        const { data, error } = await supabase
-          .from("tickets")
-          .select("id, title, status, created_at, priority")
-          .eq("customer_id", id!)
-          .eq("company_id", effectiveCompany!.id)
-          .order("created_at", { ascending: false });
-        if (error) throw error;
-        return (data ?? []) as TicketRow[];
-      } catch {
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("id, title, status, created_at, priority")
+        .eq("customer_id", id!)
+        .eq("company_id", effectiveCompany!.id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        if (isSoftTableError(error)) {
+          logger.warn("[customer] tickets soft-error:", error);
+          return [] as TicketRow[];
+        }
         throw new Error("Impossibile caricare le richieste di assistenza del cliente.");
       }
+      return (data ?? []) as TicketRow[];
     },
     enabled: !!id && !!effectiveCompany?.id,
   });
@@ -237,22 +246,32 @@ export default function CompanyCustomerDetail() {
   });
 
   // ── Appuntamenti ─────────────────────────────────────────────────────────────
+  // 2026-05-27 (audit dettaglio cliente): soft-fail.
+  // PRIMA: try/catch → throw "Impossibile caricare..." su QUALSIASI errore
+  // (RLS pending, tabella non disponibile per il ruolo, schema mismatch).
+  // Risultato: alert giallo permanente anche quando il cliente semplicemente
+  // non ha appuntamenti.
+  // ORA: errori di tabella mancante (42P01) o accesso negato (42501) →
+  // empty array silenzioso + log dev. Solo errori veri (network, 500)
+  // popolano dataWarnings.
   const { data: appuntamenti = [], error: appuntamentiError } = useQuery({
     queryKey: ["customer-appuntamenti", id, effectiveCompany?.id],
     queryFn: async () => {
-      try {
-        const { data, error } = await supabase
-          .from("appointments" as never)
-          .select("id, title, start_at, end_at, status")
-          .eq("customer_id", id!)
-          .eq("company_id", effectiveCompany!.id)
-          .order("start_at", { ascending: false })
-          .limit(20);
-        if (error) throw error;
-        return (data ?? []) as unknown as AppuntamentoRow[];
-      } catch {
+      const { data, error } = await supabase
+        .from("appointments" as never)
+        .select("id, title, start_at, end_at, status")
+        .eq("customer_id", id!)
+        .eq("company_id", effectiveCompany!.id)
+        .order("start_at", { ascending: false })
+        .limit(20);
+      if (error) {
+        if (isSoftTableError(error)) {
+          logger.warn("[customer] appointments soft-error:", error);
+          return [] as AppuntamentoRow[];
+        }
         throw new Error("Impossibile caricare gli appuntamenti collegati al cliente.");
       }
+      return (data ?? []) as unknown as AppuntamentoRow[];
     },
     enabled: !!id && !!effectiveCompany?.id,
   });
@@ -263,17 +282,19 @@ export default function CompanyCustomerDetail() {
     queryKey: ["customer-rate", id, orderIds],
     queryFn: async () => {
       if (orderIds.length === 0) return [];
-      try {
-        const { data, error } = await supabase
-          .from("order_installments" as never)
-          .select("id, amount, due_date, paid_at, order_id")
-          .in("order_id", orderIds)
-          .order("due_date", { ascending: true });
-        if (error) throw error;
-        return (data ?? []) as unknown as RataRow[];
-      } catch {
+      const { data, error } = await supabase
+        .from("order_installments" as never)
+        .select("id, amount, due_date, paid_at, order_id")
+        .in("order_id", orderIds)
+        .order("due_date", { ascending: true });
+      if (error) {
+        if (isSoftTableError(error)) {
+          logger.warn("[customer] order_installments soft-error:", error);
+          return [] as RataRow[];
+        }
         throw new Error("Impossibile caricare rate e scadenze collegate al cliente.");
       }
+      return (data ?? []) as unknown as RataRow[];
     },
     enabled: orderIds.length > 0,
   });

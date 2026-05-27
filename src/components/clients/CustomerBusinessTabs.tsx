@@ -5,14 +5,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  ClipboardList, Euro, Ticket, FileText, ExternalLink,
+  ClipboardList, Ticket, FileText, ExternalLink,
   CalendarDays, CreditCard, FileSignature, Wrench, Link2, Plus,
   AlertTriangle, FileCheck2, FileWarning, Mail, MessageSquare, Paperclip, Sparkles,
   PencilLine,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { KpiMini } from "./KpiMini";
+// KpiMini rimosso (2026-05-27): le KPI sono già nell'header CompanyCustomerDetail.
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
@@ -144,8 +144,10 @@ interface CustomerBusinessTabsProps {
   appuntamenti: AppuntamentoRow[];
   rate: RataRow[];
   anagraficaCollegata: { id: string; ragione_sociale: string | null } | null;
-  totalOrderValue: number;
-  openTicketsCount: number;
+  /** @deprecated 2026-05-27: KPI rimossa, già nell'header. Resta per backcompat parent. */
+  totalOrderValue?: number;
+  /** @deprecated 2026-05-27: KPI rimossa, già nell'header. Resta per backcompat parent. */
+  openTicketsCount?: number;
   dataWarnings?: {
     anagrafica?: string | null;
     fatture?: string | null;
@@ -827,8 +829,6 @@ export function CustomerBusinessTabs({
   appuntamenti,
   rate,
   anagraficaCollegata,
-  totalOrderValue,
-  openTicketsCount,
   dataWarnings,
 }: CustomerBusinessTabsProps) {
   useAuth();
@@ -867,27 +867,20 @@ export function CustomerBusinessTabs({
     { label: "Ticket",      href: buildCreateUrl("/azienda/assistenza/nuovo", customerId, customerFullName),    icon: Ticket },
   ];
 
+  // 2026-05-27 (audit dettaglio cliente):
+  // PRIMA: KpiMini DUPLICATA — già presente come <KpiCard> nell'header
+  // di CompanyCustomerDetail (Ordini, Valore totale, Ticket aperti, Preventivi).
+  // Lo screenshot utente mostrava 8 KPI sovrapposti, look incoerente con la
+  // pagina contatti marketing dove le KPI sono solo nell'hero header.
+  // ORA: KPI rimosse, le tabs partono direttamente.
+  //
+  // Quick actions "Crea per questo cliente" mantenute perché sono diverse
+  // dai quick buttons del header (Chiama / Email / WhatsApp / Appuntam.):
+  // questi sono per CREARE entità collegate.
+  // Reso più compatto (h-7 → h-8, padding ridotto).
   return (
     <Tabs defaultValue="ordini">
-      {/* KPI bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <KpiMini icon={ClipboardList} label="Ordini" value={orders.length} color="blue" />
-        <KpiMini
-          icon={Euro}
-          label="Valore totale"
-          value={`€ ${totalOrderValue.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`}
-          color="green"
-        />
-        <KpiMini
-          icon={Ticket}
-          label="Ticket aperti"
-          value={openTicketsCount}
-          color={openTicketsCount > 0 ? "orange" : "green"}
-        />
-        <KpiMini icon={FileText} label="Documenti" value={fatture.length + customerDocuments.length} color="purple" />
-      </div>
-
-      {/* Quick actions */}
+      {/* Quick actions: crea entità collegate al cliente */}
       <div className="flex items-center gap-1.5 flex-wrap mb-3 p-2 rounded-lg border bg-muted/30">
         <span className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mr-1">Crea per questo cliente:</span>
         {quickActions.map((a) => (
@@ -905,20 +898,36 @@ export function CustomerBusinessTabs({
         ))}
       </div>
 
+      {/*
+        2026-05-27 (audit dettaglio cliente): alert errori meno invasivo.
+        PRIMA: mostrava un blocco giallo grosso con TUTTI gli errori, anche
+        quelli "normali" tipo "Impossibile caricare gli appuntamenti"
+        quando in realtà la tabella appointments non aveva ancora la RLS
+        configurata per quel ruolo. Look allarmante per non-errori.
+        ORA: pill discreta che si espande on-click. Errori dettagliati
+        solo se l'utente vuole vederli. Solo errori CON message
+        non-vuoto vengono mostrati (filtrato da .some(Boolean)).
+      */}
       {dataWarnings && Object.values(dataWarnings).some(Boolean) && (
-        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div className="space-y-1">
-              <p className="font-semibold">Alcuni collegamenti cliente non sono stati caricati.</p>
-              {Object.entries(dataWarnings)
-                .filter(([, message]) => Boolean(message))
-                .map(([key, message]) => (
-                  <p key={key}>{message}</p>
-                ))}
-            </div>
+        <details className="mb-3 group">
+          <summary className="cursor-pointer list-none flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 hover:bg-amber-100 transition-colors">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span className="font-medium">
+              {Object.values(dataWarnings).filter(Boolean).length === 1
+                ? "1 collegamento non caricato"
+                : `${Object.values(dataWarnings).filter(Boolean).length} collegamenti non caricati`}
+            </span>
+            <span className="ml-auto text-[10px] text-amber-700 group-open:hidden">Mostra dettagli</span>
+            <span className="ml-auto text-[10px] text-amber-700 hidden group-open:inline">Nascondi</span>
+          </summary>
+          <div className="mt-1.5 space-y-0.5 rounded-md border border-amber-100 bg-amber-50/50 px-3 py-2 text-[11px] text-amber-900">
+            {Object.entries(dataWarnings)
+              .filter(([, message]) => Boolean(message))
+              .map(([key, message]) => (
+                <p key={key}>· {message}</p>
+              ))}
           </div>
-        </div>
+        </details>
       )}
 
       <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto mb-2">
