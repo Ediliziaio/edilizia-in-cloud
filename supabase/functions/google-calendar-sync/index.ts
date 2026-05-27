@@ -231,18 +231,44 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
   return json({ pulled: totalPulled });
 }
 
+/**
+ * 2026-05-27 (richiesta utente "il calendario marketing è del responsabile"):
+ * helper che risolve l'utente effettivo a cui pushare l'evento.
+ *
+ * Flusso:
+ *   1. Se l'appointment ha calendar_id → recupera marketing_calendars.owner_id
+ *      → push verso il Google Calendar di QUEL utente (responsabile).
+ *   2. Fallback: appointment.assigned_to (chi è stato assegnato in CRM).
+ *   3. Fallback finale: userId del caller.
+ *
+ * Esempio: admin crea appointment per il calendar di Mario (venditore) →
+ * l'evento appare nel Google Calendar di Mario, non dell'admin.
+ */
+async function resolveEffectiveUserId(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  apt: { calendar_id?: string | null; assigned_to?: string | null },
+  fallbackUserId: string,
+): Promise<string> {
+  if (apt.calendar_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: cal } = await admin
+      .from("marketing_calendars")
+      .select("owner_id")
+      .eq("id", apt.calendar_id)
+      .maybeSingle();
+    const ownerId = (cal as { owner_id?: string } | null)?.owner_id;
+    if (ownerId) return ownerId;
+  }
+  if (apt.assigned_to) return apt.assigned_to;
+  return fallbackUserId;
+}
+
 // ---- PUSH EVENT ----
 async function pushEvent(userId: string, companyId: string, appointmentId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
-  const conn = await getConnection(admin, userId, companyId);
-  if (!conn) return json({ error: "Not connected" }, 404);
 
-  const accessToken = await getValidAccessToken(admin, conn);
-  if (!accessToken) return json({ error: "Token expired" }, 401);
-
-  const settings = await getSettings(admin, userId, companyId);
-  if (!settings?.primary_calendar_id) return json({ error: "No primary calendar configured" }, 400);
-
+  // Fetch appointment PRIMA della connessione: serve per risolvere owner_id
+  // del calendar marketing → Google Calendar di quel responsabile.
   const { data: apt } = await admin
     .from("appointments")
     .select("*")
@@ -250,11 +276,28 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
     .single();
   if (!apt) return json({ error: "Appointment not found" }, 404);
 
+  const effectiveUserId = await resolveEffectiveUserId(admin, apt, userId);
+
+  const conn = await getConnection(admin, effectiveUserId, companyId);
+  if (!conn) {
+    return json({
+      error: effectiveUserId !== userId
+        ? `Responsabile (${effectiveUserId}) non ha collegato Google Calendar`
+        : "Not connected",
+    }, 404);
+  }
+
+  const accessToken = await getValidAccessToken(admin, conn);
+  if (!accessToken) return json({ error: "Token expired" }, 401);
+
+  const settings = await getSettings(admin, effectiveUserId, companyId);
+  if (!settings?.primary_calendar_id) return json({ error: "No primary calendar configured" }, 400);
+
   const { data: existing } = await admin
     .from("google_calendar_event_map")
     .select("id")
     .eq("appointment_id", appointmentId)
-    .eq("user_id", userId)
+    .eq("user_id", effectiveUserId)
     .maybeSingle();
   if (existing) return json({ error: "Already synced", mappingId: existing.id }, 409);
 
@@ -288,7 +331,7 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 
   await admin.from("google_calendar_event_map").insert({
     company_id: companyId,
-    user_id: userId,
+    user_id: effectiveUserId,
     appointment_id: appointmentId,
     google_event_id: created.id,
     google_calendar_id: settings.primary_calendar_id,
@@ -316,7 +359,17 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 // ---- UPDATE EVENT ----
 async function updateEvent(userId: string, companyId: string, appointmentId: string): Promise<Response> {
   const admin = getSupabaseAdmin();
-  const conn = await getConnection(admin, userId, companyId);
+  // 2026-05-27: resolve owner del calendar marketing per update/delete
+  const { data: aptForOwner } = await admin
+    .from("appointments")
+    .select("calendar_id, assigned_to")
+    .eq("id", appointmentId)
+    .maybeSingle();
+  const effectiveUserId = aptForOwner
+    ? await resolveEffectiveUserId(admin, aptForOwner, userId)
+    : userId;
+
+  const conn = await getConnection(admin, effectiveUserId, companyId);
   if (!conn) return json({ error: "Not connected" }, 404);
 
   const accessToken = await getValidAccessToken(admin, conn);
@@ -326,7 +379,7 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
     .from("google_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
-    .eq("user_id", userId)
+    .eq("user_id", effectiveUserId)
     .maybeSingle();
   if (!mapping) return json({ error: "No mapping found, use push-event" }, 404);
 

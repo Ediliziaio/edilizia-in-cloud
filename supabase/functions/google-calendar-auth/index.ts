@@ -175,6 +175,73 @@ async function handleCallback(req: Request): Promise<Response> {
       .eq("user_id", state.userId);
   }
 
+  // 2026-05-27 (richiesta utente): se ruolo venditore/company_admin/salesperson
+  // e l'utente NON ha già un marketing_calendar personale → crealo
+  // automaticamente con name = "Calendario {Nome Cognome}" e
+  // owner_id = userId. Da quel momento gli appointment creati su quel
+  // calendar marketing vengono auto-pushati sul SUO Google Calendar.
+  try {
+    const { data: roles } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", state.userId);
+    const roleNames = new Set((roles ?? []).map((r: { role?: string }) => r.role));
+    const isSalespersonOrAdmin =
+      roleNames.has("salesperson") ||
+      roleNames.has("company_admin") ||
+      roleNames.has("super_admin") ||
+      roleNames.has("company_staff");
+
+    if (isSalespersonOrAdmin) {
+      const { data: existingCal } = await admin
+        .from("marketing_calendars")
+        .select("id")
+        .eq("company_id", state.companyId)
+        .eq("owner_id", state.userId)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingCal) {
+        // Nome: priorità nome utente da userinfo Google, fallback profiles
+        let displayName = `${userInfo.given_name ?? ""} ${userInfo.family_name ?? ""}`.trim();
+        if (!displayName) {
+          const { data: profile } = await admin
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("id", state.userId)
+            .maybeSingle();
+          const p = profile as { first_name?: string; last_name?: string } | null;
+          displayName = `${p?.first_name ?? ""} ${p?.last_name ?? ""}`.trim();
+        }
+        if (!displayName && userInfo.email) {
+          displayName = String(userInfo.email).split("@")[0];
+        }
+        if (!displayName) displayName = "Utente";
+
+        const calendarName = `Calendario ${displayName}`;
+        const { error: calErr } = await admin
+          .from("marketing_calendars")
+          .insert({
+            company_id: state.companyId,
+            name: calendarName,
+            calendar_type: "personal",
+            owner_id: state.userId,
+            created_by: state.userId,
+            is_active: true,
+            duration_minutes: 30,
+          });
+        if (calErr) {
+          console.warn("[google-calendar-auth] auto-create marketing_calendar failed:", calErr.message);
+        } else {
+          console.log(`[google-calendar-auth] auto-created marketing_calendar "${calendarName}" for user ${state.userId}`);
+        }
+      }
+    }
+  } catch (autoCalErr) {
+    console.warn("[google-calendar-auth] marketing_calendar auto-link failed (non-critical):", autoCalErr);
+  }
+
   // FASE 4: Auto-register webhook watch after successful OAuth
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
