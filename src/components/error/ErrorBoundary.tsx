@@ -201,10 +201,20 @@ export class ErrorBoundary extends React.Component<Props, State> {
             o tornare alla home.
           </p>
 
-          {import.meta.env.DEV && this.state.error && (
-            <p className="text-xs text-destructive/70 font-mono bg-destructive/5 border border-destructive/20 rounded px-3 py-2 mt-3 max-w-lg break-all">
-              {this.state.error.message}
-            </p>
+          {/* 2026-05-27: mostro il messaggio di errore SEMPRE (anche in prod
+              non solo DEV). Senza dettagli l'utente non può segnalare il vero
+              problema. La INSERT policy su system_health_metrics ora permette
+              il logging server-side, ma serve anche feedback immediato a
+              schermo. Sanitizzo a 300 char + nessun stack trace esposto. */}
+          {this.state.error && (
+            <details className="mt-3 max-w-lg w-full">
+              <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground select-none">
+                Dettagli tecnici per assistenza
+              </summary>
+              <p className="text-xs text-destructive/70 font-mono bg-destructive/5 border border-destructive/20 rounded px-3 py-2 mt-2 break-all text-left">
+                <strong>{this.state.error.name}</strong>: {this.state.error.message.substring(0, 300)}
+              </p>
+            </details>
           )}
 
           <div className="flex gap-3 mt-6">

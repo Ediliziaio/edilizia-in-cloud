@@ -41,6 +41,7 @@ import {
   Users,
   RefreshCw,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -794,9 +795,39 @@ export default function MarketingCalendar() {
     { key: "list" as const, label: "Elenco", icon: ListIcon },
   ];
 
+  // 2026-05-27: helper per stato sync. Se l'utente ha collegato Google
+  // ma `last_sync_at` è null, mostriamo banner attivo "Sincronizza ora"
+  // — è il caso del primo accesso post-OAuth (auto-sync fire-and-forget
+  // potrebbe non essere finito, o l'auto-sync introdotto recentemente
+  // non era attivo all'ora del collegamento).
+  const googleConnectedNotSynced = Boolean(
+    googleSync.hasGoogleConnection && !googleSync.connection?.last_sync_at,
+  );
+
   return (
     <div className="min-w-0 max-w-full space-y-4 overflow-x-hidden pb-20 md:pb-0">
       <ApiHealthBanner filter={["googlemaps"]} />
+
+      {googleConnectedNotSynced && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-center justify-between gap-3 text-sm">
+          <div className="flex items-start gap-2 min-w-0">
+            <RefreshCw className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+            <p className="text-amber-900 leading-snug">
+              <strong>Google Calendar collegato</strong> ma non ancora sincronizzato.
+              {" "}Clicca <em>Sincronizza ora</em> per importare i tuoi appuntamenti delle prossime 4 settimane.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleSyncExternalCalendars}
+            disabled={syncingExternal}
+            className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+          >
+            {syncingExternal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Sincronizza ora
+          </Button>
+        </div>
+      )}
 
       {/* Header redesign */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
