@@ -961,6 +961,7 @@ export default function SicurezzaCantiere() {
               <Label>Costi sicurezza stimati (€)</Label>
               <Input
                 type="number"
+                inputMode="decimal"
                 placeholder="0"
                 value={costiSicurezza}
                 onChange={(e) => setCostiSicurezza(e.target.value)}

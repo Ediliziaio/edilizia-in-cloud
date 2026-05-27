@@ -220,6 +220,7 @@ function SortableRowImpl({
                   <Label className="text-[10px] text-muted-foreground font-normal">Quantità</Label>
                   <Input
                     type="number"
+                    inputMode="decimal"
                     value={riga.quantita}
                     onChange={(e) => onUpdate(index, "quantita", parseFloat(e.target.value) || 0)}
                     className="h-8 text-sm text-right tabular-nums"
@@ -247,6 +248,7 @@ function SortableRowImpl({
                   <Label className="text-[10px] text-muted-foreground font-normal">{prezziLordi ? "Lordo" : "Prezzo"}</Label>
                   <Input
                     type="number"
+                    inputMode="decimal"
                     step="0.0001"
                     value={
                       prezziLordi

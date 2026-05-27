@@ -35,15 +35,23 @@ export function FotoUploader({ onUpload, isUploading }: Props) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="foto-input">Seleziona immagini</Label>
+          <Label htmlFor="foto-input">Scatta o seleziona foto</Label>
           <input
             ref={fileInputRef}
             id="foto-input"
             type="file"
             accept="image/*"
             multiple
+            // 2026-05-27 (mobile audit): `capture="environment"` apre
+            // direttamente la fotocamera posteriore su Android/iOS invece
+            // della galleria. -2 tap a foto, l'utente in cantiere
+            // riprende il cantiere senza navigare nelle app.
+            capture="environment"
             className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
           />
+          <p className="text-xs text-muted-foreground">
+            💡 Tocca per scattare con la fotocamera o scegliere dalla galleria
+          </p>
         </div>
 
         <div className="space-y-1.5">

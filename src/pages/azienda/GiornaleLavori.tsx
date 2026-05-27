@@ -494,6 +494,7 @@ export default function GiornaleLavori() {
               <Label>N. operai presenti</Label>
               <Input
                 type="number"
+                inputMode="numeric"
                 min="0"
                 max="999"
                 value={formData.personale_presente}
