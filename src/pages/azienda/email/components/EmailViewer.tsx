@@ -219,6 +219,42 @@ function operationsFromValue(value: unknown): EmailOperationsInsight | undefined
   return record as EmailOperationsInsight;
 }
 
+/**
+ * Pulisce un ai_summary inquinato (es. include backticks ```json o è puro
+ * codice JSON serializzato come stringa). 2026-05-26: backward-compat per
+ * record DB salvati prima del fix parser lato edge function.
+ */
+function sanitizeAiSummary(raw: string | null | undefined): string {
+  const value = (raw ?? "").trim();
+  if (!value) return "";
+  // Caso 1: fenced markdown JSON
+  const fenced = value.match(/^```(?:json)?\s*([\s\S]*?)\s*```\s*$/i);
+  const candidate = fenced ? fenced[1] : value;
+  // Caso 2: il contenuto è già JSON (parsabile)? estrai .summary
+  if (candidate.startsWith("{")) {
+    try {
+      const obj = JSON.parse(candidate) as { summary?: string };
+      if (typeof obj.summary === "string" && obj.summary.trim()) {
+        return obj.summary.trim().slice(0, 500);
+      }
+    } catch { /* not valid JSON, fall through to heuristic */ }
+    // Estrai prima sequenza { } bilanciata
+    const first = candidate.indexOf("{");
+    const last = candidate.lastIndexOf("}");
+    if (first !== -1 && last > first) {
+      try {
+        const obj = JSON.parse(candidate.slice(first, last + 1)) as { summary?: string };
+        if (typeof obj.summary === "string" && obj.summary.trim()) {
+          return obj.summary.trim().slice(0, 500);
+        }
+      } catch { /* give up */ }
+    }
+    // Se proprio non parsa, nascondi il rumore JSON
+    return "Riepilogo da rigenerare — clicca \"Analizza email\" per aggiornarlo.";
+  }
+  return value.slice(0, 500);
+}
+
 function analysisFromMessages(messages: MessageRow[] | undefined): EmailAnalysisResult | null {
   if (!messages?.length) return null;
   const source = [...messages]
@@ -228,10 +264,11 @@ function analysisFromMessages(messages: MessageRow[] | undefined): EmailAnalysis
   const extracted = source.ai_extracted && typeof source.ai_extracted === "object"
     ? source.ai_extracted
     : {};
+  const cleanSummary = sanitizeAiSummary(source.ai_summary);
   return {
     category: source.ai_category ?? "altro",
     priority: source.ai_priority ?? "nessuna",
-    summary: source.ai_summary ?? "Analisi disponibile.",
+    summary: cleanSummary || "Analisi disponibile.",
     action_items: stringArray(extracted.action_items),
     extracted,
     suggested_action: source.ai_suggested_action ?? "rispondi",
@@ -1494,7 +1531,7 @@ function MessageBubble({ message }: { message: MessageRow }) {
               </Badge>
             )}
             <p className="text-xs text-violet-900 leading-snug">
-              {message.ai_summary ?? "Questa email richiede attenzione entro 24 ore."}
+              {sanitizeAiSummary(message.ai_summary) || "Questa email richiede attenzione entro 24 ore."}
             </p>
           </div>
         </div>

@@ -135,7 +135,27 @@ const TRIAGE_CATEGORY_TERMS: Array<{
   },
 ];
 
-async function callClaude(systemPrompt: string, userPrompt: string, jsonMode = false): Promise<string> {
+/**
+ * Chiama Claude via OpenRouter.
+ * 2026-05-26 (cost optimization):
+ *  - max_tokens parametrico (analysis=900, reply=600, summary=350)
+ *  - temperature differenziata: 0.2 per analisi (deterministica), 0.5 per reply
+ *  - prompt caching via cache_control sulla parte system (sconto 90% sui token
+ *    cachati). I system prompt sono statici → cache hit immediato dopo la prima.
+ *  - response_format json_object resta per evitare backtick markdown
+ */
+interface CallClaudeOptions {
+  jsonMode?: boolean;
+  maxTokens?: number;
+  temperature?: number;
+}
+
+async function callClaude(
+  systemPrompt: string,
+  userPrompt: string,
+  options: CallClaudeOptions = {},
+): Promise<string> {
+  const { jsonMode = false, maxTokens = 900, temperature = 0.3 } = options;
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -143,15 +163,26 @@ async function callClaude(systemPrompt: string, userPrompt: string, jsonMode = f
       "Content-Type": "application/json",
       "HTTP-Referer": "https://edilizia-in-cloud",
       "X-Title": "Email AI Assistant",
+      // OpenRouter passa attraverso il cache_control nativo Anthropic.
+      "anthropic-beta": "prompt-caching-2024-07-31",
     },
     body: JSON.stringify({
       model: MODEL_ID,
       messages: [
-        { role: "system", content: systemPrompt },
+        {
+          role: "system",
+          content: [{
+            type: "text",
+            text: systemPrompt,
+            // Cache system prompt → primo richiamo paga full price, successivi
+            // pagano 1/10 sui token cachati (TTL ~5 min).
+            cache_control: { type: "ephemeral" },
+          }],
+        },
         { role: "user", content: userPrompt },
       ],
-      max_tokens: 1500,
-      temperature: 0.4,
+      max_tokens: maxTokens,
+      temperature,
       response_format: jsonMode ? { type: "json_object" } : undefined,
     }),
   });
@@ -163,15 +194,78 @@ async function callClaude(systemPrompt: string, userPrompt: string, jsonMode = f
   return json.choices?.[0]?.message?.content ?? "";
 }
 
+/**
+ * Parse JSON robusto da output AI.
+ * 2026-05-26: il modello a volte risponde con markdown fences ```json … ```
+ * oppure con testo prosa prima/dopo il JSON. Prima il fallback piazzava il
+ * raw nella `summary` → l'utente vedeva codice grezzo nell'UI.
+ * Ora:
+ *  1. Strip fences ```json … ``` o ``` … ```
+ *  2. Se ancora non parsabile, estrai la prima sostringa { … } bilanciata
+ *  3. Solo come ultima risorsa restituisce parsed-fallback empty object
+ */
+function safeJsonParse<T = Record<string, unknown>>(raw: string): T {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return {} as T;
+  // 1) Markdown fences
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```\s*$/i);
+  const candidate1 = fenced ? fenced[1] : trimmed;
+  try {
+    return JSON.parse(candidate1) as T;
+  } catch { /* keep trying */ }
+  // 2) Estrai primo { … } bilanciato
+  const firstBrace = candidate1.indexOf("{");
+  const lastBrace = candidate1.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(candidate1.slice(firstBrace, lastBrace + 1)) as T;
+    } catch { /* fallthrough */ }
+  }
+  return {} as T;
+}
+
+/**
+ * Serializza il thread in testo leggibile per il modello.
+ * 2026-05-26 (cost reduction):
+ *  - Max 5 messaggi (i più recenti) per thread
+ *  - Body cap 1200 char per messaggio (era 2000) — sufficiente per intent
+ *    + action items, le firme aziendali lunghe in fondo non aggiungono info
+ *  - Total cap implicito: 5 × ~1400 = 7000 char ≈ 1750 token (era illimitato)
+ */
 function formatThread(messages: ThreadMessage[]): string {
-  return messages
+  const recent = messages.slice(-5);
+  const omitted = messages.length - recent.length;
+  const header = omitted > 0
+    ? `[Mostro solo gli ultimi ${recent.length} messaggi del thread (${omitted} precedenti omessi).]\n\n`
+    : "";
+  return header + recent
     .map((m) => {
       const sender = m.from_name ? `${m.from_name} <${m.from_email}>` : m.from_email;
       const date = new Date(m.received_at).toLocaleString("it-IT");
-      const body = (m.raw_text ?? "").slice(0, 2000);
-      return `--- Messaggio ${date} ---\nDa: ${sender}\nA: ${m.to_email}\nOggetto: ${m.subject ?? ""}\n\n${body}\n`;
+      // Strippa firma aziendale standard a fondo email per ridurre rumore
+      const body = stripSignature((m.raw_text ?? "").slice(0, 1200));
+      return `--- Messaggio ${date} ---\nDa: ${sender}\nOggetto: ${m.subject ?? ""}\n\n${body}\n`;
     })
     .join("\n");
+}
+
+/** Strip firma email comune (signal-to-noise). */
+function stripSignature(body: string): string {
+  // Pattern standard: "--", "Cordiali saluti", "Inviato da iPhone/Android", ecc.
+  const cutPatterns = [
+    /\n--\s*\n/,
+    /\n_{3,}\n/,
+    /\nCordiali saluti[\s\S]*$/i,
+    /\nDistinti saluti[\s\S]*$/i,
+    /\nInviato da (mio iPhone|mio iPad|Android|Outlook)[\s\S]*$/i,
+    /\nSent from my (iPhone|iPad|Android)[\s\S]*$/i,
+  ];
+  let cut = body;
+  for (const pattern of cutPatterns) {
+    const idx = cut.search(pattern);
+    if (idx > 100) cut = cut.slice(0, idx); // mantieni almeno 100 char
+  }
+  return cut.trim();
 }
 
 function normalizeCategory(value: unknown): string {
@@ -316,22 +410,30 @@ function normalizeOperations(value: unknown): Record<string, unknown> {
 }
 
 function parseAnalysis(raw: string): EmailAnalysisResult {
-  let parsed: Record<string, unknown> = {};
-  try {
-    parsed = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    parsed = { summary: raw };
-  }
+  // 2026-05-26: parser robusto via safeJsonParse (strip markdown fences + extract
+  // first balanced JSON). Niente più dump di JSON grezzo nella summary lato UI.
+  const parsed = safeJsonParse<Record<string, unknown>>(raw);
   const extracted = recordValue(parsed.extracted);
   const operations = normalizeOperations(parsed.operations ?? extracted.operations);
   if (operations.domain !== "none" || Object.keys(operations).length > 2) {
     extracted.operations = operations;
   }
-  const summary = String(parsed.summary ?? "").trim().slice(0, 500);
+  let summary = String(parsed.summary ?? "").trim();
+  // Difesa profonda: se il modello ha messo del JSON dentro summary (capitato),
+  // estrai a sua volta. Se inizia con { o ```, è probabile parse fail nested.
+  if (summary.startsWith("{") || summary.startsWith("```")) {
+    const inner = safeJsonParse<Record<string, unknown>>(summary);
+    if (typeof inner.summary === "string" && inner.summary.trim()) {
+      summary = inner.summary.trim();
+    } else {
+      summary = "";
+    }
+  }
+  summary = summary.slice(0, 500);
   return {
     category: normalizeCategory(parsed.category),
     priority: normalizePriority(parsed.priority),
-    summary: summary || "Analisi completata, ma riepilogo non disponibile.",
+    summary: summary || "Riepilogo non disponibile per questa email.",
     action_items: stringArray(parsed.action_items),
     extracted,
     suggested_action: String(parsed.suggested_action ?? "rispondi").trim().slice(0, 80),
@@ -344,32 +446,30 @@ function parseAnalysis(raw: string): EmailAnalysisResult {
 }
 
 function buildAnalysisSystemPrompt(language: string): string {
-  return `Sei un AI email analyst operativo per imprese edili italiane.
-Analizza un thread email e produci un output pronto per CRM, acquisti, logistica, DDT e gestione aziendale.
+  return `AI email analyst per imprese edili italiane. Analizza un thread email.
 
-Categorie permesse:
-- "lead" → nuovo potenziale cliente generico
-- "preventivo" → richiesta prezzo, offerta, sopralluogo, capitolato o preventivo
-- "cliente_esistente" → cliente già attivo
-- "fornitore" → fornitore, ordine, DDT, logistica, acquisti materiali
-- "fattura" → fattura, pagamento, scadenza contabile
-- "pratica_amministrativa" → comune, INPS, AdE, CILA/SCIA, documenti amministrativi
-- "support" → richiesta assistenza, bug, problema operativo
-- "spam" → newsletter, promo, phishing, irrilevante
-- "altro" → non classificabile
+Categorie:
+- "lead" = nuovo potenziale cliente
+- "preventivo" = richiesta prezzo/offerta/sopralluogo/capitolato
+- "cliente_esistente" = cliente già attivo
+- "fornitore" = ordine, DDT, logistica, materiali, ritardo consegna
+- "fattura" = fattura, pagamento, scadenza
+- "pratica_amministrativa" = comune, INPS, AdE, CILA/SCIA
+- "support" = assistenza, bug, problema
+- "spam" = newsletter/promo/phishing
+- "altro" = non classificabile
 
-Priorità permesse: "alta", "media", "bassa", "nessuna".
+Priorità: "alta" (richiede azione entro 24h), "media", "bassa", "nessuna" (spam).
 
-Devi riconoscere in modo speciale le email operative:
-- richiesta acquisto merce a fornitore
-- conferma ordine fornitore
-- ritardo consegna fornitore
-- modifica data consegna
-- DDT ricevuto o da abbinare a ODA
-- materiale mancante, parziale, danneggiato
-- fattura o pagamento fornitore collegato a ordine/DDT
+Riconosci email operative: acquisto/conferma/ritardo/modifica ordine fornitore,
+DDT ricevuto, materiale parziale/danneggiato, fattura collegata a ODA.
 
-Rispondi SOLO in JSON valido:
+REGOLE FORMATO (CRITICHE):
+- Output SOLO JSON valido (no markdown, no \`\`\`, no testo prima/dopo).
+- Niente null come "null" string → usa null vero.
+- Lingua valori testuali: ${language}.
+
+Schema esatto:
 {
   "category": "una_categoria_permessa",
   "priority": "una_priorita_permessa",
@@ -424,15 +524,16 @@ Rispondi SOLO in JSON valido:
   "reply_strategy": "come rispondere in modo efficace"
 }
 
-Regole:
-- Non inventare dati non presenti: usa null.
-- Se non trovi un riferimento ODA certo, metti purchase_order.id=null e number solo se citato nel testo.
-- Per modifiche a ODA, DDT, magazzino o invii email, proponi sempre requires_confirmation=true.
-- Se il fornitore comunica un ritardo o nuova data, category="fornitore", priority almeno "media", operations.domain="supplier_delay".
-- Se è una richiesta preventivo, category="preventivo".
-- Se richiede risposta entro 24h, priority="alta".
-- Se è spam, priority="nessuna" e suggested_action="spam".
-- Output in ${language}.`;
+Regole anti-allucinazione:
+- Mai inventare: dati assenti → null.
+- purchase_order.number SOLO se citato esplicitamente nel testo.
+- Tutte le azioni che modificano ODA/DDT/magazzino: requires_confirmation=true.
+- Ritardo/nuova data fornitore: category="fornitore", priority≥"media", operations.domain="supplier_delay".
+- Richiesta preventivo: category="preventivo".
+- Risposta richiesta entro 24h: priority="alta".
+- Spam: priority="nessuna", suggested_action="spam".
+
+Summary: 1-2 frasi pratiche. Niente "questa email parla di…", vai dritto.`;
 }
 
 function stringField(record: Record<string, unknown>, key: string): string | null {
@@ -807,25 +908,15 @@ Deno.serve(async (req) => {
   try {
     if (body.action === "summary") {
       const sys = `Sei un assistente email per imprenditori italiani edili.
-Ricevi un thread email completo. Devi:
-1. Sintetizzare in 2-3 frasi MAX cosa vogliono / chiedono / dicono
-2. Estrarre gli "action items" concreti per chi riceve (cose da fare, decisioni, scadenze)
+Sintetizza in 2-3 frasi cosa chiede l'email e estrai gli action items concreti.
 
-Rispondi SEMPRE in JSON valido con questa struttura:
-{
-  "summary": "...",
-  "action_items": ["...", "..."]
-}
+Rispondi SOLO JSON valido (no markdown, no testo extra):
+{"summary":"...","action_items":["...","..."]}
 
-Lingua output: ${language}. Sii conciso, asciutto, focus sull'utile.`;
-      const userPrompt = `Thread email da analizzare:\n\n${threadText}`;
-      const raw = await callClaude(sys, userPrompt, true);
-      let parsed: { summary?: string; action_items?: string[] };
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = { summary: raw, action_items: [] };
-      }
+Lingua: ${language}. Conciso, asciutto, focus operativo.`;
+      const userPrompt = `Thread email:\n\n${threadText}`;
+      const raw = await callClaude(sys, userPrompt, { jsonMode: true, maxTokens: 350, temperature: 0.3 });
+      const parsed = safeJsonParse<{ summary?: string; action_items?: string[] }>(raw);
       return jsonRes({
         ok: true,
         summary: parsed.summary ?? "",
@@ -835,7 +926,13 @@ Lingua output: ${language}. Sii conciso, asciutto, focus sull'utile.`;
 
     if (body.action === "analysis" || body.action === "operation_proposals") {
       const sys = buildAnalysisSystemPrompt(language);
-      const raw = await callClaude(sys, `Thread email da analizzare:\n\n${threadText}`, true);
+      // analysis: maxTokens 900 ampio per coprire operations object completo
+      // temperature 0.2 per output deterministico (stessa email → stessa classificazione)
+      const raw = await callClaude(sys, `Thread email da analizzare:\n\n${threadText}`, {
+        jsonMode: true,
+        maxTokens: 900,
+        temperature: 0.2,
+      });
       const analysis = parseAnalysis(raw);
       const latestMessage = (messages as ThreadMessage[])[(messages as ThreadMessage[]).length - 1];
       if (latestMessage?.id) {
@@ -877,31 +974,31 @@ Lingua output: ${language}. Sii conciso, asciutto, focus sull'utile.`;
     }
 
     // reply_suggestions
+    // 2026-05-26: toni rinominati per essere veramente utili al contesto edile
+    // (era "veloce/dettagliata/negoziale" — confuso). Ora:
+    //  - "conferma" = accetto/confermo, no domande
+    //  - "domanda" = chiedo chiarimento prima di impegnarmi
+    //  - "rilancio" = propongo alternativa o controparte
     const sys = `Sei un assistente email per imprenditori italiani edili.
-Ricevi un thread email. Genera 3 BOZZE DI RISPOSTA brevi (40-80 parole ciascuna),
-ognuna con un tono diverso:
-- "veloce": risposta molto breve, professionale, taglio operativo
-- "dettagliata": risposta completa che indirizza tutti i punti
-- "negoziale": risposta che chiede chiarimenti o propone alternative
+Genera 3 bozze di risposta brevi (40-80 parole), pronte da inviare.
 
-Rispondi SEMPRE in JSON valido:
-{
-  "suggestions": [
-    { "tone": "veloce", "label": "...etichetta breve...", "body": "...testo risposta..." },
-    { "tone": "dettagliata", "label": "...", "body": "..." },
-    { "tone": "negoziale", "label": "...", "body": "..." }
-  ]
-}
+Toni richiesti:
+- "conferma": accetti / confermi / dai il via. Tono cortese e diretto.
+- "domanda": chiedi 1-2 chiarimenti specifici prima di impegnarti
+- "rilancio": proponi un'alternativa, controparte, o sposti la data
 
-Lingua: ${language}. Le risposte devono essere pronte da inviare (no placeholder).`;
-    const userPrompt = `Thread email a cui rispondere (ultimo messaggio = il più recente):\n\n${threadText}`;
-    const raw = await callClaude(sys, userPrompt, true);
-    let parsed: { suggestions?: Array<{ tone: string; label: string; body: string }> };
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      parsed = { suggestions: [] };
-    }
+Regole:
+- NESSUN placeholder tipo [NOME] o [DATA] — usa info reali dal thread o
+  formulazioni naturali ("come anticipato", "ti faccio sapere domani")
+- Saluto + chiusura inclusi
+- Lessico imprenditoriale concreto (no formalismi inutili)
+- Lingua: ${language}
+
+Rispondi SOLO JSON valido (no markdown):
+{"suggestions":[{"tone":"conferma","label":"...","body":"..."},{"tone":"domanda","label":"...","body":"..."},{"tone":"rilancio","label":"...","body":"..."}]}`;
+    const userPrompt = `Thread email (ultimo messaggio = più recente):\n\n${threadText}`;
+    const raw = await callClaude(sys, userPrompt, { jsonMode: true, maxTokens: 700, temperature: 0.5 });
+    const parsed = safeJsonParse<{ suggestions?: Array<{ tone: string; label: string; body: string }> }>(raw);
     return jsonRes({
       ok: true,
       suggestions: parsed.suggestions ?? [],
