@@ -332,11 +332,17 @@ async function pushEvent(userId: string, companyId: string, appointmentId: strin
 
   if (!res.ok) {
     const errText = await res.text();
-    console.error("Push event failed:", errText);
+    console.error("Push event failed:", res.status, errText);
     if (res.status === 401 || res.status === 403) {
       await admin.from("google_calendar_connections").update({ status: "token_expired" }).eq("id", conn.id);
     }
-    return json({ error: "Failed to create Google event" }, 502);
+    // 2026-05-27: ritorniamo dettagli (status Google + truncated body)
+    // così il frontend può mostrarli nel toast invece di "non-2xx generic".
+    return json({
+      error: "Failed to create Google event",
+      googleStatus: res.status,
+      googleError: errText.substring(0, 300),
+    }, 502);
   }
 
   const created = await res.json();
@@ -421,8 +427,12 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
 
   if (!res.ok) {
     const errText = await res.text();
-    console.error("Update event failed:", errText);
-    return json({ error: "Failed to update Google event" }, 502);
+    console.error("Update event failed:", res.status, errText);
+    return json({
+      error: "Failed to update Google event",
+      googleStatus: res.status,
+      googleError: errText.substring(0, 300),
+    }, 502);
   }
 
   const updated = await res.json();
@@ -735,6 +745,28 @@ async function persistMeetDetails(
   return meetUrl;
 }
 
+/**
+ * 2026-05-27 (BUG CRITICO TROVATO): normalizza un valore postgres `time without
+ * time zone` (es. "09:00:00" o "09:00:00.000") a "HH:MM:SS" pulito.
+ *
+ * Era il bug "Errore sincronizzazione Google" che vedeva l'utente quando
+ * creava un appuntamento dal CRM. Prima:
+ *   `${dateStr}T${apt.appointment_time}:00` → "2026-05-29T09:00:00:00"
+ *                                                              ^^^^^^
+ *                                                              non-iso, 400 da Google
+ *
+ * Postgres restituisce "HH:MM:SS" (con secondi) e il codice presumeva
+ * "HH:MM" e gli appendeva ":00". Doppio segmento secondi → invalido.
+ */
+function normalizeTime(t: string): string {
+  if (!t) return "00:00:00";
+  const cleaned = t.split(".")[0]; // drop ms se presenti
+  const parts = cleaned.split(":");
+  if (parts.length === 2) return `${parts[0]}:${parts[1]}:00`;
+  if (parts.length >= 3) return `${parts[0]}:${parts[1]}:${parts[2]}`;
+  return "00:00:00";
+}
+
 function buildGoogleEvent(apt: any, options: { createMeet?: boolean } = {}) {
   const hasTime = !!apt.appointment_time;
   const dateStr = apt.appointment_date;
@@ -743,9 +775,10 @@ function buildGoogleEvent(apt: any, options: { createMeet?: boolean } = {}) {
   let end: any;
 
   if (hasTime) {
-    const startDateTime = `${dateStr}T${apt.appointment_time}:00`;
+    const startTimeNorm = normalizeTime(apt.appointment_time);
+    const startDateTime = `${dateStr}T${startTimeNorm}`;
     const endTime = apt.appointment_end_time
-      ? `${dateStr}T${apt.appointment_end_time}:00`
+      ? `${dateStr}T${normalizeTime(apt.appointment_end_time)}`
       : addHour(startDateTime);
     start = { dateTime: startDateTime, timeZone: "Europe/Rome" };
     end = { dateTime: endTime, timeZone: "Europe/Rome" };

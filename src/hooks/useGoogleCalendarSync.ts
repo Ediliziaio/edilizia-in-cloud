@@ -50,10 +50,22 @@ export function useGoogleCalendarSync() {
   async function syncToGoogle(action: string, appointmentId?: string) {
     if (!companyId) return;
     try {
+      // 2026-05-27: `supabase.functions.invoke` su 4xx/5xx ritorna error
+      // generico "non-2xx status" SENZA esporre il body. Per mostrare la
+      // causa reale (es. "googleStatus 400: Bad Request: invalid datetime")
+      // ricaviamo `data` anche in caso di errore — Supabase mette il JSON
+      // del body in `data` solo se ha riuscito a parsarlo.
       const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
         body: { action, companyId, appointmentId },
       });
-      if (error) throw error;
+      if (error) {
+        const detail =
+          data?.googleError ||
+          data?.error ||
+          (data?.googleStatus ? `HTTP ${data.googleStatus}` : null) ||
+          error.message;
+        throw new Error(detail);
+      }
       return data;
     } catch (e: any) {
       logger.error(`Google Calendar sync (${action}) failed:`, e);

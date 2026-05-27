@@ -10,6 +10,7 @@ import {
   format,
 } from "date-fns";
 import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
 import { buildColorMap } from "@/lib/marketingCalendarConstants";
@@ -226,24 +227,36 @@ export default function MarketingCalendarMonthView({
                           non draggabili (sono eventi esterni, vengono solo
                           mostrati per evitare conflitti). Click apre slot vuoto
                           come gli altri giorni. */}
+                      {/* 2026-05-27 (richiesta UI): emoji 🟢/🍎 sostituite da
+                          icona Calendar con colore brand (blu per Google,
+                          slate per Apple). Più professionale e leggibile
+                          a colpo d'occhio rispetto all'emoji. */}
                       {dayBusySlots.slice(0, Math.max(0, maxShow - dayApts.length)).map((slot) => {
                         const time = !slot.is_all_day && slot.start_at
                           ? new Date(slot.start_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
                           : null;
-                        const providerEmoji = slot.provider === "apple" ? "🍎" : "🟢";
+                        const isApple = slot.provider === "apple";
                         return (
                           <div
                             key={`busy-${slot.id}`}
                             onClick={(e) => e.stopPropagation()}
                             className={cn(
-                              "cursor-default truncate rounded border-l-2 border-dashed px-1.5 py-1 text-[11px] leading-tight",
-                              "border-slate-400/60 bg-slate-100/80 text-slate-600 italic"
+                              "flex cursor-default items-center gap-1 truncate rounded border-l-2 border-dashed px-1.5 py-1 text-[11px] leading-tight",
+                              isApple
+                                ? "border-zinc-500/60 bg-zinc-100/80 text-zinc-700 italic"
+                                : "border-blue-500/60 bg-blue-50 text-blue-800 italic"
                             )}
-                            title={`${slot.summary || "Occupato"} (da ${slot.provider === "apple" ? "Apple Calendar" : "Google Calendar"})`}
+                            title={`${slot.summary || "Occupato"} (da ${isApple ? "Apple Calendar" : "Google Calendar"})`}
                           >
-                            <span className="mr-1 text-[9px]">{providerEmoji}</span>
-                            {time && <span className="font-medium">{time} </span>}
-                            {slot.summary || "Occupato"}
+                            <CalendarIcon
+                              className={cn(
+                                "h-3 w-3 shrink-0",
+                                isApple ? "text-zinc-600" : "text-blue-600"
+                              )}
+                              aria-label={isApple ? "Apple Calendar" : "Google Calendar"}
+                            />
+                            {time && <span className="font-medium">{time}</span>}
+                            <span className="truncate">{slot.summary || "Occupato"}</span>
                           </div>
                         );
                       })}

@@ -237,17 +237,19 @@ export default function MarketingCalendarDayView({
                   )}
                   onClick={() => { if (!justDragged.current) onClickSlot(date, h, m); }}
                 >
+                  {/* 2026-05-27: busy slots Google ora in blu (brand) + Apple in zinc.
+                      Prima Google era rosso → si confondeva con un alert/conflitto. */}
                   {slotBusy.map((busy, bi) => (
                     <Tooltip key={`busy-${bi}`}>
                       <TooltipTrigger asChild>
                         <div className={`absolute inset-0 pointer-events-none z-0 border-l-2 ${
                           busy.provider === "apple"
-                            ? "bg-gray-100/60 dark:bg-gray-800/20 border-gray-400/60"
-                            : "bg-red-100/60 dark:bg-red-900/20 border-red-400/60"
+                            ? "bg-zinc-100/60 dark:bg-zinc-800/20 border-zinc-400/60"
+                            : "bg-blue-100/60 dark:bg-blue-900/20 border-blue-500/60"
                         }`} />
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        <span className="text-xs">{busy.summary || (busy.provider === "apple" ? "Occupato (Apple)" : "Occupato (Google)")}</span>
+                        <span className="text-xs">{busy.summary || (busy.provider === "apple" ? "Occupato (Apple Calendar)" : "Occupato (Google Calendar)")}</span>
                       </TooltipContent>
                     </Tooltip>
                   ))}
