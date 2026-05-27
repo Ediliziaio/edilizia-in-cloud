@@ -370,7 +370,13 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             toast.success(`Articolo "${inserted.name}" creato con ${createPrefillSerials.length} seriali collegati`);
           }
         } catch (unitsErr) {
+          // 2026-05-27 (audit error handling): prima silent → l'utente vedeva
+          // toast success "Articolo creato" ma i seriali non erano stati
+          // salvati. Magazzino disallineato dal cantiere reale.
           console.error("[CaricoRapido] stock_units creation failed:", unitsErr);
+          toast.warning(`Articolo creato ma ${createPrefillSerials.length} seriali non collegati`, {
+            description: unitsErr instanceof Error ? unitsErr.message : "Riprova a registrare i seriali",
+          });
         }
       }
 

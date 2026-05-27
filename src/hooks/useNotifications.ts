@@ -6,6 +6,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { playNotificationSound } from "@/lib/notificationSound";
 import { safeRedirect } from "@/utils/safeRedirect";
+import { subscribeChannel } from "@/lib/realtime/subscribeChannel";
 
 export interface Notification {
   id: string;
@@ -74,8 +75,20 @@ export function NotificationsRealtime() {
           });
           playNotificationSound();
         }
-      )
-      .subscribe();
+      );
+    // 2026-05-27 (audit error handling): subscribeChannel logga e segnala se
+    // la connessione realtime muore. Senza, l'utente vedeva la dashboard
+    // "live" ma in realtà non riceveva più notifiche fino al prossimo
+    // refresh manuale.
+    subscribeChannel(channel, "notifications", {
+      onDead: () => {
+        // Refetch on dead channel as safety net (le notifiche dovrebbero
+        // ancora arrivare al prossimo polling staleTime).
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.notifications.list(companyId, userId),
+        });
+      },
+    });
 
     return () => {
       void supabase.removeChannel(channel);

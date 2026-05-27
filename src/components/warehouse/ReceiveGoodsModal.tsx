@@ -158,7 +158,14 @@ export function ReceiveGoodsModal({
       setDdtFile(null);
       setShowDDTPrompt(true);
     } catch (error) {
+      // 2026-05-27 (audit error handling): prima il fail era totalmente
+      // muto → l'utente credeva che la merce fosse stata registrata in
+      // magazzino, ma in realtà RLS/rete/edge function aveva fallito.
+      // Disallineamento cantiere/magazzino.
       console.error("Submit error:", error);
+      toast.error("Ricezione non registrata", {
+        description: error instanceof Error ? error.message : "Riprova o controlla la connessione",
+      });
     }
   };
 

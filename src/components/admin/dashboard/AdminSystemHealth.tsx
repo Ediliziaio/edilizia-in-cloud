@@ -55,6 +55,14 @@ export function AdminSystemHealth() {
           .limit(100),
       ]);
 
+      // 2026-05-27 (audit error handling): se una delle 3 query falliva,
+      // `data || []` portava a UI "tutto verde" mentre il DB era in fiamme.
+      // Ora propaghiamo l'errore così React Query mostra `isError` e l'admin
+      // sa che il pannello health non è affidabile.
+      if (metricsRes.error) throw metricsRes.error;
+      if (syncLogsRes.error) throw syncLogsRes.error;
+      if (rateLimitRes.error) throw rateLimitRes.error;
+
       const metrics = (metricsRes.data || []) as HealthMetric[];
       const syncLogs = (syncLogsRes.data || []) as CalendarSyncLogEntry[];
       const rateLimitHits = (rateLimitRes.data || []) as HealthMetric[];
