@@ -131,9 +131,22 @@ async function pullBusySlots(userId: string, companyId: string): Promise<Respons
   if (!accessToken) return json({ error: "Token expired, reconnect required" }, 401);
 
   const settings = await getSettings(admin, userId, companyId);
-  const calendarIds = settings?.conflict_calendar_ids || [];
+  // 2026-05-27 (FIX CRITICO UX): prima leggeva SOLO conflict_calendar_ids.
+  // Se l'utente non aveva esplicitamente aggiunto calendari ai "conflict"
+  // (default vuoto post-OAuth), la sync ritornava 0 senza importare nulla.
+  // Risultato: l'utente cliccava "Sincronizza ora", vedeva "Sync OK" ma
+  // il calendario CRM restava vuoto perché il SUO calendario primary
+  // non veniva mai pollato.
+  // ORA: include SEMPRE il primary_calendar_id come default + eventuali
+  // conflict_calendar_ids per multi-calendar setup.
+  const calendarIdSet = new Set<string>();
+  if (settings?.primary_calendar_id) calendarIdSet.add(settings.primary_calendar_id);
+  (settings?.conflict_calendar_ids || []).forEach((id: string) => {
+    if (id) calendarIdSet.add(id);
+  });
+  const calendarIds = Array.from(calendarIdSet);
   if (calendarIds.length === 0) {
-    return json({ pulled: 0, message: "No conflict calendars configured" });
+    return json({ pulled: 0, message: "No calendars configured (né primary né conflict)" });
   }
 
   const now = new Date();
