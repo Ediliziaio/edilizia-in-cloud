@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from "./RichTextEditor";
+import { RecipientField } from "./RecipientField";
 
 export type ComposeMode = "new" | "reply" | "replyAll" | "forward";
 
@@ -444,7 +445,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             </div>
           )}
 
-          {/* To */}
+          {/* To — con autocomplete da anagrafica + storico email */}
           <div>
             <div className="flex items-center justify-between">
               <Label className="text-xs">A</Label>
@@ -457,11 +458,13 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
                 Cc/Bcc
               </button>
             </div>
-            <Input
+            <RecipientField
               value={to}
-              onChange={(e) => setTo(e.target.value)}
-              placeholder="destinatario@esempio.it (separa con virgole)"
-              className="h-9"
+              onChange={setTo}
+              placeholder="Inizia a digitare nome o email…"
+              companyId={companyId}
+              ariaLabel="Destinatari"
+              autoFocus
             />
           </div>
 
@@ -469,11 +472,23 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             <>
               <div>
                 <Label className="text-xs">Cc</Label>
-                <Input value={cc} onChange={(e) => setCc(e.target.value)} placeholder="cc@esempio.it" className="h-9" />
+                <RecipientField
+                  value={cc}
+                  onChange={setCc}
+                  placeholder="cc@…"
+                  companyId={companyId}
+                  ariaLabel="Destinatari in copia"
+                />
               </div>
               <div>
                 <Label className="text-xs">Bcc</Label>
-                <Input value={bcc} onChange={(e) => setBcc(e.target.value)} placeholder="bcc@esempio.it" className="h-9" />
+                <RecipientField
+                  value={bcc}
+                  onChange={setBcc}
+                  placeholder="bcc@… (nascosti agli altri)"
+                  companyId={companyId}
+                  ariaLabel="Destinatari in copia nascosta"
+                />
               </div>
             </>
           )}
@@ -550,11 +565,12 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
           />
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-blue-100 bg-slate-50 px-4 py-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-4 py-2.5">
           <Button
             onClick={() => sendMutation.mutate()}
             disabled={isSending || !hasActiveSender}
-            className="gap-2 rounded-xl bg-blue-600 hover:bg-blue-700"
+            className="gap-2 rounded-xl bg-blue-600 px-5 hover:bg-blue-700"
+            size="sm"
           >
             {isSending ? (
               <>
@@ -572,21 +588,25 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             variant="ghost"
             size="icon"
             type="button"
+            className="h-9 w-9 rounded-lg text-slate-500 hover:bg-blue-50 hover:text-blue-700"
             onClick={() => fileInputRef.current?.click()}
             title="Allega file (max 25 MB ciascuno)"
+            aria-label="Allega file"
           >
             <Paperclip className="h-4 w-4" />
           </Button>
 
           <span className={cn(
-            "ml-auto text-[11px] flex items-center gap-1",
+            "ml-auto inline-flex items-center gap-1 text-[11px]",
             autoSaveStatus === "saving" && "text-muted-foreground",
             autoSaveStatus === "saved" && "text-emerald-600",
             autoSaveStatus === "error" && "text-rose-600",
+            autoSaveStatus === "idle" && "text-transparent",
           )}>
             {autoSaveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Salvataggio…</>}
             {autoSaveStatus === "saved" && <><Save className="h-3 w-3" /> Bozza salvata</>}
             {autoSaveStatus === "error" && <>Errore salvataggio</>}
+            {autoSaveStatus === "idle" && <>·</>}
           </span>
 
           <Button
@@ -594,6 +614,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             size="sm"
             onClick={() => onOpenChange(false)}
             disabled={isSending}
+            className="rounded-lg text-slate-600 hover:bg-slate-100"
           >
             <X className="h-3.5 w-3.5 mr-1" />
             Chiudi
