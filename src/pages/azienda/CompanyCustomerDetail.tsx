@@ -35,6 +35,7 @@ import { useState } from "react";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
 import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityTimeline";
 import { CustomerComposeBar } from "@/components/clients/CustomerComposeBar";
+import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   CustomerBusinessTabs,
@@ -122,6 +123,10 @@ export default function CompanyCustomerDetail() {
   // "documenti" | "email" | "appuntamenti" | "rate" = aperto su quella sezione.
   // Click sulla stessa icona = toggle chiude.
   const [rightTab, setRightTab] = useState<string | null>(null);
+  // 2026-05-27 (richiesta utente "popup appuntamento"): apre AppointmentDialog
+  // come modale invece di navigate /calendario. Pre-popolato con dati cliente
+  // (address/city/province) e order_id del primo ordine (se esiste).
+  const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
 
   // ── Core customer data ──────────────────────────────────────────────────────
   const { data: customer, isLoading, refetch: refetchCustomer } = useQuery({
@@ -281,24 +286,26 @@ export default function CompanyCustomerDetail() {
   });
 
   // ── Appuntamenti ─────────────────────────────────────────────────────────────
-  // 2026-05-27 (audit dettaglio cliente): soft-fail.
-  // PRIMA: try/catch → throw "Impossibile caricare..." su QUALSIASI errore
-  // (RLS pending, tabella non disponibile per il ruolo, schema mismatch).
-  // Risultato: alert giallo permanente anche quando il cliente semplicemente
-  // non ha appuntamenti.
-  // ORA: errori di tabella mancante (42P01) o accesso negato (42501) →
-  // empty array silenzioso + log dev. Solo errori veri (network, 500)
-  // popolano dataWarnings.
+  // 2026-05-27 v2 (FIX SCHEMA REALE): prima la query era SBAGLIATA — usava
+  //   `.eq("customer_id", id)` ma `appointments` NON HA customer_id, ha
+  //   `order_id`. E selezionava `start_at, end_at` ma lo schema ha
+  //   `appointment_date, appointment_time, appointment_end_time`.
+  // CAUSA: query soft-fail permanente "Impossibile caricare gli appuntamenti".
+  //
+  // ORA: join via orderIds — appointments del cliente = appointments degli
+  // ordini del cliente. Schema corretto. Se non ci sono ordini, return [].
   const { data: appuntamenti = [], error: appuntamentiError } = useQuery({
-    queryKey: ["customer-appuntamenti", id, effectiveCompany?.id],
+    queryKey: ["customer-appuntamenti", id, effectiveCompany?.id, orders.length],
     queryFn: async () => {
+      const orderIdsLocal = orders.map((o) => o.id);
+      if (orderIdsLocal.length === 0) return [] as AppuntamentoRow[];
       const { data, error } = await supabase
-        .from("appointments" as never)
-        .select("id, title, start_at, end_at, status")
-        .eq("customer_id", id!)
+        .from("appointments")
+        .select("id, title, appointment_date, appointment_time, appointment_end_time, status, appointment_type, order_id")
+        .in("order_id", orderIdsLocal)
         .eq("company_id", effectiveCompany!.id)
-        .order("start_at", { ascending: false })
-        .limit(20);
+        .order("appointment_date", { ascending: false })
+        .limit(50);
       if (error) {
         if (isSoftTableError(error)) {
           logger.warn("[customer] appointments soft-error:", error);
@@ -701,7 +708,7 @@ export default function CompanyCustomerDetail() {
             )}
             <Button
               variant="outline" size="sm" className="gap-1.5 h-9"
-              onClick={() => navigate(`/azienda/calendario?customer_id=${customer.id}`)}
+              onClick={() => setAppointmentDialogOpen(true)}
             >
               <CalendarDays className="h-3.5 w-3.5" /> Appuntam.
             </Button>
@@ -790,7 +797,7 @@ export default function CompanyCustomerDetail() {
           )}
           <Button
             variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5"
-            onClick={() => navigate(`/azienda/calendario?customer_id=${customer.id}`)}
+            onClick={() => setAppointmentDialogOpen(true)}
           >
             <CalendarDays className="h-3.5 w-3.5" /> Appuntam.
           </Button>
@@ -982,6 +989,7 @@ export default function CompanyCustomerDetail() {
                   rate={rate}
                   anagraficaCollegata={anagraficaCollegata ?? null}
                   defaultTab={rightTab}
+                  onCreateAppointment={() => setAppointmentDialogOpen(true)}
                   /* dataWarnings volutamente OMESSO: l'alert apparirebbe
                      duplicato per ogni pannello aperto. Resta nella vista
                      mobile full di CustomerBusinessTabs sotto. */
@@ -1039,6 +1047,7 @@ export default function CompanyCustomerDetail() {
           appuntamenti={appuntamenti}
           rate={rate}
           anagraficaCollegata={anagraficaCollegata ?? null}
+          onCreateAppointment={() => setAppointmentDialogOpen(true)}
           dataWarnings={{
             anagrafica: anagraficaError instanceof Error ? anagraficaError.message : null,
             fatture: fattureError instanceof Error ? fattureError.message : null,
@@ -1057,6 +1066,26 @@ export default function CompanyCustomerDetail() {
         onOpenChange={setComposeOpen}
         context={composeContext}
         companyIdOverride={effectiveCompany?.id}
+      />
+
+      {/* 2026-05-27: AppointmentDialog popup invece di navigate /calendario.
+          Pre-popolato con: titolo "Appuntamento NomeCliente", primo ordine
+          (se esiste), indirizzo del cliente (residenza o cantiere).
+          Al salvataggio invalida customer-appuntamenti per refresh timeline. */}
+      <AppointmentDialog
+        open={appointmentDialogOpen}
+        onOpenChange={setAppointmentDialogOpen}
+        defaultTitle={`Appuntamento ${fullName}`}
+        defaultOrderId={orders[0]?.id}
+        showOrderSelect
+        defaultAddress={customer.site_address || customer.address || null}
+        defaultCity={customer.site_city || customer.city || null}
+        defaultProvince={customer.site_province || customer.province || null}
+        onSaved={() => {
+          setAppointmentDialogOpen(false);
+          queryClient.invalidateQueries({ queryKey: ["customer-appuntamenti", id, effectiveCompany?.id] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
+        }}
       />
     </div>
   );

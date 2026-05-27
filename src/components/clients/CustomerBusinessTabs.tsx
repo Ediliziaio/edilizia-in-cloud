@@ -67,9 +67,15 @@ export interface FatturaRow {
 export interface AppuntamentoRow {
   id: string;
   title: string | null;
-  start_at: string | null;
-  end_at: string | null;
+  /** Schema reale appointments: appointment_date (DATE) + appointment_time (TIME).
+   *  2026-05-27: prima usavamo start_at/end_at che NON esistono nello schema reale
+   *  → causa principale del soft-fail "Impossibile caricare gli appuntamenti". */
+  appointment_date: string | null;
+  appointment_time: string | null;
+  appointment_end_time?: string | null;
   status: string | null;
+  appointment_type?: string | null;
+  order_id?: string | null;
 }
 
 export interface RataRow {
@@ -153,6 +159,10 @@ interface CustomerBusinessTabsProps {
    * (es. dal pannello laterale destro del layout 3-col). Default "ordini".
    */
   defaultTab?: string;
+  /** Callback per aprire il dialog "Nuovo appuntamento" dal parent.
+   *  2026-05-27: invece di navigate /calendario, apre AppointmentDialog
+   *  popup controllato da CompanyCustomerDetail. */
+  onCreateAppointment?: () => void;
   dataWarnings?: {
     anagrafica?: string | null;
     fatture?: string | null;
@@ -576,36 +586,62 @@ function DocumentiTab({
   );
 }
 
-function AppuntamentiTab({ items, customerId, customerFullName }: { items: AppuntamentoRow[]; customerId: string; customerFullName?: string }) {
+function AppuntamentiTab({
+  items,
+  onCreateClick,
+}: {
+  items: AppuntamentoRow[];
+  customerId: string;
+  customerFullName?: string;
+  /** 2026-05-27: invece di navigate /calendario, apre AppointmentDialog popup
+   *  controllato dalla pagina parent (CompanyCustomerDetail). */
+  onCreateClick?: () => void;
+}) {
   const navigate = useNavigate();
   if (items.length === 0) {
     return (
-      <EmptyState
-        icon={CalendarDays}
-        label="appuntamento"
-        actionLabel="Nuovo appuntamento"
-        actionHref={buildCreateUrl("/azienda/calendario", customerId, customerFullName)}
-      />
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <CalendarDays className="h-10 w-10 text-muted-foreground/30 mb-3" />
+        <p className="text-sm font-medium text-muted-foreground">Nessun appuntamento trovato</p>
+        <p className="text-xs text-muted-foreground mt-1 mb-3">
+          Crealo ora e verrà collegato a questo cliente.
+        </p>
+        {onCreateClick && (
+          <Button variant="outline" size="sm" onClick={onCreateClick}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Nuovo appuntamento
+          </Button>
+        )}
+      </div>
     );
   }
   return (
     <div className="space-y-1">
-      {items.map((item) => (
-        <div
-          key={item.id}
-          className="flex items-center justify-between gap-2 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
-          onClick={() => navigate(`/azienda/calendario`)}
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate">{item.title || "Appuntamento"}</p>
-            <p className="text-xs text-muted-foreground">{formatDate(item.start_at)}</p>
+      {items.map((item) => {
+        const dateLabel = item.appointment_date
+          ? format(new Date(item.appointment_date), "dd MMM yyyy", { locale: it })
+          : "—";
+        const timeLabel = item.appointment_time ? ` · ${item.appointment_time.substring(0, 5)}` : "";
+        return (
+          <div
+            key={item.id}
+            className="flex items-center justify-between gap-2 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
+            onClick={() => navigate(`/azienda/calendario`)}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate">{item.title || "Appuntamento"}</p>
+              <p className="text-xs text-muted-foreground">{dateLabel}{timeLabel}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {item.appointment_type && (
+                <Badge variant="secondary" className="text-[10px]">{item.appointment_type.replace(/_/g, " ")}</Badge>
+              )}
+              {item.status && <Badge variant="outline" className="text-xs">{item.status}</Badge>}
+              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {item.status && <Badge variant="outline" className="text-xs">{item.status}</Badge>}
-            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -835,6 +871,7 @@ export function CustomerBusinessTabs({
   rate,
   anagraficaCollegata,
   defaultTab,
+  onCreateAppointment,
   dataWarnings,
 }: CustomerBusinessTabsProps) {
   useAuth();
@@ -979,7 +1016,12 @@ export function CustomerBusinessTabs({
         />
       </TabsContent>
       <TabsContent value="appuntamenti">
-        <AppuntamentiTab items={appuntamenti} customerId={customerId} customerFullName={customerFullName} />
+        <AppuntamentiTab
+          items={appuntamenti}
+          customerId={customerId}
+          customerFullName={customerFullName}
+          onCreateClick={onCreateAppointment}
+        />
       </TabsContent>
       <TabsContent value="rate">
         <RateTab rate={rate} />

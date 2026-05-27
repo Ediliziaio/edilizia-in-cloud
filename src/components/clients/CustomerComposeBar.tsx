@@ -54,6 +54,8 @@ interface EmailAccount {
   email_address: string | null;
   provider: string | null;
   status: string | null;
+  signature_html?: string | null;
+  signature_text?: string | null;
 }
 
 function escapeHtml(s: string): string {
@@ -94,14 +96,31 @@ export function CustomerComposeBar({
     enabled: !!user?.id && !!effectiveCompany?.id && channel === "email",
     staleTime: 5 * 60_000,
     queryFn: async () => {
+      // 2026-05-27: includo signature_html/text (aggiunti via migration
+      // 20270527050000_email_account_signature). Backcompat: se la view non
+      // ha ancora i campi (DB non aggiornato), Postgres ritorna error e
+      // riproviamo senza signature.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      let { data, error } = await (supabase as any)
         .from("v_email_oauth_connections_meta")
-        .select("id, provider, email_address, status")
+        .select("id, provider, email_address, status, signature_html, signature_text")
         .eq("user_id", user!.id)
         .eq("company_id", effectiveCompany!.id)
         .eq("status", "active")
         .order("provider", { ascending: true });
+      // Fallback se colonne firma non esistono ancora (migration pending)
+      if (error && (error as { code?: string }).code === "42703") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const retry = await (supabase as any)
+          .from("v_email_oauth_connections_meta")
+          .select("id, provider, email_address, status")
+          .eq("user_id", user!.id)
+          .eq("company_id", effectiveCompany!.id)
+          .eq("status", "active")
+          .order("provider", { ascending: true });
+        data = retry.data;
+        error = retry.error;
+      }
       if (error) {
         const code = (error as { code?: string }).code;
         // Tabella non disponibile o RLS bloccante → ritorna lista vuota (UI mostra avviso)
@@ -164,10 +183,34 @@ export function CustomerComposeBar({
       if (!subject) throw new Error("Aggiungi un oggetto");
       if (!body) throw new Error("Scrivi un messaggio");
 
-      const bodyHtml = body
-        .split("\n")
-        .map((line) => `<p>${escapeHtml(line) || "<br/>"}</p>`)
-        .join("");
+      // 2026-05-27 (firma email auto-append):
+      // Se l'account ha signature_html / signature_text settata, l'appendiamo
+      // al body con separator standard email "--\n" (RFC 3676).
+      // Pattern Gmail: la firma NON è visibile nel form composer (per
+      // pulizia) ma viene aggiunta automaticamente in invio.
+      const selectedAccount = emailAccounts.find((a) => a.id === emailFrom);
+      const sigText = (selectedAccount?.signature_text ?? "").trim();
+      const sigHtml = (selectedAccount?.signature_html ?? "").trim();
+
+      const finalBodyText = sigText
+        ? `${body}\n\n-- \n${sigText}`
+        : body;
+
+      const finalBodyHtml = (() => {
+        const userHtml = body
+          .split("\n")
+          .map((line) => `<p>${escapeHtml(line) || "<br/>"}</p>`)
+          .join("");
+        if (!sigHtml && !sigText) return userHtml;
+        // Se ho solo signature_text, lo converto in HTML semplice
+        const sigFinalHtml = sigHtml || sigText
+          .split("\n")
+          .map((line) => `<p>${escapeHtml(line) || "<br/>"}</p>`)
+          .join("");
+        return `${userHtml}<br/><div style="border-top:1px solid #e5e7eb;margin-top:16px;padding-top:8px;color:#6b7280;font-size:13px">${sigFinalHtml}</div>`;
+      })();
+
+      const bodyHtml = finalBodyHtml;
 
       // 1) Insert outbox row
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -181,7 +224,7 @@ export function CustomerComposeBar({
           cc_emails: [],
           bcc_emails: [],
           subject,
-          body_text: body,
+          body_text: finalBodyText,
           body_html: bodyHtml,
           attachments: [],
           status: "queued",
@@ -333,8 +376,22 @@ export function CustomerComposeBar({
                 rows={4}
                 className="text-sm resize-y min-h-[100px]"
               />
-              <p className="text-[10px] text-muted-foreground">
-                Salutato automaticamente. {emailBody.length}/50000 caratteri.
+              <p className="text-[10px] text-muted-foreground flex items-center gap-2 flex-wrap">
+                <span>{emailBody.length}/50000 caratteri.</span>
+                {(() => {
+                  const acc = emailAccounts.find((a) => a.id === emailFrom);
+                  const hasSig = !!(acc?.signature_html?.trim() || acc?.signature_text?.trim());
+                  return hasSig ? (
+                    <span className="text-emerald-700 flex items-center gap-0.5">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      Firma applicata automaticamente
+                    </span>
+                  ) : (
+                    <a href="/azienda/impostazioni/integrazioni" className="text-blue-600 hover:underline">
+                      + Aggiungi firma email
+                    </a>
+                  );
+                })()}
               </p>
             </div>
 

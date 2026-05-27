@@ -25,6 +25,8 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ImapCustomDialog } from "./ImapCustomDialog";
+import { EmailSignatureEditor } from "./EmailSignatureEditor";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 // Brand SVG icons per Gmail / Outlook / IMAP (no extra deps)
 function GmailIcon({ className }: { className?: string }) {
@@ -69,6 +71,9 @@ interface OAuthConnectionMeta {
   poll_interval_minutes: number;
   expires_at: string | null;
   created_at: string;
+  // 2026-05-27 — firma email personale (migration 20270527050000)
+  signature_html?: string | null;
+  signature_text?: string | null;
 }
 
 interface DiagnosticResult {
@@ -121,10 +126,22 @@ export function EmailOAuthConnectionsCard() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const q = (supabase as any)
         .from("v_email_oauth_connections_meta")
-        .select("id, provider, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_interval_minutes, expires_at, created_at, user_id")
+        .select("id, provider, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_interval_minutes, expires_at, created_at, user_id, signature_html, signature_text")
         .eq("company_id", effectiveCompany!.id)
         .eq("user_id", userId);
-      const { data, error } = await q.order("created_at", { ascending: false });
+      let { data, error } = await q.order("created_at", { ascending: false });
+      // Fallback se signature_* non esiste ancora (migration pending)
+      if (error && (error as { code?: string }).code === "42703") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const retry = await (supabase as any)
+          .from("v_email_oauth_connections_meta")
+          .select("id, provider, email_address, status, last_synced_at, last_sync_error, consecutive_errors, emails_fetched_total, poll_interval_minutes, expires_at, created_at, user_id")
+          .eq("company_id", effectiveCompany!.id)
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
+        data = retry.data;
+        error = retry.error;
+      }
       if (error) throw error;
       return (data ?? []) as OAuthConnectionMeta[];
     },
@@ -482,51 +499,78 @@ export function EmailOAuthConnectionsCard() {
               const StatusIcon = status.icon;
               const ProviderIcon = provider.Icon;
               return (
-                <div key={c.id} className="rounded-lg border p-3 flex items-start gap-3">
-                  <ProviderIcon className="h-6 w-6 shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium truncate">{c.email_address}</span>
-                      <Badge variant="outline" className={cn("text-[10px] gap-1", provider.color)}>
-                        <ProviderIcon className="h-3 w-3" />
-                        {provider.name}
-                      </Badge>
-                      <Badge variant="outline" className={cn("text-[10px] gap-1", status.color)}>
-                        <StatusIcon className="h-2.5 w-2.5" />
-                        {status.label}
-                      </Badge>
+                <div key={c.id} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <ProviderIcon className="h-6 w-6 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium truncate">{c.email_address}</span>
+                        <Badge variant="outline" className={cn("text-[10px] gap-1", provider.color)}>
+                          <ProviderIcon className="h-3 w-3" />
+                          {provider.name}
+                        </Badge>
+                        <Badge variant="outline" className={cn("text-[10px] gap-1", status.color)}>
+                          <StatusIcon className="h-2.5 w-2.5" />
+                          {status.label}
+                        </Badge>
+                        {(c.signature_html?.trim() || c.signature_text?.trim()) && (
+                          <Badge variant="outline" className="text-[10px] gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            Firma attiva
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground space-x-2">
+                        <span>{c.emails_fetched_total} email totali</span>
+                        <span>·</span>
+                        <span>
+                          Ultimo sync: {c.last_synced_at
+                            ? new Date(c.last_synced_at).toLocaleString("it-IT", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
+                            : "mai"}
+                        </span>
+                        <span>·</span>
+                        <span>polling ogni {c.poll_interval_minutes} min</span>
+                      </div>
+                      {c.last_sync_error && (
+                        <p className="text-[10px] text-rose-700 dark:text-rose-400">
+                          Errore: {c.last_sync_error}
+                          {c.consecutive_errors >= 3 ? ` (${c.consecutive_errors} consecutivi)` : ""}
+                        </p>
+                      )}
                     </div>
-                    <div className="text-[11px] text-muted-foreground space-x-2">
-                      <span>{c.emails_fetched_total} email totali</span>
-                      <span>·</span>
-                      <span>
-                        Ultimo sync: {c.last_synced_at
-                          ? new Date(c.last_synced_at).toLocaleString("it-IT", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })
-                          : "mai"}
-                      </span>
-                      <span>·</span>
-                      <span>polling ogni {c.poll_interval_minutes} min</span>
-                    </div>
-                    {c.last_sync_error && (
-                      <p className="text-[10px] text-rose-700 dark:text-rose-400">
-                        Errore: {c.last_sync_error}
-                        {c.consecutive_errors >= 3 ? ` (${c.consecutive_errors} consecutivi)` : ""}
-                      </p>
-                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => {
+                        if (confirm(`Disconnettere ${c.email_address}? L'AI non leggerà più le email da questo account.`)) {
+                          disconnect.mutate(c.id);
+                        }
+                      }}
+                      disabled={disconnect.isPending}
+                      title="Disconnetti"
+                    >
+                      <Trash2 className="h-4 w-4 text-rose-500" />
+                    </Button>
                   </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                      if (confirm(`Disconnettere ${c.email_address}? L'AI non leggerà più le email da questo account.`)) {
-                        disconnect.mutate(c.id);
-                      }
-                    }}
-                    disabled={disconnect.isPending}
-                    title="Disconnetti"
-                  >
-                    <Trash2 className="h-4 w-4 text-rose-500" />
-                  </Button>
+
+                  {/* 2026-05-27: collapsible firma email per ogni account */}
+                  <Collapsible>
+                    <CollapsibleTrigger className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full justify-start group">
+                      <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
+                      <span className="font-medium">Firma email personale</span>
+                      {(c.signature_text?.trim() || c.signature_html?.trim()) && (
+                        <span className="text-[10px] text-emerald-700 ml-1">(impostata)</span>
+                      )}
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2">
+                      <EmailSignatureEditor
+                        connectionId={c.id}
+                        initialHtml={c.signature_html}
+                        initialText={c.signature_text}
+                        emailAddress={c.email_address}
+                      />
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               );
             })}
