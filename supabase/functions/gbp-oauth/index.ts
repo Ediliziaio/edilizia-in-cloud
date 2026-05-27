@@ -251,15 +251,20 @@ async function fetchAndCacheLocations(connectionId: string, accessToken: string)
       throw new Error("Token OAuth non valido o scope insufficienti. Riconnetti l'account.");
     }
     if (accountsRes.status === 429) {
-      // Confermato dall'utente (screenshot 2026-05-27): Google ritorna 429
-      // "Quota exceeded" perché la quota base di GBP API è 0 di default.
-      // Richiesta esplicita richiesta tramite https://support.google.com/business/contact/api_default_quota_increase
+      // Confermato dall'utente (2026-05-27): Google ritorna 429 "Quota
+      // exceeded" perché la quota base di GBP API è 0 di default sui nuovi
+      // progetti Google Cloud. Il modulo dedicato (api_default_quota_increase)
+      // è stato deprecato da Google — ora la richiesta si fa direttamente
+      // dalla Cloud Console del progetto via "Edit Quotas".
       throw new Error(
-        "Quota API Google Business Profile esaurita o non assegnata al progetto Google Cloud. " +
-        "Per usare l'API in produzione devi richiedere quota a Google: " +
-        "vai su https://support.google.com/business/contact/api_default_quota_increase " +
-        "e compila il modulo (Google approva in 1-3 giorni lavorativi). " +
-        "Nel frattempo il collegamento OAuth è valido — riprova fra qualche minuto se la quota è stata appena consumata da un altro test."
+        "Quota API Google Business Profile esaurita o non assegnata. " +
+        "Per nuovi progetti Google Cloud la quota di 'mybusinessaccountmanagement.googleapis.com' " +
+        "parte da 0 — bisogna richiederla. Passi: 1) apri " +
+        "https://console.cloud.google.com/apis/api/mybusinessaccountmanagement.googleapis.com/quotas " +
+        "(seleziona il progetto OAuth), 2) clicca 'Edit Quotas' su 'Requests per minute', " +
+        "3) compila il form indicando il caso d'uso (gestione recensioni clienti SaaS). " +
+        "Google approva tipicamente in 1-3 giorni lavorativi. Il collegamento OAuth resta valido — " +
+        "non serve riconnettere quando arriva l'approvazione."
       );
     }
     throw new Error(`API accounts errore ${accountsRes.status}: ${bodyText.slice(0, 200)}`);
