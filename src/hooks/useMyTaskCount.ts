@@ -32,13 +32,14 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
           .eq("assigned_to", userId)
           .neq("status", "completata");
 
+      // 2026-05-27: timeout 8 → 12s per maggior tolleranza mobile 4G.
       const [totalRes, overdueRes, todayRes] = await Promise.all([
-        withClientTimeout(base(), "Conteggio attività", 8_000),
-        withClientTimeout(base().lt("due_date", todayStart), "Conteggio attività scadute", 8_000),
+        withClientTimeout(base(), "Conteggio attività", 12_000),
+        withClientTimeout(base().lt("due_date", todayStart), "Conteggio attività scadute", 12_000),
         withClientTimeout(
           base().gte("due_date", todayStart).lt("due_date", tomorrowStart),
           "Conteggio attività di oggi",
-          8_000,
+          12_000,
         ),
       ]);
 
@@ -55,5 +56,8 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     staleTime: 30_000,
+    // 2026-05-27: silent — badge sidebar, se va in timeout il count
+    // precedente resta visibile. No toast: era rumore intermittente.
+    meta: { silent: true },
   });
 }

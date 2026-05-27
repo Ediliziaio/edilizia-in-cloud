@@ -39,6 +39,10 @@ export function useUnreadEmailCount(): {
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     staleTime: 15_000,
+    // 2026-05-27: silent — è un badge sidebar, se va in timeout il valore
+    // precedente resta visualizzato ed è OK. Mostrare un toast utente per un
+    // count badge che si autoricarica ogni 30s è rumore, non informazione.
+    meta: { silent: true },
     queryFn: async (): Promise<EmailCounts> => {
       if (!userId || !companyId) return { unread: 0, urgent: 0, commercial: 0 };
 
@@ -55,10 +59,12 @@ export function useUnreadEmailCount(): {
         .eq("is_archived", false)
         .eq("is_trashed", false);
 
+      // 2026-05-27: timeout da 8 → 12s. Su mobile 4G + RLS con join, 8s
+      // era troppo stringente e l'utente vedeva toast errore intermittenti.
       const [unreadRes, urgentRes, commercialRes] = await Promise.all([
-        withClientTimeout(baseQuery(), "Conteggio email non lette", 8_000),
-        withClientTimeout(baseQuery().eq("ai_priority", "alta"), "Conteggio email urgenti", 8_000),
-        withClientTimeout(baseQuery().in("ai_category", ["lead", "quote"]), "Conteggio email commerciali", 8_000),
+        withClientTimeout(baseQuery(), "Conteggio email non lette", 12_000),
+        withClientTimeout(baseQuery().eq("ai_priority", "alta"), "Conteggio email urgenti", 12_000),
+        withClientTimeout(baseQuery().in("ai_category", ["lead", "quote"]), "Conteggio email commerciali", 12_000),
       ]);
 
       const error = unreadRes.error || urgentRes.error || commercialRes.error;
