@@ -269,6 +269,11 @@ const SettingsSopralluoghi = lazy(() => import("@/pages/azienda/impostazioni/Set
 // 🆕 GAP 7b: callback OAuth Gmail/Outlook
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
 const CalendarOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/CalendarOAuthCallbackPage"));
+// 2026-05-27: pagine callback per OAuth GBP e Google Ads — necessarie perché
+// il gateway Supabase forza CSP sandbox su edge functions verify_jwt=false
+// (script postMessage bloccato). Stesso pattern di calendar-callback.
+const GbpOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/GbpOAuthCallbackPage"));
+const GoogleAdsOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/GoogleAdsOAuthCallbackPage"));
 const AIPersonasHub = lazy(() => import("@/pages/azienda/impostazioni/AIPersonasHub"));
 const SettingsAIAutomazioni = lazy(() => import("@/pages/azienda/impostazioni/SettingsAIAutomazioni"));
 // Preferenze canale notifiche personali (parte del bulk scheduler)
@@ -521,6 +526,10 @@ export default function CompanyRoutesContainer() {
         {/* 2026-05-26: callback OAuth Google Calendar — sostituisce HTML inline
             dell'edge function che era bloccato dal CSP del gateway Supabase. */}
         <Route path="impostazioni/integrazioni/calendar-callback" element={<CalendarOAuthCallbackPage />} />
+        {/* 2026-05-27: callback OAuth GBP + Google Ads — stesso motivo di
+            calendar-callback (CSP sandbox sul gateway edge function). */}
+        <Route path="impostazioni/integrazioni/gbp-callback" element={<GbpOAuthCallbackPage />} />
+        <Route path="impostazioni/integrazioni/google-ads-callback" element={<GoogleAdsOAuthCallbackPage />} />
         {/* GAP 9b legacy: ai-memoria stand-alone → ora vive in impostazioni.
             Mantengo redirect 301 lato client per non rompere bookmark esistenti. */}
         <Route path="ai-memoria" element={<Navigate to="/azienda/impostazioni/ai-memoria" replace />} />

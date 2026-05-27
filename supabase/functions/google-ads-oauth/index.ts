@@ -43,17 +43,31 @@ async function getCredentials() {
   };
 }
 
+/**
+ * 2026-05-27 (fix bug bloccante segnalato dall'utente):
+ *
+ * Stesso problema di gbp-oauth: il gateway Supabase forza Content-Type:text/plain
+ * + CSP:sandbox su edge function verify_jwt=false → lo script inline
+ * `window.opener.postMessage` veniva bloccato dal CSP → popup mostrava HTML
+ * grezzo, parent restava in "Connessione in corso..." per sempre.
+ *
+ * FIX: redirect 302 a `/azienda/impostazioni/integrazioni/google-ads-callback`
+ * (pagina React su Cloudflare Pages che fa postMessage + close). Stesso
+ * pattern già usato per Google Calendar.
+ */
 function buildCallbackHtml(status: "ok" | "error", message?: string, appOrigin?: string): Response {
-  const origin = appOrigin && /^https?:\/\//.test(appOrigin) ? appOrigin : "*";
-  const payload = JSON.stringify({ source: "google-ads-oauth", status, message: message ?? null });
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Google Ads OAuth</title></head>
-<body style="font-family:system-ui;padding:24px;text-align:center;">
-<p>${status === "ok" ? "✅ Collegamento completato. Puoi chiudere questa finestra." : `❌ Errore: ${message ?? "sconosciuto"}`}</p>
-<script>
-try { window.opener && window.opener.postMessage(${payload}, ${JSON.stringify(origin)}); } catch (e) {}
-setTimeout(() => window.close(), 1500);
-</script></body></html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  const siteUrl = (appOrigin && /^https?:\/\//.test(appOrigin))
+    ? appOrigin
+    : (Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com");
+  const params = new URLSearchParams({
+    status,
+    ...(message ? { message } : {}),
+  });
+  const redirectTo = `${siteUrl.replace(/\/$/, "")}/azienda/impostazioni/integrazioni/google-ads-callback?${params.toString()}`;
+  return new Response(null, {
+    status: 302,
+    headers: { Location: redirectTo },
+  });
 }
 
 async function handleStart(req: Request, userId: string, companyId: string): Promise<Response> {

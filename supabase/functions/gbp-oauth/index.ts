@@ -42,17 +42,39 @@ async function getCredentials() {
   return { clientId, clientSecret };
 }
 
+/**
+ * 2026-05-27 (fix bug bloccante segnalato dall'utente):
+ *
+ * Prima questo funzione serviva HTML inline con `<script>window.opener.postMessage(...)</script>`.
+ * PROBLEMA: il gateway Supabase forza `Content-Type: text/plain` e
+ * `Content-Security-Policy: default-src 'none'; sandbox` su tutte le edge
+ * functions con verify_jwt=false → l'HTML veniva mostrato come testo grezzo
+ * e lo script inline veniva bloccato dal CSP → `window.opener.postMessage`
+ * non veniva MAI eseguito → il parent (GbpConnectionCard) restava bloccato
+ * in "Connessione in corso..." indefinitamente.
+ *
+ * FIX: redirect 302 a una pagina React hostata su app.ediliziaincloud.com
+ * (`/azienda/impostazioni/integrazioni/gbp-callback?status=...&message=...`)
+ * che fa il postMessage + close. Cloudflare Pages serve la pagina con il
+ * giusto CSP e content-type text/html. Stesso pattern già usato per
+ * google-calendar-auth, vedi commento lì.
+ *
+ * Nome funzione mantenuto come `buildCallbackHtml` per non rompere i 6
+ * call site esistenti — tutti continuano a funzionare invariati.
+ */
 function buildCallbackHtml(status: "ok" | "error", message?: string, appOrigin?: string): Response {
-  const origin = appOrigin && /^https?:\/\//.test(appOrigin) ? appOrigin : "*";
-  const payload = JSON.stringify({ source: "gbp-oauth", status, message: message ?? null });
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>GBP OAuth</title></head>
-<body style="font-family:system-ui;padding:24px;text-align:center;">
-<p>${status === "ok" ? "✅ Collegamento completato. Puoi chiudere questa finestra." : `❌ Errore: ${message ?? "sconosciuto"}`}</p>
-<script>
-try { window.opener && window.opener.postMessage(${payload}, ${JSON.stringify(origin)}); } catch (e) {}
-setTimeout(() => window.close(), 1500);
-</script></body></html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  const siteUrl = (appOrigin && /^https?:\/\//.test(appOrigin))
+    ? appOrigin
+    : (Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com");
+  const params = new URLSearchParams({
+    status,
+    ...(message ? { message } : {}),
+  });
+  const redirectTo = `${siteUrl.replace(/\/$/, "")}/azienda/impostazioni/integrazioni/gbp-callback?${params.toString()}`;
+  return new Response(null, {
+    status: 302,
+    headers: { Location: redirectTo },
+  });
 }
 
 // ── START ────────────────────────────────────────────────────────────────────
