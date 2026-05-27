@@ -99,11 +99,13 @@ TASK: Classifica + genera reply_draft seguendo il formato JSON.
 `;
 
     const llm = await callLLM({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-haiku-4.5",
       systemPrompt: GIORGIO_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
       maxTokens: 1200,
-      temperature: 0.4,
+      // 2026-05-27 (AI cost audit): classification → JSON strutturato.
+      // Temperature bassa riduce retry su parse_failed.
+      temperature: 0.1,
     });
 
     let parsed: {

@@ -143,11 +143,13 @@ Considera anomalo: > 2 churn/24h, > 1 payment failure/24h, delta 7gg < -5%, 0 nu
 `;
 
     const llm = await callLLM({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-haiku-4.5",
       systemPrompt: BEATRICE_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
       maxTokens: 800,
-      temperature: 0.3,
+      // 2026-05-27 (AI cost audit): brief CFO con JSON strutturato →
+      // temperature bassa per stabilità output.
+      temperature: 0.1,
     });
 
     let parsed: Record<string, unknown> | null = null;

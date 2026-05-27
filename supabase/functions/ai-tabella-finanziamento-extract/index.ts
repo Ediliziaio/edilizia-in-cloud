@@ -166,7 +166,10 @@ async function callOpenAIChunk(
           ] as any,
         },
       ],
-      params: { temperature: 0.1, max_tokens: 16000 },
+      // 2026-05-27 (AI cost audit): 16000 → 6000. Tabelle finanziamento
+      // reali producono <1500 token output. 16k era un soffitto inutile che
+      // spingeva il modello a "tirare" lunghezza. 6k ha margine x4 vs reale.
+      params: { temperature: 0.1, max_tokens: 6000 },
       responseFormat: { type: "json_object" },
       companyId: companyId ?? null,
       userId: userId ?? null,

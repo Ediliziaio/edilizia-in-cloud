@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
     const userPrompt = buildSofiaPrompt(workflow_key, context, payload);
 
     const llm = await callLLM({
-      model: "anthropic/claude-sonnet-4-5",
+      model: "anthropic/claude-haiku-4.5",
       systemPrompt: SOFIA_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
       maxTokens: 1000,

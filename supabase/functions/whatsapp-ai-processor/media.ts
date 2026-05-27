@@ -98,8 +98,14 @@ export async function analyzeImage(
       "Descrivi in italiano cosa si vede in questa immagine in modo sintetico (2-4 righe).",
   };
 
+  // 2026-05-27 (AI cost audit): gpt-4o → gpt-4o-mini per hint cantiere/generic.
+  // Vision OCR seria (DDT con scritte piccole, numeri, firme) richiede 4o per
+  // accuratezza. Descrizione "cosa si vede in foto cantiere" o "descrivi
+  // genericamente" è perfettamente gestibile da 4o-mini con detail:low.
+  // Risparmio: ~17x per immagine non-DDT (la maggioranza del volume).
+  const useFullModel = hint === "ddt";
   const resp = await callOpenAI({
-    model: "gpt-4o",
+    model: useFullModel ? "gpt-4o" : "gpt-4o-mini",
     temperature: 0.3,
     max_tokens: 400,
     messages: [

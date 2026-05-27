@@ -91,7 +91,10 @@ Deno.serve(async (req) => {
     { role: "user", content: userContent },
   ];
 
-  const model = budget.model_override ?? "gpt-4o";
+  // 2026-05-27 (AI cost audit): default → gpt-4o-mini. Lead enrichment +
+  // qualification (status update, score) non richiede 4o full. Override
+  // esplicito per tenant premium.
+  const model = budget.model_override ?? "gpt-4o-mini";
   const openaiTools = toOpenAISpec(TOOLS_LEAD);
   const MAX_ITER = 2;
   const conv: ChatMessage[] = [...messages];

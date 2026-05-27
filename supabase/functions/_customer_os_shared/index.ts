@@ -78,9 +78,32 @@ const MODEL_COSTS: Record<string, { in: number; out: number }> = {
 };
 
 export async function callLLM(opts: LLMOptions): Promise<LLMResponse> {
-  const model = opts.model ?? "anthropic/claude-sonnet-4-5";
+  // 2026-05-27 (AI cost audit): default cambiato Sonnet 4.5 → Haiku 4.5.
+  // Sonnet costa $3/$15 per Mtok, Haiku $0.8/$4 → 4-15× risparmio.
+  // I 6 Customer OS daily/weekly task (classification, brief, JSON,
+  // riscrittura email <150 parole) sono adeguati a Haiku. Le persone che
+  // davvero servono Sonnet (es. marco-sales-postdemo) lo passano esplicito.
+  const model = opts.model ?? "anthropic/claude-haiku-4.5";
   const apiKey = Deno.env.get("OPENROUTER_API_KEY");
   if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
+
+  // 2026-05-27 (AI cost audit): prompt caching ephemeral su system prompt.
+  // Le 6 personas chiamano N volte/giorno con system prompt identico:
+  // senza cache si paga full price ogni volta. Con cache_control il
+  // provider sconta ~90% sui token cachati dopo il primo uso entro 5min.
+  // Vedi email-ai-assistant per il pattern di riferimento.
+  const systemMessage = opts.systemPrompt && opts.systemPrompt.length > 1024
+    ? {
+        role: "system" as const,
+        content: [
+          {
+            type: "text",
+            text: opts.systemPrompt,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+      }
+    : { role: "system" as const, content: opts.systemPrompt };
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -89,11 +112,12 @@ export async function callLLM(opts: LLMOptions): Promise<LLMResponse> {
       "Content-Type": "application/json",
       "HTTP-Referer": "https://app.ediliziaincloud.com",
       "X-Title": "EiC Customer OS",
+      "anthropic-beta": "prompt-caching-2024-07-31",
     },
     body: JSON.stringify({
       model,
       messages: [
-        { role: "system", content: opts.systemPrompt },
+        systemMessage,
         ...opts.messages,
       ],
       max_tokens: opts.maxTokens ?? 1500,
