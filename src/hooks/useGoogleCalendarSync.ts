@@ -43,8 +43,30 @@ export function useGoogleCalendarSync() {
     staleTime: 60_000,
   });
 
+  // 2026-05-27 (push owner-based per appointment operativi):
+  // Per il push verso Google del COLLEGA assegnato, l'utente loggato
+  // potrebbe NON essere connesso (es. admin che assegna un cantiere a
+  // un posatore). Verifichiamo se QUALCUNO nell'azienda è connesso —
+  // se sì, tentiamo il push (la edge function risolve l'utente
+  // effettivo via owner/assigned).
+  const { data: anyCompanyConnection } = useQuery({
+    queryKey: ["gcal-any-company-connection", companyId],
+    queryFn: async () => {
+      if (!companyId) return false;
+      const { count } = await supabase
+        .from("google_calendar_connections")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "connected");
+      return (count ?? 0) > 0;
+    },
+    enabled: !!companyId,
+    staleTime: 2 * 60_000,
+  });
+
   const hasGoogleConnection = connection?.status === "connected";
   const isGoogleConnected = hasGoogleConnection && !!settings?.primary_calendar_id;
+  const hasAnyCompanyGoogleConnection = !!anyCompanyConnection;
   const syncMode = settings?.sync_mode || "one_way";
 
   async function syncToGoogle(action: string, appointmentId?: string) {
@@ -75,18 +97,23 @@ export function useGoogleCalendarSync() {
     }
   }
 
+  // 2026-05-27: i 3 metodi ora controllano hasAnyCompanyGoogleConnection
+  // invece di isGoogleConnected — l'admin che NON ha Google può comunque
+  // pushare per un posatore che CE L'HA. La edge function risolverà
+  // l'utente effettivo via owner_id del marketing_calendar o
+  // assigned_to dell'appointment, e userà la sua connessione.
   async function pushEvent(appointmentId: string) {
-    if (!isGoogleConnected) return;
+    if (!hasAnyCompanyGoogleConnection) return;
     return syncToGoogle("push-event", appointmentId);
   }
 
   async function updateEvent(appointmentId: string) {
-    if (!hasGoogleConnection) return;
+    if (!hasAnyCompanyGoogleConnection) return;
     return syncToGoogle("update-event", appointmentId);
   }
 
   async function deleteEvent(appointmentId: string) {
-    if (!hasGoogleConnection) return;
+    if (!hasAnyCompanyGoogleConnection) return;
     return syncToGoogle("delete-event", appointmentId);
   }
 
@@ -114,6 +141,7 @@ export function useGoogleCalendarSync() {
   return {
     isGoogleConnected,
     hasGoogleConnection,
+    hasAnyCompanyGoogleConnection,
     connection,
     settings,
     syncMode,

@@ -840,7 +840,23 @@ export function FlowBuilderPage() {
       return statuses;
     },
     enabled: !!testEnrollmentId,
-    refetchInterval: 2000,
+    // 2026-05-27 (perf audit): polling ogni 2s era senza upper bound — se
+    // l'utente lascia la pagina aperta con testEnrollmentId attivo (cambio
+    // tab, distrazione) il polling batte Supabase 30/min indefinitamente.
+    // Ora: polling 2s SOLO se almeno un nodo è ancora in-flight (no status
+    // terminale). Quando tutti i nodi hanno status finale, refetchInterval
+    // ritorna false (stop polling). Safety extra: cap massimo 5 min
+    // dall'inizio test.
+    refetchInterval: (query) => {
+      const data = query.state.data as Record<string, string> | undefined;
+      // Se non abbiamo dati ancora, continua a polling (test appena partito)
+      if (!data) return 2000;
+      const values = Object.values(data);
+      if (values.length === 0) return 2000;
+      // Se ALMENO uno non è in stato finale, continua
+      const allTerminal = values.every((s) => s === "success" || s === "error" || s === "skipped");
+      return allTerminal ? false : 2000;
+    },
     refetchIntervalInBackground: false,
   });
 

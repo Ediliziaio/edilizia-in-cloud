@@ -405,7 +405,11 @@ export function AppointmentDialog({
   const currentAppointment = appointment ?? initialData ?? null;
   const isEditing = !!currentAppointment?.id;
   const { onlyAssigned } = usePermissions();
-  const { isGoogleConnected, pushEvent: gcalPush, updateEvent: gcalUpdate, deleteEvent: gcalDelete } = useGoogleCalendarSync();
+  // 2026-05-27: hasAnyCompanyGoogleConnection invece di isGoogleConnected
+  // così l'admin (anche se lui non ha Google) può creare un appointment
+  // per un posatore connesso. La edge function risolve il push verso il
+  // Google del posatore via assigned_to.
+  const { hasAnyCompanyGoogleConnection, pushEvent: gcalPush, updateEvent: gcalUpdate, deleteEvent: gcalDelete } = useGoogleCalendarSync();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -864,7 +868,7 @@ export function AppointmentDialog({
         if (error) throw error;
         toast({ title: "Appuntamento aggiornato" });
         // Fire-and-forget Google sync
-        if (isGoogleConnected) {
+        if (hasAnyCompanyGoogleConnection) {
           gcalUpdate(currentAppointment.id).catch(() => {});
         }
       } else {
@@ -889,7 +893,7 @@ export function AppointmentDialog({
           } as never);
         }
         // Fire-and-forget Google sync
-        if (isGoogleConnected && inserted?.id) {
+        if (hasAnyCompanyGoogleConnection && inserted?.id) {
           gcalPush(inserted.id).catch(() => {});
         }
       }
@@ -949,7 +953,7 @@ export function AppointmentDialog({
     setSaving(true);
     try {
       // Fire-and-forget Google delete before CRM delete
-      if (isGoogleConnected) {
+      if (hasAnyCompanyGoogleConnection) {
         gcalDelete(currentAppointment.id).catch(() => {});
       }
       const { error } = await supabase.from("appointments").delete().eq("id", currentAppointment.id);
