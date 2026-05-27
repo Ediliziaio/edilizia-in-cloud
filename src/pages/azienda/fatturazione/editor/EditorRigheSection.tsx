@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useArticoliNative } from "@/hooks/useArticoliNative";
 import { createEmptyRiga } from "./useEditorState";
 import { formatCurrency } from "@/lib/formatters";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { NATURE_IVA } from "@/types/fatturazione";
 import type { RigaDocumento, ArticoloNative } from "@/types/fatturazione";
 import type { EditorState, Action } from "./useEditorState";
@@ -221,8 +222,14 @@ function SortableRowImpl({
                   <Input
                     type="number"
                     inputMode="decimal"
+                    min="0"
+                    max="1000000"
                     value={riga.quantita}
-                    onChange={(e) => onUpdate(index, "quantita", parseFloat(e.target.value) || 0)}
+                    // 2026-05-27 (Form UX audit): parseDecimalIT gestisce
+                    // "9,50" (IT) e "1.234,56" (IT migliaia). Prima
+                    // parseFloat("1.234,56") ritornava 1.234 → totale
+                    // fattura sbagliato di 1233€, autosalvato e inviato a SDI.
+                    onChange={(e) => onUpdate(index, "quantita", parseDecimalIT(e.target.value))}
                     className="h-8 text-sm text-right tabular-nums"
                     disabled={disabled}
                   />
@@ -250,13 +257,16 @@ function SortableRowImpl({
                     type="number"
                     inputMode="decimal"
                     step="0.0001"
+                    min="0"
+                    max="1000000"
                     value={
                       prezziLordi
-                        ? Math.round(riga.prezzo_unitario * (1 + (parseFloat(riga.aliquota_iva) || 0) / 100) * 10000) / 10000
+                        ? Math.round(riga.prezzo_unitario * (1 + (parseDecimalIT(riga.aliquota_iva)) / 100) * 10000) / 10000
                         : riga.prezzo_unitario
                     }
+                    // 2026-05-27 (Form UX audit): parseDecimalIT IT-aware.
                     onChange={(e) => {
-                      const v = parseFloat(e.target.value) || 0;
+                      const v = parseDecimalIT(e.target.value);
                       onUpdate(index, "prezzo_unitario", prezziLordi ? calcoloInverso(v, riga.aliquota_iva) : v);
                     }}
                     className="h-8 text-sm text-right tabular-nums"
@@ -318,9 +328,12 @@ function SortableRowImpl({
                       <Label className="text-[10px] text-muted-foreground font-normal">Sconto %</Label>
                       <Input
                         type="number"
+                        inputMode="decimal"
                         step="0.01"
+                        min="0"
+                        max="100"
                         value={riga.sconto_percentuale ?? ""}
-                        onChange={(e) => onUpdate(index, "sconto_percentuale", parseFloat(e.target.value) || 0)}
+                        onChange={(e) => onUpdate(index, "sconto_percentuale", parseDecimalIT(e.target.value))}
                         className="h-8 text-sm text-right tabular-nums"
                         placeholder="0"
                         disabled={disabled}

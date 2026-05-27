@@ -21,6 +21,8 @@ const MobileBootstrap = isNative
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createIdbPersister, shouldPersistQuery } from "@/lib/queryPersister";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -328,17 +330,21 @@ const queryClient = new QueryClient({
     queries: {
       retry: shouldRetryQuery,
       staleTime: DEFAULT_QUERY_STALE_TIME_MS,
-      gcTime: DEFAULT_QUERY_GC_TIME_MS,
+      // 2026-05-27 (PWA/offline audit): gcTime esteso a 24h per le query
+      // persistite su IndexedDB. Senza, dopo il restore il garbage
+      // collector le butta subito perché "vecchie".
+      gcTime: Math.max(DEFAULT_QUERY_GC_TIME_MS, 24 * 60 * 60 * 1000),
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      // Performance: i refetchInterval impostati nei singoli hook non
-      // girano quando il tab è in background. Risparmia batteria/banda
-      // sui mobile + evita storm di refetch quando l'utente torna sulla
-      // tab dopo ore. Le query in foreground continuano normalmente.
       refetchIntervalInBackground: false,
     },
   },
 });
+
+// 2026-05-27 (PWA/offline audit): persister IndexedDB per query critiche
+// (dashboard, cantieri, clienti, appointments). Senza, F5 senza rete →
+// schermata bianca. Con, l'app shell mostra l'ultimo snapshot.
+const idbPersister = createIdbPersister();
 
 /** Sets the document title based on the current subdomain */
 function SubdomainTitleSetter() {
@@ -416,9 +422,26 @@ function SessionTimeoutGuard() {
   return null;
 }
 
+// 2026-05-27 (PWA/offline audit): buster invalidates la cache su deploy
+// nuovo per evitare di leggere snapshot di una versione UI vecchia con
+// schema diverso (es. nuove colonne dopo migration).
+const PERSIST_BUSTER = (import.meta as { env: Record<string, string> }).env.VITE_APP_VERSION ?? "v1";
+
 const App = () => (
   <ErrorBoundary title="Errore critico dell'applicazione">
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider
+    client={queryClient}
+    persistOptions={{
+      persister: idbPersister,
+      maxAge: 24 * 60 * 60 * 1000, // 24h max snapshot age
+      buster: PERSIST_BUSTER,
+      dehydrateOptions: {
+        // Persisti solo le query whitelisted (cantieri, clienti, dashboard
+        // ecc.). Auth, search live, AI: NO.
+        shouldDehydrateQuery: (q) => shouldPersistQuery(q.queryKey),
+      },
+    }}
+  >
     <TooltipProvider>
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -663,7 +686,7 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+  </PersistQueryClientProvider>
   </ErrorBoundary>
 );
 

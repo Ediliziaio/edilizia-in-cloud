@@ -22,6 +22,7 @@ import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
 import { convertiProformaInFattura } from "@/lib/fatturazione/proforma";
 import { toast } from "sonner";
 import { useEditorState } from "./editor/useEditorState";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { validateDocumento } from "@/lib/fatturazione/calcoli";
 import { EditorTopBar } from "./editor/EditorTopBar";
 import { EditorClienteSection } from "./editor/EditorClienteSection";
@@ -127,6 +128,12 @@ export default function EditorDocumento() {
 
   const { state, dispatch, isSaving, lastSaved, isDirty, saveNow } = useEditorState(loadedDoc);
   const isBozza = state.stato === "bozza";
+
+  // 2026-05-27 (Form UX audit): warn su chiusura tab / Cmd+W / F5 quando ci
+  // sono modifiche non salvate. Prima esisteva solo un dialog sulla freccia
+  // back; tutti gli altri path (refresh, link sidebar, close tab) facevano
+  // perdere le modifiche fatte negli ultimi 2s (autosave window).
+  useBeforeUnload(isDirty && isBozza);
   const [isInviaSDILoading, setIsInviaSDILoading] = useState(false);
   const [isConvertLoading, setIsConvertLoading] = useState(false);
 
