@@ -5,8 +5,15 @@
  * Refactor: il file monolite (3721 righe) è stato spezzato in 7 sub-component
  * + un file shared per tipi/costanti. Ogni tab è ora maintainable in isolamento.
  *
+ * PERF (CICLO 7 super_admin audit): pattern visitedTabs per evitare il mount
+ * di tutti i 7 tab al primo paint. Ogni tab è una pagina pesante con query
+ * proprie (ApprovalsTab fetcha pending approvals, QueueTab le silvio actions,
+ * AgentsMissionTab 1426 LOC è il più pesante). Senza guard, all'apertura di
+ * /admin/silvio si scaricano e si renderizzano TUTTI i 7 tab → 7 query parallele.
+ *
  * @see src/components/admin/silvio-hub/ per i sub-component.
  */
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sparkles,
@@ -27,6 +34,19 @@ import { MemoryTab } from "@/components/admin/silvio-hub/MemoryTab";
 import { LearningTab } from "@/components/admin/silvio-hub/LearningTab";
 
 export default function SilvioAdminHub() {
+  const [activeTab, setActiveTab] = useState("approvals");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["approvals"]));
+  const onTabChange = (v: string) => {
+    setActiveTab(v);
+    setVisitedTabs((prev) => {
+      if (prev.has(v)) return prev;
+      const next = new Set(prev);
+      next.add(v);
+      return next;
+    });
+  };
+  const isMounted = (k: string) => visitedTabs.has(k);
+
   return (
     <div className="space-y-4 p-4 md:p-6">
       <div className="flex items-center gap-3">
@@ -39,7 +59,7 @@ export default function SilvioAdminHub() {
         </div>
       </div>
 
-      <Tabs defaultValue="approvals" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={onTabChange} className="space-y-4">
         {/* Scroll-x su mobile (8+ tab), wrap su sm+ */}
         <TabsList className="h-auto justify-start overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
           <TabsTrigger value="approvals" className="gap-2">
@@ -73,25 +93,25 @@ export default function SilvioAdminHub() {
         </TabsList>
 
         <TabsContent value="approvals">
-          <ApprovalsTab />
+          {isMounted("approvals") && <ApprovalsTab />}
         </TabsContent>
         <TabsContent value="queue">
-          <QueueTab />
+          {isMounted("queue") && <QueueTab />}
         </TabsContent>
         <TabsContent value="policies">
-          <PoliciesTab />
+          {isMounted("policies") && <PoliciesTab />}
         </TabsContent>
         <TabsContent value="agents">
-          <AgentsMissionTab />
+          {isMounted("agents") && <AgentsMissionTab />}
         </TabsContent>
         <TabsContent value="chief">
-          <ChiefOfStaffTab />
+          {isMounted("chief") && <ChiefOfStaffTab />}
         </TabsContent>
         <TabsContent value="memory">
-          <MemoryTab />
+          {isMounted("memory") && <MemoryTab />}
         </TabsContent>
         <TabsContent value="learning">
-          <LearningTab />
+          {isMounted("learning") && <LearningTab />}
         </TabsContent>
       </Tabs>
     </div>
