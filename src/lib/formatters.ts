@@ -33,6 +33,21 @@ export function formatDateShort(date: string | Date): string {
   return parsed ? format(parsed, "d MMM yyyy", { locale: it }) : "—";
 }
 
+/**
+ * 2026-05-27 (content quality audit): alias canonico per le date in formato
+ * italiano abbreviato "d MMM yyyy" (es. "27 mag 2026"). Esposto come helper
+ * unificato per smontare le ~20 implementazioni inline di formatDate sparse
+ * nella codebase senza riscriverle tutte ora. Nuovi componenti devono usare
+ * questo. variant: "short" = "27 mag 2026" (default), "long" = "27 maggio 2026".
+ */
+export function formatDateIt(date: string | Date | null | undefined, variant: "short" | "long" = "short"): string {
+  const parsed = toValidDate(date);
+  if (!parsed) return "—";
+  return variant === "long"
+    ? format(parsed, "d MMMM yyyy", { locale: it })
+    : format(parsed, "d MMM yyyy", { locale: it });
+}
+
 export function formatDateTime(date: string | Date): string {
   const parsed = toValidDate(date);
   return parsed ? format(parsed, "d MMM yyyy 'alle' HH:mm", { locale: it }) : "—";
