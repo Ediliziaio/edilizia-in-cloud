@@ -131,6 +131,7 @@
     "react-email-editor": "^1.8.0",
     "react-grid-layout": "^2.2.3",
     "react-hook-form": "^7.76.1",
+    "react-is": "^19.2.6",
     "react-leaflet": "^5.0.0",
     "react-resizable-panels": "^4.11.2",
     "react-router": "^7.15.1",
