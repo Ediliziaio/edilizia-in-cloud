@@ -640,6 +640,15 @@ export default function MarketingCalendar() {
   }, [appleSync, googleSync]);
 
   // ── Drag & Drop handler ──
+  //
+  // 2026-05-27 (bug "sposto ma non viene aggiornato"): l'UPDATE su Postgres
+  // funzionava (verificato in DB), ma l'UI sembrava tornare indietro perché
+  // dnd-kit elimina l'overlay drag al drop → l'item ridisegna alla vecchia
+  // posizione finché il refetch React Query (200-500ms) non finisce.
+  //
+  // Fix: optimistic update sulla cache PRIMA di aspettare la response.
+  // L'item si sposta immediatamente nel nuovo slot, e se il backend errore
+  // facciamo rollback puntuale.
   const handleDropAppointment = useCallback(async (appointmentId: string, newDate: string, newTime?: string) => {
     const current = appointments.find((a: any) => a.id === appointmentId);
     if (current) {
@@ -664,6 +673,31 @@ export default function MarketingCalendar() {
     }
 
     if (!companyId) return;
+
+    // OPTIMISTIC UPDATE — aggiorniamo la cache locale subito così l'item
+    // si sposta visivamente nello stesso frame del drop. Snapshot dello
+    // stato precedente per rollback su errore.
+    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id];
+    const previousData = queryClient.getQueryData<any[]>(queryKey);
+    queryClient.setQueryData<any[]>(queryKey, (old) => {
+      if (!old) return old;
+      return old.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              ...updateData,
+              // normalizza il time a "HH:MM:SS" per coerenza con il DB
+              ...(updateData.appointment_time
+                ? { appointment_time: `${updateData.appointment_time}:00`.slice(0, 8) }
+                : {}),
+              ...(updateData.appointment_end_time
+                ? { appointment_end_time: `${updateData.appointment_end_time}:00`.slice(0, 8) }
+                : {}),
+            }
+          : a
+      );
+    });
+
     const { error } = await supabase
       .from("appointments")
       .update(updateData)
@@ -671,7 +705,9 @@ export default function MarketingCalendar() {
       .eq("company_id", companyId);
 
     if (error) {
-      toast.error("Errore nello spostamento dell'appuntamento");
+      // Rollback optimistic update.
+      queryClient.setQueryData(queryKey, previousData);
+      toast.error("Errore nello spostamento", { description: error.message });
       return;
     }
 
@@ -702,15 +738,28 @@ export default function MarketingCalendar() {
       },
     });
     void syncExternalCalendarsForAppointment(appointmentId);
+    // refetch in background per allineare con eventuali side-effect dei trigger
     refetchAppointments();
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
-  }, [appointments, refetchAppointments, queryClient, companyId, syncExternalCalendarsForAppointment]);
+  }, [appointments, refetchAppointments, queryClient, companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, syncExternalCalendarsForAppointment]);
 
-  // ── Resize handler ──
+  // ── Resize handler ── (stesso pattern optimistic update)
   const handleResizeAppointment = useCallback(async (appointmentId: string, newEndTime: string) => {
     if (!companyId) return;
+
+    // Optimistic
+    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id];
+    const previousData = queryClient.getQueryData<any[]>(queryKey);
+    queryClient.setQueryData<any[]>(queryKey, (old) => {
+      if (!old) return old;
+      return old.map((a) =>
+        a.id === appointmentId
+          ? { ...a, appointment_end_time: `${newEndTime}:00`.slice(0, 8) }
+          : a
+      );
+    });
 
     const { error } = await supabase
       .from("appointments")
@@ -719,7 +768,8 @@ export default function MarketingCalendar() {
       .eq("company_id", companyId);
 
     if (error) {
-      toast.error("Errore nel ridimensionamento");
+      queryClient.setQueryData(queryKey, previousData);
+      toast.error("Errore nel ridimensionamento", { description: error.message });
       return;
     }
     toast.success(`Durata aggiornata fino alle ${newEndTime}`);
@@ -728,7 +778,7 @@ export default function MarketingCalendar() {
     queryClient.invalidateQueries({ queryKey: ["marketing_opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
-  }, [refetchAppointments, queryClient, companyId, syncExternalCalendarsForAppointment]);
+  }, [refetchAppointments, queryClient, companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, syncExternalCalendarsForAppointment]);
 
   // 2026-05-26: il sync resta INLINE — niente più navigate. Se non c'è
   // connessione mostriamo solo toast con CTA "Apri impostazioni" che apre
