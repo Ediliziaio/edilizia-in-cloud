@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,17 @@ export function TabCedolini() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const permissions = usePermissions();
+
+  // Guard finanziario: cedolini contengono lordo/IRPEF/netto — riservati a chi
+  // ha accesso ai dati di fatturazione/payroll, non a tutti gli utenti HR.
+  if (!permissions.isAdmin && !permissions.canViewBilling) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        Sezione riservata agli amministratori.
+      </div>
+    );
+  }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<CedolinoForm>(emptyForm());
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));

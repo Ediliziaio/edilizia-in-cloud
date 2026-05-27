@@ -2351,11 +2351,11 @@ export default function OrdersList() {
   const tabs = [
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: true },
     { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled, beta: true },
-    { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewForecast },
-    { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewForecast },
-    { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewOrders },
-    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewOrders },
-    { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewOrders },
+    { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewOrders },
+    { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
+    { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts },
+    { id: "marginalita", label: "Marginalità", icon: PieChart, show: permissions.canViewCosts },
+    { id: "provvigioni", label: "Provvigioni", icon: Euro, show: permissions.canViewCosts },
   ].filter((t) => t.show);
   const activeTab = tabs.some((tab) => tab.id === requestedTab) ? requestedTab : "ordini";
 
