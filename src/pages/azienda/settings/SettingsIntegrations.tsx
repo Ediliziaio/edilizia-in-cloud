@@ -757,46 +757,12 @@ export default function SettingsIntegrations() {
         </Alert>
       )}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            <div>
-              <p className="text-xs text-muted-foreground">Provider connessi</p>
-              <p className="text-xl font-semibold">{connectedCount}/{totalCount}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <XCircle className="h-5 w-5 text-destructive" />
-            <div>
-              <p className="text-xs text-muted-foreground">Attenzioni</p>
-              <p className="text-xl font-semibold">{warningCount}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <Activity className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground">Conversioni Google in coda</p>
-              <p className="text-xl font-semibold">
-                {googleAdsOfflineStats?.pending ?? 0}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <Plug className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Servizi configurati</p>
-              <p className="text-xl font-semibold">{configuredServices}/{statusCards.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* 2026-05-27 (UX cleanup): 4 KPI cards rimosse (Provider connessi /
+          Attenzioni / Conversioni in coda / Servizi configurati). Il counter
+          "X/Y connesse" è già nel header sopra. Le altre 3 metriche erano
+          rumore — l'utente vuole UNA griglia chiara con le card integrazione,
+          non un dashboard di metriche. Se servono in futuro, recuperarle dal
+          git history. */}
 
       {/* Google Hub modale RIMOSSO 2026-05-27: il pulsante apriva un modale con
           Calendar/Ads/Business Profile/YouTube che erano tutti già presenti
@@ -1018,26 +984,21 @@ export default function SettingsIntegrations() {
         </CardHeader>
       </Card>
 
-      {statusCards.length > 0 && (
-        <>
-          <h2 className="text-lg font-semibold pt-2">Stato servizi</h2>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {statusCards.map((card) => (
-              <StatusIntegrationCard
-                key={card.key}
-                name={card.name}
-                description={card.description}
-                icon={card.icon}
-                iconColor={card.iconColor}
-                status={card.status}
-                detail={card.detail}
-              />
-            ))}
-          </div>
-        </>
-      )}
+      {/* 2026-05-27: Sezione "Stato servizi" rimossa — mostrava solo card
+          Email Provider e Twilio con badge "Prossimamente"/"Non configurato"
+          che indicavano dove configurare altrove (es. "Impostazioni Admin >
+          Email") senza un vero flow di collegamento. Riempiva spazio
+          aggiungendo rumore. Il count `configuredServices` resta esposto
+          nelle KPI cards in alto. */}
 
-      {/* ── Piattaforme Social ───────────────────────────────────────── */}
+      {/* ── Piattaforme Social ──────────────────────────────────────
+          2026-05-27: nascosta intera sezione "Coming soon" LinkedIn/YouTube/TikTok.
+          Erano 3 card che mostravano solo placeholder "Prossimamente" con
+          toast.info — riempivano spazio creando confusione su cosa è
+          effettivamente collegabile (utente: "molto a molto confusionaria").
+          Quando una integrazione diventerà attivabile, basterà rimuovere
+          questo blocco e ripristinare la card dal git history. */}
+      {false && (
       <div className="pt-2 space-y-4">
         <div className="flex items-center gap-2">
           <Share2 className="h-5 w-5 text-muted-foreground" />
@@ -1183,6 +1144,7 @@ export default function SettingsIntegrations() {
 
         </div>
       </div>
+      )}
       {/* ── Fine Piattaforme Social ─────────────────────────────────── */}
 
       {mainIntegrations.length === 0 && statusCards.length === 0 && (
