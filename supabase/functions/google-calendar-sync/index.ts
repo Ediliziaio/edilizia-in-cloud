@@ -40,7 +40,11 @@ async function getValidAccessToken(
   // Check if token still valid (with 2 min buffer)
   const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at) : null;
   if (expiresAt && expiresAt > new Date(Date.now() + 120_000)) {
-    return decrypt(conn.access_token_encrypted, encKey);
+    // 2026-05-27 (BUG CRITICO): mancava `await` → ritornava Promise<string>
+    // anziché stringa. La Promise srotolata dal caller diventava il valore,
+    // MA poi finiva in `Authorization: Bearer [object Promise]` → 401 da
+    // Google API. Niente sync funzionava da settimane.
+    return await decrypt(conn.access_token_encrypted, encKey);
   }
 
   // Need refresh
@@ -48,7 +52,11 @@ async function getValidAccessToken(
 
   const clientId = await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID");
   const clientSecret = await getPlatformSetting("google_calendar_client_secret", "GOOGLE_CALENDAR_CLIENT_SECRET");
-  const refreshToken = decrypt(conn.refresh_token_encrypted, encKey);
+  // 2026-05-27 (BUG CRITICO #2): stesso problema sul refresh — mancava await.
+  // URLSearchParams.refresh_token=[object Promise] → Google API 400
+  // "invalid_grant" → connessione marcata "token_expired" anche se il vero
+  // refresh_token era valido. Re-connect inutile, si rimarcava expired.
+  const refreshToken = await decrypt(conn.refresh_token_encrypted, encKey);
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -63,19 +71,24 @@ async function getValidAccessToken(
   });
 
   if (!tokenRes.ok) {
+    const errorBody = await tokenRes.text().catch(() => "unknown");
     await admin
       .from("google_calendar_connections")
-      .update({ status: "token_expired", last_error: "Refresh token failed" })
+      .update({ status: "token_expired", last_error: `Refresh token failed: ${errorBody.substring(0, 200)}` })
       .eq("id", conn.id);
     return null;
   }
 
   const tokens = await tokenRes.json();
   const newAccessToken = tokens.access_token;
+  // 2026-05-27 (BUG CRITICO #3): encrypt è async, anche qui mancava await.
+  // Risultato: nel DB veniva scritto "[object Promise]" come access_token_encrypted,
+  // distruggendo la persistenza del nuovo token e forzando refresh ad ogni call.
+  const newAccessTokenEncrypted = await encrypt(newAccessToken, encKey);
   await admin
     .from("google_calendar_connections")
     .update({
-      access_token_encrypted: encrypt(newAccessToken, encKey),
+      access_token_encrypted: newAccessTokenEncrypted,
       token_expires_at: tokens.expires_in
         ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
         : conn.token_expires_at,

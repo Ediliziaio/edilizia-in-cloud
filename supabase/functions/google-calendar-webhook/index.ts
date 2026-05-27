@@ -173,8 +173,10 @@ Deno.serve(async (req) => {
       .eq("user_id", resolvedUserId)
       .maybeSingle();
 
+    // 2026-05-27 (BUG CRITICO): decrypt/encrypt sono async, mancavano await.
+    // Risultato: "[object Promise]" come Bearer token → 401 Google API.
     const encKey = getEncryptionKey();
-    const accessToken = decrypt(conn.access_token_encrypted, encKey);
+    const accessToken = await decrypt(conn.access_token_encrypted, encKey);
 
     const calendarId = settings?.primary_calendar_id || "primary";
     const channelId = crypto.randomUUID();
@@ -210,7 +212,7 @@ Deno.serve(async (req) => {
         // Try token refresh
         const clientId = await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID");
         const clientSecret = await getPlatformSetting("google_calendar_client_secret", "GOOGLE_CALENDAR_CLIENT_SECRET");
-        const refreshToken = decrypt(conn.refresh_token_encrypted, encKey);
+        const refreshToken = await decrypt(conn.refresh_token_encrypted, encKey);
 
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
@@ -225,8 +227,9 @@ Deno.serve(async (req) => {
 
         if (tokenRes.ok) {
           const tokens = await tokenRes.json();
+          const newAccessTokenEncrypted = await encrypt(tokens.access_token, encKey);
           await admin.from("google_calendar_connections").update({
-            access_token_encrypted: encrypt(tokens.access_token, encKey),
+            access_token_encrypted: newAccessTokenEncrypted,
           }).eq("id", conn.id);
 
           // Retry watch with new token
@@ -301,7 +304,7 @@ Deno.serve(async (req) => {
         try {
           // Stop old watch
           if (conn.webhook_channel_id && conn.webhook_resource_id) {
-            const accessToken = decrypt(conn.access_token_encrypted, encKey);
+            const accessToken = await decrypt(conn.access_token_encrypted, encKey);
             await fetch("https://www.googleapis.com/calendar/v3/channels/stop", {
               method: "POST",
               headers: {
@@ -322,7 +325,7 @@ Deno.serve(async (req) => {
             .eq("company_id", conn.company_id)
             .eq("user_id", conn.user_id)
             .maybeSingle();
-          const accessToken = decrypt(conn.access_token_encrypted, encKey);
+          const accessToken = await decrypt(conn.access_token_encrypted, encKey);
           const calendarId = connSettings?.primary_calendar_id || "primary";
           const newChannelId = crypto.randomUUID();
           const newChannelToken = crypto.randomUUID() + "-" + crypto.randomUUID();

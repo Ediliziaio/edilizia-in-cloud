@@ -112,13 +112,17 @@ async function handleCallback(req: Request): Promise<Response> {
   const { error: upsertErr } = await admin
     .from("google_calendar_connections")
     .upsert(
+      // 2026-05-27 (BUG CRITICO): encrypt è async — senza await il DB
+      // salvava "[object Promise]" come token cifrato → connessione corrotta
+      // dal momento OAuth. Risultato: google_account_email NULL e sync
+      // permanentemente 401. Fix: await su ogni encrypt/decrypt asincrono.
       {
         company_id: state.companyId,
         user_id: state.userId,
         google_account_email: userInfo.email || null,
         google_sub: userInfo.id || null,
-        access_token_encrypted: encrypt(tokens.access_token, encKey),
-        refresh_token_encrypted: tokens.refresh_token ? encrypt(tokens.refresh_token, encKey) : null,
+        access_token_encrypted: await encrypt(tokens.access_token, encKey),
+        refresh_token_encrypted: tokens.refresh_token ? await encrypt(tokens.refresh_token, encKey) : null,
         token_expires_at: tokens.expires_in
           ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
           : null,
@@ -214,7 +218,7 @@ async function handleDisconnect(req: Request, userId: string, companyId: string)
   if (conn?.access_token_encrypted) {
     try {
       const encKey = getEncryptionKey();
-      const token = decrypt(conn.access_token_encrypted, encKey);
+      const token = await decrypt(conn.access_token_encrypted, encKey);
       await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, { method: "POST", signal: AbortSignal.timeout(10000) });
     } catch (e) {
       console.warn("Token revoke failed (non-critical):", e);
@@ -252,7 +256,7 @@ async function handleRefresh(req: Request, userId: string, companyId: string): P
 
   const clientId = await getPlatformSetting("google_calendar_client_id", "GOOGLE_CALENDAR_CLIENT_ID");
   const clientSecret = await getPlatformSetting("google_calendar_client_secret", "GOOGLE_CALENDAR_CLIENT_SECRET");
-  const refreshToken = decrypt(conn.refresh_token_encrypted, encKey);
+  const refreshToken = await decrypt(conn.refresh_token_encrypted, encKey);
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -278,10 +282,11 @@ async function handleRefresh(req: Request, userId: string, companyId: string): P
   }
 
   const tokens = await tokenRes.json();
+  const newAccessTokenEncrypted = await encrypt(tokens.access_token, encKey);
   await admin
     .from("google_calendar_connections")
     .update({
-      access_token_encrypted: encrypt(tokens.access_token, encKey),
+      access_token_encrypted: newAccessTokenEncrypted,
       token_expires_at: tokens.expires_in
         ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
         : conn.token_expires_at,
@@ -314,7 +319,7 @@ async function handleListCalendars(req: Request, userId: string, companyId: stri
   }
 
   // Check if token needs refresh
-  let accessToken = decrypt(conn.access_token_encrypted, encKey);
+  let accessToken = await decrypt(conn.access_token_encrypted, encKey);
   if (conn.token_expires_at && new Date(conn.token_expires_at) < new Date()) {
     const refreshRes = await handleRefresh(req, userId, companyId);
     if (!refreshRes.ok) {
@@ -327,7 +332,7 @@ async function handleListCalendars(req: Request, userId: string, companyId: stri
       .eq("company_id", companyId)
       .eq("user_id", userId)
       .single();
-    if (updated) accessToken = decrypt(updated.access_token_encrypted, encKey);
+    if (updated) accessToken = await decrypt(updated.access_token_encrypted, encKey);
   }
 
   const calRes = await fetch(
