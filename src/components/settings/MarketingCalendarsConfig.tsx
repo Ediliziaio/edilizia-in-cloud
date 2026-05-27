@@ -776,7 +776,15 @@ export default function MarketingCalendarsConfig() {
                         <Switch checked={cal.is_active} disabled={!canManageCalendars || toggleActive.isPending} onCheckedChange={(v) => toggleActive.mutate({ id: cal.id, is_active: v })} />
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
-                        {format(new Date(cal.updated_at), "dd MMM yyyy", { locale: it })}
+                        {/* 2026-05-27: guard contro updated_at null/invalid che
+                            lanciava RangeError "Invalid time value" da date-fns
+                            e crashava l'intera pagina via ErrorBoundary. */}
+                        {(() => {
+                          if (!cal.updated_at) return "—";
+                          const d = new Date(cal.updated_at);
+                          if (Number.isNaN(d.getTime())) return "—";
+                          return format(d, "dd MMM yyyy", { locale: it });
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">

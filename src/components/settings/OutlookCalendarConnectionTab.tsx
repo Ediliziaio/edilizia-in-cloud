@@ -97,7 +97,7 @@ export default function OutlookCalendarConnectionTab() {
   });
 
   const syncedIds = useMemo(
-    () => new Set(connection?.synced_calendar_ids ?? []),
+    () => new Set(Array.isArray(connection?.synced_calendar_ids) ? connection.synced_calendar_ids : []),
     [connection?.synced_calendar_ids],
   );
 
