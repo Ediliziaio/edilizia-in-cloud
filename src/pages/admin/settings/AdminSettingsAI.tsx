@@ -46,6 +46,25 @@ const AdminSettingsAIActions = lazy(() => import("@/pages/admin/settings/AdminSe
 export default function AdminSettingsAI() {
   const [category, setCategory] = useState<"routing" | "economics" | "content" | "governance">("routing");
 
+  // PERF: lazy-mount delle categorie. Senza, tutti i 11 lazy-import (Router,
+  // Personas, KB, Memory, Voices, Pricing, Actions, PlatformSettings legacy)
+  // partono in parallelo al primo paint → ~600KB chunk JS scaricato anche
+  // se l'utente vede solo "Routing & Models". Con visitedCategories scarica
+  // solo i chunk delle categorie effettivamente aperte.
+  const [visitedCategories, setVisitedCategories] = useState<Set<string>>(
+    () => new Set(["routing"]),
+  );
+  const handleCategoryChange = (v: string) => {
+    setCategory(v as typeof category);
+    setVisitedCategories((prev) => {
+      if (prev.has(v)) return prev;
+      const next = new Set(prev);
+      next.add(v);
+      return next;
+    });
+  };
+  const isCatMounted = (k: string) => visitedCategories.has(k);
+
   const fallback = <Skeleton className="h-[400px]" />;
 
   return (
@@ -58,7 +77,7 @@ export default function AdminSettingsAI() {
       </div>
 
       {/* Categorie principali — 4 invece di 8 → meno cognitive load */}
-      <Tabs value={category} onValueChange={(v) => setCategory(v as typeof category)} className="space-y-4">
+      <Tabs value={category} onValueChange={handleCategoryChange} className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1">
           <TabsTrigger value="routing" className="gap-2 py-2">
             <Route className="h-4 w-4" />
@@ -83,6 +102,7 @@ export default function AdminSettingsAI() {
 
         {/* ─── ROUTING & MODELS ──────────────────────────────────────── */}
         <TabsContent value="routing" className="space-y-3">
+          {isCatMounted("routing") && <>
           <CategoryDescription
             title="Routing & Models"
               description="Configura i modelli AI per ogni task e personalizza le 18 personas cliente. Le 21 personas interne di Silvio Superadmin restano governate dal Silvio Hub."
@@ -109,10 +129,12 @@ export default function AdminSettingsAI() {
               </Suspense>
             </TabsContent>
           </Tabs>
+          </>}
         </TabsContent>
 
         {/* ─── ECONOMICS — solo Pricing, niente sub-tab nidificate ────── */}
         <TabsContent value="economics" className="space-y-3">
+          {isCatMounted("economics") && <>
           <CategoryDescription
             title="Economics"
             description="Pricing & margini sui task AI: markup per modello, sconti per azienda, monitoraggio costi reali OpenRouter."
@@ -120,10 +142,12 @@ export default function AdminSettingsAI() {
           <Suspense fallback={fallback}>
             <AdminSettingsAIPricing />
           </Suspense>
+          </>}
         </TabsContent>
 
         {/* ─── CONTENT — Knowledge + Memoria + Voci ──────────────────── */}
         <TabsContent value="content" className="space-y-3">
+          {isCatMounted("content") && <>
           <CategoryDescription
             title="Content"
             description="Contesto che l'AI usa per rispondere: knowledge base universale (RAG), memoria contestuale per-azienda, voci sintetizzate ElevenLabs."
@@ -159,10 +183,12 @@ export default function AdminSettingsAI() {
               <ElevenLabsVoiceConfig />
             </TabsContent>
           </Tabs>
+          </>}
         </TabsContent>
 
         {/* ─── GOVERNANCE ────────────────────────────────────────────── */}
         <TabsContent value="governance" className="space-y-3">
+          {isCatMounted("governance") && <>
           <CategoryDescription
             title="Governance"
             description="Permessi sulle azioni AI per azienda e configurazioni legacy in fase di smaltimento."
@@ -211,6 +237,7 @@ export default function AdminSettingsAI() {
               </Suspense>
             </TabsContent>
           </Tabs>
+          </>}
         </TabsContent>
       </Tabs>
     </div>
