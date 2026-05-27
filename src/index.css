@@ -512,3 +512,110 @@ html.capacitor [role="button"] {
     page-break-inside: avoid;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Email HTML rendering (EmailViewer.tsx > MessageBubble)
+ * 2026-05-26: dedicato al rendering email HTML provenienti da Gmail/Outlook/IMAP.
+ * Le email moderne (Meta, Mailchimp, Stripe, ecc.) usano <table> + style inline
+ * per impaginazione perché è l'unico approccio universalmente supportato.
+ * Tailwind Typography (.prose) rovinava il layout sovrascrivendo font-family
+ * e regole tabella. Qui un set minimale ma robusto.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+.email-html-wrapper {
+  /* Container scrollabile orizzontalmente per tabelle email larghe.
+     Le email Meta hanno tabelle 600px fisse → su pannelli stretti
+     evita overflow rotto del layout app. */
+  max-width: 100%;
+}
+
+.email-html {
+  /* Reset selettivo: lasciamo che lo styling inline dell'email vinca,
+     ma forniamo defaults sani per le email che NON hanno styling. */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+  color: inherit;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Le tabelle email rispettano il proprio width/cellpadding/cellspacing */
+.email-html table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  max-width: 100%;
+}
+
+/* Immagini responsive — molte email hardcodano width=600
+   sui template → scaliamo se più larghe del container */
+.email-html img {
+  max-width: 100%;
+  height: auto;
+  border: 0;
+  vertical-align: middle;
+}
+
+/* Link "bottone-style" delle email: rispettiamo background/padding/border
+   degli style inline. I bottoni Meta/Stripe/Mailchimp sono <a> con
+   style="background:#0084ff; padding:12px 24px; ...". Senza queste regole
+   Tailwind reset li convertiva in link sottolineati blu nudi. */
+.email-html a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* I bottoni "wrappati" come <a> con background inline non hanno
+   underline da default — preserviamo il design originale */
+.email-html a[style*="background"],
+.email-html a[style*="background-color"] {
+  text-decoration: none;
+  display: inline-block;
+}
+
+/* Paragrafi e heading: spacing minimo, lasciamo che style inline vinca */
+.email-html p {
+  margin: 0 0 1em 0;
+}
+.email-html p:last-child { margin-bottom: 0; }
+
+.email-html h1, .email-html h2, .email-html h3,
+.email-html h4, .email-html h5, .email-html h6 {
+  margin: 1em 0 0.5em 0;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Liste con padding sufficiente per non sovrapporsi ai bullet */
+.email-html ul, .email-html ol {
+  margin: 0 0 1em 0;
+  padding-left: 1.5em;
+}
+
+/* Hr decorative — molte email le usano come separatori */
+.email-html hr {
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  margin: 1.5em 0;
+}
+
+/* Blockquote per email "originale" su reply */
+.email-html blockquote {
+  margin: 1em 0;
+  padding-left: 1em;
+  border-left: 3px solid #cbd5e1;
+  color: #64748b;
+}
+
+/* Codice inline (raro nelle email ma alcuni dev tool lo usano) */
+.email-html code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, monospace;
+  font-size: 0.9em;
+  background: #f1f5f9;
+  padding: 0.1em 0.3em;
+  border-radius: 0.25em;
+}
+
+/* Container <style> blocks delle email vengono lasciati al loro
+   posto — DOMPurify sanifica eventuale @import malevolo. */

@@ -1535,13 +1535,39 @@ function EmailOperationsPanel({
 }
 
 function MessageBubble({ message }: { message: MessageRow }) {
+  // 2026-05-26: sanitize email-friendly. PRIMA il config era troppo aggressivo:
+  //   - FORBID_TAGS["style"] → strippava <style> inline → tabelle Meta perdevano
+  //     spacing, bottoni perdevano background colors
+  //   - FORBID_ATTR["style"] → strippava style="..." inline → CTA "Vedi
+  //     transazione" diventava testo nudo invece di bottone blu
+  // ORA il config:
+  //   - Mantiene <style> nel <head> di email HTML (sanitize CSS via DOMPurify)
+  //   - Mantiene style="..." inline (è dove Meta/Mailchimp/etc. mettono il
+  //     visual styling — è safe perché non può eseguire JS)
+  //   - Continua a bloccare script, iframe, object, embed, form (XSS surface)
+  //   - Continua a bloccare on* event handlers (onclick, onerror, ecc.)
+  //   - Limita protocolli a http/https/mailto/tel/cid (no javascript:)
+  //   - Forza target="_blank" su tutti gli <a> per non rompere la nav app
   const sanitizedHtml = useMemo(() => {
     if (!message.raw_html) return null;
-    return DOMPurify.sanitize(message.raw_html, {
-      FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form"],
-      FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus", "style"],
-      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|cid):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+    // Hook DOMPurify: aggiunge target=_blank + rel=noopener su tutti i link
+    DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+      if (node.tagName === "A") {
+        node.setAttribute("target", "_blank");
+        node.setAttribute("rel", "noopener noreferrer");
+      }
     });
+    const clean = DOMPurify.sanitize(message.raw_html, {
+      FORBID_TAGS: ["script", "iframe", "object", "embed", "form", "input", "button", "textarea"],
+      FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onmouseout", "onfocus", "onblur", "onchange", "onsubmit", "onkeydown", "onkeyup", "onkeypress"],
+      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|cid):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
+      // Mantieni style + class — sono il modo standard delle email HTML di
+      // veicolare il visual layout (tabelle, bottoni, sfondi). Niente JS qui.
+      ADD_TAGS: ["style"],
+      ADD_ATTR: ["style", "class", "id", "bgcolor", "align", "valign", "cellpadding", "cellspacing", "border", "width", "height"],
+    });
+    DOMPurify.removeAllHooks();
+    return clean;
   }, [message.raw_html]);
 
   const attachments = Array.isArray(message.attachments)
@@ -1590,22 +1616,33 @@ function MessageBubble({ message }: { message: MessageRow }) {
         </div>
       )}
 
-      <div className="p-4">
-        {sanitizedHtml ? (
+      {sanitizedHtml ? (
+        /* 2026-05-26: niente più `prose prose-sm` per il rendering HTML email.
+           Tailwind Typography sovrascriveva font-family, line-height, max-width
+           e regole tabella → email Meta/Mailchimp/etc. con layout templated
+           appariva sgualcita. Ora un container "email-html" dedicato che:
+            - resetta selettivamente i conflitti app vs email
+            - rispetta lo styling inline (table-layout: fixed, bgcolor, ecc.)
+            - confina la larghezza max al pannello senza spezzare il design
+            - usa overflow-x-auto così tabelle larghe scrollano invece di
+              andare oltre il pannello viewer */
+        <div className="email-html-wrapper overflow-x-auto p-4 bg-white">
           <div
-            className="prose prose-sm max-w-none text-sm
-                       prose-a:text-violet-600 prose-a:underline-offset-2
-                       prose-img:rounded prose-img:my-2"
+            className="email-html text-sm text-slate-900"
             dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
           />
-        ) : message.raw_text ? (
-          <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">
-            {message.raw_text}
-          </pre>
-        ) : (
-          <p className="text-sm text-muted-foreground italic">(messaggio vuoto)</p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="p-4">
+          {message.raw_text ? (
+            <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">
+              {message.raw_text}
+            </pre>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">(messaggio vuoto)</p>
+          )}
+        </div>
+      )}
 
       {attachments.length > 0 && (
         <>
