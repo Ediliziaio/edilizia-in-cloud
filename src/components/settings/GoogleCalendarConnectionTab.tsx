@@ -412,20 +412,49 @@ export default function GoogleCalendarConnectionTab() {
       {/* Calendar configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Configurazione del calendario</CardTitle>
-          <CardDescription>Gestisci il calendario principale e i calendari dei conflitti</CardDescription>
+          <CardTitle>Quali calendari Google usare</CardTitle>
+          <CardDescription>
+            Scegli dove finiscono gli appuntamenti che crei nel CRM e quali calendari Google
+            vuoi vedere come "occupati" nel calendario marketing.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Primary Calendar */}
-          <div className="flex items-center justify-between py-2">
-            <div className="flex-1">
-              <p className="font-medium text-sm">Calendario collegato</p>
-              <p className="text-sm text-muted-foreground">
-                {primaryCal ? primaryCal.summary : "Nessun calendario selezionato"}
-              </p>
+        <CardContent className="space-y-5">
+          {/* 2026-05-27: UX rivista — label esplicite + sempre visibile lo stato
+              corrente + helper text. Prima i nomi "calendario collegato" e
+              "calendari dei conflitti" non comunicavano cosa facessero. */}
+
+          {/* Primary Calendar — TARGET PUSH CRM → Google */}
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-semibold">
+                  📤 Calendario di destinazione (dove finiscono i tuoi appuntamenti CRM)
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Quando crei un appuntamento nel CRM, viene aggiunto a questo calendario Google.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingPrimary((v) => !v)}
+                disabled={loadingCals}
+              >
+                {editingPrimary ? "Annulla" : (primaryCal ? "Cambia" : "Seleziona")}
+              </Button>
             </div>
-            {editingPrimary ? (
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-blue-600 shrink-0" />
+              <span className="text-sm font-medium">
+                {primaryCal
+                  ? `${primaryCal.summary}${primaryCal.primary ? " (calendario principale)" : ""}`
+                  : (settings?.primary_calendar_id === "primary"
+                      ? "Calendario principale Google"
+                      : <span className="text-amber-700">⚠ Nessun calendario selezionato</span>)}
+              </span>
+            </div>
+            {editingPrimary && (
+              <div className="mt-3 border-t pt-3">
                 <Select
                   value={settings?.primary_calendar_id || ""}
                   onValueChange={(val) => {
@@ -433,66 +462,92 @@ export default function GoogleCalendarConnectionTab() {
                     setEditingPrimary(false);
                   }}
                 >
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="Seleziona calendario" />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Scegli un calendario Google…" />
                   </SelectTrigger>
                   <SelectContent>
                     {googleCalendars.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.summary} {c.primary ? "(Principale)" : ""}
+                        {c.summary} {c.primary ? "· Principale" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="ghost" size="sm" onClick={() => setEditingPrimary(false)}>
-                  Annulla
-                </Button>
               </div>
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => setEditingPrimary(true)}>
-                {primaryCal ? "Modifica" : "Seleziona"}
-              </Button>
             )}
           </div>
 
-          {/* Conflict Calendars */}
-          <div className="flex items-center justify-between py-2">
-            <div className="flex-1">
-              <p className="font-medium text-sm">Calendari dei conflitti</p>
-              <p className="text-sm text-muted-foreground">
-                {conflictCals.length > 0
-                  ? conflictCals.map((c) => c.summary).join(", ")
-                  : "Nessun calendario selezionato"}
-              </p>
+          {/* Conflict Calendars — IMPORT BUSY SLOTS DA Google */}
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-semibold">
+                  📥 Altri calendari da visualizzare nel CRM
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Gli eventi di questi calendari appariranno come slot "occupati" nel calendario
+                  marketing, così eviti di prendere appuntamenti sovrapposti.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingConflict((v) => !v)}
+                disabled={loadingCals}
+              >
+                {editingConflict ? "Chiudi" : (conflictCals.length > 0 ? "Modifica" : "Configura")}
+              </Button>
             </div>
-            {editingConflict ? (
-              <div className="flex flex-col gap-2 min-w-[220px]">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {conflictCals.length > 0 ? (
+                conflictCals.map((c) => (
+                  <span
+                    key={c.id}
+                    className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-800 border border-blue-200"
+                  >
+                    <CalendarDays className="h-3 w-3" />
+                    {c.summary}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground italic">
+                  Nessun altro calendario selezionato — solo il calendario di destinazione viene mostrato.
+                </span>
+              )}
+            </div>
+            {editingConflict && (
+              <div className="mt-3 border-t pt-3">
                 {loadingCals ? (
                   <Skeleton className="h-8 w-full" />
+                ) : googleCalendars.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Nessun calendario disponibile</p>
                 ) : (
-                  googleCalendars.map((c) => (
-                    <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox
-                        checked={conflictIds.includes(c.id)}
-                        onCheckedChange={(checked) => {
-                          const next = checked
-                            ? [...conflictIds, c.id]
-                            : conflictIds.filter((id) => id !== c.id);
-                          updateSettings.mutate({ conflict_calendar_ids: next });
-                        }}
-                      />
-                      {c.summary}
-                    </label>
-                  ))
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    {googleCalendars
+                      .filter((c) => c.id !== settings?.primary_calendar_id) // non duplicare il primary
+                      .map((c) => (
+                      <label
+                        key={c.id}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/40"
+                      >
+                        <Checkbox
+                          checked={conflictIds.includes(c.id)}
+                          onCheckedChange={(checked) => {
+                            const next = checked
+                              ? [...conflictIds, c.id]
+                              : conflictIds.filter((id) => id !== c.id);
+                            updateSettings.mutate({ conflict_calendar_ids: next });
+                          }}
+                        />
+                        <span className="truncate">{c.summary}</span>
+                        {c.primary && (
+                          <span className="text-[10px] text-muted-foreground">(principale)</span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
                 )}
-                <Button variant="ghost" size="sm" onClick={() => setEditingConflict(false)}>
-                  Chiudi
-                </Button>
               </div>
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => setEditingConflict(true)}>
-                {conflictCals.length > 0 ? "Modifica" : "Configura"}
-              </Button>
             )}
           </div>
 

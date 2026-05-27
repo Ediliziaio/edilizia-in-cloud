@@ -9,9 +9,22 @@ export const CALENDAR_COLORS = [
 
 
 
+/**
+ * 2026-05-27 (richiesta utente "non vedo appuntamenti prima delle 8"):
+ * range esteso da 08:00–22:00 a 06:00–23:00. Copre i casi reali del
+ * mestiere — sopralluoghi mattutini alle 7, cantieri serali — senza
+ * far esplodere l'altezza del DOM (era 14h × 2 slot = 28; ora 17h × 2 = 34).
+ *
+ * Una vista 00:00-23:59 (48 slot) sarebbe troppo: scroll infinito,
+ * appuntamenti minuscoli. Se serve un range custom in futuro,
+ * accettare parametri startHour/endHour qui.
+ */
+export const CALENDAR_START_HOUR = 6;
+export const CALENDAR_END_HOUR = 23;
+
 export function buildTimeSlots(slotMinutes: number): string[] {
   const slots: string[] = [];
-  for (let m = 8 * 60; m < 22 * 60; m += slotMinutes) {
+  for (let m = CALENDAR_START_HOUR * 60; m < CALENDAR_END_HOUR * 60; m += slotMinutes) {
     const h = Math.floor(m / 60);
     const min = m % 60;
     slots.push(`${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
