@@ -323,6 +323,14 @@ export default defineConfig(() => ({
       "@tiptap/extension-font-family",
     ],
   },
+  // 2026-05-27 (code quality audit): drop console/debugger nei build di
+  // produzione. Audit ha contato 289 console.log/warn statements lasciati
+  // in src/, alcuni con dati sensibili (tokens, payload edge function).
+  // In dev restano per debug; in prod sparisce TUTTO via esbuild minifier.
+  // logger.ts esiste già come wrapper safe per i log critici da preservare.
+  esbuild: {
+    drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
+  },
   build: {
     // Move generated bundles away from previously poisoned immutable cache
     // namespaces. Cloudflare Pages SPA fallback has served index.html for JS
