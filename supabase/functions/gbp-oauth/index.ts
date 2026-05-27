@@ -239,8 +239,7 @@ async function fetchAndCacheLocations(connectionId: string, accessToken: string)
   );
   if (!accountsRes.ok) {
     const bodyText = await accountsRes.text().catch(() => "");
-    // 2026-05-27: messaggio human-readable invece di solo status code.
-    // 403 = API non abilitata sul Google Cloud Project; 401 = scope mancanti.
+    // 2026-05-27: messaggi human-readable per i 3 errori più frequenti.
     if (accountsRes.status === 403) {
       throw new Error(
         "Google Business Profile API non abilitata sul Google Cloud Project. " +
@@ -250,6 +249,18 @@ async function fetchAndCacheLocations(connectionId: string, accessToken: string)
     }
     if (accountsRes.status === 401) {
       throw new Error("Token OAuth non valido o scope insufficienti. Riconnetti l'account.");
+    }
+    if (accountsRes.status === 429) {
+      // Confermato dall'utente (screenshot 2026-05-27): Google ritorna 429
+      // "Quota exceeded" perché la quota base di GBP API è 0 di default.
+      // Richiesta esplicita richiesta tramite https://support.google.com/business/contact/api_default_quota_increase
+      throw new Error(
+        "Quota API Google Business Profile esaurita o non assegnata al progetto Google Cloud. " +
+        "Per usare l'API in produzione devi richiedere quota a Google: " +
+        "vai su https://support.google.com/business/contact/api_default_quota_increase " +
+        "e compila il modulo (Google approva in 1-3 giorni lavorativi). " +
+        "Nel frattempo il collegamento OAuth è valido — riprova fra qualche minuto se la quota è stata appena consumata da un altro test."
+      );
     }
     throw new Error(`API accounts errore ${accountsRes.status}: ${bodyText.slice(0, 200)}`);
   }
