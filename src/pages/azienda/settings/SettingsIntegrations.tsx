@@ -572,13 +572,12 @@ export default function SettingsIntegrations() {
         integration: appleCalIntegrationLike,
         stats: null as { pages: number; forms: number } | null,
       },
-      {
-        provider: "google_ads" as const,
-        name: "Google Ads",
-        description: "Collega Customer ID, campagne Search/PMax e conversioni CRM per costo appuntamento, costo vendita e ROAS.",
-        integration: googleAdsIntegration || null,
-        stats: null as { pages: number; forms: number } | null,
-      },
+      // 2026-05-27 (user request): rimossa card Google Ads con dialog manuale
+      // "Customer ID a 10 cifre". L'utente preferiva il flow OAuth (un click +
+      // popup Google) della GoogleAdsConnectionCard più in basso. La card
+      // manuale era duplicata e creava confusione su quale dei due usare.
+      // Dialog/state/mutation manuali restano nel file come dead code per ora
+      // (cleanup separato in follow-up — bassa priorità, non visibili in UI).
     ];
     if (!search.trim()) return items;
     const q = search.toLowerCase();
@@ -977,10 +976,10 @@ export default function SettingsIntegrations() {
       <div className="pt-2 space-y-4">
         <div className="flex items-center gap-2">
           <Megaphone className="h-5 w-5 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">Pubblicità — OAuth</h2>
+          <h2 className="text-lg font-semibold">Pubblicità</h2>
         </div>
-        {/* Google Ads OAuth REALE in questa pagina (2026-05-27).
-            La card precedente per "Customer ID manuale" resta più in alto come fallback. */}
+        {/* Google Ads OAuth — unico flow di collegamento (2026-05-27: rimossa
+            la card "Customer ID manuale" duplicata che creava confusione). */}
         <GoogleAdsConnectionCard />
       </div>
 
