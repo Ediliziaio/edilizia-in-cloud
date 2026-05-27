@@ -891,7 +891,11 @@ export function CustomerBusinessTabs({
   //   con count è già nel header del pannello laterale).
   const isCompactPanel = !!defaultTab;
   return (
-    <Tabs defaultValue={defaultTab ?? "ordini"} key={defaultTab ?? "ordini"}>
+    <Tabs
+      defaultValue={defaultTab ?? "ordini"}
+      key={defaultTab ?? "ordini"}
+      className={isCompactPanel ? "max-w-full overflow-hidden" : ""}
+    >
       {/* Alert warnings: solo in vista full (mobile o standalone) */}
       {!isCompactPanel && dataWarnings && Object.values(dataWarnings).some(Boolean) && (
         <details className="mb-3 group">
