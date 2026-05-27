@@ -104,6 +104,9 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SEC);
+  // Codice demo per account *@azienda.srl: l'edge function lo ritorna direttamente
+  // (no email reale) e qui lo mostriamo + auto-fill per evitare lockout.
+  const [demoCode, setDemoCode] = useState<string | null>(null);
   const timerRef = useRef<number | null>(null);
   const sentOnceRef = useRef(false);
 
@@ -130,9 +133,10 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         toast({ title: "Errore invio codice", description: error.message, variant: "destructive" });
         return;
       }
-      const status = (data as { status?: string; cooldown?: number } | null)?.status;
+      const result = data as { status?: string; cooldown?: number; demo?: boolean; demo_code?: string } | null;
+      const status = result?.status;
       if (status === "rate_limited") {
-        const cooldown = (data as { cooldown?: number }).cooldown ?? RESEND_COOLDOWN_SEC;
+        const cooldown = result?.cooldown ?? RESEND_COOLDOWN_SEC;
         setSecondsLeft(cooldown);
         toast({
           title: "Codice già inviato",
@@ -141,6 +145,20 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         return;
       }
       setSecondsLeft(RESEND_COOLDOWN_SEC);
+      // Account demo: edge function ha bypassato l'invio email e ritorna il codice
+      // direttamente. Lo mostriamo in UI + auto-fill per evitare lockout su mailbox
+      // inesistenti (@azienda.srl).
+      if (result?.demo && result?.demo_code) {
+        setDemoCode(result.demo_code);
+        setOtp(result.demo_code);
+        if (showToast) {
+          toast({
+            title: "Account demo — codice automatico",
+            description: `Codice ${result.demo_code} inserito. Premi "Conferma e accedi".`,
+          });
+        }
+        return;
+      }
       if (showToast) {
         toast({
           title: "Codice inviato",
@@ -209,9 +227,32 @@ export function EmailOTPLogin({ email, onCancel, onVerified }: Props) {
         </div>
         <h2 className="text-xl font-bold text-foreground">Verifica di sicurezza</h2>
         <p className="text-sm text-muted-foreground">
-          Abbiamo inviato un codice a <strong className="text-foreground">{maskedEmail}</strong>
+          {demoCode ? (
+            <>
+              Account demo — nessuna email inviata a{" "}
+              <strong className="text-foreground">{maskedEmail}</strong>
+            </>
+          ) : (
+            <>
+              Abbiamo inviato un codice a <strong className="text-foreground">{maskedEmail}</strong>
+            </>
+          )}
         </p>
       </div>
+
+      {demoCode && (
+        <div className="rounded-lg border-2 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-center">
+          <p className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300 font-semibold mb-1">
+            Codice demo
+          </p>
+          <p className="text-2xl font-mono font-bold tracking-[0.4em] text-amber-900 dark:text-amber-100">
+            {demoCode}
+          </p>
+          <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1.5">
+            Già inserito sotto · premi &quot;Conferma e accedi&quot;
+          </p>
+        </div>
+      )}
 
       <div className="space-y-3">
         <Label className="text-center block">Inserisci il codice a 6 cifre</Label>

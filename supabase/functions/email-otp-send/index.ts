@@ -2,20 +2,33 @@
 // email-otp-send — Genera e invia codice OTP via email (login senza password)
 // ============================================================================
 // Input:  { email: string }
-// Output: { status: 'sent' | 'rate_limited' | 'user_not_found', cooldown?: number }
+// Output: { status: 'sent' | 'rate_limited' | 'user_not_found', cooldown?: number,
+//           demo?: boolean, demo_code?: string }
 //
 // Flusso:
 //   1. Verifica che esista un user con quell'email
-//   2. Rate limit: max 1 codice ogni 60s per email + max 10/giorno per IP
-//   3. Genera 6 cifre casuali
-//   4. Hash bcrypt-style (crypt()) e insert email_otp_codes
-//   5. Invia email con il codice via Resend/SendGrid (sender platform)
+//   2. BYPASS DEMO: se email finisce con @azienda.srl (account test/demo)
+//      → inserisce codice fisso "000000" valido 60 min, NON invia email Resend,
+//        ritorna { demo: true, demo_code: '000000' } per UI che lo mostra.
+//   3. Rate limit: max 1 codice ogni 60s per email + max 10/giorno per IP
+//   4. Genera 6 cifre casuali (CSPRNG)
+//   5. Hash bcrypt-style (crypt()) e insert email_otp_codes
+//   6. Invia email con il codice via Resend (sender platform)
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+// Domini demo dove il flow OTP è bypassato con codice fisso "000000".
+// Sicuro perché:
+//  - Sono account pre-creati dal sistema (signup pubblico non permette @azienda.srl)
+//  - Il primo step di auth (password) resta intatto: serve comunque la password
+//  - .srl è TLD italiano riservato → bassissima probabilità di mailbox reali
+//  - Risparmio invio email a mailbox inesistenti (no bounce → reputation Resend)
+const DEMO_DOMAINS = new Set(["azienda.srl"]);
+const DEMO_BYPASS_CODE = "000000";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -104,6 +117,40 @@ Deno.serve(async (req) => {
     // (security: anti-enumeration). Loggiamo solo lato server.
     console.warn("[email-otp-send] user check failed for", email, ":", linkErr.message);
     return jsonResponse({ status: "sent", ttl_min: 15 });
+  }
+
+  // 1.5 BYPASS DEMO: account *@azienda.srl ricevono codice fisso "000000".
+  // Non chiamiamo Resend (mailbox inesistenti = bounce → reputation Resend).
+  // L'UI mostra il codice direttamente all'utente.
+  const emailDomain = email.split("@")[1] ?? "";
+  if (DEMO_DOMAINS.has(emailDomain)) {
+    const DEMO_TTL_MIN = 60;
+    const demoExpires = new Date(Date.now() + DEMO_TTL_MIN * 60_000).toISOString();
+    // Pulisci codici non consumati per evitare ambiguità con codici precedenti
+    await supa.from("email_otp_codes").delete().eq("email", email).is("consumed_at", null);
+    const { data: demoHash, error: demoHashErr } = await supa.rpc("hash_otp_code" as never, {
+      p_code: DEMO_BYPASS_CODE,
+    } as never);
+    if (demoHashErr || !demoHash) {
+      console.error("[email-otp-send] demo hash error:", demoHashErr);
+      return jsonResponse({ error: "Impossibile generare codice demo" }, 500);
+    }
+    const { error: demoInsErr } = await supa.from("email_otp_codes").insert({
+      email,
+      code_hash: demoHash as unknown as string,
+      expires_at: demoExpires,
+    });
+    if (demoInsErr) {
+      console.error("[email-otp-send] demo insert error:", demoInsErr);
+      return jsonResponse({ error: "Impossibile salvare codice demo" }, 500);
+    }
+    console.log(`[email-otp-send] DEMO bypass for ${email} — code=${DEMO_BYPASS_CODE} (TTL ${DEMO_TTL_MIN}min)`);
+    return jsonResponse({
+      status: "sent",
+      ttl_min: DEMO_TTL_MIN,
+      demo: true,
+      demo_code: DEMO_BYPASS_CODE,
+    });
   }
 
   // 2a. Rate limit per EMAIL: max 1 codice / 60s
