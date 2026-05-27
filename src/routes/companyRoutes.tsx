@@ -494,19 +494,23 @@ export default function CompanyRoutesContainer() {
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
         <Route path="chat" element={withCompanyPermission("canViewPersone", <InternalChat />)} />
-        <Route path="contenuti-multimediali" element={<ContenutiMultimediali />} />
-        {/* MP-AIE-03: Azioni proposte AI (yellow/red da Silvio + 18 personas) */}
-        <Route path="azioni-proposte" element={<AzioniProposteAi />} />
-        <Route path="azioni-proposte/audit-log" element={<ActionProposalsAuditLog />} />
+        <Route path="contenuti-multimediali" element={withCompanyPermission("canViewMarketing", <ContenutiMultimediali />)} />
+        {/* MP-AIE-03: Azioni proposte AI (yellow/red da Silvio + 18 personas).
+            2026-05-27 (audit role-based): gated dietro canViewMarketing — le
+            proposte mostrano CRM/lead/preventivi quindi commerciale/admin sì,
+            operai/tecnici no. Audit-log dietro canViewSettingsSecurity (log
+            sensibile AI cross-tenant). */}
+        <Route path="azioni-proposte" element={withCompanyPermission("canViewMarketing", <AzioniProposteAi />)} />
+        <Route path="azioni-proposte/audit-log" element={withCompanyPermission("canViewSettingsSecurity", <ActionProposalsAuditLog />)} />
         {/* 🆕 GAP 7: Email triage AI (lista email classificate AI) */}
-        <Route path="email-triage" element={<EmailTriagePage />} />
+        <Route path="email-triage" element={withCompanyPermission("canViewMarketingEmail", <EmailTriagePage />)} />
         {/* 🆕 Sprint E1: Email client integrato (Beta) */}
-        <Route path="email" element={<EmailClientPage />} />
+        <Route path="email" element={withCompanyPermission("canViewMarketingEmail", <EmailClientPage />)} />
         {/* 🆕 Sprint S1-S3: Modulo Sopralluoghi (Beta) */}
-        <Route path="sopralluoghi" element={<SopralluoghiList />} />
-        <Route path="sopralluoghi/nuovo" element={<NuovoSopralluogo />} />
-        <Route path="sopralluoghi/:id" element={<SopralluogoEditor />} />
-        <Route path="sopralluoghi/:id/firma" element={<FirmaCliente />} />
+        <Route path="sopralluoghi" element={withCompanyPermission("canViewMarketingContacts", <SopralluoghiList />)} />
+        <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewMarketingContacts", <NuovoSopralluogo />)} />
+        <Route path="sopralluoghi/:id" element={withCompanyPermission("canViewMarketingContacts", <SopralluogoEditor />)} />
+        <Route path="sopralluoghi/:id/firma" element={withCompanyPermission("canViewMarketingContacts", <FirmaCliente />)} />
         {/* v8.6.71 — RIMOSSO: impostazioni/sopralluoghi era qui (fuori dal
             SettingsLayout) → niente back arrow/header settings su mobile.
             Spostato dentro <Route path="impostazioni"> più sotto. */}

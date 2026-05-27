@@ -45,6 +45,7 @@ import { CompanyDashboardFilters } from "@/components/dashboard/CompanyDashboard
 import { useCompanyDashboardData } from "@/hooks/useCompanyDashboardData";
 import { EditOrderDatesDialog } from "@/components/calendar/EditOrderDatesDialog";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { CalendarOrder } from "@/types/calendar";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -58,6 +59,7 @@ function ManagementOverview({
   financialAlerts,
   cashFlow,
   monthlyBalance,
+  hideFinance = false,
 }: {
   stats: ReturnType<typeof useCompanyDashboardData>["stats"];
   weeklyDeadlines: ReturnType<typeof useCompanyDashboardData>["weeklyDeadlines"];
@@ -65,6 +67,9 @@ function ManagementOverview({
   financialAlerts: ReturnType<typeof useCompanyDashboardData>["financialAlerts"];
   cashFlow: ReturnType<typeof useCompanyDashboardData>["cashFlow"];
   monthlyBalance: ReturnType<typeof useCompanyDashboardData>["monthlyBalance"];
+  /** 2026-05-27 (audit): se true nasconde card "Venduto/Incassato/Da incassare"
+   *  e il grafico costi pianificati. Per ruoli senza can_view_billing/costs. */
+  hideFinance?: boolean;
 }) {
   const operationalAgenda = weeklyDeadlines.upcomingWorks ?? [];
   const upcomingWorks = operationalAgenda.filter((item) => item.source === "order" || !item.source).length;
@@ -137,14 +142,14 @@ function ManagementOverview({
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-            {[
-              { label: "Commesse", value: stats.totalOrders, detail: "nel periodo selezionato", icon: ClipboardList, tone: "blue" },
-              { label: "Venduto periodo", value: formatCurrencyCompact(soldPeriod), detail: "valore commesse nel periodo", icon: Euro, tone: "blue" },
-              { label: "Incassato", value: formatCurrencyCompact(realIncome), detail: "pagamenti segnati sulle commesse", icon: CheckCircle2, tone: "green" },
-              { label: "Da incassare", value: formatCurrencyCompact(pendingRevenue), detail: "residuo coerente col venduto", icon: CircleAlert, tone: "orange" },
-              { label: "Pose / lavori", value: upcomingWorks, detail: "in calendario a breve", icon: CalendarClock, tone: "orange" },
-              { label: "Anomalie", value: financialAlerts.length, detail: `${urgentItems.length} materiali · ${stats.openTickets} ticket`, icon: AlertTriangle, tone: operationalIssues > 0 ? "red" : "green" },
-            ].map((item) => (
+            {([
+              { label: "Commesse", value: stats.totalOrders, detail: "nel periodo selezionato", icon: ClipboardList, tone: "blue", isFinance: false },
+              { label: "Venduto periodo", value: formatCurrencyCompact(soldPeriod), detail: "valore commesse nel periodo", icon: Euro, tone: "blue", isFinance: true },
+              { label: "Incassato", value: formatCurrencyCompact(realIncome), detail: "pagamenti segnati sulle commesse", icon: CheckCircle2, tone: "green", isFinance: true },
+              { label: "Da incassare", value: formatCurrencyCompact(pendingRevenue), detail: "residuo coerente col venduto", icon: CircleAlert, tone: "orange", isFinance: true },
+              { label: "Pose / lavori", value: upcomingWorks, detail: "in calendario a breve", icon: CalendarClock, tone: "orange", isFinance: false },
+              { label: "Anomalie", value: financialAlerts.length, detail: `${urgentItems.length} materiali · ${stats.openTickets} ticket`, icon: AlertTriangle, tone: operationalIssues > 0 ? "red" : "green", isFinance: false },
+            ] as const).filter((item) => !hideFinance || !item.isFinance).map((item) => (
               <div
                 key={item.label}
                 className="rounded-xl border border-white/14 bg-white/[0.08] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
@@ -170,6 +175,7 @@ function ManagementOverview({
           </div>
         </div>
 
+        {!hideFinance && (
         <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-5 xl:border-l xl:border-t-0">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -205,6 +211,7 @@ function ManagementOverview({
             </div>
           </div>
         </aside>
+        )}
       </div>
 
       <div className="border-t border-slate-200 bg-slate-50/70 p-4 sm:p-5">
@@ -896,6 +903,7 @@ function OperationalBoard({
   weeklyDeadlines,
   urgentItems,
   financialAlerts,
+  hideFinance = false,
 }: {
   stats: ReturnType<typeof useCompanyDashboardData>["stats"];
   recentOrders: ReturnType<typeof useCompanyDashboardData>["recentOrders"];
@@ -904,6 +912,9 @@ function OperationalBoard({
   weeklyDeadlines: ReturnType<typeof useCompanyDashboardData>["weeklyDeadlines"];
   urgentItems: ReturnType<typeof useCompanyDashboardData>["urgentItems"];
   financialAlerts: ReturnType<typeof useCompanyDashboardData>["financialAlerts"];
+  /** 2026-05-27 (audit): nasconde la card "Costi/Pagato/Saldo dopo costi" ai
+   *  ruoli che non hanno can_view_billing/costs. */
+  hideFinance?: boolean;
 }) {
   const upcomingWorks = weeklyDeadlines.upcomingWorks ?? [];
   const workItems = upcomingWorks.filter((item) => item.source === "order" || !item.source);
@@ -1000,12 +1011,14 @@ function OperationalBoard({
       </div>
 
       <OperationalCalendarCard weeklyDeadlines={weeklyDeadlines} />
-      <CostControlCard
-        stats={stats}
-        cashFlow={cashFlow}
-        monthlyBalance={monthlyBalance}
-        weeklyDeadlines={weeklyDeadlines}
-      />
+      {!hideFinance && (
+        <CostControlCard
+          stats={stats}
+          cashFlow={cashFlow}
+          monthlyBalance={monthlyBalance}
+          weeklyDeadlines={weeklyDeadlines}
+        />
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(320px,0.9fr)_minmax(320px,1fr)_minmax(320px,0.9fr)]">
       <Card className="border-slate-200 shadow-sm">
@@ -1144,6 +1157,18 @@ export default function CompanyDashboard() {
   // il super_admin ha cliccato "Accedi" ma fetchImpersonatedCompany deve ancora
   // risolvere → mostriamo un loader invece di "Nessuna azienda selezionata".
   const { isImpersonating, impersonatedCompanyId } = useAuth();
+
+  // 2026-05-27 (audit UX role-based): nasconde tutte le card/grafici finanza
+  // (Venduto/Incassato/Da incassare/Costi/Pagato/Saldo) ai ruoli che NON
+  // hanno can_view_billing/costs/cruscotto. Prima erano visibili a chiunque
+  // potesse aprire la dashboard, anche commerciali e operai.
+  const permissions = usePermissions();
+  const canSeeFinance =
+    permissions.isAdmin ||
+    permissions.canViewBilling ||
+    permissions.canViewCosts ||
+    permissions.canViewCruscotto;
+  const hideFinance = !canSeeFinance;
 
   const {
     companyId, filters, updateFilters,
@@ -1302,6 +1327,7 @@ export default function CompanyDashboard() {
         financialAlerts={financialAlerts}
         cashFlow={cashFlow}
         monthlyBalance={monthlyBalance}
+        hideFinance={hideFinance}
       />
 
       <OperationalBoard
@@ -1312,6 +1338,7 @@ export default function CompanyDashboard() {
         weeklyDeadlines={weeklyDeadlines}
         urgentItems={urgentItems}
         financialAlerts={financialAlerts}
+        hideFinance={hideFinance}
       />
 
     </div>

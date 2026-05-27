@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,6 +153,12 @@ function CustomersListInner() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { visible, toggle, resetColumns } = useColumnVisibility();
+
+  // 2026-05-27 (audit UX role-based): gating dei pulsanti Elimina/Assegna
+  // — prima erano visibili a chi non aveva can_edit_customers, generando
+  // 403 al click. Adesso nascosti del tutto se non hai i permessi.
+  const customerPermissions = usePermissions();
+  const canEditCustomers = customerPermissions.isAdmin || customerPermissions.canEditCustomers;
 
   const portalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
     ?.customer_portal_enabled !== false;
@@ -1260,18 +1267,22 @@ function CustomersListInner() {
               </Button>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <Button size="sm" variant="outline" onClick={() => setBulkAssignOpen(true)}>
-                <UserCheck className="h-4 w-4 mr-1.5" />
-                Assegna venditore
-              </Button>
+              {canEditCustomers && (
+                <Button size="sm" variant="outline" onClick={() => setBulkAssignOpen(true)}>
+                  <UserCheck className="h-4 w-4 mr-1.5" />
+                  Assegna venditore
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => handleExport("xlsx", "selected")}>
                 <Download className="h-4 w-4 mr-1.5" />
                 Esporta Excel
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)}>
-                <Trash2 className="h-4 w-4 mr-1.5" />
-                Elimina selezionati
-              </Button>
+              {canEditCustomers && (
+                <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)}>
+                  <Trash2 className="h-4 w-4 mr-1.5" />
+                  Elimina selezionati
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1756,7 +1767,8 @@ function CustomersListInner() {
                               </AlertDialog>
                             </>
                           )}
-                          <DropdownMenuSeparator />
+                          {canEditCustomers && <DropdownMenuSeparator />}
+                          {canEditCustomers && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <DropdownMenuItem
@@ -1792,6 +1804,7 @@ function CustomersListInner() {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
