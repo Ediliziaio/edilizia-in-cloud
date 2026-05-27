@@ -72,10 +72,16 @@ function loadFacebookSdk(appId: string): Promise<void> {
       return;
     }
 
+    // Diagnostic log SEMPRE attivo (anche in prod via console.error che NON
+    // viene strippato da esbuild drop in vite.config). Aiuta a debuggare
+    // problemi di CSP/AdBlock/CORS reali in produzione.
+    console.error("[wa-embedded] loadFacebookSdk start — appId=" + appId);
+
     // Timeout di sicurezza
     const timeoutId = window.setTimeout(() => {
       // Reset cache così un nuovo tentativo può ripartire
       fbSdkPromise = null;
+      console.error("[wa-embedded] SDK timeout 10s — window.FB present?", !!window.FB, "script tag present?", !!document.getElementById("facebook-jssdk"));
       reject(
         new Error(
           "Timeout caricamento Facebook SDK (10s). Possibili cause: CSP che blocca connect.facebook.net, ad-blocker attivo, o connessione lenta. Riprova oppure usa la modalità manuale.",
@@ -86,10 +92,12 @@ function loadFacebookSdk(appId: string): Promise<void> {
     const initFB = () => {
       if (!window.FB) {
         clearTimeout(timeoutId);
+        console.error("[wa-embedded] initFB called but window.FB is undefined");
         reject(new Error("Facebook SDK non disponibile dopo il caricamento"));
         return;
       }
       try {
+        console.error("[wa-embedded] FB.init({ appId, version }) chiamato");
         window.FB.init({
           appId,
           autoLogAppEvents: true,
@@ -98,15 +106,18 @@ function loadFacebookSdk(appId: string): Promise<void> {
         });
         lastInitAppId = appId;
         clearTimeout(timeoutId);
+        console.error("[wa-embedded] FB.init OK — SDK pronto");
         resolve();
       } catch (e) {
         clearTimeout(timeoutId);
+        console.error("[wa-embedded] FB.init threw:", e);
         reject(e instanceof Error ? e : new Error(String(e)));
       }
     };
 
     // Se l'SDK è già caricato e inizializzato → basta re-init con nuovo appId
     if (window.FB) {
+      console.error("[wa-embedded] window.FB già presente — re-init");
       initFB();
       return;
     }
@@ -117,28 +128,35 @@ function loadFacebookSdk(appId: string): Promise<void> {
       try {
         prevAsyncInit?.();
       } catch (e) {
-        console.warn("[whatsapp-embedded] fbAsyncInit precedente ha sollevato:", e);
+        console.warn("[wa-embedded] fbAsyncInit precedente ha sollevato:", e);
       }
+      console.error("[wa-embedded] fbAsyncInit callback firing → initFB");
       initFB();
     };
 
     const existing = document.getElementById("facebook-jssdk");
     if (existing) {
       // script presente ma SDK non ancora inizializzato → aspettiamo fbAsyncInit
+      console.error("[wa-embedded] script tag già presente, aspetto fbAsyncInit");
       return;
     }
+    console.error("[wa-embedded] inietto <script src='" + FB_SDK_SRC + "'>");
     const script = document.createElement("script");
     script.id = "facebook-jssdk";
     script.src = FB_SDK_SRC;
     script.async = true;
     script.defer = true;
     script.crossOrigin = "anonymous";
-    script.onerror = () => {
+    script.onload = () => {
+      console.error("[wa-embedded] script.onload fired — window.FB?", !!window.FB);
+    };
+    script.onerror = (e) => {
       clearTimeout(timeoutId);
       fbSdkPromise = null;
+      console.error("[wa-embedded] script.onerror fired:", e);
       reject(
         new Error(
-          "Caricamento Facebook SDK fallito. Verifica che connect.facebook.net sia raggiungibile (CSP, ad-blocker, firewall).",
+          "Caricamento Facebook SDK fallito (script.onerror). Verifica che connect.facebook.net sia raggiungibile (CSP, ad-blocker, firewall).",
         ),
       );
     };
@@ -258,6 +276,7 @@ export function useWhatsAppEmbeddedSignup() {
 
   const connect = useMutation({
     mutationFn: async ({ purpose, display_name }: { purpose: WAPurpose; display_name?: string }) => {
+      console.error("[wa-embedded] connect.mutate START — companyId=" + companyId);
       if (!companyId) throw new Error("Azienda non disponibile");
       if (!isEmbeddedSignupSupported) {
         throw new Error(
@@ -266,7 +285,9 @@ export function useWhatsAppEmbeddedSignup() {
       }
 
       // 1. Recupera config Meta lato server
+      console.error("[wa-embedded] fase 1 → fetchEmbeddedConfig");
       const cfg = await fetchEmbeddedConfig(companyId);
+      console.error("[wa-embedded] config received:", { is_configured: cfg.is_configured, has_app_id: !!cfg.meta_app_id, has_config_id: !!cfg.whatsapp_config_id });
       if (!cfg.is_configured || !cfg.meta_app_id || !cfg.whatsapp_config_id) {
         throw new Error(
           "Meta App ID o WhatsApp Config ID non configurati. Chiedi al super_admin di completare le platform settings.",
@@ -274,16 +295,29 @@ export function useWhatsAppEmbeddedSignup() {
       }
 
       // 2. Carica FB SDK
+      console.error("[wa-embedded] fase 2 → setPhase(loading-sdk) + loadFacebookSdk");
       setPhase("loading-sdk");
-      await loadFacebookSdk(cfg.meta_app_id);
-      if (!window.FB) throw new Error("Facebook SDK non disponibile");
+      try {
+        await loadFacebookSdk(cfg.meta_app_id);
+      } catch (sdkErr) {
+        console.error("[wa-embedded] loadFacebookSdk failed:", sdkErr);
+        throw sdkErr;
+      }
+      if (!window.FB) {
+        console.error("[wa-embedded] window.FB undefined dopo loadFacebookSdk");
+        throw new Error("Facebook SDK non disponibile");
+      }
 
       // 3. Lancia popup Embedded Signup + cattura sessionInfo in parallelo
+      console.error("[wa-embedded] fase 3 → setPhase(popup) + FB.login(config_id=" + cfg.whatsapp_config_id + ")");
       setPhase("popup");
       const sessionInfoPromise = waitForSessionInfo();
       const loginResponse: FbLoginResponse = await new Promise((resolve) => {
         window.FB.login(
-          (response: FbLoginResponse) => resolve(response),
+          (response: FbLoginResponse) => {
+            console.error("[wa-embedded] FB.login callback fired:", { status: response?.status, hasCode: !!response?.authResponse?.code });
+            resolve(response);
+          },
           {
             config_id: cfg.whatsapp_config_id,
             response_type: "code",
@@ -298,11 +332,14 @@ export function useWhatsAppEmbeddedSignup() {
 
       const authCode = loginResponse?.authResponse?.code;
       if (!authCode) {
+        console.error("[wa-embedded] no authCode in response — status=" + loginResponse?.status);
         throw new Error("Onboarding annullato o codice OAuth non ricevuto");
       }
       const sessionInfo = (await sessionInfoPromise) ?? {};
+      console.error("[wa-embedded] sessionInfo:", sessionInfo);
 
       // 4. Scambio code lato server (whatsapp-connect gestisce tutto)
+      console.error("[wa-embedded] fase 4 → whatsapp-connect");
       setPhase("connecting");
       const { data, error } = await supabase.functions.invoke("whatsapp-connect", {
         body: {
@@ -317,8 +354,15 @@ export function useWhatsAppEmbeddedSignup() {
           waba_id: sessionInfo.waba_id,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        console.error("[wa-embedded] whatsapp-connect error:", error);
+        throw error;
+      }
+      if (data?.error) {
+        console.error("[wa-embedded] whatsapp-connect data.error:", data.error);
+        throw new Error(data.error);
+      }
+      console.error("[wa-embedded] SUCCESS");
       return { purpose, ...sessionInfo } satisfies EmbeddedSignupResult;
     },
     onSuccess: () => {

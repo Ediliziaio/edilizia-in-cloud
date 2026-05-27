@@ -328,8 +328,18 @@ export default defineConfig(() => ({
   // in src/, alcuni con dati sensibili (tokens, payload edge function).
   // In dev restano per debug; in prod sparisce TUTTO via esbuild minifier.
   // logger.ts esiste già come wrapper safe per i log critici da preservare.
+  //
+  // 2026-05-27 (fix): preservo console.error e console.warn anche in prod —
+  // servono per debug di problemi reali (es. CSP che blocca SDK, OAuth fallito,
+  // edge function error). Le strip aggressive di TUTTI i console rendeva
+  // impossibile diagnosticare problemi che colpiscono solo gli utenti finali.
+  // Solo console.log / console.debug / console.info / console.trace vengono
+  // strippate — quelle sono i candidati "rumore" dell'audit. Errori restano.
   esbuild: {
-    drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
+    pure: process.env.NODE_ENV === "production"
+      ? ["console.log", "console.debug", "console.info", "console.trace"]
+      : [],
+    drop: process.env.NODE_ENV === "production" ? ["debugger"] : [],
   },
   build: {
     // Move generated bundles away from previously poisoned immutable cache
