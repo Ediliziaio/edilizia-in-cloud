@@ -326,9 +326,12 @@ export default function GoogleAdsConnectionCard() {
                         {operationalCustomers.map((c) => (
                           <SelectItem key={c.customer_id} value={c.customer_id}>
                             <div className="flex flex-col">
-                              <span className="font-medium">
-                                {c.descriptive_name ?? "Senza nome"}
-                                {c.is_test_account && <Badge variant="outline" className="ml-2 text-xs">Test</Badge>}
+                              <span className="font-medium flex items-center gap-2">
+                                {/* 2026-05-27: Badge spostato fuori dallo <span>
+                                    interno — Badge è un <div>, era nested HTML
+                                    invalido (warning React in dev). */}
+                                <span>{c.descriptive_name ?? "Senza nome"}</span>
+                                {c.is_test_account && <Badge variant="outline" className="text-xs">Test</Badge>}
                               </span>
                               <span className="text-xs text-muted-foreground">
                                 ID: {c.customer_id} · {c.currency_code ?? ""}

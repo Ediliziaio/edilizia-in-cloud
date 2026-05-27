@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/formatters";
+// 2026-05-27: parseDecimalIT al posto di parseFloat sui campi importo —
+// su iOS Safari il tasto virgola era bloccato da `type="number"` e
+// parseFloat tagliava il decimale italiano (es. "1.500,50" → 1.500).
+// Stesso pattern già applicato a CreateOrder/EditOrder/Cedolini/EditorRighe.
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -182,7 +187,7 @@ export function FinancialSummary({
   const [rawAmountInputs, setRawAmountInputs] = useState<Record<number, string>>({});
 
   const vat = parseFloat(vatRate) || 22;
-  const total = parseFloat(totalAmount) || 0;
+  const total = parseDecimalIT(totalAmount) || 0;
   const vatAmount = total * (vat / 100);
   const totalWithVat = total + vatAmount;
 
@@ -233,7 +238,7 @@ export function FinancialSummary({
 
   const handleTotalBlur = () => {
     if (inputMode === 'gross') {
-      const grossAmount = parseFloat(rawTotalInput) || 0;
+      const grossAmount = parseDecimalIT(rawTotalInput) || 0;
       const netAmount = grossAmount / (1 + vat / 100);
       onTotalAmountChange(netAmount > 0 ? netAmount.toFixed(2) : "");
     } else {
@@ -253,7 +258,7 @@ export function FinancialSummary({
   // Installment handlers
   const handleInstallmentAmountBlur = (position: number) => {
     const raw = rawAmountInputs[position] || "";
-    const val = parseFloat(raw) || 0;
+    const val = parseDecimalIT(raw) || 0;
     const updated = installments.map(i =>
       i.position === position ? { ...i, amount: val } : i
     );
@@ -289,7 +294,7 @@ export function FinancialSummary({
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
         <Input
-          type="number" min="0" step="0.01"
+          type="text" inputMode="decimal"
           value={rawAmountInputs[inst.position] ?? ""}
           onChange={(e) => setRawAmountInputs(prev => ({ ...prev, [inst.position]: e.target.value }))}
           onBlur={() => handleInstallmentAmountBlur(inst.position)}
@@ -385,7 +390,7 @@ export function FinancialSummary({
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
             <Input
               id="total"
-              type="number" min="0" step="0.01"
+              type="text" inputMode="decimal"
               value={rawTotalInput}
               onChange={(e) => setRawTotalInput(e.target.value)}
               onBlur={handleTotalBlur}
@@ -530,7 +535,7 @@ export function FinancialSummary({
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
                 <Input
                   id="financing-cost"
-                  type="number" min="0" step="0.01"
+                  type="text" inputMode="decimal"
                   value={rawFinancingCostInput}
                   onChange={(e) => setRawFinancingCostInput(e.target.value)}
                   onBlur={() => onFinancingCostChange?.(rawFinancingCostInput)}
