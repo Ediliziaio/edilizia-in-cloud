@@ -174,15 +174,23 @@ async function handleCallback(req: Request): Promise<Response> {
     return buildCallbackHtml("error", "Errore salvataggio connessione", state.appOrigin);
   }
 
-  // Fetch accessible customers
-  if (developerToken) {
+  // Fetch accessible customers.
+  // 2026-05-27: errore salvato in last_error (visibile in UI) invece che
+  // silenziato. Senza developer_token, la chiamata fallisce con 401: serve
+  // un Developer Token approvato da Google Ads (richiesta su ads.google.com).
+  if (!developerToken) {
+    await db.from("google_ads_connections").update({
+      last_error: "GOOGLE_ADS_DEVELOPER_TOKEN non configurato. Per usare l'API Google Ads serve un Developer Token approvato. Vai su https://ads.google.com → Strumenti → Centro API per richiederne uno, poi inseriscilo nelle impostazioni piattaforma.",
+    }).eq("id", conn.id);
+  } else {
     try {
       await fetchAndCacheCustomers(conn.id, tokens.access_token, developerToken);
+      await db.from("google_ads_connections").update({ last_error: null }).eq("id", conn.id);
     } catch (e) {
-      console.error("[google-ads-oauth] fetchCustomers failed:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[google-ads-oauth] fetchCustomers failed:", msg);
+      await db.from("google_ads_connections").update({ last_error: msg }).eq("id", conn.id);
     }
-  } else {
-    console.warn("[google-ads-oauth] GOOGLE_ADS_DEVELOPER_TOKEN missing — skip customer fetch");
   }
 
   // Mirror in integrations table for legacy compat
@@ -216,10 +224,27 @@ async function fetchAndCacheCustomers(connectionId: string, accessToken: string,
     },
   );
   if (!listRes.ok) {
-    throw new Error(`listAccessibleCustomers failed: ${listRes.status} ${await listRes.text()}`);
+    const bodyText = await listRes.text().catch(() => "");
+    // 2026-05-27: messaggio human-readable.
+    if (listRes.status === 401) {
+      throw new Error("Token OAuth non valido o scope insufficienti. Riconnetti Google Ads.");
+    }
+    if (listRes.status === 403) {
+      throw new Error(
+        "Developer Token Google Ads non valido o non approvato. " +
+        "Verifica su https://ads.google.com → Strumenti → Centro API che il token sia in stato 'Approvato' (non 'In attesa di test')."
+      );
+    }
+    throw new Error(`API Google Ads errore ${listRes.status}: ${bodyText.slice(0, 200)}`);
   }
   const listJson = await listRes.json() as { resourceNames?: string[] };
   const customerIds = (listJson.resourceNames ?? []).map((rn) => rn.replace(/^customers\//, ""));
+  if (customerIds.length === 0) {
+    throw new Error(
+      "L'account Google collegato non ha nessun account Google Ads accessibile. " +
+      "Verifica di poter vedere almeno un account su https://ads.google.com con lo stesso login."
+    );
+  }
 
   const db = admin();
   await db.from("google_ads_customers_cache").delete().eq("connection_id", connectionId);

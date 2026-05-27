@@ -308,7 +308,17 @@ export default function GbpConnectionCard() {
                 <p className="font-medium text-blue-900">Account Google collegato</p>
                 <p className="text-blue-700 text-xs mt-1">{connection?.google_account_email}</p>
               </div>
-              {locations.length === 0 ? (
+              {/* 2026-05-27: mostra last_error API dettagliato (es. "API non
+                  abilitata", "Token scaduto", "Nessuna scheda") invece del
+                  generico "Nessuna scheda trovata". */}
+              {connection?.last_error ? (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+                  <p className="font-medium text-amber-900 mb-1 flex items-center gap-1.5">
+                    <AlertTriangle className="h-4 w-4" /> Problema nel fetch schede
+                  </p>
+                  <p className="text-amber-800 text-xs whitespace-pre-wrap">{connection.last_error}</p>
+                </div>
+              ) : locations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Nessuna scheda Google Business trovata. Verifica di averne una verificata su
                   business.google.com con lo stesso account.

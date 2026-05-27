@@ -195,12 +195,18 @@ async function handleCallback(req: Request): Promise<Response> {
     return buildCallbackHtml("error", "Errore salvataggio connessione", state.appOrigin);
   }
 
-  // Fetch accounts + locations and cache them
+  // Fetch accounts + locations and cache them.
+  // 2026-05-27: errore salvato in last_error (visibile in UI) invece che
+  // silenziato — così l'utente capisce SE il fetch è fallito (es. API non
+  // abilitata sul Google Cloud Project, account senza schede GBP, ecc.).
   try {
     await fetchAndCacheLocations(conn.id, tokens.access_token);
+    // Successo: clear last_error
+    await db.from("gbp_connections").update({ last_error: null }).eq("id", conn.id);
   } catch (e) {
-    console.error("[gbp-oauth] fetchAndCacheLocations failed:", e);
-    // Non blocchiamo l'OAuth: l'utente potrà rifare il fetch dopo
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[gbp-oauth] fetchAndCacheLocations failed:", msg);
+    await db.from("gbp_connections").update({ last_error: msg }).eq("id", conn.id);
   }
 
   // Side-effect: registra anche in `integrations` table per compatibilità
@@ -232,12 +238,31 @@ async function fetchAndCacheLocations(connectionId: string, accessToken: string)
     },
   );
   if (!accountsRes.ok) {
-    throw new Error(`accounts fetch failed: ${accountsRes.status}`);
+    const bodyText = await accountsRes.text().catch(() => "");
+    // 2026-05-27: messaggio human-readable invece di solo status code.
+    // 403 = API non abilitata sul Google Cloud Project; 401 = scope mancanti.
+    if (accountsRes.status === 403) {
+      throw new Error(
+        "Google Business Profile API non abilitata sul Google Cloud Project. " +
+        "Vai su https://console.cloud.google.com → API Library → abilita " +
+        "\"My Business Account Management API\" e \"My Business Business Information API\"."
+      );
+    }
+    if (accountsRes.status === 401) {
+      throw new Error("Token OAuth non valido o scope insufficienti. Riconnetti l'account.");
+    }
+    throw new Error(`API accounts errore ${accountsRes.status}: ${bodyText.slice(0, 200)}`);
   }
   const accountsJson = await accountsRes.json() as {
     accounts?: Array<{ name: string; accountName?: string; type?: string }>;
   };
   const accounts = accountsJson.accounts ?? [];
+  if (accounts.length === 0) {
+    throw new Error(
+      "L'account Google collegato non ha nessuna scheda Google Business. " +
+      "Crea o reclama una scheda su https://business.google.com con lo stesso account."
+    );
+  }
 
   const db = admin();
   // Clear old cache
