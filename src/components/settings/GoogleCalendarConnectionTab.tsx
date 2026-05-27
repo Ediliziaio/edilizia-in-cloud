@@ -246,6 +246,16 @@ export default function GoogleCalendarConnectionTab() {
       toast.success("Slot occupati aggiornati", {
         description: `${res.data?.pulled ?? 0} eventi importati da Google Calendar.`,
       });
+      // 2026-05-27 (audit fix): invalida le query così il calendario CRM
+      // si aggiorna immediatamente con i nuovi slot Google. Prima l'utente
+      // doveva fare refresh manuale per vedere gli eventi importati.
+      queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-connection", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-settings", companyId] });
+      queryClient.invalidateQueries({ queryKey: ["unified-calendar-busy-slots", companyId] });
+      // Calendari marketing/appointments che leggono busy slots
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["marketing-calendar"] });
     } catch (e: any) {
       toast.error(e.message || "Errore sincronizzazione Google Calendar");
     } finally {

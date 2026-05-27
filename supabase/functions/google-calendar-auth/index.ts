@@ -193,16 +193,25 @@ async function handleCallback(req: Request): Promise<Response> {
       roleNames.has("company_staff");
 
     if (isSalespersonOrAdmin) {
+      // Cerca calendar esistente — sia attivo che disattivato (post-disconnect)
       const { data: existingCal } = await admin
         .from("marketing_calendars")
-        .select("id")
+        .select("id, is_active")
         .eq("company_id", state.companyId)
         .eq("owner_id", state.userId)
-        .eq("is_active", true)
+        .eq("calendar_type", "personal")
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      if (!existingCal) {
+      // Se esiste ma è disattivato (utente aveva fatto disconnect) → riattiva
+      if (existingCal && !existingCal.is_active) {
+        await admin
+          .from("marketing_calendars")
+          .update({ is_active: true, updated_at: new Date().toISOString() })
+          .eq("id", existingCal.id);
+        console.log(`[google-calendar-auth] re-activated marketing_calendar ${existingCal.id} for user ${state.userId}`);
+      } else if (!existingCal) {
         // Nome: priorità nome utente da userinfo Google, fallback profiles
         let displayName = `${userInfo.given_name ?? ""} ${userInfo.family_name ?? ""}`.trim();
         if (!displayName) {
@@ -304,6 +313,20 @@ async function handleDisconnect(req: Request, userId: string, companyId: string)
   await admin.from("google_calendar_event_map").delete().eq("company_id", companyId).eq("user_id", userId);
   await admin.from("google_calendar_settings").delete().eq("company_id", companyId).eq("user_id", userId);
   await admin.from("google_calendar_connections").delete().eq("company_id", companyId).eq("user_id", userId);
+
+  // 2026-05-27 (audit fix): marketing_calendars di tipo "personal" creati
+  // automaticamente al collegamento Google devono essere disattivati al
+  // disconnect, altrimenti altri utenti aziendali vedono un calendario
+  // "Calendario Mario" che non sincronizza più nulla → confusione.
+  // Soft-delete (is_active=false) invece di DELETE per preservare lo
+  // storico degli appointment già fissati su quel calendar.
+  // Al re-OAuth la logica auto-create riattiva is_active=true.
+  await admin
+    .from("marketing_calendars")
+    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq("company_id", companyId)
+    .eq("owner_id", userId)
+    .eq("calendar_type", "personal");
 
   return new Response(JSON.stringify({ success: true }), {
     headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
