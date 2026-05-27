@@ -51,6 +51,12 @@ declare global {
 let fbSdkPromise: Promise<void> | null = null;
 let lastInitAppId: string | null = null;
 
+// Timeout esplicito sul caricamento SDK. Senza, se il browser blocca lo script
+// silenziosamente (es. CSP, AdBlocker, network filter aziendale) la Promise
+// resta pending in eterno e l'UI mostra "Caricamento Meta..." per sempre.
+// Con timeout l'utente vede un errore comprensibile e può intervenire.
+const SDK_LOAD_TIMEOUT_MS = 10_000;
+
 function loadFacebookSdk(appId: string): Promise<void> {
   // Se l'SDK è già stato caricato per LO STESSO appId, riusiamo la Promise.
   if (fbSdkPromise && lastInitAppId === appId) return fbSdkPromise;
@@ -66,8 +72,20 @@ function loadFacebookSdk(appId: string): Promise<void> {
       return;
     }
 
+    // Timeout di sicurezza
+    const timeoutId = window.setTimeout(() => {
+      // Reset cache così un nuovo tentativo può ripartire
+      fbSdkPromise = null;
+      reject(
+        new Error(
+          "Timeout caricamento Facebook SDK (10s). Possibili cause: CSP che blocca connect.facebook.net, ad-blocker attivo, o connessione lenta. Riprova oppure usa la modalità manuale.",
+        ),
+      );
+    }, SDK_LOAD_TIMEOUT_MS);
+
     const initFB = () => {
       if (!window.FB) {
+        clearTimeout(timeoutId);
         reject(new Error("Facebook SDK non disponibile dopo il caricamento"));
         return;
       }
@@ -79,8 +97,10 @@ function loadFacebookSdk(appId: string): Promise<void> {
           version: FB_SDK_VERSION,
         });
         lastInitAppId = appId;
+        clearTimeout(timeoutId);
         resolve();
       } catch (e) {
+        clearTimeout(timeoutId);
         reject(e instanceof Error ? e : new Error(String(e)));
       }
     };
@@ -113,7 +133,15 @@ function loadFacebookSdk(appId: string): Promise<void> {
     script.async = true;
     script.defer = true;
     script.crossOrigin = "anonymous";
-    script.onerror = () => reject(new Error("Caricamento Facebook SDK fallito"));
+    script.onerror = () => {
+      clearTimeout(timeoutId);
+      fbSdkPromise = null;
+      reject(
+        new Error(
+          "Caricamento Facebook SDK fallito. Verifica che connect.facebook.net sia raggiungibile (CSP, ad-blocker, firewall).",
+        ),
+      );
+    };
     document.head.appendChild(script);
   });
 
