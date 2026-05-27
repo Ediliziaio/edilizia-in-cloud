@@ -461,7 +461,19 @@ async function updateEvent(userId: string, companyId: string, appointmentId: str
 }
 
 // ---- DELETE EVENT ----
-async function deleteEvent(userId: string, companyId: string, appointmentId: string): Promise<Response> {
+//
+// 2026-05-27: accetta `googleEventId`/`googleCalendarId` opzionali per
+// bypass del mapping lookup. Necessario per il trigger BEFORE DELETE su
+// appointments: la FK CASCADE elimina il mapping subito dopo la riga,
+// quindi quando l'edge function arriva (async) il mapping non c'è più.
+// Il trigger ora legge il mapping PRIMA del cascade e ce lo passa.
+async function deleteEvent(
+  userId: string,
+  companyId: string,
+  appointmentId: string,
+  hintEventId?: string,
+  hintCalendarId?: string,
+): Promise<Response> {
   const admin = getSupabaseAdmin();
   const conn = await getConnection(admin, userId, companyId);
   if (!conn) return json({ error: "Not connected" }, 404);
@@ -469,17 +481,24 @@ async function deleteEvent(userId: string, companyId: string, appointmentId: str
   const accessToken = await getValidAccessToken(admin, conn);
   if (!accessToken) return json({ error: "Token expired" }, 401);
 
+  // Prova prima il mapping, poi i parametri esplicit "hint" (trigger DB).
   const { data: mapping } = await admin
     .from("google_calendar_event_map")
     .select("*")
     .eq("appointment_id", appointmentId)
     .eq("user_id", userId)
     .maybeSingle();
-  if (!mapping) return json({ success: true, message: "No mapping found" });
+
+  const googleEventId = mapping?.google_event_id ?? hintEventId;
+  const googleCalendarId = mapping?.google_calendar_id ?? hintCalendarId;
+
+  if (!googleEventId || !googleCalendarId) {
+    return json({ success: true, message: "No mapping or hint found" });
+  }
 
   try {
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(mapping.google_calendar_id!)}/events/${encodeURIComponent(mapping.google_event_id)}`,
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(googleCalendarId)}/events/${encodeURIComponent(googleEventId)}`,
       {
         method: "DELETE",
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -488,13 +507,23 @@ async function deleteEvent(userId: string, companyId: string, appointmentId: str
     );
     if (!res.ok && res.status !== 404 && res.status !== 410) {
       const errText = await res.text();
-      console.error("Delete event failed:", errText);
+      console.error("Delete event failed:", res.status, errText);
     }
   } catch (e) {
     console.error("Delete event error:", e);
   }
 
-  await admin.from("google_calendar_event_map").delete().eq("id", mapping.id);
+  // Cleanup mapping (idempotente: se cascade l'ha già eliminato, no-op)
+  if (mapping) {
+    await admin.from("google_calendar_event_map").delete().eq("id", mapping.id);
+  }
+  // Cleanup busy_slot orfano locale per quel google_event_id
+  await admin
+    .from("google_calendar_busy_slots")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("user_id", userId)
+    .eq("google_event_id", googleEventId);
 
   return json({ success: true });
 }
@@ -1127,7 +1156,7 @@ Deno.serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     let userId: string;
-    const { companyId, appointmentId } = body;
+    const { companyId, appointmentId, googleEventId, googleCalendarId } = body;
 
     if (token === serviceRoleKey) {
       // Called from PostgreSQL trigger via pg_net with service_role_key
@@ -1168,7 +1197,7 @@ Deno.serve(async (req) => {
         return updateEvent(userId, companyId, appointmentId);
       case "delete-event":
         if (!appointmentId) return json({ error: "appointmentId required" }, 400);
-        return deleteEvent(userId, companyId, appointmentId);
+        return deleteEvent(userId, companyId, appointmentId, googleEventId, googleCalendarId);
       case "full-sync":
         return fullSync(userId, companyId);
       case "reconcile": {
