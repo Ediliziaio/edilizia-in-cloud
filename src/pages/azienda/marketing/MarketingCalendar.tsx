@@ -77,7 +77,11 @@ export default function MarketingCalendar() {
     ? "/admin/impostazioni/calendari"
     : "/azienda/impostazioni/calendari";
 
-  // Fetch Google busy slots for marketing calendar overlay
+  // Fetch Google busy slots for marketing calendar overlay.
+  // 2026-05-26: enabled allargato a `hasGoogleConnection` (era isGoogleConnected
+  // che richiedeva anche primary_calendar_id != null). Adesso il sync function
+  // setta automaticamente "primary" come default, ma se la query partiva prima
+  // del sync iniziale, restava disabilitata fino a hard refresh.
   const { data: googleBusySlots = [], error: googleBusyError, refetch: refetchGoogleBusySlots } = useQuery({
     queryKey: ["gcal-busy-slots", companyId],
     queryFn: async () => {
@@ -89,7 +93,7 @@ export default function MarketingCalendar() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!companyId && isGoogleConnected,
+    enabled: !!companyId && googleSync.hasGoogleConnection,
     staleTime: 2 * 60 * 1000,
   });
 
@@ -182,6 +186,63 @@ export default function MarketingCalendar() {
       userFiltersInitialized.current = true;
     }
   }, [calendars, users]);
+
+  // 2026-05-26: Realtime bidirezionale.
+  //
+  // Quando il webhook Google notifica un cambiamento (evento creato/modificato/
+  // cancellato su Google Calendar), la edge function `google-calendar-webhook`
+  // aggiorna la tabella `google_calendar_busy_slots`. Con questo listener
+  // Supabase Realtime invalidiamo la cache UI in tempo reale → l'utente vede
+  // gli eventi Google senza ricaricare la pagina.
+  //
+  // Stesso pattern per `appointments`: se un collega crea un appuntamento da
+  // un altro device, lo vediamo apparire istantaneamente.
+  useEffect(() => {
+    if (!companyId) return;
+    const channel = supabase
+      .channel(`marketing-calendar-realtime-${companyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "google_calendar_busy_slots",
+          filter: `company_id=eq.${companyId}`,
+        },
+        () => {
+          // Debounce naturale via React Query: invalidate accoda la refetch
+          void queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots", companyId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "apple_calendar_busy_slots",
+          filter: `company_id=eq.${companyId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["apple-busy-slots", companyId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+          filter: `company_id=eq.${companyId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ["marketing-appointments", companyId] });
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [companyId, queryClient]);
 
   // Compute date range for query based on view
   const dateRange = useMemo(() => {
@@ -667,27 +728,55 @@ export default function MarketingCalendar() {
     queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
   }, [refetchAppointments, queryClient, companyId, syncExternalCalendarsForAppointment]);
 
+  // 2026-05-26: il sync resta INLINE — niente più navigate. Se non c'è
+  // connessione mostriamo solo toast con CTA "Apri impostazioni" che apre
+  // in nuova tab così l'utente non perde la posizione sul calendario.
+  // Inoltre tentiamo comunque il sync anche quando isGoogleConnected
+  // ritorna false ma hasGoogleConnection è true (caso primary_calendar_id
+  // NULL → la sync function ora ha default 'primary' lato edge).
   const handleSyncExternalCalendars = useCallback(async () => {
-    const hasExternalConnection = googleSync.isGoogleConnected || appleSync.isAppleConnected;
-    if (!hasExternalConnection) {
-      toast.info("Collega prima Google Calendar o Apple Calendar");
-      navigate(`${calendarSettingsPath}?tab=connections`);
+    const hasAny = googleSync.hasGoogleConnection || appleSync.hasAppleConnection;
+    if (!hasAny) {
+      toast("Nessun calendario esterno collegato", {
+        description: "Collega Google Calendar o Apple Calendar dalle impostazioni del tuo profilo.",
+        action: {
+          label: "Apri impostazioni",
+          onClick: () => {
+            window.open(`${calendarSettingsPath}?tab=calendari`, "_blank", "noopener");
+          },
+        },
+      });
       return;
     }
 
     setSyncingExternal(true);
     try {
       const tasks: Promise<unknown>[] = [];
-      if (googleSync.isGoogleConnected) tasks.push(googleSync.pullBusySlots());
-      if (appleSync.isAppleConnected) tasks.push(appleSync.pullBusySlots());
+      if (googleSync.hasGoogleConnection) tasks.push(googleSync.pullBusySlots());
+      if (appleSync.hasAppleConnection) tasks.push(appleSync.pullBusySlots());
 
-      await Promise.allSettled(tasks);
+      const results = await Promise.allSettled(tasks);
+      const failed = results.filter((r) => r.status === "rejected").length;
+
       await Promise.allSettled([
         refetchGoogleBusySlots(),
         refetchAppleBusySlots(),
         refetchAppointments(),
       ]);
-      toast.success("Calendari esterni sincronizzati");
+
+      if (failed === 0) {
+        toast.success("Sincronizzazione completata", {
+          description: "Calendari esterni aggiornati.",
+        });
+      } else if (failed < results.length) {
+        toast.warning("Sync parziale", {
+          description: `${failed} su ${results.length} provider con errori. Verifica il collegamento.`,
+        });
+      } else {
+        toast.error("Sincronizzazione non riuscita", {
+          description: "Riprova tra poco o riconnetti il calendario dalle impostazioni.",
+        });
+      }
     } finally {
       setSyncingExternal(false);
     }
@@ -695,7 +784,6 @@ export default function MarketingCalendar() {
     appleSync,
     calendarSettingsPath,
     googleSync,
-    navigate,
     refetchAppleBusySlots,
     refetchAppointments,
     refetchGoogleBusySlots,
