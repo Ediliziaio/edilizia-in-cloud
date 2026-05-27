@@ -71,12 +71,30 @@ export default function CompanyDetail() {
   const requestedTab = searchParams.get("tab") || "panoramica";
   const safeRequestedTab = COMPANY_TABS.has(requestedTab) ? requestedTab : "panoramica";
   const [activeTab, setActiveTab] = useState(safeRequestedTab);
+
+  // PERF: lazy-mount tab content. Radix Tabs.Content monta sempre tutti i
+  // children React anche se nascosti via CSS → tutti gli hook (useQuery) di
+  // tutti i 16 tab girano in parallelo all'apertura della pagina, anche se
+  // ne vedi uno solo. Con `visitedTabs` montiamo solo i tab che l'utente apre,
+  // mantenendoli in cache per i ritorni futuri (no refetch su back-forward).
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
+    () => new Set([safeRequestedTab]),
+  );
+  const isTabMounted = (tab: string) => visitedTabs.has(tab);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [overrideDialogOpen, setOverrideDialogOpen] = useState(false);
 
   useEffect(() => {
     setActiveTab(safeRequestedTab);
+    // Aggiunge il tab al cache di visitati quando viene attivato via URL
+    // (navigazione browser back/forward o link diretto).
+    setVisitedTabs((prev) => {
+      if (prev.has(safeRequestedTab)) return prev;
+      const next = new Set(prev);
+      next.add(safeRequestedTab);
+      return next;
+    });
   }, [safeRequestedTab]);
 
   if (!permissions.can_manage_companies) return <AccessDenied />;
@@ -145,6 +163,12 @@ export default function CompanyDetail() {
 
   const selectTab = (tab: string) => {
     setActiveTab(tab);
+    setVisitedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (tab === "panoramica") next.delete("tab");
@@ -336,8 +360,12 @@ export default function CompanyDetail() {
           </TabsTrigger>
         </TabsList>
 
+        {/* LAZY MOUNT: ogni tab content è renderizzato SOLO se l'utente l'ha
+            visitato almeno una volta (visitedTabs Set). Una volta visitato,
+            resta montato in cache → switching back/forward gratis. Questo
+            riduce le query parallele iniziali da ~15 a 1-2 (-90%). */}
         <TabsContent value="panoramica">
-          <CompanyOverviewTab
+          {isTabMounted("panoramica") && <CompanyOverviewTab
             companyId={h.company.id}
             stats={h.stats} totalTeam={totalTeam}
             recentOrders={h.recentOrders} recentTickets={h.recentTickets}
@@ -350,20 +378,20 @@ export default function CompanyDetail() {
             onExtendTrial={(days) => h.extendTrialMutation.mutate(days)}
             isExtendingTrial={h.extendTrialMutation.isPending}
             onNavigateToTab={selectTab}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="dettagli">
-          <CompanyDetailsTab
+          {isTabMounted("dettagli") && <CompanyDetailsTab
             company={h.company} form={h.form} onSubmit={h.onSaveDetails}
             isSaving={h.isSaving} sameAsLegal={h.sameAsLegal} onSameAsLegalChange={h.setSameAsLegal}
             currentPlanName={h.currentPlan?.name || null} stats={h.stats} totalTeam={totalTeam}
             onLogoUpdated={() => h.refetch()}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="team">
-          <CompanyTeamTab
+          {isTabMounted("team") && <CompanyTeamTab
             teamData={h.teamData} totalTeam={totalTeam}
             onCreateStaff={() => h.setCreateStaffOpen(true)}
             onCreateSalesperson={() => h.setCreateSalespersonOpen(true)}
@@ -376,21 +404,21 @@ export default function CompanyDetail() {
             isResettingPassword={isResettingPassword}
             isRefreshing={h.isTeamFetching}
             onRefresh={() => void h.refreshTeamData()}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="saas">
-          <CompanySaaSTab
+          {isTabMounted("saas") && <CompanySaaSTab
             currentPlan={h.currentPlan} stats={h.stats}
             includedModules={includedModules} plans={h.plans} companyPlanId={h.company.subscription_plan_id}
             companyId={h.company.id}
             company={h.company}
             onNavigateToTab={selectTab}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="abbonamento">
-          <CompanySubscriptionTab
+          {isTabMounted("abbonamento") && <CompanySubscriptionTab
             company={h.company} currentPlan={h.currentPlan}
             currentSubscription={h.currentSubscription} subscriptionLogs={h.subscriptionLogs}
             onChangePlan={() => h.setChangePlanDialog(true)}
@@ -404,47 +432,47 @@ export default function CompanyDetail() {
             onGenerateCheckout={h.handleCreateCheckout}
             isGeneratingCheckout={h.createCheckoutMutation.isPending}
             checkoutUrl={h.checkoutUrl}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="attivita">
-          <CompanyActivityTab companyId={h.company.id} />
+          {isTabMounted("attivita") && <CompanyActivityTab companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="billing">
-          <CompanyBillingTab companyId={h.company.id} />
+          {isTabMounted("billing") && <CompanyBillingTab companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="note">
-          <CompanyNotes companyId={h.company.id} />
+          {isTabMounted("note") && <CompanyNotes companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="lifecycle">
-          <TabLifecycle companyId={h.company.id} />
+          {isTabMounted("lifecycle") && <TabLifecycle companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="comunicazioni">
-          <TabComunicazioni companyId={h.company.id} />
+          {isTabMounted("comunicazioni") && <TabComunicazioni companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="email">
-          <CompanyEmailTab companyId={h.company.id} companyName={h.company.name} />
+          {isTabMounted("email") && <CompanyEmailTab companyId={h.company.id} companyName={h.company.name} />}
         </TabsContent>
 
         <TabsContent value="supporto">
-          <TabSupporto companyId={h.company.id} />
+          {isTabMounted("supporto") && <TabSupporto companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="onboarding">
-          <TabOnboarding companyId={h.company.id} />
+          {isTabMounted("onboarding") && <TabOnboarding companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="whitelabel">
-          <TabWhiteLabel companyId={h.company.id} />
+          {isTabMounted("whitelabel") && <TabWhiteLabel companyId={h.company.id} />}
         </TabsContent>
 
         <TabsContent value="audit">
-          <AuditLogTab companyId={h.company.id} />
+          {isTabMounted("audit") && <AuditLogTab companyId={h.company.id} />}
         </TabsContent>
       </Tabs>
 
