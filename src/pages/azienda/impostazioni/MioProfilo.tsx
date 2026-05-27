@@ -16,6 +16,7 @@ import {
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
   BellRing, MessageSquare, FileText, Briefcase, Calendar, AlarmClock,
   Inbox, UserPlus, BellOff, MailCheck, Settings2, EyeOff as EyeOffIcon,
+  AlertTriangle,
 } from "lucide-react";
 import GoogleCalendarSyncPrefsDialog from "@/components/settings/GoogleCalendarSyncPrefsDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -866,10 +867,18 @@ export default function MioProfilo() {
                     <CardDescription>Sincronizza eventi e disponibilità</CardDescription>
                   </div>
                 </div>
+                {/* 2026-05-27: badge stato accurato — verde solo se status="connected".
+                    token_expired/error → giallo "Da rinnovare" per non mentire all'utente. */}
                 {googleConn ? (
-                  <Badge variant="default" className="bg-green-100 text-green-700 border-green-200 gap-1">
-                    <Check className="h-3 w-3" /> Connesso
-                  </Badge>
+                  googleConn.status === "connected" ? (
+                    <Badge variant="default" className="bg-green-100 text-green-700 border-green-200 gap-1">
+                      <Check className="h-3 w-3" /> Connesso
+                    </Badge>
+                  ) : (
+                    <Badge variant="default" className="bg-amber-100 text-amber-700 border-amber-200 gap-1">
+                      <AlertTriangle className="h-3 w-3" /> Da rinnovare
+                    </Badge>
+                  )
                 ) : (
                   <Badge variant="secondary">Non connesso</Badge>
                 )}
@@ -878,20 +887,69 @@ export default function MioProfilo() {
             <CardContent>
               {googleConn ? (
                 <div className="space-y-4">
-                  <div className="rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <span className="font-medium text-green-800 dark:text-green-300 text-sm">Calendario collegato</span>
-                    </div>
-                    <p className="text-xs text-green-700 dark:text-green-400">
-                      Account: {googleConn.google_account_email ?? "Google Account"}
-                    </p>
-                    {googleConn.last_sync_at && (
-                      <p className="text-xs text-green-600/70 mt-1">
-                        Ultima sync: {format(new Date(googleConn.last_sync_at), "d MMM yyyy, HH:mm", { locale: it })}
-                      </p>
-                    )}
-                  </div>
+                  {/* 2026-05-27: stato connessione differenziato.
+                      - status=connected → card verde con email reale
+                      - status=token_expired/error → card amber con prompt
+                        "Riconnetti" e mostra last_error se presente.
+                      - email NULL = connessione legacy bug encrypt (vedi commit
+                        189ae73e3): mostra hint chiaro all'utente. */}
+                  {(() => {
+                    const isHealthy = googleConn.status === "connected";
+                    const email = googleConn.google_account_email;
+                    const hasEmail = !!email && email.trim() !== "";
+                    return (
+                      <div className={`rounded-lg border p-4 ${
+                        isHealthy
+                          ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900"
+                          : "bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-900"
+                      }`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          {isHealthy ? (
+                            <Check className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          )}
+                          <span className={`font-medium text-sm ${
+                            isHealthy
+                              ? "text-green-800 dark:text-green-300"
+                              : "text-amber-800 dark:text-amber-300"
+                          }`}>
+                            {isHealthy ? "Calendario collegato" : "Connessione da rinnovare"}
+                          </span>
+                        </div>
+                        <p className={`text-xs ${
+                          isHealthy
+                            ? "text-green-700 dark:text-green-400"
+                            : "text-amber-700 dark:text-amber-400"
+                        }`}>
+                          Account: <strong>{hasEmail ? email : "non rilevato"}</strong>
+                          {!hasEmail && (
+                            <span className="ml-1 italic text-amber-700/80">
+                              (l'email non era stata salvata correttamente — clicca "Disconnetti" e poi "Connetti" per fixare)
+                            </span>
+                          )}
+                        </p>
+                        {!isHealthy && googleConn.last_error && (
+                          <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-2 leading-snug">
+                            <strong>Errore:</strong> {googleConn.last_error}
+                          </p>
+                        )}
+                        {googleConn.last_sync_at ? (
+                          <p className={`text-xs mt-1 ${
+                            isHealthy ? "text-green-600/70" : "text-amber-600/70"
+                          }`}>
+                            Ultima sync: {format(new Date(googleConn.last_sync_at), "d MMM yyyy, HH:mm", { locale: it })}
+                          </p>
+                        ) : (
+                          <p className={`text-xs mt-1 italic ${
+                            isHealthy ? "text-green-600/70" : "text-amber-600/70"
+                          }`}>
+                            Mai sincronizzato — clicca "Sincronizza ora" per il primo import.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {googleSettings && (
                     <div className="text-sm space-y-1">
                       <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Impostazioni sync</p>
