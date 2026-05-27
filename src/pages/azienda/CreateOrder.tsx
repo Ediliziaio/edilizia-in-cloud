@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { logger } from "@/utils/logger";
+import { friendlyPostgresError } from "@/lib/postgresErrors";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -486,9 +487,14 @@ function CreateOrderInner() {
       navigate(`/azienda/ordini/${order.id}`);
     },
     onError: (error) => {
-      toast.error("Errore", {
-        description: error instanceof Error ? error.message : "Si è verificato un errore durante la creazione della commessa.",
+      // 2026-05-27 (audit fix P1): mapping errori postgres → messaggi
+      // italiani user-friendly. Prima l'utente edile vedeva stringhe come
+      // "duplicate key value violates unique constraint orders_order_code_key"
+      // senza capire cosa fare.
+      const { title, description } = friendlyPostgresError(error, {
+        operation: "creazione commessa",
       });
+      toast.error(title, { description });
       logger.error("Create order error:", error);
     },
   });

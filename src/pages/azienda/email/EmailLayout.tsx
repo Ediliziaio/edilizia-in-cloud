@@ -10,7 +10,7 @@
  *
  * Mobile: stack layout, navigazione tra pannelli con pulsanti back.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -167,14 +167,19 @@ export function EmailLayout({
   }, [queryCustomerEmail, queryThreadId]);
 
   // Realtime: nuova email arrivata → invalidate query + toast.
-  // 2026-05-26 (audit fix P1-6): durante backfill iniziale o triage AI,
-  // arrivano UPDATE a cascata. Prima la pagina ri-fetchava email-thread-messages
-  // ad ogni UPDATE → UI a singhiozzo. Ora:
-  //   - INSERT: invalida liste, mostra toast SOLO se vera "nuova email"
-  //     (è un messaggio non triage-only e arrivato ≤ 60s fa)
-  //   - UPDATE: invalida liste/counts. Invalida email-thread-messages
-  //     SOLO se l'update riguarda il thread attualmente aperto.
-  // Debounce 800ms per i counter così update raffiche AI non saturano UI.
+  // 2026-05-27 (perf fix P1): channel ref-stable.
+  // PRIMA: `selectedThreadId` era nelle deps → ogni click su un thread
+  // diverso scatenava un cleanup channel + new subscribe (handshake WS
+  // round-trip Supabase Realtime, ~200-500ms). Su navigazione veloce
+  // tra thread = WS in costante rinegoziazione + memory leak teorico.
+  // ORA: channel creato una volta sola per utente. `selectedThreadId`
+  // letto via useRef.current dentro l'handler → niente più re-sub.
+  // Debounce 800ms preservato.
+  const selectedThreadIdRef = useRef(selectedThreadId);
+  useEffect(() => {
+    selectedThreadIdRef.current = selectedThreadId;
+  }, [selectedThreadId]);
+
   useEffect(() => {
     if (!userId) return;
     let countersTimer: ReturnType<typeof setTimeout> | null = null;
@@ -200,8 +205,6 @@ export function EmailLayout({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const m = payload.new as any;
           scheduleCountersInvalidation();
-          // Toast solo se ricevuta nei 60s precedenti (vera nuova email,
-          // non un INSERT da backfill di vecchie email).
           const receivedAt = m?.received_at ? new Date(m.received_at).getTime() : 0;
           const isRecent = receivedAt > Date.now() - 60_000;
           if (isRecent && (m?.from_name || m?.from_email)) {
@@ -222,11 +225,13 @@ export function EmailLayout({
         },
         (payload) => {
           scheduleCountersInvalidation();
-          // Invalida i messaggi del thread aperto SOLO se l'update lo riguarda.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const updatedThreadId = (payload.new as any)?.thread_id ?? null;
-          if (selectedThreadId && updatedThreadId === selectedThreadId) {
-            void qc.invalidateQueries({ queryKey: ["email-thread-messages", selectedThreadId] });
+          // Read da ref → handler funziona senza re-subscribe quando
+          // l'utente cambia thread aperto.
+          const currentThread = selectedThreadIdRef.current;
+          if (currentThread && updatedThreadId === currentThread) {
+            void qc.invalidateQueries({ queryKey: ["email-thread-messages", currentThread] });
           }
         },
       )
@@ -235,7 +240,7 @@ export function EmailLayout({
       if (countersTimer) clearTimeout(countersTimer);
       void supabase.removeChannel(channel);
     };
-  }, [userId, qc, selectedThreadId]);
+  }, [userId, qc]);
 
   // Connessioni email dell'utente
   const { data: connections } = useQuery({
