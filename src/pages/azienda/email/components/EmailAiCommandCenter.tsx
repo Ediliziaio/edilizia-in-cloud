@@ -227,11 +227,12 @@ export function EmailAiCommandCenter({
     return { priority, commercial, supplier, admin };
   }, [queue]);
 
-  // Collassabile: default CHIUSO per non occupare spazio prezioso sopra la list.
-  // Auto-apre se ci sono urgenti (l'utente DEVE vederli).
+  // Collassabile: default CHIUSO sempre, finché l'utente non clicca il chevron.
+  // Niente auto-apertura su urgenti — feedback utente: "non sempre serve, voglio
+  // controllarla io con la freccia". Gli urgenti restano comunque visibili come
+  // chip nell'header e come badge nella sidebar principale.
   const [expanded, setExpanded] = useState(false);
-  const hasUrgent = metrics.priority > 0;
-  const showBody = expanded || hasUrgent;
+  const showBody = expanded;
   // Pillole compatte mostrate nell'header (sempre visibili anche da chiuso)
   // per dare un'occhiata immediata ai numeri senza dover espandere.
   const summaryChips = [
