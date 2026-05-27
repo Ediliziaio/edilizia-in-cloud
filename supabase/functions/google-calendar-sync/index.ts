@@ -687,15 +687,127 @@ async function reconcilePrimary(userId: string, companyId: string): Promise<{ cr
   return { created, updated, removed };
 }
 
+/**
+ * 2026-05-27 (cleanup duplicati): scansiona gli eventi Google del primary
+ * calendar che hanno `crm_appointment_id=X` in description. Per ogni X,
+ * trova in `google_calendar_event_map` il mapping CORRETTO (il primo
+ * inserito) e CANCELLA da Google tutti gli altri eventi con stesso
+ * appointment_id ma google_event_id diverso.
+ *
+ * Necessario per pulire i duplicati causati dal bug pre-fix dove
+ * trigger pg_net + frontend creavano in parallelo più eventi Google
+ * per lo stesso appuntamento CRM.
+ *
+ * Idempotente: se non ci sono duplicati ritorna { cleaned: 0 }.
+ */
+async function cleanupCrmDuplicates(userId: string, companyId: string): Promise<{ cleaned: number }> {
+  const admin = getSupabaseAdmin();
+  const conn = await getConnection(admin, userId, companyId);
+  if (!conn) return { cleaned: 0 };
+
+  const accessToken = await getValidAccessToken(admin, conn);
+  if (!accessToken) return { cleaned: 0 };
+
+  const settings = await getSettings(admin, userId, companyId);
+  const calId = settings?.primary_calendar_id;
+  if (!calId) return { cleaned: 0 };
+
+  // Lista eventi Google nella finestra utile
+  const now = new Date();
+  const timeMin = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const timeMax = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString();
+  const params = new URLSearchParams({
+    timeMin,
+    timeMax,
+    singleEvents: "true",
+    maxResults: "500",
+  });
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params}`,
+    { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15000) }
+  );
+  if (!res.ok) return { cleaned: 0 };
+  const data = await res.json();
+  const items: any[] = data.items || [];
+
+  // Raggruppa eventi CRM-originated per crm_appointment_id
+  const groups = new Map<string, any[]>();
+  for (const e of items) {
+    if (e.status === "cancelled") continue;
+    const desc = e.description || "";
+    const m = desc.match(/crm_appointment_id=([0-9a-f-]{36})/i);
+    if (!m) continue;
+    const aptId = m[1];
+    if (!groups.has(aptId)) groups.set(aptId, []);
+    groups.get(aptId)!.push(e);
+  }
+
+  let cleaned = 0;
+  for (const [aptId, events] of groups.entries()) {
+    if (events.length <= 1) continue;
+
+    // Trova il mapping CRM ufficiale per quell'appointment
+    const { data: mapping } = await admin
+      .from("google_calendar_event_map")
+      .select("google_event_id")
+      .eq("appointment_id", aptId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const officialId = mapping?.google_event_id ?? events[0].id; // fallback: tieni il primo
+
+    // Cancella da Google tutti gli altri
+    for (const e of events) {
+      if (e.id === officialId) continue;
+      try {
+        const delRes = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${encodeURIComponent(e.id)}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(15000),
+          }
+        );
+        if (delRes.ok || delRes.status === 404 || delRes.status === 410) {
+          // anche se 404/410 (già gone), pulisco i busy_slots locali
+          await admin
+            .from("google_calendar_busy_slots")
+            .delete()
+            .eq("company_id", companyId)
+            .eq("user_id", userId)
+            .eq("google_event_id", e.id);
+          cleaned++;
+        } else {
+          console.warn(`cleanupCrmDuplicates: delete failed for ${e.id} status=${delRes.status}`);
+        }
+      } catch (err) {
+        console.warn(`cleanupCrmDuplicates: error deleting ${e.id}`, err);
+      }
+    }
+  }
+
+  return { cleaned };
+}
+
 // ---- FULL SYNC ----
 async function fullSync(userId: string, companyId: string): Promise<Response> {
+  // 2026-05-27: prima del pull, pulisci duplicati CRM creati dal bug
+  // pre-fix (trigger + frontend in race). Idempotente: 0 cleaned se OK.
+  const dupResult = await cleanupCrmDuplicates(userId, companyId);
+
   const pullRes = await pullBusySlots(userId, companyId);
   const pullData = await pullRes.json();
 
   // Run two-way reconciliation if enabled
   const reconcileResult = await reconcilePrimary(userId, companyId);
 
-  return json({ ...pullData, reconcile: reconcileResult, action: "full-sync" });
+  return json({
+    ...pullData,
+    reconcile: reconcileResult,
+    duplicatesCleaned: dupResult.cleaned,
+    action: "full-sync",
+  });
 }
 
 // ---- HELPERS ----
