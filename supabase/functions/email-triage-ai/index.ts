@@ -100,6 +100,124 @@ interface TriageResult {
   suggested_action: string;
 }
 
+/**
+ * 2026-05-27 (perfezione iter 21): rule-based pre-filter.
+ *
+ * Prima ogni email arrivata triggrava una chiamata LLM (~2¢ a email
+ * con gpt-4o-mini, ~$60/mese per 100 email/giorno). La maggior parte
+ * delle email triagiate finivano in "spam" o "altro" — categorie
+ * ovvie deducibili senza AI.
+ *
+ * Questo helper applica regole deterministiche su casi ad alta confidenza
+ * (>0.9). Se matcha, restituisce un TriageResult senza chiamare l'LLM.
+ * Risparmio stimato: 40-60% delle chiamate LLM sul triage email.
+ *
+ * Casi gestiti:
+ *  1. Sender no-reply / notification / mailer-daemon → spam_block
+ *  2. Subject prefix tipico newsletter ([Newsletter], **Promo**) → spam
+ *  3. Sender da dominio social noto (linkedin, twitter, facebook) → spam (notifiche)
+ *  4. Body con header "List-Unsubscribe" indicatore newsletter → spam
+ *  5. Subject "Out of office / Risposta automatica" → archivia
+ *
+ * NON gestisce casi commerciali ambigui — quelli vanno comunque all'LLM.
+ */
+function ruleBasedTriage(
+  fromEmail: string,
+  subject: string,
+  bodyText: string,
+): TriageResult | null {
+  const from = (fromEmail || "").toLowerCase();
+  const sub = (subject || "").toLowerCase();
+  const body = (bodyText || "").toLowerCase();
+
+  // Local-part email (prima del @)
+  const localPart = from.split("@")[0] ?? "";
+  const domain = from.split("@")[1] ?? "";
+
+  // 1. No-reply / sistema (alta confidenza spam/notifica)
+  const noReplyPrefixes = [
+    "no-reply", "noreply", "no_reply", "donotreply", "do-not-reply",
+    "mailer-daemon", "postmaster", "bounce", "bounces", "auto-reply",
+    "notification", "notifications", "alerts", "alert",
+  ];
+  if (noReplyPrefixes.some((p) => localPart.includes(p))) {
+    return {
+      category: "spam",
+      priority: "nessuna",
+      summary: "Notifica automatica (no-reply / sistema)",
+      extracted: { rule: "no_reply_sender" },
+      suggested_action: "archivia",
+    };
+  }
+
+  // 2. Domini social/notifica noti (alto volume, basso valore)
+  const socialNotificationDomains = [
+    "linkedin.com", "facebookmail.com", "twitter.com", "x.com",
+    "instagram.com", "tiktok.com", "pinterest.com",
+    "googlegroups.com", "github.com",
+  ];
+  if (socialNotificationDomains.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+    return {
+      category: "spam",
+      priority: "nessuna",
+      summary: `Notifica social (${domain})`,
+      extracted: { rule: "social_notification_domain", domain },
+      suggested_action: "archivia",
+    };
+  }
+
+  // 3. Newsletter prefix nel subject
+  const newsletterPatterns = [
+    /^\s*\[newsletter/i, /^\s*\[promo/i, /^\s*\[offerta/i, /^\s*\[deal/i,
+    /^\s*newsletter\s*[-:|]/i, /unsubscribe/i,
+  ];
+  if (newsletterPatterns.some((re) => re.test(subject))) {
+    return {
+      category: "spam",
+      priority: "nessuna",
+      summary: "Newsletter / promozione",
+      extracted: { rule: "newsletter_subject_pattern" },
+      suggested_action: "archivia",
+    };
+  }
+
+  // 4. Out-of-office / auto-reply (basso valore commerciale, archiviabile)
+  const oooPatterns = [
+    /\bout of office\b/i, /\bautoresponder\b/i,
+    /\brisposta automatica\b/i, /\bauto-?risposta\b/i,
+    /\bsono in ferie\b/i, /\bsono fuori sede\b/i,
+  ];
+  if (oooPatterns.some((re) => re.test(subject) || re.test(body.substring(0, 500)))) {
+    return {
+      category: "altro",
+      priority: "bassa",
+      summary: "Risposta automatica / out-of-office",
+      extracted: { rule: "out_of_office" },
+      suggested_action: "archivia",
+    };
+  }
+
+  // 5. List-Unsubscribe header trace nel body (newsletter mass-mailer)
+  // Spesso il body delle newsletter ha un footer "Se non vuoi più ricevere..."
+  const unsubscribeFooterPatterns = [
+    /\bse non vuoi più ricevere\b/i, /\bclicca qui per disiscriverti\b/i,
+    /\bunsubscribe from this list\b/i, /\bgestisci le tue preferenze\b/i,
+  ];
+  // Cerca solo nel footer (ultimi 1500 char) per ridurre falsi positivi
+  const footer = body.substring(Math.max(0, body.length - 1500));
+  if (unsubscribeFooterPatterns.some((re) => re.test(footer))) {
+    return {
+      category: "spam",
+      priority: "nessuna",
+      summary: "Newsletter (rilevato footer unsubscribe)",
+      extracted: { rule: "unsubscribe_footer" },
+      suggested_action: "archivia",
+    };
+  }
+
+  return null;
+}
+
 async function resolveCompanyByToEmail(
   supa: SupabaseClient,
   toEmail: string,
@@ -135,6 +253,16 @@ async function triageOneEmail(
   bodyText: string,
   fromEmail: string,
 ): Promise<TriageResult | null> {
+  // 2026-05-27 (perfezione iter 21): rule-based gate prima dell'LLM.
+  // Se l'email è ovviamente spam/notifica/newsletter → skip AI, risparmia
+  // ~2¢ a email. Cases ambigui (lead, preventivo, fornitore) vanno
+  // comunque all'LLM perché serve estrarre nome/telefono/importo.
+  const ruleResult = ruleBasedTriage(fromEmail, subject, bodyText);
+  if (ruleResult) {
+    console.log(`[email-triage] rule-based skip-llm: ${emailId} → ${ruleResult.category} (${(ruleResult.extracted as { rule?: string })?.rule})`);
+    return ruleResult;
+  }
+
   const truncBody = (bodyText ?? "").substring(0, 4000);
   const messages = [
     { role: "system" as const, content: SYSTEM_PROMPT_TRIAGE },
