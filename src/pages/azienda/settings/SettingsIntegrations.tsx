@@ -4,12 +4,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Search, Mail, Phone, AlertTriangle, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2, Save, Loader2, Star, Link2, Megaphone } from "lucide-react";
+import { Search, Mail, Phone, AlertTriangle, Plug, CheckCircle2, Activity, ShieldCheck, XCircle, Share2, Save, Loader2, Star, Link2, Megaphone, Calendar as CalendarIconLucide } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 // 🆕 GAP 7b: card connessioni OAuth Gmail/Outlook native
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
+// 2026-05-27 (user request): embed inline dei componenti Calendar nella
+// pagina /impostazioni/integrazioni invece di navigate a /impostazioni/calendari.
+// L'utente vuole vedere l'elenco calendari + disconnect direttamente qui.
+import GoogleCalendarConnectionTab from "@/components/settings/GoogleCalendarConnectionTab";
+import AppleCalendarConnectionTab from "@/components/settings/AppleCalendarConnectionTab";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -558,20 +563,12 @@ export default function SettingsIntegrations() {
 
   const mainIntegrations = useMemo(() => {
     const items = [
-      {
-        provider: "google_calendar" as const,
-        name: "Google Calendar",
-        description: "Sincronizza appuntamenti e blocca slot occupati.",
-        integration: gcalIntegrationLike,
-        stats: null as { pages: number; forms: number } | null,
-      },
-      {
-        provider: "apple_calendar" as const,
-        name: "Apple Calendar (iCloud)",
-        description: "Sincronizza appuntamenti e blocca slot occupati tramite CalDAV/iCloud.",
-        integration: appleCalIntegrationLike,
-        stats: null as { pages: number; forms: number } | null,
-      },
+      // 2026-05-27 (user request): Google Calendar + Apple Calendar rimossi
+      // da `mainIntegrations` (che redirige a /impostazioni/calendari) e
+      // sostituiti da `<GoogleCalendarConnectionTab />` + `<AppleCalendarConnectionTab />`
+      // embeddati inline più in basso (vedi sezione "Calendari"). L'utente
+      // vede subito l'elenco calendari, sync, disconnect — niente più
+      // redirect.
       // 2026-05-27 (user request): rimossa card Google Ads con dialog manuale
       // "Customer ID a 10 cifre". L'utente preferiva il flow OAuth (un click +
       // popup Google) della GoogleAdsConnectionCard più in basso. La card
@@ -871,6 +868,20 @@ export default function SettingsIntegrations() {
       {/* Email OAuth — SPOSTATO 2026-05-27 in MioProfilo.tsx perché è una
           connessione personale (mailbox individuale), non aziendale.
           L'utente trova "Connetti email" in /azienda/impostazioni/mio-profilo. */}
+
+      {/* ── Calendari (embed inline) ───────────────────────────────
+          2026-05-27 (user request): l'utente vuole vedere l'elenco
+          calendari + sync + disconnect DIRETTAMENTE qui senza navigate.
+          Prima la card cliccando "Gestisci" rediregeva a
+          /azienda/impostazioni/calendari — workflow rotto. */}
+      <div className="pt-2 space-y-4">
+        <div className="flex items-center gap-2">
+          <CalendarIconLucide className="h-5 w-5 text-muted-foreground" />
+          <h2 className="text-lg font-semibold">Calendari</h2>
+        </div>
+        <GoogleCalendarConnectionTab />
+        <AppleCalendarConnectionTab />
+      </div>
 
       {/* ── Reputazione ───────────────────────────────────────────── */}
       <div className="pt-2 space-y-4">

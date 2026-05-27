@@ -377,6 +377,19 @@ export default function GoogleAdsConnectionCard() {
                   </Button>
                 </>
               )}
+
+              {/* 2026-05-27: bottone disconnect anche nello stato "connesso
+                  senza customer" — l'utente che vede "Nessun account trovato"
+                  o l'errore Developer Token deve poter scollegare e ritentare. */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-destructive hover:text-destructive"
+                onClick={() => setDisconnectOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Scollega Google Ads
+              </Button>
             </div>
           )}
 

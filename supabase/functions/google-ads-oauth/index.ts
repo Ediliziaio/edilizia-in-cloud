@@ -311,6 +311,16 @@ async function fetchAndCacheCustomers(connectionId: string, accessToken: string,
 
   if (rows.length > 0) {
     await db.from("google_ads_customers_cache").insert(rows);
+  } else {
+    // 2026-05-27: customerIds erano > 0 ma ogni searchStream è fallito.
+    // Tipico se Developer Token in stato "Pending Approval" — listAccessibleCustomers
+    // funziona col solo OAuth, ma searchStream richiede approvazione.
+    throw new Error(
+      `Trovati ${customerIds.length} customer ID Google Ads ma le chiamate API ` +
+      `searchStream sono tutte fallite. Il Developer Token Google Ads potrebbe essere ` +
+      `in stato 'Pending Approval' (basic access) anziché 'Approved'. ` +
+      `Verifica su https://ads.google.com → Strumenti → API Center.`
+    );
   }
 
   // Auto-select if only one non-manager customer

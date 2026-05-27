@@ -323,6 +323,16 @@ async function fetchAndCacheLocations(connectionId: string, accessToken: string)
 
   if (allLocations.length > 0) {
     await db.from("gbp_locations_cache").insert(allLocations);
+  } else {
+    // 2026-05-27: l'utente ha N account Google Business ma 0 schede dentro
+    // tutti. Capita quando: account creato senza mai verificare schede;
+    // location revocate; sole pending verification.
+    // Solleva errore visibile in UI (last_error) invece di fallire silenzioso.
+    throw new Error(
+      `Trovati ${accounts.length} account Google Business ma 0 schede locali confermate. ` +
+      `Vai su https://business.google.com per verificare/reclamare almeno una scheda. ` +
+      `Se hai già una scheda, controlla che lo stato sia 'Verificata' (non 'In attesa di verifica').`
+    );
   }
 
   // Se c'è UNA sola location, selezionala automaticamente

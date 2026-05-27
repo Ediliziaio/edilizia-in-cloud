@@ -354,6 +354,20 @@ export default function GbpConnectionCard() {
                   </Button>
                 </>
               )}
+
+              {/* 2026-05-27: bottone disconnect anche nello stato "connesso
+                  senza location" — l'utente che vede "Nessuna scheda Google
+                  Business trovata" deve poter scollegare e ritentare con un
+                  altro account Google. Prima visibile SOLO con hasLocation. */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-destructive hover:text-destructive"
+                onClick={() => setDisconnectOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Scollega Google Business Profile
+              </Button>
             </div>
           )}
 
