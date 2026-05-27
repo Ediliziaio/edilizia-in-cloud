@@ -142,8 +142,21 @@ export function TabCedolini() {
         .filter((p: any) => p.tipo === "straordinario")
         .reduce((sum: number, p: any) => sum + (p.ore_lavorate || 0), 0);
 
+      // 2026-05-27 (UX audit fix): prima il calcolo veniva mostrato solo nel
+      // toast e il valore veniva perso (l'utente doveva ricopiare a mano).
+      // Ora persistiamo le ore nel campo `note` del form così restano
+      // visibili e modificabili. Il `lordo` non lo calcoliamo (richiede
+      // tariffa oraria CCNL non disponibile qui) — l'utente lo inserisce
+      // a mano partendo dal dato visibile.
+      const oreLine = `Ore lavorate ${MESI[mese - 1]} ${anno}: ${totalOre.toFixed(1)} h (di cui ${oreStraordinario.toFixed(1)} h straordinario)`;
+      setForm((f) => ({
+        ...f,
+        note: f.note ? `${f.note}\n${oreLine}` : oreLine,
+      }));
+
       toast.success(
-        `Trovate ${totalOre.toFixed(1)} ore (di cui ${oreStraordinario.toFixed(1)} h straordinario)`
+        `Recuperate ${totalOre.toFixed(1)} ore — aggiunte nelle note del cedolino`,
+        { description: `Straordinario: ${oreStraordinario.toFixed(1)} h. Inserisci il lordo a mano.` }
       );
     } finally {
       setIsFetchingOre(false);

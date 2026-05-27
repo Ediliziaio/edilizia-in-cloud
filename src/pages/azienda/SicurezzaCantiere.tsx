@@ -61,12 +61,13 @@ export default function SicurezzaCantiere() {
     queryKey: ["orders-for-sicurezza", companyId],
     queryFn: async () => {
       if (!companyId) return [];
+      // 2026-05-27 (UX audit): .limit(50) → 500 — vedi nota in GiornaleLavori
       const { data, error } = await supabase
         .from("orders")
         .select("id, description, order_code")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(500);
       if (error) throw new Error(getSupabaseErrorMessage(error));
       return (data || []) as OrderOption[];
     },

@@ -143,12 +143,13 @@ export default function SubappaltatoriPage() {
   const { data: ordini = [] } = useQuery({
     queryKey: ['ordini-select', companyId],
     queryFn: async () => {
+      // 2026-05-27 (UX audit): .limit(50) → 500 — vedi nota in GiornaleLavori
       const { data } = await supabase
         .from('orders')
         .select('id, order_code, description')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(500);
       return data ?? [];
     },
     enabled: !!companyId,

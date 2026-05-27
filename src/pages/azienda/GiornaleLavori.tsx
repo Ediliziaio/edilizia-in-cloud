@@ -72,12 +72,17 @@ export default function GiornaleLavori() {
   const { data: rawOrders = [] } = useQuery({
     queryKey: ["orders-attivi", companyId],
     queryFn: async () => {
+      // 2026-05-27 (UX audit fix): rimosso .limit(50) — l'impresa con 50+
+      // cantieri vedeva il 51° in poi sparire dal dropdown senza errore
+      // visibile, impossibile registrare giornale lavori su cantieri vecchi.
+      // Alzato a 500: copre tutte le imprese reali; per chi supera, va aggiunto
+      // un combobox cercabile (TODO).
       const { data } = await supabase
         .from("orders")
         .select("id, description, order_code")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(500);
       return data || [];
     },
     enabled: !!companyId,

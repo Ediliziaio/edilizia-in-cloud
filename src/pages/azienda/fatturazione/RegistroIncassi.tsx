@@ -17,6 +17,7 @@ import { CalendarIcon, Plus, Trash2, Loader2, Link as LinkIcon, Wallet, Trending
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { formatCurrency } from "@/lib/formatters";
 
 const METODI = [
   { value: "bonifico", label: "Bonifico" },
@@ -98,7 +99,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
     }
     if (selectedInvoice && parsedImporto > maxImporto + 0.005) {
       toast.error("L'importo supera il residuo della fattura", {
-        description: `Residuo disponibile: € ${maxImporto.toFixed(2)}`,
+        description: `Residuo disponibile: ${formatCurrency(maxImporto)}`,
       });
       return;
     }
@@ -181,7 +182,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                   <SelectContent>
                     {unpaidInvoices.map((inv) => (
                       <SelectItem key={inv.id} value={inv.id}>
-                        {inv.numero} — {inv.cliente_snapshot?.ragione_sociale} — € {(inv.totale_da_pagare - inv.importo_pagato).toFixed(2)}
+                        {inv.numero} — {inv.cliente_snapshot?.ragione_sociale} — {formatCurrency(inv.totale_da_pagare - inv.importo_pagato)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -198,7 +199,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                 />
                 {formImporto && parseFloat(formImporto) < maxImporto && (
                   <p className="text-xs text-amber-600 mt-1">
-                    Incasso parziale — residuo: € {(maxImporto - parseFloat(formImporto)).toFixed(2)}
+                    Incasso parziale — residuo: {formatCurrency(maxImporto - parseFloat(formImporto))}
                   </p>
                 )}
               </div>
@@ -263,10 +264,10 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <OperationalKpiCard icon={TrendingUp} label="Incassato mese" value={`€ ${kpis.incassatoMese.toFixed(2)}`} hint="registrato nel mese" tone="green" />
-        <OperationalKpiCard icon={Wallet} label="Da incassare" value={`€ ${kpis.daIncassare.toFixed(2)}`} hint="fatture aperte" tone="blue" />
-        <OperationalKpiCard icon={AlertTriangle} label="Scaduto" value={`€ ${kpis.scaduto.toFixed(2)}`} hint="da sollecitare" tone={kpis.scaduto > 0 ? "red" : "green"} />
-        <OperationalKpiCard icon={Clock} label="Non scaduto" value={`€ ${kpis.saldo.toFixed(2)}`} hint="ancora nei termini" tone="amber" />
+        <OperationalKpiCard icon={TrendingUp} label="Incassato mese" value={formatCurrency(kpis.incassatoMese)} hint="registrato nel mese" tone="green" />
+        <OperationalKpiCard icon={Wallet} label="Da incassare" value={formatCurrency(kpis.daIncassare)} hint="fatture aperte" tone="blue" />
+        <OperationalKpiCard icon={AlertTriangle} label="Scaduto" value={formatCurrency(kpis.scaduto)} hint="da sollecitare" tone={kpis.scaduto > 0 ? "red" : "green"} />
+        <OperationalKpiCard icon={Clock} label="Non scaduto" value={formatCurrency(kpis.saldo)} hint="ancora nei termini" tone="amber" />
       </div>
 
       {/* Tabs */}
@@ -313,7 +314,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                             </Button>
                           ) : "—"}
                         </td>
-                        <td className="p-3 text-right font-mono">€ {m.importo.toFixed(2)}</td>
+                        <td className="p-3 text-right font-mono">{formatCurrency(m.importo)}</td>
                         <td className="p-3 capitalize">{m.metodo ?? "—"}</td>
                         <td className="p-3">{m.riferimento ?? "—"}</td>
                         <td className="p-3 text-muted-foreground">{m.note ?? "—"}</td>
@@ -366,7 +367,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                 </div>
                 <div className="flex items-center gap-6 text-sm">
                   <div className="text-right">
-                    <p className="font-mono">€ {(d.totale_da_pagare - d.importo_pagato).toFixed(2)}</p>
+                    <p className="font-mono">{formatCurrency(d.totale_da_pagare - d.importo_pagato)}</p>
                     <p className="text-xs text-muted-foreground">Scad. {d.data_scadenza}</p>
                   </div>
                   <Badge variant={d.urgency === "scaduta" ? "destructive" : d.urgency === "oggi" ? "outline" : "secondary"}>

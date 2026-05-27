@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, FileText, Loader2 } from "lucide-react";
 import type { AnagraficaNative } from "@/types/fatturazione";
+import { formatCurrency } from "@/lib/formatters";
 
 function useMovimentiCassaByDocIds(docIds: string[]) {
   const companyId = useEffectiveCompanyId();
@@ -98,20 +99,20 @@ export default function AnagraficaDetail() {
         <Card>
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Fatturato totale</p>
-            <p className="text-lg font-semibold">€ {fatturato.toFixed(2)}</p>
+            <p className="text-lg font-semibold">{formatCurrency(fatturato)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Pagato</p>
-            <p className="text-lg font-semibold text-emerald-600">€ {pagato.toFixed(2)}</p>
+            <p className="text-lg font-semibold text-emerald-600">{formatCurrency(pagato)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Saldo aperto</p>
             <p className={`text-lg font-semibold ${saldoAperto > 0 ? "text-destructive" : ""}`}>
-              € {saldoAperto.toFixed(2)}
+              {formatCurrency(saldoAperto)}
             </p>
           </CardContent>
         </Card>
@@ -129,8 +130,8 @@ export default function AnagraficaDetail() {
           <CardContent className="pt-4 pb-3 flex items-center justify-between">
             <div className="text-sm">
               <span className="font-medium">Posizione finanziaria:</span>{" "}
-              Fatturato YTD € {fatturato.toFixed(2)} — Pagato € {pagato.toFixed(2)} — Aperto{" "}
-              <span className="font-semibold text-destructive">€ {saldoAperto.toFixed(2)}</span>
+              Fatturato YTD {formatCurrency(fatturato)} — Pagato {formatCurrency(pagato)} — Aperto{" "}
+              <span className="font-semibold text-destructive">{formatCurrency(saldoAperto)}</span>
             </div>
           </CardContent>
         </Card>
@@ -211,7 +212,7 @@ export default function AnagraficaDetail() {
                       <td className="p-3 font-mono">{d.numero}</td>
                       <td className="p-3 capitalize">{d.tipo.replace("_", " ")}</td>
                       <td className="p-3">{d.data_emissione}</td>
-                      <td className="p-3 text-right font-mono">€ {d.totale_documento.toFixed(2)}</td>
+                      <td className="p-3 text-right font-mono">{formatCurrency(d.totale_documento)}</td>
                       <td className="p-3">
                         <Badge variant="secondary">{d.stato}</Badge>
                       </td>
@@ -280,7 +281,7 @@ export default function AnagraficaDetail() {
                   {movimentiFiltered.map((m) => (
                     <tr key={m.id} className="border-b">
                       <td className="p-3">{m.data_movimento}</td>
-                      <td className="p-3 text-right font-mono">€ {m.importo.toFixed(2)}</td>
+                      <td className="p-3 text-right font-mono">{formatCurrency(m.importo)}</td>
                       <td className="p-3 capitalize">{m.metodo ?? "—"}</td>
                       <td className="p-3">{m.riferimento ?? "—"}</td>
                     </tr>
