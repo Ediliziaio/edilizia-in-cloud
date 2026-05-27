@@ -12,7 +12,9 @@ import { cn } from "@/lib/utils";
 const QUICK_ACTIONS = [
   { label: "Nuovo ordine", href: "/azienda/ordini/nuovo", icon: ClipboardList, shortcut: "O" },
   { label: "Nuovo cliente", href: "/azienda/clienti/nuovo", icon: Users, shortcut: "C" },
-  { label: "Nuovo preventivo", href: "/azienda/preventivi/nuovo", icon: FileText, shortcut: "P" },
+  // 2026-05-27 (UX audit): era /azienda/preventivi/nuovo → schermo bianco.
+  // La rotta reale è sotto /marketing/preventivi.
+  { label: "Nuovo preventivo", href: "/azienda/marketing/preventivi/nuovo", icon: FileText, shortcut: "P" },
 ];
 
 export function DashboardQuickActions() {

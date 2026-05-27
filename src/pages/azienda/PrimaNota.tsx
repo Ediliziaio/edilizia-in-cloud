@@ -46,6 +46,19 @@ function PrimaNotaInner() {
 
   const importMutation = useMutation({
     mutationFn: async (action: "from_banking" | "from_invoices" | "both") => {
+      // 2026-05-27 (UX audit): precheck banca collegata per i path che la
+      // usano. Prima il toast "Nessuna novità da importare" era ambiguo:
+      // l'utente non sapeva se non c'era nulla o se mancava la connessione.
+      if (action === "from_banking" || action === "both") {
+        const { count } = await supabase
+          .from("bank_connections")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", effectiveCompany?.id ?? "")
+          .eq("status", "active");
+        if (!count || count === 0) {
+          throw new Error("NO_BANK_CONNECTION");
+        }
+      }
       const res = await supabase.functions.invoke("sync-prima-nota", {
         body: { company_id: effectiveCompany?.id, action },
       });
@@ -63,7 +76,19 @@ function PrimaNotaInner() {
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.primaNota.all });
     },
-    onError: (e) => toast.error("Errore importazione", { description: String(e) }),
+    onError: (e: Error) => {
+      if (e.message === "NO_BANK_CONNECTION") {
+        toast.error("Nessuna banca collegata", {
+          description: "Collega prima il conto in Tesoreria per importare i movimenti automaticamente.",
+          action: {
+            label: "Vai a Tesoreria",
+            onClick: () => navigate("/azienda/tesoreria?tab=connessioni"),
+          },
+        });
+      } else {
+        toast.error("Errore importazione", { description: String(e) });
+      }
+    },
   });
   const [fromDate, setFromDate] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));

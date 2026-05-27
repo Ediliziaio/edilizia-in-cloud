@@ -63,7 +63,8 @@ const RULES: ContextRule[] = [
   { pattern: new RegExp(`^/azienda/commesse/${UUID_RE}`),       entity_type: "order",    route_label: "Commessa",   requiresId: true },
   { pattern: new RegExp(`^/azienda/clienti/${UUID_RE}`),        entity_type: "customer", route_label: "Cliente",    requiresId: true },
   { pattern: new RegExp(`^/azienda/fatturazione/editor/${UUID_RE}`), entity_type: "invoice", route_label: "Documento fiscale", requiresId: true },
-  { pattern: new RegExp(`^/azienda/preventivi/${UUID_RE}`),     entity_type: "quote",    route_label: "Preventivo", requiresId: true },
+  // 2026-05-27 (UX audit): path preventivi è sotto /marketing, non top-level.
+  { pattern: new RegExp(`^/azienda/marketing/preventivi/${UUID_RE}`),     entity_type: "quote",    route_label: "Preventivo", requiresId: true },
   { pattern: new RegExp(`^/azienda/personale/${UUID_RE}`),      entity_type: "employee", route_label: "Dipendente", requiresId: true },
   { pattern: new RegExp(`^/azienda/subappaltatori/${UUID_RE}`), entity_type: "supplier", route_label: "Subappaltatore", requiresId: true },
 

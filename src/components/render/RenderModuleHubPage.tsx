@@ -331,6 +331,12 @@ export function RenderModuleHubPage({
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {completedPreviews.map((item) => {
                 const path = detailPath(item.id);
+                // 2026-05-27 (UX audit): fallback su result_urls[0] per render
+                // tecnici che salvano l'array invece di result_url singolo.
+                // Skip tile se nessuno dei due è disponibile (era un tile
+                // rotto con src vuoto e bordo grigio = confonde l'utente).
+                const previewUrl = item.result_url ?? (item as any).result_urls?.[0] ?? null;
+                if (!previewUrl) return null;
                 return (
                   <button
                     key={item.id}
@@ -340,7 +346,7 @@ export function RenderModuleHubPage({
                     disabled={!path}
                   >
                     <img
-                      src={item.result_url ?? ""}
+                      src={previewUrl}
                       alt={`Render ${moduleName}`}
                       className={`h-full w-full ${imageFit === "contain" ? "object-contain" : "object-cover"} transition-transform duration-300 group-hover:scale-105`}
                       loading="lazy"

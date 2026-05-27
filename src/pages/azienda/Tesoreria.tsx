@@ -146,6 +146,18 @@ export default function Tesoreria() {
 
   if (isScopriPlan) return <UpgradeScopriWall type="banca_psd2" inline />;
 
+  // 2026-05-27 (UX audit): se manca effectiveCompany?.id, prima si vedeva
+  // uno spinner finto da 2 secondi (setTimeout) → poi se ne andava sull'empty
+  // state con companyId="" → 8 query Supabase fallivano silenziosamente.
+  // Gate esplicito: niente company, niente render.
+  if (!effectiveCompany?.id) {
+    return (
+      <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">
+        Seleziona un'azienda per visualizzare la tesoreria.
+      </div>
+    );
+  }
+
   if (hasConnections === null) {
     return (
       <div className="flex items-center justify-center h-64">

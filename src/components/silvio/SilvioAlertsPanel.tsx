@@ -57,11 +57,16 @@ const ALERT_TYPE_ICON: Record<string, typeof Bell> = {
  * Mappa cta_action → route target. Se l'azione inizia con "open_" o è qui
  * dentro, click → navigate (no proposal). Altrimenti → silvio_promote_alert_to_proposal.
  */
+// 2026-05-27 (UX audit fix): 3 path corretti.
+//   - cashflow forecast: /azienda/cashflow-forecast → /azienda/previsionale
+//   - preventivi: /azienda/preventivi → /azienda/marketing/preventivi
+//   - employee detail: non esiste pagina di dettaglio dipendente, redirect
+//     a lista /azienda/personale (con eventuale highlight via query param).
 const CTA_NAVIGATION_MAP: Record<string, (payload: Record<string, unknown> | null) => string> = {
-  open_cashflow_forecast: () => "/azienda/cashflow-forecast",
+  open_cashflow_forecast: () => "/azienda/previsionale",
   open_quote: (payload) => {
     const id = payload?.quote_id ?? payload?.id;
-    return id ? `/azienda/preventivi/${id}` : "/azienda/preventivi";
+    return id ? `/azienda/marketing/preventivi/${id}` : "/azienda/marketing/preventivi";
   },
   open_order: (payload) => {
     const id = payload?.order_id ?? payload?.id;
@@ -72,8 +77,9 @@ const CTA_NAVIGATION_MAP: Record<string, (payload: Record<string, unknown> | nul
     return id ? `/azienda/magazzino?item=${id}` : "/azienda/magazzino";
   },
   open_employee: (payload) => {
+    // Niente detail page dipendente — link a lista con highlight via query
     const id = payload?.employee_id ?? payload?.user_id ?? payload?.id;
-    return id ? `/azienda/personale/${id}` : "/azienda/personale";
+    return id ? `/azienda/personale?highlight=${id}` : "/azienda/personale";
   },
   open_hr_requests: () => "/azienda/personale?tab=ferie-permessi",
 };
