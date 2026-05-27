@@ -18,6 +18,23 @@ import DroppableSlot from "./DroppableSlot";
 
 const DAY_NAMES = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"];
 
+/**
+ * BusySlot type — riflette righe di google_calendar_busy_slots e
+ * apple_calendar_busy_slots merged in MarketingCalendar.
+ * Rappresenta un evento del calendario esterno (Google/Apple) che il
+ * portale visualizza come "slot occupato" — non un appointment editabile.
+ */
+interface BusySlot {
+  id: string;
+  start_at: string;
+  end_at: string;
+  summary: string | null;
+  is_all_day: boolean;
+  user_id: string;
+  google_calendar_id?: string | null;
+  provider?: "google" | "apple";
+}
+
 interface Props {
   currentDate: Date;
   appointments: MarketingAppointment[];
@@ -25,6 +42,12 @@ interface Props {
   onClickAppointment: (apt: MarketingAppointment) => void;
   onClickDay: (date: Date) => void;
   onDropAppointment?: (id: string, newDate: string) => void;
+  /**
+   * 2026-05-27 (fix utente "non vedo eventi Google in vista mese"):
+   * Prima WeekView/DayView ricevevano busySlots ma MonthView no →
+   * eventi Google importati in DB ma invisibili nella view default.
+   */
+  busySlots?: BusySlot[];
 }
 
 export default function MarketingCalendarMonthView({
@@ -34,6 +57,7 @@ export default function MarketingCalendarMonthView({
   onClickAppointment,
   onClickDay,
   onDropAppointment,
+  busySlots = [],
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
@@ -81,6 +105,26 @@ export default function MarketingCalendarMonthView({
     return grouped;
   }, [appointments]);
 
+  /**
+   * Busy slots (eventi esterni Google/Apple) raggruppati per data.
+   * Estraggono yyyy-mm-dd da start_at + estraggono HH:MM per visualizzazione.
+   * Filtrano eventi all-day per evitare clutter.
+   */
+  const busySlotsByDate = useMemo(() => {
+    const grouped = new Map<string, BusySlot[]>();
+    busySlots.forEach((slot) => {
+      if (!slot.start_at) return;
+      const dateKey = slot.start_at.slice(0, 10);
+      const arr = grouped.get(dateKey) ?? [];
+      arr.push(slot);
+      grouped.set(dateKey, arr);
+    });
+    grouped.forEach((arr) => {
+      arr.sort((a, b) => a.start_at.localeCompare(b.start_at));
+    });
+    return grouped;
+  }, [busySlots]);
+
   const handleDragStart = (event: DragStartEvent) => {
     const apt = (event.active.data.current as any)?.appointment as MarketingAppointment;
     setActiveApt(apt || null);
@@ -120,6 +164,8 @@ export default function MarketingCalendarMonthView({
                 const maxShow = 3;
                 const dateKey = format(day, "yyyy-MM-dd");
                 const dayApts = appointmentsByDate.get(dateKey) ?? [];
+                const dayBusySlots = busySlotsByDate.get(dateKey) ?? [];
+                const totalItems = dayApts.length + dayBusySlots.length;
 
                 return (
                   <DroppableSlot
@@ -145,9 +191,9 @@ export default function MarketingCalendarMonthView({
                       >
                         {format(day, "d")}
                       </div>
-                      {dayApts.length > 0 && (
+                      {totalItems > 0 && (
                         <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                          {dayApts.length}
+                          {totalItems}
                         </span>
                       )}
                     </div>
@@ -176,9 +222,34 @@ export default function MarketingCalendarMonthView({
                           </div>
                         </DraggableAppointment>
                       ))}
-                      {dayApts.length > maxShow && (
+                      {/* 2026-05-27: busy slots Google/Apple come blocchi grigi
+                          non draggabili (sono eventi esterni, vengono solo
+                          mostrati per evitare conflitti). Click apre slot vuoto
+                          come gli altri giorni. */}
+                      {dayBusySlots.slice(0, Math.max(0, maxShow - dayApts.length)).map((slot) => {
+                        const time = !slot.is_all_day && slot.start_at
+                          ? new Date(slot.start_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+                          : null;
+                        const providerEmoji = slot.provider === "apple" ? "🍎" : "🟢";
+                        return (
+                          <div
+                            key={`busy-${slot.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className={cn(
+                              "cursor-default truncate rounded border-l-2 border-dashed px-1.5 py-1 text-[11px] leading-tight",
+                              "border-slate-400/60 bg-slate-100/80 text-slate-600 italic"
+                            )}
+                            title={`${slot.summary || "Occupato"} (da ${slot.provider === "apple" ? "Apple Calendar" : "Google Calendar"})`}
+                          >
+                            <span className="mr-1 text-[9px]">{providerEmoji}</span>
+                            {time && <span className="font-medium">{time} </span>}
+                            {slot.summary || "Occupato"}
+                          </div>
+                        );
+                      })}
+                      {totalItems > maxShow && (
                         <div className="px-1 text-[10px] font-medium text-muted-foreground">
-                          +{dayApts.length - maxShow} altri
+                          +{totalItems - maxShow} altri
                         </div>
                       )}
                     </div>

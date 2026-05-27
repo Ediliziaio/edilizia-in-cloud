@@ -1150,6 +1150,7 @@ export default function MarketingCalendar() {
                 onClickAppointment={openEditDialog}
                 onClickDay={(date) => openNewDialog(date)}
                 onDropAppointment={(id, date) => handleDropAppointment(id, date)}
+                busySlots={busySlots}
               />
             )}
           </div>
