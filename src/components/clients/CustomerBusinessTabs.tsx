@@ -867,36 +867,14 @@ export function CustomerBusinessTabs({
     { label: "Ticket",      href: buildCreateUrl("/azienda/assistenza/nuovo", customerId, customerFullName),    icon: Ticket },
   ];
 
-  // 2026-05-27 (audit dettaglio cliente):
-  // PRIMA: KpiMini DUPLICATA — già presente come <KpiCard> nell'header
-  // di CompanyCustomerDetail (Ordini, Valore totale, Ticket aperti, Preventivi).
-  // Lo screenshot utente mostrava 8 KPI sovrapposti, look incoerente con la
-  // pagina contatti marketing dove le KPI sono solo nell'hero header.
-  // ORA: KPI rimosse, le tabs partono direttamente.
-  //
-  // Quick actions "Crea per questo cliente" mantenute perché sono diverse
-  // dai quick buttons del header (Chiama / Email / WhatsApp / Appuntam.):
-  // questi sono per CREARE entità collegate.
-  // Reso più compatto (h-7 → h-8, padding ridotto).
+  // 2026-05-27 (richiesta utente "coerente con pagina contatti"):
+  // 1. KPI cards rimosse — già nell'header CompanyCustomerDetail (stile marketing).
+  // 2. Pannello "Crea per questo cliente" rimosso — spostato nel dropdown "..."
+  //    del header (stile marketing che usa DropdownMenu invece di pulsantiera
+  //    inline). Risultato: tabs partono subito senza chrome ridondante.
+  void quickActions; // mantenuto per future estensioni; non più renderizzato qui.
   return (
     <Tabs defaultValue="ordini">
-      {/* Quick actions: crea entità collegate al cliente */}
-      <div className="flex items-center gap-1.5 flex-wrap mb-3 p-2 rounded-lg border bg-muted/30">
-        <span className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mr-1">Crea per questo cliente:</span>
-        {quickActions.map((a) => (
-          <Button
-            key={a.label}
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 text-[11px]"
-            onClick={() => navigate(a.href)}
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            <a.icon className="h-3 w-3 mr-1" />
-            {a.label}
-          </Button>
-        ))}
-      </div>
 
       {/*
         2026-05-27 (audit dettaglio cliente): alert errori meno invasivo.

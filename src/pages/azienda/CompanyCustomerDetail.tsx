@@ -2,10 +2,15 @@ import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Loader2, Mail, Phone, MapPin, Trash2, Wand2,
-  AlertTriangle, Pencil, MessageCircle, Euro, ShoppingBag, LifeBuoy,
-  FileText, CalendarPlus, PhoneCall,
+  ArrowLeft, Loader2, Mail, Phone, Trash2, Wand2,
+  AlertTriangle, Pencil, Euro, ShoppingBag, LifeBuoy,
+  FileText, CalendarDays, MessageSquare, ChevronDown, Plus,
+  ClipboardList, FileSignature, Ticket,
 } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -497,42 +502,48 @@ export default function CompanyCustomerDetail() {
     setComposeOpen(true);
   };
 
+  // 2026-05-27 (richiesta utente: "rendi la pagina cliente coerente con
+  // la pagina contatti marketing"): hero stile MarketingContactDetail.
+  //  - background bianco/card (non più gradient blue/orange "loud")
+  //  - h1 text-xl (non 2xl)
+  //  - email button violet (standard marketing), WhatsApp emerald-100
+  //  - dropdown "..." per azioni secondarie (Crea ordine/preventivo/
+  //    ticket/appuntamento + Elimina) invece di pannello "CREA PER..."
+  //  - KPI cards rounded-lg border bg-card (non più pastello pieno)
+  //    con header label + icon corner + value + subtext muted
+  const openTickets = tickets.filter((t) => t.status !== "closed" && t.status !== "resolved").length;
+
   return (
     <div className="space-y-6">
-      {/* ───── Header stile Contatti ───── */}
-      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-orange-50/30 p-4 md:p-5 shadow-sm">
+      {/* ───── Hero header stile MarketingContactDetail ───── */}
+      <div className="rounded-2xl border bg-card p-4 md:p-5 shadow-sm">
         <div className="flex items-start gap-3 md:gap-4">
           <Button
             variant="ghost"
             size="icon"
-            className="hidden md:inline-flex shrink-0 -ml-2"
+            className="shrink-0 -ml-2"
             onClick={() => navigate("/azienda/clienti")}
             aria-label="Torna ai clienti"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
 
-          {/* Avatar grande con iniziali */}
+          {/* Avatar */}
           <div className="relative shrink-0">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-orange-500 text-white text-lg font-bold shadow-sm">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-orange-500 text-white text-lg font-bold shadow-sm ring-2 ring-background">
               {customerInitials}
             </div>
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">
                 {fullName}
               </h1>
-              {customer.is_business && (
-                <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-800 border-blue-200">
-                  Azienda
-                </Badge>
-              )}
-              {!customer.is_business && (
-                <Badge variant="outline" className="gap-1 border-slate-200 bg-white text-slate-600 text-[10px]">
-                  Cliente
-                </Badge>
+              {customer.is_business ? (
+                <Badge variant="outline" className="text-[10px] h-5 px-1.5">Azienda</Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] h-5 px-1.5">Cliente</Badge>
               )}
               {!customer.is_business && isFirstPlaceholder && isLastPlaceholder && !biz && (
                 <span className="text-xs font-normal text-muted-foreground">(anagrafica da completare)</span>
@@ -544,162 +555,177 @@ export default function CompanyCustomerDetail() {
               </p>
             )}
 
-            {/* Chip info: email / telefono / indirizzo */}
-            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            {/* Chip info inline (stile marketing: gap-3 testo grigio, non pill colorati) */}
+            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
               {customerEmailClean && (
-                <a
-                  href={`mailto:${customerEmailClean}`}
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  <Mail className="h-3 w-3 text-blue-500" />
-                  {customerEmailClean}
+                <a href={`mailto:${customerEmailClean}`} className="inline-flex items-center gap-1 hover:text-primary transition-colors truncate">
+                  <Mail className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{customerEmailClean}</span>
                 </a>
               )}
               {customer.phone && (
-                <a
-                  href={`tel:${customer.phone}`}
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors"
-                >
-                  <Phone className="h-3 w-3 text-emerald-500" />
+                <a href={`tel:${customer.phone}`} className="inline-flex items-center gap-1 hover:text-primary transition-colors">
+                  <Phone className="h-3 w-3 shrink-0" />
                   {customer.phone}
                 </a>
               )}
               {(customer.city || customer.address) && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] text-slate-600">
-                  <MapPin className="h-3 w-3 text-rose-500" />
-                  {[customer.address, customer.city].filter(Boolean).join(" · ")}
+                <span className="text-[11px]">
+                  📍 {[customer.address, customer.city].filter(Boolean).join(" · ")}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Quick action buttons (desktop) */}
+          {/* Quick actions (stessi colori marketing) */}
           <div className="hidden md:flex shrink-0 items-center gap-1.5">
             {customer.phone && (
-              <Button asChild variant="outline" size="sm" className="gap-1.5 border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50">
-                <a href={`tel:${customer.phone}`}>
-                  <PhoneCall className="h-3.5 w-3.5" />
-                  Chiama
-                </a>
+              <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                <a href={`tel:${customer.phone}`}><Phone className="h-3.5 w-3.5" /> Chiama</a>
               </Button>
             )}
             {customerEmailClean && (
               <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+                variant="outline" size="sm"
+                className="gap-1.5 h-9 border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
                 onClick={openCompose}
               >
-                <Mail className="h-3.5 w-3.5" />
-                Email
+                <Mail className="h-3.5 w-3.5" /> Email
               </Button>
             )}
             {waHref && (
-              <Button asChild variant="outline" size="sm" className="gap-1.5 border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50">
+              <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
                 <a href={waHref} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="h-3.5 w-3.5" />
-                  WhatsApp
+                  <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
                 </a>
               </Button>
             )}
             <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-violet-200 bg-white text-violet-700 hover:bg-violet-50"
+              variant="outline" size="sm" className="gap-1.5 h-9"
               onClick={() => navigate(`/azienda/calendario?customer_id=${customer.id}`)}
             >
-              <CalendarPlus className="h-3.5 w-3.5" />
-              Appuntam.
+              <CalendarDays className="h-3.5 w-3.5" /> Appuntam.
             </Button>
 
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" disabled={isDeleting} className="text-rose-600 hover:bg-rose-50">
-                  <Trash2 className="h-3.5 w-3.5" />
+            {/* Dropdown "..." con crea entità + elimina (stile marketing) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9">
+                  <ChevronDown className="h-4 w-4" />
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Eliminare questo cliente?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {orderCount > 0
-                      ? `Impossibile eliminare: il cliente ha ${orderCount} ${orderCount === 1 ? "ordine associato" : "ordini associati"}. Elimina prima gli ordini.`
-                      : "Questa azione è irreversibile. Il cliente e il suo account verranno eliminati permanentemente."}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Annulla</AlertDialogCancel>
-                  {orderCount === 0 && (
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Crea per questo cliente
+                </DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => navigate(`/azienda/ordini/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
+                  <ClipboardList className="h-3.5 w-3.5 mr-2" /> Nuovo ordine
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
+                  <FileSignature className="h-3.5 w-3.5 mr-2" /> Nuovo preventivo
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate(`/azienda/assistenza/nuovo?customer_id=${customer.id}&customer_name=${encodeURIComponent(fullName)}`)}>
+                  <Ticket className="h-3.5 w-3.5 mr-2" /> Nuovo ticket
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      disabled={isDeleting}
+                      className="text-destructive focus:text-destructive"
                     >
-                      {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Elimina
-                    </AlertDialogAction>
-                  )}
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina cliente
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Eliminare questo cliente?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {orderCount > 0
+                          ? `Impossibile eliminare: il cliente ha ${orderCount} ${orderCount === 1 ? "ordine associato" : "ordini associati"}. Elimina prima gli ordini.`
+                          : "Questa azione è irreversibile. Il cliente e il suo account verranno eliminati permanentemente."}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Annulla</AlertDialogCancel>
+                      {orderCount === 0 && (
+                        <AlertDialogAction
+                          onClick={handleDelete}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Elimina
+                        </AlertDialogAction>
+                      )}
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
         {/* Quick action mobile (sotto l'header) */}
         <div className="mt-3 flex md:hidden flex-wrap gap-1.5">
           {customer.phone && (
-            <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-200 bg-white text-emerald-700">
-              <a href={`tel:${customer.phone}`}>
-                <PhoneCall className="h-3.5 w-3.5" />
-                Chiama
-              </a>
+            <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700">
+              <a href={`tel:${customer.phone}`}><Phone className="h-3.5 w-3.5" /> Chiama</a>
             </Button>
           )}
           {customerEmailClean && (
             <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 min-w-[80px] gap-1.5 border-blue-200 bg-white text-blue-700"
+              variant="outline" size="sm"
+              className="flex-1 min-w-[80px] gap-1.5 border-violet-200 bg-violet-50 text-violet-700"
               onClick={openCompose}
             >
-              <Mail className="h-3.5 w-3.5" />
-              Email
+              <Mail className="h-3.5 w-3.5" /> Email
             </Button>
           )}
           {waHref && (
-            <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-200 bg-white text-emerald-700">
+            <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-300 bg-emerald-100 text-emerald-800">
               <a href={waHref} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="h-3.5 w-3.5" />
-                WhatsApp
+                <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
               </a>
             </Button>
           )}
+          <Button
+            variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5"
+            onClick={() => navigate(`/azienda/calendario?customer_id=${customer.id}`)}
+          >
+            <CalendarDays className="h-3.5 w-3.5" /> Appuntam.
+          </Button>
         </div>
 
-        {/* KPI strip top-row (stile Contatti) */}
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+        {/* KPI strip — stile marketing (border bg-card + icon corner + subtext) */}
+        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
           <KpiCard
             icon={ShoppingBag}
+            iconColor="text-blue-500"
             label="Ordini"
             value={orderCount}
-            tone="blue"
+            subtext={orderCount === 0 ? "Nessuna commessa" : orderCount === 1 ? "1 commessa attiva" : `${orderCount} commesse totali`}
           />
           <KpiCard
             icon={Euro}
+            iconColor="text-emerald-500"
             label="Valore totale"
             value={`€ ${totalOrderValue.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
-            tone="emerald"
+            subtext="in ordini"
           />
           <KpiCard
             icon={LifeBuoy}
+            iconColor="text-amber-500"
             label="Ticket aperti"
-            value={tickets.filter((t) => t.status !== "closed" && t.status !== "resolved").length}
-            tone="amber"
+            value={openTickets}
+            subtext={tickets.length > 0 ? `su ${tickets.length} totali` : "Nessuna richiesta"}
           />
           <KpiCard
             icon={FileText}
+            iconColor="text-violet-500"
             label="Preventivi"
             value={preventivi.length}
-            tone="violet"
+            subtext={preventivi.length === 0 ? "Nessun preventivo" : "totali"}
           />
         </div>
       </div>
@@ -798,35 +824,37 @@ export default function CompanyCustomerDetail() {
 }
 
 // ───────────────────────────────────────────────────────────────
-// KpiCard — strip top-row stile pagina Contatti
+// KpiCard — stile MarketingContactDetail (border bg-card + icon corner + subtext)
+// 2026-05-27: refactor signature per matchare visivamente la pagina contatti.
 // ───────────────────────────────────────────────────────────────
 
 function KpiCard({
   icon: Icon,
+  iconColor,
   label,
   value,
-  tone,
+  subtext,
 }: {
   icon: React.ComponentType<{ className?: string }>;
+  iconColor?: string;
   label: string;
   value: number | string;
-  tone: "blue" | "emerald" | "amber" | "violet";
+  subtext?: string;
 }) {
-  const toneClasses = {
-    blue:    "border-blue-100 bg-blue-50/50 text-blue-700",
-    emerald: "border-emerald-100 bg-emerald-50/50 text-emerald-700",
-    amber:   "border-amber-100 bg-amber-50/50 text-amber-700",
-    violet:  "border-violet-100 bg-violet-50/50 text-violet-700",
-  }[tone];
   return (
-    <div className={`rounded-xl border px-3 py-2.5 ${toneClasses}`}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
-        <Icon className="h-3 w-3" />
-        {label}
+    <div className="rounded-lg border bg-card px-3 py-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold truncate">
+          {label}
+        </span>
+        <Icon className={`h-3 w-3 ${iconColor ?? "text-muted-foreground"}`} />
       </div>
-      <p className="mt-1 text-xl font-bold text-slate-900">
-        {value}
-      </p>
+      <div className="flex items-baseline gap-1.5 mt-1">
+        <span className="text-xl font-bold tabular-nums truncate">{value}</span>
+      </div>
+      {subtext && (
+        <p className="text-[10px] text-muted-foreground mt-1 truncate">{subtext}</p>
+      )}
     </div>
   );
 }
