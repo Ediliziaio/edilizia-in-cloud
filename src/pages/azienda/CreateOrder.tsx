@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -117,9 +118,9 @@ function CreateOrderInner() {
   }, [onlyAssigned, user?.id, setValue]);
 
   // Calculate balance (deduct financing_cost for financing payment type)
-  const total = parseFloat(totalAmount) || 0;
-  const vat = parseFloat(vatRate) || 22;
-  const fCostForBalance = paymentType === 'financing' ? (parseFloat(financingCost || "") || 0) : 0;
+  const total = parseDecimalIT(totalAmount);
+  const vat = (parseDecimalIT(vatRate) || 22);
+  const fCostForBalance = paymentType === 'financing' ? (parseDecimalIT(financingCost || "")) : 0;
   const totalWithVat = total * (1 + vat / 100);
   const nonBalanceSum = installments
     .filter(i => i.type !== 'balance')
@@ -300,9 +301,9 @@ function CreateOrderInner() {
       if (!effectiveCompany?.id) throw new Error("Company not found");
 
       const values = getValues();
-      const totalVal = parseFloat(values.total_amount) || 0;
-      const vatValue = parseFloat(values.vat_rate) || 22;
-      const fCost = parseFloat(values.financing_cost || "") || 0;
+      const totalVal = parseDecimalIT(values.total_amount);
+      const vatValue = (parseDecimalIT(values.vat_rate) || 22);
+      const fCost = parseDecimalIT(values.financing_cost || "");
 
       // Compute legacy columns from installments for backward compat
       const installmentsForSave = installments.map(i =>
@@ -435,7 +436,7 @@ function CreateOrderInner() {
         const formValues = getValues();
         track(ANALYTICS_EVENTS.ORDER_CREATED, {
           order_id: order.id,
-          order_value: parseFloat(formValues.total_amount) || 0,
+          order_value: parseDecimalIT(formValues.total_amount),
           has_customer: !!formValues.customer_id,
           plan_slug: currentPlan?.slug,
         });
@@ -500,7 +501,7 @@ function CreateOrderInner() {
   });
 
   const onSubmit = (values: OrderFormValues) => {
-    const totalVal = parseFloat(values.total_amount) || 0;
+    const totalVal = parseDecimalIT(values.total_amount);
     if (totalVal <= 0) {
       toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
       return;

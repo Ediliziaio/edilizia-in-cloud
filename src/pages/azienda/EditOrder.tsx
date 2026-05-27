@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { logger } from "@/utils/logger";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -147,9 +148,9 @@ function EditOrderInner() {
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Calculate balance
-  const total = parseFloat(totalAmount) || 0;
-  const vat = parseFloat(vatRate) || 22;
-  const fCostForBalance = paymentType === "financing" ? (parseFloat(financingCost) || 0) : 0;
+  const total = parseDecimalIT(totalAmount);
+  const vat = parseDecimalIT(vatRate) || 22;
+  const fCostForBalance = paymentType === "financing" ? (parseDecimalIT(financingCost)) : 0;
   const totalWithVat = total * (1 + vat / 100);
   const nonBalanceSum = installments
     .filter(i => i.type !== 'balance')
@@ -453,7 +454,7 @@ function EditOrderInner() {
           warehouse_arrival_date: warehouseArrivalDate?.toISOString().split("T")[0] || null,
           work_start_date: workStartDate?.toISOString().split("T")[0] || null,
           work_end_date: workEndDate?.toISOString().split("T")[0] || null,
-          financing_cost: parseFloat(financingCost) || 0,
+          financing_cost: parseDecimalIT(financingCost),
           has_building_bonus: hasBuildingBonus,
           assigned_to: assignedTo || null,
           // Modulo Appaltatori — persistiamo solo se l'ordine è già di tipo
@@ -599,7 +600,7 @@ function EditOrderInner() {
           installments: installmentsForSave,
           totalAmount: total,
           vatRate: vat,
-          financingCost: parseFloat(financingCost) || 0,
+          financingCost: parseDecimalIT(financingCost),
         });
         const commissionAmount = calculateCommissionGross({
           commissionType: salespersonData.commission_type,
@@ -674,7 +675,7 @@ function EditOrderInner() {
       toast.error("IVA non valida", { description: "L'IVA deve essere un valore tra 0 e 100." });
       return;
     }
-    if ((parseFloat(financingCost) || 0) < 0) {
+    if ((parseDecimalIT(financingCost)) < 0) {
       toast.error("Costo finanziaria non valido", { description: "Il costo finanziaria non può essere negativo." });
       return;
     }

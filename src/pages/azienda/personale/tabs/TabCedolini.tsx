@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -99,9 +100,12 @@ export function TabCedolini() {
   });
 
   const computedNetto = () => {
-    const lordo = parseFloat(form.lordo) || 0;
-    const contrib = parseFloat(form.contributi_dipendente) || 0;
-    const irpef = parseFloat(form.ritenute_irpef) || 0;
+    // 2026-05-27 (Form UX audit): parseDecimalIT — prima parseFloat
+    // su "2.350,00" (lordo CCNL stampato) ritornava 2.35 → netto
+    // calcolato sbagliato di migliaia di euro. Critico per HR.
+    const lordo = parseDecimalIT(form.lordo);
+    const contrib = parseDecimalIT(form.contributi_dipendente);
+    const irpef = parseDecimalIT(form.ritenute_irpef);
     return lordo - contrib - irpef;
   };
 
