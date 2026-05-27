@@ -1500,7 +1500,128 @@ export default function CompaniesList() {
           )}
         </div>
       ) : (
-        <Card>
+        <>
+          {/* MOBILE VIEW (<md): card list — la tabella a 13 colonne è impraticabile
+              su mobile anche con scroll orizzontale. Mostriamo le info essenziali
+              in card cliccabili + checkbox + kebab azioni. */}
+          <div className="md:hidden space-y-2">
+            {pagedCompanies.map((company) => {
+              const status = (company.status || "trial") as CompanyStatus;
+              const cfg = statusConfig[status] || statusConfig.trial;
+              const plan = company.subscription_plans as { id: string; name: string; price_monthly: number; price_yearly?: number | null } | null;
+              const monthlyRevenue = getCompanyMonthlyRevenue(company);
+              const countsAsRevenue = isRevenueEligibleCompany(company);
+              const isSelected = selectedIds.has(company.id);
+              return (
+                <Card
+                  key={company.id}
+                  className={`cursor-pointer active:scale-[0.99] transition-transform ${isSelected ? "border-primary/50 bg-primary/5" : ""}`}
+                  onClick={() => navigate(`/admin/aziende/${company.id}`)}
+                >
+                  <CardContent className="p-3 space-y-2">
+                    <div className="flex items-start gap-3">
+                      <div onClick={(e) => e.stopPropagation()} className="pt-1">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(company.id)}
+                          aria-label={`Seleziona ${company.name}`}
+                        />
+                      </div>
+                      {company.logo_url ? (
+                        <img src={company.logo_url} alt={company.name} className="h-10 w-10 rounded-lg object-cover shrink-0" />
+                      ) : (
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Building2 className="h-5 w-5 text-primary" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{company.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{company.email}</p>
+                      </div>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={status}
+                          disabled={updateStatusMutation.isPending || !permissions.bulk_actions}
+                          onValueChange={(v) => updateStatusMutation.mutate({ id: company.id, status: v })}
+                        >
+                          <SelectTrigger className="h-7 w-auto text-xs border-0 shadow-none px-1.5">
+                            <Badge variant={cfg.variant} className="text-[10px]">{cfg.label}</Badge>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="trial">Trial</SelectItem>
+                            <SelectItem value="active">Attivo</SelectItem>
+                            <SelectItem value="suspended">Sospeso</SelectItem>
+                            <SelectItem value="expired">Scaduto</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs pl-12">
+                      {plan && (
+                        <span className="inline-flex items-center gap-1">
+                          <Badge variant="outline" className="text-[10px]">{plan.name}</Badge>
+                          {countsAsRevenue && (
+                            <span className="font-medium tabular-nums">{formatCurrency(monthlyRevenue)}/m</span>
+                          )}
+                        </span>
+                      )}
+                      {(userCounts[company.id] ?? 0) > 0 && (
+                        <span className="text-muted-foreground inline-flex items-center gap-0.5">
+                          <Users className="h-3 w-3" /> {userCounts[company.id]}
+                        </span>
+                      )}
+                      {(orderStats[company.id]?.count ?? 0) > 0 && (
+                        <span className="text-muted-foreground tabular-nums">
+                          {orderStats[company.id]?.count} ordini
+                        </span>
+                      )}
+                      {lastAccessData[company.id] && <LastAccessBadge lastAccess={lastAccessData[company.id] || null} />}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t" onClick={(e) => e.stopPropagation()}>
+                      <CompanyQuickActions company={company} permissions={permissions} />
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => navigate(`/admin/aziende/${company.id}`)}>
+                          <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                          <span className="text-xs">Apri</span>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2"
+                          onClick={(e) => handleImpersonate(e, company.id, company.name)}
+                          disabled={!permissions.impersonation}
+                        >
+                          <LogIn className="h-3.5 w-3.5 mr-1" />
+                          <span className="text-xs">Accedi</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-2 py-2 text-xs text-muted-foreground">
+                <span className="tabular-nums">
+                  {(currentPage - 1) * SERVER_PAGE_SIZE + 1}–{Math.min(currentPage * SERVER_PAGE_SIZE, serverTotalCount)} / {serverTotalCount}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="px-1 tabular-nums">{currentPage}/{totalPages}</span>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* DESKTOP VIEW (>=md): tabella completa con scroll orizzontale */}
+          <Card className="hidden md:block">
           <CardContent className="p-0 overflow-x-auto">
             <Table className="min-w-[900px]">
               <TableHeader className="sticky top-0 z-10 bg-card">
@@ -1704,6 +1825,7 @@ export default function CompaniesList() {
             )}
           </CardContent>
         </Card>
+        </>
       )}
     </div>
   );
