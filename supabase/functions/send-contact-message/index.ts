@@ -102,7 +102,25 @@ Deno.serve(async (req) => {
     }
     const userId = user.id;
 
-    const { contact_id, channel, content, subject } = await req.json();
+    // 2026-05-27 (richiesta utente CC/BCC nei contatti marketing):
+    //   cc[]  → destinatari in conoscenza (visibili a tutti)
+    //   bcc[] → destinatari in conoscenza nascosta (invio separato per ogni
+    //           indirizzo per preservare la natura "nascosta")
+    // Validazione array di stringhe email lowercase. Limit 20 per lato per
+    // evitare abuso/spam (l'utente che vuole inviare a >20 usi una campagna).
+    const { contact_id, channel, content, subject, cc, bcc } = await req.json();
+    const ccList: string[] = Array.isArray(cc)
+      ? (cc as unknown[])
+          .map((x) => String(x ?? "").trim().toLowerCase())
+          .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x))
+          .slice(0, 20)
+      : [];
+    const bccList: string[] = Array.isArray(bcc)
+      ? (bcc as unknown[])
+          .map((x) => String(x ?? "").trim().toLowerCase())
+          .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x))
+          .slice(0, 20)
+      : [];
 
     if (!contact_id || !channel || !content) {
       return new Response(
@@ -204,16 +222,23 @@ Deno.serve(async (req) => {
       const emailSubject = subject || "Messaggio";
       const html = `<html><body><p>${content.replace(/\n/g, "<br>")}</p></body></html>`;
 
+      // 2026-05-27: to + cc come destinatari visibili in unico invio.
+      // sendEmailUnified shared layer accetta solo `to: string[]` (no cc/bcc
+      // separati), quindi tutti i CC finiscono nel campo "To" del client
+      // ricevente — comportamento accettabile per pochi destinatari.
+      // Per BCC nascosti veri facciamo invii separati uno per indirizzo.
+      const visibleRecipients = [contact.email, ...ccList.filter((e) => e !== contact.email)];
+
       let result = await sendEmailUnified({
         companyId:    contact.company_id,
         stream:       "transactional",
-        to:           [contact.email],
+        to:           visibleRecipients,
         subject:      emailSubject,
         html,
         templateName: "contact_message",
         skipCredits:  false,
         adminClient:  adminClient,
-        metadata:     { contact_id: contact.id },
+        metadata:     { contact_id: contact.id, cc_count: ccList.length, bcc_count: bccList.length },
       });
 
       const providerError =
@@ -224,19 +249,40 @@ Deno.serve(async (req) => {
         result = await sendEmailUnified({
           companyId:    contact.company_id,
           stream:       "marketing",
-          to:           [contact.email],
+          to:           visibleRecipients,
           subject:      emailSubject,
           html,
           templateName: "contact_message",
           skipCredits:  false,
           adminClient:  adminClient,
-          metadata:     { contact_id: contact.id, fallback_stream: true },
+          metadata:     { contact_id: contact.id, fallback_stream: true, cc_count: ccList.length, bcc_count: bccList.length },
         });
       }
 
       if (!result.ok) {
         status = "failed";
         errorDetail = JSON.stringify(result.body);
+      } else if (bccList.length > 0) {
+        // BCC nascosti: invio separato per ogni indirizzo (best-effort, no
+        // throw se uno fallisce — il primario è già passato).
+        for (const bccAddr of bccList) {
+          if (bccAddr === contact.email || ccList.includes(bccAddr)) continue;
+          try {
+            await sendEmailUnified({
+              companyId:    contact.company_id,
+              stream:       "transactional",
+              to:           [bccAddr],
+              subject:      emailSubject,
+              html,
+              templateName: "contact_message",
+              skipCredits:  true, // BCC è "copia per archivio", no double-billing
+              adminClient:  adminClient,
+              metadata:     { contact_id: contact.id, bcc_relay: true, bcc_of: contact.email },
+            });
+          } catch (e) {
+            console.warn(`[send-contact-message] BCC fallito per ${bccAddr}:`, e);
+          }
+        }
       }
     } else if (channel === "whatsapp") {
       // Check billing override for whatsapp

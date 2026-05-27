@@ -67,6 +67,30 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#039;");
 }
 
+/** Parse CSV / space-separated emails, lowercased, dedup, basic validation. */
+function parseEmails(raw: string): string[] {
+  if (!raw.trim()) return [];
+  const seen = new Set<string>();
+  return raw
+    .split(/[,;\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => {
+      if (!e || !e.includes("@") || !e.includes(".")) return false;
+      if (seen.has(e)) return false;
+      seen.add(e);
+      return true;
+    });
+}
+
+function findInvalidEmail(raw: string): string | null {
+  if (!raw.trim()) return null;
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  for (const piece of raw.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean)) {
+    if (!re.test(piece)) return piece;
+  }
+  return null;
+}
+
 export function CustomerComposeBar({
   customerId,
   customerEmail,
@@ -84,6 +108,12 @@ export function CustomerComposeBar({
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   const [emailExpanded, setEmailExpanded] = useState(false);
+  // 2026-05-27 (richiesta utente): CC + BCC (CCN) con toggle stile Gmail.
+  // Stringa separata da virgole/spazi. Parsed in submit con parseEmails().
+  const [emailCc, setEmailCc] = useState("");
+  const [emailBcc, setEmailBcc] = useState("");
+  const [emailCcVisible, setEmailCcVisible] = useState(false);
+  const [emailBccVisible, setEmailBccVisible] = useState(false);
 
   const cleanPhone = (customerPhone ?? "").replace(/\D/g, "");
   const waHref = cleanPhone
@@ -183,6 +213,14 @@ export function CustomerComposeBar({
       if (!subject) throw new Error("Aggiungi un oggetto");
       if (!body) throw new Error("Scrivi un messaggio");
 
+      // 2026-05-27: parsing CC/BCC + validazione
+      const ccList = parseEmails(emailCc);
+      const bccList = parseEmails(emailBcc);
+      const invalidCc = findInvalidEmail(emailCc);
+      const invalidBcc = findInvalidEmail(emailBcc);
+      if (invalidCc) throw new Error(`Email CC non valida: ${invalidCc}`);
+      if (invalidBcc) throw new Error(`Email CCN non valida: ${invalidBcc}`);
+
       // 2026-05-27 (firma email auto-append):
       // Se l'account ha signature_html / signature_text settata, l'appendiamo
       // al body con separator standard email "--\n" (RFC 3676).
@@ -221,8 +259,8 @@ export function CustomerComposeBar({
           company_id: effectiveCompany.id,
           oauth_connection_id: emailFrom,
           to_emails: [customerEmail],
-          cc_emails: [],
-          bcc_emails: [],
+          cc_emails: ccList,
+          bcc_emails: bccList,
           subject,
           body_text: finalBodyText,
           body_html: bodyHtml,
@@ -262,6 +300,10 @@ export function CustomerComposeBar({
       qc.invalidateQueries({ queryKey: ["customer-email-conversations", customerId] });
       setEmailSubject("");
       setEmailBody("");
+      setEmailCc("");
+      setEmailBcc("");
+      setEmailCcVisible(false);
+      setEmailBccVisible(false);
       setEmailExpanded(false);
       toast.success(`Email inviata a ${customerEmail}`);
       onSent?.();
@@ -345,7 +387,30 @@ export function CustomerComposeBar({
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">A</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">A</Label>
+                  {/* Toggle CC / CCN stile Gmail — visibile inline */}
+                  <div className="flex items-center gap-1 text-[10px]">
+                    {!emailCcVisible && (
+                      <button
+                        type="button"
+                        className="text-blue-600 hover:underline font-medium"
+                        onClick={() => setEmailCcVisible(true)}
+                      >
+                        + Cc
+                      </button>
+                    )}
+                    {!emailBccVisible && (
+                      <button
+                        type="button"
+                        className="text-blue-600 hover:underline font-medium"
+                        onClick={() => setEmailBccVisible(true)}
+                      >
+                        + Ccn
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <Input
                   value={customerEmail ?? ""}
                   disabled
@@ -353,6 +418,56 @@ export function CustomerComposeBar({
                 />
               </div>
             </div>
+
+            {/* Cc + Ccn (CCN) — visibili solo dopo toggle */}
+            {emailCcVisible && (
+              <div className="space-y-0.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Cc</Label>
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={() => { setEmailCcVisible(false); setEmailCc(""); }}
+                    aria-label="Rimuovi campo Cc"
+                  >
+                    Rimuovi
+                  </button>
+                </div>
+                <Input
+                  placeholder="email1@esempio.it, email2@esempio.it"
+                  value={emailCc}
+                  onChange={(e) => setEmailCc(e.target.value)}
+                  className="h-8 text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Conoscenza (visibile a tutti i destinatari). Separa con virgole.
+                </p>
+              </div>
+            )}
+            {emailBccVisible && (
+              <div className="space-y-0.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Ccn (Bcc)</Label>
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={() => { setEmailBccVisible(false); setEmailBcc(""); }}
+                    aria-label="Rimuovi campo Ccn"
+                  >
+                    Rimuovi
+                  </button>
+                </div>
+                <Input
+                  placeholder="email1@esempio.it, email2@esempio.it"
+                  value={emailBcc}
+                  onChange={(e) => setEmailBcc(e.target.value)}
+                  className="h-8 text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Conoscenza nascosta (gli altri destinatari NON vedono questi indirizzi).
+                </p>
+              </div>
+            )}
 
             {/* Oggetto */}
             <div className="space-y-0.5">

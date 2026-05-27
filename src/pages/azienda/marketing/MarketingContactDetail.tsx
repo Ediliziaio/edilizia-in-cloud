@@ -65,6 +65,24 @@ import { ContactQuotesPanel } from "@/components/marketing/contacts/ContactQuote
 import { getDateLabel, RIGHT_TABS, type RightTab } from "@/components/marketing/contacts/activityHelpers";
 import { getAvatarColor } from "@/lib/contactUtils";
 
+// 2026-05-27 (richiesta utente CC/CCN): parser email CSV/space-separated,
+// lowercase, dedup, validazione basica. Restituisce undefined se input vuoto
+// per evitare di mandare `cc: []` inutile alla edge function.
+function parseEmailList(raw: string): string[] | undefined {
+  if (!raw || !raw.trim()) return undefined;
+  const seen = new Set<string>();
+  const list = raw
+    .split(/[,;\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => {
+      if (!e || !e.includes("@") || !e.includes(".")) return false;
+      if (seen.has(e)) return false;
+      seen.add(e);
+      return true;
+    });
+  return list.length > 0 ? list : undefined;
+}
+
 const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingContactDetail(_props, _ref) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -84,6 +102,12 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [messageText, setMessageText] = useState("");
   const [messageChannel, setMessageChannel] = useState<"whatsapp" | "email" | "sms">("whatsapp");
   const [emailSubject, setEmailSubject] = useState("");
+  // 2026-05-27 (richiesta utente): CC + BCC (CCN) per channel=email.
+  // Toggle stile Gmail. Stringa CSV/space parsata in submit.
+  const [emailCc, setEmailCc] = useState("");
+  const [emailBcc, setEmailBcc] = useState("");
+  const [emailCcVisible, setEmailCcVisible] = useState(false);
+  const [emailBccVisible, setEmailBccVisible] = useState(false);
 
   // ── Fetch calendars for appointment dialog ──
   const { data: calendarsList = [] } = useQuery({
@@ -269,8 +293,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   });
 
   // ── Send message mutation ──
+  // 2026-05-27: supporto CC/BCC per channel=email.
+  // Edge function `send-contact-message` riceve cc[] e bcc[] opzionali.
   const sendMessage = useMutation({
-    mutationFn: async (params: { channel: string; content: string; subject?: string }) => {
+    mutationFn: async (params: { channel: string; content: string; subject?: string; cc?: string[]; bcc?: string[] }) => {
       const { data, error } = await supabase.functions.invoke("send-contact-message", {
         body: { contact_id: id, ...params },
       });
@@ -283,6 +309,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       queryClient.invalidateQueries({ queryKey: ["marketing_contact_activities", id] });
       setMessageText("");
       setEmailSubject("");
+      setEmailCc("");
+      setEmailBcc("");
+      setEmailCcVisible(false);
+      setEmailBccVisible(false);
       const channelLabel = vars.channel === "whatsapp" ? "WhatsApp" : vars.channel === "email" ? "Email" : "SMS";
       toast.success(`Messaggio ${channelLabel} inviato`);
     },
@@ -1096,13 +1126,74 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         {/* Message input bar */}
         <div className="border-t shrink-0">
           {messageChannel === "email" && (
-            <div className="px-3 pt-2">
-              <Input
-                placeholder="Oggetto email..."
-                value={emailSubject}
-                onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
-                className="border-0 bg-muted/50 shadow-none h-7 text-xs"
-              />
+            <div className="px-3 pt-2 space-y-1.5">
+              {/* Riga oggetto + toggle Cc/Ccn (stile Gmail) */}
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Oggetto email..."
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))}
+                  className="border-0 bg-muted/50 shadow-none h-7 text-xs flex-1"
+                />
+                <div className="flex items-center gap-1.5 text-[10px] shrink-0">
+                  {!emailCcVisible && (
+                    <button
+                      type="button"
+                      className="text-blue-600 hover:underline font-medium"
+                      onClick={() => setEmailCcVisible(true)}
+                    >
+                      + Cc
+                    </button>
+                  )}
+                  {!emailBccVisible && (
+                    <button
+                      type="button"
+                      className="text-blue-600 hover:underline font-medium"
+                      onClick={() => setEmailBccVisible(true)}
+                    >
+                      + Ccn
+                    </button>
+                  )}
+                </div>
+              </div>
+              {/* Cc input (visible only on toggle) */}
+              {emailCcVisible && (
+                <div className="flex items-center gap-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0">Cc</Label>
+                  <Input
+                    placeholder="email1@esempio.it, email2@esempio.it"
+                    value={emailCc}
+                    onChange={(e) => setEmailCc(e.target.value)}
+                    className="border-0 bg-muted/50 shadow-none h-7 text-xs flex-1"
+                  />
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0"
+                    onClick={() => { setEmailCcVisible(false); setEmailCc(""); }}
+                  >
+                    Rimuovi
+                  </button>
+                </div>
+              )}
+              {/* Ccn (Bcc) input (visible only on toggle) */}
+              {emailBccVisible && (
+                <div className="flex items-center gap-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground w-8 shrink-0">Ccn</Label>
+                  <Input
+                    placeholder="nascosti@esempio.it (gli altri non vedono questi)"
+                    value={emailBcc}
+                    onChange={(e) => setEmailBcc(e.target.value)}
+                    className="border-0 bg-muted/50 shadow-none h-7 text-xs flex-1"
+                  />
+                  <button
+                    type="button"
+                    className="text-[10px] text-muted-foreground hover:text-foreground shrink-0"
+                    onClick={() => { setEmailBccVisible(false); setEmailBcc(""); }}
+                  >
+                    Rimuovi
+                  </button>
+                </div>
+              )}
             </div>
           )}
           <div className="h-12 flex items-center px-3 gap-2">
@@ -1138,7 +1229,14 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && messageText.trim() && !sendMessage.isPending) {
-                  sendMessage.mutate({ channel: messageChannel, content: messageText.trim(), subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined });
+                  const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
+                  const bcc = messageChannel === "email" ? parseEmailList(emailBcc) : undefined;
+                  sendMessage.mutate({
+                    channel: messageChannel,
+                    content: messageText.trim(),
+                    subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined,
+                    cc, bcc,
+                  });
                 }
               }}
               className="border-0 bg-muted/50 shadow-none h-8 text-xs"
@@ -1147,7 +1245,16 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               size="icon"
               className="h-7 w-7 shrink-0"
               disabled={!messageText.trim() || sendMessage.isPending}
-              onClick={() => sendMessage.mutate({ channel: messageChannel, content: messageText.trim(), subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined })}
+              onClick={() => {
+                const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
+                const bcc = messageChannel === "email" ? parseEmailList(emailBcc) : undefined;
+                sendMessage.mutate({
+                  channel: messageChannel,
+                  content: messageText.trim(),
+                  subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined,
+                  cc, bcc,
+                });
+              }}
             >
               {sendMessage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
             </Button>
