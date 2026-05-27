@@ -879,20 +879,21 @@ export function CustomerBusinessTabs({
   //    del header (stile marketing che usa DropdownMenu invece di pulsantiera
   //    inline). Risultato: tabs partono subito senza chrome ridondante.
   void quickActions; // mantenuto per future estensioni; non più renderizzato qui.
+
+  // 2026-05-27 (fix utente — bug pannello laterale destro):
+  //   - quando il componente è renderizzato DENTRO il pannello laterale 340px
+  //     (defaultTab forzato dall'icon strip), la TabsList con 8 tab si
+  //     sovrappone orizzontalmente (label tagliate, "OrdiniPreventiviAssistenza...")
+  //   - inoltre l'alert "X collegamenti non caricati" appariva DUPLICATO
+  //     in ogni pannello aperto, mentre la vista mobile lo mostrava già
+  //   ORA: quando defaultTab è forzato → niente TabsList, niente alert
+  //   warnings, mostro solo il contenuto del singolo tab attivo (titolo
+  //   con count è già nel header del pannello laterale).
+  const isCompactPanel = !!defaultTab;
   return (
     <Tabs defaultValue={defaultTab ?? "ordini"} key={defaultTab ?? "ordini"}>
-
-      {/*
-        2026-05-27 (audit dettaglio cliente): alert errori meno invasivo.
-        PRIMA: mostrava un blocco giallo grosso con TUTTI gli errori, anche
-        quelli "normali" tipo "Impossibile caricare gli appuntamenti"
-        quando in realtà la tabella appointments non aveva ancora la RLS
-        configurata per quel ruolo. Look allarmante per non-errori.
-        ORA: pill discreta che si espande on-click. Errori dettagliati
-        solo se l'utente vuole vederli. Solo errori CON message
-        non-vuoto vengono mostrati (filtrato da .some(Boolean)).
-      */}
-      {dataWarnings && Object.values(dataWarnings).some(Boolean) && (
+      {/* Alert warnings: solo in vista full (mobile o standalone) */}
+      {!isCompactPanel && dataWarnings && Object.values(dataWarnings).some(Boolean) && (
         <details className="mb-3 group">
           <summary className="cursor-pointer list-none flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 hover:bg-amber-100 transition-colors">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
@@ -914,32 +915,36 @@ export function CustomerBusinessTabs({
         </details>
       )}
 
-      <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto mb-2">
-        <TabsTrigger value="ordini" className="text-xs px-1">
-          Ordini ({orders.length})
-        </TabsTrigger>
-        <TabsTrigger value="preventivi" className="text-xs px-1">
-          Preventivi ({preventivi.length})
-        </TabsTrigger>
-        <TabsTrigger value="assistenza" className="text-xs px-1">
-          Assistenza ({tickets.length})
-        </TabsTrigger>
-        <TabsTrigger value="interventi" className="text-xs px-1">
-          Interventi ({rapportini.length})
-        </TabsTrigger>
-        <TabsTrigger value="documenti" className="text-xs px-1">
-          Documenti ({fatture.length + customerDocuments.length})
-        </TabsTrigger>
-        <TabsTrigger value="email" className="text-xs px-1">
-          Email ({emailConversations.length})
-        </TabsTrigger>
-        <TabsTrigger value="appuntamenti" className="text-xs px-1">
-          Appuntamenti ({appuntamenti.length})
-        </TabsTrigger>
-        <TabsTrigger value="rate" className="text-xs px-1">
-          Rate ({rate.length})
-        </TabsTrigger>
-      </TabsList>
+      {/* TabsList: solo in vista full (mobile / standalone). Nel pannello
+          laterale 340px viene mostrato solo il contenuto della tab attiva. */}
+      {!isCompactPanel && (
+        <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 h-auto mb-2">
+          <TabsTrigger value="ordini" className="text-xs px-1">
+            Ordini ({orders.length})
+          </TabsTrigger>
+          <TabsTrigger value="preventivi" className="text-xs px-1">
+            Preventivi ({preventivi.length})
+          </TabsTrigger>
+          <TabsTrigger value="assistenza" className="text-xs px-1">
+            Assistenza ({tickets.length})
+          </TabsTrigger>
+          <TabsTrigger value="interventi" className="text-xs px-1">
+            Interventi ({rapportini.length})
+          </TabsTrigger>
+          <TabsTrigger value="documenti" className="text-xs px-1">
+            Documenti ({fatture.length + customerDocuments.length})
+          </TabsTrigger>
+          <TabsTrigger value="email" className="text-xs px-1">
+            Email ({emailConversations.length})
+          </TabsTrigger>
+          <TabsTrigger value="appuntamenti" className="text-xs px-1">
+            Appuntamenti ({appuntamenti.length})
+          </TabsTrigger>
+          <TabsTrigger value="rate" className="text-xs px-1">
+            Rate ({rate.length})
+          </TabsTrigger>
+        </TabsList>
+      )}
 
       <TabsContent value="ordini">
         <OrdiniTab orders={orders} customerId={customerId} customerFullName={customerFullName} />

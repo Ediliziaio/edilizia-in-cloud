@@ -796,8 +796,31 @@ export default function CompanyCustomerDetail() {
           </Button>
         </div>
 
-        {/* KPI strip — stile marketing (border bg-card + icon corner + subtext) */}
-        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+        {/* KPI strip — desktop grid 4 col, mobile scroll-x compatto stile marketing */}
+        {/* MOBILE: 4 chips inline, scroll-x se serve, no subtext (compatto) */}
+        <div className="mt-3 md:hidden grid grid-cols-4 gap-1.5">
+          <div className="rounded-lg bg-blue-50 border border-blue-100 px-2 py-1.5 text-center">
+            <p className="text-[8px] text-blue-700 uppercase font-semibold leading-none">Ordini</p>
+            <p className="text-sm font-bold tabular-nums leading-tight text-blue-900 mt-0.5">{orderCount}</p>
+          </div>
+          <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-2 py-1.5 text-center">
+            <p className="text-[8px] text-emerald-700 uppercase font-semibold leading-none">€ Totale</p>
+            <p className="text-sm font-bold tabular-nums leading-tight text-emerald-900 mt-0.5">
+              {totalOrderValue >= 1000 ? `${(totalOrderValue / 1000).toFixed(0)}k` : totalOrderValue}
+            </p>
+          </div>
+          <div className="rounded-lg bg-amber-50 border border-amber-100 px-2 py-1.5 text-center">
+            <p className="text-[8px] text-amber-700 uppercase font-semibold leading-none">Ticket</p>
+            <p className="text-sm font-bold tabular-nums leading-tight text-amber-900 mt-0.5">{openTickets}</p>
+          </div>
+          <div className="rounded-lg bg-violet-50 border border-violet-100 px-2 py-1.5 text-center">
+            <p className="text-[8px] text-violet-700 uppercase font-semibold leading-none">Prev.</p>
+            <p className="text-sm font-bold tabular-nums leading-tight text-violet-900 mt-0.5">{preventivi.length}</p>
+          </div>
+        </div>
+
+        {/* DESKTOP: KPI strip full (border bg-card + icon corner + subtext) */}
+        <div className="mt-3 hidden md:grid md:grid-cols-4 gap-2">
           <KpiCard
             icon={ShoppingBag}
             iconColor="text-blue-500"
@@ -878,9 +901,18 @@ export default function CompanyCustomerDetail() {
         Su mobile: stack verticale (left sopra, center sotto, right come
         bottom-sheet via dialog futuro — per ora solo center+left).
       */}
-      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 min-h-[60vh]">
-        {/* ─── LEFT 280px ─── */}
-        <div className="lg:w-72 shrink-0">
+      {/*
+        2026-05-27 (richiesta utente "ottimizza mobile come pagina contatti"):
+        Su mobile la PRIORITÀ è il diario/timeline (cosa fai ora), non
+        l'anagrafica (chi è — già nel header). Quindi ordine reverse:
+          MOBILE  → CENTER (timeline+compose) → LEFT (anagrafica) → CustomerBusinessTabs
+          DESKTOP → LEFT (280px) → CENTER (flex) → RIGHT (icon strip)
+        Usato `order-*` CSS per ribaltare l'ordine senza duplicare markup.
+        Il min-h timeline è limitato su mobile per evitare scroll infinito.
+      */}
+      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:min-h-[70vh]">
+        {/* ─── LEFT 280px (su mobile va dopo center → order-2) ─── */}
+        <div className="order-2 lg:order-none lg:w-72 shrink-0">
           <CustomerProfileCard
             customer={customer}
             linkedContact={linkedContact}
@@ -888,8 +920,8 @@ export default function CompanyCustomerDetail() {
           />
         </div>
 
-        {/* ─── CENTER timeline + compose ─── */}
-        <div className="flex-1 min-w-0 rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden">
+        {/* ─── CENTER timeline + compose (su mobile è il PRIMO blocco) ─── */}
+        <div className="order-1 lg:order-none flex-1 min-w-0 rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden min-h-[50vh] lg:min-h-0">
           <CustomerActivityTimeline
             customerId={customer.id}
             orders={orders}
@@ -909,12 +941,27 @@ export default function CompanyCustomerDetail() {
 
         {/* ─── RIGHT icon strip + panel collassabile ─── */}
         <div className="hidden lg:flex shrink-0">
-          {/* Pannello attivo (rendering condizionale) */}
+          {/* Pannello attivo (rendering condizionale).
+              2026-05-27 fix: NO dataWarnings nel pannello (sono già nella
+              vista mobile sotto), NO TabsList (è "isCompactPanel" via defaultTab),
+              header con conteggio dinamico. */}
           {rightTab && (
             <div className="w-[340px] rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden mr-2">
               <div className="flex items-center justify-between px-3 py-2 border-b">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   {RIGHT_TABS.find((t) => t.key === rightTab)?.label ?? "Pannello"}
+                  <span className="text-[10px] tabular-nums text-muted-foreground/70">
+                    ({
+                      rightTab === "ordini"       ? orders.length :
+                      rightTab === "preventivi"   ? preventivi.length :
+                      rightTab === "assistenza"   ? tickets.length :
+                      rightTab === "interventi"   ? rapportini.length :
+                      rightTab === "documenti"    ? fattureCliente.length :
+                      rightTab === "appuntamenti" ? appuntamenti.length :
+                      rightTab === "rate"         ? rate.length :
+                      0
+                    })
+                  </span>
                 </h3>
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRightTab(null)} aria-label="Chiudi pannello">
                   <XIcon className="h-3.5 w-3.5" />
@@ -935,15 +982,9 @@ export default function CompanyCustomerDetail() {
                   rate={rate}
                   anagraficaCollegata={anagraficaCollegata ?? null}
                   defaultTab={rightTab}
-                  dataWarnings={{
-                    anagrafica: anagraficaError instanceof Error ? anagraficaError.message : null,
-                    fatture: fattureError instanceof Error ? fattureError.message : null,
-                    preventivi: preventiviError instanceof Error ? preventiviError.message : null,
-                    tickets: ticketsError instanceof Error ? ticketsError.message : null,
-                    rapportini: rapportiniError instanceof Error ? rapportiniError.message : null,
-                    appuntamenti: appuntamentiError instanceof Error ? appuntamentiError.message : null,
-                    rate: rateError instanceof Error ? rateError.message : null,
-                  }}
+                  /* dataWarnings volutamente OMESSO: l'alert apparirebbe
+                     duplicato per ogni pannello aperto. Resta nella vista
+                     mobile full di CustomerBusinessTabs sotto. */
                 />
               </div>
             </div>
@@ -979,7 +1020,11 @@ export default function CompanyCustomerDetail() {
         </div>
       </div>
 
-      {/* Su mobile: tabs business sotto (right panel non disponibile su lg<) */}
+      {/*
+        Su mobile: tabs business in vista full SOTTO (after timeline+sidebar).
+        Right panel desktop non disponibile su lg< → su mobile l'utente vede
+        comunque tutte le sezioni nel TabsList scrollabile.
+      */}
       <div className="lg:hidden">
         <CustomerBusinessTabs
           customerId={customer.id}
