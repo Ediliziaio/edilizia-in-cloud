@@ -14,12 +14,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ShieldCheck, Plug, Calendar as CalendarIconLucide } from "lucide-react";
+import { AlertTriangle, ShieldCheck, Plug } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-// Calendar inline (richiesta utente — restano in pagina, non popup)
-import GoogleCalendarConnectionTab from "@/components/settings/GoogleCalendarConnectionTab";
-import AppleCalendarConnectionTab from "@/components/settings/AppleCalendarConnectionTab";
+// Vista admin company-wide dei calendari (NON i miei personali — quelli stanno
+// in Mio Profilo → tab Calendari, gestiti da GoogleCalendarConnectionTab +
+// AppleCalendarConnectionTab embedded lì).
+import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendarsOverview";
 // Popup components per integrazioni in modalità "popup"
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
@@ -342,18 +343,10 @@ export default function SettingsIntegrations() {
         </Alert>
       )}
 
-      {/* Calendari (sezione speciale inline — richiesta utente) */}
-      <div className="space-y-4 rounded-lg border bg-card p-4">
-        <div className="flex items-center gap-2">
-          <CalendarIconLucide className="h-5 w-5 text-muted-foreground" />
-          <h2 className="text-base font-semibold">Calendari</h2>
-          <span className="text-xs text-muted-foreground">
-            (gestione inline — disconnect + sync direttamente qui)
-          </span>
-        </div>
-        <GoogleCalendarConnectionTab />
-        <AppleCalendarConnectionTab />
-      </div>
+      {/* Vista admin: panoramica calendari AZIENDALI (chi ha collegato cosa).
+          La gestione dei MIEI calendari personali è in Mio Profilo → Calendari.
+          Per non-admin questo componente mostra solo un placeholder con CTA. */}
+      <CompanyCalendarsOverview />
 
       {/* Grid integrazioni */}
       <IntegrationsGrid
