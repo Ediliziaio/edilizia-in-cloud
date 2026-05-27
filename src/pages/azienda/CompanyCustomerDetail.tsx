@@ -1,7 +1,12 @@
 import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Mail, Phone, MapPin, ClipboardList, Trash2, Wand2, AlertTriangle, Pencil } from "lucide-react";
+import {
+  ArrowLeft, Loader2, Mail, Phone, MapPin, ClipboardList, Trash2, Wand2,
+  AlertTriangle, Pencil, MessageCircle, Calendar, Euro, ShoppingBag, LifeBuoy,
+  FileText, CalendarPlus, PhoneCall,
+} from "lucide-react";
+import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -77,6 +82,11 @@ export default function CompanyCustomerDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDeleting, setIsDeleting] = useState(false);
+  // 2026-05-26: compose email dialog integrato (richiesta utente "vorrei che
+  // potessi inviare email anche da qui"). Apre con destinatario pre-popolato
+  // a customer.email.
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
 
   // ── Core customer data ──────────────────────────────────────────────────────
   const { data: customer, isLoading, refetch: refetchCustomer } = useQuery({
@@ -436,102 +446,230 @@ export default function CompanyCustomerDetail() {
     );
   }
 
+  // 2026-05-26: header restyle ispirato alla pagina Contatti (MarketingContactDetail).
+  // Pattern: back arrow + avatar + nome/badge + chip info + bottoni quick action a
+  // destra (Chiama / Email / WhatsApp / Appuntamento) + Elimina.
+  const customerEmailClean = formatCustomerEmail(customer.email);
+  const customerInitials = (fullName.match(/\b\w/g) ?? []).slice(0, 2).join("").toUpperCase() || "?";
+  const cleanPhoneForWa = (customer.phone ?? "").replace(/\D/g, "");
+  const waHref = cleanPhoneForWa
+    ? `https://wa.me/${cleanPhoneForWa.startsWith("39") || cleanPhoneForWa.length > 10 ? cleanPhoneForWa : `39${cleanPhoneForWa}`}`
+    : null;
+
+  const openCompose = () => {
+    setComposeContext({
+      mode: "new",
+      initialTo: customerEmailClean ? [customerEmailClean] : undefined,
+      initialSubject: undefined,
+    });
+    setComposeOpen(true);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden md:inline-flex shrink-0"
-          onClick={() => navigate("/azienda/clienti")}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+      {/* ───── Header stile Contatti ───── */}
+      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-orange-50/30 p-4 md:p-5 shadow-sm">
+        <div className="flex items-start gap-3 md:gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden md:inline-flex shrink-0 -ml-2"
+            onClick={() => navigate("/azienda/clienti")}
+            aria-label="Torna ai clienti"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold">
-              {fullName}
-              {!customer.is_business && isFirstPlaceholder && isLastPlaceholder && !biz && (
-                <span className="text-xs font-normal text-muted-foreground ml-2">(anagrafica da completare)</span>
-              )}
-            </h1>
-            {customer.is_business && (
-              <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300">
-                Azienda
-              </Badge>
-            )}
-            <Badge variant="secondary" className="gap-1">
-              <ClipboardList className="h-3 w-3" />
-              {orderCount} {orderCount === 1 ? "ordine" : "ordini"}
-            </Badge>
+          {/* Avatar grande con iniziali */}
+          <div className="relative shrink-0">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-orange-500 text-white text-lg font-bold shadow-sm">
+              {customerInitials}
+            </div>
           </div>
-          {referentName && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Referente: <span className="font-medium text-foreground">{referentName}</span>
-            </p>
-          )}
 
-          {/* Chip cliccabili email / telefono / indirizzo */}
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            {formatCustomerEmail(customer.email) && (
-              <a
-                href={`mailto:${formatCustomerEmail(customer.email)}`}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs text-muted-foreground hover:bg-muted/70 transition-colors"
-              >
-                <Mail className="h-3 w-3" />
-                {formatCustomerEmail(customer.email)}
-              </a>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+                {fullName}
+              </h1>
+              {customer.is_business && (
+                <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-800 border-blue-200">
+                  Azienda
+                </Badge>
+              )}
+              {!customer.is_business && (
+                <Badge variant="outline" className="gap-1 border-slate-200 bg-white text-slate-600 text-[10px]">
+                  Cliente
+                </Badge>
+              )}
+              {!customer.is_business && isFirstPlaceholder && isLastPlaceholder && !biz && (
+                <span className="text-xs font-normal text-muted-foreground">(anagrafica da completare)</span>
+              )}
+            </div>
+            {referentName && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Referente: <span className="font-medium text-foreground">{referentName}</span>
+              </p>
             )}
+
+            {/* Chip info: email / telefono / indirizzo */}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {customerEmailClean && (
+                <a
+                  href={`mailto:${customerEmailClean}`}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <Mail className="h-3 w-3 text-blue-500" />
+                  {customerEmailClean}
+                </a>
+              )}
+              {customer.phone && (
+                <a
+                  href={`tel:${customer.phone}`}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  <Phone className="h-3 w-3 text-emerald-500" />
+                  {customer.phone}
+                </a>
+              )}
+              {(customer.city || customer.address) && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[11px] text-slate-600">
+                  <MapPin className="h-3 w-3 text-rose-500" />
+                  {[customer.address, customer.city].filter(Boolean).join(" · ")}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Quick action buttons (desktop) */}
+          <div className="hidden md:flex shrink-0 items-center gap-1.5">
             {customer.phone && (
-              <a
-                href={`tel:${customer.phone}`}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs text-muted-foreground hover:bg-muted/70 transition-colors"
+              <Button asChild variant="outline" size="sm" className="gap-1.5 border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50">
+                <a href={`tel:${customer.phone}`}>
+                  <PhoneCall className="h-3.5 w-3.5" />
+                  Chiama
+                </a>
+              </Button>
+            )}
+            {customerEmailClean && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-blue-200 bg-white text-blue-700 hover:bg-blue-50"
+                onClick={openCompose}
               >
-                <Phone className="h-3 w-3" />
-                {customer.phone}
-              </a>
+                <Mail className="h-3.5 w-3.5" />
+                Email
+              </Button>
             )}
-            {customer.address && (
-              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3" />
-                {customer.address}
-              </span>
+            {waHref && (
+              <Button asChild variant="outline" size="sm" className="gap-1.5 border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50">
+                <a href={waHref} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  WhatsApp
+                </a>
+              </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-violet-200 bg-white text-violet-700 hover:bg-violet-50"
+              onClick={() => navigate(`/azienda/calendario?customer_id=${customer.id}`)}
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              Appuntam.
+            </Button>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" disabled={isDeleting} className="text-rose-600 hover:bg-rose-50">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Eliminare questo cliente?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {orderCount > 0
+                      ? `Impossibile eliminare: il cliente ha ${orderCount} ${orderCount === 1 ? "ordine associato" : "ordini associati"}. Elimina prima gli ordini.`
+                      : "Questa azione è irreversibile. Il cliente e il suo account verranno eliminati permanentemente."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  {orderCount === 0 && (
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Elimina
+                    </AlertDialogAction>
+                  )}
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm" disabled={isDeleting} className="shrink-0">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Elimina
+        {/* Quick action mobile (sotto l'header) */}
+        <div className="mt-3 flex md:hidden flex-wrap gap-1.5">
+          {customer.phone && (
+            <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-200 bg-white text-emerald-700">
+              <a href={`tel:${customer.phone}`}>
+                <PhoneCall className="h-3.5 w-3.5" />
+                Chiama
+              </a>
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Eliminare questo cliente?</AlertDialogTitle>
-              <AlertDialogDescription>
-                {orderCount > 0
-                  ? `Impossibile eliminare: il cliente ha ${orderCount} ${orderCount === 1 ? "ordine associato" : "ordini associati"}. Elimina prima gli ordini.`
-                  : "Questa azione è irreversibile. Il cliente e il suo account verranno eliminati permanentemente."}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
-              {orderCount === 0 && (
-                <AlertDialogAction
-                  onClick={handleDelete}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Elimina
-                </AlertDialogAction>
-              )}
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          )}
+          {customerEmailClean && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 min-w-[80px] gap-1.5 border-blue-200 bg-white text-blue-700"
+              onClick={openCompose}
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Email
+            </Button>
+          )}
+          {waHref && (
+            <Button asChild variant="outline" size="sm" className="flex-1 min-w-[80px] gap-1.5 border-emerald-200 bg-white text-emerald-700">
+              <a href={waHref} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp
+              </a>
+            </Button>
+          )}
+        </div>
+
+        {/* KPI strip top-row (stile Contatti) */}
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+          <KpiCard
+            icon={ShoppingBag}
+            label="Ordini"
+            value={orderCount}
+            tone="blue"
+          />
+          <KpiCard
+            icon={Euro}
+            label="Valore totale"
+            value={`€ ${totalOrderValue.toLocaleString("it-IT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
+            tone="emerald"
+          />
+          <KpiCard
+            icon={LifeBuoy}
+            label="Ticket aperti"
+            value={tickets.filter((t) => t.status !== "closed" && t.status !== "resolved").length}
+            tone="amber"
+          />
+          <KpiCard
+            icon={FileText}
+            label="Preventivi"
+            value={preventivi.length}
+            tone="violet"
+          />
+        </div>
       </div>
 
       {/* ───── Banner data hygiene ───── */}
@@ -615,6 +753,48 @@ export default function CompanyCustomerDetail() {
           />
         </div>
       </div>
+
+      {/* Email compose dialog — apre con destinatario pre-popolato */}
+      <EmailComposeDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        context={composeContext}
+        companyIdOverride={effectiveCompany?.id}
+      />
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────
+// KpiCard — strip top-row stile pagina Contatti
+// ───────────────────────────────────────────────────────────────
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number | string;
+  tone: "blue" | "emerald" | "amber" | "violet";
+}) {
+  const toneClasses = {
+    blue:    "border-blue-100 bg-blue-50/50 text-blue-700",
+    emerald: "border-emerald-100 bg-emerald-50/50 text-emerald-700",
+    amber:   "border-amber-100 bg-amber-50/50 text-amber-700",
+    violet:  "border-violet-100 bg-violet-50/50 text-violet-700",
+  }[tone];
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${toneClasses}`}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+        <Icon className="h-3 w-3" />
+        {label}
+      </div>
+      <p className="mt-1 text-xl font-bold text-slate-900">
+        {value}
+      </p>
     </div>
   );
 }

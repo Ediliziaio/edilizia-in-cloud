@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,12 +8,14 @@ import {
   ClipboardList, Euro, Ticket, FileText, ExternalLink,
   CalendarDays, CreditCard, FileSignature, Wrench, Link2, Plus,
   AlertTriangle, FileCheck2, FileWarning, Mail, MessageSquare, Paperclip, Sparkles,
+  PencilLine,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { KpiMini } from "./KpiMini";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
 
 // ── Row types ────────────────────────────────────────────────────────────────
 
@@ -632,15 +635,29 @@ function RateTab({ rate }: { rate: RataRow[] }) {
 function EmailConversationsTab({
   conversations,
   customerEmail,
+  companyId,
   isLoading,
   error,
 }: {
   conversations: CustomerEmailConversationRow[];
   customerEmail: string | null;
+  companyId: string;
   isLoading: boolean;
   error: unknown;
 }) {
   const navigate = useNavigate();
+  // 2026-05-26 (request utente "potere inviare email anche da qui"):
+  // dialog di compose locale, apre con destinatario pre-popolato. Niente
+  // più redirect forzato a /azienda/email per scrivere.
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
+  const openNewEmail = () => {
+    setComposeContext({
+      mode: "new",
+      initialTo: customerEmail ? [customerEmail] : undefined,
+    });
+    setComposeOpen(true);
+  };
   const emailHref = customerEmail
     ? `/azienda/email?customer_email=${encodeURIComponent(customerEmail)}`
     : "/azienda/email";
@@ -686,16 +703,30 @@ function EmailConversationsTab({
 
   if (conversations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <MessageSquare className="h-10 w-10 text-muted-foreground/30 mb-3" />
-        <p className="text-sm font-medium text-muted-foreground">Nessuna conversazione email trovata</p>
-        <p className="text-xs text-muted-foreground mt-1 mb-3">
-          Ho cercato nelle tue caselle personali collegate usando {customerEmail}.
-        </p>
-        <Button variant="outline" size="sm" onClick={() => navigate(emailHref)}>
-          Cerca nel client email
-        </Button>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+          <MessageSquare className="h-10 w-10 text-muted-foreground/30 mb-3" />
+          <p className="text-sm font-medium text-muted-foreground">Nessuna conversazione email trovata</p>
+          <p className="text-xs text-muted-foreground mt-1 mb-3">
+            Ho cercato nelle tue caselle personali collegate usando {customerEmail}.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button size="sm" className="gap-1.5 bg-blue-600 hover:bg-blue-700" onClick={openNewEmail}>
+              <PencilLine className="h-3.5 w-3.5" />
+              Scrivi prima email
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate(emailHref)}>
+              Cerca nel client
+            </Button>
+          </div>
+        </div>
+        <EmailComposeDialog
+          open={composeOpen}
+          onOpenChange={setComposeOpen}
+          context={composeContext}
+          companyIdOverride={companyId}
+        />
+      </>
     );
   }
 
@@ -711,9 +742,15 @@ function EmailConversationsTab({
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="bg-white" onClick={() => navigate(emailHref)}>
-          Apri inbox filtrata
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" className="gap-1.5 bg-blue-600 hover:bg-blue-700" onClick={openNewEmail}>
+            <PencilLine className="h-3.5 w-3.5" />
+            Scrivi
+          </Button>
+          <Button variant="outline" size="sm" className="bg-white" onClick={() => navigate(emailHref)}>
+            Apri inbox
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-1">
@@ -764,6 +801,13 @@ function EmailConversationsTab({
           );
         })}
       </div>
+
+      <EmailComposeDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        context={composeContext}
+        companyIdOverride={companyId}
+      />
     </div>
   );
 }
@@ -927,6 +971,7 @@ export function CustomerBusinessTabs({
         <EmailConversationsTab
           conversations={emailConversations}
           customerEmail={normalizedCustomerEmail}
+          companyId={companyId}
           isLoading={isLoadingEmailConversations}
           error={emailConversationsError}
         />
