@@ -134,12 +134,16 @@ async function handleCallback(req: Request): Promise<Response> {
     return buildCallbackHtml("error", "Database error", state.appOrigin);
   }
 
-  // Ensure settings row exists
+  // Ensure settings row exists. 2026-05-26: defaultiamo `primary_calendar_id`
+  // a "primary" (keyword Google per il calendario di default dell'utente) così
+  // la sync function ha sempre un calendar id valido senza richiedere allo
+  // user di fare manualmente "Seleziona calendario" dopo OAuth.
   await admin.from("google_calendar_settings").upsert(
     {
       company_id: state.companyId,
       user_id: state.userId,
       connection_id: undefined, // will be linked after
+      primary_calendar_id: "primary",
     },
     { onConflict: "company_id,user_id", ignoreDuplicates: true }
   );
@@ -161,9 +165,9 @@ async function handleCallback(req: Request): Promise<Response> {
   }
 
   // FASE 4: Auto-register webhook watch after successful OAuth
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     await fetch(`${supabaseUrl}/functions/v1/google-calendar-webhook?action=register_watch`, {
       method: "POST",
       headers: {
@@ -174,6 +178,23 @@ async function handleCallback(req: Request): Promise<Response> {
     });
   } catch (e) {
     console.warn("Auto watch registration failed (non-critical):", e);
+  }
+
+  // 2026-05-26: trigger sync immediato dopo OAuth (fire-and-forget). Senza
+  // questo, l'utente collegava il calendario ma vedeva la pagina vuota finché
+  // non cliccava "Sincronizza ora" — confondente. Il primo sync popola
+  // google_calendar_busy_slots con gli eventi delle prossime 4 settimane.
+  try {
+    fetch(`${supabaseUrl}/functions/v1/google-calendar-sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ companyId: state.companyId, userId: state.userId }),
+    }).catch((e) => console.warn("Auto initial sync failed (non-critical):", e));
+  } catch (e) {
+    console.warn("Auto initial sync schedule failed:", e);
   }
 
   return buildCallbackHtml("success", undefined, state.appOrigin);

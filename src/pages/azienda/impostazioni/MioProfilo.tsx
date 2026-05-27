@@ -296,9 +296,7 @@ export default function MioProfilo() {
       if (res.error) throw new Error(res.error.message);
       if (res.data?.url) {
         const popup = window.open(res.data.url, "google-cal-auth", "width=500,height=700,left=400,top=100");
-        // v8.6.39 H3 — Early return se popup bloccato dal browser: prima il
-        // codice procedeva al setInterval su popup?.closed, che era sempre
-        // undefined → spinner infinito fino al timeout 5min senza feedback.
+        // v8.6.39 H3 — Early return se popup bloccato dal browser
         if (!popup) {
           toast.error("Popup bloccato", {
             description: "Abilita i popup per questo sito nelle impostazioni del browser e riprova.",
@@ -315,11 +313,37 @@ export default function MioProfilo() {
         }, 1000);
         setTimeout(() => { clearInterval(pollInterval); setConnectingGoogle(false); }, 300_000);
       }
-    } catch (err: any) {
-      toast.error("Errore connessione Google", { description: err.message });
+    } catch (err: unknown) {
+      toast.error("Errore connessione Google", { description: err instanceof Error ? err.message : String(err) });
       setConnectingGoogle(false);
     }
   };
+
+  // 2026-05-26 (audit fix P0): listener postMessage per esito OAuth Google
+  // Calendar. Prima il polling rilevava solo popup.closed, senza distinguere
+  // tra successo, errore, annullamento → utente non sapeva se aveva
+  // funzionato. Ora mostra toast esplicito + invalidate query.
+  useEffect(() => {
+    const trustedOrigins = [window.location.origin, "https://app.ediliziaincloud.com"];
+    const handler = (event: MessageEvent) => {
+      if (!trustedOrigins.includes(event.origin)) return;
+      if (event.data?.type !== "GOOGLE_OAUTH_RESULT") return;
+      if (event.data.status === "success") {
+        toast.success("Google Calendar collegato", {
+          description: "Sto importando i tuoi appuntamenti delle prossime 4 settimane…",
+        });
+        queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
+        queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
+      } else {
+        toast.error("Collegamento non completato", {
+          description: event.data.error || "Riprova dalle impostazioni.",
+        });
+      }
+      setConnectingGoogle(false);
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [queryClient]);
 
   const disconnectGoogle = async () => {
     if (!companyId || !user?.id) return;
@@ -351,18 +375,36 @@ export default function MioProfilo() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  // 2026-05-26 (audit fix P1): handling errori migliorato. Prima il catch
+  // mostrava `err.message` anche se undefined → "Errore" generico senza
+  // dettaglio. Ora controllo esplicito su res.error + invalidate query
+  // così la UI mostra subito i nuovi busy slots.
   const syncGoogle = async () => {
     if (!companyId || !user?.id) return;
     setSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      await supabase.functions.invoke("google-calendar-sync", {
+      const res = await supabase.functions.invoke("google-calendar-sync", {
         body: { action: "full-sync", companyId },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      toast.success("Sincronizzazione completata!");
-    } catch (err: any) {
-      toast.error(err.message);
+      if (res.error) throw new Error(res.error.message || "Sync fallita");
+      const result = res.data as { synced?: number; skipped?: number } | null;
+      const synced = result?.synced ?? 0;
+      toast.success("Sincronizzazione completata", {
+        description: synced > 0
+          ? `${synced} appuntamenti dal tuo Google Calendar importati.`
+          : "Nessun nuovo appuntamento trovato nelle prossime 4 settimane.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] });
+      queryClient.invalidateQueries({ queryKey: ["gcal-busy-slots"] });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error("Sincronizzazione non riuscita", {
+        description: msg.includes("token") || msg.includes("auth")
+          ? "Sembra che il collegamento sia scaduto. Riconnetti Google Calendar."
+          : msg,
+      });
     } finally { setSyncing(false); }
   };
 

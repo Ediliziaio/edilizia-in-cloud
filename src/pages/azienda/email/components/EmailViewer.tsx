@@ -310,7 +310,7 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
   const [aiAnalysis, setAiAnalysis] = useState<EmailAnalysisResult | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Array<{ tone: string; label: string; body: string }> | null>(null);
 
-  const { data: messages, isLoading } = useQuery({
+  const { data: messages, isLoading, isError, error: messagesError, refetch: refetchMessages } = useQuery({
     queryKey: ["email-thread-messages", threadId],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -680,9 +680,27 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
             <Skeleton className="h-32" />
             <Skeleton className="h-24" />
           </div>
+        ) : isError ? (
+          /* 2026-05-26 (audit fix P1): branch errore esplicito con retry.
+             Prima un fail della query cadeva nel ramo "Nessun messaggio…",
+             nascondendo errori RLS/rete come se la conversazione fosse vuota. */
+          <div className="p-6 m-3 rounded-lg border border-rose-200 bg-rose-50 text-center">
+            <AlertTriangle className="mx-auto h-8 w-8 text-rose-600 mb-2" />
+            <p className="text-sm font-semibold text-rose-900">Errore caricamento conversazione</p>
+            <p className="mt-1 text-xs text-rose-700">
+              {messagesError instanceof Error ? messagesError.message : "Riprova tra poco."}
+            </p>
+            <Button onClick={() => void refetchMessages()} variant="outline" size="sm" className="mt-3 bg-white">
+              Riprova
+            </Button>
+          </div>
         ) : !messages || messages.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            Nessun messaggio in questa conversazione.
+          <div className="p-8 text-center">
+            <p className="text-sm text-muted-foreground">Nessun messaggio in questa conversazione.</p>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <Button onClick={onClose} variant="outline" size="sm">Torna alla lista</Button>
+              <Button onClick={() => void refetchMessages()} variant="ghost" size="sm">Aggiorna</Button>
+            </div>
           </div>
         ) : (
           <div className="p-4 space-y-3">

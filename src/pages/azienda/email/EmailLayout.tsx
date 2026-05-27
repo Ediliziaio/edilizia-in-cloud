@@ -18,7 +18,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { EmailSidebar } from "./components/EmailSidebar";
 import { EmailAiCommandCenter } from "./components/EmailAiCommandCenter";
-import { EmailConnectionHealthPanel, type EmailConnectionHealth } from "./components/EmailConnectionHealthPanel";
+// EmailConnectionHealthPanel rimosso dalla center column 2026-05-26 → manteniamo
+// solo il TIPO `EmailConnectionHealth` perché esteso da EmailConnectionSummary (r.77).
+import { type EmailConnectionHealth } from "./components/EmailConnectionHealthPanel";
 import { EmailList } from "./components/EmailList";
 import { EmailViewer } from "./components/EmailViewer";
 import { EmailComposeDialog, type ComposeContext } from "./components/EmailComposeDialog";

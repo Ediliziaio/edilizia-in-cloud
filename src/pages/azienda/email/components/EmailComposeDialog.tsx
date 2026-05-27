@@ -8,6 +8,7 @@
  * - Textarea leggera con conversione newline → <br> per HTML basico.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -440,8 +441,16 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
             </div>
           )}
           {connections && connections.length === 0 && (
-            <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              Collega una casella email attiva dalle impostazioni per inviare messaggi.
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+              <p className="font-medium">Nessuna casella email collegata</p>
+              <p className="mt-0.5 text-amber-700">Devi collegare almeno un account email per inviare messaggi.</p>
+              <Link
+                to="/azienda/impostazioni/mio-profilo?tab=email"
+                onClick={() => onOpenChange(false)}
+                className="mt-2 inline-flex items-center gap-1 rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700"
+              >
+                Vai a Impostazioni Email →
+              </Link>
             </div>
           )}
 
@@ -566,16 +575,25 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-4 py-2.5">
+          {/* 2026-05-26 (audit fix P1): disabilito Invia anche se allegati
+              stanno ancora caricando. Prima si cliccava → toast.error "Attendi"
+              ma il bottone restava cliccabile (e n-click partivano N submit). */}
           <Button
             onClick={() => sendMutation.mutate()}
-            disabled={isSending || !hasActiveSender}
+            disabled={isSending || !hasActiveSender || attachments.some((a) => a.uploading)}
             className="gap-2 rounded-xl bg-blue-600 px-5 hover:bg-blue-700"
             size="sm"
+            title={attachments.some((a) => a.uploading) ? "Attendi il caricamento degli allegati" : undefined}
           >
             {isSending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Invio…
+              </>
+            ) : attachments.some((a) => a.uploading) ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Allegati ({attachments.filter((a) => a.uploading).length})
               </>
             ) : (
               <>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Briefcase, History, Mail, Receipt, Truck, User, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRecipientSuggestions, type RecipientSource } from "../hooks/useRecipientSuggestions";
@@ -100,6 +100,36 @@ export function RecipientField({
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
 
+  // 2026-05-26: addEmail / removeEmail / commitInputText sono dichiarate con
+  // useCallback PRIMA del useEffect che le usa, per evitare TDZ (Temporal Dead
+  // Zone) violation rilevata da react-best-practices linter. Le function
+  // expression non sono hoisted nel modo in cui ci si aspetta dentro un
+  // useEffect closure registrato prima della dichiarazione.
+  const addEmail = useCallback((addr: string) => {
+    const clean = addr.trim().toLowerCase();
+    if (!clean) return;
+    if (!EMAIL_RE.test(clean)) return;
+    if (emails.map((e) => e.toLowerCase()).includes(clean)) return;
+    const next = [...emails, clean].join(", ");
+    onChange(next);
+    setInputText("");
+    setOpen(false);
+  }, [emails, onChange]);
+
+  const removeEmail = useCallback((addr: string) => {
+    const next = emails.filter((e) => e.toLowerCase() !== addr.toLowerCase()).join(", ");
+    onChange(next);
+    inputRef.current?.focus();
+  }, [emails, onChange]);
+
+  const commitInputText = useCallback(() => {
+    // Quando l'utente fa blur / preme Esc, se il testo è una email valida la aggiungiamo,
+    // altrimenti la lasciamo nell'input (così non perde quello che ha scritto).
+    if (EMAIL_RE.test(inputText.trim().toLowerCase())) {
+      addEmail(inputText);
+    }
+  }, [inputText, addEmail]);
+
   // Click esterno → chiudi dropdown
   useEffect(() => {
     if (!open) return;
@@ -111,33 +141,7 @@ export function RecipientField({
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, inputText, emails]);
-
-  function addEmail(addr: string) {
-    const clean = addr.trim().toLowerCase();
-    if (!clean) return;
-    if (!EMAIL_RE.test(clean)) return;
-    if (emails.map((e) => e.toLowerCase()).includes(clean)) return;
-    const next = [...emails, clean].join(", ");
-    onChange(next);
-    setInputText("");
-    setOpen(false);
-  }
-
-  function removeEmail(addr: string) {
-    const next = emails.filter((e) => e.toLowerCase() !== addr.toLowerCase()).join(", ");
-    onChange(next);
-    inputRef.current?.focus();
-  }
-
-  function commitInputText() {
-    // Quando l'utente fa blur / preme Esc, se il testo è una email valida la aggiungiamo,
-    // altrimenti la lasciamo nell'input (così non perde quello che ha scritto).
-    if (EMAIL_RE.test(inputText.trim().toLowerCase())) {
-      addEmail(inputText);
-    }
-  }
+  }, [open, commitInputText]);
 
   function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {

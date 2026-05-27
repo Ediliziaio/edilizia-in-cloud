@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, Loader2, Mail, Phone, MapPin, ClipboardList, Trash2, Wand2,
-  AlertTriangle, Pencil, MessageCircle, Calendar, Euro, ShoppingBag, LifeBuoy,
+  ArrowLeft, Loader2, Mail, Phone, MapPin, Trash2, Wand2,
+  AlertTriangle, Pencil, MessageCircle, Euro, ShoppingBag, LifeBuoy,
   FileText, CalendarPlus, PhoneCall,
 } from "lucide-react";
 import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
@@ -436,12 +436,23 @@ export default function CompanyCustomerDetail() {
   }
 
   if (!customer) {
+    // 2026-05-26 (audit fix P1): dead-end mobile risolto. Prima il back arrow
+    // era `hidden md:inline-flex` → mobile senza modo di tornare alla lista
+    // se il cliente non esisteva più. Ora mostro empty state esplicita con
+    // CTA visibile su tutti i breakpoint.
     return (
-      <div className="space-y-6">
-        <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => navigate(-1)}>
+      <div className="flex min-h-[400px] flex-col items-center justify-center text-center p-6">
+        <div className="rounded-full bg-amber-100 p-4 mb-4">
+          <AlertTriangle className="h-8 w-8 text-amber-600" />
+        </div>
+        <h2 className="text-xl font-semibold text-slate-900">Cliente non trovato</h2>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+          Il cliente che cerchi non esiste più, oppure non hai più i permessi per visualizzarlo.
+        </p>
+        <Button onClick={() => navigate("/azienda/clienti")} className="mt-6 gap-2">
           <ArrowLeft className="h-4 w-4" />
+          Torna ai clienti
         </Button>
-        <p className="text-muted-foreground">Cliente non trovato.</p>
       </div>
     );
   }
