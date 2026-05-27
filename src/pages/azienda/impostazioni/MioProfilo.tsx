@@ -15,8 +15,9 @@ import {
   Camera, User, Save, Loader2, Phone, Mail, Lock, Eye, EyeOff,
   Shield, Check, X, CalendarDays, RefreshCw, Unlink, Clock, Bell,
   BellRing, MessageSquare, FileText, Briefcase, Calendar, AlarmClock,
-  Inbox, UserPlus, BellOff, MailCheck,
+  Inbox, UserPlus, BellOff, MailCheck, Settings2, EyeOff as EyeOffIcon,
 } from "lucide-react";
+import GoogleCalendarSyncPrefsDialog from "@/components/settings/GoogleCalendarSyncPrefsDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -332,6 +333,24 @@ export default function MioProfilo() {
   };
 
   const [syncing, setSyncing] = useState(false);
+  // 2026-05-26: dialog preferenze sync (bidirezionale + privacy busy_only)
+  const [syncPrefsOpen, setSyncPrefsOpen] = useState(false);
+  const updateGoogleSettings = useMutation({
+    mutationFn: async (updates: Record<string, unknown>) => {
+      if (!effectiveCompany?.id || !user?.id) throw new Error("Missing context");
+      const { error } = await (supabase as unknown as { from: (t: string) => { update: (p: unknown) => { eq: (k: string, v: string) => { eq: (k: string, v: string) => Promise<{ error: { message: string } | null }> } } } })
+        .from("google_calendar_settings")
+        .update(updates)
+        .eq("company_id", effectiveCompany.id)
+        .eq("user_id", user.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      toast.success("Preferenze calendario aggiornate");
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-settings"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const syncGoogle = async () => {
     if (!companyId || !user?.id) return;
     setSyncing(true);
@@ -840,14 +859,25 @@ export default function MioProfilo() {
                       </div>
                       <div className="flex items-center gap-2">
                         <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>Modalità: <strong>{googleSettings.sync_mode === "two_way" ? "Bidirezionale" : "Solo lettura"}</strong></span>
+                        <span>Modalità: <strong>{googleSettings.sync_mode === "two_way" ? "Bidirezionale (EiC ↔ Google)" : "Solo lettura (Google → EiC)"}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <EyeOffIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>Privacy eventi Google: <strong>
+                          {/* @ts-expect-error supabase types don't include event_privacy yet */}
+                          {googleSettings.event_privacy === "busy_only" ? "Mostra solo \"Occupato\"" : "Titolo e dettagli visibili"}
+                        </strong></span>
                       </div>
                     </div>
                   )}
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button size="sm" variant="outline" onClick={syncGoogle} disabled={syncing} className="gap-2">
                       {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                       Sincronizza ora
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setSyncPrefsOpen(true)} className="gap-2">
+                      <Settings2 className="h-3.5 w-3.5" />
+                      Preferenze sync
                     </Button>
                     <Button size="sm" variant="ghost" onClick={disconnectGoogle} className="gap-2 text-destructive hover:text-destructive">
                       <Unlink className="h-3.5 w-3.5" /> Disconnetti
@@ -945,6 +975,24 @@ export default function MioProfilo() {
             </CardContent>
           </Card>
           </div>
+
+          {/* Dialog preferenze sync Google Calendar (bidirezionale + privacy) */}
+          <GoogleCalendarSyncPrefsDialog
+            open={syncPrefsOpen}
+            onOpenChange={setSyncPrefsOpen}
+            syncMode={googleSettings?.sync_mode || "one_way"}
+            importGoogleEvents={Boolean((googleSettings as { import_google_events_to_crm?: boolean } | null | undefined)?.import_google_events_to_crm)}
+            createContactsFromGuests={Boolean((googleSettings as { create_contacts_from_guests?: boolean } | null | undefined)?.create_contacts_from_guests)}
+            eventPrivacy={(googleSettings as { event_privacy?: "full" | "busy_only" } | null | undefined)?.event_privacy === "busy_only" ? "busy_only" : "full"}
+            allowTwoWay={true}
+            allowGuestContactCreate={true}
+            allowGoogleToImport={true}
+            onSave={(prefs) => {
+              updateGoogleSettings.mutate(prefs);
+              setSyncPrefsOpen(false);
+            }}
+            isSaving={updateGoogleSettings.isPending}
+          />
         </TabsContent>
 
         {/* ════════════ TAB EMAIL — connessioni personali ════════════ */}

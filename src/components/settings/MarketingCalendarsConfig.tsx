@@ -522,12 +522,14 @@ export default function MarketingCalendarsConfig() {
     appointments: Object.values(appointmentCountsByCalendar).reduce((sum, count) => sum + count, 0),
   };
 
+  // 2026-05-26: la sede NON è più richiesta come warning. Molti calendari
+  // (videocall, telefonate, sopralluoghi dal cliente) non hanno una sede
+  // base — chiederlo come "da completare" creava rumore inutile.
   const getConfigWarnings = (cal: MarketingCalendar) => {
     const warnings: string[] = [];
     if (!cal.owner_id) warnings.push("utente");
     if (!cal.booking_slug) warnings.push("link");
     if (!cal.duration_minutes || cal.duration_minutes <= 0) warnings.push("durata");
-    if (!cal.base_formatted_address && !cal.base_address_city) warnings.push("sede");
     return warnings;
   };
 

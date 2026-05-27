@@ -506,6 +506,7 @@ export default function GoogleCalendarConnectionTab() {
         syncMode={settings?.sync_mode || "one_way"}
         importGoogleEvents={settings?.import_google_events_to_crm || false}
         createContactsFromGuests={settings?.create_contacts_from_guests || false}
+        eventPrivacy={(settings?.event_privacy === "busy_only" ? "busy_only" : "full") as "full" | "busy_only"}
         allowTwoWay={policies?.allowTwoWay || false}
         allowGuestContactCreate={policies?.allowGuestContact || false}
         allowGoogleToImport={policies?.allowGoogleImport || false}
