@@ -5,7 +5,14 @@ import { canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+// 2026-05-27 (BUG #2): mancavano scope userinfo.email + userinfo.profile.
+// Senza questi, la chiamata a /oauth2/v2/userinfo ritornava 403
+// "Insufficient Permission" → userInfo={} → google_account_email NULL.
+// `openid` è raccomandato per la conformità OIDC.
 const SCOPES = [
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/userinfo.profile",
   "https://www.googleapis.com/auth/calendar.readonly",
   "https://www.googleapis.com/auth/calendar.events",
 ].join(" ");
