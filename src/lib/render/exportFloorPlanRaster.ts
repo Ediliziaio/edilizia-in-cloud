@@ -5,7 +5,9 @@
  * con header azienda + footer scala/data.
  */
 
-import jsPDF from "jspdf";
+// 2026-05-27 (perf fix P0): jspdf (~426KB) lazy-loaded dentro la funzione
+// export PDF. Prima trascinato eagerly nel chunk RenderPlanimetrieNew
+// anche per utenti che aprivano la pagina solo per guardare, non esportare.
 import type { FloorPlanAnalysis } from "./floorPlanAi";
 
 /**
@@ -104,7 +106,8 @@ export async function exportFloorPlanAsPdf(
     ctx.drawImage(img, 0, 0, imgWidth, imgHeight);
     const dataUrl = canvas.toDataURL("image/png", 0.95);
 
-    // 2. Crea PDF A4 landscape
+    // 2. Crea PDF A4 landscape — jspdf lazy import al primo uso (~500ms first time)
+    const { default: jsPDF } = await import("jspdf");
     const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth(); // 297
     const pageHeight = pdf.internal.pageSize.getHeight(); // 210

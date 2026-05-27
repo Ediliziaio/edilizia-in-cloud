@@ -1,7 +1,8 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, icons, LifeBuoy, Lock } from "lucide-react";
+import { GripVertical, Trash2, LifeBuoy, Lock } from "lucide-react";
+import { getStatusIcon } from "@/lib/statusIconRegistry";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,7 @@ export function StatusItem({ status, onUpdate, onDelete, canDelete }: StatusItem
   };
 
   const isSupportPhase = status.is_support_phase === true;
-  const IconComponent = icons[status.icon as keyof typeof icons] || icons.Circle;
+  const IconComponent = getStatusIcon(status.icon);
   // La fase Assistenza non è eliminabile mai.
   const deleteEnabled = canDelete && !isSupportPhase;
 

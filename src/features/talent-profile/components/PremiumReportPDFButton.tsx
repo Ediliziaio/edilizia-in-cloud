@@ -10,8 +10,9 @@ import { createRoot } from 'react-dom/client';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+// 2026-05-27 (perf fix P0): import dinamici al primo click — vedi nota in
+// PDFExportButton.tsx. Risparmio chunk TabSelezioni:
+// jspdf (~426KB) + html2canvas (~200KB) = ~620KB lazy-loaded.
 import { PremiumReportPDF, PremiumReportPDFProps } from './PremiumReportPDF';
 import { TraitCode, TRAIT_LABELS } from '../types';
 import type { ProfiloTipoV5, ReliabilityIndex } from '../types';
@@ -118,6 +119,13 @@ export function PremiumReportPDFButton({
       // Load logo
       let logoData: string | null = null;
       try { logoData = await loadLogoBase64(); } catch { /* ok */ }
+
+      // 2026-05-27 (perf): dynamic import al primo uso. ~500ms-1s ritardo
+      // alla prima esportazione, istantaneo dopo (modulo cached).
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
 
       // Capture sections
       const sections = container.querySelectorAll('[data-section]');

@@ -212,5 +212,6 @@ export function useAdminCommandCenterData() {
     },
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 }

@@ -37,6 +37,7 @@ export function useUnreadEmailCount(): {
     queryKey: ["unread-email-count", userId, companyId],
     enabled: !!userId && !!companyId,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     staleTime: 15_000,
     queryFn: async (): Promise<EmailCounts> => {
       if (!userId || !companyId) return { unread: 0, urgent: 0, commercial: 0 };

@@ -148,6 +148,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
     enabled: !!companyId,
     staleTime: 30_000,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 
   const dismissMut = useMutation({

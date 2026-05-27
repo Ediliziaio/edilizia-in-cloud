@@ -24,6 +24,7 @@ export function QueueTab() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["silvio-action-queue", statusFilter],
     refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       let q = supabase
         .from("silvio_action_queue")

@@ -152,6 +152,7 @@ export function AdminSupportChatList() {
     },
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    refetchIntervalInBackground: false,
   });
 
   const { data: companies = [], isError: isErrorCompanies } = useQuery({
@@ -179,6 +180,7 @@ export function AdminSupportChatList() {
     },
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    refetchIntervalInBackground: false,
   });
 
   const conversations = useMemo(() => {

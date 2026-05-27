@@ -29,6 +29,7 @@ export function useFlowExecutions(flowId: string | null | undefined, limit = 5) 
     },
     enabled: !!flowId,
     refetchInterval: 15000,
+    refetchIntervalInBackground: false,
   });
 }
 

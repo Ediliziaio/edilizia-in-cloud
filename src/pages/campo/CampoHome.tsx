@@ -149,6 +149,7 @@ function TimbraturaCampo() {
     },
     enabled: !!user?.id && !!companyId,
     refetchInterval: 30000,
+    refetchIntervalInBackground: false,
   });
 
   const oreLavorate = useMemo(() => {

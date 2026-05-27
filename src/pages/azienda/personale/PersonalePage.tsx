@@ -1,22 +1,35 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, BrainCircuit } from "lucide-react";
-import { TabRegiaHr } from "./tabs/TabRegiaHr";
-import { TabOrganigramma } from "./tabs/TabOrganigramma";
-import { TabTimbrature } from "./tabs/TabTimbrature";
-import { TabPresenze } from "./tabs/TabPresenze";
-import { TabRichieste } from "./tabs/TabRichieste";
-import { TabSedi } from "./tabs/TabSedi";
-import { TabFestivita } from "./tabs/TabFestivita";
-import { TabProfili } from "./tabs/TabProfili";
-import { TabCedolini } from "./tabs/TabCedolini";
-import { TabGpsPercorsi } from "./tabs/TabGpsPercorsi";
-import { TabDocumenti } from "./tabs/TabDocumenti";
-import { TabSelezioni } from "./tabs/TabSelezioni";
+import { Users, Clock, CalendarDays, FileText, MapPin, CalendarCheck, Network, Receipt, Navigation, FolderOpen, LayoutDashboard, BrainCircuit, Loader2 } from "lucide-react";
+// 2026-05-27 (perf fix P0): tab lazy-loaded.
+// PRIMA: 12 tab import statici → chunk PersonalePage 559KB (talent-profile,
+// charts, calendari, GPS, ecc. tutti caricati anche se l'utente apre solo
+// "Timbrature"). Stima riduzione chunk iniziale: 559KB → ~80KB + chunk
+// on-demand per il tab cliccato.
+const TabRegiaHr = lazy(() => import("./tabs/TabRegiaHr").then(m => ({ default: m.TabRegiaHr })));
+const TabOrganigramma = lazy(() => import("./tabs/TabOrganigramma").then(m => ({ default: m.TabOrganigramma })));
+const TabTimbrature = lazy(() => import("./tabs/TabTimbrature").then(m => ({ default: m.TabTimbrature })));
+const TabPresenze = lazy(() => import("./tabs/TabPresenze").then(m => ({ default: m.TabPresenze })));
+const TabRichieste = lazy(() => import("./tabs/TabRichieste").then(m => ({ default: m.TabRichieste })));
+const TabSedi = lazy(() => import("./tabs/TabSedi").then(m => ({ default: m.TabSedi })));
+const TabFestivita = lazy(() => import("./tabs/TabFestivita").then(m => ({ default: m.TabFestivita })));
+const TabProfili = lazy(() => import("./tabs/TabProfili").then(m => ({ default: m.TabProfili })));
+const TabCedolini = lazy(() => import("./tabs/TabCedolini").then(m => ({ default: m.TabCedolini })));
+const TabGpsPercorsi = lazy(() => import("./tabs/TabGpsPercorsi").then(m => ({ default: m.TabGpsPercorsi })));
+const TabDocumenti = lazy(() => import("./tabs/TabDocumenti").then(m => ({ default: m.TabDocumenti })));
+const TabSelezioni = lazy(() => import("./tabs/TabSelezioni").then(m => ({ default: m.TabSelezioni })));
 import { useFleetTrackAccess } from "@/hooks/useFleetTrackAccess";
 import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
+
+function TabFallback() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+    </div>
+  );
+}
 
 export default function PersonalePage() {
   const hasFleetTrack = useFleetTrackAccess();
@@ -109,43 +122,19 @@ export default function PersonalePage() {
           )}
         </TabsList>
 
-        <TabsContent value="regia">
-          <TabRegiaHr onNavigate={handleTabChange} />
-        </TabsContent>
-        <TabsContent value="organigramma">
-          <TabOrganigramma />
-        </TabsContent>
-        <TabsContent value="profili">
-          <TabProfili />
-        </TabsContent>
-        <TabsContent value="timbrature">
-          <TabTimbrature />
-        </TabsContent>
-        <TabsContent value="presenze">
-          <TabPresenze />
-        </TabsContent>
-        <TabsContent value="richieste">
-          <TabRichieste />
-        </TabsContent>
-        <TabsContent value="sedi">
-          <TabSedi />
-        </TabsContent>
-        <TabsContent value="festivita">
-          <TabFestivita />
-        </TabsContent>
-        <TabsContent value="cedolini">
-          <TabCedolini />
-        </TabsContent>
-        <TabsContent value="documenti">
-          <TabDocumenti />
-        </TabsContent>
-        <TabsContent value="selezioni">
-          <TabSelezioni />
-        </TabsContent>
+        <TabsContent value="regia"><Suspense fallback={<TabFallback />}><TabRegiaHr onNavigate={handleTabChange} /></Suspense></TabsContent>
+        <TabsContent value="organigramma"><Suspense fallback={<TabFallback />}><TabOrganigramma /></Suspense></TabsContent>
+        <TabsContent value="profili"><Suspense fallback={<TabFallback />}><TabProfili /></Suspense></TabsContent>
+        <TabsContent value="timbrature"><Suspense fallback={<TabFallback />}><TabTimbrature /></Suspense></TabsContent>
+        <TabsContent value="presenze"><Suspense fallback={<TabFallback />}><TabPresenze /></Suspense></TabsContent>
+        <TabsContent value="richieste"><Suspense fallback={<TabFallback />}><TabRichieste /></Suspense></TabsContent>
+        <TabsContent value="sedi"><Suspense fallback={<TabFallback />}><TabSedi /></Suspense></TabsContent>
+        <TabsContent value="festivita"><Suspense fallback={<TabFallback />}><TabFestivita /></Suspense></TabsContent>
+        <TabsContent value="cedolini"><Suspense fallback={<TabFallback />}><TabCedolini /></Suspense></TabsContent>
+        <TabsContent value="documenti"><Suspense fallback={<TabFallback />}><TabDocumenti /></Suspense></TabsContent>
+        <TabsContent value="selezioni"><Suspense fallback={<TabFallback />}><TabSelezioni /></Suspense></TabsContent>
         {hasFleetTrack && (
-          <TabsContent value="gps-percorsi">
-            <TabGpsPercorsi />
-          </TabsContent>
+          <TabsContent value="gps-percorsi"><Suspense fallback={<TabFallback />}><TabGpsPercorsi /></Suspense></TabsContent>
         )}
       </Tabs>
     </div>

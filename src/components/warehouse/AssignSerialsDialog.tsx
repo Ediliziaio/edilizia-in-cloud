@@ -10,7 +10,7 @@
  * Per seriali non trovati, il dialog mostra warning ma NON crea unit "al volo"
  * (l'inserimento non tracciato genererebbe inconsistenze con il flusso ODA→DDT).
  */
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, ScanLine, X, AlertCircle, CheckCircle2 } from "lucide-react";
-import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
+// 2026-05-27 (perf fix P0): BarcodeScanner usa @zxing/library (451KB).
+// Lazy import: l'utente paga il download solo quando clicca "scan camera",
+// non all'apertura del dialog "Assegna seriali" (90% caso d'uso = input manuale).
+const BarcodeScanner = lazy(() =>
+  import("@/components/warehouse/BarcodeScanner").then(m => ({ default: m.BarcodeScanner }))
+);
 import {
   useAssignSerialsToOrderItem,
   useStockUnitsByOrderItem,
@@ -316,11 +321,16 @@ export function AssignSerialsDialog({
         </DialogContent>
       </Dialog>
 
-      <BarcodeScanner
-        open={scannerOpen}
-        onOpenChange={setScannerOpen}
-        onScan={handleScan}
-      />
+      {/* Lazy-loaded: scaricato solo quando l'utente apre lo scanner */}
+      {scannerOpen && (
+        <Suspense fallback={null}>
+          <BarcodeScanner
+            open={scannerOpen}
+            onOpenChange={setScannerOpen}
+            onScan={handleScan}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

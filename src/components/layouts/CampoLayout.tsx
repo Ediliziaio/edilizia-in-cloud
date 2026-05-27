@@ -89,6 +89,7 @@ export default function CampoLayout() {
       return count ?? 0;
     },
     refetchInterval: 30000,
+    refetchIntervalInBackground: false,
     enabled: !!user?.id && !!profile?.company_id,
   });
 

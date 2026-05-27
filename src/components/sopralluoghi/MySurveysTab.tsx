@@ -50,6 +50,7 @@ export function MySurveysTab() {
     queryKey: ["my-assigned-surveys"],
     queryFn: listAssignedToMe,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 
   const todoCount = (surveys ?? []).filter(

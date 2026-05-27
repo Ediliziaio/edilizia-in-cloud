@@ -33,6 +33,7 @@ export function SilvioBellPopover() {
     enabled: !!companyId,
     staleTime: 60_000,
     refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
   });
 
   // Pending proposals count
@@ -52,6 +53,7 @@ export function SilvioBellPopover() {
     enabled: !!companyId,
     staleTime: 30_000,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 
   const totalAlerts = stats?.total_open ?? 0;

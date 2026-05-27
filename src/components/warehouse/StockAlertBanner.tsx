@@ -49,6 +49,7 @@ export function StockAlertBanner({ companyId }: StockAlertBannerProps) {
     },
     enabled: !!companyId,
     refetchInterval: 60 * 60 * 1000, // every hour
+    refetchIntervalInBackground: false,
   });
 
   if (dismissed || alertLotti.length === 0) return null;

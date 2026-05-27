@@ -132,6 +132,7 @@ export function SilvioAlertsPanel({
     enabled: !!companyId,
     staleTime: 60_000,
     refetchInterval: 120_000, // re-check ogni 2 minuti
+    refetchIntervalInBackground: false,
   });
 
   const { data: stats } = useQuery({
@@ -402,6 +403,7 @@ export function SilvioAlertsBadge({ onClick }: { onClick?: () => void }) {
     enabled: !!companyId,
     staleTime: 60_000,
     refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
   });
 
   const total = stats?.total_open ?? 0;

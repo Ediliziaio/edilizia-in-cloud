@@ -40,6 +40,7 @@ export function useAdsPendingApprovals(companyId: string | undefined) {
     enabled: !!companyId,
     staleTime: 20_000,
     refetchInterval: 30_000, // polling per i titolari
+    refetchIntervalInBackground: false,
   });
 
   const decideMutation = useMutation({

@@ -53,6 +53,7 @@ export function useMyTaskCount(): { data: TaskCounts | null; isLoading: boolean 
     },
     enabled: !!userId && !!companyId,
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
     staleTime: 30_000,
   });
 }

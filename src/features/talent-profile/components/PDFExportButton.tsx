@@ -3,8 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+// 2026-05-27 (perf fix P0): import dinamici per html2canvas (~200KB) e
+// jspdf (~426KB). PRIMA caricati eager → trascinati nel chunk TabSelezioni
+// (405KB) anche se l'utente non cliccava mai "Esporta PDF". ORA lazy:
+// scaricati solo al primo click. Type-only import per type safety.
+import type jsPDFType from 'jspdf';
 import { SyndromeResult } from '../lib/syndromes';
 
 // Helper function to load logo as base64
@@ -26,7 +29,7 @@ const loadLogoAsBase64 = (): Promise<string> => {
 };
 
 // Function to add watermark to each page
-const addWatermarkToPage = (pdf: jsPDF, logoData: string, pdfWidth: number, pdfHeight: number) => {
+const addWatermarkToPage = (pdf: jsPDFType, logoData: string, pdfWidth: number, pdfHeight: number) => {
   const logoWidth = 35;
   const logoHeight = 12;
   const margin = 10;
@@ -151,7 +154,15 @@ export function InterviewSheetPDFButton({
       });
       
       const logoData = await loadLogoAsBase64();
-      
+
+      // 2026-05-27 (perf): dynamic import al primo uso. La prima esportazione
+      // avrà un ritardo di ~500ms-1s per scaricare le lib; le successive sono
+      // istantanee (modulo in cache).
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+
       const canvas = await html2canvas(container, {
         scale: 2,
         useCORS: true,
@@ -161,12 +172,12 @@ export function InterviewSheetPDFButton({
         width: container.scrollWidth,
         height: container.scrollHeight,
       });
-      
+
       root.unmount();
       document.body.removeChild(container);
 
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',

@@ -71,6 +71,7 @@ export function AdminDunning({ healthScores }: AdminDunningProps) {
       );
     },
     refetchInterval: 60000,
+    refetchIntervalInBackground: false,
   });
 
   // Counter by phase

@@ -72,6 +72,7 @@ export function useSmsWallet() {
     enabled: !!companyId,
     staleTime: 30 * 1000, // Rifresca ogni 30s per mostrare crediti aggiornati
     refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 
   // ─── Pacchetti ───────────────────────────────────────────

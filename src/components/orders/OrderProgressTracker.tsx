@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
-import { Check, icons } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getStatusIcon } from "@/lib/statusIconRegistry";
 import type { OrderStatus } from "@/lib/orderUtils";
 
 export type { OrderStatus };
@@ -82,7 +83,7 @@ export function OrderProgressTracker({
           const statusDate = getStatusDate(status.id);
 
           // Get the icon component
-          const IconComponent = icons[status.icon as keyof typeof icons] || icons.Circle;
+          const IconComponent = getStatusIcon(status.icon);
 
           return (
             <div
@@ -156,7 +157,7 @@ export function OrderProgressTracker({
           const isFuture = index > currentIndex;
           const statusDate = getStatusDate(status.id);
 
-          const IconComponent = icons[status.icon as keyof typeof icons] || icons.Circle;
+          const IconComponent = getStatusIcon(status.icon);
 
           return (
             <div key={status.id} className="flex items-start gap-4">
