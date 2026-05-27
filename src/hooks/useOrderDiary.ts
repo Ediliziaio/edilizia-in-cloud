@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { logger } from "@/utils/logger";
+import { toast } from "sonner";
 
 export type DiaryEntry =
   | { kind: "event"; data: OrderEvent }
@@ -350,6 +351,11 @@ export function useOrderDiary(orderId: string | undefined) {
   }, [auditEntries, events, messages]);
 
   // ── Send message mutation ─────────────────────────────────────────────────
+  // 2026-05-27 (audit error handling): onError esplicito con context "Invio
+  // messaggio cliente" — prima cadeva nel mutationCache.onError globale che
+  // mostra "Operazione non riuscita: FunctionsHttpError" — utente non capiva
+  // che il messaggio cliente NON era partito. Toast specifico per evitare
+  // confusione e silent data loss percepito.
   const sendMutation = useMutation({
     mutationFn: async (payload: {
       channel: string;
@@ -369,6 +375,14 @@ export function useOrderDiary(orderId: string | undefined) {
       qc.invalidateQueries({ queryKey: ["order-messages", orderId] });
       qc.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error("Invio messaggio cliente fallito", {
+        description: `Il messaggio NON è stato inviato. Riprova o controlla la connessione. Dettagli: ${msg}`,
+      });
+    },
+    // Disabilita il toast globale: l'onError sopra è più specifico.
+    meta: { silent: true },
   });
 
   // ── Add internal note mutation ────────────────────────────────────────────
@@ -383,6 +397,13 @@ export function useOrderDiary(orderId: string | undefined) {
       qc.invalidateQueries({ queryKey: ["order-messages", orderId] });
       qc.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error("Nota interna non salvata", {
+        description: `La nota NON è stata salvata. Riprova. Dettagli: ${msg}`,
+      });
+    },
+    meta: { silent: true },
   });
 
   return {

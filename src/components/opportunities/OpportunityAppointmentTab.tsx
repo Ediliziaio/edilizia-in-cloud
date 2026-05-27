@@ -390,7 +390,11 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       if (error) throw error;
       if (created?.id) void syncCreatedAppointment(created.id);
 
-      // Sync address to contact (non-blocking: log error but don't throw)
+      // Sync address to contact (non-blocking: log error + toast warning).
+      // 2026-05-27 (audit error handling): prima solo console.error → l'utente
+      // pensava che l'indirizzo fosse aggiornato sul contatto, in realtà no.
+      // Ora toast.warning informa che l'appuntamento è OK ma indirizzo cliente
+      // resta vecchio — l'utente sa che deve aggiornare manualmente.
       if (contactId && addressData.address_line) {
         const { error: syncError } = await supabase.from("marketing_contacts").update({
           address: addressData.address_line,
@@ -399,7 +403,12 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           province: addressData.address_province || null,
           country: addressData.address_country || "Italia",
         }).eq("id", contactId);
-        if (syncError) console.error("Sync indirizzo contatto fallito:", syncError.message);
+        if (syncError) {
+          console.error("Sync indirizzo contatto fallito:", syncError.message);
+          toast.warning("Appuntamento creato, ma indirizzo non sincronizzato sul contatto", {
+            description: "Aggiorna manualmente l'indirizzo nel contatto. Dettagli: " + syncError.message,
+          });
+        }
       }
     },
     onSuccess: () => {
