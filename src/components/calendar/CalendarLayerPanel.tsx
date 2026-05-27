@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud, Settings } from "lucide-react";
+import { ChevronDown, Search, Users, UsersRound, Package, CalendarClock, Hammer, Wrench, Palmtree, AlertTriangle, Cloud, Settings, Target } from "lucide-react";
 import { DEFAULT_CALENDAR_EVENT_COLORS, type CalendarEventColorKey, type CalendarEventColors } from "@/lib/calendarUtils";
 
 interface Employee {
@@ -34,6 +34,10 @@ interface CalendarLayerPanelProps {
   showPosa: boolean;
   showLavoro: boolean;
   showAppuntamento: boolean;
+  // 2026-05-27: layer per gli appuntamenti del calendario marketing
+  // (appointment con calendar_id NOT NULL, niente order_id).
+  // Quando il titolare fa anche vendite, ON di default per vedere tutto.
+  showAppuntamentoCommerciale?: boolean;
   showMerce: boolean;
   showGoogleBusy: boolean;
   showLeaves: boolean;
@@ -44,6 +48,7 @@ interface CalendarLayerPanelProps {
   onTogglePosa: (v: boolean) => void;
   onToggleLavoro: (v: boolean) => void;
   onToggleAppuntamento: (v: boolean) => void;
+  onToggleAppuntamentoCommerciale?: (v: boolean) => void;
   onToggleMerce: (v: boolean) => void;
   onToggleGoogleBusy: (v: boolean) => void;
   onToggleLeaves: (v: boolean) => void;
@@ -67,6 +72,7 @@ export function CalendarLayerPanel({
   showPosa,
   showLavoro,
   showAppuntamento,
+  showAppuntamentoCommerciale = true,
   showMerce,
   showGoogleBusy,
   showLeaves,
@@ -77,6 +83,7 @@ export function CalendarLayerPanel({
   onTogglePosa,
   onToggleLavoro,
   onToggleAppuntamento,
+  onToggleAppuntamentoCommerciale,
   onToggleMerce,
   onToggleGoogleBusy,
   onToggleLeaves,
@@ -153,9 +160,21 @@ export function CalendarLayerPanel({
                 checked={showAppuntamento}
                 onCheckedChange={onToggleAppuntamento}
                 icon={<CalendarClock className="h-3 w-3" style={{ color: eventColors.appuntamento }} />}
-                label="Appuntamenti"
+                label="Appuntamenti operativi"
                 color={eventColors.appuntamento}
               />
+              {/* 2026-05-27: layer "Commerciale" = appuntamenti del calendario
+                  marketing (lead, sopralluoghi pre-vendita) — visibili anche
+                  qui per single-titolare che fa vendite + pose. */}
+              {onToggleAppuntamentoCommerciale && (
+                <LayerCheckbox
+                  checked={showAppuntamentoCommerciale}
+                  onCheckedChange={onToggleAppuntamentoCommerciale}
+                  icon={<Target className="h-3 w-3 text-violet-600" />}
+                  label="Appuntamenti commerciali (Marketing)"
+                  color="#7c3aed"
+                />
+              )}
 
               {/* Employees grouped by area */}
               {employees.length > 0 && (

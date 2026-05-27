@@ -272,19 +272,35 @@ export default function MarketingCalendar() {
     return { start, end };
   }, [activeTab, calendarView, currentDate, weekStart]);
 
+  // 2026-05-27: toggle "Mostra anche lavori operativi" — per il caso
+  // single-titolare che fa vendite + pose, vuole vedere tutto in un
+  // unico calendario. Persistito in localStorage per coerenza UX.
+  const [showOperativi, setShowOperativi] = useState<boolean>(() => {
+    try { return localStorage.getItem("mkt-cal-show-operativi") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("mkt-cal-show-operativi", showOperativi ? "1" : "0"); } catch {/* ignore */}
+  }, [showOperativi]);
+
   // Fetch appointments with date range filter
   const { data: rawAppointments = [], error: appointmentsError, refetch: refetchAppointments } = useQuery({
-    queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id],
+    queryKey: ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi],
     queryFn: async () => {
       if (!companyId) return [];
       let query = supabase
         .from("appointments")
         .select("*")
         .eq("company_id", companyId)
-        .not("calendar_id", "is", null)
         .gte("appointment_date", dateRange.start)
         .lte("appointment_date", dateRange.end)
         .order("appointment_date", { ascending: true });
+      // Quando "showOperativi" è OFF, restringi ai soli appointment
+      // legati a un calendario marketing (calendar_id NOT NULL).
+      // Quando è ON, mostra TUTTO: marketing + operativi (legati a un
+      // ordine o stand-alone).
+      if (!showOperativi) {
+        query = query.not("calendar_id", "is", null);
+      }
       // Permission enforcement: restrict to assigned appointments only
       if (permissions.onlyAssigned && user?.id) {
         query = query.eq("assigned_to", user.id);
@@ -355,13 +371,21 @@ export default function MarketingCalendar() {
   }, [rawAppointments, calendarMap, userMap, contactMap]);
 
   // Filtered
+  // 2026-05-27: quando showOperativi è ON, lasciamo passare anche gli
+  // appointment senza calendar_id (operativi legati a ordini). Il filtro
+  // calendari resta attivo per quelli con calendar_id (commerciali).
   const filteredAppointments = useMemo(() => {
     const allUsersSelected = users.length === 0 || selectedUserIds.length >= users.length;
     return appointments.filter((a: any) => {
-      if (!a.calendar_id) return false;
-      if (calendars.length > 0 && selectedCalendarIds.length === 0) return false;
-      if (selectedCalendarIds.length > 0 && !selectedCalendarIds.includes(a.calendar_id))
-        return false;
+      if (!a.calendar_id) {
+        // Senza calendar_id = operativo. Mostralo solo se toggle ON.
+        if (!showOperativi) return false;
+      } else {
+        // Con calendar_id = commerciale: rispetta selectedCalendarIds
+        if (calendars.length > 0 && selectedCalendarIds.length === 0) return false;
+        if (selectedCalendarIds.length > 0 && !selectedCalendarIds.includes(a.calendar_id))
+          return false;
+      }
       if (users.length > 0 && selectedUserIds.length === 0) return false;
       if (!allUsersSelected && selectedUserIds.length > 0) {
         if (!a.assigned_to) return false;
@@ -369,7 +393,7 @@ export default function MarketingCalendar() {
       }
       return true;
     });
-  }, [appointments, calendars.length, selectedCalendarIds, selectedUserIds, users.length]);
+  }, [appointments, calendars.length, selectedCalendarIds, selectedUserIds, users.length, showOperativi]);
 
   const calendarLoadError = calendarsError || appointmentsError || contactsError || googleBusyError || appleBusyError;
   const calendarLoadErrorMessage =
@@ -1180,6 +1204,28 @@ export default function MarketingCalendar() {
                   <span className="hidden sm:inline">Mese</span>
                 </button>
               </div>
+
+              {/* 2026-05-27: toggle "Lavori operativi" — quando ON, mostra
+                  anche gli appuntamenti operativi (legati a un ordine,
+                  senza calendar_id marketing) nel calendario marketing.
+                  Pensato per il caso single-titolare vendite+pose: 1 vista
+                  per tutto. Persistito in localStorage. */}
+              <button
+                type="button"
+                onClick={() => setShowOperativi((v) => !v)}
+                className={cn(
+                  "inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors md:text-sm",
+                  showOperativi
+                    ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                    : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
+                title={showOperativi
+                  ? "Stai vedendo anche i lavori operativi. Clicca per nasconderli."
+                  : "Mostra anche i lavori operativi (cantieri, pose) di questo periodo"}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">{showOperativi ? "Operativi visibili" : "Mostra operativi"}</span>
+              </button>
             </div>
 
             {!hasCalendars ? (

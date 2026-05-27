@@ -107,6 +107,11 @@ function CalendarInner() {
     showPosa: savedPrefs.showPosa ?? true,
     showLavoro: savedPrefs.showLavoro ?? true,
     showAppuntamento: savedPrefs.showAppuntamento ?? true,
+    // 2026-05-27: nuovo layer "Commerciale" = appuntamenti con
+    // calendar_id (legati a marketing_calendars). Default ON così il
+    // titolare singolo (che fa vendite + pose) vede tutto. Chi ha squadre
+    // operative dedicate può spegnerlo per ridurre il rumore.
+    showAppuntamentoCommerciale: savedPrefs.showAppuntamentoCommerciale ?? true,
     showMerce: false,
     showGoogleBusy: false,
     showLeaves: false,
@@ -121,7 +126,7 @@ function CalendarInner() {
   const setEventColor = useCallback((key: CalendarEventColorKey, color: string) => {
     setEventColors(prev => ({ ...prev, [key]: color }));
   }, []);
-  const { showPosa, showLavoro, showAppuntamento, showMerce, showGoogleBusy, showLeaves, showWeather, showInterventi, showManutenzioni } = layerVisibility;
+  const { showPosa, showLavoro, showAppuntamento, showAppuntamentoCommerciale, showMerce, showGoogleBusy, showLeaves, showWeather, showInterventi, showManutenzioni } = layerVisibility;
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
     savedPrefs.visibleEmployeeIds ? new Set<string>(savedPrefs.visibleEmployeeIds) : null
   );
@@ -869,12 +874,29 @@ function CalendarInner() {
     }));
   }, [appointments, profilesById]);
 
-  // Filter appointments by assignedTo
+  // 2026-05-27: l'array filteredAppointments alimenta tutte le view del
+  // calendario operativo. Prima escludeva TUTTI gli appuntamenti senza
+  // order_id → invisibili gli appuntamenti commerciali del calendario
+  // marketing (lead, sopralluoghi pre-vendita). Per il caso "titolare
+  // singolo che fa vendite + pose" servono visibili entrambi.
+  //
+  // Regola di inclusione:
+  //   - Operativi: apt.order_id != null  → SEMPRE visibili (rispettando
+  //     showAppuntamento layer).
+  //   - Commerciali: apt.calendar_id != null && !order_id → visibili se
+  //     showAppuntamentoCommerciale è on.
+  // Il filtro assignedToFilter si applica a entrambi.
   const filteredAppointments = useMemo(() => {
-    const workAppointments = enrichedAppointments.filter(apt => !!apt.order_id);
-    if (assignedToFilter === "all") return workAppointments;
-    return workAppointments.filter(apt => apt.assigned_to === assignedToFilter);
-  }, [enrichedAppointments, assignedToFilter]);
+    const filtered = enrichedAppointments.filter(apt => {
+      const isOperativo = !!apt.order_id;
+      const isCommerciale = !apt.order_id && !!apt.calendar_id;
+      if (isOperativo) return true; // gestito dal layer showAppuntamento via hiddenEventTypes
+      if (isCommerciale) return showAppuntamentoCommerciale;
+      return false;
+    });
+    if (assignedToFilter === "all") return filtered;
+    return filtered.filter(apt => apt.assigned_to === assignedToFilter);
+  }, [enrichedAppointments, assignedToFilter, showAppuntamentoCommerciale]);
 
   // Compute hidden event types for views.
   // 2026-05-26 (audit fix P0): i toggle dei layer "Arrivo Merce", "Google Busy",
@@ -1205,6 +1227,7 @@ function CalendarInner() {
                 showPosa={showPosa}
                 showLavoro={showLavoro}
                 showAppuntamento={showAppuntamento}
+                showAppuntamentoCommerciale={showAppuntamentoCommerciale}
                 showMerce={showMerce}
                 showGoogleBusy={showGoogleBusy}
                 showLeaves={showLeaves}
@@ -1230,6 +1253,7 @@ function CalendarInner() {
                 onTogglePosa={(v) => setLayer("showPosa", v)}
                 onToggleLavoro={(v) => setLayer("showLavoro", v)}
                 onToggleAppuntamento={(v) => setLayer("showAppuntamento", v)}
+                onToggleAppuntamentoCommerciale={(v) => setLayer("showAppuntamentoCommerciale", v)}
                 onToggleMerce={(v) => setLayer("showMerce", v)}
                 onToggleGoogleBusy={(v) => setLayer("showGoogleBusy", v)}
                 onToggleLeaves={(v) => setLayer("showLeaves", v)}
@@ -1454,6 +1478,7 @@ function CalendarInner() {
             showPosa={showPosa}
             showLavoro={showLavoro}
             showAppuntamento={showAppuntamento}
+            showAppuntamentoCommerciale={showAppuntamentoCommerciale}
             showMerce={showMerce}
             showGoogleBusy={showGoogleBusy}
             showLeaves={showLeaves}
@@ -1479,6 +1504,7 @@ function CalendarInner() {
             onTogglePosa={(v) => setLayer("showPosa", v)}
             onToggleLavoro={(v) => setLayer("showLavoro", v)}
             onToggleAppuntamento={(v) => setLayer("showAppuntamento", v)}
+            onToggleAppuntamentoCommerciale={(v) => setLayer("showAppuntamentoCommerciale", v)}
             onToggleMerce={(v) => setLayer("showMerce", v)}
             onToggleGoogleBusy={(v) => setLayer("showGoogleBusy", v)}
             onToggleLeaves={(v) => setLayer("showLeaves", v)}
