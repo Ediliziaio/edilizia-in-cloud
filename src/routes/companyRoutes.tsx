@@ -268,6 +268,7 @@ const FirmaCliente = lazy(() => import("@/pages/azienda/sopralluoghi/FirmaClient
 const SettingsSopralluoghi = lazy(() => import("@/pages/azienda/impostazioni/SettingsSopralluoghi"));
 // 🆕 GAP 7b: callback OAuth Gmail/Outlook
 const EmailOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/EmailOAuthCallbackPage"));
+const CalendarOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/CalendarOAuthCallbackPage"));
 const AIPersonasHub = lazy(() => import("@/pages/azienda/impostazioni/AIPersonasHub"));
 const SettingsAIAutomazioni = lazy(() => import("@/pages/azienda/impostazioni/SettingsAIAutomazioni"));
 // Preferenze canale notifiche personali (parte del bulk scheduler)
@@ -513,6 +514,9 @@ export default function CompanyRoutesContainer() {
         <Route path="impostazioni/serramenti" element={<Navigate to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=serramenti" replace />} />
         {/* 🆕 GAP 7b: callback OAuth Gmail/Outlook */}
         <Route path="impostazioni/integrazioni/email-callback" element={<EmailOAuthCallbackPage />} />
+        {/* 2026-05-26: callback OAuth Google Calendar — sostituisce HTML inline
+            dell'edge function che era bloccato dal CSP del gateway Supabase. */}
+        <Route path="impostazioni/integrazioni/calendar-callback" element={<CalendarOAuthCallbackPage />} />
         {/* GAP 9b legacy: ai-memoria stand-alone → ora vive in impostazioni.
             Mantengo redirect 301 lato client per non rompere bookmark esistenti. */}
         <Route path="ai-memoria" element={<Navigate to="/azienda/impostazioni/ai-memoria" replace />} />

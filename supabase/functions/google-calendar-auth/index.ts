@@ -337,30 +337,33 @@ async function handleListCalendars(req: Request, userId: string, companyId: stri
   });
 }
 
-function buildCallbackHtml(status: string, error?: string, appOrigin?: string): Response {
-  // Use Supabase URL origin as a safe fallback for postMessage target
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  // Extract the project ref to build the preview/published origins
-  const projectRef = supabaseUrl.replace("https://", "").split(".")[0];
-  const allowedOrigins = [
-    `https://${projectRef}.supabase.co`,
-    Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com",
-    appOrigin,
-  ].filter(Boolean);
-  const html = `<!DOCTYPE html><html><body><script>
-    var allowedOrigins = ${JSON.stringify(allowedOrigins)};
-    var msg = { type: "GOOGLE_OAUTH_RESULT", status: "${status}", error: ${JSON.stringify(error || null)} };
-    if (window.opener) {
-      allowedOrigins.forEach(function(origin) {
-        try { window.opener.postMessage(msg, origin); } catch(e) {}
-      });
-      // Also try current origin for preview URLs
-      try { window.opener.postMessage(msg, window.location.origin); } catch(e) {}
-    }
-    window.close();
-  </script><p>${status === "success" ? "Connesso! Puoi chiudere questa finestra." : "Errore: " + (error || "sconosciuto")}</p></body></html>`;
-  return new Response(html, { headers: { "Content-Type": "text/html" } });
+/**
+ * 2026-05-26: PRIMA tornavamo HTML inline con <script> per fare postMessage al
+ * parent. PROBLEMA: il gateway Supabase forza `Content-Type: text/plain` e
+ * `Content-Security-Policy: default-src 'none'; sandbox` su tutte le edge
+ * functions con verify_jwt=false → l'HTML veniva mostrato come testo grezzo
+ * nel popup (vedi screenshot utente).
+ *
+ * FIX: redirect 302 a una pagina React hostata su app.ediliziaincloud.com che
+ * fa il postMessage + close. Cloudflare Pages serve la pagina con il giusto
+ * CSP (script-src 'self' 'unsafe-inline') e content-type text/html.
+ */
+function buildCallbackRedirect(status: string, error?: string, appOrigin?: string): Response {
+  const siteUrl = appOrigin || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
+  const params = new URLSearchParams({
+    status,
+    ...(error ? { error } : {}),
+    provider: "google_calendar",
+  });
+  const redirectTo = `${siteUrl.replace(/\/$/, "")}/azienda/impostazioni/integrazioni/calendar-callback?${params.toString()}`;
+  return new Response(null, {
+    status: 302,
+    headers: { Location: redirectTo },
+  });
 }
+
+// Backward-compat alias: tutti i call site esistenti continuano a funzionare.
+const buildCallbackHtml = buildCallbackRedirect;
 
 // ---- MAIN HANDLER ----
 

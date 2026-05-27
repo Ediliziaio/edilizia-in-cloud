@@ -11,6 +11,13 @@
  */
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  useThreadActivity,
+  useTrackThreadView,
+  summarizeThreadActivity,
+  type EmailActivityAction,
+} from "../hooks/useThreadActivity";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import DOMPurify from "dompurify";
@@ -43,6 +50,8 @@ import {
 interface MessageRow {
   id: string;
   thread_id: string;
+  message_id: string | null;
+  oauth_connection_id: string | null;
   from_email: string | null;
   from_name: string | null;
   to_email: string | null;
@@ -295,6 +304,8 @@ function predictiveFromMessages(messages: MessageRow[] | undefined): PredictiveE
 
 export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerProps) {
   const qc = useQueryClient();
+  const { user, effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id ?? null;
   const [aiSummary, setAiSummary] = useState<{ summary: string; action_items: string[] } | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<EmailAnalysisResult | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<Array<{ tone: string; label: string; body: string }> | null>(null);
@@ -305,13 +316,34 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("email_inbox")
-        .select("id, thread_id, from_email, from_name, to_email, cc_emails, subject, received_at, raw_html, raw_text, attachments, ai_category, ai_priority, ai_summary, ai_extracted, ai_suggested_action, ai_processed_at, is_read, is_starred")
+        .select("id, thread_id, message_id, oauth_connection_id, from_email, from_name, to_email, cc_emails, subject, received_at, raw_html, raw_text, attachments, ai_category, ai_priority, ai_summary, ai_extracted, ai_suggested_action, ai_processed_at, is_read, is_starred")
         .eq("thread_id", threadId)
         .order("received_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as MessageRow[];
     },
   });
+
+  // 2026-05-26: collaborazione email — chi nella company ha aperto/risposto.
+  // Estrae i provider message_id del thread (univoci cross-utente) e li
+  // passa al tracker. La RPC è idempotente (skip se viewed negli ultimi 5min).
+  const messageProviderIds = useMemo(
+    () => (messages ?? []).map((m) => m.message_id).filter((id): id is string => !!id),
+    [messages],
+  );
+  const lastMessage = messages?.[messages.length - 1];
+  useTrackThreadView({
+    threadId,
+    messageIds: messageProviderIds,
+    companyId,
+    oauthConnectionId: lastMessage?.oauth_connection_id ?? null,
+    emailAddress: lastMessage?.to_email ?? null,
+  });
+  const { data: threadActivity } = useThreadActivity(threadId, companyId);
+  const collabSummary = useMemo(
+    () => summarizeThreadActivity(threadActivity ?? [], user?.id ?? null),
+    [threadActivity, user?.id],
+  );
 
   const {
     data: emailActionProposals = [],
@@ -639,6 +671,9 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
             creatingOperationalProposals={operationProposalsMutation.isPending}
           />
         )}
+
+        {/* Collaborazione email: chi nella company ha aperto/risposto */}
+        {collabSummary.length > 0 && <ThreadCollabBanner items={collabSummary} />}
 
         {isLoading ? (
           <div className="p-4 space-y-3">
@@ -1579,4 +1614,127 @@ function MessageBubble({ message }: { message: MessageRow }) {
       )}
     </div>
   );
+}
+
+// ───────────────────────────────────────────────────────────────
+// ThreadCollabBanner — chi nella company ha aperto/risposto al thread
+// ───────────────────────────────────────────────────────────────
+
+const ACTION_LABEL: Record<EmailActivityAction, string> = {
+  viewed: "ha aperto",
+  replied: "ha risposto",
+  forwarded: "ha inoltrato",
+  archived: "ha archiviato",
+  trashed: "ha cestinato",
+  starred: "ha contrassegnato",
+};
+
+const ACTION_TONE: Record<EmailActivityAction, string> = {
+  viewed: "text-slate-600",
+  replied: "text-emerald-700",
+  forwarded: "text-blue-700",
+  archived: "text-slate-500",
+  trashed: "text-rose-600",
+  starred: "text-amber-600",
+};
+
+function relativeTime(value: string): string {
+  const ts = new Date(value).getTime();
+  if (!Number.isFinite(ts)) return "—";
+  const diff = Date.now() - ts;
+  const minutes = Math.round(diff / 60_000);
+  if (minutes < 1) return "adesso";
+  if (minutes < 60) return `${minutes} min fa`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h fa`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days} ${days === 1 ? "giorno" : "giorni"} fa`;
+  return new Date(value).toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
+}
+
+function initials(name: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function ThreadCollabBanner({
+  items,
+}: {
+  items: ReturnType<typeof summarizeThreadActivity>;
+}) {
+  if (items.length === 0) return null;
+  // Mostro max 5 + counter "altri"
+  const visible = items.slice(0, 5);
+  const hidden = items.length - visible.length;
+
+  return (
+    <div className="px-3 py-2 bg-blue-50/60 border-b border-blue-100">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
+          {items.length}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">
+            Collaborazione team
+          </p>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] leading-snug text-slate-700">
+            {visible.map((item) => {
+              const tone = ACTION_TONE[item.last_action] ?? "text-slate-600";
+              const label = ACTION_LABEL[item.last_action] ?? "ha interagito";
+              return (
+                <span
+                  key={item.user_id}
+                  className="inline-flex items-center gap-1.5"
+                  title={`${item.user_name ?? "Membro team"} · ${label} il ${new Date(item.last_at).toLocaleString("it-IT")}${item.last_email_address ? ` da ${item.last_email_address}` : ""}`}
+                >
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white",
+                      avatarColor(item.user_name),
+                    )}
+                  >
+                    {initials(item.user_name)}
+                  </span>
+                  <span className="font-medium text-slate-900">
+                    {item.user_name ?? "Membro team"}
+                  </span>
+                  <span className={tone}>{label}</span>
+                  <span className="text-slate-500">{relativeTime(item.last_at)}</span>
+                  {item.last_email_address && (
+                    <span className="rounded bg-white px-1 text-[10px] text-slate-500 border border-slate-100">
+                      {item.last_email_address}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+            {hidden > 0 && (
+              <span className="text-slate-500">+ altri {hidden}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Determina un colore avatar deterministicamente dal nome. */
+function avatarColor(name: string | null): string {
+  if (!name) return "bg-slate-500";
+  const palette = [
+    "bg-blue-500",
+    "bg-emerald-500",
+    "bg-violet-500",
+    "bg-amber-500",
+    "bg-rose-500",
+    "bg-cyan-500",
+    "bg-fuchsia-500",
+    "bg-orange-500",
+  ];
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) % 1000;
+  return palette[hash % palette.length];
 }
