@@ -1,29 +1,44 @@
-import { useMemo, useState } from "react";
+/**
+ * CustomerProfileCard — sidebar dettaglio cliente.
+ *
+ * 2026-05-27 (richiesta utente "coerente con pagina contatti marketing"):
+ * REFACTOR COMPLETO. Prima era una card "passport-style" (avatar grande
+ * centrato + righe info + form modale edit). Ora segue la struttura
+ * IDENTICA alla sidebar di MarketingContactDetail.tsx:
+ *   - Header "Anagrafica completa"
+ *   - Block top: Titolare (salesperson) select dropdown
+ *   - Tabs "Tutti i campi | Azioni"
+ *   - Search box
+ *   - Collapsible Anagrafica: Nome, Cognome, Email, Telefono, CF, Tipo
+ *   - Collapsible Indirizzi: residenza/sede legale + cantiere
+ *   - Collapsible Marketing (se linkedContact)
+ *
+ * Edit inline via InlineField → mutation singolo campo, no più modale
+ * "modifica tutto". Pattern marketing standard.
+ */
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Pencil, X, Loader2, Phone, CreditCard, MapPin, HardHat, Calendar,
-  ExternalLink, AlertTriangle, ArrowRight, Building2, User as UserIcon,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ChevronDown, Search, User, ExternalLink, Calendar,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { getAvatarColor } from "@/lib/contactUtils";
-import { SalespersonSelect } from "@/components/salespeople/SalespersonSelect";
+import { InlineField } from "@/components/marketing/contacts/InlineField";
 import { queryKeys } from "@/lib/queryKeys";
-import { looksLikePhone, looksLikeFiscalCode } from "@/lib/customerDataSanitizer";
 
 interface LinkedContact {
   id: string;
@@ -49,7 +64,6 @@ interface CustomerProfileCardProps {
     created_at: string;
     salesperson_id: string | null;
     marketing_contact_id?: string | null;
-    // Nuovi campi
     is_business?: boolean | null;
     business_name?: string | null;
     city?: string | null;
@@ -64,615 +78,371 @@ interface CustomerProfileCardProps {
   onSaved?: () => void;
 }
 
-const INTERNAL_NO_EMAIL_DOMAIN = "@no-email.ediliziaincloud.local";
-
-function formatCustomerEmail(email: string | null | undefined): string | null {
-  const value = (email ?? "").trim();
-  if (!value || value.endsWith(INTERNAL_NO_EMAIL_DOMAIN)) return null;
-  return value;
-}
-
-function InfoRow({ icon: Icon, value, placeholder }: {
-  icon: LucideIcon;
-  value: string | null;
-  placeholder: string;
-}) {
-  return (
-    <div className="flex items-start gap-2 text-sm">
-      <Icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-      <span className={value ? "text-foreground" : "text-muted-foreground italic"}>
-        {value || placeholder}
-      </span>
-    </div>
-  );
-}
-
-/* Helper display name aware di is_business */
-function getDisplayName(c: CustomerProfileCardProps["customer"]): string {
-  if (c.is_business && c.business_name && c.business_name.trim()) {
-    return c.business_name.trim();
-  }
-  const f = (c.first_name ?? "").trim();
-  const l = (c.last_name ?? "").trim();
-  const isPlaceholderF = f === "—" || f === "-";
-  const isPlaceholderL = l === "—" || l === "-";
-  const joined = `${isPlaceholderF ? "" : f} ${isPlaceholderL ? "" : l}`.trim();
-  return joined || "(senza nome)";
-}
-
-/* Helper indirizzo compatto */
-function formatCompactAddress(
-  street: string | null | undefined,
-  city: string | null | undefined,
-  cap: string | null | undefined,
-  province: string | null | undefined,
-): string | null {
-  const parts: string[] = [];
-  if (street && street.trim()) parts.push(street.trim());
-  const loc = [cap?.trim(), city?.trim(), province?.trim() ? `(${province.trim()})` : null].filter(Boolean).join(" ");
-  if (loc) parts.push(loc);
-  return parts.length ? parts.join(" — ") : null;
-}
-
 export function CustomerProfileCard({ customer, linkedContact, onSaved }: CustomerProfileCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+  const [fieldSearch, setFieldSearch] = useState("");
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Display helpers — Bug fix: evita che il placeholder "—" finisca come
-  // iniziale dell'avatar (es. "—A" quando first_name è "—"). I placeholder
-  // sono trattati come vuoti per il calcolo delle iniziali.
-  const displayName = getDisplayName(customer);
-  const displayEmail = formatCustomerEmail(customer.email);
-  const initialOf = (s: string | null | undefined) => {
-    const t = (s ?? "").trim();
-    if (!t || t === "—" || t === "-") return "";
-    return t.charAt(0).toUpperCase();
-  };
-  const initials = customer.is_business && customer.business_name
-    ? customer.business_name.trim().charAt(0).toUpperCase() || "A"
-    : (`${initialOf(customer.first_name)}${initialOf(customer.last_name)}` || "?");
-  const avatarColor = getAvatarColor(displayName);
-
-  // Form state
-  const stripPlaceholder = (v: string | null | undefined) => {
-    const t = (v ?? "").trim();
-    return (t === "—" || t === "-") ? "" : (v ?? "");
-  };
-  const [isBusiness, setIsBusiness] = useState<boolean>(!!customer.is_business);
-  const [businessName, setBusinessName] = useState(customer.business_name ?? "");
-  const [firstName, setFirstName] = useState(stripPlaceholder(customer.first_name));
-  const [lastName, setLastName] = useState(stripPlaceholder(customer.last_name));
-  const [phone, setPhone] = useState(customer.phone || "");
-  const [fiscalCode, setFiscalCode] = useState(customer.fiscal_code || "");
-  const [address, setAddress] = useState(customer.address || "");
-  const [city, setCity] = useState(customer.city || "");
-  const [postalCode, setPostalCode] = useState(customer.postal_code || "");
-  const [province, setProvince] = useState(customer.province || "");
-  const [siteAddress, setSiteAddress] = useState(customer.site_address || "");
-  const [siteCity, setSiteCity] = useState(customer.site_city || "");
-  const [sitePostalCode, setSitePostalCode] = useState(customer.site_postal_code || "");
-  const [siteProvince, setSiteProvince] = useState(customer.site_province || "");
-  const [notes, setNotes] = useState(customer.notes || "");
-  const [salespersonId, setSalespersonId] = useState(customer.salesperson_id || "");
-
-  const resetForm = () => {
-    setIsBusiness(!!customer.is_business);
-    setBusinessName(customer.business_name ?? "");
-    setFirstName(stripPlaceholder(customer.first_name));
-    setLastName(stripPlaceholder(customer.last_name));
-    setPhone(customer.phone || "");
-    setFiscalCode(customer.fiscal_code || "");
-    setAddress(customer.address || "");
-    setCity(customer.city || "");
-    setPostalCode(customer.postal_code || "");
-    setProvince(customer.province || "");
-    setSiteAddress(customer.site_address || "");
-    setSiteCity(customer.site_city || "");
-    setSitePostalCode(customer.site_postal_code || "");
-    setSiteProvince(customer.site_province || "");
-    setNotes(customer.notes || "");
-    setSalespersonId(customer.salesperson_id || "");
-  };
-
-  // Inline auto-fix suggestions
-  const inlineFixes = useMemo(() => {
-    const fixes: Array<{ label: string; description: string; apply: () => void }> = [];
-    if (firstName && looksLikePhone(firstName)) {
-      fixes.push({
-        label: phone ? "Nome numerico → Note" : "Sposta Nome in Telefono",
-        description: phone
-          ? `Il Nome "${firstName}" sembra un telefono. Telefono è già "${phone}".`
-          : `Il Nome "${firstName}" sembra un numero di telefono.`,
-        apply: () => {
-          if (phone && phone !== firstName) {
-            setNotes((n) => (n ? `${n}\n[Fix] Numero: ${firstName}` : `[Fix] Numero: ${firstName}`));
-          } else {
-            setPhone(firstName);
-          }
-          setFirstName("");
-        },
-      });
-    }
-    if (lastName && looksLikePhone(lastName)) {
-      fixes.push({
-        label: phone ? "Cognome numerico → Note" : "Sposta Cognome in Telefono",
-        description: `Il Cognome "${lastName}" sembra un numero di telefono.`,
-        apply: () => {
-          if (phone && phone !== lastName) {
-            setNotes((n) => (n ? `${n}\n[Fix] Numero: ${lastName}` : `[Fix] Numero: ${lastName}`));
-          } else {
-            setPhone(lastName);
-          }
-          setLastName("");
-        },
-      });
-    }
-    if (firstName && looksLikeFiscalCode(firstName)) {
-      fixes.push({
-        label: "Sposta Nome in CF / P.IVA",
-        description: `Il Nome "${firstName}" sembra un codice fiscale o P.IVA.`,
-        apply: () => {
-          if (!fiscalCode) setFiscalCode(firstName.toUpperCase());
-          setFirstName("");
-        },
-      });
-    }
-    if (lastName && looksLikeFiscalCode(lastName)) {
-      fixes.push({
-        label: "Sposta Cognome in CF / P.IVA",
-        description: `Il Cognome "${lastName}" sembra un CF/P.IVA.`,
-        apply: () => {
-          if (!fiscalCode) setFiscalCode(lastName.toUpperCase());
-          setLastName("");
-        },
-      });
-    }
-    return fixes;
-  }, [firstName, lastName, phone, fiscalCode]);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isBusiness) {
-      if (!businessName.trim()) {
-        toast({ title: "Errore", description: "La ragione sociale è obbligatoria", variant: "destructive" });
-        return;
+  // Lista salespeople per Titolare select
+  const { data: salespeople = [] } = useQuery({
+    queryKey: ["company-salespeople", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId!)
+        .in("role" as never, ["admin", "salesperson", "office"] as never)
+        .order("first_name", { ascending: true });
+      if (error) {
+        // soft fail — schema può variare
+        return [] as Array<{ id: string; first_name: string | null; last_name: string | null }>;
       }
-    } else {
-      if (!firstName.trim() || !lastName.trim()) {
-        toast({ title: "Errore", description: "Nome e cognome sono obbligatori", variant: "destructive" });
-        return;
-      }
-    }
-    setIsSaving(true);
-    try {
-      const updates = {
-        is_business: isBusiness,
-        business_name: isBusiness ? businessName.trim().slice(0, 200) : null,
-        // Per le aziende senza nome/cognome referente: last_name=business_name (fallback safe per NOT NULL)
-        first_name: firstName.trim().slice(0, 100) || (isBusiness ? "" : "—"),
-        last_name: lastName.trim().slice(0, 100) || (isBusiness ? businessName.trim().slice(0, 100) : "—"),
-        phone: phone.trim() || null,
-        fiscal_code: fiscalCode.trim().toUpperCase() || null,
-        address: address.trim() || null,
-        city: city.trim() || null,
-        postal_code: postalCode.trim() || null,
-        province: province.trim().toUpperCase() || null,
-        site_address: siteAddress.trim() || null,
-        site_city: siteCity.trim() || null,
-        site_postal_code: sitePostalCode.trim() || null,
-        site_province: siteProvince.trim().toUpperCase() || null,
-        notes: notes.trim() || null,
-        salesperson_id: salespersonId || null,
-      };
+      return data as Array<{ id: string; first_name: string | null; last_name: string | null }>;
+    },
+  });
 
+  // Update singolo campo (pattern marketing updateField)
+  const updateField = useMutation({
+    mutationFn: async ({ field, value }: { field: string; value: string | null }) => {
       const { error } = await supabase
         .from("profiles")
-        .update(updates as never)
+        .update({ [field]: value } as never)
         .eq("id", customer.id);
-
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customer.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
-      toast({ title: "Dati salvati", description: "Le informazioni del cliente sono state aggiornate." });
-      setIsEditing(false);
       onSaved?.();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Errore durante il salvataggio";
-      toast({ title: "Errore", description: message, variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
+    },
+    onError: (e) => {
+      toast({
+        title: "Errore salvataggio",
+        description: e instanceof Error ? e.message : "Riprova",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Filtro sezioni per search box
+  const matchesSearch = (label: string): boolean => {
+    if (!fieldSearch.trim()) return true;
+    return label.toLowerCase().includes(fieldSearch.toLowerCase());
   };
 
-  // Compact display addresses
-  const displayAddress = formatCompactAddress(customer.address, customer.city, customer.postal_code, customer.province);
-  const displaySiteAddress = formatCompactAddress(customer.site_address, customer.site_city, customer.site_postal_code, customer.site_province);
-
   return (
-    <Card>
-      <CardContent className="pt-5">
-        {isEditing ? (
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold">Modifica dati</h3>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => { resetForm(); setIsEditing(false); }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+    <div className="rounded-2xl border bg-card shadow-sm flex flex-col h-full">
+      {/* Header sticky */}
+      <div className="px-3 py-2.5 border-b sticky top-0 bg-card z-10 rounded-t-2xl">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <User className="h-3 w-3" />
+          Anagrafica completa
+        </h3>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-3 space-y-4">
+          {/* ─── Block top: Titolare ─── */}
+          <div>
+            <div className="flex items-center gap-1 mb-0.5">
+              <User className="h-3 w-3 text-muted-foreground" />
+              <Label className="text-xs text-muted-foreground">Titolare</Label>
             </div>
-
-            {/* Tipo cliente */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Tipo cliente</Label>
-              <Tabs value={isBusiness ? "business" : "person"} onValueChange={(v) => setIsBusiness(v === "business")}>
-                <TabsList className="grid grid-cols-2 w-full h-9">
-                  <TabsTrigger value="person" className="text-xs">
-                    <UserIcon className="h-3 w-3 mr-1" />
-                    Persona fisica
-                  </TabsTrigger>
-                  <TabsTrigger value="business" className="text-xs">
-                    <Building2 className="h-3 w-3 mr-1" />
-                    Azienda / P. IVA
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-
-            {/* Ragione sociale (solo azienda) */}
-            {isBusiness && (
-              <div className="space-y-1">
-                <Label htmlFor="pc-rs">Ragione sociale *</Label>
-                <Input
-                  id="pc-rs"
-                  value={businessName}
-                  onChange={(e) => setBusinessName(e.target.value)}
-                  placeholder="Es. Rossi Costruzioni S.r.l."
-                  maxLength={200}
-                  required
-                />
-              </div>
-            )}
-
-            {/* Nome / Cognome */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="pc-fn">
-                  {isBusiness ? "Nome referente" : "Nome *"}
-                </Label>
-                <Input
-                  id="pc-fn"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required={!isBusiness}
-                  placeholder={isBusiness ? "Opzionale" : ""}
-                  aria-invalid={looksLikePhone(firstName) || looksLikeFiscalCode(firstName)}
-                  className={looksLikePhone(firstName) || looksLikeFiscalCode(firstName) ? "border-amber-500 focus-visible:ring-amber-500" : ""}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="pc-ln">
-                  {isBusiness ? "Cognome referente" : "Cognome *"}
-                </Label>
-                <Input
-                  id="pc-ln"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  required={!isBusiness}
-                  placeholder={isBusiness ? "Opzionale" : ""}
-                  aria-invalid={looksLikePhone(lastName) || looksLikeFiscalCode(lastName)}
-                  className={looksLikePhone(lastName) || looksLikeFiscalCode(lastName) ? "border-amber-500 focus-visible:ring-amber-500" : ""}
-                />
-              </div>
-            </div>
-
-            {inlineFixes.length > 0 && (
-              <Alert variant="default" className="border-amber-400 bg-amber-50/50 dark:bg-amber-900/10 py-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-xs space-y-2 text-amber-800 dark:text-amber-200">
-                  <p className="font-semibold">Dati da sistemare rilevati</p>
-                  <ul className="space-y-1.5">
-                    {inlineFixes.map((fix, i) => (
-                      <li key={i} className="space-y-1">
-                        <p className="text-[11px] opacity-80">{fix.description}</p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-[11px] bg-white dark:bg-transparent border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100"
-                          onClick={fix.apply}
-                        >
-                          <ArrowRight className="h-3 w-3 mr-1" />
-                          {fix.label}
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Contatti */}
-            <div className="space-y-1">
-              <Label htmlFor="pc-phone">Telefono</Label>
-              <Input id="pc-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+39 333 1234567" />
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="pc-cf">{isBusiness ? "Partita IVA / Codice Fiscale" : "Codice Fiscale"}</Label>
-              <Input
-                id="pc-cf"
-                value={fiscalCode}
-                onChange={(e) => setFiscalCode(e.target.value.toUpperCase())}
-                maxLength={16}
-                placeholder={isBusiness ? "IT01234567890" : "RSSMRA80A01H501U"}
-              />
-            </div>
-
-            {/* Indirizzo residenza / sede legale */}
-            <div className="space-y-2 pt-1">
-              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                {isBusiness ? "Sede legale" : "Indirizzo residenza"}
-              </Label>
-              <Input
-                id="pc-addr"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                maxLength={200}
-                placeholder="Via Roma, 1"
-              />
-              <div className="grid grid-cols-6 gap-2">
-                <Input
-                  className="col-span-2"
-                  value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  placeholder="CAP"
-                  maxLength={10}
-                  aria-label="CAP"
-                />
-                <Input
-                  className="col-span-3"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Città"
-                  maxLength={100}
-                  aria-label="Città"
-                />
-                <Input
-                  className="col-span-1"
-                  value={province}
-                  onChange={(e) => setProvince(e.target.value.toUpperCase())}
-                  placeholder="PR"
-                  maxLength={2}
-                  aria-label="Provincia"
-                />
-              </div>
-            </div>
-
-            {/* Indirizzo cantiere */}
-            <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Indirizzo cantiere
-              </Label>
-              <Input
-                id="pc-site"
-                value={siteAddress}
-                onChange={(e) => setSiteAddress(e.target.value)}
-                maxLength={200}
-                placeholder="Via del Cantiere, 5 (opzionale)"
-              />
-              <div className="grid grid-cols-6 gap-2">
-                <Input
-                  className="col-span-2"
-                  value={sitePostalCode}
-                  onChange={(e) => setSitePostalCode(e.target.value)}
-                  placeholder="CAP"
-                  maxLength={10}
-                  aria-label="CAP cantiere"
-                />
-                <Input
-                  className="col-span-3"
-                  value={siteCity}
-                  onChange={(e) => setSiteCity(e.target.value)}
-                  placeholder="Città"
-                  maxLength={100}
-                  aria-label="Città cantiere"
-                />
-                <Input
-                  className="col-span-1"
-                  value={siteProvince}
-                  onChange={(e) => setSiteProvince(e.target.value.toUpperCase())}
-                  placeholder="PR"
-                  maxLength={2}
-                  aria-label="Provincia cantiere"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="pc-notes">Note interne</Label>
-              <Textarea id="pc-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} maxLength={500} />
-            </div>
-
-            <SalespersonSelect
-              value={salespersonId}
-              onChange={(v) => setSalespersonId(v)}
-              disabled={isSaving}
-            />
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => { resetForm(); setIsEditing(false); }}
-              >
-                Annulla
-              </Button>
-              <Button type="submit" className="flex-1" disabled={isSaving}>
-                {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Salva
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <>
-            {/* Avatar + nome + email */}
-            <div className="flex flex-col items-center text-center gap-2 mb-4">
-              <Avatar className={`h-16 w-16 ${avatarColor}`}>
-                <AvatarFallback className="text-xl font-bold text-white bg-transparent">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                  <p className="font-bold text-lg leading-tight">
-                    {displayName}
-                  </p>
-                  {customer.is_business && (
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-1">
-                      <Building2 className="h-2.5 w-2.5" />
-                      Azienda
-                    </Badge>
-                  )}
-                </div>
-                {customer.is_business && (customer.first_name || customer.last_name) && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Referente: {stripPlaceholder(customer.first_name)} {stripPlaceholder(customer.last_name)}
-                  </p>
+            <Select
+              value={customer.salesperson_id || ""}
+              onValueChange={(v) => updateField.mutate({ field: "salesperson_id", value: v || null })}
+            >
+              <SelectTrigger className="h-7 text-xs border-dashed">
+                <SelectValue placeholder="Non assegnato" />
+              </SelectTrigger>
+              <SelectContent>
+                {salespeople.length === 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessun commerciale</div>
                 )}
-                <p className={displayEmail ? "text-sm text-muted-foreground" : "text-sm text-amber-700"}>
-                  {displayEmail ?? "Email non inserita"}
-                </p>
+                {salespeople.map((s) => (
+                  <SelectItem key={s.id} value={s.id} className="text-xs">
+                    {[s.first_name, s.last_name].filter(Boolean).join(" ") || "Senza nome"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* ─── Data cliente badge ─── */}
+          <div>
+            <Label className="text-xs text-muted-foreground block mb-1">Cliente dal</Label>
+            <Badge variant="outline" className="text-[11px] gap-1 font-normal">
+              <Calendar className="h-3 w-3" />
+              {format(new Date(customer.created_at), "dd MMM yyyy", { locale: it })}
+            </Badge>
+          </div>
+
+          {/* ─── Tabs Tutti i campi | Azioni ─── */}
+          <Tabs defaultValue="all_fields" className="w-full">
+            <TabsList className="w-full h-8 p-0.5">
+              <TabsTrigger value="all_fields" className="flex-1 text-xs h-7">Tutti i campi</TabsTrigger>
+              <TabsTrigger value="actions" className="flex-1 text-xs h-7">Azioni</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="all_fields" className="mt-2 space-y-2">
+              {/* Search bar */}
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                <Input
+                  placeholder="Cerca campi"
+                  value={fieldSearch}
+                  onChange={(e) => setFieldSearch(e.target.value)}
+                  className="h-7 text-[11px] pl-7"
+                />
               </div>
-              <Badge variant="outline" className="text-xs gap-1">
-                <Calendar className="h-3 w-3" />
-                Cliente dal {format(new Date(customer.created_at), "dd MMM yyyy", { locale: it })}
-              </Badge>
-            </div>
 
-            <Separator className="mb-4" />
+              {/* Collapsible: Anagrafica */}
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                  <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                  Anagrafica
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-1 space-y-0">
+                  {customer.is_business && matchesSearch("Ragione sociale") && (
+                    <InlineField
+                      label="Ragione sociale"
+                      value={customer.business_name || ""}
+                      onSave={(v) => updateField.mutate({ field: "business_name", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("Nome") && (
+                    <InlineField
+                      label="Nome"
+                      value={customer.first_name === "—" ? "" : customer.first_name || ""}
+                      onSave={(v) => updateField.mutate({ field: "first_name", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("Cognome") && (
+                    <InlineField
+                      label="Cognome"
+                      value={customer.last_name === "—" ? "" : customer.last_name || ""}
+                      onSave={(v) => updateField.mutate({ field: "last_name", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("Email") && (
+                    <InlineField
+                      label="Email"
+                      value={customer.email || ""}
+                      onSave={(v) => updateField.mutate({ field: "email", value: v || null })}
+                      type="email"
+                    />
+                  )}
+                  {matchesSearch("Telefono") && (
+                    <InlineField
+                      label="Telefono"
+                      value={customer.phone || ""}
+                      onSave={(v) => updateField.mutate({ field: "phone", value: v || null })}
+                      type="tel"
+                    />
+                  )}
+                  {matchesSearch(customer.is_business ? "Partita IVA" : "Codice fiscale") && (
+                    <InlineField
+                      label={customer.is_business ? "Partita IVA / CF" : "Codice fiscale"}
+                      value={customer.fiscal_code || ""}
+                      onSave={(v) => updateField.mutate({ field: "fiscal_code", value: v ? v.toUpperCase() : null })}
+                    />
+                  )}
+                  {matchesSearch("Tipo cliente") && (
+                    <InlineField
+                      label="Tipo cliente"
+                      value={customer.is_business ? "azienda" : "persona"}
+                      onSave={(v) => updateField.mutate({ field: "is_business", value: (v === "azienda") as never })}
+                      type="select"
+                      options={["persona", "azienda"]}
+                    />
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
 
-            {/* Header anagrafica + bottone modifica */}
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Anagrafica
-              </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2"
-                onClick={() => setIsEditing(true)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+              {/* Collapsible: Indirizzo residenza / sede legale */}
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                  <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                  {customer.is_business ? "Sede legale" : "Indirizzo residenza"}
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-1 space-y-0">
+                  {matchesSearch("Indirizzo") && (
+                    <InlineField
+                      label="Indirizzo"
+                      value={customer.address || ""}
+                      onSave={(v) => updateField.mutate({ field: "address", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("Città") && (
+                    <InlineField
+                      label="Città"
+                      value={customer.city || ""}
+                      onSave={(v) => updateField.mutate({ field: "city", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("CAP") && (
+                    <InlineField
+                      label="CAP"
+                      value={customer.postal_code || ""}
+                      onSave={(v) => updateField.mutate({ field: "postal_code", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("Provincia") && (
+                    <InlineField
+                      label="Provincia"
+                      value={customer.province || ""}
+                      onSave={(v) => updateField.mutate({ field: "province", value: v ? v.toUpperCase() : null })}
+                    />
+                  )}
+                  {matchesSearch("Paese") && (
+                    <InlineField
+                      label="Paese"
+                      value={customer.country || ""}
+                      onSave={(v) => updateField.mutate({ field: "country", value: v || null })}
+                    />
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
 
-            {/* Righe info */}
-            <div className="space-y-2.5 text-sm">
-              <InfoRow icon={Phone} value={customer.phone} placeholder="Telefono non inserito" />
-              <InfoRow
-                icon={CreditCard}
-                value={customer.fiscal_code}
-                placeholder={customer.is_business ? "P. IVA / CF non inserita" : "CF non inserito"}
-              />
-              <InfoRow
-                icon={MapPin}
-                value={displayAddress}
-                placeholder={customer.is_business ? "Sede legale non inserita" : "Indirizzo non inserito"}
-              />
-              <InfoRow
-                icon={HardHat}
-                value={displaySiteAddress}
-                placeholder="Indirizzo cantiere non inserito"
-              />
-            </div>
+              {/* Collapsible: Indirizzo cantiere */}
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                  <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                  Indirizzo cantiere
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-1 space-y-0">
+                  {matchesSearch("Indirizzo cantiere") && (
+                    <InlineField
+                      label="Indirizzo"
+                      value={customer.site_address || ""}
+                      onSave={(v) => updateField.mutate({ field: "site_address", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("Città cantiere") && (
+                    <InlineField
+                      label="Città"
+                      value={customer.site_city || ""}
+                      onSave={(v) => updateField.mutate({ field: "site_city", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("CAP cantiere") && (
+                    <InlineField
+                      label="CAP"
+                      value={customer.site_postal_code || ""}
+                      onSave={(v) => updateField.mutate({ field: "site_postal_code", value: v || null })}
+                    />
+                  )}
+                  {matchesSearch("Provincia cantiere") && (
+                    <InlineField
+                      label="Provincia"
+                      value={customer.site_province || ""}
+                      onSave={(v) => updateField.mutate({ field: "site_province", value: v ? v.toUpperCase() : null })}
+                    />
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
 
-            {customer.notes && (
-              <>
-                <Separator className="my-3" />
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Note</p>
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{customer.notes}</p>
-                </div>
-              </>
-            )}
+              {/* Collapsible: Note */}
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                  <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                  Note interne
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-1 space-y-0">
+                  <InlineField
+                    label="Note"
+                    value={customer.notes || ""}
+                    onSave={(v) => updateField.mutate({ field: "notes", value: v || null })}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
 
-            {linkedContact && (
-              <>
-                <Separator className="my-3" />
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Origine Marketing
-                    </h4>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={() =>
-                        navigate(
-                          `/azienda/marketing/contatti/${customer.marketing_contact_id}`,
-                        )
-                      }
-                    >
-                      <ExternalLink className="h-3 w-3 mr-1" />
-                      Apri
-                    </Button>
-                  </div>
-
-                  <div className="space-y-1.5 text-sm">
+              {/* Collapsible: Origine Marketing (se linkedContact) */}
+              {linkedContact && (
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-xs font-semibold w-full group py-1 hover:bg-muted/50 rounded px-1">
+                    <ChevronDown className="h-3 w-3 transition-transform group-data-[state=closed]:-rotate-90" />
+                    Origine Marketing
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-1 space-y-1.5 pt-1.5">
                     {linkedContact.source && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground min-w-[60px]">Fonte</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {linkedContact.source}
-                        </Badge>
+                      <div className="grid grid-cols-[100px_1fr] items-center gap-1 py-0.5">
+                        <Label className="text-xs text-muted-foreground truncate">Fonte</Label>
+                        <Badge variant="secondary" className="text-[11px] w-fit">{linkedContact.source}</Badge>
                       </div>
                     )}
                     {linkedContact.lead_score != null && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground min-w-[60px]">Lead score</span>
-                        <span className="text-xs font-semibold">
-                          {linkedContact.lead_score}/100
-                        </span>
+                      <div className="grid grid-cols-[100px_1fr] items-center gap-1 py-0.5">
+                        <Label className="text-xs text-muted-foreground truncate">Lead score</Label>
+                        <span className="text-xs font-semibold">{linkedContact.lead_score}/100</span>
                       </div>
                     )}
                     {linkedContact.attr_campaign && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground min-w-[60px]">Campagna</span>
-                        <span className="text-xs truncate max-w-[120px]">
-                          {linkedContact.attr_campaign}
-                        </span>
+                      <div className="grid grid-cols-[100px_1fr] items-center gap-1 py-0.5">
+                        <Label className="text-xs text-muted-foreground truncate">Campagna</Label>
+                        <span className="text-xs truncate">{linkedContact.attr_campaign}</span>
                       </div>
                     )}
                     {linkedContact.tags && linkedContact.tags.length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-xs text-muted-foreground min-w-[60px] mt-0.5">Tag</span>
+                      <div className="grid grid-cols-[100px_1fr] items-start gap-1 py-0.5">
+                        <Label className="text-xs text-muted-foreground truncate mt-0.5">Tag</Label>
                         <div className="flex flex-wrap gap-1">
-                          {linkedContact.tags.slice(0, 3).map((tag: string) => (
-                            <Badge key={tag} variant="outline" className="text-[10px] h-4 px-1">
-                              {tag}
-                            </Badge>
+                          {linkedContact.tags.slice(0, 5).map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-[10px] h-4 px-1">{tag}</Badge>
                           ))}
                         </div>
                       </div>
                     )}
-                  </div>
-                </div>
-              </>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+                    {customer.marketing_contact_id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[11px] w-full justify-start"
+                        onClick={() => navigate(`/azienda/marketing/contatti/${customer.marketing_contact_id}`)}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1.5" />
+                        Apri contatto marketing
+                      </Button>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </TabsContent>
+
+            <TabsContent value="actions" className="mt-2 space-y-1">
+              <Button
+                variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
+                onClick={() => navigate(`/azienda/ordini/nuovo?customer_id=${customer.id}`)}
+              >
+                Crea ordine
+              </Button>
+              <Button
+                variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
+                onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?customer_id=${customer.id}`)}
+              >
+                Crea preventivo
+              </Button>
+              <Button
+                variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
+                onClick={() => navigate(`/azienda/assistenza/nuovo?customer_id=${customer.id}`)}
+              >
+                Apri ticket assistenza
+              </Button>
+              <Button
+                variant="outline" size="sm" className="w-full justify-start h-8 text-xs"
+                onClick={() => navigate(`/azienda/calendario?customer_id=${customer.id}`)}
+              >
+                Nuovo appuntamento
+              </Button>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </ScrollArea>
+    </div>
   );
 }
