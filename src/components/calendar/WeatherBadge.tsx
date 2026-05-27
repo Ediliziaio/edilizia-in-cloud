@@ -14,21 +14,25 @@ export function WeatherBadge({ weather, size = "sm", showTemp = false }: Weather
   const isRainy = weather.precip > 5;
   const isHeavyRain = weather.precip > 20;
 
+  // 2026-05-27 (UX request): l'icona meteo era illeggibile a 10px. Ora
+  // l'emoji è text-base/lg ma temp resta piccola, così layout non collassa.
+  const emojiClass = size === "sm" ? "text-base leading-none" : "text-lg leading-none";
+  const tempClass = size === "sm" ? "text-[10px]" : "text-xs";
+
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <span
             className={cn(
-              "inline-flex items-center gap-0.5 rounded px-1 cursor-default select-none",
-              size === "sm" ? "text-[10px]" : "text-xs",
+              "inline-flex items-center gap-1 rounded px-1 cursor-default select-none",
               isHeavyRain ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" :
               isRainy ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" :
               "text-muted-foreground"
             )}
           >
-            <span>{emoji}</span>
-            {showTemp && <span>{weather.maxTemp}°</span>}
+            <span className={emojiClass} aria-label={label}>{emoji}</span>
+            {showTemp && <span className={tempClass}>{weather.maxTemp}°</span>}
           </span>
         </TooltipTrigger>
         <TooltipContent>
@@ -60,6 +64,10 @@ interface WeatherBadgeMultiProps {
 export function WeatherBadgeMulti({ locations, size = "sm", showTemp = false }: WeatherBadgeMultiProps) {
   if (!locations || locations.length === 0) return null;
 
+  // 2026-05-27 (UX request): emoji ingrandita su entrambi i rami del badge
+  const emojiClass = size === "sm" ? "text-base leading-none" : "text-lg leading-none";
+  const tempClass = size === "sm" ? "text-[10px]" : "text-xs";
+
   if (locations.length === 1) {
     const loc = locations[0];
     const emoji = weatherCodeToEmoji(loc.code);
@@ -73,15 +81,14 @@ export function WeatherBadgeMulti({ locations, size = "sm", showTemp = false }: 
           <TooltipTrigger asChild>
             <span
               className={cn(
-                "inline-flex items-center gap-0.5 rounded px-1 cursor-default select-none",
-                size === "sm" ? "text-[10px]" : "text-xs",
+                "inline-flex items-center gap-1 rounded px-1 cursor-default select-none",
                 isHeavyRain ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" :
                 isRainy ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" :
                 "text-muted-foreground"
               )}
             >
-              <span>{emoji}</span>
-              {showTemp && <span>{loc.maxTemp}°</span>}
+              <span className={emojiClass} aria-label={label}>{emoji}</span>
+              {showTemp && <span className={tempClass}>{loc.maxTemp}°</span>}
             </span>
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">
@@ -124,16 +131,15 @@ export function WeatherBadgeMulti({ locations, size = "sm", showTemp = false }: 
         <TooltipTrigger asChild>
           <span
             className={cn(
-              "inline-flex items-center gap-0.5 rounded px-1 cursor-default select-none",
-              size === "sm" ? "text-[10px]" : "text-xs",
+              "inline-flex items-center gap-1 rounded px-1 cursor-default select-none",
               anyHeavyRain ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" :
               anyRainy ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" :
               "text-muted-foreground"
             )}
           >
-            <span>{worstEmoji}</span>
-            {showTemp && <span>{worst.maxTemp}°</span>}
-            {locations.length > 1 && <span className="opacity-60">×{locations.length}</span>}
+            <span className={emojiClass} aria-label="Meteo cantieri">{worstEmoji}</span>
+            {showTemp && <span className={tempClass}>{worst.maxTemp}°</span>}
+            {locations.length > 1 && <span className={cn(tempClass, "opacity-60")}>×{locations.length}</span>}
           </span>
         </TooltipTrigger>
         <TooltipContent className="max-w-sm">
