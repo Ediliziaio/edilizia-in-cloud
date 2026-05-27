@@ -460,8 +460,18 @@ export default function MarketingCalendar() {
     return getApptsWithCoordsForDate(currentDate);
   }, [calendarView, currentDate, getApptsWithCoordsForDate]);
 
+  // 2026-05-27 (perf fix 3): queryKey stabilizzata.
+  // Prima `dayAppointmentsWithCoords.map(a => a.id).join(",")` veniva ricalcolata
+  // ad ogni render con potenziale ordine diverso → cache miss continui → raffica
+  // di chiamate al geocoding/directions API esterno. Ora memoizziamo l'id-string
+  // ordinata in `useMemo` così la query key è veramente stabile tra render.
+  const dayTravelKey = useMemo(
+    () => dayAppointmentsWithCoords.map((a: any) => a.id).sort().join(","),
+    [dayAppointmentsWithCoords]
+  );
+
   const { data: travelLegs = [] } = useQuery({
-    queryKey: ["travel-legs-day", baseCalendarWaypoint?.lat, dayAppointmentsWithCoords.map((a: any) => a.id).join(",")],
+    queryKey: ["travel-legs-day", baseCalendarWaypoint?.lat, dayTravelKey],
     queryFn: () => computeTravelLegsForDate(dayAppointmentsWithCoords),
     enabled: calendarView === "day" && (dayAppointmentsWithCoords.length >= 2 || (dayAppointmentsWithCoords.length >= 1 && !!baseCalendarWaypoint)),
     staleTime: 5 * 60 * 1000,
@@ -483,8 +493,13 @@ export default function MarketingCalendar() {
       .filter((d) => d.aptsWithCoords.length >= 2 || (d.aptsWithCoords.length >= 1 && !!baseCalendarWaypoint));
   }, [calendarView, weekDays, getApptsWithCoordsForDate, baseCalendarWaypoint]);
 
+  // 2026-05-27 (perf): stesso pattern del dayTravelKey — ordina gli id per
+  // garantire stabilità della string anche se l'ordine degli appuntamenti
+  // dentro `aptsWithCoords` oscilla tra render (refetch / re-enrichment).
   const weekTravelQueryKey = useMemo(() => {
-    return weekDaysWithAppts.map((d) => `${d.dateKey}:${d.aptsWithCoords.map((a: any) => a.id).join(",")}`).join("|");
+    return weekDaysWithAppts
+      .map((d) => `${d.dateKey}:${d.aptsWithCoords.map((a: any) => a.id).sort().join(",")}`)
+      .join("|");
   }, [weekDaysWithAppts]);
 
   const { data: weekTravelLegs = {} } = useQuery({

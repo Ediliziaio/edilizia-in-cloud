@@ -108,6 +108,9 @@ import { getSmartCruscottoPath } from "@/lib/dashboardRouting";
 import { canAccessMediaLibrary } from "@/lib/mediaLibrary";
 import { useBillingMode } from "@/contexts/BillingModeContext";
 import { NotificationsBellPopover } from "@/components/notifications/NotificationsBellPopover";
+// 2026-05-27 (perf fix): subscription realtime montata 1x qui invece che
+// dentro useNotifications() che era chiamato in 3 componenti diversi.
+import { NotificationsRealtime } from "@/hooks/useNotifications";
 import { useMyTaskCount } from "@/hooks/useMyTaskCount";
 import { useUnreadEmailCount } from "@/hooks/useUnreadEmailCount";
 
@@ -1753,7 +1756,12 @@ export function CompanyLayout() {
                 <SilvioBellPopover />
               </div>
             )}
-            {deferredRealtimeReady && <NotificationsBellPopover />}
+            {deferredRealtimeReady && (
+              <>
+                <NotificationsRealtime />
+                <NotificationsBellPopover />
+              </>
+            )}
             {showSupport && (
               <Button variant="outline" size="sm" className="relative hidden sm:flex" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 sm:mr-2" />

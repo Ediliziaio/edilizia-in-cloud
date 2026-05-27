@@ -22,6 +22,69 @@ export interface Notification {
   created_at: string;
 }
 
+/**
+ * 2026-05-27 (Performance audit Fix 1): realtime subscription estratta da
+ * `useNotifications` per evitare DUPLICAZIONE. Prima: 3 componenti che
+ * montavano `useNotifications` (NotificationsBellPopover, MobileBottomNav,
+ * MobileAppGrid) → 3 WebSocket separati per la stessa tabella `notifications`
+ * con identico filtro → 3 callback per ogni INSERT → 3 toast + 3 sound.
+ *
+ * Ora la subscription vive in un componente standalone (`<NotificationsRealtime />`)
+ * montato 1x in CompanyLayout. `useNotifications()` resta consumer puro
+ * (query + mutations) — React Query deduplica i fetch via queryKey, quindi
+ * chiamarlo N volte non costa nulla.
+ *
+ * Il suffisso random nel channelId è ora superfluo (un solo canale per sessione)
+ * ma lo manteniamo per safety in StrictMode (effect doppio in dev).
+ */
+export function NotificationsRealtime() {
+  const { profile, effectiveCompany } = useAuth();
+  const queryClient = useQueryClient();
+  const companyId = effectiveCompany?.id;
+  const userId = profile?.id;
+
+  useEffect(() => {
+    if (!companyId || !userId) return;
+
+    const channelId = `notifications:${userId}:${Math.random().toString(36).slice(2, 9)}`;
+
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const newNotif = payload.new as Notification;
+          queryClient.setQueryData<Notification[]>(
+            queryKeys.notifications.list(companyId, userId),
+            (old = []) => [newNotif, ...old]
+          );
+
+          toast(newNotif.title, {
+            description: newNotif.body ?? undefined,
+            action: newNotif.action_url
+              ? { label: "Vai →", onClick: () => { safeRedirect(newNotif.action_url!, "/"); } }
+              : undefined,
+            duration: 5000,
+          });
+          playNotificationSound();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [companyId, userId, queryClient]);
+
+  return null;
+}
+
 export function useNotifications() {
   const { profile, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
@@ -43,56 +106,12 @@ export function useNotifications() {
       return data as Notification[];
     },
     enabled: !!companyId && !!userId,
-    staleTime: 30_000,
+    // 2026-05-27: alzato da 30s a 2min — il realtime push tiene la cache
+    // fresca, il polling era solo safety-net per eventi persi (raro).
+    staleTime: 2 * 60_000,
     gcTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
   });
-
-  // Realtime subscription
-  useEffect(() => {
-    if (!companyId || !userId) return;
-
-    // Il nome del canale include un ID univoco per evitare il crash
-    // "cannot add postgres_changes callbacks after subscribe()":
-    // supabase.removeChannel() è asincrono — se l'effect si ri-esegue
-    // prima che il cleanup completi, supabase.channel() potrebbe restituire
-    // il canale precedente già in stato "subscribed" causando l'errore.
-    // Un suffisso random garantisce un canale sempre nuovo e mai in conflitto.
-    const channelId = `notifications:${userId}:${Math.random().toString(36).slice(2, 9)}`;
-
-    const channel = supabase
-      .channel(channelId)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const newNotif = payload.new as Notification;
-          queryClient.setQueryData<Notification[]>(
-            queryKeys.notifications.list(companyId, userId),
-            (old = []) => [newNotif, ...old]
-          );
-
-          // Show toast + play sound for new notifications
-          toast(newNotif.title, {
-            description: newNotif.body ?? undefined,
-            action: newNotif.action_url
-              ? { label: "Vai →", onClick: () => { safeRedirect(newNotif.action_url!, "/"); } }
-              : undefined,
-            duration: 5000,
-          });
-          playNotificationSound();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [companyId, userId, queryClient]);
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 

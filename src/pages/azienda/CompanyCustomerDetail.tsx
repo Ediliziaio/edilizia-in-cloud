@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, lazy, Suspense } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,7 +11,13 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { EmailComposeDialog, type ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+// 2026-05-27 (perf fix 2): EmailComposeDialog + AppointmentDialog erano
+// eager-imported ma vengono usati SOLO on-demand (click bottone). Importati
+// con lazy() per togliere dal chunk principale del CustomerDetail.
+import type { ComposeContext } from "@/pages/azienda/email/components/EmailComposeDialog";
+const EmailComposeDialog = lazy(() =>
+  import("@/pages/azienda/email/components/EmailComposeDialog").then((m) => ({ default: m.EmailComposeDialog }))
+);
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -35,7 +41,9 @@ import { useState } from "react";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
 import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityTimeline";
 import { CustomerComposeBar } from "@/components/clients/CustomerComposeBar";
-import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
+const AppointmentDialog = lazy(() =>
+  import("@/components/appointments/AppointmentDialog").then((m) => ({ default: m.AppointmentDialog }))
+);
 import { queryKeys } from "@/lib/queryKeys";
 import {
   CustomerBusinessTabs,
@@ -1060,33 +1068,40 @@ export default function CompanyCustomerDetail() {
         />
       </div>
 
-      {/* Email compose dialog — apre con destinatario pre-popolato */}
-      <EmailComposeDialog
-        open={composeOpen}
-        onOpenChange={setComposeOpen}
-        context={composeContext}
-        companyIdOverride={effectiveCompany?.id}
-      />
+      {/* 2026-05-27 (perf): dialog lazy-loaded → Suspense wrapper.
+          Renderizzato solo quando open=true grazie alla guard `composeOpen`
+          / `appointmentDialogOpen`, così evitiamo il fetch del chunk anche
+          al primo click se non serve. */}
+      {composeOpen && (
+        <Suspense fallback={null}>
+          <EmailComposeDialog
+            open={composeOpen}
+            onOpenChange={setComposeOpen}
+            context={composeContext}
+            companyIdOverride={effectiveCompany?.id}
+          />
+        </Suspense>
+      )}
 
-      {/* 2026-05-27: AppointmentDialog popup invece di navigate /calendario.
-          Pre-popolato con: titolo "Appuntamento NomeCliente", primo ordine
-          (se esiste), indirizzo del cliente (residenza o cantiere).
-          Al salvataggio invalida customer-appuntamenti per refresh timeline. */}
-      <AppointmentDialog
-        open={appointmentDialogOpen}
-        onOpenChange={setAppointmentDialogOpen}
-        defaultTitle={`Appuntamento ${fullName}`}
-        defaultOrderId={orders[0]?.id}
-        showOrderSelect
-        defaultAddress={customer.site_address || customer.address || null}
-        defaultCity={customer.site_city || customer.city || null}
-        defaultProvince={customer.site_province || customer.province || null}
-        onSaved={() => {
-          setAppointmentDialogOpen(false);
-          queryClient.invalidateQueries({ queryKey: ["customer-appuntamenti", id, effectiveCompany?.id] });
-          queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
-        }}
-      />
+      {appointmentDialogOpen && (
+        <Suspense fallback={null}>
+          <AppointmentDialog
+            open={appointmentDialogOpen}
+            onOpenChange={setAppointmentDialogOpen}
+            defaultTitle={`Appuntamento ${fullName}`}
+            defaultOrderId={orders[0]?.id}
+            showOrderSelect
+            defaultAddress={customer.site_address || customer.address || null}
+            defaultCity={customer.site_city || customer.city || null}
+            defaultProvince={customer.site_province || customer.province || null}
+            onSaved={() => {
+              setAppointmentDialogOpen(false);
+              queryClient.invalidateQueries({ queryKey: ["customer-appuntamenti", id, effectiveCompany?.id] });
+              queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
