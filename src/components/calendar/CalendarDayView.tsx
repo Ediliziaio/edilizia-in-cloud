@@ -346,8 +346,9 @@ export function CalendarDayView({
         </div>
       )}
 
-      {/* 15-minute grid (06:00–20:00) — slot di 15 min coerenti con WeekView */}
-      <div className="border rounded-lg overflow-hidden">
+      {/* 15-minute grid (06:00–20:00) — slot di 15 min coerenti con WeekView.
+          max-h con scroll evita una pagina lunga 1440px (60 slot × 24px) su mobile. */}
+      <div className="border rounded-lg overflow-hidden max-h-[70vh] overflow-y-auto">
         {TIME_SLOTS.map((slot) => {
           const slotApts = timedAppointments.filter((apt) => floorToSlot(apt.appointment_time) === slot.label);
           const slotBusy = !hiddenEventTypes.has("google_busy")
@@ -379,7 +380,7 @@ export function CalendarDayView({
               {/* Content — h-6 (24px) ≈ stesso passo delle altre 15-min grids */}
               <button
                 type="button"
-                aria-label={`Crea appuntamento alle ${slot.label}`}
+                aria-label={`Crea appuntamento ${format(currentDate, "d MMMM", { locale: it })} alle ${slot.label}`}
                 className={cn(
                   "flex-1 px-1.5 text-left cursor-pointer hover:bg-blue-50/70 dark:hover:bg-blue-950/30 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400",
                   "h-6 min-h-[1.5rem]"
@@ -444,6 +445,7 @@ export function CalendarDayView({
           initialData={editingAppointment ?? undefined}
           hideMarketingFields
           showOrderSelect
+          requireTime
           onSaved={() => {
             queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
             setAppointmentDialogOpen(false);

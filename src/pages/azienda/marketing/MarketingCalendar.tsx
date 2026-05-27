@@ -595,7 +595,10 @@ export default function MarketingCalendar() {
   const headerStats = useMemo(() => {
     const today = new Date();
     const wkStart = startOfWeek(today, { weekStartsOn: 1 });
-    const wkEnd = addDays(wkStart, 6);
+    // 2026-05-27 (audit fix): endOfWeek invece di addDays(wkStart, 6)
+    // — quest'ultimo termina la domenica alle 00:00:00, escludendo gli
+    // appuntamenti di domenica con orario > mezzanotte. endOfWeek dà 23:59:59.999.
+    const wkEnd = endOfWeek(today, { weekStartsOn: 1 });
 
     let todayCount = 0;
     let weekCount = 0;
@@ -606,12 +609,9 @@ export default function MarketingCalendar() {
     type SlotKey = { date: string; start: number; end: number; aptId: string };
     const slots: Map<string, SlotKey[]> = new Map(); // key = assigned_to
     const conflictAptIds = new Set<string>();
-    const toMin = (t?: string | null): number => {
-      if (!t) return -1;
-      const [h, m] = t.slice(0, 5).split(":").map(Number);
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return -1;
-      return h * 60 + m;
-    };
+    // Fallback durata per appuntamenti senza end_time: usa lo slot del
+    // calendario (default 15min) invece di 30 hardcoded — meno falsi positivi.
+    const fallbackDuration = slotDurationMinutes;
 
     for (const a of filteredAppointments as any[]) {
       if (a.appointment_date) {
@@ -623,8 +623,10 @@ export default function MarketingCalendar() {
 
       const ownerKey = a.assigned_to;
       if (!ownerKey || !a.appointment_date || !a.appointment_time) continue;
-      const start = toMin(a.appointment_time);
-      const end = a.appointment_end_time ? toMin(a.appointment_end_time) : start + 30;
+      const start = timeToMin(a.appointment_time.slice(0, 5));
+      const end = a.appointment_end_time
+        ? timeToMin(a.appointment_end_time.slice(0, 5))
+        : start + fallbackDuration;
       if (start < 0 || end <= start) continue;
       const arr = slots.get(ownerKey) || [];
       arr.push({ date: a.appointment_date, start, end, aptId: a.id });
@@ -779,7 +781,10 @@ export default function MarketingCalendar() {
     // OPTIMISTIC UPDATE — aggiorniamo la cache locale subito così l'item
     // si sposta visivamente nello stesso frame del drop. Snapshot dello
     // stato precedente per rollback su errore.
-    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id];
+    // 2026-05-27 (audit fix): queryKey deve includere showOperativi, altrimenti
+    // l'optimistic update scrive su una key che nessuna view sta osservando
+    // → l'item rimbalza alla vecchia posizione fino al refetch.
+    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi];
     const previousData = queryClient.getQueryData<any[]>(queryKey);
     queryClient.setQueryData<any[]>(queryKey, (old) => {
       if (!old) return old;
@@ -852,7 +857,10 @@ export default function MarketingCalendar() {
     if (!companyId) return;
 
     // Optimistic
-    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id];
+    // 2026-05-27 (audit fix): queryKey deve includere showOperativi, altrimenti
+    // l'optimistic update scrive su una key che nessuna view sta osservando
+    // → l'item rimbalza alla vecchia posizione fino al refetch.
+    const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi];
     const previousData = queryClient.getQueryData<any[]>(queryKey);
     queryClient.setQueryData<any[]>(queryKey, (old) => {
       if (!old) return old;
