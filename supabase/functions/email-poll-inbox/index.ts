@@ -162,12 +162,22 @@ async function pollGmail(
    * per non bruciare timeout Edge Function (max ~150s).
    */
   hardCap = 1000,
+  /**
+   * 2026-05-27 (richiesta utente "sincronizza anche le email inviate"):
+   * folder = "inbox" → in:inbox (default, retrocompat)
+   * folder = "sent"  → in:sent (cartella inviate Gmail)
+   * Permette di sincronizzare entrambe le folder con 2 chiamate separate
+   * mantenendo `mailbox_folder` corretto nel DB per il filtro UI.
+   */
+  folder: "inbox" | "sent" = "inbox",
 ): Promise<NormalizedEmail[]> {
   // Gmail query: recenti, non in spam/trash
   // 2026-05-26: paginazione completa via nextPageToken. maxResults=100 per pagina
   // (max consentito da Gmail), cap totale = hardCap. Sufficiente per inbox grandi.
   const qSince = Math.floor(sinceTimestamp / 1000); // Unix seconds
-  const qParam = encodeURIComponent(`in:inbox after:${qSince}`);
+  // 2026-05-27: query dinamica per folder. `in:sent` cattura anche le email
+  // inviate dall'utente da web/mobile Gmail (non solo quelle via EiC).
+  const qParam = encodeURIComponent(`in:${folder} after:${qSince}`);
 
   // 1) Lista TUTTI i messaggi del periodo, paginando.
   const messageIds: string[] = [];
@@ -341,6 +351,8 @@ async function storePersonalEmail(
   supa: SupabaseClient,
   conn: Required<Pick<ConnectionDue, "id" | "company_id" | "user_id" | "email_address">> & Pick<ConnectionDue, "provider">,
   email: NormalizedEmail,
+  /** 2026-05-27: folder dest (inbox/sent). Setta mailbox_folder nel DB. */
+  folder: "inbox" | "sent" = "inbox",
 ): Promise<StoredEmailResult> {
   if (!conn.user_id || !conn.company_id) {
     throw new Error("connection_missing_owner");
@@ -372,7 +384,10 @@ async function storePersonalEmail(
     provider_thread_id: email.provider_thread_id,
     in_reply_to: email.in_reply_to,
     references_ids: email.references_ids,
-    mailbox_folder: "inbox",
+    // 2026-05-27: folder dinamico (inbox/sent). Per UPDATE non viene cambiato
+    // (preserva folder già assegnato all'email — il provider Sent può anche
+    // contenere risposte da Inbox).
+    mailbox_folder: folder,
     from_email: email.from_email || "(sconosciuto)",
     from_name: email.from_name,
     to_email: email.to_email || conn.email_address,
@@ -392,11 +407,16 @@ async function storePersonalEmail(
     // se Gmail lo torna a unread; viceversa se Gmail dice read e locale dice
     // unread, aggiorniamo (l'utente ha letto su mobile).
     const preserveIsRead = existing.data.is_read === true ? true : !!email.is_read;
+    // 2026-05-27: rimuovo mailbox_folder dall'UPDATE per non spostare email
+    // tra folder. Se Gmail rietichetta una email da Sent a Inbox (es. risposta
+    // automatica) preserviamo la classificazione già fatta nel DB EiC.
+    const { mailbox_folder: _ignoreFolder, ...basePayloadNoFolder } = basePayload;
+    void _ignoreFolder;
     const updatePayload = {
-      ...basePayload,
+      ...basePayloadNoFolder,
       is_read: preserveIsRead,
-      // is_archived / is_trashed / is_starred: NON tocchiamo, il valore locale
-      // viene preservato perché non li includiamo nel payload UPDATE.
+      // is_archived / is_trashed / is_starred / mailbox_folder: NON tocchiamo,
+      // il valore locale viene preservato perché non li includiamo nel payload.
     };
     const { error } = await supa
       .from("email_inbox")
@@ -642,8 +662,38 @@ Deno.serve(async (req) => {
         const isFirstSync = !conn.last_synced_at;
         const hardCap = isFirstSync ? 1000 : 200;
         emails = conn.provider === "gmail"
-          ? await pollGmail(accessToken, conn.email_address, sinceTs, hardCap)
+          ? await pollGmail(accessToken, conn.email_address, sinceTs, hardCap, "inbox")
           : await pollOutlook(accessToken, conn.email_address, sinceTs, hardCap);
+
+        // 2026-05-27 (richiesta utente): sync parallelo SENT — email inviate
+        // dall'utente (da web/mobile Gmail, NON solo via EiC) compaiono nella
+        // cartella "Inviate" del portale. Cap dimezzato (500 first / 100 incr.)
+        // perché tipicamente uno invia meno di quanto riceve.
+        // Outlook sent sync rinviato (Microsoft Graph richiede endpoint diverso).
+        if (conn.provider === "gmail") {
+          try {
+            const sentCap = isFirstSync ? 500 : 100;
+            const sentEmails = await pollGmail(accessToken, conn.email_address, sinceTs, sentCap, "sent");
+            // Storiamo separati così sappiamo che folder usare
+            const STORE_BATCH_SENT = 10;
+            const sentConnContext = {
+              id: conn.id,
+              company_id: conn.company_id,
+              user_id: conn.user_id,
+              email_address: conn.email_address,
+              provider: conn.provider,
+            };
+            for (let i = 0; i < sentEmails.length; i += STORE_BATCH_SENT) {
+              const slice = sentEmails.slice(i, i + STORE_BATCH_SENT);
+              await Promise.allSettled(
+                slice.map((e) => storePersonalEmail(supa, sentConnContext, e, "sent")),
+              );
+            }
+            summary.emails_fetched += sentEmails.length;
+          } catch (e) {
+            console.warn(`[email-poll] sent sync failed for ${conn.email_address}:`, e instanceof Error ? e.message : e);
+          }
+        }
       }
 
       summary.emails_fetched += emails.length;

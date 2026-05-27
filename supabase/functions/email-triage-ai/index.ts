@@ -57,8 +57,15 @@ categorie:
   - "fattura"               → fattura ricevuta (allegato XML/PDF)
   - "pratica_amministrativa" → AdE/Inps/Comune/SCIA/CILA/etc
   - "support"               → richiesta assistenza, problema operativo, ticket
-  - "spam"                  → newsletter, promo, no-reply, phishing
+  - "newsletter"            → newsletter informativa, magazine, blog post, contenuto editoriale (NON commerciale aggressivo)
+  - "spam"                  → promo aggressiva, phishing, scam, no-reply marketing massivo
   - "altro"                 → tutto il resto
+
+REGOLA PRIORITARIA categoria:
+  → se il messaggio è chiaramente informativo/editoriale con titolo+sommario+articolo
+    (es. "Settimanale Edilizia", "Top 5 novità...") → "newsletter"
+  → se è offerta/promo invasiva con CTA "compra ora" → "spam"
+  Distinzione importante: newsletter è VALORE (cliente vuole leggerla), spam è RUMORE.
 
 priorità:
   - "alta"   → richiede risposta entro 24h (lead caldo, cliente arrabbiato, scadenza imminente)
@@ -166,17 +173,35 @@ function ruleBasedTriage(
     };
   }
 
-  // 3. Newsletter prefix nel subject
+  // 3. Newsletter — separato da spam (2026-05-27 richiesta utente).
+  // Newsletter = contenuto editoriale di valore (l'utente vuole leggerle).
+  // Spam = promo aggressiva / scam (l'utente vuole archiviarle).
   const newsletterPatterns = [
-    /^\s*\[newsletter/i, /^\s*\[promo/i, /^\s*\[offerta/i, /^\s*\[deal/i,
-    /^\s*newsletter\s*[-:|]/i, /unsubscribe/i,
+    /^\s*\[newsletter/i, /^\s*newsletter\s*[-:|]/i,
+    /\bsettimanale\b/i, /\bmagazine\b/i, /\bdigest\b/i, /\bweekly\b/i,
   ];
   if (newsletterPatterns.some((re) => re.test(subject))) {
     return {
+      category: "newsletter",
+      priority: "bassa",
+      summary: "Newsletter / contenuto editoriale",
+      extracted: { rule: "newsletter_subject_pattern" },
+      suggested_action: "archivia",
+    };
+  }
+
+  // 3b. Spam aggressivo: promo, offerta, scadenza con urgenza
+  const spamPatterns = [
+    /^\s*\[promo/i, /^\s*\[offerta/i, /^\s*\[deal/i,
+    /\b(super )?promo\b/i, /\b(super )?sconto/i, /\b50\s*%\s*off/i,
+    /\bscadenza tra/i, /\bultime ore\b/i,
+  ];
+  if (spamPatterns.some((re) => re.test(subject))) {
+    return {
       category: "spam",
       priority: "nessuna",
-      summary: "Newsletter / promozione",
-      extracted: { rule: "newsletter_subject_pattern" },
+      summary: "Promo commerciale aggressiva",
+      extracted: { rule: "spam_subject_pattern" },
       suggested_action: "archivia",
     };
   }
@@ -197,18 +222,18 @@ function ruleBasedTriage(
     };
   }
 
-  // 5. List-Unsubscribe header trace nel body (newsletter mass-mailer)
-  // Spesso il body delle newsletter ha un footer "Se non vuoi più ricevere..."
+  // 5. List-Unsubscribe footer → newsletter (presunta editoriale, non spam)
+  // 2026-05-27: separato da spam aggressivo. L'utente vuole leggerle, NON
+  // archiviarle subito. suggested_action = nessuna (no auto-archive).
   const unsubscribeFooterPatterns = [
     /\bse non vuoi più ricevere\b/i, /\bclicca qui per disiscriverti\b/i,
     /\bunsubscribe from this list\b/i, /\bgestisci le tue preferenze\b/i,
   ];
-  // Cerca solo nel footer (ultimi 1500 char) per ridurre falsi positivi
   const footer = body.substring(Math.max(0, body.length - 1500));
   if (unsubscribeFooterPatterns.some((re) => re.test(footer))) {
     return {
-      category: "spam",
-      priority: "nessuna",
+      category: "newsletter",
+      priority: "bassa",
       summary: "Newsletter (rilevato footer unsubscribe)",
       extracted: { rule: "unsubscribe_footer" },
       suggested_action: "archivia",

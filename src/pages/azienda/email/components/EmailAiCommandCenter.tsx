@@ -243,8 +243,8 @@ export function EmailAiCommandCenter({
   ];
 
   return (
-    <div className="hidden md:block border-b border-blue-100 bg-white px-3 py-2">
-      <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-orange-50/40 shadow-sm">
+    <div className="hidden md:block border-b border-orange-100 bg-white px-3 py-2">
+      <div className="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-orange-50/40 shadow-sm">
         {/* Header sempre visibile, clickable per toggle. Smista + refresh stoppano la propagazione. */}
         <button
           type="button"
@@ -254,7 +254,7 @@ export function EmailAiCommandCenter({
           aria-controls="email-ai-command-body"
         >
           <div className="flex min-w-0 items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-orange-600 text-white">
               <Sparkles className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0 flex-1">
@@ -266,7 +266,7 @@ export function EmailAiCommandCenter({
                     className={cn(
                       "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                       chip.tone === "orange" && chip.value > 0 && "bg-orange-100 text-orange-700",
-                      chip.tone === "blue" && chip.value > 0 && "bg-blue-100 text-blue-700",
+                      chip.tone === "blue" && chip.value > 0 && "bg-orange-100 text-orange-700",
                       chip.tone === "emerald" && chip.value > 0 && "bg-emerald-100 text-emerald-700",
                       chip.tone === "slate" && chip.value > 0 && "bg-slate-100 text-slate-700",
                       chip.value === 0 && "text-slate-400",
@@ -283,7 +283,7 @@ export function EmailAiCommandCenter({
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 gap-1.5 border-blue-200 bg-white text-xs text-blue-700 hover:bg-blue-50"
+              className="h-7 gap-1.5 border-orange-200 bg-white text-xs text-orange-700 hover:bg-orange-50"
               onClick={(e) => { e.stopPropagation(); triageInbox.mutate(); }}
               disabled={triageInbox.isPending}
               title="Smista le email recenti con AI"
@@ -295,7 +295,7 @@ export function EmailAiCommandCenter({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-blue-700"
+              className="h-7 w-7 text-orange-700"
               onClick={(e) => { e.stopPropagation(); void refetch(); }}
               disabled={isFetching}
               title="Aggiorna regia email"
@@ -304,7 +304,7 @@ export function EmailAiCommandCenter({
             </Button>
             <ChevronDown
               className={cn(
-                "h-4 w-4 text-blue-700 transition-transform",
+                "h-4 w-4 text-orange-700 transition-transform",
                 showBody && "rotate-180",
               )}
             />
@@ -312,7 +312,7 @@ export function EmailAiCommandCenter({
         </button>
 
         {showBody && (
-          <div id="email-ai-command-body" className="border-t border-blue-100 p-3">
+          <div id="email-ai-command-body" className="border-t border-orange-100 p-3">
             <div className="grid grid-cols-4 gap-1.5">
           <MetricPill
             label="Urgenti"
@@ -349,7 +349,7 @@ export function EmailAiCommandCenter({
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Da gestire
             </p>
-            <Badge variant="outline" className="h-5 border-blue-100 bg-white text-[10px] text-blue-700">
+            <Badge variant="outline" className="h-5 border-orange-100 bg-white text-[10px] text-orange-700">
               {queue.length}
             </Badge>
           </div>
@@ -368,7 +368,7 @@ export function EmailAiCommandCenter({
               {error instanceof Error && <p className="mt-1 line-clamp-2 text-[11px] opacity-80">{error.message}</p>}
             </div>
           ) : queue.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-blue-100 bg-white/80 p-3 text-xs text-slate-500">
+            <div className="rounded-xl border border-dashed border-orange-100 bg-white/80 p-3 text-xs text-slate-500">
               Nessuna email critica recente. Le nuove email verranno lette e smistate qui.
             </div>
           ) : (
@@ -376,11 +376,11 @@ export function EmailAiCommandCenter({
               <button
                 key={item.email.thread_id}
                 type="button"
-                className="w-full rounded-xl border border-white bg-white/90 p-2 text-left shadow-sm transition hover:border-blue-200 hover:bg-white"
+                className="w-full rounded-xl border border-white bg-white/90 p-2 text-left shadow-sm transition hover:border-orange-200 hover:bg-white"
                 onClick={() => item.email.thread_id && onSelectThread(item.email.thread_id)}
               >
                 <div className="flex items-start gap-2">
-                  <MailSearch className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />
+                  <MailSearch className="mt-0.5 h-3.5 w-3.5 shrink-0 text-orange-600" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <p className="truncate text-xs font-semibold text-slate-900">
@@ -398,7 +398,7 @@ export function EmailAiCommandCenter({
                         "h-5 rounded-full px-2 text-[9px]",
                         item.prediction.priority === "alta" || isHighPriority(item.email.ai_priority)
                           ? "bg-orange-600 hover:bg-orange-600"
-                          : "bg-blue-600 hover:bg-blue-600",
+                          : "bg-orange-600 hover:bg-orange-600",
                       )}>
                         {categoryLabel(item.category)}
                       </Badge>
@@ -442,7 +442,7 @@ function MetricPill({
       className={cn(
         "rounded-xl border px-2 py-2 text-left transition",
         active
-          ? "border-blue-200 bg-white text-blue-900 shadow-sm"
+          ? "border-orange-200 bg-white text-orange-900 shadow-sm"
           : "border-white/80 bg-white/70 text-slate-500 hover:bg-white",
       )}
     >

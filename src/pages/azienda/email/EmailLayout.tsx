@@ -265,8 +265,23 @@ export function EmailLayout({
   const handleSelectThread = (threadId: string) => {
     setSelectedThreadId(threadId);
     setMobilePane("viewer");
-    // Mark thread as read
-    void supabase.rpc("email_mark_thread_read", { p_thread_id: threadId });
+    // 2026-05-27 (fix utente "se ci clicco non me la segna come letta"):
+    // PRIMA: chiamavamo RPC fire-and-forget senza invalidate → la lista
+    // restava graficamente "non letta" anche se il DB era aggiornato,
+    // finché refresh ogni 60s non scattava.
+    // ORA: optimistic update via invalidate immediato + log eventuali errori.
+    void supabase.rpc("email_mark_thread_read", { p_thread_id: threadId })
+      .then((res) => {
+        if (res.error) {
+          // eslint-disable-next-line no-console
+          console.warn("[email] mark-read RPC failed:", res.error.message);
+          return;
+        }
+        // Refresh liste thread (toglie il dot blu unread) + counters sidebar
+        void qc.invalidateQueries({ queryKey: ["email-threads"] });
+        void qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
+        void qc.invalidateQueries({ queryKey: ["unread-email-count"] });
+      });
   };
 
   // Keyboard shortcuts (Gmail-style)
