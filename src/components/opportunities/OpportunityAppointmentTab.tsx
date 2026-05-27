@@ -30,6 +30,64 @@ interface Props {
   contactName: string;
 }
 
+// 2026-05-27: Tipi appuntamento coerenti con AppointmentDialog operativo.
+// Sottoinsieme rilevante per il flow Opportunità → booking commerciale.
+const OPP_APPOINTMENT_TYPES = [
+  { value: "sopralluogo_preventivo", label: "Sopralluogo Preventivo" },
+  { value: "rilievo_tecnico",        label: "Rilievo Tecnico" },
+  { value: "misurazione",            label: "Misurazione" },
+  { value: "conferma_ordine",        label: "Conferma Ordine" },
+  { value: "riunione",               label: "Riunione" },
+  { value: "cliente",                label: "Appuntamento Cliente" },
+  { value: "generico",               label: "Generico" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "confermato",  label: "Confermato" },
+  { value: "in_attesa",   label: "In attesa" },
+  { value: "completato",  label: "Completato" },
+  { value: "annullato",   label: "Annullato" },
+];
+
+const REMINDER_OPTIONS = [
+  { value: "none", label: "Nessuno" },
+  { value: "10",   label: "10 minuti prima" },
+  { value: "30",   label: "30 minuti prima" },
+  { value: "60",   label: "1 ora prima" },
+  { value: "120",  label: "2 ore prima" },
+  { value: "1440", label: "1 giorno prima" },
+];
+
+const DURATION_OPTIONS = [
+  { value: "15",  label: "15 minuti" },
+  { value: "30",  label: "30 minuti" },
+  { value: "45",  label: "45 minuti" },
+  { value: "60",  label: "1 ora" },
+  { value: "90",  label: "1 ora e 30" },
+  { value: "120", label: "2 ore" },
+  { value: "180", label: "3 ore" },
+  { value: "240", label: "4 ore" },
+];
+
+function addMinutesToTimeStr(hhmm: string, minutes: number): string {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return "";
+  const total = h * 60 + m + minutes;
+  const newH = Math.floor((total % (24 * 60)) / 60);
+  const newM = total % 60;
+  return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+}
+
+function diffMinutesTimeStr(start: string, end: string): number | null {
+  if (!start || !end) return null;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if ([sh, sm, eh, em].some((n) => !Number.isFinite(n))) return null;
+  const diff = (eh * 60 + em) - (sh * 60 + sm);
+  return diff > 0 ? diff : null;
+}
+
 export function OpportunityAppointmentTab({ contactId, companyId, opportunityId, contactName }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -45,6 +103,19 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   const [addressData, setAddressData] = useState<AddressData>(emptyAddress);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<MarketingAppointmentData | null>(null);
+
+  // 2026-05-27 (user request): allineato con AppointmentDialog operativo —
+  // aggiunti orario manuale (override slot-picker), tipo, assegnatario,
+  // stato, promemoria. Prima il tab opportunità accettava solo "appuntamento"
+  // generico con slot fisso del calendario; ora ha lo stesso set di campi
+  // della dialog commessa così è coerente.
+  const [manualStartTime, setManualStartTime] = useState("");
+  const [manualEndTime, setManualEndTime] = useState("");
+  const [manualDuration, setManualDuration] = useState<string>("60");
+  const [appointmentType, setAppointmentType] = useState<string>("sopralluogo_preventivo");
+  const [assignedTo, setAssignedTo] = useState<string>("");
+  const [status, setStatus] = useState<string>("confermato");
+  const [reminderMinutes, setReminderMinutes] = useState<string>("none");
 
   // Fetch calendars with base address
   const { data: calendars = [] } = useQuery({
@@ -278,21 +349,32 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
   }, [appleSync, googleSync]);
 
   // Book mutation with contact sync
+  // 2026-05-27 (user request): preferisce manualStartTime/manualEndTime se
+  // popolato (anche da clic su slot); usa tipo/stato/promemoria/assegnatario
+  // dai campi estesi così l'appuntamento creato da Opportunità è equivalente
+  // a uno creato dalla dialog operativa.
   const bookMutation = useMutation({
     mutationFn: async () => {
-      if (!calendarId || !date || !selectedSlot) throw new Error("Dati incompleti");
-      const slotEnd = format(addMinutes(parse(selectedSlot, "HH:mm", date), durationMinutes), "HH:mm:ss");
+      if (!calendarId || !date) throw new Error("Dati incompleti");
+      const startTime = manualStartTime || selectedSlot;
+      if (!startTime) throw new Error("Orario non impostato");
+      const dur = Number(manualDuration) || durationMinutes;
+      const endTime = manualEndTime
+        || format(addMinutes(parse(startTime, "HH:mm", date), dur), "HH:mm");
+
       const { data: created, error } = await supabase.from("appointments").insert({
         company_id: companyId,
         calendar_id: calendarId,
         contact_id: contactId,
         appointment_date: format(date, "yyyy-MM-dd"),
-        appointment_time: `${selectedSlot}:00`,
-        appointment_end_time: slotEnd,
+        appointment_time: `${startTime}:00`,
+        appointment_end_time: `${endTime}:00`,
         title: title || `Appuntamento con ${contactName}`,
         description: description || null,
-        appointment_type: "appuntamento",
-        status: "confermato",
+        appointment_type: appointmentType || "sopralluogo_preventivo",
+        status: status || "confermato",
+        assigned_to: assignedTo || null,
+        reminder_minutes: reminderMinutes !== "none" ? parseInt(reminderMinutes, 10) : null,
         created_by: user!.id,
         address_line: addressData.address_line || null,
         address_city: addressData.address_city || null,
@@ -321,7 +403,7 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       }
     },
     onSuccess: () => {
-      toast.success("Appuntamento prenotato con successo");
+      toast.success("Appuntamento prenotato");
       queryClient.invalidateQueries({ queryKey: ["contact_future_appointment"] });
       queryClient.invalidateQueries({ queryKey: ["appointments_for_slot"] });
       setSelectedSlot("");
@@ -329,6 +411,13 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       setDescription("");
       setDate(undefined);
       setAddressData(emptyAddress);
+      setManualStartTime("");
+      setManualEndTime("");
+      setManualDuration("60");
+      setAppointmentType("sopralluogo_preventivo");
+      setAssignedTo("");
+      setStatus("confermato");
+      setReminderMinutes("none");
     },
     onError: (e: any) => toast.error(e.message || "Errore nella prenotazione"),
   });
@@ -464,7 +553,21 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
           ) : (
             <div className="flex flex-wrap gap-2">
               {freeSlots.map((slot) => (
-                <Button key={slot} variant={selectedSlot === slot ? "default" : "outline"} size="sm" className="h-8 min-w-[64px]" onClick={() => setSelectedSlot(slot)}>
+                <Button
+                  key={slot}
+                  variant={selectedSlot === slot ? "default" : "outline"}
+                  size="sm"
+                  className="h-8 min-w-[64px]"
+                  onClick={() => {
+                    setSelectedSlot(slot);
+                    // 2026-05-27: clic su slot popola anche i campi manuali
+                    // (Ora inizio / Ora fine / Durata) per coerenza con
+                    // l'editor avanzato sottostante.
+                    setManualStartTime(slot);
+                    setManualEndTime(addMinutesToTimeStr(slot, durationMinutes));
+                    setManualDuration(String(durationMinutes));
+                  }}
+                >
                   {slot}
                 </Button>
               ))}
@@ -473,6 +576,126 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
         </div>
       )}
 
+      {/* 2026-05-27 (user request): Orario manuale + Tipo + Assegnatario +
+          Stato + Promemoria — stessi campi della dialog appuntamento commessa.
+          Lo slot-picker sopra popola automaticamente, ma l'utente può
+          override (es. orari 14:23). */}
+      <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+        <div>
+          <Label className="text-sm font-medium">Orario appuntamento</Label>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Imposta inizio e fine; la durata resta sincronizzata.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Ora inizio</Label>
+            <Input
+              type="time"
+              step={900}
+              value={manualStartTime}
+              onChange={(e) => {
+                const v = e.target.value;
+                setManualStartTime(v);
+                // Sync end-time = start + durata
+                const dur = Number(manualDuration) || 60;
+                if (v) setManualEndTime(addMinutesToTimeStr(v, dur));
+                // Deselezione slot se l'orario è diverso
+                if (v !== selectedSlot) setSelectedSlot("");
+              }}
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Ora fine</Label>
+            <Input
+              type="time"
+              step={900}
+              value={manualEndTime}
+              onChange={(e) => {
+                const v = e.target.value;
+                setManualEndTime(v);
+                // Sync durata
+                const newDur = diffMinutesTimeStr(manualStartTime, v);
+                if (newDur != null) setManualDuration(String(newDur));
+                setSelectedSlot("");
+              }}
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Durata</Label>
+            <Select
+              value={manualDuration}
+              onValueChange={(v) => {
+                setManualDuration(v);
+                if (manualStartTime) setManualEndTime(addMinutesToTimeStr(manualStartTime, Number(v) || 60));
+              }}
+            >
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {DURATION_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Tipo</Label>
+            <Select value={appointmentType} onValueChange={setAppointmentType}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {OPP_APPOINTMENT_TYPES.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Assegna a</Label>
+            <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Nessun assegnatario" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nessun assegnatario</SelectItem>
+                {teamUsers.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {[u.first_name, u.last_name].filter(Boolean).join(" ") || "—"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Stato</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Promemoria</Label>
+            <Select value={reminderMinutes} onValueChange={setReminderMinutes}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {REMINDER_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {/* Description */}
       <div className="space-y-1.5">
         <Label className="text-sm">Descrizione</Label>
@@ -480,7 +703,11 @@ export function OpportunityAppointmentTab({ contactId, companyId, opportunityId,
       </div>
 
       {/* Book button */}
-      <Button className="w-full" disabled={!calendarId || !date || !selectedSlot || bookMutation.isPending} onClick={() => bookMutation.mutate()}>
+      <Button
+        className="w-full"
+        disabled={!calendarId || !date || (!selectedSlot && !manualStartTime) || bookMutation.isPending}
+        onClick={() => bookMutation.mutate()}
+      >
         {bookMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         Prenota appuntamento
       </Button>
