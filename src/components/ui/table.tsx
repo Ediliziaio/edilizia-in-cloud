@@ -41,10 +41,17 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 );
 TableRow.displayName = "TableRow";
 
+// 2026-05-27 (a11y audit): default scope="col". Senza, screen reader
+// (VoiceOver/NVDA/JAWS) non annunciano "Colonna X" durante navigazione
+// cella per cella su tabelle dati. Impatto sistemico: 615 <th> nel
+// codebase, di cui solo 4 avevano scope esplicito.
+// Il caller può sovrascrivere passando scope diverso (es. "row" per
+// tabelle pivot).
 const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(
-  ({ className, ...props }, ref) => (
+  ({ className, scope = "col", ...props }, ref) => (
     <th
       ref={ref}
+      scope={scope}
       className={cn(
         "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
         className,

@@ -1430,6 +1430,9 @@ function DemoMailboxExperience() {
           : "lg:grid lg:grid-cols-[210px_minmax(520px,1fr)]",
       )}
     >
+      {/* 2026-05-27 (a11y): h1 sr-only per orientamento screen reader.
+          Le h2 visibili sono dentro le sezioni (subject thread, sender, etc.). */}
+      <h1 className="sr-only">Email — Cassetta postale</h1>
       {/* Backdrop mobile per sidebar drawer */}
       {demoMobilePane === "sidebar" && (
         <button

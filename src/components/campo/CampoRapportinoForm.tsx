@@ -187,7 +187,7 @@ export default function CampoRapportinoForm({
             })
           }
           placeholder="Es: 8"
-          className="w-full h-12 rounded-xl bg-slate-900 border border-slate-700 px-3 text-base text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+          className="w-full h-12 rounded-xl bg-slate-900 border border-slate-700 px-3 text-base text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
         />
       </div>
 
@@ -205,7 +205,7 @@ export default function CampoRapportinoForm({
           value={local.dati_estratti.lavorazione ?? ""}
           onChange={(e) => update({ lavorazione: e.target.value })}
           placeholder="Es: posa piastrelle piano terra"
-          className="w-full h-12 rounded-xl bg-slate-900 border border-slate-700 px-3 text-base text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+          className="w-full h-12 rounded-xl bg-slate-900 border border-slate-700 px-3 text-base text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
         />
       </div>
 
@@ -236,7 +236,7 @@ export default function CampoRapportinoForm({
               value={mat.nome}
               onChange={(e) => updateMateriale(idx, { nome: e.target.value })}
               placeholder="Nome"
-              className="flex-1 h-11 rounded-lg bg-slate-900 border border-slate-700 px-3 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none"
+              className="flex-1 h-11 rounded-lg bg-slate-900 border border-slate-700 px-3 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
             />
             <input
               type="number"
@@ -249,14 +249,14 @@ export default function CampoRapportinoForm({
                   quantita: parseFloat(e.target.value) || 0,
                 })
               }
-              className="w-16 h-11 rounded-lg bg-slate-900 border border-slate-700 px-2 text-sm text-white text-center focus:border-amber-500 focus:outline-none"
+              className="w-16 h-11 rounded-lg bg-slate-900 border border-slate-700 px-2 text-sm text-white text-center focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
             />
             <input
               type="text"
               value={mat.unita}
               onChange={(e) => updateMateriale(idx, { unita: e.target.value })}
               placeholder="pz"
-              className="w-14 h-11 rounded-lg bg-slate-900 border border-slate-700 px-2 text-sm text-white placeholder-slate-500 text-center focus:border-amber-500 focus:outline-none"
+              className="w-14 h-11 rounded-lg bg-slate-900 border border-slate-700 px-2 text-sm text-white placeholder-slate-500 text-center focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
             />
             <button
               type="button"
@@ -284,7 +284,7 @@ export default function CampoRapportinoForm({
           onChange={(e) => update({ note: e.target.value })}
           rows={3}
           placeholder="Osservazioni, problemi, anomalie…"
-          className="w-full rounded-xl bg-slate-900 border border-slate-700 p-3 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none resize-none"
+          className="w-full rounded-xl bg-slate-900 border border-slate-700 p-3 text-sm text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 resize-none"
         />
       </div>
 

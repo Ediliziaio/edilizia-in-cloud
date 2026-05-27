@@ -1263,6 +1263,9 @@ export default function CompanyDashboard() {
   // ─────────────────────────────────────────────
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* 2026-05-27 (a11y): h1 sr-only per orientamento screen reader.
+          La heading visibile è in DashboardPageHeader (h2 implicito). */}
+      <h1 className="sr-only">Dashboard Gestione Azienda</h1>
       <DashboardSelectorBar title="Dashboard Gestione" />
 
       {/* v8.6.86 — Onboarding Quick Start (si nasconde a 100%) */}

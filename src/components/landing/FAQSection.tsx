@@ -143,7 +143,7 @@ export default function FAQSection() {
                     {/* Question button */}
                     <button
                       onClick={() => toggle(i)}
-                      className="w-full flex items-center justify-between gap-4 p-5 md:p-6 text-left focus:outline-none group"
+                      className="w-full flex items-center justify-between gap-4 p-5 md:p-6 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 rounded-lg group"
                       aria-expanded={isOpen}
                     >
                       <span
