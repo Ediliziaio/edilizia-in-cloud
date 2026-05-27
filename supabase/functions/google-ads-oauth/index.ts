@@ -20,7 +20,9 @@ import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { getEncryptionKey, encrypt } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
-const SCOPE = "https://www.googleapis.com/auth/adwords";
+// 2026-05-27: aggiunto "openid email profile" — senza questi scope il chiamata
+// a oauth2/v2/userinfo ritorna {} e google_account_email finisce a null in DB.
+const SCOPE = "https://www.googleapis.com/auth/adwords openid email profile";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 

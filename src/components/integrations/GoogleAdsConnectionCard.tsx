@@ -68,6 +68,9 @@ export default function GoogleAdsConnectionCard() {
     return session.access_token;
   }, []);
 
+  // 2026-05-27: staleTime=0 + refetchOnWindowFocus="always" — vedi commento in
+  // GbpConnectionCard. Necessario perché altrimenti la card non si aggiorna
+  // dopo OAuth completato.
   const { data: connection, refetch: refetchConnection } = useQuery({
     queryKey: ["google-ads-connection", companyId],
     queryFn: async () => {
@@ -81,6 +84,8 @@ export default function GoogleAdsConnectionCard() {
       return data as GoogleAdsConnection | null;
     },
     enabled: !!companyId,
+    staleTime: 0,
+    refetchOnWindowFocus: "always",
   });
 
   const isConnected = connection?.status === "connected" || connection?.status === "needs_customer_selection";

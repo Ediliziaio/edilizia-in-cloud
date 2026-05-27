@@ -72,6 +72,10 @@ export default function GbpConnectionCard() {
   }, []);
 
   // ── Query: connection state ───────────────────────────────────────────────
+  // 2026-05-27: staleTime=0 + refetchOnWindowFocus="always" — quando l'utente
+  // torna sulla finestra parent dopo aver chiuso il popup OAuth, la card si
+  // aggiorna immediatamente. Senza questi, la query restava su valore stale
+  // (default 5min) e l'utente vedeva "Non collegato" anche dopo OAuth completato.
   const { data: connection, refetch: refetchConnection } = useQuery({
     queryKey: ["gbp-connection", companyId],
     queryFn: async () => {
@@ -85,6 +89,8 @@ export default function GbpConnectionCard() {
       return data as GbpConnection | null;
     },
     enabled: !!companyId,
+    staleTime: 0,
+    refetchOnWindowFocus: "always",
   });
 
   const isConnected = connection?.status === "connected";
