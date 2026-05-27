@@ -21,7 +21,30 @@ import { toast } from "sonner";
 import type { CalendarOrder, CalendarAppointment, GoogleBusySlot, ApprovedLeave, CalendarIntervento, CalendarManutenzione } from "@/types/calendar";
 import { weatherCodeToEmoji, weatherCodeToLabel, type WeatherDay, type MultiLocationWeather, type LocationWeatherDay } from "@/hooks/useWeatherForecast";
 
+// 2026-05-27 (UX request): griglia oraria della Day view portata da slot
+// orari (1h) a slot da 15 minuti, coerente con la WeekView operativa e con
+// il calendario marketing. Permette di fissare appuntamenti precisi.
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 6); // 06:00 – 20:00
+const SLOT_MINUTES = 15;
+const TIME_SLOTS = HOURS.flatMap((hour) =>
+  Array.from({ length: 60 / SLOT_MINUTES }, (_, index) => {
+    const minutes = index * SLOT_MINUTES;
+    return {
+      hour,
+      minutes,
+      label: `${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
+      isHourStart: minutes === 0,
+    };
+  })
+);
+
+function floorToSlot(time?: string | null) {
+  if (!time) return "";
+  const [hourRaw, minuteRaw] = time.slice(0, 5).split(":").map(Number);
+  if (!Number.isFinite(hourRaw) || !Number.isFinite(minuteRaw)) return "";
+  const minute = Math.floor(minuteRaw / SLOT_MINUTES) * SLOT_MINUTES;
+  return `${String(hourRaw).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
 
 interface CalendarDayViewProps {
   orders: CalendarOrder[];
@@ -146,8 +169,7 @@ export function CalendarDayView({
   };
   const IconMap: Record<string, LucideIcon> = { posa: Hammer, lavoro: Wrench, merce: Package };
 
-  const handleCreateAppointment = (hour: number) => {
-    const time = `${String(hour).padStart(2, "0")}:00`;
+  const handleCreateAppointment = (time: string) => {
     setEditingAppointment({
       id: undefined,
       title: "",
@@ -324,37 +346,48 @@ export function CalendarDayView({
         </div>
       )}
 
-      {/* Hourly grid */}
-      <div className="divide-y border rounded-lg overflow-hidden">
-        {HOURS.map(hour => {
-          const hourStr = String(hour).padStart(2, "0");
-          const hourApts = timedAppointments.filter(apt => apt.appointment_time?.startsWith(hourStr));
-          const hourBusy = !hiddenEventTypes.has("google_busy")
-            ? busySlots.filter(s => {
+      {/* 15-minute grid (06:00–20:00) — slot di 15 min coerenti con WeekView */}
+      <div className="border rounded-lg overflow-hidden">
+        {TIME_SLOTS.map((slot) => {
+          const slotApts = timedAppointments.filter((apt) => floorToSlot(apt.appointment_time) === slot.label);
+          const slotBusy = !hiddenEventTypes.has("google_busy")
+            ? busySlots.filter((s) => {
                 if (s.is_all_day) return false;
                 const start = new Date(s.start_at);
-                return format(start, "yyyy-MM-dd") === dateStr && start.getHours() === hour;
+                return format(start, "yyyy-MM-dd") === dateStr && floorToSlot(format(start, "HH:mm")) === slot.label;
               })
             : [];
 
+          const nowHere = isToday && new Date().getHours() === slot.hour && Math.floor(new Date().getMinutes() / SLOT_MINUTES) * SLOT_MINUTES === slot.minutes;
+
           return (
             <div
-              key={hour}
+              key={slot.label}
               className={cn(
-                "flex min-h-[56px] group",
-                isToday && new Date().getHours() === hour && "bg-primary/5"
+                "flex group",
+                slot.isHourStart ? "border-t" : "border-t border-dashed border-border/40",
+                nowHere && "bg-primary/10"
               )}
             >
-              {/* Time label */}
-              <div className="w-14 flex-shrink-0 p-2 text-xs text-muted-foreground text-right border-r bg-muted/20">
-                {hourStr}:00
+              {/* Time label — solo a inizio ora */}
+              <div className={cn(
+                "w-14 flex-shrink-0 px-2 text-xs text-muted-foreground text-right border-r bg-muted/20 flex items-start justify-end",
+                slot.isHourStart ? "py-1.5 font-medium" : "py-0"
+              )}>
+                {slot.isHourStart ? `${String(slot.hour).padStart(2, "0")}:00` : ""}
               </div>
-              {/* Content */}
-              <div
-                className="flex-1 p-1.5 space-y-1 cursor-pointer hover:bg-muted/20 transition-colors"
-                onClick={() => handleCreateAppointment(hour)}
+              {/* Content — h-6 (24px) ≈ stesso passo delle altre 15-min grids */}
+              <button
+                type="button"
+                aria-label={`Crea appuntamento alle ${slot.label}`}
+                className={cn(
+                  "flex-1 px-1.5 text-left cursor-pointer hover:bg-blue-50/70 dark:hover:bg-blue-950/30 transition-colors focus:outline-none focus:ring-1 focus:ring-blue-400",
+                  "h-6 min-h-[1.5rem]"
+                )}
+                onClick={() => handleCreateAppointment(slot.label)}
               >
-                {hourApts.map(apt => {
+                <div className="space-y-0.5">
+                {slotApts.map((apt) => {
                   const Icon = APPOINTMENT_ICONS[apt.appointment_type] || CalendarClock;
                   const leg = travelLegMap.get(apt.id);
                   const isSynced = syncedAppointmentIds?.has(apt.id);
@@ -388,17 +421,13 @@ export function CalendarDayView({
                     </div>
                   );
                 })}
-                {hourBusy.map((s, idx) => (
-                  <div key={idx} className="text-xs bg-muted px-2 py-1 rounded truncate text-muted-foreground">
+                {slotBusy.map((s, idx) => (
+                  <div key={idx} className="text-[11px] bg-muted px-2 py-0.5 rounded truncate text-muted-foreground">
                     {s.summary || "Occupato"}
                   </div>
                 ))}
-                {hourApts.length === 0 && hourBusy.length === 0 && (
-                  <span className="text-[10px] text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-colors">
-                    Clicca per aggiungere appuntamento
-                  </span>
-                )}
-              </div>
+                </div>
+              </button>
             </div>
           );
         })}

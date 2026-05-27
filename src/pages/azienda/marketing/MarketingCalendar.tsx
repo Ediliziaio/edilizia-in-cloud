@@ -403,13 +403,16 @@ export default function MarketingCalendar() {
         ? "Errore nel caricamento dei dati calendario"
         : null;
 
-  // Compute slot duration from selected calendars
+  // Compute slot duration from selected calendars.
+  // 2026-05-27 (UX request): se nessuna durata è definita dai calendari attivi
+  // il fallback è ora 15 min (prima 30) — uniforma con la WeekView operativa
+  // e permette di fissare appuntamenti precisi (es. 14:15, 14:45).
   const slotDurationMinutes = useMemo(() => {
     const selected = calendars.filter((c) => selectedCalendarIds.includes(c.id));
     const durations = selected
       .map((c) => (c as any).duration_minutes as number | null)
       .filter((d): d is number => d != null && d > 0);
-    if (durations.length === 0) return 30;
+    if (durations.length === 0) return 15;
     return Math.min(...durations);
   }, [calendars, selectedCalendarIds]);
 
@@ -586,15 +589,75 @@ export default function MarketingCalendar() {
   // True solo se currentDate è oggi (feedback visivo bottone "Oggi")
   const isCurrentDateToday = useMemo(() => isSameDay(currentDate, new Date()), [currentDate]);
 
-  // KPI header: appuntamenti visibili / oggi / fuori orario concordato
+  // KPI header: appuntamenti visibili / oggi / settimana / da assegnare /
+  // conflitti. 2026-05-27 (UX request): allineato al pattern del Calendario
+  // Lavori operativo per consistenza visiva tra le due viste calendario.
   const headerStats = useMemo(() => {
     const today = new Date();
-    const todayCount = appointments.filter((a: any) =>
-      a.appointment_date && isSameDay(parseISO(a.appointment_date), today)
-    ).length;
-    const visible = filteredAppointments.length;
-    return { todayCount, visible };
-  }, [appointments, filteredAppointments]);
+    const wkStart = startOfWeek(today, { weekStartsOn: 1 });
+    const wkEnd = addDays(wkStart, 6);
+
+    let todayCount = 0;
+    let weekCount = 0;
+    let unassigned = 0;
+    // Conflitti = appuntamenti con stesso assigned_to e orari sovrapposti
+    // (stessa data, intervalli [start,end] che si toccano). Calcolato sui
+    // filteredAppointments — riflette ciò che l'utente sta vedendo.
+    type SlotKey = { date: string; start: number; end: number; aptId: string };
+    const slots: Map<string, SlotKey[]> = new Map(); // key = assigned_to
+    const conflictAptIds = new Set<string>();
+    const toMin = (t?: string | null): number => {
+      if (!t) return -1;
+      const [h, m] = t.slice(0, 5).split(":").map(Number);
+      if (!Number.isFinite(h) || !Number.isFinite(m)) return -1;
+      return h * 60 + m;
+    };
+
+    for (const a of filteredAppointments as any[]) {
+      if (a.appointment_date) {
+        const dt = parseISO(a.appointment_date);
+        if (isSameDay(dt, today)) todayCount++;
+        if (dt >= wkStart && dt <= wkEnd) weekCount++;
+      }
+      if (!a.assigned_to && !a.is_blocked_slot) unassigned++;
+
+      const ownerKey = a.assigned_to;
+      if (!ownerKey || !a.appointment_date || !a.appointment_time) continue;
+      const start = toMin(a.appointment_time);
+      const end = a.appointment_end_time ? toMin(a.appointment_end_time) : start + 30;
+      if (start < 0 || end <= start) continue;
+      const arr = slots.get(ownerKey) || [];
+      arr.push({ date: a.appointment_date, start, end, aptId: a.id });
+      slots.set(ownerKey, arr);
+    }
+
+    // Per ogni venditore, ordina per inizio e segna overlap
+    for (const list of slots.values()) {
+      const byDate = new Map<string, SlotKey[]>();
+      for (const s of list) {
+        const arr = byDate.get(s.date) || [];
+        arr.push(s);
+        byDate.set(s.date, arr);
+      }
+      for (const arr of byDate.values()) {
+        arr.sort((a, b) => a.start - b.start);
+        for (let i = 1; i < arr.length; i++) {
+          if (arr[i].start < arr[i - 1].end) {
+            conflictAptIds.add(arr[i].aptId);
+            conflictAptIds.add(arr[i - 1].aptId);
+          }
+        }
+      }
+    }
+
+    return {
+      todayCount,
+      weekCount,
+      visible: filteredAppointments.length,
+      unassigned,
+      conflicts: conflictAptIds.size,
+    };
+  }, [filteredAppointments]);
 
   // Filtri attivi (per badge pulsante filtri)
   const activeFilterCount = useMemo(() => {
@@ -998,6 +1061,44 @@ export default function MarketingCalendar() {
               </>
             )}
           </Button>
+        </div>
+      </div>
+
+      {/* KPI dashboard — 2026-05-27 (UX request): allineata al Calendario
+          Lavori operativo per consistenza. Mostra metriche del periodo che
+          l'utente sta filtrando, NON dell'intera azienda. */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Visibili</p>
+          <p className="text-xl font-bold tabular-nums">{headerStats.visible}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Oggi</p>
+          <p className="text-xl font-bold tabular-nums">{headerStats.todayCount}</p>
+        </div>
+        <div className="rounded-lg border bg-card px-3 py-2">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Settimana</p>
+          <p className="text-xl font-bold tabular-nums">{headerStats.weekCount}</p>
+        </div>
+        <div className={cn(
+          "rounded-lg border px-3 py-2",
+          headerStats.unassigned > 0 ? "border-amber-200 bg-amber-50 dark:bg-amber-950/30" : "bg-card"
+        )}>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Da assegnare</p>
+          <p className={cn(
+            "text-xl font-bold tabular-nums",
+            headerStats.unassigned > 0 && "text-amber-700 dark:text-amber-400"
+          )}>{headerStats.unassigned}</p>
+        </div>
+        <div className={cn(
+          "rounded-lg border px-3 py-2 col-span-2 md:col-span-1",
+          headerStats.conflicts > 0 ? "border-red-200 bg-red-50 dark:bg-red-950/30" : "bg-card"
+        )}>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Conflitti</p>
+          <p className={cn(
+            "text-xl font-bold tabular-nums",
+            headerStats.conflicts > 0 ? "text-red-700 dark:text-red-400" : "text-foreground"
+          )}>{headerStats.conflicts}</p>
         </div>
       </div>
 
