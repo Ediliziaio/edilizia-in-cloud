@@ -148,6 +148,11 @@ interface CustomerBusinessTabsProps {
   totalOrderValue?: number;
   /** @deprecated 2026-05-27: KPI rimossa, già nell'header. Resta per backcompat parent. */
   openTicketsCount?: number;
+  /**
+   * Tab da pre-selezionare quando il componente viene aperto da fuori
+   * (es. dal pannello laterale destro del layout 3-col). Default "ordini".
+   */
+  defaultTab?: string;
   dataWarnings?: {
     anagrafica?: string | null;
     fatture?: string | null;
@@ -829,6 +834,7 @@ export function CustomerBusinessTabs({
   appuntamenti,
   rate,
   anagraficaCollegata,
+  defaultTab,
   dataWarnings,
 }: CustomerBusinessTabsProps) {
   useAuth();
@@ -874,7 +880,7 @@ export function CustomerBusinessTabs({
   //    inline). Risultato: tabs partono subito senza chrome ridondante.
   void quickActions; // mantenuto per future estensioni; non più renderizzato qui.
   return (
-    <Tabs defaultValue="ordini">
+    <Tabs defaultValue={defaultTab ?? "ordini"} key={defaultTab ?? "ordini"}>
 
       {/*
         2026-05-27 (audit dettaglio cliente): alert errori meno invasivo.

@@ -13,6 +13,13 @@ Deno.serve(async (req) => {
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
     await requireRole(supabaseAdmin, userId, ["super_admin", "company_admin"], corsH);
 
+    // 2026-05-27: import completo dati contatto→cliente.
+    // PRIMA il dialog passava solo first_name/last_name/email/phone/
+    // address/fiscal_code/notes — i nuovi campi (is_business,
+    // business_name, city, postal_code, province, country, site_*)
+    // venivano PERSI nella conversione e l'utente doveva ri-digitarli.
+    // ORA accettiamo tutti i campi profile-compatibili. Il contatto
+    // resta intatto, il cliente nasce con copia 1:1.
     const {
       contact_id,
       first_name,
@@ -24,6 +31,16 @@ Deno.serve(async (req) => {
       site_address,
       notes,
       company_id,
+      // Nuovi campi (opzionali, retrocompatibili)
+      is_business,
+      business_name,
+      city,
+      postal_code,
+      province,
+      country,
+      site_city,
+      site_postal_code,
+      site_province,
     } = await req.json();
 
     if (!contact_id || !first_name || !last_name || !email || !company_id)
@@ -82,6 +99,9 @@ Deno.serve(async (req) => {
     const newUserId = authUser.user.id;
 
     // Step B — Crea profile con marketing_contact_id
+    // Insert con TUTTI i campi profili compatibili. Quelli non passati
+    // restano null (default). Il link marketing_contact_id permette di
+    // risalire al contatto originale in futuro (vedi "Origine Marketing").
     const { error: profileErr } = await supabaseAdmin
       .from("profiles")
       .insert({
@@ -91,11 +111,21 @@ Deno.serve(async (req) => {
         email: trimEmail,
         phone: phone || null,
         address: address || null,
-        fiscal_code: fiscal_code || null,
+        fiscal_code: fiscal_code ? String(fiscal_code).toUpperCase() : null,
         site_address: site_address || null,
         notes: notes || null,
         company_id,
         marketing_contact_id: contact_id,
+        // Campi estesi (passati dal dialog aggiornato)
+        is_business: typeof is_business === "boolean" ? is_business : null,
+        business_name: business_name || null,
+        city: city || null,
+        postal_code: postal_code || null,
+        province: province ? String(province).toUpperCase().slice(0, 2) : null,
+        country: country || null,
+        site_city: site_city || null,
+        site_postal_code: site_postal_code || null,
+        site_province: site_province ? String(site_province).toUpperCase().slice(0, 2) : null,
       });
 
     if (profileErr) {

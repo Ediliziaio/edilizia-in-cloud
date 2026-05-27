@@ -29,6 +29,13 @@ interface ConvertToCustomerDialogProps {
     fiscal_code: string | null;
     vat_number: string | null;
     company_name: string | null;
+    // 2026-05-27: campi opzionali addizionali letti dal contatto
+    // (se presenti nel record source) e copiati nel cliente.
+    country?: string | null;
+    site_address?: string | null;
+    site_city?: string | null;
+    site_postal_code?: string | null;
+    site_province?: string | null;
   };
   companyId: string;
   onSuccess: (customerId: string) => void;
@@ -52,23 +59,30 @@ export function ConvertToCustomerDialog({
   const [email, setEmail] = useState(contact.email || "");
   const [phone, setPhone] = useState(contact.phone || "");
 
-  // Componi indirizzo da city + province + postal_code
-  const composedAddress = [
-    contact.address,
-    contact.city,
-    contact.province ? `(${contact.province})` : null,
-    contact.postal_code,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  const [address, setAddress] = useState(composedAddress);
+  // 2026-05-27: prima l'indirizzo veniva CONCATENATO in una stringa unica
+  // ("Via Roma, Milano, (MI), 20100") → nella scheda cliente erano impossibili
+  // i filtri per città/provincia perché tutto stava nel campo `address`.
+  // Ora teniamo l'address come solo "via + civico" e copiamo separatamente
+  // city/province/postal_code/country. Idem per indirizzo cantiere.
+  const [address, setAddress] = useState(contact.address || "");
+  const [city] = useState(contact.city || "");
+  const [postalCode] = useState(contact.postal_code || "");
+  const [provinceState] = useState(contact.province || "");
+  const [country] = useState(contact.country || "Italia");
+  const [siteAddress] = useState(contact.site_address || "");
+  const [siteCity] = useState(contact.site_city || "");
+  const [sitePostalCode] = useState(contact.site_postal_code || "");
+  const [siteProvinceState] = useState(contact.site_province || "");
+
+  // is_business inferito: se il contatto ha vat_number o company_name → azienda
+  const inferIsBusiness = !!(contact.vat_number || contact.company_name);
 
   // fiscal_code o vat_number, il primo disponibile
   const [fiscalCode, setFiscalCode] = useState(
     contact.fiscal_code || contact.vat_number || "",
   );
 
-  // company_name nelle note come riferimento
+  // company_name nelle note come riferimento (oltre che salvato in business_name)
   const [notes, setNotes] = useState(
     contact.company_name ? `Azienda: ${contact.company_name}` : "",
   );
@@ -104,6 +118,18 @@ export function ConvertToCustomerDialog({
             fiscal_code: fiscalCode.trim() || null,
             notes: notes.trim() || null,
             company_id: companyId,
+            // 2026-05-27: pass-through campi estesi → cliente nasce
+            // con dati completi (no ridigitazione city/provincia/CAP/cantiere)
+            is_business: inferIsBusiness,
+            business_name: contact.company_name || null,
+            city: city || null,
+            postal_code: postalCode || null,
+            province: provinceState || null,
+            country: country || null,
+            site_address: siteAddress || null,
+            site_city: siteCity || null,
+            site_postal_code: sitePostalCode || null,
+            site_province: siteProvinceState || null,
           },
         },
       );

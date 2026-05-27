@@ -33,7 +33,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
-import { CustomerDiaryPanel } from "@/components/clients/CustomerDiaryPanel";
+import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityTimeline";
+import { CustomerComposeBar } from "@/components/clients/CustomerComposeBar";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   CustomerBusinessTabs,
@@ -45,6 +46,14 @@ import {
   type AppuntamentoRow,
   type RataRow,
 } from "@/components/clients/CustomerBusinessTabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  ClipboardList as ClipboardListIcon, Ticket as TicketIcon,
+  FileSignature as FileSignatureIcon, FileText as FileTextIcon,
+  Wrench as WrenchIcon, CalendarDays as CalendarDaysIcon,
+  CreditCard as CreditCardIcon, Mail as MailIcon, X as XIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface CustomerProfile {
   id: string;
@@ -74,6 +83,22 @@ interface CustomerProfile {
 
 const INTERNAL_NO_EMAIL_DOMAIN = "@no-email.ediliziaincloud.local";
 
+// ───────────────────────────────────────────────────────────────
+// RIGHT_TABS — icon strip verticale lato destro (pattern marketing).
+// Ogni icona apre/chiude il pannello laterale 340px che renderizza
+// CustomerBusinessTabs forzato su quella tab.
+// ───────────────────────────────────────────────────────────────
+const RIGHT_TABS: { key: string; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
+  { key: "ordini",       icon: ClipboardListIcon,  label: "Ordini" },
+  { key: "preventivi",   icon: FileSignatureIcon,  label: "Preventivi" },
+  { key: "assistenza",   icon: TicketIcon,         label: "Assistenza" },
+  { key: "interventi",   icon: WrenchIcon,         label: "Interventi" },
+  { key: "documenti",    icon: FileTextIcon,       label: "Documenti / Fatture" },
+  { key: "email",        icon: MailIcon,           label: "Email" },
+  { key: "appuntamenti", icon: CalendarDaysIcon,   label: "Appuntamenti" },
+  { key: "rate",         icon: CreditCardIcon,     label: "Rate / Scadenzario" },
+];
+
 function formatCustomerEmail(email: string | null | undefined): string | null {
   const value = (email ?? "").trim();
   if (!value || value.endsWith(INTERNAL_NO_EMAIL_DOMAIN)) return null;
@@ -92,6 +117,11 @@ export default function CompanyCustomerDetail() {
   // a customer.email.
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeContext, setComposeContext] = useState<ComposeContext>({ mode: "new" });
+  // 2026-05-27 (layout 3-col): tab pannello laterale destro.
+  // null = chiuso, "ordini" | "preventivi" | "assistenza" | "interventi" |
+  // "documenti" | "email" | "appuntamenti" | "rate" = aperto su quella sezione.
+  // Click sulla stessa icona = toggle chiude.
+  const [rightTab, setRightTab] = useState<string | null>(null);
 
   // ── Core customer data ──────────────────────────────────────────────────────
   const { data: customer, isLoading, refetch: refetchCustomer } = useQuery({
@@ -302,6 +332,75 @@ export default function CompanyCustomerDetail() {
       return (data ?? []) as unknown as RataRow[];
     },
     enabled: orderIds.length > 0,
+  });
+
+  // ── Email conversations collegate al cliente ────────────────────────────────
+  // 2026-05-27 (layout 3-col): fetch qui (oltre che in CustomerBusinessTabs)
+  // così posso passare gli ultimi 25 thread alla CustomerActivityTimeline.
+  const customerEmailLookup = (() => {
+    const e = (customer?.email ?? "").trim().toLowerCase();
+    return e && e.includes("@") && !e.endsWith(INTERNAL_NO_EMAIL_DOMAIN) ? e : null;
+  })();
+  const { data: emailConversationsForTimeline = [] } = useQuery({
+    queryKey: ["customer-email-timeline", id, effectiveCompany?.id, customerEmailLookup],
+    enabled: !!effectiveCompany?.id && !!customerEmailLookup,
+    staleTime: 60_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = supabase as any;
+      const baseQuery = () =>
+        client
+          .from("v_my_email_inbox")
+          .select("id, thread_id, from_email, from_name, subject, received_at, preview")
+          .eq("company_id", effectiveCompany!.id)
+          .order("received_at", { ascending: false })
+          .limit(15);
+      const [fromR, toR] = await Promise.all([
+        baseQuery().ilike("from_email", customerEmailLookup!),
+        baseQuery().ilike("to_email", customerEmailLookup!),
+      ]);
+      const all = [...(fromR.data ?? []), ...(toR.data ?? [])];
+      // Dedup per thread_id, prendi più recente
+      const byThread = new Map<string, typeof all[number]>();
+      all.forEach((row: { thread_id?: string; id?: string; received_at?: string }) => {
+        const key = (row.thread_id ?? row.id ?? "") as string;
+        if (!key) return;
+        const prev = byThread.get(key);
+        if (!prev || new Date(row.received_at ?? 0).getTime() > new Date(prev.received_at ?? 0).getTime()) {
+          byThread.set(key, row);
+        }
+      });
+      return Array.from(byThread.values());
+    },
+  });
+
+  // ── Diary messages (note interne) per timeline ──────────────────────────────
+  const { data: diaryMessagesForTimeline = [] } = useQuery({
+    queryKey: ["customer-diary-timeline", id, effectiveCompany?.id],
+    enabled: !!id && !!effectiveCompany?.id,
+    staleTime: 30_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("customer_messages")
+        .select("id, body, created_at, sender_role, channel, sender_id")
+        .eq("customer_id", id!)
+        .eq("company_id", effectiveCompany!.id)
+        .eq("channel", "internal")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) {
+        if (isSoftTableError(error)) return [];
+        throw error;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((m) => ({
+        id: m.id,
+        content: m.body ?? "",
+        author_name: m.sender_role === "staff" ? "Nota team" : "Nota cliente",
+        created_at: m.created_at,
+      }));
+    },
   });
 
   // ── Contatto marketing collegato ─────────────────────────────────────────────
@@ -766,50 +865,145 @@ export default function CompanyCustomerDetail() {
         </Alert>
       )}
 
-      {/* 2-column CRM layout: 2/5 left + 3/5 right */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* LEFT COLUMN — 2/5 */}
-        <div className="lg:col-span-2 space-y-4">
+      {/*
+        2026-05-27 (richiesta utente "diario al centro come pagina contatti"):
+        layout 3-COLONNE identico a MarketingContactDetail:
+          LEFT  (lg:w-72)  → CustomerProfileCard (anagrafica + Titolare + tab)
+          CENTER (flex-1)  → CustomerActivityTimeline + CustomerComposeBar
+          RIGHT (40px+340)  → icon strip verticale + pannello collassabile
+                              che mostra il pannello business della tab cliccata
+                              (ordini, preventivi, ecc.) dentro
+                              CustomerBusinessTabs con defaultValue forzato
+
+        Su mobile: stack verticale (left sopra, center sotto, right come
+        bottom-sheet via dialog futuro — per ora solo center+left).
+      */}
+      <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 min-h-[60vh]">
+        {/* ─── LEFT 280px ─── */}
+        <div className="lg:w-72 shrink-0">
           <CustomerProfileCard
             customer={customer}
             linkedContact={linkedContact}
             onSaved={() => refetchCustomer()}
           />
-          <CustomerDiaryPanel
+        </div>
+
+        {/* ─── CENTER timeline + compose ─── */}
+        <div className="flex-1 min-w-0 rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden">
+          <CustomerActivityTimeline
             customerId={customer.id}
-            customerName={fullName}
+            orders={orders}
+            tickets={tickets}
+            appuntamenti={appuntamenti}
+            fatture={fattureCliente}
+            emailConversations={emailConversationsForTimeline as unknown as Parameters<typeof CustomerActivityTimeline>[0]["emailConversations"]}
+            diaryMessages={diaryMessagesForTimeline}
+            customerCreatedAt={customer.created_at}
+          />
+          <CustomerComposeBar
+            customerId={customer.id}
             customerEmail={formatCustomerEmail(customer.email)}
+            customerPhone={customer.phone ?? null}
           />
         </div>
 
-        {/* RIGHT COLUMN — 3/5 */}
-        <div className="lg:col-span-3">
-          <CustomerBusinessTabs
-            customerId={customer.id}
-            companyId={effectiveCompany?.id ?? ""}
-            customerFullName={fullName}
-            customerEmail={formatCustomerEmail(customer.email)}
-            orders={orders}
-            preventivi={preventivi}
-            tickets={tickets}
-            rapportini={rapportini}
-            fatture={fattureCliente}
-            appuntamenti={appuntamenti}
-            rate={rate}
-            anagraficaCollegata={anagraficaCollegata ?? null}
-            totalOrderValue={totalOrderValue}
-            openTicketsCount={openTicketsCount}
-            dataWarnings={{
-              anagrafica: anagraficaError instanceof Error ? anagraficaError.message : null,
-              fatture: fattureError instanceof Error ? fattureError.message : null,
-              preventivi: preventiviError instanceof Error ? preventiviError.message : null,
-              tickets: ticketsError instanceof Error ? ticketsError.message : null,
-              rapportini: rapportiniError instanceof Error ? rapportiniError.message : null,
-              appuntamenti: appuntamentiError instanceof Error ? appuntamentiError.message : null,
-              rate: rateError instanceof Error ? rateError.message : null,
-            }}
-          />
+        {/* ─── RIGHT icon strip + panel collassabile ─── */}
+        <div className="hidden lg:flex shrink-0">
+          {/* Pannello attivo (rendering condizionale) */}
+          {rightTab && (
+            <div className="w-[340px] rounded-2xl border bg-card shadow-sm flex flex-col overflow-hidden mr-2">
+              <div className="flex items-center justify-between px-3 py-2 border-b">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {RIGHT_TABS.find((t) => t.key === rightTab)?.label ?? "Pannello"}
+                </h3>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRightTab(null)} aria-label="Chiudi pannello">
+                  <XIcon className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2">
+                <CustomerBusinessTabs
+                  customerId={customer.id}
+                  companyId={effectiveCompany?.id ?? ""}
+                  customerFullName={fullName}
+                  customerEmail={formatCustomerEmail(customer.email)}
+                  orders={orders}
+                  preventivi={preventivi}
+                  tickets={tickets}
+                  rapportini={rapportini}
+                  fatture={fattureCliente}
+                  appuntamenti={appuntamenti}
+                  rate={rate}
+                  anagraficaCollegata={anagraficaCollegata ?? null}
+                  defaultTab={rightTab}
+                  dataWarnings={{
+                    anagrafica: anagraficaError instanceof Error ? anagraficaError.message : null,
+                    fatture: fattureError instanceof Error ? fattureError.message : null,
+                    preventivi: preventiviError instanceof Error ? preventiviError.message : null,
+                    tickets: ticketsError instanceof Error ? ticketsError.message : null,
+                    rapportini: rapportiniError instanceof Error ? rapportiniError.message : null,
+                    appuntamenti: appuntamentiError instanceof Error ? appuntamentiError.message : null,
+                    rate: rateError instanceof Error ? rateError.message : null,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Icon strip verticale (sempre visibile) */}
+          <div className="w-10 rounded-2xl border bg-muted/30 flex flex-col items-center py-2 gap-1 shrink-0">
+            {RIGHT_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = rightTab === tab.key;
+              return (
+                <Tooltip key={tab.key}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        "h-8 w-8 rounded flex items-center justify-center transition-colors",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                      onClick={() => setRightTab(isActive ? null : tab.key)}
+                      aria-label={tab.label}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">{tab.label}</TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
         </div>
+      </div>
+
+      {/* Su mobile: tabs business sotto (right panel non disponibile su lg<) */}
+      <div className="lg:hidden">
+        <CustomerBusinessTabs
+          customerId={customer.id}
+          companyId={effectiveCompany?.id ?? ""}
+          customerFullName={fullName}
+          customerEmail={formatCustomerEmail(customer.email)}
+          orders={orders}
+          preventivi={preventivi}
+          tickets={tickets}
+          rapportini={rapportini}
+          fatture={fattureCliente}
+          appuntamenti={appuntamenti}
+          rate={rate}
+          anagraficaCollegata={anagraficaCollegata ?? null}
+          dataWarnings={{
+            anagrafica: anagraficaError instanceof Error ? anagraficaError.message : null,
+            fatture: fattureError instanceof Error ? fattureError.message : null,
+            preventivi: preventiviError instanceof Error ? preventiviError.message : null,
+            tickets: ticketsError instanceof Error ? ticketsError.message : null,
+            rapportini: rapportiniError instanceof Error ? rapportiniError.message : null,
+            appuntamenti: appuntamentiError instanceof Error ? appuntamentiError.message : null,
+            rate: rateError instanceof Error ? rateError.message : null,
+          }}
+        />
       </div>
 
       {/* Email compose dialog — apre con destinatario pre-popolato */}
