@@ -164,7 +164,7 @@ export default function InvoiceDetail() {
                 <Mail className="h-4 w-4 mr-2" /> Invia via Email
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Invia fattura via email</DialogTitle>
                 <DialogDescription>Il cliente riceverà un'email con i dettagli della fattura.</DialogDescription>

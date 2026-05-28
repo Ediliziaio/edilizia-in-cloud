@@ -446,7 +446,7 @@ export default function DDTRicezioneList() {
                 <div className="space-y-1">
                   <Label className="text-xs">Fornitore</Label>
                   <Select value={filterSupplier} onValueChange={setFilterSupplier}>
-                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 md:h-9 text-base md:text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tutti i fornitori</SelectItem>
                       {suppliers.filter((s) => s.is_active).map((s) => (
@@ -458,17 +458,17 @@ export default function DDTRicezioneList() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1"><CalendarIcon className="h-3 w-3" />DDT dal</Label>
-                    <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-9 text-xs" />
+                    <Input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="h-10 md:h-9 text-base md:text-xs" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">DDT al</Label>
-                    <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-9 text-xs" />
+                    <Input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="h-10 md:h-9 text-base md:text-xs" />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Non conformità</Label>
                   <Select value={filterHasDamages} onValueChange={(v) => setFilterHasDamages(v as "all" | "yes" | "no")}>
-                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 md:h-9 text-base md:text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tutti</SelectItem>
                       <SelectItem value="yes">Con danni / non conformi</SelectItem>
@@ -479,7 +479,7 @@ export default function DDTRicezioneList() {
                 <div className="space-y-1">
                   <Label className="text-xs">Allegati</Label>
                   <Select value={filterHasAttachments} onValueChange={(v) => setFilterHasAttachments(v as "all" | "yes" | "no")}>
-                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-10 md:h-9 text-base md:text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tutti</SelectItem>
                       <SelectItem value="yes">Con allegati</SelectItem>

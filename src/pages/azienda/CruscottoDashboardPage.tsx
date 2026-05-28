@@ -143,7 +143,7 @@ export default function CruscottoDashboardPage() {
         value={period || "none"}
         onValueChange={(v) => selectPeriod(v === "none" ? "" : (v as PeriodPreset))}
       >
-        <SelectTrigger className="h-8 w-[155px] text-xs">
+        <SelectTrigger className="h-10 md:h-8 w-[155px] text-base md:text-xs">
           <SelectValue placeholder="Periodo" />
         </SelectTrigger>
         <SelectContent>

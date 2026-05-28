@@ -531,7 +531,7 @@ function QrDinamiciTab() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingQr ? "Modifica QR" : "Nuovo QR dinamico"}</DialogTitle>
             <DialogDescription>

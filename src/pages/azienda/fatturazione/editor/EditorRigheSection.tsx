@@ -284,7 +284,7 @@ function SortableRowImpl({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7"
+                    className="h-9 w-9 md:h-7 md:w-7"
                     onClick={() => setExpanded((e) => !e)}
                     aria-label={expanded ? "Riduci riga" : "Espandi riga"}
                     title={expanded ? "Riduci" : "Espandi per dettagli"}
@@ -293,10 +293,10 @@ function SortableRowImpl({
                   </Button>
                   {!disabled && (
                     <>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
+                      <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onDuplicate(index)} aria-label="Duplica">
                         <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRemove(index)} aria-label="Elimina">
+                      <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onRemove(index)} aria-label="Elimina">
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </>

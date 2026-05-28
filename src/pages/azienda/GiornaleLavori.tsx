@@ -608,7 +608,7 @@ export default function GiornaleLavori() {
               <div className="flex items-center justify-between">
                 <Label>Firma capocantiere</Label>
                 {hasFirma && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={clearFirma}>
+                  <Button variant="ghost" size="sm" className="h-9 md:h-6 text-xs" onClick={clearFirma}>
                     Cancella
                   </Button>
                 )}

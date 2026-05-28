@@ -1854,7 +1854,7 @@ function CustomersListInner() {
           if (!open) setResetPasswordDialog({ open: false, customer: null, newPassword: null, copied: false });
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Password Resettata</DialogTitle>
             <DialogDescription>
@@ -1912,7 +1912,7 @@ function CustomersListInner() {
 
       {/* Bulk assign salesperson */}
       <Dialog open={bulkAssignOpen} onOpenChange={setBulkAssignOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assegna venditore a {selectedIds.size} clienti</DialogTitle>
             <DialogDescription>

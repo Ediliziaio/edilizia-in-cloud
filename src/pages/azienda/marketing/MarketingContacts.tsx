@@ -1666,7 +1666,7 @@ export default function MarketingContacts() {
               <div className="hidden sm:flex items-center gap-2">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input placeholder="Cerca contatti..." className="pl-8 h-8 w-[220px] text-xs" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
+                  <Input placeholder="Cerca contatti..." inputMode="search" enterKeyHint="search" className="pl-8 h-10 md:h-8 w-full md:w-[220px] text-base md:text-xs" value={searchInput} onChange={(e) => { setSearchInput(e.target.value); setPage(1); }} />
                 </div>
                 <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground" onClick={() => setFieldsSheetOpen(true)}>
                   <Settings2 className="h-3.5 w-3.5" /> Gestisci campi

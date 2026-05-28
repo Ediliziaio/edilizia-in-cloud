@@ -134,7 +134,7 @@ function CategoriaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Modifica categoria" : "Nuova categoria"}</DialogTitle>
         </DialogHeader>
@@ -648,13 +648,13 @@ function CategorieTab({ companyId }: { companyId: string }) {
                 </div>
                 <div className="flex gap-1 flex-shrink-0">
                   <Button
-                    variant="ghost" size="icon" className="h-7 w-7"
+                    variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
                     onClick={() => { setEditing(cat); setDialogOpen(true); }}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
                   <Button
-                    variant="ghost" size="icon" className="h-7 w-7 text-destructive"
+                    variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 text-destructive"
                     onClick={() => setDeleteId(cat.id)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

@@ -353,14 +353,14 @@ export default function SettingsNotifiche() {
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">
                       <Button
-                        size="icon" variant="ghost" className="h-7 w-7"
+                        size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7"
                         title={isActive ? "Disabilita" : "Riabilita"}
                         onClick={() => toggleFlowMut.mutate({ id: f.id, newStatus: isActive ? "draft" : "published" })}
                       >
                         {isActive ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                       </Button>
                       <Button
-                        size="icon" variant="ghost" className="h-7 w-7 text-rose-600"
+                        size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7 text-rose-600"
                         title="Elimina"
                         onClick={() => {
                           if (confirm(`Eliminare "${f.name}"? L'azione è irreversibile.`)) {

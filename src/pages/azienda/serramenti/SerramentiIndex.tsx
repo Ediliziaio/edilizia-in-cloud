@@ -889,7 +889,7 @@ export default function SerramentiIndex() {
                                 {p.pdf_url && (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button asChild size="icon" variant="ghost" className="h-7 w-7" aria-label="Apri PDF">
+                                      <Button asChild size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7" aria-label="Apri PDF">
                                         <a href={p.pdf_url} target="_blank" rel="noopener noreferrer">
                                           <ExternalLink className="h-3.5 w-3.5 text-orange-600" />
                                         </a>
@@ -901,7 +901,7 @@ export default function SerramentiIndex() {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
-                                      size="icon" variant="ghost" className="h-7 w-7"
+                                      size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7"
                                       onClick={() => setToDelete({ id: p.id, code: p.code })}
                                       aria-label="Elimina"
                                     >

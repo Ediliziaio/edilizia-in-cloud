@@ -1654,7 +1654,7 @@ export default function ContenutiMultimediali() {
           if (!open) resetNewFolderForm();
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuova cartella</DialogTitle>
             <DialogDescription>

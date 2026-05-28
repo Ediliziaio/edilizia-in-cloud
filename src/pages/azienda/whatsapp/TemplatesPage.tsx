@@ -167,7 +167,7 @@ export default function TemplatesPage() {
       </Card>
 
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Anteprima template: {preview?.template_name}</DialogTitle>
             <DialogDescription>

@@ -327,7 +327,7 @@ export default function CustomerFirma() {
           if (!open) setSigningRequest(null);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Firma documento - {signingRequest?.orders.order_code}

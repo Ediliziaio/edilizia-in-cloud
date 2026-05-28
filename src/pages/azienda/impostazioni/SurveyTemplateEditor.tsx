@@ -327,7 +327,7 @@ function SectionListEditor({
         return (
           <Card key={sec.key} className="overflow-hidden">
             <div className="flex items-center gap-2 p-2 bg-muted/30">
-              <Button variant="ghost" size="icon" className="h-7 w-7 cursor-grab" disabled>
+              <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 cursor-grab" disabled>
                 <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
               </Button>
               <button
@@ -341,13 +341,13 @@ function SectionListEditor({
                   {sec.fields?.length ?? 0} campi
                 </Badge>
               </button>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(idx, -1)} disabled={idx === 0}>
+              <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => move(idx, -1)} disabled={idx === 0}>
                 <ChevronUp className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(idx, 1)} disabled={idx === sections.length - 1}>
+              <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => move(idx, 1)} disabled={idx === sections.length - 1}>
                 <ChevronDown className="h-3.5 w-3.5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" onClick={() => removeSection(idx)}>
+              <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 text-rose-600" onClick={() => removeSection(idx)}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -464,13 +464,13 @@ function FieldsEditor({
               </div>
             </div>
             <div className="col-span-12 md:col-span-1 flex gap-0.5">
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(idx, -1)} disabled={idx === 0} title="Su">
+              <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => move(idx, -1)} disabled={idx === 0} title="Su">
                 <ChevronUp className="h-3 w-3" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(idx, 1)} disabled={idx === fields.length - 1} title="Giù">
+              <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => move(idx, 1)} disabled={idx === fields.length - 1} title="Giù">
                 <ChevronDown className="h-3 w-3" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" onClick={() => removeField(idx)}>
+              <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 text-rose-600" onClick={() => removeField(idx)}>
                 <X className="h-3 w-3" />
               </Button>
             </div>
@@ -592,7 +592,7 @@ function PhotosEditor({
             <span className="text-[8px] text-muted-foreground">Multi</span>
           </div>
           <div className="col-span-4 md:col-span-0 flex">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" onClick={() => onChange(photos.filter((_, i) => i !== idx))}>
+            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 text-rose-600" onClick={() => onChange(photos.filter((_, i) => i !== idx))}>
               <X className="h-3 w-3" />
             </Button>
           </div>
@@ -653,7 +653,7 @@ function ElementTypesEditor({
                   {et.sections?.length ?? 0} sezioni · {totalFields} campi · {et.required_photos?.length ?? 0} foto
                 </Badge>
               </button>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-600" onClick={() => onChange(elementTypes.filter((_, i) => i !== idx))}>
+              <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 text-rose-600" onClick={() => onChange(elementTypes.filter((_, i) => i !== idx))}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>

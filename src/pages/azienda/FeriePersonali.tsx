@@ -357,7 +357,7 @@ export default function FeriePersonali() {
 
       {/* BLOCCO C — Dialog nuova richiesta */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuova richiesta</DialogTitle>
           </DialogHeader>

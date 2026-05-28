@@ -527,6 +527,16 @@ html.capacitor [role="button"] {
      Le email Meta hanno tabelle 600px fisse → su pannelli stretti
      evita overflow rotto del layout app. */
   max-width: 100%;
+  /* v8.6.75 (EMAIL-MOBILE-FIT) — forza isolation del scroll: l'utente
+     segnalava che su iPhone/Android si doveva scrollare LATERALMENTE
+     tutta la pagina per vedere l'email Meta. Causa: senza `contain` o
+     `min-width: 0` esplicito su contesti flex parent, l'overflow-x: auto
+     del wrapper non si attivava → tabella 600px spingeva l'app. */
+  contain: layout style;
+  min-width: 0;
+  overflow-x: auto;
+  /* Smooth scroll touch su iOS */
+  -webkit-overflow-scrolling: touch;
 }
 
 .email-html {
@@ -619,3 +629,52 @@ html.capacitor [role="button"] {
 
 /* Container <style> blocks delle email vengono lasciati al loro
    posto — DOMPurify sanifica eventuale @import malevolo. */
+
+/* v8.6.75 (EMAIL-MOBILE-FIT) — Su mobile (<768px) le email con tabelle
+   a larghezza fissa (es. Meta receipts con table width=600px) costringono
+   l'utente a scrollare orizzontalmente tutta la pagina. Fix robusto:
+   forziamo OGNI elemento dentro .email-html a stare in viewport, e
+   ridimensioniamo le tabelle. Override !important necessario per battere
+   gli inline style delle email transactional che usano width fissi. */
+@media (max-width: 767px) {
+  .email-html {
+    /* Sicurezza: forziamo il container a non superare la larghezza viewport */
+    max-width: 100% !important;
+    overflow-wrap: break-word;
+  }
+  .email-html table,
+  .email-html tbody,
+  .email-html tr,
+  .email-html td,
+  .email-html th {
+    /* Tabelle email-template (typical width=600) → fluide su mobile */
+    max-width: 100% !important;
+    width: auto !important;
+    /* Reset table-layout fixed che blocca il responsive */
+    table-layout: auto !important;
+    word-break: break-word;
+  }
+  .email-html img {
+    /* Già max-width:100% sopra; rinforziamo con !important per battere
+       img width="600" inline che le email Mailchimp/Meta usano */
+    max-width: 100% !important;
+    height: auto !important;
+  }
+  .email-html div,
+  .email-html span,
+  .email-html p {
+    /* Div con width:600px inline → fluidi mobile */
+    max-width: 100% !important;
+  }
+  .email-html pre,
+  .email-html code {
+    /* Codice pre-formattato: scroll interno invece di spingere il layout */
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  /* Long URL/parole inspezzabili (es. transaction id Meta) → spezzare */
+  .email-html a {
+    word-break: break-all;
+  }
+}

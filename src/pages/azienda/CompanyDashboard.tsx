@@ -676,7 +676,7 @@ function OperationalCalendarCard({
 
       {selectedOrderId && isSelectedOrderLoading && (
         <Dialog open onOpenChange={(open) => !open && setSelectedEvent(null)}>
-          <DialogContent className="sm:max-w-[520px]">
+          <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Carico dettaglio commessa</DialogTitle>
               <DialogDescription>Sto recuperando date, squadra, pagamenti e informazioni operative.</DialogDescription>

@@ -330,7 +330,7 @@ export default function ImpiantoDetail() {
 
       {/* Dialog esecuzione */}
       <Dialog open={esecuzioneOpen} onOpenChange={setEsecuzioneOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Registra Esecuzione Manutenzione</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {piani.length > 1 && (

@@ -564,7 +564,7 @@ function TabPagamenti() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
-                                    variant="ghost" size="icon" className="h-7 w-7"
+                                    variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
                                     onClick={() => window.open(inv.invoicePdf!, "_blank")}
                                     aria-label="Scarica PDF"
                                   >
@@ -578,7 +578,7 @@ function TabPagamenti() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
-                                    variant="ghost" size="icon" className="h-7 w-7"
+                                    variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
                                     onClick={() => window.open(inv.invoiceUrl!, "_blank")}
                                     aria-label="Apri online"
                                   >

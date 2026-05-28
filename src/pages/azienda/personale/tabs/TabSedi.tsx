@@ -230,7 +230,7 @@ function SedeDialog({ sede, open, onClose }: { sede: HrSede | null; open: boolea
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Modifica Sede" : "Nuova Sede"}</DialogTitle>
           <DialogDescription>

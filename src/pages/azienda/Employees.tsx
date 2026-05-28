@@ -364,7 +364,7 @@ function EmployeesInner() {
                 </p>
                 <p className="text-sm text-green-700 dark:text-green-300 mt-2">
                   Password temporanea: <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded font-mono">{createdPassword}</code>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 ml-1" onClick={() => {
+                  <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6 ml-1" onClick={() => {
                     navigator.clipboard.writeText(createdPassword);
                     toast.success("Copiato", { description: "Password copiata" });
                   }}><Copy className="h-3 w-3" /></Button>

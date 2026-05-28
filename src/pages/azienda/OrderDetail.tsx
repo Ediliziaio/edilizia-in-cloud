@@ -1713,7 +1713,7 @@ function OrderDetailInner() {
         open={statusChangeDialog.open}
         onOpenChange={(open) => setStatusChangeDialog({ ...statusChangeDialog, open })}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Conferma cambio stato</DialogTitle>
             <DialogDescription>
@@ -1738,7 +1738,7 @@ function OrderDetailInner() {
 
       {/* Duplicate Order Dialog */}
       <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Duplica commessa</DialogTitle>
             <DialogDescription>

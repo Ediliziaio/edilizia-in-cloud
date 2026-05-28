@@ -899,7 +899,7 @@ export default function CreateCustomer() {
 
       {/* Success Dialog */}
       <Dialog open={showSuccessDialog} onOpenChange={(open) => !open && handleDialogClose()}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Check className="h-5 w-5 text-emerald-500" />

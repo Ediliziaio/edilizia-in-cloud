@@ -80,7 +80,7 @@ export function PartnerOnboardingModal({ referrer }: Props) {
 
   return (
     <Dialog open={true}>
-      <DialogContent className="max-w-lg" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="text-xl">🤝 Benvenuto nel Programma Partner</DialogTitle>
           <DialogDescription>

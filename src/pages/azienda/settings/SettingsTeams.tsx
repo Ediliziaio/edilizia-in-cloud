@@ -108,12 +108,12 @@ function DraggableMember({ member, team, onRemove, onSetLeader, isOverlay }: {
       {!isOverlay && (
         <div className="flex gap-1">
           {team.leader_id !== member.user_id && (
-            <Button variant="ghost" size="icon" className="h-6 w-6" title="Imposta come leader"
+            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6" title="Imposta come leader"
               onClick={() => onSetLeader(team.id, member.user_id)}>
               <Crown className="h-3 w-3" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive"
+          <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6 text-destructive"
             onClick={() => onRemove(member.id)}>
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -450,17 +450,17 @@ export default function SettingsTeams() {
                         <CardTitle className="text-base">{team.name}</CardTitle>
                       </div>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Round-robin"
+                        <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Round-robin"
                           onClick={() => roundRobinMutation.mutate(team.id)}
                           disabled={roundRobinMutation.isPending}>
                           <Shuffle className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(team)}>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => openEdit(team)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
@@ -525,7 +525,7 @@ export default function SettingsTeams() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={createOpen || !!editTeam} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setEditTeam(null); resetForm(); } }}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editTeam ? "Modifica Team" : "Nuovo Team"}</DialogTitle>
           </DialogHeader>
@@ -561,7 +561,7 @@ export default function SettingsTeams() {
 
       {/* Add Member Dialog */}
       <Dialog open={!!addMemberTeamId} onOpenChange={(open) => { if (!open) { setAddMemberTeamId(null); setSelectedUserId(""); } }}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Aggiungi membro al team</DialogTitle>
           </DialogHeader>

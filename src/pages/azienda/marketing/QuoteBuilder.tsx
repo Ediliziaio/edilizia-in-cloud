@@ -2118,7 +2118,7 @@ export default function QuoteBuilder() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-destructive"
+                                className="h-9 w-9 md:h-7 md:w-7 text-destructive"
                                 onClick={() => removeItem(idx)}
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -2138,7 +2138,7 @@ export default function QuoteBuilder() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-7 w-7 text-destructive"
+                                className="h-9 w-9 md:h-7 md:w-7 text-destructive"
                                 onClick={() => removeItem(idx)}
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -3279,7 +3279,7 @@ export default function QuoteBuilder() {
 
       {smaltimentoAsk && (
         <Dialog open={true} onOpenChange={() => setSmaltimentoAsk(null)}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Smaltimento materiale vecchio?</DialogTitle>
             </DialogHeader>

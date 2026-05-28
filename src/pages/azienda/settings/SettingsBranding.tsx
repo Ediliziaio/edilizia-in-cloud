@@ -677,7 +677,7 @@ export default function SettingsBranding() {
                                 <span className="text-muted-foreground w-16 shrink-0">Nome:</span>
                                 <code className="bg-muted px-2 py-0.5 rounded text-xs break-all">{customDomain}</code>
                                 <Button
-                                  variant="ghost" size="icon" aria-label="Copia nome CNAME" className="h-6 w-6"
+                                  variant="ghost" size="icon" aria-label="Copia nome CNAME" className="h-9 w-9 md:h-6 md:w-6"
                                   onClick={() => copyText(customDomain)}
                                 >
                                   <Copy className="h-3 w-3" />
@@ -689,7 +689,7 @@ export default function SettingsBranding() {
                                   {(companyBranding as { custom_domain_cname?: string }).custom_domain_cname}
                                 </code>
                                 <Button
-                                  variant="ghost" size="icon" aria-label="Copia valore CNAME" className="h-6 w-6"
+                                  variant="ghost" size="icon" aria-label="Copia valore CNAME" className="h-9 w-9 md:h-6 md:w-6"
                                   onClick={() => {
                                     const v = (companyBranding as { custom_domain_cname?: string }).custom_domain_cname || "";
                                     copyText(v);

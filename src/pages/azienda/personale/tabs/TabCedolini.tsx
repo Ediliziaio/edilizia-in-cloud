@@ -324,7 +324,7 @@ export function TabCedolini() {
                         </span>
                       </div>
                       <Select value={c.stato} onValueChange={(v) => updateStatoMutation.mutate({ id: c.id, stato: v })}>
-                        <SelectTrigger className="h-6 text-xs w-24 border-none p-1 mt-0.5 opacity-50 hover:opacity-100">
+                        <SelectTrigger className="h-9 text-base md:h-6 md:text-xs w-24 border-none p-1 mt-0.5 opacity-50 hover:opacity-100">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -360,7 +360,7 @@ export function TabCedolini() {
 
       {/* Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nuovo Cedolino</DialogTitle>
           </DialogHeader>

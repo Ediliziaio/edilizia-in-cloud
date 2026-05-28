@@ -298,14 +298,14 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                           {doc.sdi_file_xml_url && (
                             <>
                               <Button
-                                variant="ghost" size="icon" className="h-7 w-7"
+                                variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
                                 title="Visualizza XML"
                                 onClick={() => handlePreviewXml(doc.sdi_file_xml_url, doc.numero)}
                               >
                                 <Eye className="h-3.5 w-3.5" />
                               </Button>
                               <Button
-                                variant="ghost" size="icon" className="h-7 w-7"
+                                variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7"
                                 title="Scarica XML"
                                 onClick={() => handleDownloadXml(doc.sdi_file_xml_url)}
                               >
@@ -314,12 +314,12 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                             </>
                           )}
                           {doc.sdi_ricevuta_url && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Scarica ricevuta" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Scarica ricevuta" onClick={() => handleDownloadXml(doc.sdi_ricevuta_url)}>
                               <FileText className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {(doc.sdi_stato === "NS" || doc.stato === "rifiutata") && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)}>
                               <RefreshCw className="h-3.5 w-3.5" />
                             </Button>
                           )}

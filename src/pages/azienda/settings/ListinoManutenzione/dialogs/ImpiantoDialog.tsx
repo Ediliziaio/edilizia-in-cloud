@@ -59,7 +59,7 @@ export function ImpiantoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Modifica tipo impianto" : "Nuovo tipo impianto"}</DialogTitle>
         </DialogHeader>

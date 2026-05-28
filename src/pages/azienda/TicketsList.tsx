@@ -132,7 +132,10 @@ function formatScadenza(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "2-digit" });
+  // v8.6.75 (SCADENZA-BADGE-FIX-v2) — Formato numerico compatto dd/mm/yy
+  // (es. "22/04/26") invece di "22 apr 26" che con tab stretta wrappava in
+  // 3 righe. dd/mm/yy = 8 caratteri totali, sicuramente single-line nel pill.
+  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 function compareSortValues(a: string | number, b: string | number): number {
@@ -869,10 +872,21 @@ function ScadenzaCell({ iso }: { iso: string | null | undefined }) {
     futuro: "",
     nessuna: "",
   };
+  // v8.6.75 (SCADENZA-BADGE-FIX) — utente: "il bottone scaduto si vede male".
+  // Causa: TableCell stretta + Badge senza whitespace-nowrap → testo wrappava
+  // su 3 righe ("Scaduto"/"22 apr"/"26") e il padding del badge creava un
+  // pseudo-cerchio rosso brutto. Fix:
+  // - whitespace-nowrap forza tutto su 1 riga
+  // - gap-1 al posto di mr-1 + bullet "·" per ridurre rumore visivo
+  // - inline-flex per centrare verticalmente
   return (
-    <Badge variant="outline" className={cn("text-[11px] font-medium", styles[bucket])}>
-      {labelPrefix[bucket] ? <span className="mr-1">{labelPrefix[bucket]} ·</span> : null}
-      {formatScadenza(iso)}
+    <Badge
+      variant="outline"
+      className={cn("text-[11px] font-medium inline-flex items-center gap-1 whitespace-nowrap", styles[bucket])}
+      title={iso ? new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" }) : undefined}
+    >
+      {labelPrefix[bucket] ? <span>{labelPrefix[bucket]}</span> : null}
+      <span className="tabular-nums">{formatScadenza(iso)}</span>
     </Badge>
   );
 }

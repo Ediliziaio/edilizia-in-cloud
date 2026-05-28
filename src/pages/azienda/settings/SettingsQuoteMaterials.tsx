@@ -466,7 +466,7 @@ export default function SettingsQuoteMaterials() {
 
       {/* Edit dialog */}
       <Dialog open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Modifica materiale</DialogTitle>
           </DialogHeader>

@@ -978,7 +978,7 @@ export default function CompanyCustomerDetail() {
                     })
                   </span>
                 </h3>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRightTab(null)} aria-label="Chiudi pannello">
+                <Button variant="ghost" size="icon" className="h-9 w-9 md:h-6 md:w-6" onClick={() => setRightTab(null)} aria-label="Chiudi pannello">
                   <XIcon className="h-3.5 w-3.5" />
                 </Button>
               </div>

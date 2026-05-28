@@ -73,7 +73,7 @@ export function ListinoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editing ? "Modifica tariffa" : "Nuova tariffa"}</DialogTitle>
         </DialogHeader>

@@ -445,7 +445,7 @@ export default function SettingsAIAutomazioni() {
               <Card key={a.type} className={r.dirty ? "border-amber-400 ring-2 ring-amber-200" : ""}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="flex-1 min-w-[260px]">
+                    <div className="flex-1 min-w-0 md:min-w-[260px] max-w-full">
                       <CardTitle className="flex items-center gap-2 text-base">
                         {a.label}
                         <Badge variant="outline" className={RISK_COLORS[r.risk]}>

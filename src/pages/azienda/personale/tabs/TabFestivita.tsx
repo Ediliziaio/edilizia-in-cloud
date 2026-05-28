@@ -213,7 +213,7 @@ function FestivitaDialog({ item, open, onClose }: { item: HrFestivita | null; op
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Modifica Festività" : "Nuova Festività"}</DialogTitle>
           <DialogDescription>

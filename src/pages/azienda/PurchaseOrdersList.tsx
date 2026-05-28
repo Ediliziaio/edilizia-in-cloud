@@ -628,7 +628,7 @@ export default function PurchaseOrdersList() {
 
       {/* New OdA Dialog */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Nuovo Ordine d'Acquisto</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

@@ -141,7 +141,7 @@ export function TabPresenze() {
           <Button variant="outline" size="icon" onClick={prevMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h3 className="text-lg font-semibold min-w-[180px] text-center">
+          <h3 className="text-lg font-semibold min-w-0 sm:min-w-[180px] flex-1 sm:flex-initial text-center">
             {MONTHS_IT[month]} {year}
           </h3>
           <Button variant="outline" size="icon" onClick={nextMonth}>

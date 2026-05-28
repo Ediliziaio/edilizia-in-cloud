@@ -349,7 +349,8 @@ function ExportCsvButton({
     <Button
       size="sm"
       variant="ghost"
-      className="h-7 gap-1 text-xs"
+      // v8.6.75 (LOOP-AZ-6) — h-9 mobile (Apple HIG min tap), h-7 desktop
+      className="h-9 md:h-7 gap-1 text-xs"
       onClick={onClick}
       disabled={disabled}
     >

@@ -129,7 +129,11 @@ function BillingHubTabs({
               type="button"
               onClick={() => onChange(tab.id)}
               className={cn(
-                "flex min-w-[170px] items-center gap-2 rounded-xl px-3 py-2 text-left transition-all",
+                // v8.6.75 (LOOP-AZ-4) — min-w-[170px] su mobile spingeva
+                // i tab fuori viewport. Su mobile (<md) min-w-0 + flex-1
+                // (icon-only o wrap). Su md+ ritorna min-w-[170px] per
+                // layout descrittivo originale.
+                "flex min-w-0 md:min-w-[170px] items-center gap-2 rounded-xl px-3 py-2 text-left transition-all flex-1 md:flex-initial",
                 isActive
                   ? "bg-slate-950 text-white shadow-sm"
                   : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",

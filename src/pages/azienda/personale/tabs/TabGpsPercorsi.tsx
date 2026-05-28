@@ -88,15 +88,15 @@ export function TabGpsPercorsi() {
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
         <TabsList className="h-auto gap-1 p-1">
-          <TabsTrigger value="live" className="text-xs gap-1.5">
+          <TabsTrigger value="live" className="h-9 text-xs gap-1.5">
             <Navigation className="h-3.5 w-3.5" />
             Mappa live
           </TabsTrigger>
-          <TabsTrigger value="storico" className="text-xs gap-1.5">
+          <TabsTrigger value="storico" className="h-9 text-xs gap-1.5">
             <RefreshCw className="h-3.5 w-3.5" />
             Storico percorsi
           </TabsTrigger>
-          <TabsTrigger value="geofence" className="text-xs gap-1.5">
+          <TabsTrigger value="geofence" className="h-9 text-xs gap-1.5">
             Zone geofence
           </TabsTrigger>
         </TabsList>

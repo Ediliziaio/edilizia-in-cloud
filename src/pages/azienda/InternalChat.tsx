@@ -1,6 +1,12 @@
 /**
  * InternalChat — WhatsApp-style team chat
- * Supports DMs, group chats, Lucia AI bot, reactions, replies, pins
+ * Supports DMs, group chats, Silvio AI bot, reactions, replies, pins.
+ *
+ * v8.6.75 (LOOP-CHAT-ADMIN Round 9 / LUCIA-FULL-REMOVAL) — Lucia AI rimossa
+ * completamente (constant LUCIA_SENDER_ID, mock profile, branch UI, render
+ * legacy). I messaggi storici con sender Lucia (se presenti in DB) cadranno
+ * nel rendering "Sconosciuto" — accettato dall'utente: "Lucia non deve
+ * essere più".
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
@@ -58,10 +64,16 @@ import {
   parseStoredAttachmentUrl,
   toStoredAttachmentUrl,
 } from "@/lib/internalChat";
+// v8.6.75 (LOOP-CHAT-ADMIN Round 6 / SLATE-THEME) — Watermark logo rimosso
+// (utente lo trovava ancora "che fa cagare"). Theme finale: slate-50 di base,
+// bubble ricevuti slate-100, bubble miei verde WhatsApp-style. Compose bar
+// blu uniforme per tutti i canali (Silvio + team), avatar/header Silvio
+// restano arancio per identità AI.
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🙏", "👏", "🔥", "✅", "😮"];
-const LUCIA_SENDER_ID = "00000000-0000-0000-0000-000000000001";
+// LUCIA_SENDER_ID rimosso (v8.6.75 Round 9). Eventuali messaggi storici
+// con sender Lucia in DB verranno renderizzati come "Sconosciuto".
 const SILVIO_SENDER_ID = "00000000-0000-0000-0000-000000000002";
 // Silvio Superadmin: sender ID separato per distinguere i messaggi cross-tenant
 // del co-founder AI da quelli del Silvio cliente
@@ -442,7 +454,7 @@ function useInternalChat(companyIdOverride?: string) {
 
   const myChannels = channels.filter((ch) => {
     if (!members.some((m) => m.channel_id === ch.id && m.user_id === userId)) return false;
-    if (ch.is_system || ch.name.toLowerCase().includes("lucia")) return true;
+    if (ch.is_system) return true;
     if (profilesLoading) return true;
 
     const channelMemberIds = members
@@ -587,7 +599,14 @@ function useInternalChat(companyIdOverride?: string) {
   };
 }
 
-const MESSAGES_PAGE_SIZE = 80;
+// v8.6.75 (LOOP-CHAT-ADMIN Round 8 / FAST-OPEN) — Page size 80 → 5.
+// Richiesta utente: "caricati gli ultimi 5 messaggi e se voglio vedere
+// gli altri devono scrollare in alto ma non li carico subito così
+// aumenta la velocità e risparmi tempo".
+// Trade-off accettato: 5 è poco contesto su primo open ma per chat
+// realtime (Silvio + team DM) di solito basta vedere l'ultimo scambio.
+// Il pulsante "Carica messaggi precedenti" carica altri 5 alla volta.
+const MESSAGES_PAGE_SIZE = 5;
 
 type ChannelMessagesData = {
   items: Message[];
@@ -669,7 +688,12 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
 }
 
 // ─── Chat List Item ──────────────────────────────────────────────────────────
-function ChatListItem({
+// v8.6.75 (LOOP-CHAT-ADMIN #9) — Memoizzato per evitare re-render della lista
+// completa ad ogni typing/state-change nel pannello chat. La sidebar può avere
+// 30-50 canali; senza memo il refresh sidebar (ogni 15s + ogni realtime) faceva
+// ri-renderare tutte le righe. Con memo, solo le righe le cui props sono
+// cambiate effettivamente (lastMsg, unread, isActive, isPinned) si aggiornano.
+const ChatListItem = React.memo(function ChatListItem({
   channel, isActive, unread, lastMsg, profileMap, userId, members, onClick,
   isPinned, onTogglePin,
 }: {
@@ -681,10 +705,9 @@ function ChatListItem({
   onTogglePin?: () => void;
 }) {
   const channelNameLower = channel.name.toLowerCase();
-  const isLucia = channelNameLower === "lucia-ai";
   // Silvio cliente E Silvio Superadmin → stesso rendering visivo
   const isSilvio = channelNameLower === "silvio-ai" || channelNameLower === "silvio-admin";
-  const isAI = isLucia || isSilvio;
+  const isAI = isSilvio;
   const isDm = !!channel.is_dm;
 
   // For DM, show the other person's name and avatar
@@ -702,7 +725,6 @@ function ChatListItem({
   const lastMsgPreview = lastMsg
     ? (
         lastMsg.sender_id === userId ? "Tu: "
-        : lastMsg.sender_id === LUCIA_SENDER_ID ? "Lucia: "
         : lastMsg.sender_id === SILVIO_SENDER_ID ? "Silvio: "
         : lastMsg.sender_id === SILVIO_ADMIN_SENDER_ID ? "Silvio: "
         : `${lastMsgSender?.first_name ?? ""}: `
@@ -739,10 +761,6 @@ function ChatListItem({
         {isSilvio ? (
           <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center ring-2 ring-orange-300/40 shadow-lg shadow-orange-300/30">
             <Brain className="h-6 w-6 text-white" strokeWidth={2.2} />
-          </div>
-        ) : isLucia ? (
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-            <Bot className="h-6 w-6 text-white" />
           </div>
         ) : isDm && dmProfile ? (
           <Avatar className="h-12 w-12">
@@ -814,7 +832,27 @@ function ChatListItem({
       </div>
     </div>
   );
-}
+}, (prev, next) => {
+  // Custom equality: confrontiamo solo le prop semanticamente rilevanti +
+  // reference della channel (stabile da react-query). Le callbacks (onClick,
+  // onTogglePin) sono escluse: cambiano ad ogni render del parent come
+  // closure inline ma il loro comportamento è invariante rispetto agli stati
+  // che ci interessano (handleSelectChannel/toggleChannelPin sono useCallback
+  // stabili nel parent). Skip safe perché qualsiasi cambio rilevante
+  // (lastMsg, unread, isActive, isPinned) viene catturato dal confronto sotto.
+  return (
+    prev.channel === next.channel &&
+    prev.isActive === next.isActive &&
+    prev.unread === next.unread &&
+    prev.lastMsg?.id === next.lastMsg?.id &&
+    prev.lastMsg?.created_at === next.lastMsg?.created_at &&
+    prev.lastMsg?.content === next.lastMsg?.content &&
+    prev.isPinned === next.isPinned &&
+    prev.profileMap === next.profileMap &&
+    prev.userId === next.userId &&
+    prev.members === next.members
+  );
+});
 
 function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
   const storedAttachment = parseStoredAttachmentUrl(msg.attachment_url);
@@ -881,11 +919,16 @@ function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
 }
 
 // ─── Message Bubble ──────────────────────────────────────────────────────────
-function MessageBubble({
-  msg, isMe, isLucia, sender, showAvatar, replyMsg, profileMap,
+// v8.6.75 (LOOP-CHAT-ADMIN #9) — Memoizzato per evitare ri-render dell'intera
+// conversazione ad ogni typing nel compose textarea. In chat con 200+ messaggi
+// la differenza è netta: senza memo ogni keystroke ripercorre 200 nodi React;
+// con memo solo i bubble le cui props sono cambiate (es. msg.reactions
+// aggiornato) si renderizzano.
+const MessageBubble = React.memo(function MessageBubble({
+  msg, isMe, sender, showAvatar, replyMsg, profileMap,
   onReply, onPin, onReaction, onDelete, userId, onAskFollowup,
 }: {
-  msg: Message; isMe: boolean; isLucia: boolean;
+  msg: Message; isMe: boolean;
   sender: Profile | undefined; showAvatar: boolean;
   replyMsg: Message | null; profileMap: Map<string, Profile>;
   onReply: () => void; onPin: () => void; onDelete?: () => void;
@@ -897,9 +940,10 @@ function MessageBubble({
   // — la differenza vive solo nel sender_id (e nell'edge function chiamata).
   const isSilvioMsg = msg.sender_id === SILVIO_SENDER_ID;
   const isSilvioAdminMsg = msg.sender_id === SILVIO_ADMIN_SENDER_ID;
-  const isLuciaMsg = msg.sender_id === LUCIA_SENDER_ID;
-  const isAIMsg = isLuciaMsg || isSilvioMsg || isSilvioAdminMsg || isLucia;
-  const aiBotName = (isSilvioMsg || isSilvioAdminMsg) ? "Silvio ✨" : "Lucia AI ✨";
+  // v8.6.75 (LUCIA-FULL-REMOVAL) — isLuciaMsg eliminato. isAIMsg ora copre
+  // solo Silvio (cliente + admin). aiBotName sempre "Silvio ✨".
+  const isAIMsg = isSilvioMsg || isSilvioAdminMsg;
+  const aiBotName = "Silvio ✨";
   const replySender = replyMsg ? profileMap.get(replyMsg.sender_id) : undefined;
 
   return (
@@ -931,17 +975,21 @@ function MessageBubble({
       )}
 
       <div className={cn("max-w-[75%] min-w-[80px] relative")}>
-        {/* Bubble */}
+        {/* Bubble — v8.6.75 (LOOP-CHAT-ADMIN Round 9 / UNIFIED-BUBBLE +
+            LUCIA-REMOVED). Pattern: bianco + border-l-4 colorato per
+            identità del mittente.
+              • isMe (sent) → verde #d9fdd3 (mio messaggio)
+              • Silvio → border-l-4 ARANCIO (AI)
+              • Altri ricevuti (team, DM, gruppi) → border-l-4 BLU
+            Branch Lucia legacy violet rimosso. */}
         <div
           className={cn(
             "rounded-lg px-3 py-1.5 shadow-sm relative",
             isMe
               ? "bg-[#d9fdd3] dark:bg-[#005c4b] text-foreground rounded-tr-none"
               : (isSilvioMsg || isSilvioAdminMsg)
-                ? "bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/40 border border-orange-200/50 dark:border-orange-800/30 rounded-tl-none"
-              : isAIMsg
-                ? "bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40 border border-violet-200/50 dark:border-violet-800/30 rounded-tl-none"
-                : "bg-white dark:bg-[#202c33] text-foreground rounded-tl-none shadow",
+                ? "bg-white dark:bg-[#202c33] text-foreground border-l-4 border-l-orange-500 border-y border-r border-y-orange-100 border-r-orange-100 dark:border-orange-900/40 rounded-tl-none"
+                : "bg-white dark:bg-[#202c33] text-foreground border-l-4 border-l-blue-500 border-y border-r border-y-blue-100 border-r-blue-100 dark:border-blue-900/40 rounded-tl-none",
           )}
         >
           {/* Sender name for group chats */}
@@ -1117,7 +1165,26 @@ function MessageBubble({
       </div>
     </div>
   );
-}
+}, (prev, next) => {
+  // Custom equality: in chat con 200+ messaggi senza questo comparator ogni
+  // keystroke nel compose ricreava 200 nuovi bubble (callbacks inline
+  // diventano nuove ref → default shallow compare fallisce sempre).
+  // Confrontiamo solo gli scalari + id delle entry referenziali (msg.id
+  // stabile da react-query). Le callbacks (onReply/onPin/onReaction/
+  // onDelete/onAskFollowup) sono escluse perché chiudono variabili stabili
+  // (setReplyTo/toggleReaction/setMessageToDelete/sendToSilvio) e msg è la
+  // stessa ref del bubble corrente → safe semanticamente.
+  return (
+    prev.msg === next.msg &&
+    prev.isMe === next.isMe &&
+    prev.showAvatar === next.showAvatar &&
+    prev.replyMsg?.id === next.replyMsg?.id &&
+    prev.sender?.id === next.sender?.id &&
+    prev.sender?.avatar_url === next.sender?.avatar_url &&
+    prev.userId === next.userId &&
+    prev.profileMap === next.profileMap
+  );
+});
 
 // Color hex helper for sender names
 function getColorHex(userId: string): string {
@@ -1159,7 +1226,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const aiSelector = useAIModelSelector('silvio_chat', 'text');
   const [silvioSkillsOpen, setSilvioSkillsOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
-  const [luciaTyping, setLuciaTyping] = useState(false);
+  const [aiTyping, setAiTyping] = useState(false);
   const [msgSearch, setMsgSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
@@ -1175,11 +1242,11 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId);
-  const isLuciaChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "lucia-ai";
   const isSilvioChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "silvio-ai";
   // Silvio Superadmin (admin team chat): edge function diversa, sender ID diverso
   const isSilvioAdminChannel = !!selectedChannel && selectedChannel.name.toLowerCase() === "silvio-admin";
-  const isAIChannel = isLuciaChannel || isSilvioChannel || isSilvioAdminChannel;
+  // v8.6.75 (LUCIA-FULL-REMOVAL) — isAIChannel ora copre solo Silvio.
+  const isAIChannel = isSilvioChannel || isSilvioAdminChannel;
   const {
     messages,
     isError: messagesError,
@@ -1191,7 +1258,6 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
 
   const profileMap = useMemo(() => {
     const m = new Map(profiles.map((p) => [p.id, p]));
-    m.set(LUCIA_SENDER_ID, { id: LUCIA_SENDER_ID, first_name: "Lucia", last_name: "AI", email: "lucia@ediliziacloud.internal" });
     m.set(SILVIO_SENDER_ID, { id: SILVIO_SENDER_ID, first_name: "Silvio", last_name: "AI", email: "silvio@ediliziacloud.internal" });
     // Silvio Superadmin: stesso nome "Silvio" (visivamente identico al cliente)
     m.set(SILVIO_ADMIN_SENDER_ID, { id: SILVIO_ADMIN_SENDER_ID, first_name: "Silvio", last_name: "AI", email: "silvio-admin@ediliziacloud.internal" });
@@ -1229,6 +1295,19 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
   // - tab non in focus OPPURE canale aperto diverso
   // Su mobile (PWA installata) usa la notifica nativa del SO.
   // Su desktop browser mostra notifica Chrome/Safari/Firefox standard.
+  //
+  // v8.6.75 (LOOP-CHAT-ADMIN #8) — PERF: prima la sub Realtime veniva
+  // ricreata ad OGNI cambio di canale perché selectedChannelId e profileMap
+  // erano nelle deps. Costo: unsubscribe + subscribe roundtrip Supabase ad
+  // ogni navigazione fra chat. Ora usiamo ref per leggere il valore corrente
+  // dentro il callback, mantenendo la sub stabile per tutta la durata del
+  // mount (deps = [companyId, userId, handleSelectChannel] solo — tutte e
+  // tre stabili nel ciclo di vita del componente).
+  const selectedChannelIdRef = useRef(selectedChannelId);
+  const profileMapRef = useRef(profileMap);
+  useEffect(() => { selectedChannelIdRef.current = selectedChannelId; }, [selectedChannelId]);
+  useEffect(() => { profileMapRef.current = profileMap; }, [profileMap]);
+
   useEffect(() => {
     if (!companyId || !userId) return;
     if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -1247,13 +1326,22 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
           const msg = payload.new as any;
           if (!msg || msg.sender_id === userId) return;
           // Skip se sto leggendo questo canale ed il tab è in focus
-          const channelOpen = msg.channel_id === selectedChannelId;
+          const channelOpen = msg.channel_id === selectedChannelIdRef.current;
           const tabFocused = !document.hidden;
           if (channelOpen && tabFocused) return;
           // Notifica solo se utente ha dato permesso
           if (Notification.permission !== "granted") return;
-          const senderName = profileMap.get(msg.sender_id)?.full_name || profileMap.get(msg.sender_id)?.email || "Nuovo messaggio";
-          const body = (msg.content || msg.text || "").slice(0, 140) || "Hai ricevuto un messaggio";
+          // v8.6.75 (LOOP-CHAT-ADMIN #2) — BUG FIX: Profile non ha `full_name`,
+          // ha first_name + last_name. Prima la notifica cadeva sempre sul
+          // fallback `email` perché `?.full_name` era sempre undefined.
+          // Ora usa profileName() che concatena correttamente.
+          const senderProfile = profileMapRef.current.get(msg.sender_id);
+          const senderName = senderProfile ? profileName(senderProfile) : "Nuovo messaggio";
+          // v8.6.75 (LOOP-CHAT-ADMIN Round 2 / MORE-4) — Rimosso `msg.text`
+          // dal fallback: la colonna non esiste sul tipo Message né sulla
+          // tabella internal_chat_messages (campo è `content`). Lo lasciava
+          // come dead-code che induceva in errore eventuali refactor futuri.
+          const body = (msg.content ?? "").slice(0, 140) || "Hai ricevuto un messaggio";
           try {
             const n = new Notification(senderName, {
               body,
@@ -1274,15 +1362,22 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       )
       .subscribe();
     return () => { supabase.removeChannel(sub); };
-  }, [companyId, userId, selectedChannelId, profileMap, handleSelectChannel]);
+  }, [companyId, userId, handleSelectChannel]);
 
-  // Richiedi permission browser notifications al primo mount (se default)
+  // Richiedi permission browser notifications dopo che l'utente è entrato
+  // nella chat (non al primo load).
+  // v8.6.75 (LOOP-CHAT-ADMIN #7) — Defer di 8s: richiedere il permesso
+  // appena la pagina monta è un anti-pattern Chrome (l'utente non sa cosa
+  // sta autorizzando, alta probabilità di "Block" permanente → mai più
+  // notifiche). Aspettare 8s significa: l'utente ha visto cosa è la pagina
+  // chat → sa che il prompt riguarda i messaggi → consenso informato.
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission === "default") {
-      // Auto-request silenzioso (browser mostrerà il prompt nativo)
+    if (Notification.permission !== "default") return;
+    const timer = window.setTimeout(() => {
       void Notification.requestPermission().catch(() => { /* silent */ });
-    }
+    }, 8000);
+    return () => window.clearTimeout(timer);
   }, []);
 
   // Deep-link via ?channel=<id|name>: reagisce ai cambi URL (es. click su
@@ -1309,30 +1404,56 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     }
   }, [channels, selectedChannelId, handleSelectChannel, location.search]);
 
-  // v8.6.53 — Smart-scroll: l'auto-scroll al bottom scatta SOLO se l'utente
-  // era già in fondo prima dell'arrivo del nuovo messaggio. Se sta leggendo
-  // messaggi più in alto, rispettiamo la sua posizione.
-  // Inoltre: al primo cambio canale facciamo UN solo scroll iniziale a
-  // bottom (instant), non smooth, per non disorientare l'utente.
+  // v8.6.75 (LOOP-CHAT-ADMIN Round 8 / FAST-OPEN) — Smart-scroll v2.
+  //
+  // PROBLEMA precedente: il useEffect dipendeva da `messages.length` +
+  // `selectedChannelId`. Al cambio canale:
+  //   1) selectedChannelId cambia → channelChanged=true → instant scroll
+  //      MA messages.length=0 (loading) → niente da scrollare
+  //   2) messages arrivano (length: 0 → 5) → channelChanged=false (ref
+  //      già aggiornato) → vai sul ramo "wasAtBottomRef" → SMOOTH scroll
+  //   → UX percepita: la chat si apre vuota, poi i messaggi appaiono
+  //      in alto, poi animazione scroll smooth verso il basso.
+  //
+  // FIX: tracciamo un Set di canali su cui il primo scroll è già stato
+  // fatto. Quando si apre un canale: primo scroll = INSTANT (auto)
+  // appena i messaggi compaiono. Successivi cambi length sullo stesso
+  // canale = SMOOTH solo se utente era già in fondo (vecchio comportamento).
   const wasAtBottomRef = useRef(true);
   const lastChannelIdRef = useRef<string | null>(null);
+  const initialScrollDoneRef = useRef<Set<string>>(new Set());
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   // Threshold: considerato "at bottom" se a meno di 80px dal fondo
   const AT_BOTTOM_THRESHOLD = 80;
 
   useEffect(() => {
+    if (!selectedChannelId) return;
     const channelChanged = lastChannelIdRef.current !== selectedChannelId;
-    lastChannelIdRef.current = selectedChannelId;
     if (channelChanged) {
-      // Apertura nuova chat: scroll instant a bottom 1 volta
+      // Cambio canale: resetta il flag di primo-scroll per il NUOVO canale
+      // (l'utente potrebbe rientrare in un canale già aperto in precedenza).
+      initialScrollDoneRef.current.delete(selectedChannelId);
+      lastChannelIdRef.current = selectedChannelId;
+    }
+
+    // Primo scroll dopo cambio canale: aspettiamo che messages.length > 0
+    // (i dati siano arrivati dal DB) e facciamo scroll INSTANT al bottom.
+    const needsInitialScroll =
+      !initialScrollDoneRef.current.has(selectedChannelId) &&
+      messages.length > 0;
+    if (needsInitialScroll) {
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
         wasAtBottomRef.current = true;
+        initialScrollDoneRef.current.add(selectedChannelId);
       });
       return;
     }
-    // Cambio length su stesso canale: scroll smooth solo se ero già in fondo
-    if (wasAtBottomRef.current) {
+
+    // Smart scroll su nuovo messaggio arrivato nello stesso canale:
+    // smooth SOLO se l'utente era già al bottom (non disturba se sta
+    // leggendo messaggi più in alto).
+    if (wasAtBottomRef.current && !channelChanged) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages.length, selectedChannelId]);
@@ -1414,7 +1535,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // Lucia AI deprecata — Silvio la sostituisce. Mantenuta solo per compat su messaggi storici.
+  // Lucia AI rimossa (v8.6.75 Round 9). Solo Silvio resta come bot AI.
 
   // Send to Silvio (meta-persona orchestrator)
   const sendToSilvio = useCallback(async (messageText: string) => {
@@ -1438,7 +1559,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
     queryClient.invalidateQueries({ queryKey: ["internal-chat-sidebar-state"] });
     await supabase.from("internal_chat_channels").update({ updated_at: new Date().toISOString() }).eq("id", selectedChannelId);
     await supabase.from("internal_chat_members").update({ last_read_at: new Date().toISOString() }).eq("channel_id", selectedChannelId).eq("user_id", userId);
-    setLuciaTyping(true); // riusiamo lo stesso typing indicator
+    setAiTyping(true);
     try {
       // Routing edge function: canale silvio-admin → silvio-admin-chat (cross-tenant
       // tools per super_admin), altrimenti silvio-chat (assistente cliente).
@@ -1492,7 +1613,7 @@ export default function InternalChat({ companyIdOverride }: InternalChatProps = 
       setSilvioError(message);
       toast.error(`Silvio: ${message}`);
     } finally {
-      setLuciaTyping(false);
+      setAiTyping(false);
     }
   }, [selectedChannelId, companyId, userId, channels, queryClient, refetchUnread, isSilvioAdminChannel, aiSelector.showSelector, aiSelector.selectedModel]);
 
@@ -1782,7 +1903,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
 
   const handleSend = useCallback(() => {
     if (!newMsg.trim()) return;
-    if (sendMutation.isPending || luciaTyping || isAttaching) return;
+    if (sendMutation.isPending || aiTyping || isAttaching) return;
     // Silvio cliente E Silvio Admin → entrambi usano sendToSilvio
     // (la function già routa a silvio-chat vs silvio-admin-chat in base al canale)
     if (isSilvioChannel || isSilvioAdminChannel) {
@@ -1792,7 +1913,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
     } else {
       sendMutation.mutate();
     }
-  }, [newMsg, isSilvioChannel, isSilvioAdminChannel, sendToSilvio, sendMutation, luciaTyping, isAttaching]);
+  }, [newMsg, isSilvioChannel, isSilvioAdminChannel, sendToSilvio, sendMutation, aiTyping, isAttaching]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -2012,8 +2133,39 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
   );
 
   // ─── Render ────────────────────────────────────────────────────────────────
+  // v8.6.75 (LOOP-CHAT-ADMIN #1 + Round 2 / MORE-5) — Su mobile usiamo 100dvh
+  // (dynamic viewport height) per gestire correttamente l'address bar
+  // dinamica di iOS Safari: 100vh include sempre la barra anche quando è
+  // collassata, causando scroll fantasma e l'ultima riga della chat tagliata.
+  // 100dvh segue l'area visibile reale.
+  // Sottraggo 7.5rem (120px) = header AdminLayout (44px) + main p-3 top
+  // (12px) + main pb-20 (80px) − ~16px margine. Su desktop manteniamo
+  // 100vh - 120px (header 56px + padding 64px).
+  // Fallback: prima dichiariamo 100vh (sempre supportato, da Safari 1.0) poi
+  // overridiamo via supports-[height:100dvh]: per i browser moderni
+  // (iOS Safari ≥15.4, Chrome ≥108, Firefox ≥101). Browser più vecchi
+  // restano sul vecchio 100vh comportamento, niente regressione.
+  //
+  // v8.6.75 (LOOP-CHAT-ADMIN Round 3 / FULLSCREEN-CONV v2) — Mobile + conv
+  // aperta = fullscreen vero (`fixed inset-0 z-[60]`). Prima usavo `top-11`
+  // assumendo l'header AdminLayout (44px), ma su CompanyLayout (/azienda/chat)
+  // l'header è h-14 (56px) e parte del nome azienda restava coperta dietro
+  // l'header chat → "sopra si vede male" segnalato dall'utente.
+  // Soluzione: full-screen takeover stile WhatsApp/iMessage. Quando entri in
+  // una conversazione sparisce TUTTO (header app + bottom nav) e vedi solo:
+  //   [chat header con back] [messaggi] [compose bar safe-area]
+  // Il back button del chat header → torna alla lista → app UI riappare.
+  // pt-[env(safe-area-inset-top)] rispetta il notch iPhone (dynamic island).
+  const isMobileConvOpen = !!(showMobile && selectedChannelId);
   return (
-    <div className="h-[calc(100vh-120px)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-none sm:rounded-xl border-y sm:border shadow-sm bg-[#efeae2] dark:bg-gray-950 -mx-3 sm:mx-0">
+    <div className={cn(
+      // v8.6.75 (LOOP-CHAT-ADMIN Round 6 / SLATE-THEME) — bg-slate-50 invece
+      // di bg-white puro (utente "bianco bianco non mi piace"). Slate-50 dà
+      // profondità visiva soft, sufficiente a far risaltare i bubble bianchi/
+      // colorati dei messaggi sopra. Watermark logo rimosso (era invasivo).
+      "h-[calc(100vh-7.5rem)] supports-[height:100dvh]:h-[calc(100dvh-7.5rem)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-none sm:rounded-xl border-y sm:border shadow-sm bg-slate-50 dark:bg-gray-950 -mx-3 sm:mx-0",
+      isMobileConvOpen && "max-md:!fixed max-md:!inset-0 max-md:!h-auto max-md:!z-[60] max-md:!border-0 max-md:!rounded-none max-md:!shadow-none max-md:!mx-0 max-md:!pt-[env(safe-area-inset-top)]",
+    )}>
       {/* ═══ LEFT PANEL: Chat List ═══ */}
       <div className={cn(
         "w-full md:w-[380px] lg:w-[420px] md:min-w-[320px] flex flex-col bg-white dark:bg-[#111b21] border-r border-[#e9edef] dark:border-gray-800",
@@ -2080,7 +2232,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
           </div>
         </div>
 
-        {/* Search */}
+        {/* Search — v8.6.75 (LOOP-CHAT-ADMIN Round 2 / MORE-9): text-base
+            su mobile (16px) evita zoom iOS al focus. h-10 invece di h-9 per
+            tap target più comodo su mobile. */}
         <div className="px-2 py-1.5 bg-white dark:bg-[#111b21]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#54656f] dark:text-gray-500" />
@@ -2088,12 +2242,19 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               placeholder="Cerca nella chat interna"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-9 rounded-lg bg-[#f0f2f5] dark:bg-[#202c33] border-0 text-sm placeholder:text-[#667781]"
+              inputMode="search"
+              enterKeyHint="search"
+              className="pl-10 h-10 md:h-9 rounded-lg bg-[#f0f2f5] dark:bg-[#202c33] border-0 text-base md:text-sm placeholder:text-[#667781]"
             />
           </div>
         </div>
 
-        {/* Filter tabs */}
+        {/* Filter tabs — v8.6.75 (LOOP-CHAT-ADMIN Round 2 / MORE-2):
+            min-h-9 (36px) sul mobile evita il "fat-finger miss" — prima
+            l'altezza tap era ~24px (py-1 + line-height) molto sotto la
+            soglia comoda. 36px è il compromesso usato da WhatsApp/Telegram
+            per filter pill nella sidebar (44px occupava troppo verticale).
+            Aggiungo anche active:bg-* per feedback tap mobile. */}
         <div className="px-3 py-1.5 flex gap-2 bg-white dark:bg-[#111b21]">
           {(["all", "groups", "dm"] as const).map((f) => (
             <button
@@ -2101,10 +2262,10 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               key={f}
               onClick={() => setChatFilter(f)}
               className={cn(
-                "px-3 py-1 rounded-full text-[13px] font-medium transition-colors",
+                "px-3.5 min-h-9 inline-flex items-center rounded-full text-[13px] font-medium transition-colors",
                 chatFilter === f
                   ? "bg-[#00a884]/10 text-[#00a884] dark:bg-[#00a884]/20"
-                  : "text-[#54656f] dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5",
+                  : "text-[#54656f] dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 active:bg-gray-200 dark:active:bg-white/10",
               )}
             >
               {f === "all" ? "Tutte" : f === "groups" ? "Gruppi" : "Messaggi"}
@@ -2222,27 +2383,24 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
           </div>
         ) : (
           <>
-            {/* Chat Header */}
-            <div className={cn(
-              "h-[60px] px-4 flex items-center justify-between shrink-0 border-b",
-              isLuciaChannel
-                ? "bg-gradient-to-r from-violet-500/10 to-purple-500/10 dark:from-violet-950/30 dark:to-purple-950/30"
-                : "bg-[#f0f2f5] dark:bg-[#202c33]",
-            )}>
+            {/* Chat Header — v8.6.75 (LUCIA-FULL-REMOVAL): gradient Lucia
+                violet rimosso, header sempre bg neutro. */}
+            <div className="h-[60px] px-4 flex items-center justify-between shrink-0 border-b bg-[#f0f2f5] dark:bg-[#202c33]">
               <div className="flex items-center gap-3 min-w-0">
-                {/* Back button (mobile) */}
-                <Button variant="ghost" size="icon" className="h-8 w-8 md:hidden shrink-0"
+                {/* Back button (mobile) — v8.6.75 (LOOP-CHAT-ADMIN #3):
+                    h-11 w-11 = 44x44px (Apple HIG min touch target). -ml-2
+                    compensa l'allargamento mantenendo l'allineamento visivo
+                    rispetto al bordo sinistro dell'header. */}
+                <Button variant="ghost" size="icon" className="h-11 w-11 -ml-2 md:hidden shrink-0"
                   onClick={() => setShowMobile(false)} aria-label="Torna alla lista chat">
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                {/* Avatar — Silvio cliente o Admin (brain orange), Lucia (bot violet), DM, group */}
+                {/* Avatar — v8.6.75 (LUCIA-FULL-REMOVAL): branch Lucia
+                    (bot viola) rimosso. Resta Silvio (brain arancio), DM,
+                    gruppo verde. */}
                 {(isSilvioChannel || isSilvioAdminChannel) ? (
                   <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 flex items-center justify-center shrink-0 ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30">
                     <Brain className="h-5 w-5 text-white" strokeWidth={2.4} />
-                  </div>
-                ) : isLuciaChannel ? (
-                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0">
-                    <Bot className="h-5 w-5 text-white" />
                   </div>
                 ) : selectedChannel.is_dm ? (
                   <Avatar className="h-10 w-10 shrink-0">
@@ -2260,20 +2418,13 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 <div className="min-w-0">
                   <h3 className="font-semibold text-[15px] truncate flex items-center gap-2">
                     {chatDisplayName}
-                    {isLuciaChannel && (
-                      <Badge variant="secondary" className="gap-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 border-0 text-[10px] px-1.5 py-0">
-                        <Sparkles className="h-2.5 w-2.5" /> AI
-                      </Badge>
-                    )}
                   </h3>
                   <p className="text-[12px] text-[#667781] dark:text-gray-400 truncate">
-                    {isLuciaChannel
-                      ? "Assistente AI aziendale"
-                      : typingUsers.length > 0
-                        ? `${typingUsers.join(", ")} sta scrivendo...`
-                        : selectedChannel.is_dm
-                          ? "Online"
-                          : `${channelMembers.length} partecipanti`}
+                    {typingUsers.length > 0
+                      ? `${typingUsers.join(", ")} sta scrivendo...`
+                      : selectedChannel.is_dm
+                        ? "Online"
+                        : `${channelMembers.length} partecipanti`}
                   </p>
                 </div>
               </div>
@@ -2292,7 +2443,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     <DropdownMenuItem onClick={() => setShowSearch(true)}>
                       <Search className="h-4 w-4 mr-2" /> Cerca nei messaggi
                     </DropdownMenuItem>
-                    {!selectedChannel.is_dm && !isLuciaChannel && (
+                    {!selectedChannel.is_dm && (
                       <DropdownMenuItem>
                         <Users className="h-4 w-4 mr-2" /> Info gruppo
                       </DropdownMenuItem>
@@ -2302,7 +2453,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               </div>
             </div>
 
-            {/* Search bar */}
+            {/* Search bar — v8.6.75 (LOOP-CHAT-ADMIN Round 2 / MORE-9):
+                h-10 mobile + text-base evita zoom iOS, h-8 + text-sm tornano
+                in vista desktop dove il layout è più compatto. */}
             {showSearch && (
               <div className="px-4 py-2 bg-white dark:bg-[#1f2c34] border-b">
                 <div className="relative">
@@ -2310,7 +2463,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   <Input
                     placeholder="Cerca nei messaggi..."
                     value={msgSearch} onChange={(e) => setMsgSearch(e.target.value)}
-                    className="pl-9 h-8 text-sm bg-[#f0f2f5] dark:bg-[#202c33] border-0"
+                    inputMode="search"
+                    enterKeyHint="search"
+                    className="pl-9 h-10 md:h-8 text-base md:text-sm bg-[#f0f2f5] dark:bg-[#202c33] border-0"
                     autoFocus
                   />
                   <button type="button" onClick={() => { setShowSearch(false); setMsgSearch(""); }}
@@ -2326,18 +2481,19 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               </div>
             )}
 
-            {/* ═══ Messages ═══ */}
+            {/* ═══ Messages ═══
+                v8.6.75 (LOOP-CHAT-ADMIN Round 6 / SLATE-THEME) — Watermark
+                logo EdiliziaInCloud rimosso (utente: "elimina il background
+                con edilizia in cloud"). Sfondo slate-50 pulito. Bubble miei
+                verde WhatsApp + bubble ricevuti slate-100 (vedi MessageBubble)
+                creano il contrasto naturale senza pattern decorativi. */}
             <div
               ref={(el) => {
                 scrollAreaRef.current = el;
                 messagesContainerRef.current = el;
               }}
               onScroll={onMessagesScroll}
-              className="flex-1 overflow-y-auto px-4 md:px-12 lg:px-16 py-4"
-              style={{
-                backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
-                backgroundColor: "#efeae2",
-              }}
+              className="flex-1 overflow-y-auto px-4 md:px-12 lg:px-16 py-4 bg-slate-50 dark:bg-gray-950"
             >
               {messagesError ? (
                 <div className="text-center py-12">
@@ -2346,29 +2502,16 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  {isLuciaChannel ? (
-                    <div className="max-w-sm text-center">
-                      <div className="h-20 w-20 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mx-auto mb-4">
-                        <Bot className="h-10 w-10 text-white" />
-                      </div>
-                      <p className="font-semibold text-lg mb-2">Ciao! Sono Lucia 👋</p>
-                      <p className="text-sm text-muted-foreground mb-6">Il tuo assistente AI aziendale.</p>
-                      <div className="space-y-2">
-                        {["Come vanno gli ordini?", "Task in scadenza", "Chi è in cantiere oggi?"].map((s) => (
-                          <button key={s} onClick={() => setNewMsg(s)}
-                            className="w-full text-left text-sm border rounded-xl px-4 py-2.5 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm">
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-[#fcf4cb] dark:bg-yellow-900/20 rounded-lg px-4 py-3 shadow-sm max-w-md text-center">
-                      <p className="text-[13px] text-[#54656f] dark:text-gray-300">
-                        🔒 I messaggi in questa chat sono visibili solo ai partecipanti.
-                      </p>
-                    </div>
-                  )}
+                  {/* v8.6.75 (LOOP-CHAT-ADMIN Round 5 / LUCIA-REMOVED):
+                      Empty state "Ciao sono Lucia" rimosso (canale lucia-ai
+                      non esiste più). Restano solo gli empty state generici
+                      per DM / gruppi. Colore beige #fcf4cb sostituito con
+                      bianco + border slate per coerenza white-theme. */}
+                  <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 shadow-sm max-w-md text-center">
+                    <p className="text-[13px] text-slate-600 dark:text-gray-300">
+                      🔒 I messaggi in questa chat sono visibili solo ai partecipanti.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -2393,7 +2536,6 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   )}
                   {filteredMessages.map((msg, idx) => {
                     const isMe = msg.sender_id === userId;
-                    const isLucia = msg.sender_id === LUCIA_SENDER_ID || msg.sender_id === SILVIO_SENDER_ID;
                     const sender = profileMap.get(msg.sender_id);
                     const prevMsg = filteredMessages[idx - 1];
                     const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id;
@@ -2412,7 +2554,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                           </div>
                         )}
                         <MessageBubble
-                          msg={msg} isMe={isMe} isLucia={isLucia} sender={sender}
+                          msg={msg} isMe={isMe} sender={sender}
                           showAvatar={showAvatar && !isMe && !selectedChannel?.is_dm}
                           replyMsg={replyMsg} profileMap={profileMap}
                           onReply={() => setReplyTo(msg)}
@@ -2425,8 +2567,8 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                       </React.Fragment>
                     );
                   })}
-                  {/* AI bot typing (Lucia o Silvio) */}
-                  {luciaTyping && isAIChannel && (
+                  {/* AI bot typing (Silvio) */}
+                  {aiTyping && isAIChannel && (
                     <div className="flex justify-start mb-1 mt-3">
                       <div className="ml-9 bg-white dark:bg-[#202c33] rounded-lg rounded-tl-none px-4 py-3 shadow-sm">
                         <div className="flex items-center gap-2">
@@ -2436,7 +2578,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                             <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                           </div>
                           <span className="text-xs text-violet-500">
-                            {(isSilvioChannel || isSilvioAdminChannel) ? "Silvio sta pensando..." : "Lucia sta pensando..."}
+                            Silvio sta pensando...
                           </span>
                         </div>
                       </div>
@@ -2447,11 +2589,12 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               )}
             </div>
 
-            {/* Reply banner */}
+            {/* Reply banner — v8.6.75 (LOOP-CHAT-ADMIN Round 5) bg bianco
+                coerente con white-theme; accent verde teal sostituito con blu. */}
             {replyTo && (
-              <div className="px-4 py-2 bg-[#f0f2f5] dark:bg-[#1f2c34] border-t flex items-center justify-between">
+              <div className="px-4 py-2 bg-white dark:bg-[#1f2c34] border-t flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-1 h-10 rounded-full bg-[#00a884] shrink-0" />
+                  <div className="w-1 h-10 rounded-full bg-blue-600 shrink-0" />
                   <div className="min-w-0">
                     <p className="text-[12px] font-semibold" style={{ color: getColorHex(replyTo.sender_id) }}>
                       {replyTo.sender_id === userId ? "Tu" : profileName(profileMap.get(replyTo.sender_id))}
@@ -2496,7 +2639,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                         variant="outline"
                         className="h-8 border-orange-200 bg-white text-orange-700 hover:bg-orange-100"
                         onClick={() => sendToSilvio(lastSilvioPrompt)}
-                        disabled={luciaTyping}
+                        disabled={aiTyping}
                       >
                         Riprova
                       </Button>
@@ -2530,14 +2673,17 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               </div>
             )}
 
-            {/* ═══ Compose Bar ═══ */}
+            {/* ═══ Compose Bar ═══
+                v8.6.75 (LOOP-CHAT-ADMIN Round 6 / SLATE-THEME) — Compose
+                bar BLU UNIFORME per tutti i canali (richiesta utente: "la
+                barra in basso la farei blu sia per silvio che per altre
+                chat"). L'identità Silvio resta solo nell'avatar/header
+                (Brain arancio), non nei controlli di composizione.
+                bg bianco + border-top blu sottile. */}
             <div className={cn(
-              "px-3 py-2 flex items-end gap-2 border-t",
-              isSilvioChannel
-                ? "bg-orange-50/50 dark:bg-orange-950/10"
-                : isLuciaChannel
-                  ? "bg-violet-50/50 dark:bg-violet-950/10"
-                  : "bg-[#f0f2f5] dark:bg-[#202c33]",
+              "px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-end gap-2 border-t-2",
+              "bg-white dark:bg-[#202c33]",
+              "border-t-blue-200 dark:border-t-blue-900/40",
             )}>
               {/* Skill picker (solo Silvio) — pattern slash command */}
               {isSilvioChannel && (
@@ -2604,27 +2750,34 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                   </PopoverContent>
                 </Popover>
               )}
-              {/* Emoji picker stile WhatsApp — append all'inizio cursore textarea */}
+              {/* Emoji + paperclip — v8.6.75 (LOOP-CHAT-ADMIN Round 6 /
+                  SLATE-THEME): BLU uniforme per tutti i canali (richiesta
+                  utente). EmojiPicker mantiene accent="orange" su Silvio
+                  per coerenza con il colore degli emoji rendering nei messaggi
+                  AI (l'accent del picker è interno, non il bottone trigger). */}
               <EmojiPicker
-                accent={isSilvioChannel ? "orange" : isLuciaChannel ? "violet" : "green"}
+                accent={(isSilvioChannel || isSilvioAdminChannel) ? "orange" : "green"}
                 onPick={(emoji) => setNewMsg((cur) => cur + emoji)}
                 trigger={
-                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] shrink-0" type="button" aria-label="Inserisci emoji">
-                    <Smile className="h-6 w-6" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 rounded-full shrink-0 transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    type="button"
+                    aria-label="Inserisci emoji"
+                  >
+                    <Smile className="h-5 w-5" />
                   </Button>
                 }
               />
               <Button variant="ghost" size="icon"
-                className={cn(
-                  "h-9 w-9 rounded-full shrink-0",
-                  isSilvioChannel ? "text-orange-600" : "text-[#54656f]"
-                )}
+                className="h-10 w-10 rounded-full shrink-0 transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
                 onClick={() => isSilvioChannel ? silvioImageInputRef.current?.click() : attachInputRef.current?.click()}
                 disabled={isAttaching || silvioUploading}
                 title={isSilvioChannel ? "Carica foto cantiere o fattura" : "Invia allegato"}
                 aria-label={isSilvioChannel ? "Carica foto cantiere o fattura" : "Invia allegato"}
               >
-                {(isAttaching || silvioUploading) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-6 w-6" />}
+                {(isAttaching || silvioUploading) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5" />}
               </Button>
               <input
                 ref={attachInputRef}
@@ -2647,49 +2800,57 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
               <div className="flex-1">
                 {/* Textarea auto-grow stile WhatsApp (max 5 righe poi scroll interno).
                     Sostituisce il vecchio <Input> single-line che troncava i testi
-                    incollati. Enter invia, Shift+Enter capo. */}
+                    incollati. Enter invia, Shift+Enter capo.
+                    v8.6.75 (LOOP-CHAT-ADMIN #4): enterKeyHint="send" mostra
+                    l'icona aeroplano "Invia" nella tastiera virtuale iOS/Android
+                    invece del generico "Go". autoCapitalize="sentences" per
+                    capitalizzazione naturale italiana. */}
                 <textarea
                   ref={newMsgTextareaRef}
-                  placeholder={isSilvioChannel ? "Scrivi a Silvio..." : isLuciaChannel ? "Chiedi a Lucia..." : "Scrivi un messaggio"}
+                  placeholder={isSilvioChannel ? "Scrivi a Silvio..." : "Scrivi un messaggio"}
                   value={newMsg}
                   onChange={(e) => { setNewMsg(e.target.value); if (!isLuciaChannel) broadcastTyping(); }}
                   onKeyDown={handleKeyDown}
-                  disabled={luciaTyping}
+                  disabled={aiTyping}
                   rows={1}
+                  enterKeyHint="send"
+                  autoCapitalize="sentences"
+                  autoCorrect="on"
+                  spellCheck={true}
                   className={cn(
-                    "block w-full resize-none rounded-lg border-0 text-[15px] px-3 py-2 leading-relaxed",
-                    "focus:outline-none focus-visible:ring-2",
-                    isSilvioChannel
-                      ? "bg-white dark:bg-[#2a3942] focus-visible:ring-orange-500"
-                      : isLuciaChannel
-                        ? "bg-white dark:bg-[#2a3942] focus-visible:ring-violet-500"
-                        : "bg-white dark:bg-[#2a3942]",
+                    // v8.6.75 (LOOP-CHAT-ADMIN Round 6 / SLATE-THEME):
+                    // border blu uniforme + bg slate-50 per contrasto visivo
+                    // su compose bar bianca. text-base mobile = no iOS zoom.
+                    "block w-full resize-none rounded-xl border text-base md:text-[15px] px-3 py-2 leading-relaxed",
+                    "focus:outline-none focus-visible:ring-2 focus-visible:border-transparent",
+                    "bg-slate-50 dark:bg-[#2a3942]",
+                    "border-blue-200 dark:border-blue-900/40 focus-visible:ring-blue-500",
                   )}
                 />
               </div>
               {newMsg.trim() ? (
                 <Button
                   onClick={handleSend}
-                  disabled={sendMutation.isPending || luciaTyping}
+                  disabled={sendMutation.isPending || aiTyping}
                   size="icon"
                   aria-label={isAIChannel ? "Invia messaggio a Silvio" : "Invia messaggio"}
                   className={cn(
-                    "h-10 w-10 rounded-full shrink-0",
-                    isSilvioChannel
-                      ? "bg-orange-500 hover:bg-orange-600"
-                      : isLuciaChannel
-                        ? "bg-violet-600 hover:bg-violet-700"
-                        : "bg-[#00a884] hover:bg-[#008f72]",
+                    // v8.6.75 (LOOP-CHAT-ADMIN Round 6 / SLATE-THEME):
+                    // Send button BLU UNIFORME (compose bar uniforme blu,
+                    // anche per Silvio). Identità Silvio resta solo nei
+                    // bubble messaggi (arancio chiaro) e nell'avatar header.
+                    "h-11 w-11 rounded-full shrink-0 shadow-md transition-all hover:shadow-lg",
+                    "bg-blue-600 hover:bg-blue-700 text-white",
                   )}
                 >
-                  {luciaTyping ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                  {aiTyping ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" strokeWidth={2.4} />}
                 </Button>
               ) : (
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={isRecording ? stopRecording : startRecording}
-                  disabled={isTranscribing || luciaTyping}
+                  disabled={isTranscribing || aiTyping}
                   className={cn(
                     "h-10 w-10 rounded-full shrink-0",
                     isRecording

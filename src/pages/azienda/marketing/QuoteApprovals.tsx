@@ -448,7 +448,7 @@ export default function QuoteApprovals() {
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -487,7 +487,7 @@ export default function QuoteApprovals() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-9 w-9 md:h-7 md:w-7"
                         aria-label="Anteprima margini"
                         onClick={() => setQuickViewId(q.id)}
                       >
@@ -504,7 +504,7 @@ export default function QuoteApprovals() {
                         variant="ghost"
                         size="icon"
                         asChild
-                        className="h-7 w-7"
+                        className="h-9 w-9 md:h-7 md:w-7"
                         aria-label="Apri preventivo"
                       >
                         <Link to={`/azienda/marketing/preventivi/${q.id}`}>
@@ -808,7 +808,7 @@ export default function QuoteApprovals() {
           setDialog({ ...dialog, open: o });
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {dialog.mode === "approve" && (

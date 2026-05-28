@@ -211,7 +211,7 @@ function FormsList({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-9 w-9 md:h-7 md:w-7"
                           onClick={() => window.open(publicUrl, "_blank", "noopener,noreferrer")}
                           aria-label={`Apri form ${f.name}`}
                         >
@@ -222,17 +222,17 @@ function FormsList({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7"
+                          className="h-9 w-9 md:h-7 md:w-7"
                           onClick={() => copyPublicUrl(publicUrl)}
                           aria-label={`Copia link form ${f.name}`}
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(f)} aria-label={canEdit ? `Modifica form ${f.name}` : `Visualizza form ${f.name}`}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" onClick={() => onEdit(f)} aria-label={canEdit ? `Modifica form ${f.name}` : `Visualizza form ${f.name}`}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(f.id)} disabled={!canEdit} aria-label={`Elimina form ${f.name}`}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 text-destructive" onClick={() => setDeleteId(f.id)} disabled={!canEdit} aria-label={`Elimina form ${f.name}`}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -577,7 +577,7 @@ export default function SettingsFormBuilder() {
             <Dialog open={createOpen} onOpenChange={(open) => {
               if (!createForm.isPending) setCreateOpen(open);
             }}>
-              <DialogContent>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Nuovo form</DialogTitle>
                 </DialogHeader>

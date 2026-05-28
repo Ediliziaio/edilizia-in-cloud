@@ -50,7 +50,7 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 gap-0 max-h-[90vh] overflow-y-auto">
         <DialogHeader className="px-4 py-3 border-b flex-row items-center justify-between shrink-0">
           <DialogTitle className="text-sm font-medium">
             Anteprima — {state.numero || "Documento"}

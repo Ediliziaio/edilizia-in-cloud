@@ -252,7 +252,7 @@ export default function OnboardingVertical() {
           setInstallDialogOpen(open);
         }}
       >
-        <DialogContent className="w-[96vw] sm:w-full sm:max-w-md">
+        <DialogContent className="w-[96vw] sm:w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-base sm:text-lg">Installa il catalogo di esempio</DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">

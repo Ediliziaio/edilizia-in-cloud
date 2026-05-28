@@ -1199,7 +1199,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           <div className="h-12 flex items-center px-3 gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 shrink-0">
                   {messageChannel === "whatsapp" ? <MessageSquare className="h-3.5 w-3.5 text-emerald-600" /> :
                    messageChannel === "email" ? <Mail className="h-3.5 w-3.5 text-violet-600" /> :
                    <Smartphone className="h-3.5 w-3.5 text-sky-600" />}
@@ -1243,7 +1243,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             />
             <Button
               size="icon"
-              className="h-7 w-7 shrink-0"
+              className="h-9 w-9 md:h-7 md:w-7 shrink-0"
               disabled={!messageText.trim() || sendMessage.isPending}
               onClick={() => {
                 const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
