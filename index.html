@@ -181,7 +181,12 @@
       })();
     </script>
     <!-- No static canonical fallback — dynamic JS or SSR sets the correct one per route -->
-    <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co">
+    <!-- 2026-05-28 Velocity: preconnect + dns-prefetch per Supabase + Resend.
+         crossorigin necessario per fetch authenticated. Risparmia 150-300ms
+         DNS+TCP+TLS handshake al primo paint critico (auth + edge functions). -->
+    <link rel="preconnect" href="https://rsbrguhkodgnqfomrevo.supabase.co" crossorigin>
+    <link rel="dns-prefetch" href="https://rsbrguhkodgnqfomrevo.supabase.co">
+    <link rel="preconnect" href="https://connect.facebook.net" crossorigin>
 
     <!-- Speculation Rules: prefetch HTML only on hover/click.
          v9.5 cdn-fix: removed `prerender` (moderate) — it was eagerly
