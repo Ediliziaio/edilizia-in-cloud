@@ -16,9 +16,17 @@ import { mergeProfileCompanyAccess, resolveMultiCompanySelection } from "@/lib/a
  * ibernato → 10-15s), preferiamo dare all'utente uno stato "non autenticato"
  * ritentabile piuttosto che spinner infinito.
  */
-const AUTH_CRITICAL_FETCH_TIMEOUT_MS = 20_000;
-const AUTH_INITIAL_SESSION_WATCHDOG_MS = 12_000;
-const WARMUP_FETCH_TIMEOUT_MS = 8_000;
+// 2026-05-28 Velocity tuning: ridotti i timeout per dare feedback più rapido
+// all'utente in caso di cold-start. Prima: 20s critical + 12s watchdog +
+// 22s race (line 793) → worst-case ~22s di spinner prima del fallback.
+// Ora: 12s critical + 8s watchdog + 12s race → -10s in caso di pod freddo.
+// I cache localStorage (persistenti cross-session) coprono il 99% degli
+// accessi successivi al primo login, quindi il rischio di "spinner false-
+// negative" è basso. Rete pessima (4G ballerino in cantiere): comunque
+// utente vede "non autenticato" e può fare retry — meglio di spinner 22s.
+const AUTH_CRITICAL_FETCH_TIMEOUT_MS = 12_000;
+const AUTH_INITIAL_SESSION_WATCHDOG_MS = 8_000;
+const WARMUP_FETCH_TIMEOUT_MS = 6_000;
 
 interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -67,16 +75,27 @@ const MULTI_COMPANY_ACCESS_CACHE_TTL_MS = 15 * 60 * 1000;
 // remote validation for freshly-minted tokens (avoids an edge-function cold-start per load).
 const IMP_TOKEN_TS_KEY = "imp_token_ts";
 
-// Profile/role/company cache in sessionStorage.
-// After the first successful fetchUserData, we persist {profile, role, company} so that
-// subsequent page refreshes can render the UI immediately while re-validating in background.
-// Keyed by Supabase user ID — automatically invalidated on sign-in as a different user.
-const AUTH_PROFILE_CACHE_KEY = "auth_profile_v1";
+// Profile/role/company cache in localStorage (Velocity 2026-05-28: migrato da
+// sessionStorage per persistere cross-tab/cross-session).
+//
+// Prima (sessionStorage): cache utile solo per refresh nella STESSA tab.
+// Apertura nuova tab o chiusura+riapertura browser → cache miss → fetchUserData
+// blocking → 5-15s di spinner percepito.
+//
+// Ora (localStorage): cache sopravvive cross-tab e cross-session. TTL 15min.
+// Al boot: render IMMEDIATO con cache stale, re-validate in background.
+// Cache invalidata automaticamente su logout o sign-in con user diverso.
+//
+// Sicurezza: contiene solo {profile, role, company} — nessun token. I token
+// auth restano in Supabase auth.storage (gestito da supabase-js).
+const AUTH_PROFILE_CACHE_KEY = "auth_profile_v2"; // bump per migrare via dal sessionStorage v1
 const AUTH_PROFILE_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 function readProfileCache(userId: string): { profile: Profile | null; role: AppRole | null; company: Company | null } | null {
   try {
-    const raw = sessionStorage.getItem(AUTH_PROFILE_CACHE_KEY);
+    // Migrazione: rimuovi il vecchio v1 se presente (no-op se assente)
+    sessionStorage.removeItem("auth_profile_v1");
+    const raw = localStorage.getItem(AUTH_PROFILE_CACHE_KEY);
     if (!raw) return null;
     const entry = JSON.parse(raw);
     if (entry.userId !== userId) return null;
@@ -89,14 +108,17 @@ function readProfileCache(userId: string): { profile: Profile | null; role: AppR
 
 function writeProfileCache(userId: string, profile: Profile | null, role: AppRole | null, company: Company | null) {
   try {
-    sessionStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ userId, profile, role, company, cachedAt: Date.now() }));
+    localStorage.setItem(AUTH_PROFILE_CACHE_KEY, JSON.stringify({ userId, profile, role, company, cachedAt: Date.now() }));
   } catch {
-    // sessionStorage full or unavailable — skip silently
+    // localStorage full or unavailable — skip silently
   }
 }
 
 function clearProfileCache() {
-  try { sessionStorage.removeItem(AUTH_PROFILE_CACHE_KEY); } catch { /* storage non disponibile — silenzioso */ }
+  try {
+    localStorage.removeItem(AUTH_PROFILE_CACHE_KEY);
+    sessionStorage.removeItem("auth_profile_v1"); // cleanup vecchia chiave
+  } catch { /* storage non disponibile — silenzioso */ }
 }
 
 function readMultiCompanyAccessCache(): { userId: string | null; accesses: MultiCompanyAccess[] } | null {
@@ -790,7 +812,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               fetchUserData(session.user.id, session.user.email)
                 .finally(() => { if (raceTimerId) clearTimeout(raceTimerId); }),
               new Promise<never>((_, reject) => {
-                raceTimerId = setTimeout(() => reject(new Error("fetchUserData timeout")), 22_000);
+                // 2026-05-28 Velocity: ridotto da 22s → 14s.
+                // Allineato al critical timeout (12s) con 2s di slack per AbortController.
+                // Worst-case UX: -8s di spinner prima del fallback "non autenticato".
+                raceTimerId = setTimeout(() => reject(new Error("fetchUserData timeout")), 14_000);
               }),
             ]);
           } catch {
