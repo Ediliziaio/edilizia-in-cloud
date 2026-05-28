@@ -76,6 +76,17 @@ export function SiteChatWidget({ widgetToken, forceShow, position }: Props) {
       setTokenValid(false);
       return;
     }
+    // 2026-05-28 Velocity: skip RPC durante prerendering CF Pages.
+    // Il PrerenderBot di Cloudflare Pages monta tutti i componenti per ogni
+    // pagina pre-renderizzata (180+ pagine). Senza questo skip si genera un
+    // flood di chiamate get_chatbot_config (1 per pagina) → saturazione DB
+    // proprio mentre gli utenti veri provano a fare login. Il widget non è
+    // visibile nelle pagine prerendered comunque (è dinamico client-only).
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    if (ua.includes("PrerenderBot") || ua.includes("HeadlessChrome") || ua.includes("Prerender")) {
+      setTokenValid(false);
+      return;
+    }
     const cacheKey = `chat-widget-token-valid:${token}`;
     const cached = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(cacheKey) : null;
     if (cached === "1") {
