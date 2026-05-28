@@ -377,9 +377,14 @@ function useInternalChat(companyIdOverride?: string) {
     gcTime: 15 * 60 * 1000,
     queryFn: async () => {
       if (memberChannelIds.length === 0) return [] as ChannelMember[];
+      // PERF (v8.6.75) — select chirurgico: prima `select("*")` ritornava
+      // anche role, last_read_at, is_pinned, created_at, ecc. per ogni
+      // riga × N canali × 8-10 membri = trasferimento bytes 5× superiore
+      // al necessario. La logica usa SOLO channel_id + user_id (filtra "sono
+      // membro", count partecipanti, lista membri canale selezionato).
       const { data, error } = await supabase
         .from("internal_chat_members")
-        .select("*")
+        .select("id, channel_id, user_id")
         .eq("company_id", companyId!)
         .in("channel_id", memberChannelIds);
       if (error) throw error;
