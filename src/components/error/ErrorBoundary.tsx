@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertTriangle, RefreshCw, Home } from "lucide-react";
+import { AlertTriangle, RefreshCw, Home, LifeBuoy, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
@@ -16,6 +16,10 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  componentStack: string | null;
+  /** Stato invio ticket assistenza super-admin */
+  ticketState: "idle" | "submitting" | "success" | "error";
+  ticketError: string | null;
 }
 
 /**
@@ -28,11 +32,23 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = {
+      hasError: false,
+      error: null,
+      componentStack: null,
+      ticketState: "idle",
+      ticketError: null,
+    };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return {
+      hasError: true,
+      error,
+      componentStack: null,
+      ticketState: "idle",
+      ticketError: null,
+    };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -45,11 +61,55 @@ export class ErrorBoundary extends React.Component<Props, State> {
       url: typeof window !== "undefined" ? window.location.href : null,
     });
 
+    // Salva componentStack in state per inclusion nel ticket
+    this.setState({ componentStack: errorInfo.componentStack?.slice(0, 1500) ?? null });
+
     // Report to system_health_metrics for centralized observability
     this.reportError(error, errorInfo).catch(() => {
       // Silent fail — error reporting should never block UX
     });
   }
+
+  /**
+   * Invia ticket assistenza al super-admin (Florin) tramite edge function.
+   * La function invia anche email a flo.andriciuc@gmail.com via Resend.
+   */
+  handleSendTicket = async () => {
+    if (this.state.ticketState === "submitting") return;
+    this.setState({ ticketState: "submitting", ticketError: null });
+
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-error-ticket`;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          error_name: this.state.error?.name ?? "Error",
+          error_message: this.state.error?.message ?? "Errore sconosciuto",
+          stack: this.state.error?.stack?.substring(0, 2000) ?? "",
+          component_stack: this.state.componentStack ?? "",
+          url: window.location.href,
+          user_agent: navigator.userAgent,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `HTTP ${res.status}`);
+      }
+      this.setState({ ticketState: "success" });
+    } catch (e) {
+      this.setState({
+        ticketState: "error",
+        ticketError: e instanceof Error ? e.message : "Errore invio ticket",
+      });
+    }
+  };
 
   private async reportError(error: Error, errorInfo: React.ErrorInfo) {
     try {
@@ -72,11 +132,23 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   handleReset = () => {
     this.chunkReloadScheduled = false;
-    this.setState({ hasError: false, error: null });
+    this.setState({
+      hasError: false,
+      error: null,
+      componentStack: null,
+      ticketState: "idle",
+      ticketError: null,
+    });
   };
 
   handleGoHome = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({
+      hasError: false,
+      error: null,
+      componentStack: null,
+      ticketState: "idle",
+      ticketError: null,
+    });
     window.location.href = "/";
   };
 
@@ -217,7 +289,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
             </details>
           )}
 
-          <div className="flex gap-3 mt-6">
+          <div className="flex gap-3 mt-6 flex-wrap justify-center">
             <Button onClick={this.handleReset} size="sm">
               <RefreshCw className="h-4 w-4 mr-2" />
               Riprova
@@ -226,6 +298,46 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <Home className="h-4 w-4 mr-2" />
               Vai alla home
             </Button>
+          </div>
+
+          {/* Bottone "Invia ticket assistenza" — chiama send-error-ticket
+              che logga su system_health_metrics + manda email a flo.andriciuc@gmail.com */}
+          <div className="mt-6 pt-6 border-t border-border w-full max-w-md">
+            {this.state.ticketState === "success" ? (
+              <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-medium">
+                <CheckCircle2 className="h-5 w-5" />
+                <span>Ticket inviato. Florin ha ricevuto la notifica.</span>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground mb-3 text-center">
+                  Hai bisogno di assistenza immediata? Florin (super admin) riceverà subito un'email con tutti i dettagli per intervenire.
+                </p>
+                <Button
+                  onClick={this.handleSendTicket}
+                  disabled={this.state.ticketState === "submitting"}
+                  size="sm"
+                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+                >
+                  {this.state.ticketState === "submitting" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Invio in corso…
+                    </>
+                  ) : (
+                    <>
+                      <LifeBuoy className="h-4 w-4 mr-2" />
+                      Invia ticket assistenza al super admin
+                    </>
+                  )}
+                </Button>
+                {this.state.ticketState === "error" && this.state.ticketError && (
+                  <p className="text-xs text-destructive mt-2 text-center">
+                    Errore invio: {this.state.ticketError}. Riprova o contatta l'assistenza via WhatsApp.
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
       );
