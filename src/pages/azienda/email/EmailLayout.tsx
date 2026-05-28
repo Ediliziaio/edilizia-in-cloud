@@ -484,6 +484,14 @@ export function EmailLayout({
                 setMobilePane("list");
               }}
               onReply={(src, mode) => openCompose({ mode, source: src })}
+              onAiDraftReady={(src, draft) =>
+                openCompose({
+                  mode: "reply",
+                  source: src,
+                  initialSubject: draft.draft_subject,
+                  initialBody: draft.draft_body,
+                })
+              }
             />
           </section>
         </div>

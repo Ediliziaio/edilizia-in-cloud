@@ -50,6 +50,11 @@ export interface ComposeContext {
   /** Valori iniziali per "new" */
   initialTo?: string[];
   initialSubject?: string;
+  /**
+   * MP-EMAIL-AI-01: corpo pre-popolato (es. bozza AI L4).
+   * Se presente, sostituisce il body di default per mode="reply"/"replyAll"/"forward".
+   */
+  initialBody?: string;
 }
 
 interface EmailComposeDialogProps {
@@ -94,12 +99,18 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       const cc = context.mode === "replyAll" && src?.cc_emails
         ? src.cc_emails
         : [];
+      // MP-EMAIL-AI-01: se è presente initialBody (bozza AI), usalo + appendi quote
+      const aiDraftBody = context.initialBody;
+      const bodyContent = aiDraftBody
+        ? `${aiDraftBody}\n\n${quote}`
+        : `\n\n${quote}`;
+      const subjectContent = context.initialSubject || `Re: ${baseSubject}`;
       return {
         to: recipients.join(", "),
         cc: cc.join(", "),
         bcc: "",
-        subject: `Re: ${baseSubject}`,
-        body: `\n\n${quote}`,
+        subject: subjectContent,
+        body: bodyContent,
         inReplyToId: src?.id ?? null,
         threadId: src?.thread_id ?? null,
       };

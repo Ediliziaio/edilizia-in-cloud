@@ -43,6 +43,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { ActionProposalCard } from "@/components/ai/ActionProposals/ActionProposalCard";
+// MP-EMAIL-AI-01: pulsante "Rispondi con AI" (L4 Sonnet) + selettore categoria (feedback loop)
+import { AiDraftButton } from "@/components/email-ai/AiDraftButton";
 import {
   predictEmailReconciliation,
   type PredictiveEmailResult,
@@ -158,6 +160,25 @@ interface EmailViewerProps {
       raw_html: string | null;
     },
     mode: "reply" | "replyAll" | "forward",
+  ) => void;
+  /**
+   * MP-EMAIL-AI-01: callback chiamato quando l'utente clicca "Rispondi con AI"
+   * e la bozza Sonnet è pronta. Apre la compose con subject/body pre-popolati.
+   */
+  onAiDraftReady?: (
+    source: {
+      id: string;
+      thread_id: string | null;
+      from_email: string | null;
+      from_name: string | null;
+      to_email: string | null;
+      cc_emails?: string[] | null;
+      subject: string | null;
+      received_at: string;
+      raw_text: string | null;
+      raw_html: string | null;
+    },
+    draft: import("@/lib/email-ai/hooks").DraftResponse,
   ) => void;
 }
 
@@ -376,7 +397,7 @@ function predictiveFromMessages(messages: MessageRow[] | undefined): PredictiveE
   });
 }
 
-export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerProps) {
+export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady }: EmailViewerProps) {
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? null;
@@ -923,6 +944,31 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
 
       {/* Action bar bottom: Reply/ReplyAll/Forward (desktop only — mobile usa la mobile-bottom-bar sotto) */}
       <div className="hidden md:flex border-t p-3 bg-muted/20 flex-wrap gap-2">
+        {/* MP-EMAIL-AI-01: pulsante "Rispondi con AI" (L4 Sonnet) */}
+        {onAiDraftReady && messages && messages.length > 0 && (
+          <AiDraftButton
+            email_id={messages[messages.length - 1].id}
+            onDraftReady={(draft) => {
+              if (!messages || messages.length === 0) return;
+              const last = messages[messages.length - 1];
+              onAiDraftReady(
+                {
+                  id: last.id,
+                  thread_id: last.thread_id,
+                  from_email: last.from_email,
+                  from_name: last.from_name,
+                  to_email: last.to_email,
+                  cc_emails: last.cc_emails ?? null,
+                  subject: last.subject,
+                  received_at: last.received_at,
+                  raw_text: last.raw_text,
+                  raw_html: last.raw_html,
+                },
+                draft,
+              );
+            }}
+          />
+        )}
         <Button
           variant="outline"
           size="sm"
