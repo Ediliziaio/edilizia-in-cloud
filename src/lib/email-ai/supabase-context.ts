@@ -126,28 +126,11 @@ async function matchCRMImpl(
     };
   }
 
-  // ─── Customers (clienti) — la tabella reale potrebbe non avere typing ──
-  // Usiamo `as any` per by-passare typing strict.
-  try {
-    const { data: customerByEmail } = await (supabase as any)
-      .from("customers")
-      .select("id")
-      .eq("company_id", companyId)
-      .ilike("email", emailLower)
-      .limit(1)
-      .maybeSingle();
-
-    if (customerByEmail) {
-      return {
-        categoria: "cliente",
-        entita_tipo: "cliente",
-        entita_id: customerByEmail.id as string,
-        matched_field: "email",
-      };
-    }
-  } catch {
-    // Tabella customers potrebbe non esistere in alcune installazioni
-  }
+  // ─── Customers (clienti) ────────────────────────────────────────────────
+  // NOTE: la tabella `customers` NON esiste in questa installazione (2026-05-28).
+  // La "Lista Clienti" usa altre RPC/strutture. Quando esisterà una tabella
+  // CRM clienti unificata, riabilitare il lookup qui.
+  // Per ora i clienti vengono classificati via L3 Haiku + feedback loop manuale.
 
   // ─── Domain match — solo se NON personale (gmail/outlook/etc) ───────────
   if (!isPersonalDomain(dominio)) {
@@ -167,28 +150,6 @@ async function matchCRMImpl(
         entita_id: supplierByDomain.id as string,
         matched_field: "domain",
       };
-    }
-
-    // Cliente via dominio (solo aziende)
-    try {
-      const { data: customerByDomain } = await (supabase as any)
-        .from("customers")
-        .select("id")
-        .eq("company_id", companyId)
-        .ilike("email", `%@${dominio.toLowerCase()}`)
-        .limit(1)
-        .maybeSingle();
-
-      if (customerByDomain) {
-        return {
-          categoria: "cliente",
-          entita_tipo: "cliente",
-          entita_id: customerByDomain.id as string,
-          matched_field: "domain",
-        };
-      }
-    } catch {
-      // ok
     }
   }
 

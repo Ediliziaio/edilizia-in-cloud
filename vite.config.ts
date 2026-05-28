@@ -115,9 +115,14 @@ export default defineConfig(() => ({
               /^html/,
               /^body/,
             ],
-            // Limita CSS inline a 8KB max per file. Sopra: defer all bundle.
-            // Tradeoff: ~1 frame di FOUC su below-fold (impercepibile).
-            inlineThreshold: 8192,
+            // v8.6.128 (F4) — Beasties tuning più aggressivo.
+            // Threshold abbassato da 8192 → 4096 byte. Su prerendered routes
+            // (blog/, prezzi/, funzionalita/) Beasties stava inline-ando ~60-90KB
+            // di critical CSS, gonfiando l'HTML a 173/167/126KB raw.
+            // Con 4KB threshold solo il CSS DAVVERO critico above-the-fold viene
+            // inline-ato, il resto va nel bundle deferito (già preload async).
+            // Atteso: -50KB raw su /blog/, -40KB raw su /prezzi/, -25KB raw su /funzionalita/.
+            inlineThreshold: 4096,
           });
 
           // Funzione ricorsiva per trovare tutti gli index.html generati
@@ -392,9 +397,24 @@ export default defineConfig(() => ({
           if (id.includes("date-fns") || id.includes("react-day-picker")) {
             return "vendor-dates";
           }
-          if (id.includes("jspdf")) {
-            return "vendor-jspdf";
-          }
+          // v8.6.127 — RIMOSSO manualChunks vendor-jspdf.
+          //
+          // BUG IDENTIFICATO: Rolldown stava co-allocando il helper
+          // `__vitePreload` (la utility globale Vite per dynamic import)
+          // dentro vendor-jspdf-*.js perché era il chunk "manualChunks
+          // più grande con dynamic import nel grafo". Risultato:
+          //   - Home-*.js → import{i}from"./vendor-jspdf-*.js"
+          //   - index-*.js → import{i as O}from"./vendor-jspdf-*.js"
+          // dove `i` è il helper, NON jsPDF. Ogni chunk che usa lazy()
+          // o import() tirava dietro 426KB (135 KB gzip) di blocking JS
+          // anche se non usava mai jsPDF.
+          //
+          // Soluzione: lasciare che Rolldown chunkki jspdf nativamente
+          // per dynamic import (tutti gli usi sono `await import("jspdf")`).
+          // Il helper finirà in vendor-react-core o vendor-shared (già nel
+          // critical path), e il chunk jspdf risultante sarà caricato SOLO
+          // quando l'utente esporta un PDF.
+          // (Removed: id.includes("jspdf") -> "vendor-jspdf" rule)
           if (
             id.includes("@react-pdf/font") ||
             id.includes("fontkit") ||
@@ -481,13 +501,22 @@ export default defineConfig(() => ({
           ) {
             return "vendor-forms";
           }
-          if (
-            id.includes("embla-carousel") ||
-            id.includes("framer-motion") ||
-            id.includes("/gsap/")
-          ) {
-            return "vendor-animation";
-          }
+          // v8.6.128 (F2) — RIMOSSO manualChunks vendor-animation.
+          //
+          // Stesso bug pattern di vendor-jspdf (F1): Rolldown co-allocava
+          // i helper React (react.transitional.element symbols, ~95 KB gz)
+          // dentro vendor-animation-*.js perché era il manualChunk più grande
+          // con dynamic import. Risultato: 733 chunks importavano
+          // staticamente vendor-animation per il helper, anche se non usavano
+          // mai framer-motion. Solo import per "f" + "p" = React util.
+          //
+          // Soluzione: lasciare framer-motion / embla-carousel / gsap
+          // auto-split per dynamic import. Il helper finirà altrove (probabilmente
+          // vendor-react-core). Sonner (toast) che usa framer-motion la includerà
+          // automaticamente come parte del suo chunk lazy.
+          //
+          // Risparmio atteso: -97 KB gz da critical path (entry + Home).
+          // (Removed: framer-motion + embla-carousel + gsap → "vendor-animation")
 
           // ============================================================
           // v8.6.125 — RIMOSSO il "area-level chunks per routes".

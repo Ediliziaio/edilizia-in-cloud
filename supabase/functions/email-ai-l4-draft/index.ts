@@ -267,24 +267,16 @@ async function loadEntityContext(supabase: any, tipo: string, id: string): Promi
     case "operaio": {
       const { data } = await supabase
         .from("employees")
-        .select("name, email, phone, area, ccnl_applicato")
+        .select("first_name, last_name, email, phone, area, ccnl_applicato")
         .eq("id", id)
         .maybeSingle();
       if (!data) return "";
-      return `Operaio: ${data.name}\nArea: ${data.area || "n.d."}\nCCNL: ${data.ccnl_applicato || "n.d."}`;
+      const name = [data.first_name, data.last_name].filter(Boolean).join(" ");
+      return `Operaio: ${name}\nArea: ${data.area || "n.d."}\nCCNL: ${data.ccnl_applicato || "n.d."}`;
     }
     case "cliente": {
-      try {
-        const { data } = await supabase
-          .from("customers")
-          .select("name, email, phone")
-          .eq("id", id)
-          .maybeSingle();
-        if (!data) return "";
-        return `Cliente: ${data.name}\nTelefono: ${data.phone || "n.d."}`;
-      } catch {
-        return "";
-      }
+      // Tabella customers non esiste — nessun contesto CRM disponibile per ora.
+      return "";
     }
     default:
       return "";

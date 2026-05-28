@@ -279,6 +279,10 @@ GRANT EXECUTE ON FUNCTION public.reclassify_email_manuale(
 
 -- ─── 8) View con join CRM (opzionale, utile per UI) ────────────────────────
 -- Mostra l'email + il nome dell'entità linkata.
+-- Schema reale (verificato 2026-05-28):
+--   suppliers.name (text) ✓
+--   employees.first_name + last_name (no 'name' col)
+--   customers: tabella NON esiste — gestione clienti via RPC dedicate
 -- NOTE: SECURITY INVOKER (eredita RLS della tabella sottostante)
 CREATE OR REPLACE VIEW public.v_email_inbox_classified AS
 SELECT
@@ -288,7 +292,7 @@ SELECT
   -- Nome entità linkata (lookup soft, NULL se entità rimossa)
   CASE e.entita_tipo
     WHEN 'fornitore' THEN (SELECT s.name FROM public.suppliers s WHERE s.id = e.entita_id AND s.company_id = e.company_id)
-    WHEN 'operaio'   THEN (SELECT emp.name FROM public.employees emp WHERE emp.id = e.entita_id AND emp.company_id = e.company_id)
+    WHEN 'operaio'   THEN (SELECT trim(concat_ws(' ', emp.first_name, emp.last_name)) FROM public.employees emp WHERE emp.id = e.entita_id AND emp.company_id = e.company_id)
     ELSE NULL
   END AS entita_nome
 FROM public.email_inbox e;

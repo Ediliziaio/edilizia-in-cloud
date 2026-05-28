@@ -376,21 +376,10 @@ async function matchCRM(
     return { categoria: "operaio", entita_tipo: "operaio", entita_id: emp.id as string, matched_field: "email" };
   }
 
-  // Customers (legacy table, tipo any per safety)
-  try {
-    const { data: cust } = await (supabase as any)
-      .from("customers")
-      .select("id")
-      .eq("company_id", companyId)
-      .ilike("email", email)
-      .limit(1)
-      .maybeSingle();
-    if (cust) {
-      return { categoria: "cliente", entita_tipo: "cliente", entita_id: cust.id as string, matched_field: "email" };
-    }
-  } catch {
-    // tabella customers potrebbe non esistere
-  }
+  // Customers: tabella `customers` NON esiste in questo schema (verificato 2026-05-28).
+  // La gestione clienti usa RPC dedicate. Quando esisterà una tabella CRM clienti
+  // unificata, abilitare il lookup qui. Per ora i clienti vengono classificati
+  // via L3 Haiku + feedback loop manuale.
 
   // Domain match (solo non-personal)
   if (dominio && !isPersonalDomain(dominio)) {
@@ -403,21 +392,6 @@ async function matchCRM(
       .maybeSingle();
     if (supDom) {
       return { categoria: "fornitore", entita_tipo: "fornitore", entita_id: supDom.id as string, matched_field: "domain" };
-    }
-
-    try {
-      const { data: custDom } = await (supabase as any)
-        .from("customers")
-        .select("id")
-        .eq("company_id", companyId)
-        .ilike("email", `%@${dominio}`)
-        .limit(1)
-        .maybeSingle();
-      if (custDom) {
-        return { categoria: "cliente", entita_tipo: "cliente", entita_id: custDom.id as string, matched_field: "domain" };
-      }
-    } catch {
-      // ok
     }
   }
 

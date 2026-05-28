@@ -54,6 +54,53 @@ interface NormalizedEmail {
   received_at: string;
   is_read?: boolean;
   attachments?: Array<{ filename: string; mime?: string | null; size?: number | null; storage_path?: string | null }>;
+  /**
+   * MP-EMAIL-AI-01: header email rilevanti per L1 deterministico.
+   * Manteniamo solo i header utili (max 12 chiavi), case-insensitive lowercase.
+   */
+  headers?: Record<string, string>;
+}
+
+/**
+ * MP-EMAIL-AI-01: Lista header email salvati in email_inbox.headers JSONB.
+ * Necessari per L1 deterministico (rule c): List-Unsubscribe → newsletter,
+ * Precedence: bulk → newsletter, Auto-Submitted → notifica, etc.
+ */
+const L1_RELEVANT_HEADERS = [
+  "list-unsubscribe",
+  "list-unsubscribe-post",
+  "list-id",
+  "list-post",
+  "list-archive",
+  "precedence",
+  "auto-submitted",
+  "x-auto-response-suppress",
+  "return-path",
+  "x-mailer",
+  "x-spam-status",
+  "x-spam-score",
+  "x-priority",
+  "importance",
+  "authentication-results",
+  "feedback-id",
+];
+
+/**
+ * Estrae i header rilevanti per L1 da un array di {name, value} (Gmail format).
+ * Limita a 16 chiavi per evitare bloat su email_inbox.
+ */
+function extractL1Headers(
+  headers: Array<{ name: string; value: string }>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const h of headers) {
+    const k = (h.name || "").toLowerCase().trim();
+    if (L1_RELEVANT_HEADERS.includes(k) && h.value && !out[k]) {
+      // Tronca valori molto lunghi (List-Unsubscribe può avere multi URL)
+      out[k] = String(h.value).slice(0, 500);
+    }
+  }
+  return out;
 }
 
 interface StoredEmailResult {
@@ -265,6 +312,8 @@ async function pollGmail(
       html,
       received_at: msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : new Date().toISOString(),
       is_read: Array.isArray(msg.labelIds) ? !msg.labelIds.includes("UNREAD") : false,
+      // MP-EMAIL-AI-01: header rilevanti L1 deterministico
+      headers: extractL1Headers(headers),
     };
   };
 
@@ -398,6 +447,8 @@ async function storePersonalEmail(
     raw_text: email.text,
     raw_html: email.html,
     attachments: email.attachments ?? [],
+    // MP-EMAIL-AI-01: header email rilevanti per L1 deterministico (popolato solo da Gmail per ora)
+    headers: email.headers ?? null,
   };
 
   if (existing.data?.id) {
@@ -484,6 +535,42 @@ function queueTriagePending(companyId: string, limit: number): void {
     }),
   }).catch((e) => {
     console.warn("[email-poll] triage queue failed:", e);
+  });
+
+  const runtime = (globalThis as unknown as {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(task);
+}
+
+/**
+ * MP-EMAIL-AI-01: triggera la cascata L1 deterministica (costo ZERO)
+ * subito dopo il poll. Le email che L1 risolve vengono classificate
+ * senza alcuna chiamata AI (regole + cache mittenti).
+ *
+ * Le rimanenti (L1 miss) restano con categoria=NULL e verranno raccolte
+ * dal cron L3 Haiku batch più tardi (ogni 1-2h).
+ *
+ * Fire-and-forget: errori vengono loggati ma non bloccano il poll.
+ */
+function queueL1Cascade(companyId: string, limit: number): void {
+  const cronSecret = Deno.env.get("PROACTIVE_CRON_SECRET");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  if (!cronSecret || !supabaseUrl) return;
+
+  const task = fetch(`${supabaseUrl}/functions/v1/email-ai-l1-classify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-cron-secret": cronSecret,
+    },
+    body: JSON.stringify({
+      mode: "backfill",
+      company_id: companyId,
+      limit: Math.max(1, Math.min(limit, 100)),
+    }),
+  }).catch((e) => {
+    console.warn("[email-poll] L1 cascade queue failed:", e);
   });
 
   const runtime = (globalThis as unknown as {
@@ -730,6 +817,10 @@ Deno.serve(async (req) => {
         await resolveThreadsForUser(conn.user_id, emails.length + 20);
       }
       if (triageCandidates > 0) {
+        // MP-EMAIL-AI-01: prima la cascata L1 (costo zero) → poi triage AI legacy
+        // come fallback per le email non risolte da L1. Quando L3 batch sarà su
+        // cron, possiamo togliere il triage legacy.
+        queueL1Cascade(conn.company_id, triageCandidates);
         queueTriagePending(conn.company_id, triageCandidates);
         summary.ai_triage_queued += triageCandidates;
       }
