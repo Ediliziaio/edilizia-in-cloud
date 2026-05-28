@@ -316,7 +316,7 @@ export default function BlogPost() {
           alt={post.title}
           width={1200}
           height={630}
-          fetchpriority="high"
+          fetchPriority="high"
           loading="eager"
           decoding="async"
           className="w-full object-cover"

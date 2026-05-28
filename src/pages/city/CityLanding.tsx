@@ -3048,7 +3048,7 @@ export default function CityLanding() {
             alt={`Cantiere edile a ${config.name}`}
             width={1400}
             height={700}
-            fetchpriority="high"
+            fetchPriority="high"
             loading="eager"
             decoding="sync"
             className="w-full h-full object-cover opacity-20"

@@ -451,7 +451,7 @@ export default function HeroSection() {
         "
         sizes="100vw"
         alt="Cantiere edile italiano gestito con Edilizia in Cloud"
-        fetchpriority="high"
+        fetchPriority="high"
         loading="eager"
         decoding="async"
         width={1920}

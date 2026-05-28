@@ -27,7 +27,8 @@ import { format, isToday, isYesterday, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+// Badge import rimosso (v8.6.75 Round 9 / LUCIA-FULL-REMOVAL) — era usato
+// solo per il badge "AI" violet su header canale Lucia, ora eliminato.
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -365,7 +366,8 @@ function useInternalChat(companyIdOverride?: string) {
 
   const {
     data: members = [],
-    isLoading: membersLoading,
+    // membersLoading non più usato — la chat renderizza senza aspettare members
+    // (count partecipanti caricato pigramente, vedi commento isLoading sotto).
     isError: membersError,
     refetch: refetchMembers,
   } = useQuery({
@@ -588,7 +590,15 @@ function useInternalChat(companyIdOverride?: string) {
     lastMessages,
     myMemberships,
     internalProfileIds,
-    isLoading: membershipsLoading || channelsLoading || membersLoading,
+    // PERF (v8.6.75) — Non bloccare il render aspettando `members`:
+    // members serve solo per il count "8 partecipanti" mostrato nelle righe
+    // gruppo della sidebar. La query .in("channel_id", memberChannelIds) su
+    // internal_chat_members può tornare 200-500 righe (50 canali × 8 membri)
+    // ed è la più lenta del bundle iniziale. Renderiamo la chat appena
+    // memberships + channels sono pronti → percezione velocità +3-5s su
+    // aziende con molti canali. Il count membri compare quando arriva
+    // (rendering condizionale già robusto a `members === []`).
+    isLoading: membershipsLoading || channelsLoading,
     isError: membershipsError || channelsError || membersError,
     refetchChatData: () => {
       refetchMemberships();
