@@ -53,6 +53,17 @@ const PERSIST_WHITELIST = new Set<string>([
   "marketing-calendars",
   "giornale-lavori",
   "scadenze",
+  // 2026-05-28 Velocity: aggiunte chiavi "stabili" usate al boot di ogni
+  // sessione (branding, plan, notifiche). Persistere queste evita 3-5 query
+  // pesanti al primo render dopo refresh / nuova tab. Refetch in background
+  // mantiene comunque i dati freschi.
+  "company-branding",           // useBranding (282ms, 37 calls — alta freq)
+  "branding",                   // useBrandingByDomain
+  "platform-changelog",         // changelog widget sidebar
+  "platform-feature-flags",     // feature toggles globali
+  "platform-announcements",     // banner annunci platform
+  "subscription-plans",         // KPI piano corrente
+  "integrations",               // hub /azienda/impostazioni/integrazioni
 ]);
 
 export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {
