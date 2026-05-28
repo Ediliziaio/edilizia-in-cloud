@@ -31,6 +31,7 @@ import {
   ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward,
   Paperclip, Sparkles, AlertTriangle, X, Wand2, Loader2, ListChecks,
   Truck, CalendarClock, PackageCheck, Send, ClipboardCheck, MoreHorizontal,
+  ChevronUp, ChevronDown,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -289,6 +290,79 @@ function analysisFromMessages(messages: MessageRow[] | undefined): EmailAnalysis
   };
 }
 
+/**
+ * Azioni contestuali allineate al mockup "Demo casella email operativa".
+ * Restituisce 3 azioni pertinenti alla categoria (con icona, label e kind).
+ *   - "reply"     → apre direttamente la compose in modalità reply
+ *   - "operative" → genera proposte operative (Silvio)
+ *   - "placeholder" → toast "Funzione in arrivo" (per UI feedback immediato)
+ */
+type ContextualEmailAction = {
+  id: string;
+  label: string;
+  icon: typeof Truck;
+  kind: "reply" | "operative" | "placeholder";
+};
+
+function getContextualEmailActions(category: string | null | undefined): ContextualEmailAction[] {
+  const value = (category ?? "").toLowerCase();
+  if (["lead", "lead_new", "lead_followup"].includes(value)) {
+    return [
+      { id: "lead-create", label: "Crea opportunità CRM", icon: Sparkles, kind: "placeholder" },
+      { id: "lead-task", label: "Pianifica sopralluogo", icon: CalendarClock, kind: "operative" },
+      { id: "lead-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
+    ];
+  }
+  if (["quote_request", "preventivo", "quote", "richiesta_preventivo"].includes(value)) {
+    return [
+      { id: "quote-build", label: "Apri preventivi", icon: ClipboardCheck, kind: "placeholder" },
+      { id: "quote-task", label: "Crea task commerciale", icon: ListChecks, kind: "operative" },
+      { id: "quote-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
+    ];
+  }
+  if (["fornitore", "supplier", "ddt"].includes(value)) {
+    return [
+      { id: "supplier-oda", label: "Aggiorna ODA", icon: PackageCheck, kind: "operative" },
+      { id: "supplier-task", label: "Crea task logistica", icon: Truck, kind: "operative" },
+      { id: "supplier-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
+    ];
+  }
+  if (["fattura", "invoice"].includes(value)) {
+    return [
+      { id: "invoice-pay", label: "Pianifica pagamento", icon: CalendarClock, kind: "placeholder" },
+      { id: "invoice-task", label: "Crea task contabilità", icon: ListChecks, kind: "operative" },
+      { id: "invoice-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
+    ];
+  }
+  if (["pratica_amministrativa", "admin", "documento_amministrativo"].includes(value)) {
+    return [
+      { id: "admin-doc", label: "Salva nel cassetto", icon: ClipboardCheck, kind: "placeholder" },
+      { id: "admin-task", label: "Crea task amministrativa", icon: ListChecks, kind: "operative" },
+      { id: "admin-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
+    ];
+  }
+  if (["support", "assistenza", "ticket"].includes(value)) {
+    return [
+      { id: "support-ticket", label: "Apri ticket", icon: AlertTriangle, kind: "placeholder" },
+      { id: "support-task", label: "Crea task supporto", icon: ListChecks, kind: "operative" },
+      { id: "support-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
+    ];
+  }
+  if (["cliente_esistente", "customer"].includes(value)) {
+    return [
+      { id: "customer-history", label: "Apri scheda cliente", icon: ClipboardCheck, kind: "placeholder" },
+      { id: "customer-task", label: "Crea task cliente", icon: ListChecks, kind: "operative" },
+      { id: "customer-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
+    ];
+  }
+  // default operativo (mockup-style)
+  return [
+    { id: "default-oda", label: "Aggiorna ODA", icon: PackageCheck, kind: "operative" },
+    { id: "default-task", label: "Crea task logistica", icon: Truck, kind: "operative" },
+    { id: "default-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
+  ];
+}
+
 function predictiveFromMessages(messages: MessageRow[] | undefined): PredictiveEmailResult | null {
   if (!messages?.length) return null;
   const source = messages[messages.length - 1];
@@ -526,9 +600,21 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
       || predictiveAnalysis.targets.length > 0),
   );
 
+  // Categoria visibile in header — preferisci AI stored, poi predictive (mockup style)
+  const lastAvailableMessage = messages?.[messages.length - 1];
+  const headerCategoryRaw = activeAnalysis?.category
+    ?? lastAvailableMessage?.ai_category
+    ?? predictiveAnalysis?.category
+    ?? null;
+  const headerCategoryLabel = emailCategoryLabel(headerCategoryRaw);
+  const headerPriorityHigh = isHighPriority(activeAnalysis?.priority ?? lastAvailableMessage?.ai_priority)
+    || predictiveAnalysis?.priority === "alta";
+
   return (
     <>
-      <div className="border-b p-2 sm:p-3 flex items-center gap-1 sm:gap-2">
+      {/* Header viewer — allineato al mockup "Demo casella email operativa":
+          back button (mobile), badge categoria prominente, azioni desktop, X chiudi */}
+      <div className="border-b border-slate-200 p-2 sm:p-3 flex items-center gap-1 sm:gap-2">
         <Button
           variant="ghost"
           size="icon"
@@ -538,6 +624,18 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
+        {headerCategoryLabel && (
+          <span
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold",
+              headerPriorityHigh
+                ? "bg-orange-50 text-orange-700"
+                : "bg-blue-50 text-blue-700",
+            )}
+          >
+            {headerCategoryLabel}
+          </span>
+        )}
         <h2 className="font-semibold truncate flex-1 text-sm sm:text-base">{subject}</h2>
         {messageCount > 0 && (
           <Badge variant="secondary" className="hidden sm:inline-flex text-[10px] shrink-0">
@@ -764,6 +862,62 @@ export function EmailViewer({ threadId, onBack, onClose, onReply }: EmailViewerP
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Azioni contestuali — sul modello del mockup "Demo casella email operativa":
+          3 azioni primarie derivate dalla categoria (Aggiorna ODA / Crea task logistica /
+          Scrivi risposta). Visibili solo se conosciamo la categoria, sopra la action bar
+          desktop. Su mobile resta la bottom action bar nativa. */}
+      {headerCategoryRaw && (
+        <div className="hidden md:grid border-t bg-blue-50/40 gap-2 p-3 sm:grid-cols-3">
+          {getContextualEmailActions(headerCategoryRaw).map((action) => {
+            const Icon = action.icon;
+            const isReply = action.kind === "reply";
+            const isOperative = action.kind === "operative";
+            return (
+              <button
+                key={action.id}
+                type="button"
+                className="flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 py-2 text-left text-xs font-semibold text-blue-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50 disabled:opacity-60"
+                disabled={!messages || messages.length === 0 || (isOperative && operationProposalsMutation.isPending)}
+                onClick={() => {
+                  if (!messages || messages.length === 0) return;
+                  if (isReply) {
+                    if (!onReply) {
+                      toast.info(action.label, { description: "Funzione di risposta non disponibile in questo contesto." });
+                      return;
+                    }
+                    const last = messages[messages.length - 1];
+                    onReply(
+                      {
+                        id: last.id,
+                        thread_id: last.thread_id,
+                        from_email: last.from_email,
+                        from_name: last.from_name,
+                        to_email: last.to_email,
+                        cc_emails: last.cc_emails ?? null,
+                        subject: last.subject,
+                        received_at: last.received_at,
+                        raw_text: last.raw_text,
+                        raw_html: last.raw_html,
+                      },
+                      "reply",
+                    );
+                  } else if (isOperative) {
+                    operationProposalsMutation.mutate();
+                  } else {
+                    toast.info(action.label, {
+                      description: "Funzione in arrivo: la collegheremo a Silvio per generare la proposta operativa.",
+                    });
+                  }
+                }}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{action.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -1108,6 +1262,10 @@ function EmailActionProposalsPanel({
 // ───────────────────────────────────────────────────────────────────────────
 
 function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResult }) {
+  // 2026-05-28: pannello collassabile come nel mockup demo. Apre/chiude i dettagli
+  // (segnali + agganci) per non rubare spazio al messaggio quando l'utente vuole
+  // solo leggere l'email. Default chiuso, pochissimo rumore visivo.
+  const [open, setOpen] = useState(false);
   const category = emailCategoryLabel(prediction.category) ?? "Altro";
   const priorityLabel = prediction.priority === "alta"
     ? "Alta"
@@ -1117,42 +1275,54 @@ function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResul
   const confidence = Math.round(prediction.confidence * 100);
 
   return (
-    <div className="m-4 mb-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="m-4 mb-0 overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/80 shadow-sm">
+      <button
+        type="button"
+        className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
         <div className="flex items-start gap-2">
           <div className="mt-0.5 rounded-lg bg-blue-600 p-1.5 text-white shadow-sm">
-            <ClipboardCheck className="h-3.5 w-3.5" />
+            <Sparkles className="h-3.5 w-3.5" />
           </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-950">
-              Riconciliazione predittiva senza AI
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-blue-950">
+              Analisi predittiva
             </p>
-            <p className="mt-0.5 text-xs leading-5 text-slate-600">
-              Classificazione immediata con regole su mittente, oggetto, testo e allegati.
+            <p className="mt-0.5 truncate text-xs leading-5 text-blue-900/80">
+              {prediction.priority === "alta"
+                ? "Priorità alta rilevata — richiede attenzione immediata."
+                : prediction.targets.length > 0
+                  ? `${prediction.targets.length} aggancio${prediction.targets.length === 1 ? "" : "i"} suggerito${prediction.targets.length === 1 ? "" : "i"} (${category})`
+                  : `Categoria predittiva: ${category}`}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-1">
-          <Badge variant="outline" className="border-blue-200 bg-white text-[10px] font-semibold text-blue-800">
-            {category}
-          </Badge>
-          <Badge
+        <div className="flex flex-wrap items-center gap-1">
+          <span
             className={cn(
-              "text-[10px] font-semibold",
+              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
               prediction.priority === "alta"
-                ? "bg-orange-600 hover:bg-orange-600"
-                : "bg-blue-600 hover:bg-blue-600",
+                ? "bg-orange-100 text-orange-700"
+                : "bg-blue-100 text-blue-800",
             )}
           >
-            Priorità {priorityLabel}
-          </Badge>
-          <Badge variant="outline" className="border-slate-200 bg-white text-[10px] font-semibold text-slate-700">
+            {priorityLabel}
+          </span>
+          <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-blue-700">
             {confidence}%
-          </Badge>
+          </span>
+          {open ? (
+            <ChevronUp className="h-4 w-4 text-blue-700" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-blue-700" />
+          )}
         </div>
-      </div>
+      </button>
 
-      <div className="grid gap-3 p-4 text-sm lg:grid-cols-[1.1fr_0.9fr]">
+      {open && (
+      <div className="grid gap-3 border-t border-blue-100 bg-white p-4 text-sm lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-xl border border-slate-200 bg-white p-3">
           <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
             <ListChecks className="h-3 w-3" />
@@ -1193,6 +1363,7 @@ function EmailPredictivePanel({ prediction }: { prediction: PredictiveEmailResul
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

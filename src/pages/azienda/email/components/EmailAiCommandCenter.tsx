@@ -258,7 +258,11 @@ export function EmailAiCommandCenter({
               <Sparkles className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-950 leading-tight">Regia Email AI</p>
+              <p className="text-sm font-bold text-orange-950 leading-tight">
+                {metrics.priority + metrics.commercial + metrics.supplier + metrics.admin > 0
+                  ? `Silvio ha trovato ${metrics.priority + metrics.commercial + metrics.supplier + metrics.admin} priorità operative`
+                  : "Regia Email AI"}
+              </p>
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
                 {summaryChips.map((chip) => (
                   <span

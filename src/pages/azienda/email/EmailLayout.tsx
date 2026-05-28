@@ -10,7 +10,7 @@
  *
  * Mobile: stack layout, navigazione tra pannelli con pulsanti back.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,7 +39,6 @@ import {
   Inbox,
   LifeBuoy,
   Loader2,
-  Mail,
   Menu,
   PenLine,
   ReceiptText,
@@ -345,15 +344,26 @@ export function EmailLayout({
         </Button>
       </div>
 
-      {/* Desktop header — titolo + N collegate badge + bottone Sync */}
-      <div className="hidden md:flex items-center justify-between gap-2 p-3 border-b border-blue-100 bg-white">
+      {/* Desktop header — titolo bold grande + Sync badge + sottotitolo casella, sul modello del mockup demo */}
+      <div className="hidden md:flex items-start justify-between gap-3 p-4 border-b border-blue-100 bg-white">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-            <Inbox className="h-4 w-4 text-blue-600 shrink-0" />
-            <FolderTitle filter={filter.folder} />
-          </h2>
+          <div className="flex items-center gap-2">
+            <p className="truncate text-lg font-bold text-slate-950">
+              <FolderTitle filter={filter.folder} />
+            </p>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                forceSync.isPending
+                  ? "bg-blue-50 text-blue-700"
+                  : "bg-emerald-50 text-emerald-700",
+              )}
+            >
+              {forceSync.isPending ? "Sync…" : "Sync"}
+            </span>
+          </div>
           {connections && connections.length > 0 && (
-            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+            <p className="mt-0.5 truncate text-xs text-slate-500">
               {filter.accountId
                 ? connections.find((c) => c.id === filter.accountId)?.email_address ?? "Tutte le caselle"
                 : `${connections.length} ${connections.length === 1 ? "casella collegata" : "caselle collegate"}`}
@@ -366,19 +376,18 @@ export function EmailLayout({
           onClick={() => forceSync.mutate()}
           disabled={forceSync.isPending}
           title="Sincronizza ora le caselle email"
-          className="shrink-0"
+          className="shrink-0 rounded-xl"
         >
           {forceSync.isPending
             ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             : <RefreshCw className="h-4 w-4 mr-1" />}
-          <span className="hidden lg:inline">Sync</span>
+          <span className="hidden lg:inline">Aggiorna</span>
         </Button>
       </div>
 
       <EmailMailboxToolbar
         filter={filter}
         onFilterChange={applyFilter}
-        connections={connections ?? []}
       />
       {/* EmailConnectionHealthPanel rimosso 2026-05-26: lo stato sync è ora
           in fondo alla sidebar (SyncStatusPanel). La diagnostica completa
@@ -530,62 +539,36 @@ const CATEGORY_FILTERS: Array<{
 function EmailMailboxToolbar({
   filter,
   onFilterChange,
-  connections,
 }: {
   filter: EmailFilter;
   onFilterChange: (filter: EmailFilter | ((current: EmailFilter) => EmailFilter)) => void;
-  connections: EmailConnectionSummary[];
 }) {
-  const activeAccount = connections.find((connection) => connection.id === filter.accountId);
-  const accountLabel = activeAccount?.email_address ?? "Tutte le caselle";
-  const folderLabel = folderTitleText(filter.folder);
-
+  // 2026-05-28: header secondario rimosso (era ridondante con header principale + folder title).
+  // Manteniamo solo le pillole categoria, allineate al mockup "Demo casella email operativa".
   return (
-    <div className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-4 py-2 sm:py-3 space-y-2 sm:space-y-3">
-      {/* Header desktop con icon + folder label + account: ridondante su mobile dove già c'è hamburger row */}
-      <div className="hidden md:flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-100">
-              <Mail className="h-4 w-4" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-base font-semibold leading-tight text-slate-900">{folderLabel}</p>
-              <p className="truncate text-xs text-slate-500">{accountLabel}</p>
-            </div>
-          </div>
-        </div>
-        {connections.length > 1 && (
-          <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-            {connections.length} collegate
-          </span>
-        )}
-      </div>
-
+    <div className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-3 py-2 sm:px-4 sm:py-3">
       <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {CATEGORY_FILTERS.map((category) => {
           const active = category.key === "all" ? !filter.category : filter.category === category.key;
           const Icon = category.icon;
           return (
-            <Button
+            <button
               key={category.key}
               type="button"
-              variant={active ? "secondary" : "ghost"}
-              size="sm"
               className={cn(
-                "h-8 shrink-0 rounded-full border px-3 text-xs",
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors",
                 active
-                  ? "border-blue-100 bg-blue-50 text-blue-800 hover:bg-blue-100"
-                  : "border-transparent bg-white/70 text-slate-600 hover:bg-white hover:text-slate-900",
+                  ? "bg-blue-600 font-semibold text-white shadow-sm shadow-blue-200"
+                  : "bg-white/70 text-slate-600 hover:bg-white hover:text-slate-900",
               )}
               onClick={() => onFilterChange((current) => ({
                 ...current,
                 category: category.key === "all" ? undefined : category.key,
               }))}
             >
-              <Icon className="h-3.5 w-3.5 mr-1.5" />
+              <Icon className="h-3.5 w-3.5" />
               {category.label}
-            </Button>
+            </button>
           );
         })}
       </div>
