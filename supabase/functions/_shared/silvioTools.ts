@@ -3636,6 +3636,43 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedPersonas: ["silvio", "assistente_imprenditore"], riskLevel: "yellow", domain: "sales", estimatedCostEur: 0.01,
   },
 
+  // ── MP-SILVIO-ACTIONS-TWINS-01 — gemelli d'azione (tutti yellow → action_proposal) ──
+  invia_sollecito_pagamento: {
+    schema: { type: "function", function: { name: "invia_sollecito_pagamento", description: "Invia sollecito al cliente per fattura scaduta. Escalation per giorni di ritardo. Conferma richiesta.", parameters: { type: "object", properties: { cliente_id: { type: "string" }, fattura_id: { type: "string" }, tono: { type: "string", enum: ["cortese", "fermo", "ultimo_avviso"], default: "cortese" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["fattura_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_sollecito_pagamento", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_cliente_id: args?.cliente_id ?? null, p_fattura_id: args?.fattura_id, p_tono: args?.tono ?? "cortese", p_canale: args?.canale ?? "email" }),
+    allowedPersonas: ["silvio", "cfo", "assistente_imprenditore"], riskLevel: "yellow", domain: "finance", estimatedCostEur: 0.01,
+  },
+  invia_followup_preventivo: {
+    schema: { type: "function", function: { name: "invia_followup_preventivo", description: "Invia follow-up al cliente per un preventivo in attesa. Conferma richiesta.", parameters: { type: "object", properties: { cliente_id: { type: "string" }, quote_id: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["quote_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_followup_preventivo", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_cliente_id: args?.cliente_id ?? null, p_quote_id: args?.quote_id, p_canale: args?.canale ?? "email" }),
+    allowedPersonas: ["silvio", "sales", "assistente_imprenditore"], riskLevel: "yellow", domain: "crm", estimatedCostEur: 0.01,
+  },
+  invia_ordine_fornitore: {
+    schema: { type: "function", function: { name: "invia_ordine_fornitore", description: "Prepara e invia un ordine al fornitore (es. stockout imminente). Conferma richiesta.", parameters: { type: "object", properties: { fornitore_id: { type: "string" }, articolo_id: { type: "string" }, quantita: { type: "number" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["fornitore_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_ordine_fornitore", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_fornitore_id: args?.fornitore_id, p_articolo_id: args?.articolo_id ?? null, p_quantita: args?.quantita ?? null, p_canale: args?.canale ?? "email" }),
+    allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore"], riskLevel: "yellow", domain: "warehouse", estimatedCostEur: 0.01,
+  },
+  convoca_formazione_operaio: {
+    schema: { type: "function", function: { name: "convoca_formazione_operaio", description: "Convoca un dipendente per una formazione/rinnovo in scadenza. Conferma richiesta.", parameters: { type: "object", properties: { dipendente_id: { type: "string" }, formazione: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["dipendente_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_convoca_formazione_operaio", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_dipendente_id: args?.dipendente_id, p_formazione: args?.formazione ?? null, p_canale: args?.canale ?? "email" }),
+    allowedPersonas: ["silvio", "hr", "assistente_imprenditore"], riskLevel: "yellow", domain: "hr", estimatedCostEur: 0.01,
+  },
+  lancia_winback: {
+    schema: { type: "function", function: { name: "lancia_winback", description: "Lancia una campagna win-back verso un cliente dormiente. Conferma richiesta.", parameters: { type: "object", properties: { cliente_id: { type: "string" }, offerta: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["cliente_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_lancia_winback", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_cliente_id: args?.cliente_id, p_offerta: args?.offerta ?? null, p_canale: args?.canale ?? "email" }),
+    allowedPersonas: ["silvio", "sales", "assistente_imprenditore"], riskLevel: "yellow", domain: "crm", estimatedCostEur: 0.01,
+  },
+  invia_cedolino_dipendente: {
+    schema: { type: "function", function: { name: "invia_cedolino_dipendente", description: "Invia il cedolino a un dipendente. Conferma richiesta.", parameters: { type: "object", properties: { dipendente_id: { type: "string" }, cedolino_id: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp"], default: "email" } }, required: ["dipendente_id"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_invia_cedolino", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_dipendente_id: args?.dipendente_id, p_cedolino_id: args?.cedolino_id ?? null, p_canale: args?.canale ?? "email" }),
+    allowedPersonas: ["silvio", "hr", "assistente_imprenditore"], riskLevel: "yellow", domain: "hr", estimatedCostEur: 0.01,
+  },
+  blocca_slot_calendario: {
+    schema: { type: "function", function: { name: "blocca_slot_calendario", description: "Blocca uno slot nel calendario (es. per sopralluogo). Conferma richiesta.", parameters: { type: "object", properties: { inizio: { type: "string", description: "ISO timestamp" }, fine: { type: "string", description: "ISO timestamp" }, motivo: { type: "string" } }, required: ["inizio"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_blocca_slot_calendario", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_inizio: args?.inizio, p_fine: args?.fine ?? null, p_motivo: args?.motivo ?? null }),
+    allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore"], riskLevel: "yellow", domain: "operations", estimatedCostEur: 0.01,
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-06 — Pipeline Forecast Sales (4 tool)
   // ═════════════════════════════════════════════════════════════════════════
