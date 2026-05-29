@@ -57,9 +57,10 @@ Deno.serve(async (req) => {
       if (text.length < 10) continue;
       const emb = await generateEmbedding(text);
       if (!emb) continue;
+      // pgvector: salva come STRING literal "[1,2,3]" (l'array raw non viene castato a vector)
       await supabase
         .from("email_inbox")
-        .update({ embedding: emb as any, embedding_at: new Date().toISOString() })
+        .update({ embedding: `[${emb.join(",")}]` as any, embedding_at: new Date().toISOString() })
         .eq("id", e.id);
       embedded++;
     }

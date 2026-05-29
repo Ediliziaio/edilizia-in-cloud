@@ -105,8 +105,10 @@ Deno.serve(async (req) => {
       if (OPENAI_API_KEY) {
         const emb = await generateEmbedding(qsem);
         if (emb) {
+          // pgvector via PostgREST: passare come STRING literal "[1,2,3]" (pattern provato
+          // in kb-test-rag/ai-quote-supreme). L'array raw NON viene castato a vector → errore.
           const { data } = await userClient.rpc("email_semantic_search", {
-            p_query_embedding: emb as any,
+            p_query_embedding: `[${emb.join(",")}]` as any,
             p_limit: 20,
           });
           risultati = (data as any[]) || [];
