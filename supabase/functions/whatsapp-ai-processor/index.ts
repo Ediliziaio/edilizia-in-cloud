@@ -180,6 +180,27 @@ Deno.serve(async (req) => {
       return markDone(supabase, body.message_id, "processed");
     }
 
+    // ── MP-SILVIO-07 — hook multicanale (ADDITIVO, guardato) ──────────────────
+    // Inoltra a silvio-canale-adapter SOLO i messaggi di TESTO che il bot
+    // operativo non sa classificare (intent "unknown"): NON sono comandi
+    // operativi (rapportino/ddt/foto/presenze/segnalazione/conferma/annulla),
+    // che restano interamente sul flusso esistente.
+    //
+    // L'adapter verifica l'identità Silvio del numero (silvio_canali_identita,
+    // verificato=true) e, se collegata, delega all'orchestratore che con
+    // origine=whatsapp mette TUTTO in coda (approvazione in-app, nessuna
+    // auto-esecuzione). forwardToSilvio() "prende in carico" il messaggio SOLO
+    // se Silvio ha davvero accodato/eseguito qualcosa; in ogni altro caso
+    // (numero non collegato a Silvio, nulla da fare, errore o timeout) ritorna
+    // false e si PROSEGUE col bot operativo esistente — zero regressioni sul
+    // webhook passato da Meta App Review.
+    if (msg.message_type === "text" && operationalTriage.intent === "unknown") {
+      const presoInCaricoDaSilvio = await forwardToSilvio(msg, msg.content_text ?? "");
+      if (presoInCaricoDaSilvio) {
+        return markDone(supabase, body.message_id, "processed");
+      }
+    }
+
     // Budget
     const budget = await checkBudget(supabase, msg.company_id);
     if (!budget.ok) {
@@ -575,6 +596,76 @@ async function createUnknownWorkerTicket(
       fn: "createUnknownWorkerTicket",
       error: String(e),
     }));
+  }
+}
+
+/**
+ * MP-SILVIO-07 — inoltro ADDITIVO a silvio-canale-adapter (canale WhatsApp).
+ *
+ * Ritorna `true` SOLO se Silvio ha preso in carico il messaggio (ha accodato o
+ * eseguito qualcosa) e la risposta è già stata inviata all'utente. In tutti gli
+ * altri casi ritorna `false` → il chiamante PROSEGUE col bot operativo
+ * esistente, così il flusso storico non cambia mai:
+ *   - numero non collegato a un'identità Silvio verificata (verifica_identita)
+ *   - Silvio non aveva nulla da fare / non ha capito (fatto a vuoto, riformula)
+ *   - errore HTTP, timeout o INTERNAL_WORKER_KEY mancante
+ */
+async function forwardToSilvio(msg: MsgForSend, testo: string): Promise<boolean> {
+  const trimmed = (testo ?? "").trim();
+  if (!trimmed) return false;
+
+  const baseUrl = Deno.env.get("SUPABASE_URL")!;
+  const workerKey = Deno.env.get("INTERNAL_WORKER_KEY") ?? "";
+  // Senza chiave non possiamo autenticarci verso l'adapter → fallback al bot.
+  if (!workerKey) return false;
+
+  // L'identità Silvio è memorizzata in E.164 (con prefisso "+"), mentre il
+  // "from" WhatsApp arriva in sole cifre. Normalizziamo per far combaciare la
+  // RPC silvio_canale_risolvi_utente, che fa un match ESATTO su identificativo.
+  const digits = (msg.from_phone ?? "").replace(/[^0-9]/g, "");
+  if (!digits) return false;
+  const identificativo = `+${digits}`;
+
+  try {
+    const res = await fetch(`${baseUrl}/functions/v1/silvio-canale-adapter`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-worker-key": workerKey,
+      },
+      body: JSON.stringify({
+        canale: "whatsapp",
+        identificativo,
+        testo: trimmed,
+        // Testo DIGITATO (non trascritto) → confidenza piena: senza questo
+        // l'adapter tratterebbe l'input come incerto e risponderebbe sempre
+        // "riformula" (richiedeRiformulazione(undefined) === true).
+        confidenza: 1,
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return false;
+
+    const j = await res.json().catch(() => ({}));
+    const azione = String(j?.azione ?? "");
+    const inviati = Number(j?.dettaglio?.inviati ?? 0);
+    const inCoda = Number(j?.dettaglio?.in_coda ?? 0);
+
+    // Presa in carico SOLO se Silvio ha davvero accodato/eseguito qualcosa.
+    const presoInCarico =
+      (azione === "in_coda" || azione === "fatto") && inviati + inCoda > 0;
+    if (!presoInCarico) return false;
+
+    const messaggio = typeof j?.messaggio === "string" ? j.messaggio.trim() : "";
+    if (!messaggio) return false;
+
+    await sendReply(msg, messaggio);
+    return true;
+  } catch (e) {
+    console.warn(
+      JSON.stringify({ level: "warn", fn: "forwardToSilvio", error: String(e) }),
+    );
+    return false;
   }
 }
 
