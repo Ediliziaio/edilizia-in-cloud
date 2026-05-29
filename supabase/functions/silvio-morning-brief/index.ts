@@ -27,6 +27,24 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const MAX_USERS_PER_RUN = 50;
 
+// MP-SILVIO-BRIEF-ACTIONABLE-01: cta_action degli alert che hanno un handler reale
+// in silvio-execute-action (le navigazioni open_* NON diventano proposte). Per ognuno
+// di questi alert critici/importanti il brief PRE-CREA la proposta (HITL) da approvare.
+const OPERATIONAL_CTA = [
+  "send_overdue_reminder", "send_quote_followup", "create_purchase_order",
+  "mark_payment_received", "create_logistics_task", "generic_email",
+  "create_quote_draft", "create_invoice_draft",
+];
+const MAX_BRIEF_ACTIONS = 6;
+
+interface BriefAction {
+  proposal_id: string;
+  action_type: string;
+  label: string;
+  alert_title: string;
+  severity: string;
+}
+
 interface BriefingInput {
   user_id: string;
   company_id: string;
@@ -104,13 +122,15 @@ Deno.serve(async (req: Request) => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function generateBriefingForUser(supabase: any, t: BriefingInput): Promise<void> {
-  // Setup tool context — admin con company_admin role per accedere a tutti i tool kpi
+  // Setup tool context — admin con company_admin role per accedere a tutti i tool kpi.
+  // NB: i campi reali di ToolContext sono primaryRole/personaKey (non userRole/persona):
+  // executeToolWithRouting legge ctx.primaryRole per il permission check.
   const toolCtx: ToolContext = {
     supabase,
     companyId: t.company_id,
     userId: t.user_id,
-    userRole: "company_admin",
-    persona: "silvio",
+    primaryRole: "company_admin",
+    personaKey: "silvio",
     channel: "internal_chat",
   };
 
@@ -129,8 +149,21 @@ async function generateBriefingForUser(supabase: any, t: BriefingInput): Promise
   if (overdueR.status === "fulfilled") dataParts.push(`Crediti scaduti gravi: ${JSON.stringify(overdueR.value).slice(0, 1500)}`);
   if (cashflowR.status === "fulfilled") dataParts.push(`Cashflow: ${JSON.stringify(cashflowR.value).slice(0, 1500)}`);
   if (lavoriR.status === "fulfilled") dataParts.push(`Lavori prossime 48h: ${JSON.stringify(lavoriR.value).slice(0, 1500)}`);
+
+  // ── MP-SILVIO-BRIEF-ACTIONABLE-01: da «alert» a «azioni pronte da approvare» ──
+  // Per ogni alert critico/importante con un'azione operativa, pre-creo la proposta
+  // (riusa silvio-execute-action → email/ordine reali) in stato 'pending'. Niente
+  // esegue senza approvazione umana: la card Approva/Ignora appare in "Cose da sapere".
+  const briefActions = await prepareActionableProposals(supabase, t);
+  if (briefActions.length > 0) {
+    dataParts.push(
+      `Azioni già pronte da approvare (${briefActions.length}): ` +
+      briefActions.map((a) => `${a.label} — ${a.alert_title}`).join("; "),
+    );
+  }
+
   if (dataParts.length === 0) {
-    // Nessun dato disponibile: niente briefing per oggi
+    // Nessun dato e nessuna azione: niente briefing per oggi
     return;
   }
 
@@ -151,6 +184,7 @@ OUTPUT JSON ESATTO (no markdown wrappers):
 
 REGOLE:
 - Concentrati su COSE AZIONABILI, non statistiche generiche.
+- Se nei dati c'è "Azioni già pronte da approvare", dillo chiaramente: hai PREPARATO le bozze e bastano un tap (es. "Ho già preparato 3 azioni: ti basta approvarle qui sotto"). NON dire che le hai inviate: sono in attesa di conferma.
 - Se non c'è nulla di urgente, dillo (es. "Nessuna anomalia rilevante stamattina").
 - NO emoji. NO saluti. NO "buongiorno".
 - Cita numeri reali dai dati, MAI inventare.
@@ -184,6 +218,13 @@ REGOLE:
 
   if (!parsed.content || parsed.content.length < 20) return;
 
+  // Severità finale: se ci sono azioni critiche pronte, non scendere sotto 'urgent'
+  // anche se l'LLM ha sottostimato.
+  let finalSeverity = ["info", "attention", "urgent"].includes(parsed.severity ?? "") ? parsed.severity! : "info";
+  if (briefActions.some((a) => a.severity === "critical") && finalSeverity === "info") {
+    finalSeverity = "urgent";
+  }
+
   // ── Salva (idempotent: UNIQUE user_id + brief_date) ─────────────
   const { error: insErr } = await supabase
     .from("silvio_morning_briefings")
@@ -192,7 +233,8 @@ REGOLE:
       user_id: t.user_id,
       content: parsed.content.slice(0, 2000),
       key_points: Array.isArray(parsed.key_points) ? parsed.key_points.slice(0, 5) : [],
-      severity: ["info", "attention", "urgent"].includes(parsed.severity ?? "") ? parsed.severity : "info",
+      severity: finalSeverity,
+      actions: briefActions,
       tools_used: ["get_executive_snapshot", "get_overdue_payments", "get_cashflow_status", "lista_lavori_pose_periodo"],
       model_used: ar?.model_used ?? null,
       cost_usd: ar?.cost_usd ?? null,
@@ -202,4 +244,55 @@ REGOLE:
     if (/duplicate key/i.test(insErr.message ?? "")) return; // briefing già esistente
     throw new Error(`insert briefing: ${insErr.message}`);
   }
+}
+
+/**
+ * MP-SILVIO-BRIEF-ACTIONABLE-01 — da «alert» a «azioni pronte da approvare».
+ * Carica gli alert OPEN operativi critici/importanti e, per ciascuno, pre-crea
+ * (idempotente, lato DB) una proposta HITL in stato 'pending' che riusa il path
+ * maturo silvio-execute-action. Non esegue nulla: serve solo conferma in 1 tap.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function prepareActionableProposals(supabase: any, t: BriefingInput): Promise<BriefAction[]> {
+  const out: BriefAction[] = [];
+  try {
+    const { data: alertRows, error } = await supabase
+      .from("silvio_alerts")
+      .select("id, alert_type, severity, title, cta_label, cta_action")
+      .eq("company_id", t.company_id)
+      .eq("status", "open")
+      .in("cta_action", OPERATIONAL_CTA)
+      .in("severity", ["critical", "warning"])
+      .order("severity", { ascending: true }) // 'critical' < 'warning' (alfabetico) → critici prima
+      .order("created_at", { ascending: false })
+      .limit(MAX_BRIEF_ACTIONS);
+    if (error) {
+      console.warn("[morning-brief] load actionable alerts failed:", error.message);
+      return out;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const a of ((alertRows ?? []) as any[])) {
+      const { data: pid, error: promErr } = await supabase.rpc("silvio_brief_promote_alert", {
+        p_company_id: t.company_id,
+        p_user_id: t.user_id,
+        p_alert_id: a.id,
+      });
+      if (promErr) {
+        console.warn(`[morning-brief] promote alert ${a.id} failed:`, promErr.message);
+        continue;
+      }
+      if (pid) {
+        out.push({
+          proposal_id: pid as string,
+          action_type: a.cta_action as string,
+          label: (a.cta_label as string | null) ?? (a.cta_action as string),
+          alert_title: a.title as string,
+          severity: a.severity as string,
+        });
+      }
+    }
+  } catch (e) {
+    console.warn("[morning-brief] prepareActionableProposals threw:", e instanceof Error ? e.message : String(e));
+  }
+  return out;
 }

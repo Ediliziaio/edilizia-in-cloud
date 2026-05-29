@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Sparkles, CheckCircle2, X, Pencil, Mail, Wallet, Package, Send, Loader2, Clock,
+  Sparkles, CheckCircle2, X, Pencil, Mail, Wallet, Package, Send, Loader2, Clock, ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -210,6 +210,39 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
     onError: (e: Error) => toast.error(`Errore: ${e.message}`),
   });
 
+  // MP-SILVIO-BRIEF-ACTIONABLE-01 — «Approva tutte»: esegue in sequenza le proposte
+  // che NON richiedono conferma forte (quelle restano da confermare singolarmente).
+  // silvio_tool_batch_approve_proposals raggruppa soltanto (non esegue): l'esecuzione
+  // reale è N invocazioni di silvio-execute-action, come fa il bottone Conferma.
+  const approveAllMut = useMutation({
+    mutationFn: async (batch: Proposal[]) => {
+      let ok = 0;
+      let failed = 0;
+      for (const p of batch) {
+        const { data, error } = await supabase.functions.invoke("silvio-execute-action", {
+          body: { proposal_id: p.id },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r = data as any;
+        if (error || r?.ok === false) failed++;
+        else ok++;
+      }
+      return { ok, failed };
+    },
+    onSuccess: ({ ok, failed }) => {
+      qc.invalidateQueries({ queryKey: ["silvio_action_proposals_pending"] });
+      qc.invalidateQueries({ queryKey: ["silvio_alerts_open"] });
+      qc.invalidateQueries({ queryKey: ["silvio_alerts_stats"] });
+      if (failed === 0) toast.success(`✅ ${ok} ${ok === 1 ? "azione applicata" : "azioni applicate"}`);
+      else toast.warning(`Applicate ${ok}, fallite ${failed}. Controlla le rimaste.`);
+    },
+    onError: (e: Error) => toast.error(`Errore batch: ${e.message}`),
+  });
+
+  // Proposte approvabili in blocco: escluse quelle a conferma forte (red / mark_payment / generic_email)
+  const batchEligible = (proposals ?? []).filter((p) => !requiresStrongConfirmation(p));
+  const bulkRunning = approveAllMut.isPending;
+
   if (isLoading) {
     return (
       <Card>
@@ -232,6 +265,19 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
           <CardDescription className="text-xs">
             {proposals.length} {proposals.length === 1 ? "bozza" : "bozze"} in attesa di conferma. Verifica e applica.
           </CardDescription>
+          {batchEligible.length >= 2 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 h-8 w-full gap-1.5 border-orange-300 text-xs font-semibold text-orange-700 hover:bg-orange-100"
+              onClick={() => approveAllMut.mutate(batchEligible)}
+              disabled={bulkRunning}
+            >
+              {bulkRunning
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Applico {batchEligible.length}…</>
+                : <><ListChecks className="h-3.5 w-3.5" /> Approva tutte ({batchEligible.length})</>}
+            </Button>
+          )}
         </CardHeader>
         <CardContent className={cn("space-y-2", compact && "px-3 pb-3")}>
           {proposals.map(p => (
@@ -249,6 +295,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
               onDismiss={() => dismissMut.mutate(p.id)}
               isApplying={executeMut.isPending && executeMut.variables?.proposalId === p.id}
               isDismissing={dismissMut.isPending && dismissMut.variables === p.id}
+              disabled={bulkRunning}
               compact={compact}
             />
           ))}
@@ -286,7 +333,7 @@ export function SilvioActionProposals({ compact = false }: { compact?: boolean }
 // ════════════════════════════════════════════════════════════════════════════
 
 function ProposalRow({
-  proposal, onConfirm, onEdit, onDismiss, isApplying, isDismissing, compact,
+  proposal, onConfirm, onEdit, onDismiss, isApplying, isDismissing, disabled = false, compact,
 }: {
   proposal: Proposal;
   onConfirm: () => void;
@@ -294,6 +341,7 @@ function ProposalRow({
   onDismiss: () => void;
   isApplying: boolean;
   isDismissing: boolean;
+  disabled?: boolean;
   compact: boolean;
 }) {
   const Icon = ACTION_ICON[proposal.action_type] ?? Send;
@@ -339,7 +387,7 @@ function ProposalRow({
         <Button
           size="sm" className={cn("h-7 px-2 text-xs gap-1", compact && "min-w-0")}
           onClick={onConfirm}
-          disabled={isApplying || isDismissing}
+          disabled={isApplying || isDismissing || disabled}
         >
           {isApplying
             ? <><Loader2 className="h-3 w-3 animate-spin" /> Applico…</>
@@ -349,14 +397,14 @@ function ProposalRow({
         <Button
           size="sm" variant={compact ? "ghost" : "outline"} className="h-7 px-2 text-xs gap-1"
           onClick={onEdit}
-          disabled={isApplying || isDismissing}
+          disabled={isApplying || isDismissing || disabled}
         >
           <Pencil className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>Modifica</span>
         </Button>
         <Button
           size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1 text-rose-600 hover:bg-rose-50"
           onClick={onDismiss}
-          disabled={isApplying || isDismissing}
+          disabled={isApplying || isDismissing || disabled}
         >
           <X className="h-3 w-3" /> <span className={cn(compact && "sr-only")}>Annulla</span>
         </Button>
