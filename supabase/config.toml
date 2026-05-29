@@ -531,3 +531,7 @@ verify_jwt = false
 # MP-SILVIO-03: trigger proattivi (cron). Auth: service role o x-cron-secret.
 [functions.silvio-trigger-tick]
 verify_jwt = false
+
+# MP-SILVIO-07: adattatore canali (WhatsApp/voce). Auth interna: INTERNAL_WORKER_KEY.
+[functions.silvio-canale-adapter]
+verify_jwt = false

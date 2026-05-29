@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   richiedeIdentitaVerificata, forzaConferma, approvabileSuCanale,
-  richiedeRiformulazione, SOGLIA_CONFIDENZA_CANALE,
+  richiedeRiformulazione, SOGLIA_CONFIDENZA_CANALE, messaggioEsito,
 } from "../canali";
 
 describe("identità obbligatoria sui canali esterni", () => {
@@ -48,4 +48,26 @@ describe("interpretazione incerta → riformula, non agire", () => {
   it("confidenza bassa → riformula", () => expect(richiedeRiformulazione(SOGLIA_CONFIDENZA_CANALE - 0.1)).toBe(true));
   it("confidenza assente → riformula", () => expect(richiedeRiformulazione(null)).toBe(true));
   it("confidenza alta → procede", () => expect(richiedeRiformulazione(0.9)).toBe(false));
+});
+
+describe("messaggioEsito — il canale dice la verità (coda ≠ fatto)", () => {
+  it("solo coda → dice da confermare in app, non 'fatto'", () => {
+    const m = messaggioEsito(0, 2, true);
+    expect(m).toContain("da confermare in app");
+    expect(m).not.toContain("Ho fatto");
+  });
+  it("solo eseguite → 'Ho fatto N'", () => {
+    expect(messaggioEsito(3, 0, true)).toContain("Ho fatto 3 cose");
+  });
+  it("singolare corretto", () => {
+    expect(messaggioEsito(1, 0, true)).toContain("Ho fatto 1 cosa");
+    expect(messaggioEsito(0, 1, true)).toContain("azione è da confermare");
+  });
+  it("misto → mostra entrambe", () => {
+    const m = messaggioEsito(1, 1, true);
+    expect(m).toContain("Ho fatto 1 cosa");
+    expect(m).toContain("da confermare in app");
+  });
+  it("niente da fare → messaggio neutro", () => expect(messaggioEsito(0, 0, true)).toBe("Ok, non serviva fare nulla."));
+  it("non capito → invita a riformulare", () => expect(messaggioEsito(0, 0, false)).toContain("riformulare"));
 });
