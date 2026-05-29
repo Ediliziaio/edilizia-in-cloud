@@ -5,7 +5,8 @@
  * Integra nel flusso ciò che Silvio fa; non blocca nulla (viste + approva/rifiuta).
  */
 import { useState } from "react";
-import { Bot, ShieldCheck, ListChecks, History, BookOpen, MailWarning, CheckCircle2, XCircle, Clock, Play, Send, Loader2 } from "lucide-react";
+import { useMemo } from "react";
+import { Bot, ShieldCheck, ListChecks, History, BookOpen, MailWarning, CheckCircle2, XCircle, Clock, Play, Send, Loader2, Undo2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,9 @@ import { Input } from "@/components/ui/input";
 import { SilvioAzioniSettings } from "./SilvioAzioniSettings";
 import {
   useSilvioCodaConferme, useRisolviConferma, useSilvioAudit, useSilvioTaskAttivi, useSilvioPlaybook, useAvviaPlaybook,
-  useChiediSilvio,
+  useChiediSilvio, useSilvioUndo,
 } from "@/lib/silvio/hooks";
-import { etichettaEsito, etichettaOrigine, anteprimaParametri } from "@/lib/silvio/fiducia";
+import { etichettaEsito, etichettaOrigine, anteprimaParametri, annullabileInverso } from "@/lib/silvio/fiducia";
 
 function Vuoto({ icon: Icon, testo }: { icon: typeof Clock; testo: string }) {
   return (
@@ -82,23 +83,39 @@ function InCorso() {
 
 function Storico() {
   const { data, isLoading } = useSilvioAudit(50);
+  const undo = useSilvioUndo();
+  // voci già annullate: hanno una voce 'annullata' che le referenzia (ref_audit_id)
+  const giaAnnullate = useMemo(() => {
+    const s = new Set<string>();
+    for (const a of data ?? []) if (a.esito === "annullata" && a.ref_audit_id) s.add(a.ref_audit_id);
+    return s;
+  }, [data]);
   if (isLoading) return <p className="text-xs text-muted-foreground">Caricamento…</p>;
   if ((data?.length ?? 0) === 0) return <Vuoto icon={History} testo="Ancora nessuna azione registrata. Ogni cosa che Silvio fa finirà qui, con il perché." />;
   return (
     <div className="space-y-1">
-      {data!.map((a) => (
-        <div key={a.id} className="flex items-center gap-2 rounded-md border bg-white px-3 py-1.5">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm text-slate-800">{a.azione_chiave}</p>
-            <p className="text-[11px] text-muted-foreground">
-              {etichettaOrigine(a.origine)}{a.motivo ? ` · ${a.motivo}` : ""} · {new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(a.created_at))}
-            </p>
+      {data!.map((a) => {
+        const annullabile = annullabileInverso(a.oggetto_tipo, a.oggetto_id, a.reversibile, a.esito, giaAnnullate.has(a.id));
+        return (
+          <div key={a.id} className="flex items-center gap-2 rounded-md border bg-white px-3 py-1.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm text-slate-800">{a.azione_chiave}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {etichettaOrigine(a.origine)}{a.motivo ? ` · ${a.motivo}` : ""} · {new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(a.created_at))}
+              </p>
+            </div>
+            {annullabile && (
+              <Button size="sm" variant="ghost" className="h-7 shrink-0 gap-1 px-2 text-[11px] text-slate-600" disabled={undo.isPending}
+                onClick={() => undo.mutate(a.id)}>
+                <Undo2 className="h-3.5 w-3.5" /> Annulla
+              </Button>
+            )}
+            <Badge variant="outline" className={`shrink-0 text-[10px] ${a.esito === "eseguita" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : a.esito === "annullata" ? "border-slate-200 bg-slate-50 text-slate-500" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+              {etichettaEsito(a.esito)}
+            </Badge>
           </div>
-          <Badge variant="outline" className={`shrink-0 text-[10px] ${a.esito === "eseguita" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : a.esito === "annullata" ? "border-slate-200 bg-slate-50 text-slate-500" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-            {etichettaEsito(a.esito)}
-          </Badge>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

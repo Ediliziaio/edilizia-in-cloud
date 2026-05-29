@@ -121,6 +121,7 @@ Deno.serve(async (req) => {
         company_id: companyId, azione_chiave: chiave, esito, autonomia: "confermata",
         motivo: "approvata dall'utente", origine: v.origine || "richiesta",
         per_conto_di: userId, approvata_da: userId, reversibile: rev, parametri: params,
+        oggetto_tipo: res.oggetto_tipo ?? null, oggetto_id: res.oggetto_id ?? null,
       }).then(() => {}, () => {});
       return json({ ok: res.ok, eseguita: res.ok, azione: chiave, errore: res.errore }, 200, cors);
     }
@@ -215,11 +216,12 @@ Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare
       }
       // autonoma → dispatcher conservativo
       const target = catalogo.get(chiave) || "";
+      const rev = catalogoRev.get(chiave) ?? false;
       const res = await esegui(supa, target, chiave, passo.parametri || {}, companyId, userId, token);
       if (res.ok) {
         inviati++;
         esiti.push({ azione: chiave, parametri: passo.parametri, stato: "fatto" });
-        await audit(supa, companyId, chiave, "eseguita", "autonoma", "azione autonoma sicura", origine, body.origine_id, userId, true);
+        await audit(supa, companyId, chiave, "eseguita", "autonoma", "azione autonoma sicura", origine, body.origine_id, userId, rev, res.oggetto_tipo, res.oggetto_id);
       } else if (res.coda) {
         // non eseguibile in sicurezza → in coda invece di indovinare
         inCoda++;
@@ -231,7 +233,7 @@ Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare
       } else {
         errori++;
         esiti.push({ azione: chiave, parametri: passo.parametri, stato: "fallito" });
-        await audit(supa, companyId, chiave, "errore", "autonoma", res.errore || "errore esecuzione", origine, body.origine_id, userId, true);
+        await audit(supa, companyId, chiave, "errore", "autonoma", res.errore || "errore esecuzione", origine, body.origine_id, userId, rev);
       }
     }
 
@@ -284,8 +286,11 @@ async function callAnthropic(model: string, system: string, richiesta: string, c
   } catch { return { piano: null, tokenIn: 0, tokenOut: 0 }; }
 }
 
+// Esito esecuzione: oggetto_tipo/oggetto_id catturati abilitano l'undo (MP-06).
+type EsitoEsec = { ok?: boolean; coda?: boolean; errore?: string; oggetto_tipo?: string | null; oggetto_id?: string | null };
+
 // Dispatcher: esegue le autonome SOLO se sa farlo in sicurezza, altrimenti coda.
-async function esegui(supa: any, target: string, chiave: string, parametri: any, companyId: string, userId: string | null, token: string): Promise<{ ok?: boolean; coda?: boolean; errore?: string }> {
+async function esegui(supa: any, target: string, chiave: string, parametri: any, companyId: string, userId: string | null, token: string): Promise<EsitoEsec> {
   try {
     if (EDGE_TARGETS.has(target)) {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/${target}`, {
@@ -294,17 +299,27 @@ async function esegui(supa: any, target: string, chiave: string, parametri: any,
         body: JSON.stringify(parametri),
       });
       const j = await res.json().catch(() => ({}));
-      return res.ok && (j.ok !== false) ? { ok: true } : { errore: j.error || `HTTP ${res.status}` };
+      if (!(res.ok && j.ok !== false)) return { errore: j.error || `HTTP ${res.status}` };
+      // cattura l'oggetto creato → undo della bozza estratta (elimina_bozza_documento)
+      if (target === "email-ai-estrai-allegato" && j.draft?.id) {
+        return { ok: true, oggetto_tipo: "email_documento_estratto", oggetto_id: j.draft.id };
+      }
+      return { ok: true };
     }
     if (target === "digest_log") {
       await supa.from("digest_log").insert({ company_id: companyId, utente_id: userId, contenuto: { titolo: "Silvio", righe: [String(parametri?.testo || "Aggiornamento")] } });
       return { ok: true };
     }
     if (target === "email_collegamenti" && parametri?.email_id && parametri?.oggetto_id) {
-      await supa.from("email_collegamenti").insert({
-        email_id: parametri.email_id, oggetto_tipo: parametri.oggetto_tipo || "cantiere",
+      const oggettoTipo = parametri.oggetto_tipo || "cantiere";
+      const { data: ins, error } = await supa.from("email_collegamenti").insert({
+        email_id: parametri.email_id, oggetto_tipo: oggettoTipo,
         oggetto_id: parametri.oggetto_id, company_id: companyId, origine: "silvio",
-      });
+      }).select("id").maybeSingle();
+      if (!error && ins) return { ok: true, oggetto_tipo: "email_collegamento", oggetto_id: (ins as any).id };
+      // collegamento già presente (UNIQUE) → ok, ma niente nuovo oggetto da annullare
+      if (error && (error.code === "23505" || /duplicate|unique/i.test(error.message || ""))) return { ok: true };
+      if (error) return { errore: error.message };
       return { ok: true };
     }
     // non sappiamo eseguirla in sicurezza → coda (conferma umana)
@@ -314,10 +329,11 @@ async function esegui(supa: any, target: string, chiave: string, parametri: any,
   }
 }
 
-async function audit(supa: any, companyId: string, chiave: string, esito: string, autonomia: string, motivo: string, origine: string, origineId: any, perConto: string | null, reversibile: boolean) {
+async function audit(supa: any, companyId: string, chiave: string, esito: string, autonomia: string, motivo: string, origine: string, origineId: any, perConto: string | null, reversibile: boolean, oggettoTipo?: string | null, oggettoId?: string | null) {
   await supa.from("silvio_audit").insert({
     company_id: companyId, azione_chiave: chiave, esito, autonomia, motivo, origine,
     origine_id: origineId ?? null, per_conto_di: perConto, reversibile,
+    oggetto_tipo: oggettoTipo ?? null, oggetto_id: oggettoId ?? null,
   }).then(() => {}, () => {});
 }
 

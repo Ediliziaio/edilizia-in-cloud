@@ -11,6 +11,27 @@ export function puoAnnullare(reversibile: boolean, esito: string, giaAnnullata =
   return !!reversibile && esito === "eseguita" && !giaAnnullata;
 }
 
+/**
+ * Oggetti con inverso DB sicuro e atomico (specchio di silvio_undo nel DB):
+ *  - email_collegamento     → scollega (delete riga ponte)
+ *  - email_documento_estratto → elimina la bozza se ancora non confermata
+ * Solo per questi la UI mostra "Annulla": evita pulsanti che poi falliscono.
+ */
+export const OGGETTI_ANNULLABILI = new Set(["email_collegamento", "email_documento_estratto"]);
+
+/** L'undo è offribile dalla UI solo se l'oggetto è tracciato e ha un inverso supportato. */
+export function annullabileInverso(
+  oggettoTipo: string | null | undefined,
+  oggettoId: string | null | undefined,
+  reversibile: boolean,
+  esito: string,
+  giaAnnullata = false,
+): boolean {
+  if (!oggettoId) return false;
+  if (!OGGETTI_ANNULLABILI.has(oggettoTipo ?? "")) return false;
+  return puoAnnullare(reversibile, esito, giaAnnullata);
+}
+
 /** Una voce in coda è gestibile solo finché è in attesa. */
 export function codaGestibile(stato: string): boolean {
   return stato === "in_attesa";

@@ -72,8 +72,9 @@ export interface SilvioCodaVoce {
   anteprima: string | null; stato: string; origine: string | null; created_at: string;
 }
 export interface SilvioAuditVoce {
-  id: string; azione_chiave: string; oggetto_tipo: string | null; esito: string;
-  autonomia: string; motivo: string | null; origine: string | null; reversibile: boolean; created_at: string;
+  id: string; azione_chiave: string; oggetto_tipo: string | null; oggetto_id: string | null;
+  esito: string; autonomia: string; motivo: string | null; origine: string | null;
+  reversibile: boolean; ref_audit_id: string | null; created_at: string;
 }
 export interface SilvioTaskRow {
   id: string; titolo: string | null; origine: string; stato: string; passo_corrente: number;
@@ -138,10 +139,45 @@ export function useSilvioAudit(limit = 50) {
     queryKey: ["silvio-audit", limit],
     queryFn: async (): Promise<SilvioAuditVoce[]> => {
       const { data, error } = await sbAnyS.from("silvio_audit")
-        .select("id, azione_chiave, oggetto_tipo, esito, autonomia, motivo, origine, reversibile, created_at")
+        .select("id, azione_chiave, oggetto_tipo, oggetto_id, esito, autonomia, motivo, origine, reversibile, ref_audit_id, created_at")
         .order("created_at", { ascending: false }).limit(limit);
       if (error) throw error;
       return (data as SilvioAuditVoce[]) ?? [];
+    },
+  });
+}
+
+// errori parlanti del DB (silvio_undo) → messaggi per l'utente
+const UNDO_MSG: Record<string, string> = {
+  gia_annullata: "Questa azione è già stata annullata.",
+  bozza_gia_confermata: "La bozza è già stata confermata: non si può più annullare.",
+  oggetto_assente: "L'elemento è già stato rimosso.",
+  annullamento_non_supportato: "Questa azione non si può annullare automaticamente.",
+  non_reversibile: "Questa azione non è reversibile.",
+  non_annullabile: "Solo le azioni eseguite si possono annullare.",
+  oggetto_non_tracciato: "Non è stato tracciato cosa annullare per questa azione.",
+  non_autorizzato: "Non hai i permessi per annullare.",
+};
+
+/** Annulla un'azione reversibile eseguita (MP-SILVIO-06): esegue l'inverso e traccia. */
+export function useSilvioUndo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (auditId: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.rpc as any)("silvio_undo", { p_audit_id: auditId });
+      if (error) throw error;
+      return auditId;
+    },
+    onSuccess: () => {
+      toast.success("Azione annullata");
+      void qc.invalidateQueries({ queryKey: ["silvio-audit"] });
+      void qc.invalidateQueries({ queryKey: ["silvio-coda"] });
+    },
+    onError: (e) => {
+      const raw = e instanceof Error ? e.message : String(e);
+      const key = Object.keys(UNDO_MSG).find((k) => raw.includes(k));
+      toast.error("Annullamento non riuscito", { description: key ? UNDO_MSG[key] : raw });
     },
   });
 }
