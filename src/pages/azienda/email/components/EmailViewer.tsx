@@ -32,6 +32,7 @@ import { OpportunitaEmailPanel } from "@/components/email-ai/OpportunitaEmailPan
 import { CollegamentiEmailPanel } from "@/components/email-ai/CollegamentiEmailPanel";
 import { EventoEmailPanel } from "@/components/email-ai/EventoEmailPanel";
 import { RischioBanner } from "@/components/email-ai/RischioBanner";
+import { PecBadge } from "@/components/email-ai/PecBadge";
 import {
   ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward,
   Paperclip, Sparkles, AlertTriangle, X, Wand2, Loader2, ListChecks,
@@ -77,6 +78,9 @@ interface MessageRow {
   ai_processed_at: string | null;
   is_read: boolean;
   is_starred: boolean;
+  is_pec?: boolean | null;
+  pec_tipo?: string | null;
+  pec_stato?: string | null;
 }
 
 interface EmailAnalysisResult {
@@ -416,7 +420,7 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("email_inbox")
-        .select("id, thread_id, message_id, oauth_connection_id, from_email, from_name, to_email, cc_emails, subject, received_at, raw_html, raw_text, attachments, headers, ai_category, ai_priority, ai_summary, ai_extracted, ai_suggested_action, ai_processed_at, is_read, is_starred")
+        .select("id, thread_id, message_id, oauth_connection_id, from_email, from_name, to_email, cc_emails, subject, received_at, raw_html, raw_text, attachments, headers, ai_category, ai_priority, ai_summary, ai_extracted, ai_suggested_action, ai_processed_at, is_read, is_starred, is_pec, pec_tipo, pec_stato")
         .eq("thread_id", threadId)
         .order("received_at", { ascending: true });
       if (error) throw error;
@@ -1817,6 +1821,13 @@ function MessageBubble({ message }: { message: MessageRow }) {
         </div>
         <span className="text-[11px] text-muted-foreground shrink-0">{ts}</span>
       </div>
+
+      {/* MP-EMAIL-AI-17: marca PEC (valore legale) + stato di consegna */}
+      {message.is_pec && (
+        <div className="px-4 py-2 bg-violet-50/60 border-b border-violet-100">
+          <PecBadge isPec={message.is_pec} pecTipo={message.pec_tipo} pecStato={message.pec_stato} />
+        </div>
+      )}
 
       {/* MP-EMAIL-AI-16: avviso di rischio (phishing / frode IBAN) — avvisa, non blocca */}
       <RischioBanner message={message} />
