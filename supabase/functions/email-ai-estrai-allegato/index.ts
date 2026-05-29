@@ -52,12 +52,13 @@ Schema di output:
     "scadenza":    { "valore": null, "conf": 0 },
     "iban":        { "valore": null, "conf": 0 },
     "causale_trasporto": { "valore": null, "conf": 0 },
-    "riferimento_ordine": { "valore": null, "conf": 0 }
+    "riferimento_ordine": { "valore": null, "conf": 0 },
+    "righe": []
   },
   "dati_incerti": [],
   "note": ""
 }
-Date in formato ISO YYYY-MM-DD. Importi come numero (punto decimale). Per i DDT lascia null i campi fiscali non presenti. Includi in dati_incerti i nomi dei campi con conf < 0.75.`;
+Date in formato ISO YYYY-MM-DD. Importi come numero (punto decimale). Per i DDT lascia null i campi fiscali non presenti. Per DDT/bolle (e fatture con dettaglio) popola "righe" come array di oggetti { "descrizione": string, "codice": string|null, "qta": number, "prezzo": number|null }. Includi in dati_incerti i nomi dei campi con conf < 0.75.`;
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);

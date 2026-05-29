@@ -465,3 +465,92 @@ export function useAggiornaStatoDocumentoEstratto() {
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+// ─── MP-EMAIL-AI-07 — DDT → proposta di carico magazzino ──────────────────────
+
+export interface DdtCaricoRiga {
+  descrizione: string;
+  codice: string | null;
+  qta_bolla: number;
+  qta_ordine: number | null;
+  scostamento: number | null;
+  po_item_id: string | null;
+  note: string | null;
+}
+export interface DdtCarico {
+  id: string;
+  email_id: string | null;
+  documento_estratto_id: string | null;
+  ddt_numero: string | null;
+  purchase_order_numero: string | null;
+  senza_ordine: boolean;
+  righe: DdtCaricoRiga[];
+  scostamenti_totali: number;
+  stato: "bozza" | "confermato" | "scartato";
+  created_at: string;
+}
+
+export function useCreaCaricoDdt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { documento_estratto_id: string; email_id?: string }): Promise<{ ok?: boolean; carico?: DdtCarico; error?: string; reason?: string }> => {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/email-ai-ddt-carico`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ documento_estratto_id: input.documento_estratto_id }),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+      return out;
+    },
+    onSuccess: (data, vars) => {
+      if (data.carico) {
+        const s = data.carico.scostamenti_totali;
+        toast.success("Carico proposto", { description: s > 0 ? `${s} righe con scostamento da verificare.` : "Quantità coerenti con l'ordine." });
+        void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", vars.email_id] });
+      }
+    },
+    onError: (e) => toast.error("Errore carico", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+export function useCarichiDdtPerEmail(emailId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-ddt-carichi", emailId],
+    enabled: !!emailId,
+    queryFn: async (): Promise<DdtCarico[]> => {
+      const { data, error } = await sbAny
+        .from("email_ddt_carico")
+        .select("*")
+        .eq("email_id", emailId as string)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as DdtCarico[]) || [];
+    },
+  });
+}
+
+export function useAggiornaStatoCaricoDdt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; stato: "confermato" | "scartato"; email_id?: string }) => {
+      const patch: Record<string, unknown> = { stato: input.stato };
+      if (input.stato === "confermato") {
+        const { data: u } = await supabase.auth.getUser();
+        patch.confirmed_by = u.user?.id ?? null;
+        patch.confirmed_at = new Date().toISOString();
+      }
+      const { error } = await sbAny.from("email_ddt_carico").update(patch).eq("id", input.id);
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => {
+      toast.success(input.stato === "confermato" ? "Carico confermato" : "Carico scartato");
+      void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", input.email_id] });
+    },
+    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}

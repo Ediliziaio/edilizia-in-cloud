@@ -6,7 +6,7 @@
  * avviso duplicato SDI. Azioni: Conferma / Scarta. Mai registrazione automatica.
  */
 import { useMemo } from "react";
-import { FileText, ScanText, AlertTriangle, CheckCircle2, XCircle, Loader2, Copy } from "lucide-react";
+import { FileText, ScanText, AlertTriangle, CheckCircle2, XCircle, Loader2, Copy, PackageCheck, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,11 @@ import {
   useEstraiAllegato,
   useDocumentiEstrattiPerEmail,
   useAggiornaStatoDocumentoEstratto,
+  useCreaCaricoDdt,
+  useCarichiDdtPerEmail,
+  useAggiornaStatoCaricoDdt,
   type DocumentoEstratto,
+  type DdtCarico,
 } from "@/lib/email-ai/hooks";
 
 type Attachment = { filename?: string; size?: number; mime?: string; storage_path?: string };
@@ -77,14 +81,94 @@ export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: stri
       {(drafts ?? []).filter((d) => d.stato !== "scartato").map((d) => (
         <DraftCard key={d.id} draft={d} emailId={emailId} />
       ))}
+
+      <CarichiSection emailId={emailId} />
     </div>
+  );
+}
+
+function CarichiSection({ emailId }: { emailId: string }) {
+  const { data: carichi } = useCarichiDdtPerEmail(emailId);
+  const aggiorna = useAggiornaStatoCaricoDdt();
+  const visibili = (carichi ?? []).filter((c) => c.stato !== "scartato");
+  if (visibili.length === 0) return null;
+  return (
+    <>
+      {visibili.map((c) => (
+        <div key={c.id} className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 text-xs">
+          <div className="mb-2 flex items-center gap-2">
+            <PackageCheck className="h-4 w-4 text-indigo-600" />
+            <span className="font-semibold text-indigo-900">Carico da DDT {c.ddt_numero ? `n. ${c.ddt_numero}` : ""}</span>
+            {c.purchase_order_numero ? (
+              <Badge variant="outline" className="bg-white text-[10px]">ODA {c.purchase_order_numero}</Badge>
+            ) : (
+              <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">Nessun ordine collegato</Badge>
+            )}
+            {c.stato === "confermato" && <Badge className="bg-emerald-600 text-[10px]">Confermato</Badge>}
+            {c.scostamenti_totali > 0 && (
+              <Badge variant="outline" className="border-rose-300 bg-rose-50 text-rose-700 text-[10px]">{c.scostamenti_totali} scostamenti</Badge>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="text-left text-muted-foreground">
+                  <th className="py-1 pr-2 font-medium">Articolo</th>
+                  <th className="px-1 text-right font-medium">In bolla</th>
+                  <th className="px-1 text-right font-medium">Ordinato</th>
+                  <th className="px-1 text-right font-medium">Δ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {c.righe.map((r, i) => {
+                  const diff = r.scostamento;
+                  const bad = diff == null || diff !== 0;
+                  return (
+                    <tr key={i} className={cn("border-t border-indigo-100", bad && "bg-rose-50/60")}>
+                      <td className="py-1 pr-2">
+                        <span className="font-medium text-slate-800">{r.descrizione || r.codice || "—"}</span>
+                        {r.note && <span className="ml-1 text-[10px] text-rose-600">({r.note})</span>}
+                      </td>
+                      <td className="px-1 text-right tabular-nums">{r.qta_bolla}</td>
+                      <td className="px-1 text-right tabular-nums">{r.qta_ordine ?? "—"}</td>
+                      <td className={cn("px-1 text-right tabular-nums font-semibold", bad ? "text-rose-700" : "text-emerald-700")}>
+                        {diff == null ? "n/d" : diff > 0 ? `+${diff}` : diff}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {c.stato !== "confermato" && (
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-xs hover:bg-emerald-700"
+                      disabled={aggiorna.isPending}
+                      onClick={() => aggiorna.mutate({ id: c.id, stato: "confermato", email_id: emailId })}>
+                <CheckCircle2 className="h-3.5 w-3.5" /> Conferma carico
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
+                      disabled={aggiorna.isPending}
+                      onClick={() => aggiorna.mutate({ id: c.id, stato: "scartato", email_id: emailId })}>
+                <XCircle className="h-3.5 w-3.5" /> Scarta
+              </Button>
+            </div>
+          )}
+        </div>
+      ))}
+    </>
   );
 }
 
 function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: string }) {
   const aggiorna = useAggiornaStatoDocumentoEstratto();
+  const creaCarico = useCreaCaricoDdt();
   const incerti = new Set(draft.dati_incerti || []);
   const campi = draft.campi || {};
+  const righe = (campi as Record<string, unknown>).righe;
+  const isDdt = (draft.tipo || "").toLowerCase() === "ddt" || (Array.isArray(righe) && righe.length > 0);
   const ordered = Object.keys(CAMPO_LABEL).filter((k) => campi[k]?.valore != null && campi[k]?.valore !== "");
 
   return (
@@ -127,6 +211,17 @@ function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: stri
       </div>
 
       {draft.note && <p className="mt-2 text-[11px] italic text-muted-foreground">{draft.note}</p>}
+
+      {isDdt && (
+        <div className="mt-3">
+          <Button size="sm" variant="secondary" className="h-8 gap-1 text-xs"
+                  disabled={creaCarico.isPending}
+                  onClick={() => creaCarico.mutate({ documento_estratto_id: draft.id, email_id: emailId })}>
+            {creaCarico.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
+            Crea carico magazzino
+          </Button>
+        </div>
+      )}
 
       {draft.stato !== "confermato" && (
         <div className="mt-3 flex gap-2">
