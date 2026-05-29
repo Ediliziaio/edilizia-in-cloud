@@ -1,12 +1,13 @@
 /**
- * DocumentoEstrattoPanel — MP-EMAIL-AI-06 · UI estrazione allegati → bozza
+ * DocumentoEstrattoPanel — MP-EMAIL-AI-06/07/09 · UI ponte allegati → gestionale
  *
- * Per ogni allegato PDF mostra "Estrai dati". Le bozze risultanti appaiono come
- * card di revisione: campi precompilati, incerti EVIDENZIATI, alert IBAN anti-frode,
- * avviso duplicato SDI. Azioni: Conferma / Scarta. Mai registrazione automatica.
+ * Per ogni allegato PDF: "Estrai dati". Le bozze (card di revisione) mostrano
+ * campi precompilati, incerti EVIDENZIATI, alert IBAN anti-frode, duplicato SDI.
+ * Sui DDT: "Crea carico" (MP-07, confronto ODA). Sulle fatture con scadenza:
+ * "Rileva scadenza" (MP-09 → Cashflow previsionale). Mai registrazione automatica.
  */
 import { useMemo } from "react";
-import { FileText, ScanText, AlertTriangle, CheckCircle2, XCircle, Loader2, Copy, PackageCheck, Truck } from "lucide-react";
+import { FileText, ScanText, AlertTriangle, CheckCircle2, XCircle, Loader2, Copy, PackageCheck, Truck, CalendarClock, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -17,8 +18,11 @@ import {
   useCreaCaricoDdt,
   useCarichiDdtPerEmail,
   useAggiornaStatoCaricoDdt,
+  useRilevaScadenza,
+  useScadenzeBozzePerEmail,
+  useConfermaScadenza,
+  useScartaScadenza,
   type DocumentoEstratto,
-  type DdtCarico,
 } from "@/lib/email-ai/hooks";
 
 type Attachment = { filename?: string; size?: number; mime?: string; storage_path?: string };
@@ -83,6 +87,7 @@ export function DocumentoEstrattoPanel({ emailId, attachments }: { emailId: stri
       ))}
 
       <CarichiSection emailId={emailId} />
+      <ScadenzeSection emailId={emailId} />
     </div>
   );
 }
@@ -162,13 +167,65 @@ function CarichiSection({ emailId }: { emailId: string }) {
   );
 }
 
+function ScadenzeSection({ emailId }: { emailId: string }) {
+  const { data: scadenze } = useScadenzeBozzePerEmail(emailId);
+  const conferma = useConfermaScadenza();
+  const scarta = useScartaScadenza();
+  const visibili = (scadenze ?? []).filter((s) => s.stato !== "scartata");
+  if (visibili.length === 0) return null;
+  return (
+    <>
+      {visibili.map((s) => {
+        const entrata = s.direzione === "entrata";
+        return (
+          <div key={s.id} className="rounded-lg border border-teal-200 bg-teal-50/40 p-3 text-xs">
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-teal-700" />
+              <span className="font-semibold text-teal-900">Scadenza rilevata</span>
+              <Badge variant="outline" className={cn("gap-1 text-[10px]", entrata ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-rose-300 bg-rose-50 text-rose-700")}>
+                {entrata ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
+                {entrata ? "Incasso" : "Pagamento"}
+              </Badge>
+              {s.stato === "aggiunta" && <Badge className="bg-emerald-600 text-[10px]">In scadenzario</Badge>}
+              {s.dedup_scadenza_id && s.stato !== "aggiunta" && (
+                <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 text-[10px]">Già presente</Badge>
+              )}
+            </div>
+            <p className="text-[12px] text-slate-800">
+              <b>{new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(s.amount)}</b>
+              {" · "}entro il {new Date(s.due_date).toLocaleDateString("it-IT")}
+              {s.descrizione ? ` · ${s.descrizione}` : ""}
+            </p>
+            {s.stato !== "aggiunta" && (
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" className="h-8 gap-1 bg-teal-600 text-xs hover:bg-teal-700"
+                        disabled={conferma.isPending}
+                        onClick={() => conferma.mutate({ id: s.id, email_id: emailId })}>
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Aggiungi a scadenzario
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 gap-1 text-xs"
+                        disabled={scarta.isPending}
+                        onClick={() => scarta.mutate({ id: s.id, email_id: emailId })}>
+                  <XCircle className="h-3.5 w-3.5" /> Scarta
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: string }) {
   const aggiorna = useAggiornaStatoDocumentoEstratto();
   const creaCarico = useCreaCaricoDdt();
+  const rilevaScadenza = useRilevaScadenza();
   const incerti = new Set(draft.dati_incerti || []);
   const campi = draft.campi || {};
   const righe = (campi as Record<string, unknown>).righe;
   const isDdt = (draft.tipo || "").toLowerCase() === "ddt" || (Array.isArray(righe) && righe.length > 0);
+  const hasScadenza = !!campi.scadenza?.valore && !!campi.totale?.valore;
   const ordered = Object.keys(CAMPO_LABEL).filter((k) => campi[k]?.valore != null && campi[k]?.valore !== "");
 
   return (
@@ -212,16 +269,24 @@ function DraftCard({ draft, emailId }: { draft: DocumentoEstratto; emailId: stri
 
       {draft.note && <p className="mt-2 text-[11px] italic text-muted-foreground">{draft.note}</p>}
 
-      {isDdt && (
-        <div className="mt-3">
+      <div className="mt-3 flex flex-wrap gap-2">
+        {isDdt && (
           <Button size="sm" variant="secondary" className="h-8 gap-1 text-xs"
                   disabled={creaCarico.isPending}
                   onClick={() => creaCarico.mutate({ documento_estratto_id: draft.id, email_id: emailId })}>
             {creaCarico.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Truck className="h-3.5 w-3.5" />}
             Crea carico magazzino
           </Button>
-        </div>
-      )}
+        )}
+        {hasScadenza && (
+          <Button size="sm" variant="secondary" className="h-8 gap-1 text-xs"
+                  disabled={rilevaScadenza.isPending}
+                  onClick={() => rilevaScadenza.mutate({ documento_estratto_id: draft.id, email_id: emailId })}>
+            {rilevaScadenza.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarClock className="h-3.5 w-3.5" />}
+            Rileva scadenza
+          </Button>
+        )}
+      </div>
 
       {draft.stato !== "confermato" && (
         <div className="mt-3 flex gap-2">

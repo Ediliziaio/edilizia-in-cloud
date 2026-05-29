@@ -632,3 +632,85 @@ export function useAggiornaStatoOpportunita() {
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+// ─── MP-EMAIL-AI-09 — Email/documento → scadenza previsionale ─────────────────
+
+export interface ScadenzaBozza {
+  id: string;
+  email_id: string | null;
+  documento_estratto_id: string | null;
+  direzione: "entrata" | "uscita";
+  amount: number;
+  due_date: string;
+  descrizione: string | null;
+  dedup_scadenza_id: string | null;
+  scadenza_creata_id: string | null;
+  stato: "bozza" | "aggiunta" | "scartata";
+  created_at: string;
+}
+
+export function useRilevaScadenza() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { documento_estratto_id: string; email_id?: string }): Promise<{ ok?: boolean; bozza?: ScadenzaBozza; skipped?: string; reason?: string; gia_presente?: boolean }> => {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/email-ai-scadenza`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ documento_estratto_id: input.documento_estratto_id }),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+      return out;
+    },
+    onSuccess: (data, vars) => {
+      if (data.skipped) toast.info("Nessuna scadenza", { description: data.reason || data.skipped });
+      else { toast.success("Scadenza rilevata", { description: "Controlla e aggiungila allo scadenzario." }); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", vars.email_id] }); }
+    },
+    onError: (e) => toast.error("Errore scadenza", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+export function useScadenzeBozzePerEmail(emailId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-scadenze-bozze", emailId],
+    enabled: !!emailId,
+    queryFn: async (): Promise<ScadenzaBozza[]> => {
+      const { data, error } = await sbAny
+        .from("email_scadenza_bozza").select("*").eq("email_id", emailId as string).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as ScadenzaBozza[]) || [];
+    },
+  });
+}
+
+export function useConfermaScadenza() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; email_id?: string }) => {
+      const { data, error } = await (supabase.rpc as any)("email_scadenza_conferma", { p_bozza_id: input.id });
+      if (error) throw error;
+      return { id: input.id, scadenza_id: data as string };
+    },
+    onSuccess: (_d, vars) => {
+      toast.success("Aggiunta allo scadenzario", { description: "Voce previsionale creata nel Cashflow." });
+      void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", vars.email_id] });
+    },
+    onError: (e) => toast.error("Errore conferma", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+export function useScartaScadenza() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; email_id?: string }) => {
+      const { error } = await sbAny.from("email_scadenza_bozza").update({ stato: "scartata" }).eq("id", input.id);
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => { toast.success("Scadenza scartata"); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", input.email_id] }); },
+    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
