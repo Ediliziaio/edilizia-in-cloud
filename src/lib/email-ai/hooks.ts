@@ -714,3 +714,96 @@ export function useScartaScadenza() {
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+// ─── MP-EMAIL-AI-10 — Collegamenti email ↔ cantieri/pratiche ──────────────────
+
+export interface EmailCollegamento {
+  id: string;
+  email_id: string;
+  oggetto_tipo: "cantiere" | "pratica";
+  oggetto_id: string;
+  origine: string;
+  created_at: string;
+}
+export interface OggettoOpzione {
+  tipo: "cantiere" | "pratica";
+  id: string;
+  label: string;
+}
+
+export function useCollegamentiPerEmail(emailId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-collegamenti", emailId],
+    enabled: !!emailId,
+    queryFn: async (): Promise<EmailCollegamento[]> => {
+      const { data, error } = await sbAny
+        .from("email_collegamenti").select("id, email_id, oggetto_tipo, oggetto_id, origine, created_at")
+        .eq("email_id", emailId as string).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as EmailCollegamento[]) || [];
+    },
+  });
+}
+
+export function useCantieriPraticheOpzioni(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-collega-opzioni", companyId],
+    enabled: !!companyId,
+    staleTime: 2 * 60 * 1000,
+    queryFn: async (): Promise<OggettoOpzione[]> => {
+      const out: OggettoOpzione[] = [];
+      const { data: orders } = await sbAny
+        .from("orders").select("id, client_name, client_company, indirizzo_lavori")
+        .eq("company_id", companyId as string).order("created_at", { ascending: false }).limit(80);
+      for (const o of (orders as any[]) || []) {
+        const nome = [o.client_name || o.client_company, o.indirizzo_lavori].filter(Boolean).join(" — ");
+        out.push({ tipo: "cantiere", id: o.id, label: nome || `Commessa ${String(o.id).slice(0, 8)}` });
+      }
+      const { data: pratiche } = await sbAny
+        .from("pratiche_edilizie").select("id, tipo_pratica")
+        .eq("company_id", companyId as string).order("created_at", { ascending: false }).limit(80);
+      for (const p of (pratiche as any[]) || []) {
+        out.push({ tipo: "pratica", id: p.id, label: `Pratica ${p.tipo_pratica || String(p.id).slice(0, 8)}` });
+      }
+      return out;
+    },
+  });
+}
+
+export function useCollegaEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { email_id: string; thread_id?: string | null; oggetto_tipo: "cantiere" | "pratica"; oggetto_id: string; company_id: string }) => {
+      const { data: u } = await supabase.auth.getUser();
+      const { error } = await sbAny.from("email_collegamenti").insert({
+        company_id: input.company_id,
+        email_id: input.email_id,
+        thread_id: input.thread_id ?? null,
+        oggetto_tipo: input.oggetto_tipo,
+        oggetto_id: input.oggetto_id,
+        origine: "manuale",
+        collegato_da: u.user?.id ?? null,
+      });
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => { toast.success("Email collegata"); void qc.invalidateQueries({ queryKey: ["email-collegamenti", input.email_id] }); },
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(/duplicate|unique/i.test(msg) ? "Già collegata a questo elemento" : "Errore collegamento", { description: msg.slice(0, 120) });
+    },
+  });
+}
+
+export function useScollegaEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; email_id: string }) => {
+      const { error } = await sbAny.from("email_collegamenti").delete().eq("id", input.id);
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => { toast.success("Collegamento rimosso"); void qc.invalidateQueries({ queryKey: ["email-collegamenti", input.email_id] }); },
+    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
