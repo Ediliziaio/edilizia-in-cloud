@@ -8,10 +8,11 @@
  * Raggiunta da /azienda/email/ai (link nella sidebar email).
  */
 import { Link } from "react-router-dom";
-import { ArrowLeft, Brain, Filter } from "lucide-react";
+import { ArrowLeft, Brain, Filter, Inbox } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmailLearningDashboard } from "@/components/email-ai/EmailLearningDashboard";
 import { EmailRulesSettings } from "@/components/email-ai/EmailRulesSettings";
+import { BonificaPanel } from "@/components/email-ai/BonificaPanel";
 
 export default function EmailAiSettingsPage() {
   return (
@@ -33,12 +34,15 @@ export default function EmailAiSettingsPage() {
       </div>
 
       <Tabs defaultValue="apprendimento" className="w-full">
-        <TabsList className="mb-4 grid w-full max-w-md grid-cols-2">
+        <TabsList className="mb-4 grid w-full max-w-xl grid-cols-3">
           <TabsTrigger value="apprendimento" className="gap-1.5">
             <Brain className="h-4 w-4" /> Apprendimento
           </TabsTrigger>
           <TabsTrigger value="regole" className="gap-1.5">
             <Filter className="h-4 w-4" /> Regole
+          </TabsTrigger>
+          <TabsTrigger value="bonifica" className="gap-1.5">
+            <Inbox className="h-4 w-4" /> Bonifica
           </TabsTrigger>
         </TabsList>
 
@@ -48,6 +52,10 @@ export default function EmailAiSettingsPage() {
 
         <TabsContent value="regole" className="mt-0">
           <EmailRulesSettings />
+        </TabsContent>
+
+        <TabsContent value="bonifica" className="mt-0">
+          <BonificaPanel />
         </TabsContent>
       </Tabs>
     </div>

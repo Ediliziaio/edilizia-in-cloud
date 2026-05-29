@@ -878,3 +878,53 @@ export function useAggiornaStatoEvento() {
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+// ─── MP-EMAIL-AI-12 — Bonifica arretrato (panoramica + azioni di massa) ────────
+
+export interface BonificaGruppo { categoria: string; n: number; }
+
+export function useBonificaOverview() {
+  return useQuery({
+    queryKey: ["email-bonifica-overview"],
+    queryFn: async (): Promise<BonificaGruppo[]> => {
+      const { data, error } = await (supabase.rpc as any)("bonifica_overview");
+      if (error) throw error;
+      return ((data as any[]) || []).map((r) => ({ categoria: r.categoria, n: Number(r.n) }));
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useBonificaArchivia() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { categoria: string }): Promise<{ count: number; azione_id?: string }> => {
+      const { data, error } = await (supabase.rpc as any)("bonifica_archivia_categoria", { p_categoria: input.categoria });
+      if (error) throw error;
+      return data as { count: number; azione_id?: string };
+    },
+    onSuccess: (data) => {
+      toast.success(`${data.count} email archiviate`, { description: data.azione_id ? "Puoi annullare l'operazione." : undefined });
+      void qc.invalidateQueries({ queryKey: ["email-bonifica-overview"] });
+      void qc.invalidateQueries({ queryKey: ["email-threads"] });
+    },
+    onError: (e) => toast.error("Errore bonifica", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+export function useBonificaAnnulla() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { azione_id: string }) => {
+      const { data, error } = await (supabase.rpc as any)("bonifica_annulla", { p_azione_id: input.azione_id });
+      if (error) throw error;
+      return data as { count: number };
+    },
+    onSuccess: (data) => {
+      toast.success(`Ripristinate ${data.count} email`);
+      void qc.invalidateQueries({ queryKey: ["email-bonifica-overview"] });
+      void qc.invalidateQueries({ queryKey: ["email-threads"] });
+    },
+    onError: (e) => toast.error("Errore annulla", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
