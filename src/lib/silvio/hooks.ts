@@ -270,3 +270,88 @@ export function useChiediSilvio() {
     onError: (e) => toast.error("Richiesta non riuscita", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+// ─── MP-SILVIO-07 — canali (verifica numero WhatsApp, reverse-OTP) ───────────
+
+export interface SilvioCanaleRow {
+  id: string;
+  canale: string;
+  identificativo: string;
+  verificato: boolean;
+  verificato_at: string | null;
+  codice: string | null;
+  codice_scadenza: string | null;
+  created_at: string;
+}
+
+export interface AvviaVerificaResult {
+  codice: string;
+  identificativo: string;
+  numero_aziendale: string | null;
+  scade_il: string;
+}
+
+/** Canali Silvio dell'utente corrente (RLS: solo le proprie righe). */
+export function useSilvioCanali() {
+  return useQuery({
+    queryKey: ["silvio-canali"],
+    queryFn: async (): Promise<SilvioCanaleRow[]> => {
+      const { data, error } = await sbAnyS.from("silvio_canali_identita")
+        .select("id, canale, identificativo, verificato, verificato_at, codice, codice_scadenza, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as SilvioCanaleRow[]) ?? [];
+    },
+    // Mentre una verifica è in corso (riga non verificata) ricontrolla ogni 4s,
+    // così la UI passa a "collegato" appena l'utente invia il codice da WhatsApp.
+    refetchInterval: (query) => {
+      const rows = (query.state.data ?? []) as SilvioCanaleRow[];
+      return rows.some((r) => !r.verificato) ? 4000 : false;
+    },
+  });
+}
+
+const AVVIA_MSG: Record<string, string> = {
+  numero_gia_collegato: "Questo numero è già collegato a un altro account.",
+  numero_non_valido: "Numero non valido. Inseriscilo con il prefisso internazionale (es. +39…).",
+  azienda_non_risolta: "Non riesco a determinare la tua azienda. Ricarica la pagina e riprova.",
+  non_autenticato: "Sessione scaduta: accedi di nuovo.",
+};
+
+/** Avvia la verifica reverse-OTP per un numero WhatsApp. Ritorna il codice da inviare. */
+export function useAvviaVerificaCanale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { numero: string }): Promise<AvviaVerificaResult> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)("silvio_canale_avvia_verifica", {
+        p_identificativo: input.numero,
+      });
+      if (error) throw error;
+      return data as AvviaVerificaResult;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["silvio-canali"] }); },
+    onError: (e) => {
+      const raw = e instanceof Error ? e.message : String(e);
+      const key = Object.keys(AVVIA_MSG).find((k) => raw.includes(k));
+      toast.error("Verifica non avviata", { description: key ? AVVIA_MSG[key] : raw });
+    },
+  });
+}
+
+/** Scollega un canale (elimina la riga; RLS: solo le proprie). */
+export function useScollegaCanale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await sbAnyS.from("silvio_canali_identita").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      toast.success("Canale scollegato");
+      void qc.invalidateQueries({ queryKey: ["silvio-canali"] });
+    },
+    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
