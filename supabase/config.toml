@@ -487,3 +487,7 @@ verify_jwt = false
 
 [functions.email-ai-embed-backfill]
 verify_jwt = false
+
+# MP-06: estrazione PDF allegati → bozza. Auth interna Bearer getUser.
+[functions.email-ai-estrai-allegato]
+verify_jwt = false
