@@ -470,3 +470,20 @@ verify_jwt = false
 # email-poll-inbox: chiamata da pg_cron con x-cron-secret. Public + internal auth.
 [functions.email-poll-inbox]
 verify_jwt = false
+
+# MP-EMAIL-AI cascade L1→L4 + Silvio. Tutte fanno auth interna (Bearer getUser
+# e/o x-cron-secret), quindi verify_jwt=false per consentire il path cron.
+[functions.email-ai-l1-classify]
+verify_jwt = false
+
+[functions.email-ai-l3-batch]
+verify_jwt = false
+
+[functions.email-ai-l4-draft]
+verify_jwt = false
+
+[functions.email-silvio-query]
+verify_jwt = false
+
+[functions.email-ai-embed-backfill]
+verify_jwt = false
