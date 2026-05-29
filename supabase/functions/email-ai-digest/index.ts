@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       .eq("da_rivedere", true).eq("is_trashed", false).eq("is_read", false)
       .order("received_at", { ascending: false }).limit(15);
     const { data: scadenze } = await userClient
-      .from("scadenze").select("description, amount, due_date, tipo, direction")
+      .from("scadenze").select("company_id, description, amount, due_date, tipo, direction")
       .eq("status", "da_pagare").lte("due_date", new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10))
       .order("due_date", { ascending: true }).limit(15);
 
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     }
 
     // Salva (service role: company dell'utente dal primo record o da get_effective via RPC non disponibile qui).
-    const companyId = ((priorita as any[])?.[0]?.company_id) ?? body.company_id ?? null;
+    const companyId = ((priorita as any[])?.[0]?.company_id) ?? ((scadenze as any[])?.[0]?.company_id) ?? body.company_id ?? null;
     // contenuto comunque restituito; log best-effort
     await supabase.from("digest_log").insert({
       company_id: companyId, utente_id: u.user.id, contenuto: digest,
