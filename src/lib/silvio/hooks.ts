@@ -61,3 +61,95 @@ export function useSilvioOverrideSet() {
     },
   });
 }
+
+// ─── MP-SILVIO-06/04/05 — coda conferme, audit, task, playbook (read + risolvi) ──
+
+export interface SilvioCodaVoce {
+  id: string; azione_chiave: string; parametri: Record<string, unknown>;
+  anteprima: string | null; stato: string; origine: string | null; created_at: string;
+}
+export interface SilvioAuditVoce {
+  id: string; azione_chiave: string; oggetto_tipo: string | null; esito: string;
+  autonomia: string; motivo: string | null; origine: string | null; reversibile: boolean; created_at: string;
+}
+export interface SilvioTaskRow {
+  id: string; titolo: string | null; origine: string; stato: string; passo_corrente: number;
+  contesto: Record<string, unknown>; created_at: string;
+}
+export interface SilvioPlaybookRow {
+  id: string; company_id: string | null; chiave: string; nome: string; innesco: string;
+  passi: Array<{ ordine: number; azione_chiave?: string; condizione?: string; nota?: string }>; attivo: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sbAnyS = supabase as unknown as { from: (t: string) => any };
+
+export function useSilvioCodaConferme() {
+  return useQuery({
+    queryKey: ["silvio-coda"],
+    queryFn: async (): Promise<SilvioCodaVoce[]> => {
+      const { data, error } = await sbAnyS.from("silvio_coda_conferme")
+        .select("id, azione_chiave, parametri, anteprima, stato, origine, created_at")
+        .eq("stato", "in_attesa").order("created_at", { ascending: true }).limit(100);
+      if (error) throw error;
+      return (data as SilvioCodaVoce[]) ?? [];
+    },
+  });
+}
+
+export function useRisolviConferma() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; azione: "approvata" | "rifiutata"; note?: string }) => {
+      const { error } = await (supabase.rpc as any)("silvio_coda_risolvi", {
+        p_id: input.id, p_azione: input.azione, p_note: input.note ?? null, p_parametri_modificati: null,
+      });
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => {
+      toast.success(input.azione === "approvata" ? "Approvato" : "Rifiutato");
+      void qc.invalidateQueries({ queryKey: ["silvio-coda"] });
+      void qc.invalidateQueries({ queryKey: ["silvio-audit"] });
+    },
+    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+export function useSilvioAudit(limit = 50) {
+  return useQuery({
+    queryKey: ["silvio-audit", limit],
+    queryFn: async (): Promise<SilvioAuditVoce[]> => {
+      const { data, error } = await sbAnyS.from("silvio_audit")
+        .select("id, azione_chiave, oggetto_tipo, esito, autonomia, motivo, origine, reversibile, created_at")
+        .order("created_at", { ascending: false }).limit(limit);
+      if (error) throw error;
+      return (data as SilvioAuditVoce[]) ?? [];
+    },
+  });
+}
+
+export function useSilvioTaskAttivi() {
+  return useQuery({
+    queryKey: ["silvio-task-attivi"],
+    queryFn: async (): Promise<SilvioTaskRow[]> => {
+      const { data, error } = await sbAnyS.from("silvio_task")
+        .select("id, titolo, origine, stato, passo_corrente, contesto, created_at")
+        .eq("archiviato", false).order("updated_at", { ascending: false }).limit(100);
+      if (error) throw error;
+      return (data as SilvioTaskRow[]) ?? [];
+    },
+  });
+}
+
+export function useSilvioPlaybook() {
+  return useQuery({
+    queryKey: ["silvio-playbook"],
+    queryFn: async (): Promise<SilvioPlaybookRow[]> => {
+      const { data, error } = await sbAnyS.from("silvio_playbook")
+        .select("id, company_id, chiave, nome, innesco, passi, attivo").order("nome", { ascending: true });
+      if (error) throw error;
+      return (data as SilvioPlaybookRow[]) ?? [];
+    },
+  });
+}

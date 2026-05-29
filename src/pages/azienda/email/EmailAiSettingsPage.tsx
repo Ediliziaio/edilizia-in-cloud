@@ -16,7 +16,7 @@ import { BonificaPanel } from "@/components/email-ai/BonificaPanel";
 import { DigestCard } from "@/components/email-ai/DigestCard";
 import { DeliverabilityPanel } from "@/components/email-ai/DeliverabilityPanel";
 import { SequenzeManager } from "@/components/email-ai/SequenzeManager";
-import { SilvioAzioniSettings } from "@/components/silvio/SilvioAzioniSettings";
+import { SilvioHub } from "@/components/silvio/SilvioHub";
 
 export default function EmailAiSettingsPage() {
   return (
@@ -67,7 +67,7 @@ export default function EmailAiSettingsPage() {
         </TabsContent>
 
         <TabsContent value="silvio" className="mt-0">
-          <SilvioAzioniSettings />
+          <SilvioHub />
         </TabsContent>
 
         <TabsContent value="sequenze" className="mt-0">
