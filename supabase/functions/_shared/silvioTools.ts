@@ -3685,6 +3685,18 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedPersonas: ["silvio", "assistente_imprenditore", "cfo"], riskLevel: "safe", domain: "support", estimatedCostEur: 0.005,
   },
 
+  // ── MP-SILVIO-CREATIVE-01 — artefatti on-demand (asincroni via coda, yellow: costano) ──
+  genera_creativita: {
+    schema: { type: "function", function: { name: "genera_creativita", description: "Genera un artefatto visivo (immagine/grafica social o video breve) seguendo i canoni di brand. Asincrono: accoda un job e ritorna subito {job_id, eta_seconds}. Conferma richiesta (consuma crediti).", parameters: { type: "object", properties: { tipo: { type: "string", enum: ["immagine", "video"] }, brief: { type: "string", description: "cosa rappresentare, es: post vendita ristrutturazione bagno chiavi in mano" }, formato: { type: "string", enum: ["1:1", "4:5", "9:16", "16:9"], default: "4:5" }, contesto_commessa_id: { type: "string", description: "opzionale: aggancia dati reali di una commessa" } }, required: ["tipo", "brief"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_enqueue_creativita", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_tipo: args?.tipo, p_brief: args?.brief, p_formato: args?.formato ?? "4:5", p_commessa_id: args?.contesto_commessa_id ?? null }),
+    allowedPersonas: ["silvio", "assistente_imprenditore", "marketing"], riskLevel: "yellow", domain: "marketing", estimatedCostEur: 0.06,
+  },
+  genera_documento: {
+    schema: { type: "function", function: { name: "genera_documento", description: "Genera un documento per una commessa/pratica (relazione tecnica, POS, DUVRI, proposal, reportino committente). Asincrono: accoda un job e ritorna {job_id}. Conferma richiesta.", parameters: { type: "object", properties: { tipo: { type: "string", enum: ["relazione_tecnica", "pos", "duvri", "proposal", "reportino_committente"] }, commessa_id: { type: "string" }, pratica_id: { type: "string" } }, required: ["tipo"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_genera_documento_router", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_tipo: args?.tipo, p_commessa_id: args?.commessa_id ?? null, p_pratica_id: args?.pratica_id ?? null }),
+    allowedPersonas: ["silvio", "compliance", "tecnico", "assistente_imprenditore"], riskLevel: "yellow", domain: "compliance", estimatedCostEur: 0.08,
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-06 — Pipeline Forecast Sales (4 tool)
   // ═════════════════════════════════════════════════════════════════════════
