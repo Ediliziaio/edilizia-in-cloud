@@ -21,6 +21,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+// MP-SILVIO-CREATIVE-01: canoni brand condivisi (single source chat+social)
+import { aspectToOpenAiSize, buildBrandedImagePrompt } from "../_shared/brandCreativeRules.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const OPENAI_IMAGE_MODEL = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-1";
@@ -94,27 +96,14 @@ Deno.serve(async (req) => {
       if (!isSA) return json({ error: "forbidden" }, 403, corsHeaders);
     }
 
-    // Mapping aspect_ratio → size OpenAI
+    // Mapping aspect_ratio → size OpenAI (canone condiviso brandCreativeRules)
     const ar = body.aspect_ratio ?? "1:1";
-    const size =
-      ar === "1:1" ? "1024x1024" :
-      ar === "4:5" ? "1024x1280" :
-      ar === "9:16" ? "1024x1820" :
-      ar === "16:9" ? "1820x1024" :
-      "1024x1024";
+    const size = aspectToOpenAiSize(ar);
 
     const quality = body.quality ?? "standard";
 
-    // SAFETY filter: prompt rinforzato anti-claim
-    const enhancedPrompt = `${body.prompt}
-
-VINCOLI:
-- Realistico, fotografico, no rendering 3D cartoonesco
-- Italia, contesto edilizia residenziale realistico
-- Niente testo sull'immagine (verrà aggiunto dopo)
-- Niente persone con volti molto riconoscibili (privacy)
-- Tono affidabile, professionale, no claim esagerati
-- Light: naturale, ora dorata o studio neutro`;
+    // SAFETY filter: prompt rinforzato anti-claim (canone condiviso brandCreativeRules)
+    const enhancedPrompt = buildBrandedImagePrompt(body.prompt);
 
     // CHIAMATA OPENAI
     const openaiResp = await fetch("https://api.openai.com/v1/images/generations", {
