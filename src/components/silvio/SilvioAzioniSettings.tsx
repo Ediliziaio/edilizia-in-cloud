@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSilvioCatalogo, useSilvioOverrideSet } from "@/lib/silvio/hooks";
 import { etichettaAutorizzazione, etichettaRischio } from "@/lib/silvio/permessi";
+import { etichettaAmbito } from "@/lib/silvio/ambiti";
 
 const RISCHIO_CLS: Record<string, string> = {
   interno: "border-slate-200 bg-slate-50 text-slate-600",
@@ -71,6 +72,9 @@ export function SilvioAzioniSettings() {
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           <Badge variant="outline" className={`text-[10px] ${RISCHIO_CLS[a.categoria_rischio] ?? ""}`}>
                             {etichettaRischio(a.categoria_rischio)}
+                          </Badge>
+                          <Badge variant="outline" className="border-slate-200 bg-white text-[10px] text-slate-500">
+                            {etichettaAmbito(a.ambito)}
                           </Badge>
                           <Badge variant="outline" className={`text-[10px] ${AUT_CLS[eff] ?? ""}`}>
                             {eff === "autonoma" && <CheckCircle2 className="mr-0.5 inline h-3 w-3" />}

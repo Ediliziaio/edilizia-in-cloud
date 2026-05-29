@@ -16,6 +16,7 @@ export interface SilvioAzioneCatalogo {
   funzione_target: string;
   reversibilita: string;
   categoria_rischio: string;
+  ambito: string;
   autorizzazione_default: Autorizzazione;
   autorizzazione_effettiva: Autorizzazione;
   ruoli_consentiti: string[];

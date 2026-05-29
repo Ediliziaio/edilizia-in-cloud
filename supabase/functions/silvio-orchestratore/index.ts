@@ -80,11 +80,23 @@ Deno.serve(async (req) => {
   if (!companyId) return json({ error: "company_richiesta" }, 400, cors);
 
   try {
-    // ── Catalogo (chiavi valide + funzione_target + reversibilità) ────────────
-    const { data: catRows } = await supa.from("silvio_azioni").select("chiave, funzione_target, reversibilita, attiva").eq("attiva", true);
+    // ── Catalogo (chiavi valide + funzione_target + reversibilità + ambito) ───
+    const { data: catRows } = await supa.from("silvio_azioni").select("chiave, funzione_target, reversibilita, ambito, attiva").eq("attiva", true);
     const catalogo = new Map<string, string>(((catRows as any[]) || []).map((r) => [r.chiave, r.funzione_target]));
     const catalogoRev = new Map<string, boolean>(((catRows as any[]) || []).map((r) => [r.chiave, r.reversibilita === "reversibile"]));
+    const catalogoAmbito = new Map<string, string>(((catRows as any[]) || []).map((r) => [r.chiave, r.ambito || "generale"]));
     const chiaviValide = [...catalogo.keys()];
+
+    // Ambiti-dati visibili all'utente (segregazione: marketing non vede finanza, ecc.)
+    let ambitiUtente: string[] = [];
+    if (autoConsentito) {
+      const { data: amb } = await userClient.rpc("silvio_ambiti_utente");
+      ambitiUtente = (amb as string[]) || [];
+    }
+    // catalogo "pianificabile": il modello vede SOLO le azioni negli ambiti del ruolo
+    const chiaviPianificatore = autoConsentito
+      ? chiaviValide.filter((k) => ambitiUtente.includes(catalogoAmbito.get(k) || "generale"))
+      : chiaviValide;
 
     // ── MP-06: Approva = ESEGUI una voce di coda confermata ───────────────────
     if (body.coda_id) {
@@ -143,7 +155,7 @@ Deno.serve(async (req) => {
       } else if (ANTHROPIC_API_KEY) {
         gradino = 1;
         const sys = `Sei l'orchestratore di un gestionale edile. Converti la richiesta in un PIANO JSON di azioni.
-USA SOLO queste azioni (chiave): ${chiaviValide.join(", ")}.
+USA SOLO queste azioni (chiave): ${chiaviPianificatore.join(", ")}.
 Output SOLO JSON: {"intento":"...","serve_ragionamento":false,"passi":[{"azione":"<chiave>","parametri":{}}],"confidenza":0.0-1.0}
 Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare azioni fuori elenco.`;
         const r = await callAnthropic(HAIKU, sys, richiesta, body.contesto);
