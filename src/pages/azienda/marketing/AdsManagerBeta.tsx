@@ -85,6 +85,7 @@ import { useMetaInsights } from "@/hooks/useMetaInsights";
 import { PendingApprovalsBanner } from "@/components/ads/PendingApprovalsBanner";
 import { useCampaignLeads } from "@/hooks/useCampaignLeads";
 import { ABTestDialog } from "@/components/ads/ABTestDialog";
+import { useMetaAbTests } from "@/hooks/useMetaAbTests";
 import { AutomationRulesEditor } from "@/components/ads/AutomationRulesEditor";
 import { AdsCrmAttributionPanel } from "@/components/ads/AdsCrmAttributionPanel";
 import { useAdsNotifications } from "@/hooks/useAdsNotifications";
@@ -6795,6 +6796,7 @@ function CampaignDetailEditor({
   const [activeTab, setActiveTab] = useState<"panoramica" | "adsets" | "ads" | "leads" | "performance">("panoramica");
   const readiness = getReadinessScore(state);
   const { generateCopy, isGeneratingCopy } = useAdsAi(companyId);
+  const abTests = useMetaAbTests(companyId); // MP-ADS-04 GAP-2: tracciamento A/B test
   const dirty = useMemo(() => JSON.stringify(state) !== JSON.stringify(baseState), [state, baseState]);
 
   const save = () => {
@@ -6986,6 +6988,8 @@ function CampaignDetailEditor({
             // Aggiungi note al copyBrief per documentare l'intent del test
             variantState.copyBrief = `[A/B TEST — variabile: ${variable}] ${description}\n\n${variantState.copyBrief}`;
             await onCreateVariant(variantState);
+            // MP-ADS-04 GAP-2: traccia l'esperimento in meta_ab_tests (best-effort, non blocca)
+            void abTests.recordExperiment({ base_campaign_id: draft.id, variable, hypothesis: description, new_value });
             setAbTestOpen(false);
             toast.success("Variante A/B creata", {
               description: `${variant_name} è ora in bozza. Personalizza la variabile testata.`,

@@ -6,9 +6,9 @@ Ultimo aggiornamento: 2026-05-29
 - [x] GAP-3  Scope ads_management + avviso re-consent
 - [x] GAP-1  Automation Runner (function + cron + applyAction + cooldown)
 - [x] GAP-1b Frontend: last_evaluated_at in AutomationRulesEditor (trigger_count già presente)
-- [ ] GAP-2  Tabella meta_ab_tests
-- [ ] GAP-2b ABTestDialog.onConfirm -> duplicate + applica variabile + insert test
-- [ ] GAP-2c Lettura vincitore (meta-ads-ab-evaluate o frontend)
+- [x] GAP-2  Tabella meta_ab_tests (RLS come meta_campaigns, applicata)
+- [x] GAP-2b useMetaAbTests.createTest (duplicate+patch+track+activate) + onConfirm registra il test
+- [x] GAP-2c useMetaAbTests.evaluateTest (CPL da insights, frontend) + decideTest (spegni perdente)
 
 ## Deviazioni dal doc (necessarie — schemi reali)
 - requires_confirmation: lo pseudocodice usava silvio_pending_approvals con company_id/kind/payload,
@@ -22,6 +22,17 @@ Ultimo aggiornamento: 2026-05-29
   che è il modo funzionante per un worker. Token da integrations.access_token_encrypted (come sync-insights).
 - Metriche: meta_insights_cache usa payload_json (ARRAY di righe campaign con spend/clicks/impressions/
   ctr/actions), NON colonne flat. readMetric aggrega da lì sulla finestra window_days.
+
+## Step OPS (non-codice) per attivare il cron del runner
+- I GUC app.settings.supabase_url / service_role_key NON sono impostati in questo progetto
+  (verificato: NULL), quindi le migration cron stile spend-check NON schedulano nulla — infatti
+  anche i cron meta-ads-sync-insights e meta-ads-spend-check risultano NON schedulati (count=0).
+  I cron funzionanti del progetto (es. meta-process-leads) sono creati con URL+service key come
+  LITERAL nel comando (via dashboard/ops). Non incorporo io la service key (sicurezza).
+  → Per attivare il runner orario: creare il job pg_cron 'meta-ads-automation-runner-hourly'
+    con la service key reale (come gli altri cron), oppure impostare i GUC app.settings.*.
+    Il runner è già DEPLOYATO e invocabile (POST /functions/v1/meta-ads-automation-runner con
+    Authorization: Bearer <service_role> oppure header x-cron-secret).
 
 ## Log sessioni
 ### 2026-05-29 — sessione 1
