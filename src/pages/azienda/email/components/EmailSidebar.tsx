@@ -389,17 +389,24 @@ export function EmailSidebar({ filter, onFilterChange, onCompose, connections, s
           <SyncStatusPanel connections={connections} settingsPath={settingsPath} />
         )}
 
-        <div className="rounded-2xl border border-orange-100 bg-orange-50/70 p-3">
+        <Link
+          to="/azienda/email/ai"
+          className="block rounded-2xl border border-orange-100 bg-orange-50/70 p-3 transition-colors hover:bg-orange-100/70"
+          title="Apprendimento e regole di instradamento"
+        >
           <div className="flex items-start gap-2">
             <Mail className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
-            <div>
-              <p className="text-xs font-semibold text-orange-900">AI email attiva</p>
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1 text-xs font-semibold text-orange-900">
+                AI email attiva
+                <ChevronRight className="h-3.5 w-3.5 text-orange-500" />
+              </p>
               <p className="mt-0.5 text-[11px] leading-snug text-orange-800/80">
-                Classifica lead, preventivi, fatture e priorità mentre la casella si sincronizza.
+                Classifica lead, preventivi, fatture e priorità. Tocca per regole e apprendimento.
               </p>
             </div>
           </div>
-        </div>
+        </Link>
       </div>
     </ScrollArea>
   );
