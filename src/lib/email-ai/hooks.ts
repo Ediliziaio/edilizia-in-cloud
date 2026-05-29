@@ -807,3 +807,74 @@ export function useScollegaEmail() {
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+// ─── MP-EMAIL-AI-11 — Email → bozza evento/appuntamento ───────────────────────
+
+export interface EventoBozza {
+  id: string;
+  email_id: string | null;
+  titolo: string | null;
+  inizio: string | null;
+  tutto_il_giorno: boolean;
+  luogo: string | null;
+  ambiguo: boolean;
+  nota: string | null;
+  stato: "bozza" | "aggiunto" | "scartato";
+  created_at: string;
+}
+
+export function useRilevaEvento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { email_id: string }): Promise<{ ok?: boolean; bozza?: EventoBozza; skipped?: string; reason?: string }> => {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/email-ai-evento`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(input),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+      return out;
+    },
+    onSuccess: (data, vars) => {
+      if (data.skipped) toast.info("Nessun appuntamento", { description: data.reason || data.skipped });
+      else { toast.success("Appuntamento rilevato", { description: "Controlla la data e aggiungilo in agenda." }); void qc.invalidateQueries({ queryKey: ["email-eventi-bozze", vars.email_id] }); }
+    },
+    onError: (e) => toast.error("Errore rilevazione", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+export function useEventiBozzePerEmail(emailId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-eventi-bozze", emailId],
+    enabled: !!emailId,
+    queryFn: async (): Promise<EventoBozza[]> => {
+      const { data, error } = await sbAny
+        .from("email_evento_bozza").select("*").eq("email_id", emailId as string).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as EventoBozza[]) || [];
+    },
+  });
+}
+
+export function useAggiornaStatoEvento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; stato: "aggiunto" | "scartato"; email_id?: string }) => {
+      const patch: Record<string, unknown> = { stato: input.stato };
+      if (input.stato === "aggiunto") {
+        const { data: u } = await supabase.auth.getUser();
+        patch.confirmed_by = u.user?.id ?? null;
+        patch.confirmed_at = new Date().toISOString();
+      }
+      const { error } = await sbAny.from("email_evento_bozza").update(patch).eq("id", input.id);
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => { toast.success(input.stato === "aggiunto" ? "Aggiunto in agenda" : "Scartato"); void qc.invalidateQueries({ queryKey: ["email-eventi-bozze", input.email_id] }); },
+    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}

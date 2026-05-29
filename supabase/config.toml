@@ -503,3 +503,7 @@ verify_jwt = false
 # MP-09: rilevazione scadenza da documento. Auth interna Bearer getUser.
 [functions.email-ai-scadenza]
 verify_jwt = false
+
+# MP-11: rilevazione appuntamento da email. Auth interna Bearer getUser.
+[functions.email-ai-evento]
+verify_jwt = false

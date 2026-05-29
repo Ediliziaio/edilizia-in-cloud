@@ -30,6 +30,7 @@ import { Separator } from "@/components/ui/separator";
 import { DocumentoEstrattoPanel } from "@/components/email-ai/DocumentoEstrattoPanel";
 import { OpportunitaEmailPanel } from "@/components/email-ai/OpportunitaEmailPanel";
 import { CollegamentiEmailPanel } from "@/components/email-ai/CollegamentiEmailPanel";
+import { EventoEmailPanel } from "@/components/email-ai/EventoEmailPanel";
 import {
   ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward,
   Paperclip, Sparkles, AlertTriangle, X, Wand2, Loader2, ListChecks,
@@ -1893,6 +1894,8 @@ function MessageBubble({ message }: { message: MessageRow }) {
       <OpportunitaEmailPanel emailId={message.id} />
       {/* MP-EMAIL-AI-10: collega l'email a cantieri/pratiche */}
       <CollegamentiEmailPanel emailId={message.id} threadId={message.thread_id} />
+      {/* MP-EMAIL-AI-11: rileva appuntamento → bozza evento */}
+      <EventoEmailPanel emailId={message.id} />
     </div>
   );
 }
