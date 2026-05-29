@@ -3697,6 +3697,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedPersonas: ["silvio", "compliance", "tecnico", "assistente_imprenditore"], riskLevel: "yellow", domain: "compliance", estimatedCostEur: 0.08,
   },
 
+  // ── MP-SILVIO-SIMULATION-01 — what-if composito (sola lettura → safe) ──
+  simula_scenario_aziendale: {
+    schema: { type: "function", function: { name: "simula_scenario_aziendale", description: "Simula uno scenario composito (nuova commessa, termini di pagamento, assunzione, sconto) e ne valuta l'impatto su cassa, margine e carico squadre su un orizzonte temporale. Restituisce numeri base reali + impatto stimato + leve concrete (incassi anticipabili): usa questi dati per raccontare se la cassa regge e cosa fare. Sola lettura, non modifica nulla.", parameters: { type: "object", properties: { ipotesi: { type: "string", description: "descrizione naturale dello scenario" }, orizzonte_mesi: { type: "integer", default: 6 }, variabili: { type: "object", description: "es {nuova_commessa_eur:80000, incasso_giorni:60, fornitori_giorni:30, costo_fornitori_eur:50000}" } }, required: ["ipotesi"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_simula_scenario", { p_company_id: ctx.companyId, p_ipotesi: args?.ipotesi, p_orizzonte: args?.orizzonte_mesi ?? 6, p_variabili: args?.variabili ?? {} }),
+    allowedPersonas: ["silvio", "cfo", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "finance", estimatedCostEur: 0.02,
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-06 — Pipeline Forecast Sales (4 tool)
   // ═════════════════════════════════════════════════════════════════════════
