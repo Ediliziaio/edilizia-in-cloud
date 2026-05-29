@@ -190,6 +190,12 @@ export function AutomationRulesEditor({ companyId }: { companyId?: string }) {
                         {rule.action.params?.scale_pct ? ` (+${rule.action.params.scale_pct}%)` : ""}
                       </p>
                       <div className="mt-1 flex flex-wrap gap-1">
+                        {/* MP-ADS-04 GAP-1b: conferma che il runner valuta la regola (anche se non scatta) */}
+                        <Badge variant="outline" className={`text-[10px] ${rule.last_evaluated_at ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-400"}`}>
+                          {rule.last_evaluated_at
+                            ? `Valutata: ${new Date(rule.last_evaluated_at).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                            : "Mai valutata ancora"}
+                        </Badge>
                         {rule.last_triggered_at && (
                           <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[10px] text-amber-700">
                             Ultimo trigger: {new Date(rule.last_triggered_at).toLocaleDateString("it-IT")}

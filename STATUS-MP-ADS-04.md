@@ -4,11 +4,24 @@ Ultimo aggiornamento: 2026-05-29
 
 ## Task
 - [x] GAP-3  Scope ads_management + avviso re-consent
-- [ ] GAP-1  Automation Runner (function + cron + applyAction + cooldown)
-- [ ] GAP-1b Frontend: last_evaluated_at / trigger_count in AutomationRulesEditor
+- [x] GAP-1  Automation Runner (function + cron + applyAction + cooldown)
+- [x] GAP-1b Frontend: last_evaluated_at in AutomationRulesEditor (trigger_count già presente)
 - [ ] GAP-2  Tabella meta_ab_tests
 - [ ] GAP-2b ABTestDialog.onConfirm -> duplicate + applica variabile + insert test
 - [ ] GAP-2c Lettura vincitore (meta-ads-ab-evaluate o frontend)
+
+## Deviazioni dal doc (necessarie — schemi reali)
+- requires_confirmation: lo pseudocodice usava silvio_pending_approvals con company_id/kind/payload,
+  ma quella tabella reale ha action_id NOT NULL (FK scaffold agent admin) + NESSUN company_id, e l'UI
+  approvazioni ads (useAdsPendingApprovals) legge in realtà meta_campaigns.status='review'. Quindi per
+  l'approvazione di un'azione automatica (pause/scale) si invia alert(approval_request) + si logga la
+  proposta in ad_audit_log (azione 'auto_proposed'); l'applicazione resta al titolare. (Una coda di
+  approvazione click-to-apply per le AZIONI sarebbe un follow-up dedicato.)
+- Applicazione azioni: meta-ads-update-campaign richiede JWT utente + company_admin → un cron service-role
+  non può invocarla. Il runner applica via Meta Graph API diretta + token (pattern meta-ads-spend-check),
+  che è il modo funzionante per un worker. Token da integrations.access_token_encrypted (come sync-insights).
+- Metriche: meta_insights_cache usa payload_json (ARRAY di righe campaign con spend/clicks/impressions/
+  ctr/actions), NON colonne flat. readMetric aggrega da lì sulla finestra window_days.
 
 ## Log sessioni
 ### 2026-05-29 — sessione 1
