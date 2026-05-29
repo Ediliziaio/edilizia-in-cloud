@@ -117,6 +117,23 @@ Deno.serve(async (req) => {
     let piano: Piano | null = body.piano ?? null;
     let gradino = 0;
     let tokenIn = 0, tokenOut = 0;
+    let pbAvviato: any = null;
+
+    // ── Playbook → piano (ricetta deterministica, niente AI) ──────────────────
+    if (!piano && body.playbook_chiave) {
+      const { data: pbs } = await supa.from("silvio_playbook").select("*")
+        .eq("chiave", body.playbook_chiave).eq("attivo", true)
+        .or(`company_id.eq.${companyId},company_id.is.null`)
+        .order("company_id", { ascending: true, nullsFirst: false }).limit(1);
+      const pb = (pbs as any[])?.[0];
+      if (pb) {
+        pbAvviato = pb;
+        const passi = (Array.isArray(pb.passi) ? pb.passi : [])
+          .filter((s: any) => s.azione_chiave)
+          .map((s: any) => ({ azione: s.azione_chiave, parametri: { ...(body.contesto || {}), ...(s.parametri || {}) } }));
+        piano = { intento: pb.chiave, passi, confidenza: 1 };
+      }
+    }
 
     if (!piano && richiesta) {
       const det = matchDeterministico(richiesta, COMANDI);
@@ -159,6 +176,7 @@ Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare
 
     // ── Esecuzione passi ──────────────────────────────────────────────────────
     let inviati = 0, inCoda = 0, vietati = 0, errori = 0;
+    const esiti: { azione: string; parametri: unknown; stato: string }[] = [];
     for (const passo of piano!.passi) {
       const chiave = passo.azione;
       // permessi: solo origine utente li valuta; trigger/playbook → sempre coda (sicuro)
@@ -170,11 +188,13 @@ Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare
 
       if (autor === "vietata") {
         vietati++;
+        esiti.push({ azione: chiave, parametri: passo.parametri, stato: "saltato" });
         await audit(supa, companyId, chiave, "rifiutata", "autonoma", "permesso negato per il ruolo", origine, body.origine_id, userId, false);
         continue;
       }
       if (autor === "conferma" || !autoConsentito) {
         inCoda++;
+        esiti.push({ azione: chiave, parametri: passo.parametri, stato: "attende_conferma" });
         await supa.from("silvio_coda_conferme").insert({
           company_id: companyId, esecuzione_id: esecuzioneId, azione_chiave: chiave,
           parametri: passo.parametri || {}, anteprima: anteprima(chiave, passo.parametri), origine,
@@ -186,16 +206,19 @@ Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare
       const res = await esegui(supa, target, chiave, passo.parametri || {}, companyId, userId, token);
       if (res.ok) {
         inviati++;
+        esiti.push({ azione: chiave, parametri: passo.parametri, stato: "fatto" });
         await audit(supa, companyId, chiave, "eseguita", "autonoma", "azione autonoma sicura", origine, body.origine_id, userId, true);
       } else if (res.coda) {
         // non eseguibile in sicurezza → in coda invece di indovinare
         inCoda++;
+        esiti.push({ azione: chiave, parametri: passo.parametri, stato: "attende_conferma" });
         await supa.from("silvio_coda_conferme").insert({
           company_id: companyId, esecuzione_id: esecuzioneId, azione_chiave: chiave,
           parametri: passo.parametri || {}, anteprima: anteprima(chiave, passo.parametri), origine,
         });
       } else {
         errori++;
+        esiti.push({ azione: chiave, parametri: passo.parametri, stato: "fallito" });
         await audit(supa, companyId, chiave, "errore", "autonoma", res.errore || "errore esecuzione", origine, body.origine_id, userId, true);
       }
     }
@@ -204,7 +227,25 @@ Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare
     const statoFinale = errori > 0 ? "parziale" : inCoda > 0 && inviati === 0 ? "in_attesa_conferma" : "eseguita";
     if (esecuzioneId) await supa.from("silvio_esecuzioni").update({ stato: statoFinale, esito: { inviati, in_coda: inCoda, vietati, errori } }).eq("id", esecuzioneId);
 
-    return json({ ok: true, esecuzione_id: esecuzioneId, gradino, inviati, in_coda: inCoda, vietati, errori }, 200, cors);
+    // ── Playbook → crea il task di memoria (MP-04) coi passi e i loro esiti ───
+    let taskId: string | null = null;
+    if (pbAvviato) {
+      const statoTask = inCoda > 0 ? "in_attesa_conferma" : errori > 0 ? "fallito" : "completato";
+      const passoCorrente = esiti.filter((e) => e.stato === "fatto" || e.stato === "saltato").length;
+      const { data: t } = await supa.from("silvio_task").insert({
+        company_id: companyId, titolo: pbAvviato.nome, origine: "playbook", origine_id: body.origine_id ?? null,
+        contesto: body.contesto || {}, stato: statoTask, passo_corrente: passoCorrente,
+        esecuzione_id: esecuzioneId, playbook_chiave: pbAvviato.chiave, creato_da: userId,
+      }).select("id").maybeSingle();
+      taskId = (t as any)?.id ?? null;
+      if (taskId && esiti.length) {
+        await supa.from("silvio_task_passi").insert(
+          esiti.map((e, i) => ({ task_id: taskId, ordine: i, azione_chiave: e.azione, parametri: e.parametri || {}, stato: e.stato })),
+        ).then(() => {}, () => {});
+      }
+    }
+
+    return json({ ok: true, esecuzione_id: esecuzioneId, task_id: taskId, gradino, inviati, in_coda: inCoda, vietati, errori }, 200, cors);
   } catch (e) {
     console.error("[silvio-orchestratore] error", e);
     return json({ error: e instanceof Error ? e.message : "Unknown error" }, 500, cors);

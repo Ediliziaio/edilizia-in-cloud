@@ -169,3 +169,33 @@ export function useSilvioPlaybook() {
     },
   });
 }
+
+/** Avvia un playbook (ricetta) → l'orchestratore crea un task ed esegue/accoda i passi. */
+export function useAvviaPlaybook() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { playbook_chiave: string; contesto?: Record<string, unknown> }) => {
+      const { data: session } = await supabase.auth.getSession();
+      const tk = session.session?.access_token;
+      if (!tk) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/silvio-orchestratore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tk}` },
+        body: JSON.stringify({ origine: "playbook", playbook_chiave: input.playbook_chiave, contesto: input.contesto ?? {} }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j.ok === false) throw new Error(j.error || j.motivo || "Avvio non riuscito");
+      return j;
+    },
+    onSuccess: (j: { inviati?: number; in_coda?: number }) => {
+      const parts = [];
+      if (j.inviati) parts.push(`${j.inviati} eseguite`);
+      if (j.in_coda) parts.push(`${j.in_coda} da approvare`);
+      toast.success("Procedura avviata", { description: parts.join(" · ") || "Task creato" });
+      void qc.invalidateQueries({ queryKey: ["silvio-coda"] });
+      void qc.invalidateQueries({ queryKey: ["silvio-task-attivi"] });
+      void qc.invalidateQueries({ queryKey: ["silvio-audit"] });
+    },
+    onError: (e) => toast.error("Avvio non riuscito", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
