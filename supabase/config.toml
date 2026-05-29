@@ -523,3 +523,7 @@ verify_jwt = false
 # MP-13: disiscrizione pubblica via token (nessun JWT). verify_jwt=false obbligatorio.
 [functions.email-sequenze-optout]
 verify_jwt = false
+
+# MP-SILVIO-02: orchestratore. Auth interna: Bearer utente o service/x-cron-secret.
+[functions.silvio-orchestratore]
+verify_jwt = false
