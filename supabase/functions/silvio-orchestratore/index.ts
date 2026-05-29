@@ -80,10 +80,38 @@ Deno.serve(async (req) => {
   if (!companyId) return json({ error: "company_richiesta" }, 400, cors);
 
   try {
-    // ── Catalogo (chiavi valide + funzione_target) ────────────────────────────
-    const { data: catRows } = await supa.from("silvio_azioni").select("chiave, funzione_target, attiva").eq("attiva", true);
+    // ── Catalogo (chiavi valide + funzione_target + reversibilità) ────────────
+    const { data: catRows } = await supa.from("silvio_azioni").select("chiave, funzione_target, reversibilita, attiva").eq("attiva", true);
     const catalogo = new Map<string, string>(((catRows as any[]) || []).map((r) => [r.chiave, r.funzione_target]));
+    const catalogoRev = new Map<string, boolean>(((catRows as any[]) || []).map((r) => [r.chiave, r.reversibilita === "reversibile"]));
     const chiaviValide = [...catalogo.keys()];
+
+    // ── MP-06: Approva = ESEGUI una voce di coda confermata ───────────────────
+    if (body.coda_id) {
+      if (!autoConsentito) return json({ error: "serve un utente per approvare" }, 401, cors);
+      const { data: voce } = await supa.from("silvio_coda_conferme").select("*").eq("id", body.coda_id).maybeSingle();
+      const v = voce as any;
+      if (!v || v.company_id !== companyId) return json({ error: "voce_non_trovata" }, 404, cors);
+      if (v.stato !== "in_attesa") return json({ error: "voce_gia_gestita" }, 409, cors);
+      const chiave = v.azione_chiave;
+      const params = v.parametri_modificati ?? v.parametri ?? {};
+      const { data: aut } = await userClient.rpc("silvio_puo_eseguire", { p_chiave: chiave });
+      if ((aut as string) === "vietata") return json({ error: "non_autorizzato" }, 403, cors);
+      const rev = catalogoRev.get(chiave) ?? false;
+      const res = await esegui(supa, catalogo.get(chiave) || "", chiave, params, companyId, userId, token);
+      if (res.coda) return json({ ok: false, motivo: "azione_non_eseguibile_in_automatico" }, 200, cors);
+      const esito = res.ok ? "eseguita" : "errore";
+      await supa.from("silvio_coda_conferme").update({
+        stato: "approvata", risolto_da: userId, risolto_at: new Date().toISOString(),
+        note: res.ok ? null : (res.errore || "errore esecuzione"),
+      }).eq("id", body.coda_id);
+      await supa.from("silvio_audit").insert({
+        company_id: companyId, azione_chiave: chiave, esito, autonomia: "confermata",
+        motivo: "approvata dall'utente", origine: v.origine || "richiesta",
+        per_conto_di: userId, approvata_da: userId, reversibile: rev, parametri: params,
+      }).then(() => {}, () => {});
+      return json({ ok: res.ok, eseguita: res.ok, azione: chiave, errore: res.errore }, 200, cors);
+    }
 
     // ── Costruzione piano ─────────────────────────────────────────────────────
     let piano: Piano | null = body.piano ?? null;

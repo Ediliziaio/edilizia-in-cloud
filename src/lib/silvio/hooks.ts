@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Autorizzazione } from "./permessi";
 
+const FN_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
 export interface SilvioAzioneCatalogo {
   chiave: string;
   descrizione: string;
@@ -101,14 +103,28 @@ export function useRisolviConferma() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: string; azione: "approvata" | "rifiutata"; note?: string }) => {
-      const { error } = await (supabase.rpc as any)("silvio_coda_risolvi", {
-        p_id: input.id, p_azione: input.azione, p_note: input.note ?? null, p_parametri_modificati: null,
-      });
-      if (error) throw error;
+      if (input.azione === "approvata") {
+        // MP-06: Approva = ESEGUI. Passa dall'orchestratore (esegue + audit + marca coda).
+        const { data: session } = await supabase.auth.getSession();
+        const tk = session.session?.access_token;
+        if (!tk) throw new Error("Non autenticato");
+        const res = await fetch(`${FN_BASE}/silvio-orchestratore`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tk}` },
+          body: JSON.stringify({ coda_id: input.id }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || j.ok === false) throw new Error(j.errore || j.error || "Esecuzione non riuscita");
+      } else {
+        const { error } = await (supabase.rpc as any)("silvio_coda_risolvi", {
+          p_id: input.id, p_azione: "rifiutata", p_note: input.note ?? null, p_parametri_modificati: null,
+        });
+        if (error) throw error;
+      }
       return input;
     },
     onSuccess: (input) => {
-      toast.success(input.azione === "approvata" ? "Approvato" : "Rifiutato");
+      toast.success(input.azione === "approvata" ? "Eseguito" : "Rifiutato");
       void qc.invalidateQueries({ queryKey: ["silvio-coda"] });
       void qc.invalidateQueries({ queryKey: ["silvio-audit"] });
     },
