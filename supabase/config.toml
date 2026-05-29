@@ -511,3 +511,7 @@ verify_jwt = false
 # MP-14: digest giornaliero. Auth interna Bearer getUser.
 [functions.email-ai-digest]
 verify_jwt = false
+
+# MP-15: verifica DNS deliverability. Auth interna Bearer getUser.
+[functions.email-ai-deliverability]
+verify_jwt = false

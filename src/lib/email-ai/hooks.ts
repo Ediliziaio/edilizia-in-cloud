@@ -974,3 +974,36 @@ export function useDigest() {
     },
   });
 }
+
+// ─── MP-EMAIL-AI-15 — Deliverability (verifica SPF/DKIM/DMARC) ─────────────────
+
+export interface DeliverabilityRecord { tipo: string; host: string; valore: string; nota: string; }
+export interface DeliverabilityStato {
+  ok?: boolean;
+  dominio: string;
+  spf_ok: boolean;
+  dkim_ok: boolean;
+  dkim_selector?: string | null;
+  dmarc_ok: boolean;
+  dmarc_policy?: string | null;
+  suggeriti: { spf: DeliverabilityRecord | null; dmarc: DeliverabilityRecord | null; dkim: DeliverabilityRecord | null };
+}
+
+export function useVerificaDeliverability() {
+  return useMutation({
+    mutationFn: async (input?: { domain?: string }): Promise<DeliverabilityStato> => {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/email-ai-deliverability`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(input || {}),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || out.reason || `HTTP ${res.status}`);
+      return out as DeliverabilityStato;
+    },
+    onError: (e) => toast.error("Errore verifica DNS", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
