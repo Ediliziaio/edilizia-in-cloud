@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { DocumentoEstrattoPanel } from "@/components/email-ai/DocumentoEstrattoPanel";
 import {
   ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward,
   Paperclip, Sparkles, AlertTriangle, X, Wand2, Loader2, ListChecks,
@@ -1882,6 +1883,8 @@ function MessageBubble({ message }: { message: MessageRow }) {
               </div>
             ))}
           </div>
+          {/* MP-EMAIL-AI-06: estrazione dati da allegati PDF → bozza gestionale */}
+          <DocumentoEstrattoPanel emailId={message.id} attachments={attachments} />
         </>
       )}
     </div>

@@ -371,3 +371,97 @@ export function useL3BatchClassify() {
     },
   });
 }
+
+// ─── MP-EMAIL-AI-06 — Estrazione allegati PDF → bozza gestionale ──────────────
+
+export interface DocumentoEstratto {
+  id: string;
+  company_id: string;
+  email_id: string | null;
+  attachment_id: string | null;
+  tipo: string;
+  confidenza_tipo: number | null;
+  campi: Record<string, { valore: string | number | null; conf: number }>;
+  dati_incerti: string[];
+  note: string | null;
+  stato: "da_confermare" | "confermato" | "scartato" | "duplicato";
+  fornitore_match_id: string | null;
+  fornitore_match_tipo: string | null;
+  dedup_fattura_id: string | null;
+  iban_estratto: string | null;
+  iban_alert: boolean;
+  pdf_storage_bucket: string | null;
+  pdf_storage_path: string | null;
+  created_at: string;
+}
+
+// Tabella non ancora nei tipi generati (schema applicato al release MP-06): cast localizzato.
+const sbAny = supabase as unknown as {
+  from: (t: string) => ReturnType<typeof supabase.from>;
+};
+
+export function useEstraiAllegato() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { email_id: string; attachment_index: number }): Promise<{ ok?: boolean; draft?: DocumentoEstratto; skipped?: string; reason?: string }> => {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/email-ai-estrai-allegato`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(input),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      return json;
+    },
+    onSuccess: (data, vars) => {
+      if (data.skipped) {
+        toast.info("Estrazione non necessaria", { description: data.reason || data.skipped });
+      } else {
+        toast.success("Bozza pronta", { description: "Dati estratti dal documento. Controlla i campi evidenziati." });
+        void qc.invalidateQueries({ queryKey: ["email-documenti-estratti", vars.email_id] });
+      }
+    },
+    onError: (e) => toast.error("Errore estrazione", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+export function useDocumentiEstrattiPerEmail(emailId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-documenti-estratti", emailId],
+    enabled: !!emailId,
+    queryFn: async (): Promise<DocumentoEstratto[]> => {
+      const { data, error } = await sbAny
+        .from("email_documento_estratto")
+        .select("*")
+        .eq("email_id", emailId as string)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as DocumentoEstratto[]) || [];
+    },
+  });
+}
+
+export function useAggiornaStatoDocumentoEstratto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; stato: "confermato" | "scartato"; email_id?: string }) => {
+      const patch: Record<string, unknown> = { stato: input.stato };
+      if (input.stato === "confermato") {
+        const { data: u } = await supabase.auth.getUser();
+        patch.confirmed_by = u.user?.id ?? null;
+        patch.confirmed_at = new Date().toISOString();
+      }
+      const { error } = await sbAny.from("email_documento_estratto").update(patch).eq("id", input.id);
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => {
+      toast.success(input.stato === "confermato" ? "Documento confermato" : "Bozza scartata");
+      void qc.invalidateQueries({ queryKey: ["email-documenti-estratti", input.email_id] });
+    },
+    onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
