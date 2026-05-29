@@ -3624,6 +3624,18 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedPersonas: ["silvio", "sales", "direttore_vendite"], riskLevel: "yellow", domain: "crm",
   },
 
+  // ── MP-SILVIO-ACTIONS-EXTERNAL-01 — esecuzione verso l'esterno (sempre yellow) ──
+  componi_e_invia_messaggio: {
+    schema: { type: "function", function: { name: "componi_e_invia_messaggio", description: "Compone e invia un messaggio a un contatto (cliente/fornitore/dipendente/lead) sul canale scelto. Richiede conferma (non invia subito).", parameters: { type: "object", properties: { destinatario_tipo: { type: "string", enum: ["cliente", "fornitore", "dipendente", "lead"] }, destinatario_id: { type: "string" }, canale: { type: "string", enum: ["email", "whatsapp", "sms"], default: "email" }, oggetto: { type: "string" }, corpo: { type: "string" }, scopo: { type: "string", enum: ["sollecito", "followup", "informativo", "richiesta_doc", "offerta"] } }, required: ["destinatario_tipo", "destinatario_id", "corpo"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_componi_e_invia_messaggio", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_dest_tipo: args?.destinatario_tipo, p_dest_id: args?.destinatario_id, p_canale: args?.canale ?? "email", p_oggetto: args?.oggetto ?? null, p_corpo: args?.corpo, p_scopo: args?.scopo ?? "informativo" }),
+    allowedPersonas: ["silvio", "assistente_imprenditore", "cfo", "pm_cantiere"], riskLevel: "yellow", domain: "sales", estimatedCostEur: 0.01,
+  },
+  rispondi_a_email: {
+    schema: { type: "function", function: { name: "rispondi_a_email", description: "Risponde a un thread email entrante. Silvio redige, l'utente conferma l'invio.", parameters: { type: "object", properties: { thread_id: { type: "string" }, corpo: { type: "string" }, allega_documento_id: { type: "string" } }, required: ["thread_id", "corpo"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_rispondi_a_email", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_thread_id: args?.thread_id, p_corpo: args?.corpo, p_doc_id: args?.allega_documento_id ?? null }),
+    allowedPersonas: ["silvio", "assistente_imprenditore"], riskLevel: "yellow", domain: "sales", estimatedCostEur: 0.01,
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-06 — Pipeline Forecast Sales (4 tool)
   // ═════════════════════════════════════════════════════════════════════════
