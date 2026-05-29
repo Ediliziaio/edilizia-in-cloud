@@ -928,3 +928,25 @@ export function useBonificaAnnulla() {
     onError: (e) => toast.error("Errore annulla", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+// ─── MP-EMAIL-AI-16 — Domini noti fornitori/clienti (per look-alike) ──────────
+
+export function useDominiFornitoriNoti(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-domini-noti", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<string[]> => {
+      const set = new Set<string>();
+      const add = (email?: string | null) => {
+        const d = (email || "").toLowerCase().match(/@([^@\s>]+)/)?.[1];
+        if (d && !["gmail.com", "libero.it", "hotmail.com", "outlook.com", "yahoo.it", "yahoo.com", "icloud.com", "pec.it", "tin.it"].includes(d)) set.add(d);
+      };
+      const { data: anag } = await sbAny.from("anagrafiche_native").select("email, email_fatture").eq("company_id", companyId as string).limit(500);
+      for (const a of (anag as any[]) || []) { add(a.email); add(a.email_fatture); }
+      const { data: sup } = await sbAny.from("suppliers").select("email").eq("company_id", companyId as string).limit(500);
+      for (const s of (sup as any[]) || []) add(s.email);
+      return Array.from(set);
+    },
+  });
+}
