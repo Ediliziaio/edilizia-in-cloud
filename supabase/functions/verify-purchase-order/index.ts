@@ -11,6 +11,7 @@
  */
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { anthropicMessages, hasAiProvider, type AnthropicLikeResponse } from "../_shared/anthropicMessages.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
@@ -440,9 +441,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // ── 7. Call Claude API ────────────────────────────────────────────
 
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicKey) {
-      return errorResponse("Chiave API Anthropic non configurata", 500, corsH);
+    if (!hasAiProvider()) {
+      return errorResponse("Provider AI non configurato (OPENROUTER_API_KEY)", 500, corsH);
     }
 
     const startTime = Date.now();
@@ -450,30 +450,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let tokensUsed = 0;
     let rawResponse: unknown = null;
 
-    const callClaude = async (retry = 0): Promise<Response> => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-
+    const callClaude = async (retry = 0): Promise<AnthropicLikeResponse> => {
       try {
-        const resp = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": anthropicKey,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: AI_MODEL,
-            max_tokens: 4096,
-            system: SYSTEM_PROMPT,
-            messages,
-          }),
-          signal: controller.signal,
+        return await anthropicMessages({
+          model: AI_MODEL,
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          messages,
         });
-        clearTimeout(timeout);
-        return resp;
       } catch (err) {
-        clearTimeout(timeout);
         if (retry < 1) {
           // Exponential backoff retry
           await new Promise((r) => setTimeout(r, 2000 * (retry + 1)));
@@ -483,12 +468,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     };
 
-    const aiResponse = await callClaude();
-
-    if (!aiResponse.ok) {
-      const errBody = await aiResponse.text();
-      console.error("Claude API error:", aiResponse.status, errBody);
-
+    let aiData: AnthropicLikeResponse;
+    try {
+      aiData = await callClaude();
+    } catch (err) {
+      console.error("AI API error:", err);
       // Create error record
       await supabaseAdmin.from("purchase_order_verifications").insert({
         company_id: companyId,
@@ -497,15 +481,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
         status: "error",
         supplier_document_url: supplierDocumentUrl || "structured_data",
         supplier_document_type: supplierDocType,
-        overall_summary: `Errore API AI: ${aiResponse.status}`,
+        overall_summary: `Errore API AI: ${String(err).slice(0, 200)}`,
         processing_time_ms: Date.now() - startTime,
         verified_by: userId,
       });
-
-      return errorResponse(`Errore nell'analisi AI: ${aiResponse.status}`, 502, corsH);
+      return errorResponse("Errore nell'analisi AI", 502, corsH);
     }
-
-    const aiData = await aiResponse.json();
     rawResponse = aiData;
     const inputTokens = Number(aiData.usage?.input_tokens ?? 0);
     const outputTokens = Number(aiData.usage?.output_tokens ?? 0);

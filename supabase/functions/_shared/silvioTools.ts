@@ -901,6 +901,66 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "fattura",
   },
 
+  get_email_summary: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_email_summary",
+        description: "Conta e riassume le email RICEVUTE nella casella aziendale (oggi/settimana/mese/totali + non lette + da rivedere). Usa SEMPRE per domande tipo 'quante email ho ricevuto', 'email oggi', 'posta in arrivo', 'email non lette', 'quante mail'. Il modulo email È attivo se questo tool ritorna numeri.",
+        parameters: {
+          type: "object",
+          properties: {
+            period: {
+              type: "string",
+              enum: ["today", "week", "month", "all"],
+              description: "Periodo: today=oggi, week=ultimi 7gg, month=ultimi 30gg, all=tutte. Default today.",
+            },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const period = (args?.period as string) ?? "today";
+      const now = new Date();
+      let since: string | null = null;
+      if (period === "today") { const d = new Date(now); d.setHours(0, 0, 0, 0); since = d.toISOString(); }
+      else if (period === "week") since = new Date(now.getTime() - 7 * 86400_000).toISOString();
+      else if (period === "month") since = new Date(now.getTime() - 30 * 86400_000).toISOString();
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sb = ctx.supabase as any;
+        const inPeriodQ = sb.from("email_inbox").select("id", { count: "exact", head: true })
+          .eq("company_id", ctx.companyId).eq("is_trashed", false);
+        if (since) inPeriodQ.gte("received_at", since);
+        const [periodRes, totalRes, unreadRes, reviewRes] = await Promise.all([
+          inPeriodQ,
+          sb.from("email_inbox").select("id", { count: "exact", head: true }).eq("company_id", ctx.companyId).eq("is_trashed", false),
+          sb.from("email_inbox").select("id", { count: "exact", head: true }).eq("company_id", ctx.companyId).eq("is_trashed", false).eq("is_read", false),
+          sb.from("email_inbox").select("id", { count: "exact", head: true }).eq("company_id", ctx.companyId).eq("is_trashed", false).eq("da_rivedere", true),
+        ]);
+        if (periodRes.error && (periodRes.error.message ?? "").includes("does not exist")) {
+          return { modulo_email_attivo: false, nota: "La tabella email non è disponibile per questa azienda." };
+        }
+        return {
+          modulo_email_attivo: true,
+          periodo: period,
+          ricevute_nel_periodo: periodRes.count ?? 0,
+          totali_in_casella: totalRes.count ?? 0,
+          non_lette: unreadRes.count ?? 0,
+          da_rivedere: reviewRes.error ? null : (reviewRes.count ?? 0),
+        };
+      } catch (e) {
+        return { error: `email_summary_failed: ${e instanceof Error ? e.message : String(e)}` };
+      }
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "amministrazione", "cfo", "controller"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
+    riskLevel: "safe",
+    domain: "email",
+  },
+
   search_brain: {
     schema: {
       type: "function",

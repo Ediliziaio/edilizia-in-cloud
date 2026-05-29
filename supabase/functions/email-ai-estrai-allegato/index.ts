@@ -16,6 +16,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { anthropicMessages, hasAiProvider } from "../_shared/anthropicMessages.ts";
 import {
   validatePartitaIva,
   checkQuadratura,
@@ -26,7 +27,6 @@ import {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SONNET_MODEL = "claude-sonnet-4-5";
 const ATTACH_BUCKET = "email-attachments";
 const MAX_PDF_BYTES = 12 * 1024 * 1024; // 12MB: oltre, troppo costoso/grande per la visione
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, cors);
-  if (!ANTHROPIC_API_KEY) return json({ error: "ANTHROPIC_API_KEY missing" }, 500, cors);
+  if (!hasAiProvider()) return json({ error: "AI provider non configurato" }, 500, cors);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -126,28 +126,19 @@ Deno.serve(async (req) => {
     const base64 = bytesToBase64(bytes);
 
     // ── Visione: UNA chiamata Sonnet, system in cache ───────────────────────
-    const visResp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
-        model: SONNET_MODEL,
-        max_tokens: 1500,
-        system: [{ type: "text", text: SYSTEM_ESTRAI, cache_control: { type: "ephemeral" } }],
-        messages: [{
-          role: "user",
-          content: [
-            { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
-            { type: "text", text: "Estrai i dati di questo documento secondo lo schema." },
-          ],
-        }],
-        temperature: 0,
-      }),
+    const visData = await anthropicMessages({
+      model: SONNET_MODEL,
+      max_tokens: 1500,
+      system: [{ type: "text", text: SYSTEM_ESTRAI, cache_control: { type: "ephemeral" } }],
+      messages: [{
+        role: "user",
+        content: [
+          { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
+          { type: "text", text: "Estrai i dati di questo documento secondo lo schema." },
+        ],
+      }],
+      temperature: 0,
     });
-    if (!visResp.ok) {
-      const t = await visResp.text();
-      return json({ error: `vision_error_${visResp.status}`, detail: t.slice(0, 200) }, 502, cors);
-    }
-    const visData = await visResp.json();
     let extracted: any = {};
     try {
       const m = (visData.content?.[0]?.text || "{}").match(/\{[\s\S]*\}/);
