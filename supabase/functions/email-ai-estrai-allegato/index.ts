@@ -76,17 +76,32 @@ Deno.serve(async (req) => {
     if (!u.user) return json({ error: "Invalid token" }, 401, cors);
 
     const body = await req.json().catch(() => ({}));
-    const attachmentId: string = (body.attachment_id || "").toString();
-    if (!attachmentId) return json({ error: "attachment_id required" }, 400, cors);
+    const emailId: string = (body.email_id || "").toString();
+    const attIdx: number = Number.isInteger(body.attachment_index) ? body.attachment_index : -1;
+    if (!emailId || attIdx < 0) return json({ error: "email_id e attachment_index richiesti" }, 400, cors);
 
-    // ── Carica allegato ──────────────────────────────────────────────────
-    const { data: att, error: attErr } = await supabase
-      .from("email_attachments")
-      .select("id, company_id, inbox_id, filename, mime_type, size_bytes, storage_path")
-      .eq("id", attachmentId)
-      .maybeSingle();
-    if (attErr || !att) return json({ error: "attachment_not_found" }, 404, cors);
-    if (!att.storage_path) return json({ error: "attachment_no_file" }, 422, cors);
+    // ── Carica email via client USER-scoped: la RLS garantisce che l'utente
+    //    possa accedere a questa email (company + staff interno). Niente cross-tenant.
+    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || SERVICE_ROLE, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: email } = await userClient
+      .from("email_inbox").select("id, company_id, attachments").eq("id", emailId).maybeSingle();
+    if (!email) return json({ error: "email_non_accessibile" }, 404, cors);
+
+    // Gli allegati inbox vivono come JSONB su email_inbox: { filename, mime, size, storage_path }
+    const attachmentsArr: any[] = Array.isArray(email.attachments) ? email.attachments : [];
+    const raw = attachmentsArr[attIdx];
+    if (!raw) return json({ error: "allegato_non_trovato" }, 404, cors);
+    const att = {
+      company_id: email.company_id as string,
+      inbox_id: email.id as string,
+      filename: (raw.filename ?? null) as string | null,
+      mime_type: (raw.mime ?? raw.mime_type ?? null) as string | null,
+      size_bytes: (raw.size ?? raw.size_bytes ?? null) as number | null,
+      storage_path: (raw.storage_path ?? null) as string | null,
+    };
+    if (!att.storage_path) return json({ error: "attachment_no_file", reason: "Allegato PDF non ancora scaricato nello storage." }, 422, cors);
 
     const filename = (att.filename || "").toLowerCase();
     const mime = (att.mime_type || "").toLowerCase();
@@ -201,7 +216,7 @@ Deno.serve(async (req) => {
 
     // ── Salva bozza (sostituisce eventuale bozza viva per lo stesso allegato) ─
     await supabase.from("email_documento_estratto")
-      .delete().eq("attachment_id", attachmentId).in("stato", ["da_confermare", "duplicato"]);
+      .delete().eq("email_id", att.inbox_id).eq("pdf_storage_path", att.storage_path).in("stato", ["da_confermare", "duplicato"]);
 
     const { data: draft, error: insErr } = await supabase
       .from("email_documento_estratto")
