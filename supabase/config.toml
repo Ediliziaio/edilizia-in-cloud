@@ -515,3 +515,11 @@ verify_jwt = false
 # MP-15: verifica DNS deliverability. Auth interna Bearer getUser.
 [functions.email-ai-deliverability]
 verify_jwt = false
+
+# MP-13: motore sequenze (cron). Auth interna: service role o x-cron-secret.
+[functions.email-sequenze-tick]
+verify_jwt = false
+
+# MP-13: disiscrizione pubblica via token (nessun JWT). verify_jwt=false obbligatorio.
+[functions.email-sequenze-optout]
+verify_jwt = false

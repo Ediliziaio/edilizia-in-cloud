@@ -1007,3 +1007,225 @@ export function useVerificaDeliverability() {
     onError: (e) => toast.error("Errore verifica DNS", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+// ─── MP-EMAIL-AI-13 — Sequenze in uscita (follow-up / solleciti / ricontatti) ──
+
+export interface SequenzaStepDef {
+  offset_giorni: number;
+  oggetto: string;
+  corpo_template: string;
+  condizione_stop?: string;
+}
+
+export interface Sequenza {
+  id: string;
+  company_id: string;
+  nome: string;
+  tipo: "followup_preventivo" | "sollecito_pagamento" | "ricontatto_opportunita" | "conferma_appuntamento" | "altro";
+  attiva: boolean;
+  modalita_invio: "conferma" | "automatico";
+  step: SequenzaStepDef[];
+  limite_invii_giorno: number;
+  oauth_connection_id: string | null;
+  approvata_da: string | null;
+  approvata_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SequenzaEsecuzione {
+  id: string;
+  sequenza_id: string;
+  company_id: string;
+  destinatario: string;
+  destinatario_nome: string | null;
+  entita_tipo: string | null;
+  entita_id: string | null;
+  step_corrente: number;
+  stato: string;
+  prossimo_invio_at: string | null;
+  ultimo_invio_at: string | null;
+  fermata_motivo: string | null;
+  ancora_at: string;
+  created_at: string;
+  sequenza?: { nome: string; tipo: string } | null;
+}
+
+export interface SequenzaInvioAttesa {
+  id: string;
+  esecuzione_id: string;
+  sequenza_id: string;
+  company_id: string;
+  step_index: number;
+  outbox_id: string | null;
+  oggetto: string | null;
+  corpo_anteprima: string | null;
+  stato: string;
+  creato_at: string;
+}
+
+/** Elenco sequenze dell'azienda (RLS staff). */
+export function useSequenze() {
+  return useQuery({
+    queryKey: ["email-sequenze"],
+    queryFn: async (): Promise<Sequenza[]> => {
+      const { data, error } = await sbAny
+        .from("sequenze").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data as unknown as Sequenza[]) || [];
+    },
+  });
+}
+
+/** Crea o aggiorna una sequenza (la modifica disattiva: va riapprovata). */
+export function useSalvaSequenza() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Partial<Sequenza> & { company_id: string }) => {
+      const payload: Record<string, unknown> = {
+        company_id: input.company_id,
+        nome: input.nome,
+        tipo: input.tipo,
+        modalita_invio: input.modalita_invio,
+        step: input.step,
+        limite_invii_giorno: input.limite_invii_giorno,
+        oauth_connection_id: input.oauth_connection_id ?? null,
+      };
+      if (input.id) {
+        // modifica → torna in bozza (non attiva) finché non riapprovata
+        const { error } = await sbAny.from("sequenze").update({ ...payload, attiva: false }).eq("id", input.id);
+        if (error) throw error;
+        return { id: input.id };
+      }
+      const { data, error } = await sbAny.from("sequenze").insert(payload).select("id").maybeSingle();
+      if (error) throw error;
+      return { id: (data as { id: string } | null)?.id };
+    },
+    onSuccess: () => {
+      toast.success("Sequenza salvata", { description: "Va approvata prima di attivarla." });
+      void qc.invalidateQueries({ queryKey: ["email-sequenze"] });
+    },
+    onError: (e) => toast.error("Errore salvataggio", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+/** Approva i testi e attiva/disattiva la sequenza (cap.7). */
+export function useApprovaAttivaSequenza() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; attiva: boolean }) => {
+      const { error } = await (supabase.rpc as any)("sequenza_approva_attiva", { p_sequenza_id: input.id, p_attiva: input.attiva });
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => {
+      toast.success(input.attiva ? "Sequenza attivata" : "Sequenza disattivata");
+      void qc.invalidateQueries({ queryKey: ["email-sequenze"] });
+    },
+    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+/** Arruola un destinatario ("attiva follow-up" da opportunità/preventivo). */
+export function useEnrollSequenza() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      sequenza_id: string; destinatario: string; destinatario_nome?: string;
+      thread_id?: string | null; entita_tipo?: string | null; entita_id?: string | null;
+      variabili?: Record<string, unknown>; ancora_at?: string;
+    }) => {
+      const { data, error } = await (supabase.rpc as any)("sequenza_enroll", {
+        p_sequenza_id: input.sequenza_id,
+        p_destinatario: input.destinatario,
+        p_destinatario_nome: input.destinatario_nome ?? null,
+        p_thread_id: input.thread_id ?? null,
+        p_entita_tipo: input.entita_tipo ?? null,
+        p_entita_id: input.entita_id ?? null,
+        p_variabili: input.variabili ?? {},
+        p_ancora_at: input.ancora_at ?? new Date().toISOString(),
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Follow-up attivato", { description: "Si fermerà da solo appena il destinatario risponde." });
+      void qc.invalidateQueries({ queryKey: ["email-sequenze-esecuzioni"] });
+    },
+    onError: (e) => toast.error("Impossibile attivare", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+/** Cruscotto: esecuzioni (filtra per stato lato chiamante). */
+export function useSequenzeEsecuzioni() {
+  return useQuery({
+    queryKey: ["email-sequenze-esecuzioni"],
+    queryFn: async (): Promise<SequenzaEsecuzione[]> => {
+      const { data, error } = await sbAny
+        .from("sequenze_esecuzioni")
+        .select("*, sequenza:sequenze(nome,tipo)")
+        .order("updated_at", { ascending: false }).limit(200);
+      if (error) throw error;
+      return (data as unknown as SequenzaEsecuzione[]) || [];
+    },
+  });
+}
+
+/** Invii pronti che attendono conferma umana (modalità 'conferma'). */
+export function useInviiInAttesa() {
+  return useQuery({
+    queryKey: ["email-sequenze-invii-attesa"],
+    queryFn: async (): Promise<SequenzaInvioAttesa[]> => {
+      const { data, error } = await sbAny
+        .from("sequenze_invii").select("*").eq("stato", "in_attesa_conferma")
+        .order("creato_at", { ascending: true }).limit(100);
+      if (error) throw error;
+      return (data as unknown as SequenzaInvioAttesa[]) || [];
+    },
+  });
+}
+
+/** Approva+invia (o salta) un invio in attesa. L'invio reale passa da email-send (JWT utente). */
+export function useGestisciInvioSequenza() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { invio_id: string; outbox_id: string | null; azione: "inviato" | "saltato" }) => {
+      if (input.azione === "inviato") {
+        if (!input.outbox_id) throw new Error("Bozza non disponibile");
+        const { data: session } = await supabase.auth.getSession();
+        const token = session.session?.access_token;
+        if (!token) throw new Error("Non autenticato");
+        const res = await fetch(`${FN_BASE}/email-send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ outbox_id: input.outbox_id }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      }
+      const { error } = await (supabase.rpc as any)("sequenza_invio_conferma", { p_invio_id: input.invio_id, p_azione: input.azione });
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: (input) => {
+      toast.success(input.azione === "inviato" ? "Inviato" : "Step saltato");
+      void qc.invalidateQueries({ queryKey: ["email-sequenze-invii-attesa"] });
+      void qc.invalidateQueries({ queryKey: ["email-sequenze-esecuzioni"] });
+    },
+    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+/** Pausa / riprendi / annulla un'esecuzione dal cruscotto. */
+export function useStatoEsecuzioneSequenza() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; stato: "attiva" | "in_pausa" | "annullata" }) => {
+      const { error } = await (supabase.rpc as any)("sequenza_esecuzione_stato", { p_esecuzione_id: input.id, p_stato: input.stato });
+      if (error) throw error;
+      return input;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["email-sequenze-esecuzioni"] }); },
+    onError: (e) => toast.error("Operazione non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}

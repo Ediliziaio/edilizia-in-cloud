@@ -309,13 +309,21 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  // Auth: estrai user JWT
+  // Auth: utente JWT, oppure chiamante interno fidato (service role).
+  // L'unico chiamante interno è il motore sequenze (MP-13, edge `email-sequenze-tick`)
+  // che in modalità 'automatico' invia una riga outbox senza un utente in sessione.
+  // L'ownership in quel caso è già garantita a monte (esecuzione company-scoped +
+  // riga outbox costruita dal tick), quindi saltiamo il filtro user_id.
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.replace("Bearer ", "");
-  const { data: userRes } = await supabase.auth.getUser(token);
-  const userId = userRes?.user?.id;
-  if (!userId) {
-    return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+  const isInternal = token.length > 0 && token === SERVICE_ROLE_KEY;
+  let userId: string | undefined;
+  if (!isInternal) {
+    const { data: userRes } = await supabase.auth.getUser(token);
+    userId = userRes?.user?.id;
+    if (!userId) {
+      return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
+    }
   }
 
   let body: { outbox_id?: string } = {};
@@ -325,13 +333,13 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: false, error: "outbox_id required" }, 400);
   }
 
-  // 1) Carica outbox row e verifica ownership
-  const { data: outboxRow, error: loadErr } = await supabase
+  // 1) Carica outbox row e verifica ownership (saltata per il chiamante interno)
+  let outboxQuery = supabase
     .from("email_outbox")
     .select("*")
-    .eq("id", body.outbox_id)
-    .eq("user_id", userId)
-    .maybeSingle();
+    .eq("id", body.outbox_id);
+  if (!isInternal) outboxQuery = outboxQuery.eq("user_id", userId!);
+  const { data: outboxRow, error: loadErr } = await outboxQuery.maybeSingle();
   if (loadErr || !outboxRow) {
     return jsonResponse({ ok: false, error: "Outbox row not found or access denied" }, 404);
   }
