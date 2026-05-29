@@ -8,11 +8,12 @@
  * Raggiunta da /azienda/email/ai (link nella sidebar email).
  */
 import { Link } from "react-router-dom";
-import { ArrowLeft, Brain, Filter, Inbox } from "lucide-react";
+import { ArrowLeft, Brain, Filter, Inbox, Sun } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmailLearningDashboard } from "@/components/email-ai/EmailLearningDashboard";
 import { EmailRulesSettings } from "@/components/email-ai/EmailRulesSettings";
 import { BonificaPanel } from "@/components/email-ai/BonificaPanel";
+import { DigestCard } from "@/components/email-ai/DigestCard";
 
 export default function EmailAiSettingsPage() {
   return (
@@ -33,8 +34,11 @@ export default function EmailAiSettingsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="apprendimento" className="w-full">
-        <TabsList className="mb-4 grid w-full max-w-xl grid-cols-3">
+      <Tabs defaultValue="giornata" className="w-full">
+        <TabsList className="mb-4 grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4">
+          <TabsTrigger value="giornata" className="gap-1.5">
+            <Sun className="h-4 w-4" /> Giornata
+          </TabsTrigger>
           <TabsTrigger value="apprendimento" className="gap-1.5">
             <Brain className="h-4 w-4" /> Apprendimento
           </TabsTrigger>
@@ -45,6 +49,10 @@ export default function EmailAiSettingsPage() {
             <Inbox className="h-4 w-4" /> Bonifica
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="giornata" className="mt-0">
+          <DigestCard />
+        </TabsContent>
 
         <TabsContent value="apprendimento" className="mt-0">
           <EmailLearningDashboard days={30} />

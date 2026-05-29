@@ -950,3 +950,27 @@ export function useDominiFornitoriNoti(companyId: string | null | undefined) {
     },
   });
 }
+
+// ─── MP-EMAIL-AI-14 — Digest "La tua giornata" ────────────────────────────────
+
+export interface Digest { titolo: string; righe: string[]; }
+
+export function useDigest() {
+  return useQuery({
+    queryKey: ["email-digest"],
+    staleTime: 10 * 60 * 1000,
+    queryFn: async (): Promise<Digest> => {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/email-ai-digest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || `HTTP ${res.status}`);
+      return (out.digest as Digest) || { titolo: "La tua giornata", righe: [] };
+    },
+  });
+}

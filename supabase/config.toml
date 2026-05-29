@@ -507,3 +507,7 @@ verify_jwt = false
 # MP-11: rilevazione appuntamento da email. Auth interna Bearer getUser.
 [functions.email-ai-evento]
 verify_jwt = false
+
+# MP-14: digest giornaliero. Auth interna Bearer getUser.
+[functions.email-ai-digest]
+verify_jwt = false
