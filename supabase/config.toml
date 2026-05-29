@@ -495,3 +495,7 @@ verify_jwt = false
 # MP-07: DDT → proposta carico magazzino. Auth interna Bearer getUser.
 [functions.email-ai-ddt-carico]
 verify_jwt = false
+
+# MP-08: email → bozza opportunità. Auth interna Bearer getUser.
+[functions.email-ai-opportunita]
+verify_jwt = false

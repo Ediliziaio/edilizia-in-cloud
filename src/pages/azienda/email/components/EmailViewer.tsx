@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { DocumentoEstrattoPanel } from "@/components/email-ai/DocumentoEstrattoPanel";
+import { OpportunitaEmailPanel } from "@/components/email-ai/OpportunitaEmailPanel";
 import {
   ArrowLeft, Star, Archive, Trash2, Reply, ReplyAll, Forward,
   Paperclip, Sparkles, AlertTriangle, X, Wand2, Loader2, ListChecks,
@@ -1887,6 +1888,8 @@ function MessageBubble({ message }: { message: MessageRow }) {
           <DocumentoEstrattoPanel emailId={message.id} attachments={attachments} />
         </>
       )}
+      {/* MP-EMAIL-AI-08: richiesta preventivo → bozza opportunità (anche senza allegati) */}
+      <OpportunitaEmailPanel emailId={message.id} />
     </div>
   );
 }
