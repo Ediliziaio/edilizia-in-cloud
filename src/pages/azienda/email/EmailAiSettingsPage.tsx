@@ -8,7 +8,7 @@
  * Raggiunta da /azienda/email/ai (link nella sidebar email).
  */
 import { Link } from "react-router-dom";
-import { ArrowLeft, Brain, Filter, Inbox, Sun, ShieldCheck, Send } from "lucide-react";
+import { ArrowLeft, Brain, Filter, Inbox, Sun, ShieldCheck, Send, Bot } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmailLearningDashboard } from "@/components/email-ai/EmailLearningDashboard";
 import { EmailRulesSettings } from "@/components/email-ai/EmailRulesSettings";
@@ -16,6 +16,7 @@ import { BonificaPanel } from "@/components/email-ai/BonificaPanel";
 import { DigestCard } from "@/components/email-ai/DigestCard";
 import { DeliverabilityPanel } from "@/components/email-ai/DeliverabilityPanel";
 import { SequenzeManager } from "@/components/email-ai/SequenzeManager";
+import { SilvioAzioniSettings } from "@/components/silvio/SilvioAzioniSettings";
 
 export default function EmailAiSettingsPage() {
   return (
@@ -37,9 +38,12 @@ export default function EmailAiSettingsPage() {
       </div>
 
       <Tabs defaultValue="giornata" className="w-full">
-        <TabsList className="mb-4 grid w-full max-w-3xl grid-cols-3 sm:grid-cols-6">
+        <TabsList className="mb-4 grid w-full max-w-4xl grid-cols-3 sm:grid-cols-7">
           <TabsTrigger value="giornata" className="gap-1.5">
             <Sun className="h-4 w-4" /> Giornata
+          </TabsTrigger>
+          <TabsTrigger value="silvio" className="gap-1.5">
+            <Bot className="h-4 w-4" /> Silvio
           </TabsTrigger>
           <TabsTrigger value="sequenze" className="gap-1.5">
             <Send className="h-4 w-4" /> Sequenze
@@ -60,6 +64,10 @@ export default function EmailAiSettingsPage() {
 
         <TabsContent value="giornata" className="mt-0">
           <DigestCard />
+        </TabsContent>
+
+        <TabsContent value="silvio" className="mt-0">
+          <SilvioAzioniSettings />
         </TabsContent>
 
         <TabsContent value="sequenze" className="mt-0">
