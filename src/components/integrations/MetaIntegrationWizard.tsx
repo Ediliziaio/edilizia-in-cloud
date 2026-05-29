@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { AlertTriangle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Integration, MetaWizardStep } from "@/types/integrations";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -51,6 +52,20 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
   const pendingCloseRef = useRef(false);
 
   const hook = useMetaIntegration(integration);
+
+  // MP-ADS-04 GAP-3: avviso re-consent. La creazione campagne richiede lo scope
+  // ads_management. I token concessi PRIMA di questa release non lo hanno → vanno
+  // riconnessi. metadata.granted_scopes è popolato al collegamento (non sensibile).
+  // Se è assente (vecchia integrazione) lo trattiamo come "manca" → mostra avviso.
+  const grantedScopes = Array.isArray((integration?.metadata as Record<string, unknown> | undefined)?.granted_scopes)
+    ? ((integration!.metadata as Record<string, unknown>).granted_scopes as string[])
+    : null;
+  const needsAdsReconsent = isConnected && (grantedScopes === null || !grantedScopes.includes("ads_management"));
+
+  const handleAdsReconsent = useCallback(async () => {
+    const url = await hook.startOAuth();
+    if (url) window.location.href = url;
+  }, [hook]);
 
   useEffect(() => {
     if (open) {
@@ -162,6 +177,21 @@ export function MetaIntegrationWizard({ open, onOpenChange, integration, onCompl
                     </div>
                     <Button variant="destructive" size="sm" onClick={() => setShowDisconnectAlert(true)}>
                       Disconnetti Meta
+                    </Button>
+                  </div>
+                )}
+
+                {needsAdsReconsent && (
+                  <div className="mb-4 flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-amber-800 dark:bg-amber-900/20">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <p className="text-xs text-amber-900 dark:text-amber-200">
+                        Per <b>creare campagne pubblicitarie</b> serve un permesso aggiuntivo (Gestione inserzioni).
+                        Riconnetti l'account Meta per abilitarlo: gli altri dati restano invariati.
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" className="shrink-0 border-amber-300 text-amber-800 hover:bg-amber-100 dark:text-amber-200" onClick={handleAdsReconsent}>
+                      Riconnetti
                     </Button>
                   </div>
                 )}

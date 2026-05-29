@@ -95,6 +95,7 @@ Deno.serve(async (req) => {
       "leads_retrieval",
       "pages_manage_ads",
       "ads_read",
+      "ads_management",   // MP-ADS-04 GAP-3: necessario per CREARE campagne/adset/ads via Marketing API
       "business_management",
     ].join(",");
 

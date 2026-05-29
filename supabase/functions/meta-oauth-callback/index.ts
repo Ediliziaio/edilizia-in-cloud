@@ -204,10 +204,20 @@ Deno.serve(async (req) => {
         });
       }
 
-      // STEP 3: Ora che le credenziali sono salvate, promuovi a "connected"
+      // STEP 3: Ora che le credenziali sono salvate, promuovi a "connected".
+      // MP-ADS-04 GAP-3: esponi gli scope concessi in metadata (NON sensibile —
+      // solo nomi permesso, nessun token) così la UI può avvisare di riconnettere
+      // se manca ads_management (necessario per creare campagne).
       await adminClient
         .from("integrations")
-        .update({ status: "connected" })
+        .update({
+          status: "connected",
+          metadata: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ...(((integration as any).metadata as Record<string, unknown>) ?? {}),
+            granted_scopes: tokenData.scope ? tokenData.scope.split(",") : [],
+          },
+        })
         .eq("id", integration.id);
 
       const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
