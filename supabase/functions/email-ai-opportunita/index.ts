@@ -62,12 +62,16 @@ Deno.serve(async (req) => {
     if (!authHeader) return json({ error: "Auth required" }, 401, cors);
     const { data: u } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!u.user) return json({ error: "Invalid token" }, 401, cors);
+    // Client user-scoped: la RLS verifica l'accesso all'email (anti cross-tenant).
+    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || SERVICE_ROLE, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
     const body = await req.json().catch(() => ({}));
     const emailId: string = (body.email_id || "").toString();
     if (!emailId) return json({ error: "email_id required" }, 400, cors);
 
-    const { data: email, error: emErr } = await supabase
+    const { data: email, error: emErr } = await userClient
       .from("email_inbox")
       .select("id, company_id, from_email, from_name, subject, raw_text, raw_html, attachments")
       .eq("id", emailId).maybeSingle();

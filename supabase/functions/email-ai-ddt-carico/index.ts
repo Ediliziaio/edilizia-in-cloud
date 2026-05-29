@@ -36,13 +36,17 @@ Deno.serve(async (req) => {
     if (!authHeader) return json({ error: "Auth required" }, 401, cors);
     const { data: u } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!u.user) return json({ error: "Invalid token" }, 401, cors);
+    // Client user-scoped: la RLS verifica l'accesso alla bozza (anti cross-tenant).
+    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || SERVICE_ROLE, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
     const body = await req.json().catch(() => ({}));
     const docId: string = (body.documento_estratto_id || "").toString();
     if (!docId) return json({ error: "documento_estratto_id required" }, 400, cors);
 
-    // ── Carica la bozza estratta (MP-06) ───────────────────────────────────
-    const { data: doc, error: docErr } = await supabase
+    // ── Carica la bozza estratta (MP-06) — via userClient (RLS staff/company) ─
+    const { data: doc, error: docErr } = await userClient
       .from("email_documento_estratto")
       .select("id, company_id, email_id, tipo, campi, fornitore_match_id")
       .eq("id", docId)
