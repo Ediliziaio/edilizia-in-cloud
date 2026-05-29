@@ -45,6 +45,13 @@ interface AuditFields {
   durationMs: number;
 }
 
+// MP-SILVIO-COPILOT-01 — memoria preferenze decisionali.
+// SICUREZZA (scelta del titolare): l'auto-esecuzione da regola è DISATTIVA.
+// Il motore (silvio_decision_rules + silvio_match_decision_rule) e il punto di
+// aggancio esistono già; per attivare l'auto-approvazione basterà mettere true
+// QUESTO flag. Varrà SEMPRE solo per tool 'yellow' (mai 'red'), loggato e annullabile.
+const DECISION_RULES_AUTOEXEC_ENABLED = false;
+
 /**
  * Esegue un singolo tool con permission + risk-level routing + audit.
  */
@@ -171,6 +178,30 @@ export async function executeToolWithRouting(
   }
 
   if (risk === "yellow" && !ctx.preApproved) {
+    // MP-COPILOT: se il titolare ha attivato l'auto-esecuzione (flag) e una regola
+    // 'auto_approva' copre il caso, esegui senza chiedere (loggato + annullabile).
+    // Struttura: questo branch è SOLO dentro il ramo 'yellow' → un tool 'red' (gestito
+    // sopra con return) non può MAI essere auto-approvato. Difensivo: ogni errore → proposta.
+    if (DECISION_RULES_AUTOEXEC_ENABLED) {
+      const rule = await matchDecisionRule(ctx, tool, input);
+      if (rule && rule.azione === "auto_approva") {
+        try {
+          const data = await tool.executor(input, ctx);
+          await logAudit(ctx, tool, toolName, {
+            inputPayload: sanitize(input),
+            outputPayload: sanitize(data),
+            status: "success",
+            errorMessage: `auto-approvato da regola ${rule.rule_id}`,
+            proposalId: null,
+            durationMs: Date.now() - t0,
+          });
+          return { success: true, toolName, data, durationMs: Date.now() - t0, riskLevel: "yellow" };
+        } catch (_e) {
+          // fall-through: in caso di errore creiamo comunque la proposta HITL
+        }
+      }
+    }
+
     const proposalId = await createActionProposal(ctx, tool, toolName, input, "yellow");
     if (!proposalId) {
       await logAudit(ctx, tool, toolName, {
@@ -301,6 +332,35 @@ async function createActionProposal(
       e instanceof Error ? e.message : String(e),
     );
     return "";
+  }
+}
+
+/**
+ * MP-SILVIO-COPILOT-01 — cerca una regola decisionale attiva che copra questa
+ * azione yellow. dominio = tool.domain; payload = input (flat). Read-only via RPC.
+ * Difensivo: input non-oggetto / errore / nessun match → null (→ proposta HITL).
+ */
+async function matchDecisionRule(
+  ctx: ToolContext,
+  tool: SilvioTool,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  input: any,
+): Promise<{ rule_id: string; azione: string } | null> {
+  try {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+    const dominio = tool.domain ?? null;
+    if (!dominio) return null;
+    const { data, error } = await ctx.supabase.rpc("silvio_match_decision_rule", {
+      p_company_id: ctx.companyId,
+      p_dominio: dominio,
+      p_payload: input,
+    });
+    if (error || !data) return null;
+    const r = data as { rule_id?: string; azione?: string };
+    if (!r?.rule_id || !r?.azione) return null;
+    return { rule_id: String(r.rule_id), azione: String(r.azione) };
+  } catch {
+    return null;
   }
 }
 

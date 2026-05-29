@@ -3673,6 +3673,18 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedPersonas: ["silvio", "pm_cantiere", "assistente_imprenditore"], riskLevel: "yellow", domain: "operations", estimatedCostEur: 0.01,
   },
 
+  // ── MP-SILVIO-COPILOT-01 — copilota app + memoria preferenze (entrambi safe) ──
+  guida_a: {
+    schema: { type: "function", function: { name: "guida_a", description: "Spiega come fare un'operazione nell'app (passi) e fornisce il deep-link (route_path + query_params) per aprire la schermata giusta, eventualmente pre-compilata. Usalo quando l'utente chiede 'come faccio a...' o 'dove sta...'.", parameters: { type: "object", properties: { operazione: { type: "string", description: "es: creare una nota di credito" }, precompila: { type: "boolean", default: false }, entita_id: { type: "string", description: "id entità per pre-compilare (es. fattura da stornare, cliente)" } }, required: ["operazione"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_guida_a", { p_company_id: ctx.companyId, p_operazione: args?.operazione, p_precompila: args?.precompila ?? false, p_entita_id: args?.entita_id ?? null }),
+    allowedPersonas: ["silvio", "assistente_imprenditore", "*"], riskLevel: "safe", domain: "support", estimatedCostEur: 0.005,
+  },
+  salva_regola_decisionale: {
+    schema: { type: "function", function: { name: "salva_regola_decisionale", description: "Salva una preferenza decisionale del titolare (es. 'sotto 5000€ approva sempre i preventivi'). NON esegue nulla: registra solo la regola, che resta consultiva finché il titolare non attiva l'auto-approvazione. Vale solo per azioni a rischio medio (mai contratti/HR critici).", parameters: { type: "object", properties: { dominio: { type: "string", description: "es: preventivi, pagamenti, fornitori" }, campo: { type: "string", description: "campo da valutare, es: importo" }, operatore: { type: "string", enum: ["<", "<=", ">", ">=", "=", "!="], default: "<" }, valore: { type: "number", description: "soglia numerica (es. 5000)" }, azione: { type: "string", enum: ["auto_approva", "auto_rifiuta", "avvisa"], default: "avvisa" } }, required: ["dominio", "campo", "valore"] } } },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_salva_regola_decisionale", { p_company_id: ctx.companyId, p_user_id: ctx.userId, p_dominio: args?.dominio, p_condizione: { field: args?.campo, op: args?.operatore ?? "<", value: args?.valore }, p_azione: args?.azione ?? "avvisa", p_origine: "esplicito" }),
+    allowedPersonas: ["silvio", "assistente_imprenditore", "cfo"], riskLevel: "safe", domain: "support", estimatedCostEur: 0.005,
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-06 — Pipeline Forecast Sales (4 tool)
   // ═════════════════════════════════════════════════════════════════════════
