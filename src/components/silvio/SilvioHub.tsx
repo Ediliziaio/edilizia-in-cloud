@@ -4,13 +4,16 @@
  * In corso (task, MP-04) · Storico (audit, MP-06) · Procedure (playbook, MP-05).
  * Integra nel flusso ciò che Silvio fa; non blocca nulla (viste + approva/rifiuta).
  */
-import { Bot, ShieldCheck, ListChecks, History, BookOpen, MailWarning, CheckCircle2, XCircle, Clock, Play } from "lucide-react";
+import { useState } from "react";
+import { Bot, ShieldCheck, ListChecks, History, BookOpen, MailWarning, CheckCircle2, XCircle, Clock, Play, Send, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { SilvioAzioniSettings } from "./SilvioAzioniSettings";
 import {
   useSilvioCodaConferme, useRisolviConferma, useSilvioAudit, useSilvioTaskAttivi, useSilvioPlaybook, useAvviaPlaybook,
+  useChiediSilvio,
 } from "@/lib/silvio/hooks";
 import { etichettaEsito, etichettaOrigine, anteprimaParametri } from "@/lib/silvio/fiducia";
 
@@ -133,6 +136,13 @@ function Procedure() {
 }
 
 export function SilvioHub() {
+  const [richiesta, setRichiesta] = useState("");
+  const chiedi = useChiediSilvio();
+  const invia = () => {
+    const r = richiesta.trim();
+    if (!r) return;
+    chiedi.mutate({ richiesta: r }, { onSuccess: () => setRichiesta("") });
+  };
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-2 rounded-lg border border-violet-100 bg-violet-50/50 p-3">
@@ -141,6 +151,22 @@ export function SilvioHub() {
           Silvio è il tuo assistente operativo: prepara bozze, propone azioni e segue le procedure —
           <b> da solo sul sicuro, con la tua conferma sul sensibile</b>. Qui governi cosa fa e vedi tutto ciò che ha fatto.
         </p>
+      </div>
+
+      {/* MP-02: chiedi a Silvio in linguaggio naturale */}
+      <div className="flex items-center gap-2">
+        <Input
+          value={richiesta}
+          onChange={(e) => setRichiesta(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") invia(); }}
+          placeholder="Chiedi a Silvio… (es. apri un'opportunità da questa richiesta)"
+          className="h-9 flex-1 text-sm"
+          disabled={chiedi.isPending}
+        />
+        <Button size="sm" className="h-9 gap-1.5" disabled={chiedi.isPending || !richiesta.trim()} onClick={invia}>
+          {chiedi.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          Chiedi
+        </Button>
       </div>
       <Tabs defaultValue="approvare" className="w-full">
         <TabsList className="grid w-full grid-cols-5">

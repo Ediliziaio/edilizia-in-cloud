@@ -199,3 +199,37 @@ export function useAvviaPlaybook() {
     onError: (e) => toast.error("Avvio non riuscito", { description: e instanceof Error ? e.message : String(e) }),
   });
 }
+
+/** Richiesta diretta a Silvio (linguaggio naturale) → orchestratore (piano→esegui/coda). */
+export function useChiediSilvio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { richiesta: string; contesto?: Record<string, unknown> }) => {
+      const { data: session } = await supabase.auth.getSession();
+      const tk = session.session?.access_token;
+      if (!tk) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/silvio-orchestratore`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tk}` },
+        body: JSON.stringify({ origine: "richiesta", richiesta: input.richiesta, contesto: input.contesto ?? {} }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Richiesta non riuscita");
+      return j as { ok?: boolean; motivo?: string; inviati?: number; in_coda?: number; suggerimento?: string };
+    },
+    onSuccess: (j) => {
+      if (j.ok === false) {
+        toast.info("Non ho capito bene", { description: j.suggerimento || "Riprova a riformulare la richiesta." });
+      } else {
+        const p = [];
+        if (j.inviati) p.push(`${j.inviati} fatte`);
+        if (j.in_coda) p.push(`${j.in_coda} da approvare`);
+        toast.success("Silvio ha lavorato", { description: p.join(" · ") || "Nessuna azione necessaria" });
+      }
+      void qc.invalidateQueries({ queryKey: ["silvio-coda"] });
+      void qc.invalidateQueries({ queryKey: ["silvio-audit"] });
+      void qc.invalidateQueries({ queryKey: ["silvio-task-attivi"] });
+    },
+    onError: (e) => toast.error("Richiesta non riuscita", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
