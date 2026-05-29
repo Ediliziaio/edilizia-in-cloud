@@ -18,13 +18,19 @@ export const BRAND_CREATIVE_RULES = `VINCOLI:
 - Tono affidabile, professionale, no claim esagerati
 - Light: naturale, ora dorata o studio neutro`;
 
-/** Mappa aspect-ratio → size OpenAI Images (identica al mapping storico). */
+/**
+ * Mappa aspect-ratio → size valido per gpt-image-1.
+ * FIX QA: gpt-image-1 supporta SOLO 1024x1024 | 1024x1536 | 1536x1024 | auto.
+ * I valori storici (1024x1280, 1024x1820, 1820x1024) erano INVALIDI → 400 e la
+ * generazione immagini social falliva per ogni formato non quadrato. Mappiamo
+ * ai size verticale/orizzontale più vicini supportati.
+ */
 export function aspectToOpenAiSize(ar: CreativeAspect | string | undefined | null): string {
   switch (ar) {
-    case "1:1": return "1024x1024";
-    case "4:5": return "1024x1280";
-    case "9:16": return "1024x1820";
-    case "16:9": return "1820x1024";
+    case "1:1": return "1024x1024";   // quadrato
+    case "4:5": return "1024x1536";   // verticale
+    case "9:16": return "1024x1536";  // verticale (più vicino supportato)
+    case "16:9": return "1536x1024";  // orizzontale
     default: return "1024x1024";
   }
 }

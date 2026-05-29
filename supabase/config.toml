@@ -538,3 +538,7 @@ verify_jwt = false
 # MP-SILVIO-07: adattatore canali (WhatsApp/voce). Auth interna: INTERNAL_WORKER_KEY.
 [functions.silvio-canale-adapter]
 verify_jwt = false
+
+# MP-SILVIO-CREATIVE-01: worker render artefatti (cron). Auth: x-internal-cron-secret.
+[functions.silvio-generation-worker]
+verify_jwt = false

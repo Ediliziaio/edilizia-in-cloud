@@ -106,20 +106,20 @@ Deno.serve(async (req) => {
     const enhancedPrompt = buildBrandedImagePrompt(body.prompt);
 
     // CHIAMATA OPENAI
+    // FIX QA: gpt-image-1 ritorna b64_json di default e NON accetta i parametri
+    // DALL·E `response_format` / `quality:'standard'` → 400 "Unknown parameter".
+    // Body model-aware: gpt-image-1 minimale, DALL·E con i suoi parametri.
+    const isGptImage = OPENAI_IMAGE_MODEL.startsWith("gpt-image");
+    const openaiBody = isGptImage
+      ? { model: OPENAI_IMAGE_MODEL, prompt: enhancedPrompt, size, n: 1 }
+      : { model: OPENAI_IMAGE_MODEL, prompt: enhancedPrompt, size, quality, n: 1, response_format: "b64_json" };
     const openaiResp = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: OPENAI_IMAGE_MODEL,
-        prompt: enhancedPrompt,
-        size,
-        quality,
-        n: 1,
-        response_format: "b64_json",
-      }),
+      body: JSON.stringify(openaiBody),
     });
 
     if (!openaiResp.ok) {
