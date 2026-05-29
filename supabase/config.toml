@@ -527,3 +527,7 @@ verify_jwt = false
 # MP-SILVIO-02: orchestratore. Auth interna: Bearer utente o service/x-cron-secret.
 [functions.silvio-orchestratore]
 verify_jwt = false
+
+# MP-SILVIO-03: trigger proattivi (cron). Auth: service role o x-cron-secret.
+[functions.silvio-trigger-tick]
+verify_jwt = false
