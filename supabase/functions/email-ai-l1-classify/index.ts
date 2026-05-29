@@ -132,6 +132,7 @@ async function runSingle(supabase: any, emailId: string, cors: Record<string, st
   const from = normalizeEmail(email.from_email);
   const fromDomain = extractDomain(from);
   const snippet = extractSnippet(email.raw_text, email.raw_html);
+  const attachments = Array.isArray(email.attachments) ? email.attachments : [];
 
   const input: EmailInput = {
     from_email: from,
@@ -140,6 +141,10 @@ async function runSingle(supabase: any, emailId: string, cors: Record<string, st
     subject: email.subject,
     snippet,
     headers: email.headers || null,
+    to_email: email.to_email,
+    cc_emails: email.cc_emails || [],
+    has_attachment: attachments.length > 0,
+    attachment_types: attachments.map((a: any) => String(a?.mime || a?.filename || "")),
   };
 
   const result = await classificaDeterministica(supabase, email.company_id, input);
@@ -177,7 +182,7 @@ async function runBackfill(supabase: any, body: BackfillBody, cors: Record<strin
   let query = supabase
     .from("email_inbox")
     .select(
-      "id, company_id, from_email, from_name, subject, raw_text, raw_html, headers",
+      "id, company_id, from_email, from_name, to_email, cc_emails, subject, raw_text, raw_html, headers, attachments",
     )
     .is("categoria", null)
     .order("received_at", { ascending: false })
@@ -203,6 +208,7 @@ async function runBackfill(supabase: any, body: BackfillBody, cors: Record<strin
     const from = normalizeEmail(email.from_email);
     const fromDomain = extractDomain(from);
     const snippet = extractSnippet(email.raw_text, email.raw_html);
+    const attachments = Array.isArray(email.attachments) ? email.attachments : [];
 
     const input: EmailInput = {
       from_email: from,
@@ -211,6 +217,10 @@ async function runBackfill(supabase: any, body: BackfillBody, cors: Record<strin
       subject: email.subject,
       snippet,
       headers: email.headers || null,
+      to_email: email.to_email,
+      cc_emails: email.cc_emails || [],
+      has_attachment: attachments.length > 0,
+      attachment_types: attachments.map((a: any) => String(a?.mime || a?.filename || "")),
     };
 
     const result = await classificaDeterministica(supabase, email.company_id, input);

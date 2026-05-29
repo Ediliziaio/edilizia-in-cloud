@@ -162,8 +162,8 @@ interface EmailViewerProps {
     mode: "reply" | "replyAll" | "forward",
   ) => void;
   /**
-   * MP-EMAIL-AI-01: callback chiamato quando l'utente clicca "Rispondi con AI"
-   * e la bozza Sonnet è pronta. Apre la compose con subject/body pre-popolati.
+   * MP-EMAIL-AI-02: callback chiamato quando l'utente sceglie una VARIANTE di bozza
+   * (dopo selezione Secca/Diplomatica). Apre la compose con oggetto/corpo pre-popolati.
    */
   onAiDraftReady?: (
     source: {
@@ -178,7 +178,7 @@ interface EmailViewerProps {
       raw_text: string | null;
       raw_html: string | null;
     },
-    draft: import("@/lib/email-ai/hooks").DraftResponse,
+    draft: { oggetto: string; corpo: string },
   ) => void;
 }
 
@@ -948,7 +948,7 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
         {onAiDraftReady && messages && messages.length > 0 && (
           <AiDraftButton
             email_id={messages[messages.length - 1].id}
-            onDraftReady={(draft) => {
+            onDraftChosen={(oggetto, corpo) => {
               if (!messages || messages.length === 0) return;
               const last = messages[messages.length - 1];
               onAiDraftReady(
@@ -964,7 +964,7 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
                   raw_text: last.raw_text,
                   raw_html: last.raw_html,
                 },
-                draft,
+                { oggetto, corpo },
               );
             }}
           />

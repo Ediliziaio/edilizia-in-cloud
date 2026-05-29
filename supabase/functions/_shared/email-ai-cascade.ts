@@ -45,6 +45,24 @@ export interface EmailInput {
   subject?: string | null;
   snippet?: string | null;
   headers?: Record<string, string | undefined> | null;
+  // MP-05: campi extra per valutazione regole
+  to_email?: string | null;
+  cc_emails?: string[] | null;
+  has_attachment?: boolean;
+  attachment_types?: string[];
+}
+
+// MP-EMAIL-AI-05 — Tipi regola (gemello di src/lib/email-ai/rules-engine.ts)
+export interface Condizione { campo: string; operatore: string; valore: string; }
+export interface Azione { tipo: string; valore?: unknown; }
+export interface Regola {
+  id: string;
+  nome: string;
+  stato: string;
+  priorita: number;
+  combinatore: string;
+  condizioni: Condizione[];
+  azioni: Azione[];
 }
 
 export interface ClassificationResult {
@@ -398,8 +416,82 @@ async function matchCRM(
   return null;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// MP-EMAIL-AI-05 — Valutatore regole (L1, costo zero, PRIMA di mittenti_noti)
+// ════════════════════════════════════════════════════════════════════════════
+
+function ruleFieldValue(email: EmailInput, campo: string): string {
+  switch (campo) {
+    case "indirizzo": return normalizeEmail(email.from_email || "");
+    case "dominio": return (email.fromDomain || extractDomain(normalizeEmail(email.from_email || ""))).toLowerCase();
+    case "destinatario": return `${(email.to_email || "").toLowerCase()} ${(email.cc_emails || []).join(" ").toLowerCase()}`.trim();
+    case "oggetto": return (email.subject || "").toLowerCase();
+    case "corpo": return (email.snippet || "").toLowerCase();
+    case "casella": return (email.to_email || "").toLowerCase();
+    case "allegato": return email.has_attachment ? "si" : "no";
+    default: return "";
+  }
+}
+
+function matchCondizione(email: EmailInput, cond: Condizione): boolean {
+  const field = ruleFieldValue(email, cond.campo);
+  const val = (cond.valore || "").toLowerCase().trim();
+  if (cond.campo === "allegato") {
+    if (val === "si" || val === "sì" || val === "yes") return email.has_attachment === true;
+    if (val === "no") return email.has_attachment !== true;
+    return (email.attachment_types || []).some((t) => t.toLowerCase().includes(val));
+  }
+  if (!val) return false;
+  switch (cond.operatore) {
+    case "e": return field === val;
+    case "contiene": return field.includes(val);
+    case "termina_con": return field.endsWith(val);
+    case "inizia_con": return field.startsWith(val);
+    case "regex": try { return new RegExp(cond.valore, "i").test(field); } catch { return false; }
+    default: return false;
+  }
+}
+
+function evaluateRule(email: EmailInput, regola: Regola): boolean {
+  if (!regola.condizioni || regola.condizioni.length === 0) return false;
+  if (regola.combinatore === "OR") return regola.condizioni.some((c) => matchCondizione(email, c));
+  return regola.condizioni.every((c) => matchCondizione(email, c));
+}
+
+/** Carica regole attive per la company, ordinate per valutazione. */
+async function loadRegole(supabase: SupabaseClient, companyId: string): Promise<Regola[]> {
+  const { data } = await supabase
+    .from("email_regole")
+    .select("id, nome, stato, priorita, combinatore, condizioni, azioni")
+    .eq("company_id", companyId)
+    .eq("stato", "attiva")
+    .order("priorita", { ascending: true });
+  return (data as Regola[]) || [];
+}
+
+/** Traduce le azioni di una regola in ClassificationResult. */
+function azioniToResult(azioni: Azione[], regolaNome: string): ClassificationResult {
+  let categoria: EmailCategoria = "altro";
+  let entita_tipo: EntitaTipo | null = null;
+  let entita_id: string | null = null;
+  for (const az of azioni || []) {
+    if (az.tipo === "categoria" && typeof az.valore === "string") categoria = az.valore as EmailCategoria;
+    if (az.tipo === "collega_entita" && az.valore && typeof az.valore === "object") {
+      const v = az.valore as { tipo?: string; id?: string };
+      if (v.tipo) entita_tipo = v.tipo as EntitaTipo;
+      if (v.id) entita_id = v.id;
+    }
+  }
+  return {
+    categoria, entita_tipo, entita_id,
+    confidenza: 1.0, classificato_da: "regola", da_rivedere: false,
+    matched_by: `regola:${regolaNome}`,
+  };
+}
+
 /**
  * Esegue L1 deterministico su una email. Ritorna null se nessuna regola scatta.
+ * Ordine (MP-05 §4): regole utente → mittenti_noti → CRM → header → regex.
  */
 export async function classificaDeterministica(
   supabase: SupabaseClient,
@@ -409,6 +501,21 @@ export async function classificaDeterministica(
   const from = normalizeEmail(email.from_email || "");
   if (!from) return null;
   const dominio = email.fromDomain || extractDomain(from);
+
+  // 0) REGOLE UTENTE (MP-05) — massima precedenza, costo zero
+  const regole = await loadRegole(supabase, companyId);
+  if (regole.length > 0) {
+    const sorted = regole.sort((a, b) =>
+      a.priorita !== b.priorita ? a.priorita - b.priorita : (b.condizioni?.length || 0) - (a.condizioni?.length || 0),
+    );
+    for (const regola of sorted) {
+      if (evaluateRule(email, regola)) {
+        // Best-effort: incrementa contatore match (non bloccante)
+        supabase.rpc("bump_email_regola_match", { p_regola_id: regola.id }).then(() => {}, () => {});
+        return azioniToResult(regola.azioni, regola.nome);
+      }
+    }
+  }
 
   // a) mittenti_noti
   const noto = await lookupMittenteNoto(supabase, companyId, from, dominio);

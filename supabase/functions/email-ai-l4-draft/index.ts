@@ -1,30 +1,31 @@
 /**
- * email-ai-l4-draft — MP-EMAIL-AI-01 · Livello 4 (Bozze risposta Sonnet on-demand)
+ * email-ai-l4-draft — MP-EMAIL-AI-02 · Livello 4 (Motore Bozze Risposte)
  *
- * On-demand: l'utente clicca "Rispondi con AI" su una email → questa edge function
- * assembla il contesto (entità CRM + ultimi N messaggi thread + doc collegati) e
- * chiama claude-sonnet-4-6 con prompt cache su brand voice + few-shot.
+ * On-demand: l'utente clicca "Rispondi con AI" su un thread → questa edge function
+ * assembla il contesto (entità CRM + ultimi N messaggi thread + doc collegati),
+ * sceglie la playbook per categoria e chiama claude-sonnet-4-5 con prompt cache
+ * sul blocco statico (voce + regole + formato).
  *
- * RITORNA SOLO BOZZE EDITABILI. MAI INVIA AUTOMATICAMENTE.
+ * RITORNA SOLO BOZZE EDITABILI. MAI INVIA AUTOMATICAMENTE. MAI INVENTA DATI.
  *
- * Endpoint POST:
- *   { email_id: uuid, mode?: "draft" | "summary_only" }
- *
- * Output:
+ * Output (MP-02 §7):
  *   {
- *     draft_subject: string,
- *     draft_body: string,
- *     playbook_used: string,
- *     entity_context_used: boolean,
- *     anthropic_usage: { ... }
+ *     ok, email_id, categoria,
+ *     oggetto: string,
+ *     varianti: [{ etichetta: "Secca"|"Diplomatica"|"Operativa", corpo: string }],
+ *     dati_mancanti: string[],   // es ["numero DDT", "data consegna"]
+ *     no_reply?: boolean,        // true per newsletter/social/notifica/spam
+ *     anthropic_usage, elapsed_ms, model
  *   }
+ *
+ * Endpoint POST: { email_id: uuid }
+ * Auth: Bearer (utente loggato).
  */
 
 // deno-lint-ignore-file no-explicit-any
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
-import type { EmailCategoria } from "../_shared/email-ai-cascade.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -32,89 +33,124 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
 const SONNET_MODEL = "claude-sonnet-4-5";
 
+// Categorie che NON richiedono risposta → no chiamata Sonnet (scelta di costo MP-02 §6)
+const NO_REPLY_CATEGORIE = new Set(["newsletter", "social", "notifica", "spam"]);
+
 // ════════════════════════════════════════════════════════════════════════════
-// Brand voice (cacheable)
+// BLOCCO STATICO (cache_control ephemeral) — voce + regole ferree + formato output
 // ════════════════════════════════════════════════════════════════════════════
 
-const BRAND_VOICE_SYSTEM = `Sei l'assistente che scrive BOZZE di email di risposta per un'impresa edile italiana.
+const BLOCCO_STATICO = `Sei l'assistente email di un'impresa edile italiana. Scrivi BOZZE di risposta che l'utente rivedrà e invierà MANUALMENTE.
 
-═══ BRAND VOICE ═══
+VOCE (la voce operativa di Edilizia in Cloud):
+- Diretta, imprenditore a imprenditore. Frasi corte. Vai al punto: cos'è successo, cosa serve, cosa fai tu.
+- Lessico concreto del cantiere. Parole vere, niente paroloni.
+- Professionale e rispettosa, MAI aggressiva o saccente. Diretto ≠ sgarbato.
+- VIETATO usare: "con la presente", "in riferimento alla Vs.", "resto in attesa di un cortese riscontro", "porgo distinti saluti", "La contatto per".
 
-Stile: diretto, imprenditore-a-imprenditore. Italiano operativo, niente fronzoli.
-Tono: confidenziale ma professionale. Mai aziendalese da grande azienda.
-Vocabolario: edile reale (cantiere, sopralluogo, DDT, fattura, scadenza, materiale, posa, getto).
-Lunghezza: 2-5 frasi. Mai più di 80 parole.
-Mai usare: "cordialmente", "in attesa di un Vs. gradito riscontro", "non esiti a contattarci", emoji.
-Sempre usare: "Buongiorno [nome]" se nome noto, altrimenti "Buongiorno". Chiusura: "Grazie" o "A presto".
+REGOLE FERREE (anti-allucinazione):
+- NON inventare MAI importi, date, numeri di documento, nomi, indirizzi. Usa SOLO i dati presenti nel CONTESTO.
+- Se manca un dato necessario: metti un placeholder nel formato [DA VERIFICARE: descrizione] e aggiungi quella descrizione all'array dati_mancanti.
+- Rispondi nella LINGUA dell'email originale (email in inglese → bozza in inglese).
+- Rispecchia la formalità del mittente: commercialista/ente = un filo più formale; fornitore abituale = confidenziale.
+- Lunghezza della bozza PARI O INFERIORE all'email ricevuta. Mai allungare per riempire.
+- NON promettere sconti, tempi o impegni non presenti nel contesto.
+- Firma con [Nome] (placeholder) se il nome di chi scrive non è nel contesto.
 
-═══ PLAYBOOK PER CATEGORIA ═══
-
-fornitore:
-  - Conferma/contesta DDT o ordine in modo SECCO
-  - Chiedi data consegna precisa (giorno + finestra orario)
-  - Se contestazione: stato + numero DDT + quantità errata
-
-preventivo:
-  - Riepiloga in 1 frase cosa l'utente ha capito della richiesta
-  - Proponi prossimo passo concreto (sopralluogo, invio capitolato, telefonata)
-  - Indica scadenza realistica (es. "ti mando un preventivo entro venerdì")
-
-cliente:
-  - Rassicura senza essere paternalistico
-  - Stato lavori onesto (avanti / rallentato / fermo per X)
-  - Conferma appuntamento o riproponi data
-  - Se problema noto: assumiti responsabilità, indica timeline soluzione
-
-fattura:
-  - Conferma ricezione/incasso con DATA e IMPORTO esatti
-  - Se discrepanza importi: scrivi i 2 numeri e proponi soluzione (nota credito, storno)
-
-sollecito (in fattura):
-  - Tono fermo ma professionale, mai aggressivo
-  - Proponi piano di pagamento concreto (importo + scadenze)
-  - Se è errore: spiega l'errore, scusati brevemente
-
-supporto:
-  - Risposta passo-passo (max 3 step)
-  - UNA sola domanda se manca un dato critico
-  - Se workaround disponibile: indicalo subito
-
-operaio (HR):
-  - Risposta empatica ma chiara
-  - Date precise (inizio/fine ferie, visita medica, etc)
-  - Se richiede modulo: dì dove trovarlo
-
-opportunita:
-  - Caloroso ma non aggressivo
-  - Chiedi: tipologia lavoro, indirizzo cantiere, tempistica
-  - Proponi sopralluogo gratuito con 2-3 date
-
-pratica:
-  - Conferma ricezione comunicazione
-  - Se richiesta documenti: elencali con scadenza
-  - Se è AdE/INPS: indica chi se ne occupa (commercialista, ufficio interno)
-
-═══ FORMATO OUTPUT ═══
-
-DEVI ritornare SOLO un oggetto JSON, niente testo aggiuntivo:
-
+OUTPUT: restituisci SOLO un oggetto JSON valido, nessun testo intorno, nessun markdown:
 {
-  "subject": "<oggetto della risposta — se è Re:, mantieni il prefisso>",
-  "body": "<corpo della bozza, formattato con \\n per a-capo>"
-}`;
+  "oggetto": "Re: <oggetto coerente>",
+  "varianti": [
+    { "etichetta": "Secca", "corpo": "<bozza minima, operativa>" },
+    { "etichetta": "Diplomatica", "corpo": "<bozza un filo più morbida>" }
+  ],
+  "dati_mancanti": ["<descrizione dato 1>", "..."]
+}
 
+Per email puramente operative (operaio, coordinamento interno) basta UNA variante "Operativa".
+Le varianti devono differire nel TONO, non nei FATTI: stessi dati, registro diverso.`;
+
+// ════════════════════════════════════════════════════════════════════════════
+// LIBRERIA PLAYBOOK (MP-02 §6) — blocco variabile per categoria
+// ════════════════════════════════════════════════════════════════════════════
+
+const PLAYBOOKS: Record<string, string> = {
+  cliente: `CATEGORIA: cliente
+OBIETTIVO: Rassicurare, dare stato lavori/cantiere, confermare il prossimo passo.
+STRUTTURA: Saluto breve → risposta diretta alla domanda → stato/azione → chiusura con prossimo passo.
+DATI DA PESCARE DAL CONTESTO: cantiere collegato, scadenze, ultimo aggiornamento, eventuale preventivo accettato.`,
+
+  fornitore: `CATEGORIA: fornitore
+OBIETTIVO: Confermare o contestare DDT/ordine, chiedere date di consegna, chiarire discrepanze.
+STRUTTURA: Riferimento al documento → punto concreto (conferma o problema) → richiesta secca → chiusura.
+DATI DA PESCARE DAL CONTESTO: numero DDT/ordine, quantità ordinate vs consegnate, nome fornitore.`,
+
+  preventivo: `CATEGORIA: preventivo
+OBIETTIVO: Follow-up: confermare la richiesta, dare una data per il preventivo, sbloccare il dato mancante.
+STRUTTURA: Conferma ricezione → cosa fai e quando → UNA domanda se serve un dato → chiusura.
+DATI DA PESCARE DAL CONTESTO: tipo di lavoro richiesto, eventuale sopralluogo, preventivo in bozza collegato.`,
+
+  fattura: `CATEGORIA: fattura
+OBIETTIVO: Confermare ricezione/incasso o segnalare discrepanze sugli importi.
+STRUTTURA: Riferimento alla fattura → conferma o segnalazione → eventuale azione → chiusura.
+DATI DA PESCARE DAL CONTESTO: numero e data fattura, importo, stato pagamento.
+NOTA: se l'email è un SOLLECITO di pagamento, usa la playbook sollecito sotto.`,
+
+  sollecito: `CATEGORIA: sollecito/amministrazione urgente
+OBIETTIVO: Recuperare un pagamento aperto con FERMEZZA, ma lasciando aperta la porta al confronto.
+STRUTTURA: Riferimento alla fattura aperta → richiesta di data di pagamento → apertura ("se c'è un problema sull'importo, lo sistemiamo") → chiusura ferma.
+DATI DA PESCARE DAL CONTESTO: fattura insoluta, importo, giorni di scaduto.`,
+
+  operaio: `CATEGORIA: operaio
+OBIETTIVO: Coordinamento operativo: turni, cantiere, materiali, presenze.
+STRUTTURA: Risposta secca all'operativo → istruzione chiara → conferma richiesta.
+DATI DA PESCARE DAL CONTESTO: cantiere assegnato, orari, comunicazioni precedenti.
+NOTA: per questa categoria genera UNA SOLA variante "Operativa".`,
+
+  opportunita: `CATEGORIA: opportunità
+OBIETTIVO: Far avanzare un potenziale lavoro/cliente verso un sopralluogo o una call.
+STRUTTURA: Interesse genuino → proposta concreta di prossimo passo con opzioni di data → chiusura.
+DATI DA PESCARE DAL CONTESTO: fonte del contatto, tipo di lavoro, messaggio iniziale.`,
+
+  supporto: `CATEGORIA: supporto
+OBIETTIVO: Risolvere o instradare una richiesta di assistenza in modo chiaro.
+STRUTTURA: Riconosci il problema → risposta passo-passo (max 3 step) → UNA sola domanda se manca un dato → chiusura.
+DATI DA PESCARE DAL CONTESTO: thread del problema, eventuale ticket/pratica collegata.`,
+
+  pratica: `CATEGORIA: pratica amministrativa
+OBIETTIVO: Confermare ricezione comunicazione, indicare chi se ne occupa, elencare documenti se richiesti.
+STRUTTURA: Conferma ricezione → azione/responsabile (commercialista, ufficio) → eventuale lista documenti con scadenza → chiusura.
+DATI DA PESCARE DAL CONTESTO: ente (AdE/INPS/Comune), scadenza, documenti richiesti.`,
+
+  altro: `CATEGORIA: altro
+OBIETTIVO: Rispondere in modo utile e diretto al contenuto dell'email.
+STRUTTURA: Saluto → risposta al punto → prossimo passo se applicabile → chiusura.
+DATI DA PESCARE DAL CONTESTO: tutto ciò che è rilevante nel thread.`,
+};
+
+/** Determina la playbook: gestisce il caso fattura→sollecito via keyword. */
+function selectPlaybook(categoria: string, subject: string, body: string): { key: string; text: string } {
+  const cat = (categoria || "altro").toLowerCase();
+  // Sollecito: fattura + linguaggio urgente
+  if (cat === "fattura") {
+    const t = `${subject} ${body}`.toLowerCase();
+    if (/sollecito|insoluto|scaduto|mora|pagamento\s+(scaduto|aperto)|fattura\s+aperta/.test(t)) {
+      return { key: "sollecito", text: PLAYBOOKS.sollecito };
+    }
+  }
+  return { key: cat, text: PLAYBOOKS[cat] || PLAYBOOKS.altro };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Handler
 // ════════════════════════════════════════════════════════════════════════════
 
 Deno.serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
-  }
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, corsHeaders);
 
-  if (!ANTHROPIC_API_KEY) {
-    return json({ error: "ANTHROPIC_API_KEY missing" }, 500, corsHeaders);
-  }
+  if (!ANTHROPIC_API_KEY) return json({ error: "ANTHROPIC_API_KEY missing" }, 500, corsHeaders);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
@@ -123,13 +159,13 @@ Deno.serve(async (req) => {
     const { email_id } = body as { email_id?: string };
     if (!email_id) return json({ error: "email_id required" }, 400, corsHeaders);
 
-    // Verifica auth utente (è una azione utente)
+    // Auth utente (azione utente)
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Auth required" }, 401, corsHeaders);
     const { data: userResp } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!userResp.user) return json({ error: "Invalid token" }, 401, corsHeaders);
 
-    // ─── Carica email ──────────────────────────────────────────────────────
+    // Carica email
     const { data: email, error } = await supabase
       .from("email_inbox")
       .select(
@@ -141,17 +177,36 @@ Deno.serve(async (req) => {
 
     if (error || !email) return json({ error: "Email not found" }, 404, corsHeaders);
 
-    // ─── Determina categoria (nuova → fallback legacy) ─────────────────────
-    const categoria: EmailCategoria | string =
-      (email.categoria as string) || (email.ai_category as string) || "altro";
+    const categoria: string = (email.categoria as string) || (email.ai_category as string) || "altro";
 
-    // ─── Carica contesto entità CRM ────────────────────────────────────────
+    // ─── Categorie che non richiedono risposta → niente Sonnet ──────────────
+    if (NO_REPLY_CATEGORIE.has(categoria.toLowerCase())) {
+      return json({
+        ok: true,
+        email_id,
+        categoria,
+        no_reply: true,
+        oggetto: null,
+        varianti: [],
+        dati_mancanti: [],
+        message: `Categoria "${categoria}" non richiede risposta.`,
+      }, 200, corsHeaders);
+    }
+
+    // ─── Contesto entità CRM ────────────────────────────────────────────────
     let entityContext = "";
     if (email.entita_id && email.entita_tipo) {
       entityContext = await loadEntityContext(supabase, email.entita_tipo as string, email.entita_id as string);
     }
 
-    // ─── Carica ultimi N messaggi del thread (max 5) ───────────────────────
+    // ─── Documenti collegati (preventivo/fattura aperti via matched_order_id) ─
+    let docsContext = "";
+    if (email.entita_tipo === "fornitore" || categoria === "fattura" || categoria === "sollecito") {
+      // best-effort: nessun documento se non rintracciabile
+      docsContext = "";
+    }
+
+    // ─── Thread: ultimi 5 messaggi ──────────────────────────────────────────
     let threadContext = "";
     if (email.thread_id) {
       const { data: threadMessages } = await supabase
@@ -161,33 +216,34 @@ Deno.serve(async (req) => {
         .order("received_at", { ascending: false })
         .limit(5);
       if (threadMessages && threadMessages.length > 1) {
-        threadContext = "═══ MESSAGGI PRECEDENTI DEL THREAD ═══\n" +
-          threadMessages.slice(1).reverse().map((m, i) =>
-            `[${i + 1}] Da: ${m.from_name || m.from_email} — ${m.received_at}\nOggetto: ${m.subject || "(no subject)"}\n${(m.raw_text || "").slice(0, 600)}`
-          ).join("\n\n");
+        threadContext = threadMessages.slice(1).reverse().map((m, i) =>
+          `[${i + 1}] Da: ${m.from_name || m.from_email} (${m.received_at})\nOggetto: ${m.subject || "(no subject)"}\n${(m.raw_text || "").slice(0, 500)}`
+        ).join("\n\n");
       }
     }
 
-    // ─── User message ──────────────────────────────────────────────────────
-    const userPayload = `═══ EMAIL DA RISPONDERE ═══
+    const playbook = selectPlaybook(categoria, email.subject || "", email.raw_text || "");
+    const emailBody = stripHtml(email.raw_text, email.raw_html).slice(0, 2000);
 
-Categoria: ${categoria}
+    // ─── BLOCCO VARIABILE ───────────────────────────────────────────────────
+    const bloccoVariabile = `PLAYBOOK DA SEGUIRE:
+${playbook.text}
+
+ENTITÀ CRM: ${entityContext || "sconosciuto (nessun record CRM collegato — usa placeholder per nomi/dati specifici)"}
+${docsContext ? `\nDOCUMENTI COLLEGATI: ${docsContext}` : "\nDOCUMENTI COLLEGATI: nessuno"}
+${threadContext ? `\n═══ MESSAGGI PRECEDENTI DEL THREAD ═══\n${threadContext}` : ""}
+
+═══ EMAIL A CUI RISPONDERE ═══
 Da: ${email.from_name || email.from_email} <${email.from_email}>
-A: ${email.to_email}
-Oggetto: ${email.subject || "(no subject)"}
+Oggetto: ${email.subject || "(senza oggetto)"}
 Ricevuta: ${email.received_at}
 
 Corpo:
-${(email.raw_text || "").slice(0, 2000)}
+${emailBody}
 
-${entityContext ? `\n═══ CONTESTO ENTITÀ CRM ═══\n${entityContext}\n` : ""}
-${threadContext ? `\n${threadContext}\n` : ""}
+ISTRUZIONE: scrivi la bozza seguendo la playbook "${playbook.key}". Output SOLO JSON come da formato.`;
 
-═══ ISTRUZIONE ═══
-Scrivi una bozza di risposta seguendo la playbook per la categoria "${categoria}".
-Output: SOLO JSON {"subject": "...", "body": "..."}.`;
-
-    // ─── Chiamata Sonnet ───────────────────────────────────────────────────
+    // ─── Chiamata Sonnet (statico cached + variabile) ───────────────────────
     const apiStart = Date.now();
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -198,16 +254,12 @@ Output: SOLO JSON {"subject": "...", "body": "..."}.`;
       },
       body: JSON.stringify({
         model: SONNET_MODEL,
-        max_tokens: 1024,
+        max_tokens: 1500,
         system: [
-          {
-            type: "text",
-            text: BRAND_VOICE_SYSTEM,
-            cache_control: { type: "ephemeral" },
-          },
+          { type: "text", text: BLOCCO_STATICO, cache_control: { type: "ephemeral" } },
         ],
-        messages: [{ role: "user", content: userPayload }],
-        temperature: 0.4, // un po' di varietà
+        messages: [{ role: "user", content: bloccoVariabile }],
+        temperature: 0.4,
       }),
     });
 
@@ -220,25 +272,44 @@ Output: SOLO JSON {"subject": "...", "body": "..."}.`;
     const elapsedMs = Date.now() - apiStart;
     const content = data.content?.[0]?.text || "{}";
 
-    // Parse JSON
-    let parsed: { subject?: string; body?: string };
+    // ─── Parse JSON robusto ─────────────────────────────────────────────────
+    let parsed: { oggetto?: string; varianti?: Array<{ etichetta: string; corpo: string }>; dati_mancanti?: string[] };
     try {
       const objMatch = content.match(/\{[\s\S]*\}/);
       parsed = objMatch ? JSON.parse(objMatch[0]) : {};
     } catch {
-      parsed = { subject: `Re: ${email.subject || ""}`, body: content };
+      // Fallback: tratta l'intero output come variante singola
+      parsed = {
+        oggetto: `Re: ${email.subject || ""}`,
+        varianti: [{ etichetta: "Bozza", corpo: content }],
+        dati_mancanti: [],
+      };
     }
 
-    const subject = parsed.subject || `Re: ${email.subject || ""}`;
-    const draftBody = parsed.body || "";
+    // Sanitize + difese
+    const oggetto = (parsed.oggetto || `Re: ${email.subject || ""}`).slice(0, 200);
+    let varianti = Array.isArray(parsed.varianti) ? parsed.varianti.filter(v => v && v.corpo) : [];
+    if (varianti.length === 0) {
+      varianti = [{ etichetta: "Bozza", corpo: content.slice(0, 2000) }];
+    }
+    // cap a 2 varianti
+    varianti = varianti.slice(0, 2).map(v => ({
+      etichetta: String(v.etichetta || "Bozza").slice(0, 24),
+      corpo: String(v.corpo || "").slice(0, 3000),
+    }));
+    const dati_mancanti = Array.isArray(parsed.dati_mancanti)
+      ? parsed.dati_mancanti.map(String).slice(0, 12)
+      : [];
 
     return json({
       ok: true,
       email_id,
       categoria,
-      draft_subject: subject,
-      draft_body: draftBody,
-      playbook_used: categoria,
+      playbook_used: playbook.key,
+      oggetto,
+      varianti,
+      dati_mancanti,
+      no_reply: false,
       entity_context_used: !!entityContext,
       thread_context_used: !!threadContext,
       anthropic_usage: data.usage,
@@ -253,6 +324,20 @@ Output: SOLO JSON {"subject": "...", "body": "..."}.`;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function stripHtml(raw_text?: string | null, raw_html?: string | null): string {
+  let body = (raw_text || "").trim();
+  if (!body && raw_html) {
+    body = raw_html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/&[a-z]{2,8};/gi, " ").replace(/\s+/g, " ").trim();
+  }
+  return body;
+}
+
 async function loadEntityContext(supabase: any, tipo: string, id: string): Promise<string> {
   switch (tipo) {
     case "fornitore": {
@@ -262,7 +347,7 @@ async function loadEntityContext(supabase: any, tipo: string, id: string): Promi
         .eq("id", id)
         .maybeSingle();
       if (!data) return "";
-      return `Fornitore: ${data.name}\nCategoria: ${data.product_category || "n.d."}\nIndirizzo: ${data.address || "n.d."}, ${data.city || ""}\nTelefono: ${data.phone || "n.d."}`;
+      return `Fornitore: ${data.name}\nCategoria prodotti: ${data.product_category || "n.d."}\nIndirizzo: ${data.address || "n.d."}, ${data.city || ""}\nTelefono: ${data.phone || "n.d."}`;
     }
     case "operaio": {
       const { data } = await supabase
@@ -274,10 +359,9 @@ async function loadEntityContext(supabase: any, tipo: string, id: string): Promi
       const name = [data.first_name, data.last_name].filter(Boolean).join(" ");
       return `Operaio: ${name}\nArea: ${data.area || "n.d."}\nCCNL: ${data.ccnl_applicato || "n.d."}`;
     }
-    case "cliente": {
-      // Tabella customers non esiste — nessun contesto CRM disponibile per ora.
+    case "cliente":
+      // Tabella customers non esiste — nessun contesto CRM cliente disponibile.
       return "";
-    }
     default:
       return "";
   }

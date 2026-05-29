@@ -31,6 +31,16 @@ export function makeSupabaseClassifierContext(
     matchCRM: async (email, dominio) => {
       return matchCRMImpl(supabase, companyId, email, dominio);
     },
+    // MP-05: carica regole attive (valutate per prime in L1)
+    loadRegole: async () => {
+      const { data } = await (supabase as any)
+        .from("email_regole")
+        .select("id, nome, origine, stato, priorita, combinatore, condizioni, azioni")
+        .eq("company_id", companyId)
+        .eq("stato", "attiva")
+        .order("priorita", { ascending: true });
+      return (data ?? []) as never[];
+    },
   };
 }
 

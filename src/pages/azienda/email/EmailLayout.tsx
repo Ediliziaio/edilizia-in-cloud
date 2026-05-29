@@ -488,8 +488,8 @@ export function EmailLayout({
                 openCompose({
                   mode: "reply",
                   source: src,
-                  initialSubject: draft.draft_subject,
-                  initialBody: draft.draft_body,
+                  initialSubject: draft.oggetto,
+                  initialBody: draft.corpo,
                 })
               }
             />

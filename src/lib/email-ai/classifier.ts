@@ -24,6 +24,7 @@ import type {
 } from "./types";
 import { classifyByHeaders, extractDomain, normalizeEmail } from "./headers";
 import { applyRegexRules } from "./regex-rules";
+import { applyRules, type RuleEmailInput } from "./rules-engine";
 
 const MAX_BODY_CHARS = 500;
 
@@ -41,6 +42,15 @@ export async function classificaDeterministica(
   const from = normalizeEmail(emailRaw.from_email || "");
   if (!from) return null;
   const dominio = emailRaw.fromDomain || extractDomain(from);
+
+  // ─── 0) REGOLE UTENTE (MP-05) — massima precedenza, costo zero ───────────
+  if (ctx.loadRegole) {
+    const regole = await ctx.loadRegole();
+    if (regole.length > 0) {
+      const match = applyRules({ ...emailRaw, from_email: from, fromDomain: dominio } as RuleEmailInput, regole);
+      if (match) return match.result;
+    }
+  }
 
   // ─── a) mittenti_noti — cache appresa ────────────────────────────────────
   const noto = await ctx.lookupMittenteNoto(from, dominio);

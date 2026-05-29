@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, Check } from "lucide-react";
-import { useReclassifyEmail } from "@/lib/email-ai/hooks";
+import { useRegistraCorrezione } from "@/lib/email-ai/hooks";
 import type { EmailCategoria } from "@/lib/email-ai/types";
 import { CategoriaBadge, resolveCategoria } from "./CategoriaBadge";
 
@@ -41,12 +41,18 @@ export function CategoriaSelector({
   disabled = false,
   compact = false,
 }: CategoriaSelectorProps) {
-  const reclassify = useReclassifyEmail();
+  // MP-EMAIL-AI-03: usa il feedback loop (audit + apprendimento mittente)
+  const registra = useRegistraCorrezione();
   const current = resolveCategoria(categoria, ai_category);
 
   const handleSelect = (cat: EmailCategoria) => {
     if (cat === current) return;
-    reclassify.mutate({ email_id, categoria: cat });
+    // 'spam' → evento spam (blacklist). Altre → evento sposta.
+    registra.mutate(
+      cat === "spam"
+        ? { email_id, evento: "spam" }
+        : { email_id, evento: "sposta", categoria: cat },
+    );
   };
 
   return (

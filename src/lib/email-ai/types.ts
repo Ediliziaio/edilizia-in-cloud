@@ -78,6 +78,12 @@ export interface ClassifierContext {
     email: string,
     dominio: string,
   ) => Promise<CrmMatchHit | null>;
+
+  /**
+   * MP-EMAIL-AI-05 (opzionale): carica le regole utente attive per la company.
+   * Se presente, vengono valutate PRIMA di tutto (massima precedenza).
+   */
+  loadRegole?: () => Promise<import("./rules-engine").Regola[]>;
 }
 
 export interface MittenteNotoHit {
