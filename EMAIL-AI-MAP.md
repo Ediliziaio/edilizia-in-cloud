@@ -132,7 +132,22 @@
 
 ## STATO SVILUPPO SAGA (aggiornato live)
 - [x] MP-00 — questa mappa
-- [ ] MP-02 — reply engine upgrade
-- [ ] MP-03 — learning loop + dashboard
-- [ ] MP-05 — rules engine
-- [ ] MP-04 — graph + semantic search
+- [x] MP-02 — reply engine upgrade (varianti + dati_mancanti + 9 playbook)
+- [x] MP-03 — learning loop + dashboard (migration applicata, 5 eventi, north-star L1%)
+- [x] MP-05 — rules engine (migration applicata, engine+test Edil Forniture, UI)
+- [x] MP-04 — graph + semantic search **FONDAZIONE** (embedding 1536, audit, Silvio query NL→SQL→vector→Sonnet)
+
+### MP-04 — Cosa è stato fatto vs cosa serve decisione Florin
+**Fatto (additivo, reversibile, applicato prod):**
+- `email_inbox.embedding vector(1536)` + ivfflat + `is_personale` flag
+- `email_accessi` (audit GDPR) + RLS
+- `email_threads` esteso (thread_key, oggetto_canonico, entita_tipo, entita_id)
+- RPC `email_semantic_search` + `email_structured_search` + `log_email_accesso`
+- Edge function `email-silvio-query` (cascata Haiku→SQL/vector→Sonnet, company-scoped, azioni whitelist)
+- Edge function `email-ai-embed-backfill` (OpenAI text-embedding-3-small)
+- Hook `useSilvioEmailQuery`
+
+**DECISIONE FLORIN richiesta (ambiguità §6) — NON implementato:**
+1. **Ruoli aziendali ACL**: i ruoli NON sono su `profiles` (sistema `has_role`/user_roles con `app_role`). Il modello MP-04 (ceo/admin/reparto/operaio/readonly) + `thread_visibile()` per reparto va MAPPATO sui ruoli esistenti. Finché non deciso, la ricerca è company-scoped (RLS isola per azienda) + esclude `is_personale`. Nessuna regressione.
+2. **Backfill embedding 1267 email**: costo OpenAI ~€0.02/1M token (irrisorio) ma va lanciato. Pronto via `email-ai-embed-backfill`.
+3. **Provider embedding**: usato OpenAI (riuso brainEmbed) invece di Voyage del MP — allineamento a infra esistente. Confermare OK.

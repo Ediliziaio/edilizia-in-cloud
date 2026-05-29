@@ -317,6 +317,39 @@ export interface L3BatchResult {
   anthropic_usage?: Record<string, number>;
 }
 
+// ─── MP-EMAIL-AI-04 — Silvio query in linguaggio naturale ─────────────────────
+
+export interface SilvioQueryResult {
+  ok: boolean;
+  intent: string;
+  azione: string;
+  count: number;
+  risultati: Array<{
+    email_id: string; thread_id: string | null; subject: string | null;
+    from_email: string; received_at: string; categoria: string; score?: number | null;
+  }>;
+  sintesi: string | null;
+}
+
+export function useSilvioEmailQuery() {
+  return useMutation({
+    mutationFn: async (input: { query: string; azione?: "lista" | "conteggio" | "sintesi" }): Promise<SilvioQueryResult> => {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) throw new Error("Non autenticato");
+      const res = await fetch(`${FN_BASE}/email-silvio-query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(input),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      return json as SilvioQueryResult;
+    },
+    onError: (e) => toast.error("Errore ricerca Silvio", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
 export function useL3BatchClassify() {
   return useMutation({
     mutationFn: async (opts: { company_id?: string; limit?: number; dry_run?: boolean }): Promise<L3BatchResult> => {
