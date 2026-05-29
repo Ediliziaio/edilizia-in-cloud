@@ -6,12 +6,13 @@
  */
 import { useState } from "react";
 import { useMemo } from "react";
-import { Bot, ShieldCheck, ListChecks, History, BookOpen, MailWarning, CheckCircle2, XCircle, Clock, Play, Send, Loader2, Undo2 } from "lucide-react";
+import { Bot, ShieldCheck, ListChecks, History, BookOpen, MailWarning, CheckCircle2, XCircle, Clock, Play, Send, Loader2, Undo2, MessageCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SilvioAzioniSettings } from "./SilvioAzioniSettings";
+import { SilvioCanaliSettings } from "./SilvioCanaliSettings";
 import {
   useSilvioCodaConferme, useRisolviConferma, useSilvioAudit, useSilvioTaskAttivi, useSilvioPlaybook, useAvviaPlaybook,
   useChiediSilvio, useSilvioUndo,
@@ -186,18 +187,20 @@ export function SilvioHub() {
         </Button>
       </div>
       <Tabs defaultValue="approvare" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="approvare" className="gap-1 text-xs"><MailWarning className="h-3.5 w-3.5" /> Da approvare</TabsTrigger>
           <TabsTrigger value="corso" className="gap-1 text-xs"><ListChecks className="h-3.5 w-3.5" /> In corso</TabsTrigger>
           <TabsTrigger value="storico" className="gap-1 text-xs"><History className="h-3.5 w-3.5" /> Storico</TabsTrigger>
           <TabsTrigger value="procedure" className="gap-1 text-xs"><BookOpen className="h-3.5 w-3.5" /> Procedure</TabsTrigger>
           <TabsTrigger value="azioni" className="gap-1 text-xs"><ShieldCheck className="h-3.5 w-3.5" /> Permessi</TabsTrigger>
+          <TabsTrigger value="canali" className="gap-1 text-xs"><MessageCircle className="h-3.5 w-3.5" /> Canali</TabsTrigger>
         </TabsList>
         <TabsContent value="approvare" className="mt-3"><DaApprovare /></TabsContent>
         <TabsContent value="corso" className="mt-3"><InCorso /></TabsContent>
         <TabsContent value="storico" className="mt-3"><Storico /></TabsContent>
         <TabsContent value="procedure" className="mt-3"><Procedure /></TabsContent>
         <TabsContent value="azioni" className="mt-3"><SilvioAzioniSettings /></TabsContent>
+        <TabsContent value="canali" className="mt-3"><SilvioCanaliSettings /></TabsContent>
       </Tabs>
     </div>
   );

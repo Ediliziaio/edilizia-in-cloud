@@ -159,6 +159,18 @@ Deno.serve(async (req) => {
     .eq("processing_status", "received");
 
   try {
+    // ── MP-SILVIO-07 — conferma verifica canale (reverse-OTP) ─────────────────
+    // Se il messaggio è un codice di verifica pendente per QUESTO numero,
+    // colleghiamo il canale (verificato=true) e confermiamo. Gira PRIMA di tutto
+    // (anche dell'identità operativa): il numero in verifica può non essere
+    // ancora un operaio/profilo noto. Nessun match → si prosegue invariati.
+    if (msg.message_type === "text" && (msg.content_text ?? "").trim()) {
+      const canaleVerificato = await tryConfermaVerificaCanale(supabase, msg);
+      if (canaleVerificato) {
+        return markDone(supabase, body.message_id, "processed");
+      }
+    }
+
     let operationalTriage = classifyOperationalMessage({
       contentText: msg.content_text,
       messageType: msg.message_type,
@@ -597,6 +609,64 @@ async function createUnknownWorkerTicket(
       error: String(e),
     }));
   }
+}
+
+/**
+ * MP-SILVIO-07 — conferma di una verifica canale (reverse-OTP).
+ *
+ * Ritorna `true` se il testo era un codice valido e non scaduto per QUESTO
+ * numero: il canale viene collegato (verificato=true) e la risposta è già stata
+ * inviata. Additivo: nessun match → `false` e il flusso operativo prosegue
+ * identico. Usa il client service_role del processor (nessun problema di RLS).
+ */
+async function tryConfermaVerificaCanale(
+  supabase: SupabaseClient,
+  msg: MsgForSend,
+): Promise<boolean> {
+  const code = (msg.content_text ?? "").trim().toUpperCase();
+  // Codici = 6 hex maiuscoli (vedi RPC silvio_canale_avvia_verifica). Filtro a
+  // monte: nessuna query per i messaggi che non possono essere un codice.
+  if (!/^[0-9A-F]{6}$/.test(code)) return false;
+
+  const digits = (msg.from_phone ?? "").replace(/[^0-9]/g, "");
+  if (!digits) return false;
+  const identificativo = `+${digits}`;
+
+  const { data: row, error } = await supabase
+    .from("silvio_canali_identita")
+    .select("id, codice, codice_scadenza")
+    .eq("canale", "whatsapp")
+    .eq("identificativo", identificativo)
+    .eq("verificato", false)
+    .maybeSingle();
+  if (error || !row || !row.codice) return false;
+  if (String(row.codice).toUpperCase() !== code) return false;
+
+  if (row.codice_scadenza && new Date(row.codice_scadenza).getTime() < Date.now()) {
+    await sendReply(
+      msg,
+      "Il codice è scaduto. Generane uno nuovo in app: Impostazioni → Silvio → Canali.",
+    );
+    return true; // gestito: non passare al bot operativo
+  }
+
+  const { error: updErr } = await supabase
+    .from("silvio_canali_identita")
+    .update({
+      verificato: true,
+      verificato_at: new Date().toISOString(),
+      codice: null,
+      codice_scadenza: null,
+    })
+    .eq("id", row.id)
+    .eq("verificato", false);
+  if (updErr) return false;
+
+  await sendReply(
+    msg,
+    "✅ Numero collegato a Silvio. Scrivimi qui le tue richieste: preparo tutto e tu confermi in app.",
+  );
+  return true;
 }
 
 /**
