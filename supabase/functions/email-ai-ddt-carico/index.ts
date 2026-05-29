@@ -61,14 +61,19 @@ Deno.serve(async (req) => {
     // ── Match ODA ───────────────────────────────────────────────────────────
     let po: any = null;
     if (riferimento) {
-      const ref = riferimento.toString().trim();
-      const { data } = await supabase
-        .from("purchase_orders")
-        .select("id, oda_number, supplier_reference, supplier_id, status")
-        .eq("company_id", doc.company_id)
-        .or(`oda_number.ilike.%${ref}%,supplier_reference.ilike.%${ref}%`)
-        .limit(1).maybeSingle();
-      po = data ?? null;
+      // SICUREZZA: ref è AI-estratto (untrusted). NIENTE .or() con stringa interpolata
+      // (filter-injection PostgREST). Due .ilike() parametrizzate: supabase-js
+      // URL-encoda il valore → niente sintassi-filtro iniettabile.
+      const ref = riferimento.toString().trim().slice(0, 80);
+      const sel = "id, oda_number, supplier_reference, supplier_id, status";
+      const byOda = await supabase.from("purchase_orders").select(sel)
+        .eq("company_id", doc.company_id).ilike("oda_number", `%${ref}%`).limit(1).maybeSingle();
+      po = byOda.data ?? null;
+      if (!po) {
+        const bySupRef = await supabase.from("purchase_orders").select(sel)
+          .eq("company_id", doc.company_id).ilike("supplier_reference", `%${ref}%`).limit(1).maybeSingle();
+        po = bySupRef.data ?? null;
+      }
     }
     if (!po && ragione) {
       const { data: sup } = await supabase
