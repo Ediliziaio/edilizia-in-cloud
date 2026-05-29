@@ -394,12 +394,32 @@ async function matchCRM(
     return { categoria: "operaio", entita_tipo: "operaio", entita_id: emp.id as string, matched_field: "email" };
   }
 
-  // Customers: tabella `customers` NON esiste in questo schema (verificato 2026-05-28).
-  // La gestione clienti usa RPC dedicate. Quando esisterà una tabella CRM clienti
-  // unificata, abilitare il lookup qui. Per ora i clienti vengono classificati
-  // via L3 Haiku + feedback loop manuale.
+  // Clienti: anagrafica unificata `anagrafiche_native` (tipo cliente|entrambi).
+  // Decisione Florin (MP-00 §6b): i clienti vivono qui. Match su email, poi email_fatture.
+  const { data: cli } = await supabase
+    .from("anagrafiche_native")
+    .select("id")
+    .eq("company_id", companyId)
+    .in("tipo", ["cliente", "entrambi"])
+    .ilike("email", email)
+    .limit(1)
+    .maybeSingle();
+  if (cli) {
+    return { categoria: "cliente", entita_tipo: "cliente", entita_id: cli.id as string, matched_field: "email" };
+  }
+  const { data: cliFt } = await supabase
+    .from("anagrafiche_native")
+    .select("id")
+    .eq("company_id", companyId)
+    .in("tipo", ["cliente", "entrambi"])
+    .ilike("email_fatture", email)
+    .limit(1)
+    .maybeSingle();
+  if (cliFt) {
+    return { categoria: "cliente", entita_tipo: "cliente", entita_id: cliFt.id as string, matched_field: "email" };
+  }
 
-  // Domain match (solo non-personal)
+  // Domain match (solo non-personal): prima fornitori, poi clienti.
   if (dominio && !isPersonalDomain(dominio)) {
     const { data: supDom } = await supabase
       .from("suppliers")
@@ -410,6 +430,17 @@ async function matchCRM(
       .maybeSingle();
     if (supDom) {
       return { categoria: "fornitore", entita_tipo: "fornitore", entita_id: supDom.id as string, matched_field: "domain" };
+    }
+    const { data: cliDom } = await supabase
+      .from("anagrafiche_native")
+      .select("id")
+      .eq("company_id", companyId)
+      .in("tipo", ["cliente", "entrambi"])
+      .ilike("email", `%@${dominio}`)
+      .limit(1)
+      .maybeSingle();
+    if (cliDom) {
+      return { categoria: "cliente", entita_tipo: "cliente", entita_id: cliDom.id as string, matched_field: "domain" };
     }
   }
 
