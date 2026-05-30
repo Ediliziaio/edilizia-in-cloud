@@ -504,6 +504,42 @@ const TOOLS = [
       },
     },
   },
+  // MP-SILVIO-SA-PROBLEMS-01 — centralina problemi + motore pacchetti (readonly, super_admin)
+  {
+    type: "function",
+    function: {
+      name: "get_problem_radar",
+      description: "Aziende ordinate per problem-score, con i problemi aperti (da silvio_alerts + conversazioni) e il pacchetto AEDIX consigliato. Usa per 'chi ha problemi di recruiting', 'i clienti più in difficoltà'.",
+      parameters: {
+        type: "object",
+        properties: {
+          area: { type: "string", enum: ["tutte", "finanza", "controllo_gestione", "marketing", "vendita", "recruiting", "legale", "operativo", "tecnico", "prodotto"] },
+          severita_min: { type: "string", enum: ["info", "warning", "critical"], description: "Gravità minima (default warning)" },
+          limite: { type: "integer", description: "Max aziende (default 15)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_company_dossier",
+      description: "Dossier completo di un cliente per la telefonata: problem-score, top 3 problemi, pacchetti consigliati, profilo intel (dolore principale).",
+      parameters: {
+        type: "object",
+        properties: { company_id: { type: "string", description: "UUID azienda" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_pipeline_per_pacchetto",
+      description: "Quante aziende sono candidate per ciascun pacchetto AEDIX (potenziale upsell aggregato).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
 ];
 
 // Tool execution: chiama il RPC corrispondente
@@ -562,6 +598,10 @@ async function executeTool(
     get_upsell_radar:            { rpc: "sa_get_upsell_radar",                argMap: (a) => ({ p_servizio: a.servizio ?? "tutti", p_limite: a.limite ?? 15 }) },
     get_company_intel:           { rpc: "sa_get_company_intel",               argMap: (a) => ({ p_company_id: a.company_id }) },
     get_trend_aggregato:         { rpc: "sa_get_trend_aggregato",             argMap: (a) => ({ p_giorni: a.finestra_giorni ?? 30 }) },
+    // SA-PROBLEMS (readonly, super_admin gated nelle RPC)
+    get_problem_radar:           { rpc: "sa_get_problem_radar",               argMap: (a) => ({ p_area: a.area ?? "tutte", p_severita_min: a.severita_min ?? "warning", p_limite: a.limite ?? 15 }) },
+    get_company_dossier:         { rpc: "sa_get_company_dossier",             argMap: (a) => ({ p_company_id: a.company_id }) },
+    get_pipeline_per_pacchetto:  { rpc: "sa_get_pipeline_per_pacchetto",      argMap: () => ({}) },
   };
 
   const cfg = RPC_MAP[toolName];
