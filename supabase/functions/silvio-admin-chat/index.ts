@@ -466,6 +466,44 @@ const TOOLS = [
       },
     },
   },
+  // MP-SILVIO-SA-INTEL-01 — radar upsell da conversazioni (readonly, super_admin)
+  {
+    type: "function",
+    function: {
+      name: "get_upsell_radar",
+      description: "Aziende ordinate per priorità di contatto upsell, con dolore principale e servizio AEDIX consigliato (da conversazioni Silvio). Usa per 'chi chiamare per l'upsell', 'i 10 candidati Marketing Edile più caldi'.",
+      parameters: {
+        type: "object",
+        properties: {
+          servizio: { type: "string", enum: ["tutti", "controllo_gestione", "marketing_edile", "vendita"], description: "Filtra per servizio consigliato" },
+          limite: { type: "integer", description: "Max aziende (default 15)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_company_intel",
+      description: "Profilo intelligence di una singola azienda: top aree di dolore, intensità, servizio consigliato, motivazione per la telefonata.",
+      parameters: {
+        type: "object",
+        properties: { company_id: { type: "string", description: "UUID azienda" } },
+        required: ["company_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_trend_aggregato",
+      description: "Cosa cercano di più i clienti in aggregato su tutta la base, per area (product intelligence + dove spingere i servizi).",
+      parameters: {
+        type: "object",
+        properties: { finestra_giorni: { type: "integer", description: "Finestra in giorni (default 30)" } },
+      },
+    },
+  },
 ];
 
 // Tool execution: chiama il RPC corrispondente
@@ -520,6 +558,10 @@ async function executeTool(
     get_lead_detail:             { rpc: "silvio_get_lead_detail",             argMap: (a) => ({ p_lead_id: a.lead_id }) },
     create_task:                 { rpc: "silvio_create_task",                 argMap: (a) => ({ p_title: a.title, p_due_date: a.due_date ?? null, p_related_to: a.related_to ?? null, p_related_type: a.related_type ?? null, p_notes: a.notes ?? null }) },
     draft_followup_email:        { rpc: "silvio_draft_followup_email",        argMap: (a) => ({ p_lead_id: a.lead_id, p_tone: a.tone ?? "professional", p_context_hint: a.context_hint ?? null }) },
+    // SA-INTEL (readonly, super_admin gated nelle RPC)
+    get_upsell_radar:            { rpc: "sa_get_upsell_radar",                argMap: (a) => ({ p_servizio: a.servizio ?? "tutti", p_limite: a.limite ?? 15 }) },
+    get_company_intel:           { rpc: "sa_get_company_intel",               argMap: (a) => ({ p_company_id: a.company_id }) },
+    get_trend_aggregato:         { rpc: "sa_get_trend_aggregato",             argMap: (a) => ({ p_giorni: a.finestra_giorni ?? 30 }) },
   };
 
   const cfg = RPC_MAP[toolName];

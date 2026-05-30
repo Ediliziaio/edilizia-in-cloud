@@ -542,3 +542,7 @@ verify_jwt = false
 # MP-SILVIO-CREATIVE-01: worker render artefatti (cron). Auth: x-internal-cron-secret.
 [functions.silvio-generation-worker]
 verify_jwt = false
+
+# MP-SILVIO-SA-INTEL-01: estrazione segnali conversazione cross-tenant (cron). Auth: x-internal-cron-secret.
+[functions.sa-conversation-intel-daily]
+verify_jwt = false
