@@ -43,6 +43,26 @@ Deno.serve(async (req: Request) => {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
 
+    // ── Reconciler (idempotente, eseguito a ogni tick) ────────────────────────
+    // 1) job bloccati in 'processing' (worker crashato a metà) → failed dopo 10 min.
+    const staleCutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: staleReset } = await admin
+      .from("silvio_generation_jobs")
+      .update({ status: "failed", error: "timeout: elaborazione non completata entro 10 minuti", updated_at: new Date().toISOString() })
+      .eq("status", "processing")
+      .lt("updated_at", staleCutoff)
+      .select("id");
+    // 2) job orfani: tipo video/document non sono gestiti da questo worker → falliscili
+    //    subito con motivo chiaro invece di lasciarli 'queued' all'infinito.
+    const { data: orphanReset } = await admin
+      .from("silvio_generation_jobs")
+      .update({ status: "failed", error: "tipo non supportato: il generatore elabora solo immagini", updated_at: new Date().toISOString() })
+      .eq("status", "queued")
+      .in("tipo", ["video", "document"])
+      .select("id");
+    const staleFailed = (staleReset ?? []).length;
+    const orphanFailed = (orphanReset ?? []).length;
+
     const { data: candidates } = await admin
       .from("silvio_generation_jobs")
       .select("id, company_id, brief, formato")
@@ -108,7 +128,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return jsonResponse({ ok: true, processed, failed, skipped, claimed_candidates: (candidates ?? []).length }, 200, cors);
+    return jsonResponse({ ok: true, processed, failed, skipped, stale_failed: staleFailed, orphan_failed: orphanFailed, claimed_candidates: (candidates ?? []).length }, 200, cors);
   } catch (e) {
     if (e instanceof Response) return e;
     const msg = e instanceof Error ? e.message : String(e);

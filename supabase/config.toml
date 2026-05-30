@@ -546,3 +546,7 @@ verify_jwt = false
 # MP-SILVIO-SA-INTEL-01: estrazione segnali conversazione cross-tenant (cron). Auth: x-internal-cron-secret.
 [functions.sa-conversation-intel-daily]
 verify_jwt = false
+
+# MP-SILVIO-ACTIONS-EXTERNAL-01: consegna outbound email approvate (cron). Auth: x-internal-cron-secret.
+[functions.silvio-outbound-worker]
+verify_jwt = false
