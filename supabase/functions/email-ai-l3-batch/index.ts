@@ -33,6 +33,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { anthropicMessages, hasAiProvider } from "../_shared/anthropicMessages.ts";
 import {
   persistClassification,
   learnSender,
@@ -45,7 +46,6 @@ import {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 
 // Configurazione batch (può finire in DB se variabile)
@@ -133,8 +133,8 @@ Deno.serve(async (req) => {
     return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
 
-  if (!ANTHROPIC_API_KEY) {
-    return json({ error: "ANTHROPIC_API_KEY missing" }, 500, corsHeaders);
+  if (!hasAiProvider()) {
+    return json({ error: "AI provider non configurato" }, 500, corsHeaders);
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -189,39 +189,24 @@ Deno.serve(async (req) => {
 
     // ─── Chiamata Haiku con prompt cache ───────────────────────────────────
     const apiStart = Date.now();
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: HAIKU_MODEL,
-        max_tokens: 4096,
-        system: [
-          {
-            type: "text",
-            text: SYSTEM_PROMPT,
-            cache_control: { type: "ephemeral" },
-          },
-        ],
-        messages: [
-          {
-            role: "user",
-            content: JSON.stringify(userBatchInput),
-          },
-        ],
-        temperature: 0,
-      }),
+    const data = await anthropicMessages({
+      model: HAIKU_MODEL,
+      max_tokens: 4096,
+      system: [
+        {
+          type: "text",
+          text: SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      messages: [
+        {
+          role: "user",
+          content: JSON.stringify(userBatchInput),
+        },
+      ],
+      temperature: 0,
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      return json({ error: `Anthropic API error ${response.status}: ${errText}` }, 500, corsHeaders);
-    }
-
-    const data = await response.json();
     const elapsedMs = Date.now() - apiStart;
     const content = data.content?.[0]?.text || "[]";
     const usage = data.usage || {};

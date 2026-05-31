@@ -28,6 +28,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { anthropicMessages, hasAiProvider } from "../_shared/anthropicMessages.ts";
 
 interface Payload {
   photo_url: string;
@@ -99,12 +100,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!apiKey) {
+  if (!hasAiProvider()) {
     return new Response(JSON.stringify({
       ok: false,
       reason: "no_provider",
-      hint: "Set ANTHROPIC_API_KEY env to enable vision DPI check",
+      hint: "Configura OPENROUTER_API_KEY per abilitare il controllo DPI vision",
     }), {
       status: 200,
       headers: { ...cors, "Content-Type": "application/json" },
@@ -114,34 +114,18 @@ Deno.serve(async (req) => {
   // Chiama Claude vision
   let visionResult: VisionResult | null = null;
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 1024,
-        system: VISION_SYSTEM_PROMPT,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "url", url: body.photo_url } },
-            { type: "text", text: "Analizza questa foto di cantiere e restituisci il JSON." },
-          ],
-        }],
-      }),
+    const data = await anthropicMessages({
+      model: "claude-haiku-4-5",
+      max_tokens: 1024,
+      system: VISION_SYSTEM_PROMPT,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "url", url: body.photo_url } },
+          { type: "text", text: "Analizza questa foto di cantiere e restituisci il JSON." },
+        ],
+      }],
     });
-    if (!r.ok) {
-      const errBody = await r.text();
-      return new Response(JSON.stringify({ ok: false, error: `Claude error: ${errBody.slice(0, 300)}` }), {
-        status: 500,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
-    }
-    const data = await r.json();
     const text = data?.content?.[0]?.text ?? "{}";
     // Parse JSON tollerante: trova il blocco {...}
     const match = text.match(/\{[\s\S]*\}/);

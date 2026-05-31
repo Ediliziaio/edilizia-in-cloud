@@ -19,11 +19,11 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import {
   validaPiano, matchDeterministico, serveSonnet, stimaCostoToken, type Piano,
 } from "../_shared/silvio-orchestratore-logic.ts";
+import { anthropicMessages, hasAiProvider } from "../_shared/anthropicMessages.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || SERVICE_ROLE;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const HAIKU = "claude-haiku-4-5";
 const SONNET = "claude-sonnet-4-5";
@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
       if (det) {
         piano = { intento: det, passi: [{ azione: det, parametri: body.contesto || {} }], confidenza: 1 };
         gradino = 0;
-      } else if (ANTHROPIC_API_KEY) {
+      } else if (hasAiProvider()) {
         gradino = 1;
         const sys = `Sei l'orchestratore di un gestionale edile. Converti la richiesta in un PIANO JSON di azioni.
 USA SOLO queste azioni (chiave): ${chiaviPianificatore.join(", ")}.
@@ -268,17 +268,11 @@ Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare
 
 async function callAnthropic(model: string, system: string, richiesta: string, contesto: any): Promise<{ piano: Piano | null; tokenIn: number; tokenOut: number }> {
   try {
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
-        model, max_tokens: 600, temperature: 0.2,
-        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-        messages: [{ role: "user", content: `Richiesta: ${richiesta}\nContesto: ${JSON.stringify(contesto || {})}` }],
-      }),
+    const d = await anthropicMessages({
+      model, max_tokens: 600, temperature: 0.2,
+      system: [{ type: "text", text: system }],
+      messages: [{ role: "user", content: `Richiesta: ${richiesta}\nContesto: ${JSON.stringify(contesto || {})}` }],
     });
-    if (!resp.ok) return { piano: null, tokenIn: 0, tokenOut: 0 };
-    const d = await resp.json();
     const txt = d.content?.[0]?.text || "{}";
     const m = txt.match(/\{[\s\S]*\}/);
     const piano = m ? JSON.parse(m[0]) as Piano : null;

@@ -49,6 +49,7 @@
  */
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { anthropicMessages } from "../_shared/anthropicMessages.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
 
@@ -93,6 +94,18 @@ function getAvailableProviders(): ProviderConfig[] {
       model: Deno.env.get("PARSE_MATRIX_ANTHROPIC_MODEL") ?? "claude-sonnet-4-20250514",
       displayName: "Anthropic Claude Sonnet 4",
     });
+  } else {
+    // OpenRouter è il provider AI principale del progetto: lo esponiamo come
+    // provider "anthropic" (callAnthropic instrada sullo shim → OpenRouter).
+    const openrouterKey = Deno.env.get("OPENROUTER_API_KEY") ?? "";
+    if (openrouterKey) {
+      providers.push({
+        id: "anthropic",
+        apiKey: openrouterKey,
+        model: Deno.env.get("PARSE_MATRIX_ANTHROPIC_MODEL") ?? "claude-sonnet-4-5",
+        displayName: "OpenRouter (Claude Sonnet)",
+      });
+    }
   }
 
   const geminiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
@@ -290,7 +303,8 @@ async function callAnthropic(
   mimeType: string,
   hint?: string,
 ): Promise<{ raw: string; usage?: { input_tokens?: number; output_tokens?: number } }> {
-  const body = {
+  // Instrada sullo shim: OpenRouter (primario) o Anthropic diretto (fallback).
+  const data = await anthropicMessages({
     model: cfg.model,
     max_tokens: 4096,
     temperature: 0,
@@ -307,40 +321,13 @@ async function callAnthropic(
         ],
       },
     ],
-  };
-
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 120_000);
-  try {
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": cfg.apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-    if (!resp.ok) {
-      const txt = await resp.text();
-      throw new Error(`Anthropic ${resp.status}: ${txt.substring(0, 500)}`);
-    }
-    const data = await resp.json();
-    const raw = (data.content ?? [])
-      .filter((c: { type: string }) => c.type === "text")
-      .map((c: { text: string }) => c.text)
-      .join("\n");
-    const usage = data.usage
-      ? {
-          input_tokens: data.usage.input_tokens,
-          output_tokens: data.usage.output_tokens,
-        }
-      : undefined;
-    return { raw, usage };
-  } finally {
-    clearTimeout(t);
-  }
+  });
+  const raw = (data.content ?? [])
+    .filter((c: { type: string }) => c.type === "text")
+    .map((c: { text: string }) => c.text)
+    .join("\n");
+  const usage = { input_tokens: data.usage?.input_tokens, output_tokens: data.usage?.output_tokens };
+  return { raw, usage };
 }
 
 // ── Adapter Gemini generateContent (Vision) ─────────────────────────────────
