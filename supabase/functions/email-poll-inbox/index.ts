@@ -123,6 +123,104 @@ function decodeBase64Url(data: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// MP-EMAIL F2 — Allegati documentali (fatture/DDT) → storage per estrazione AI
+// Additivo + guardato: se qualcosa fallisce, l'email viene salvata comunque
+// (attachments = []), senza mai rompere l'ingestione. Cap per email + per run
+// per non sforare i timeout Edge sul poller di produzione. Solo doc (pdf/xml/p7m).
+// ════════════════════════════════════════════════════════════════════════════
+const ATTACH_BUCKET = "email-attachments"; // stesso bucket letto da email-ai-estrai-allegato
+const MAX_ATT_BYTES = 15 * 1024 * 1024; // 15MB per allegato
+const MAX_ATT_PER_EMAIL = 5;
+const MAX_ATT_PER_RUN = 40; // bound globale latenza/timeout poller
+
+interface GmailAttMeta { filename: string; mime: string; size: number; attachmentId: string }
+
+function isDocAttachment(filename: string, mime: string): boolean {
+  const f = (filename || "").toLowerCase();
+  const m = (mime || "").toLowerCase();
+  return /\.(pdf|xml|p7m)$/.test(f) || m.includes("pdf") || m.includes("xml") || m.includes("pkcs7");
+}
+
+function decodeBase64UrlToBytes(data: string): Uint8Array {
+  const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
+  const bin = atob(padded);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function sanitizeFilename(name: string): string {
+  return (name || "allegato").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "allegato";
+}
+
+let _attachBucketEnsured = false;
+async function ensureAttachBucket(supa: SupabaseClient): Promise<void> {
+  if (_attachBucketEnsured) return;
+  _attachBucketEnsured = true;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supa as any).storage.createBucket(ATTACH_BUCKET, { public: false });
+  } catch { /* esiste già → no-op */ }
+}
+
+/** Raccoglie ricorsivamente i metadati degli allegati documentali da parti Gmail. */
+function collectGmailAttachments(parts: unknown[], out: GmailAttMeta[]): void {
+  for (const p of parts as Array<{ mimeType?: string; filename?: string; body?: { attachmentId?: string; size?: number }; parts?: unknown[] }>) {
+    const filename = p.filename ?? "";
+    const attachmentId = p.body?.attachmentId;
+    if (filename && attachmentId && isDocAttachment(filename, p.mimeType ?? "")) {
+      if (out.length < MAX_ATT_PER_EMAIL) {
+        out.push({ filename, mime: p.mimeType ?? "application/octet-stream", size: p.body?.size ?? 0, attachmentId });
+      }
+    }
+    if (p.parts) collectGmailAttachments(p.parts, out);
+  }
+}
+
+/**
+ * Scarica + carica nel bucket gli allegati doc di un messaggio Gmail.
+ * Ritorna lo shape atteso da estrai-allegato: {filename, mime, size, storage_path}.
+ * Tutto guardato: errori → allegato saltato (mai eccezione propagata).
+ */
+async function materializeGmailAttachments(
+  supa: SupabaseClient,
+  accessToken: string,
+  companyId: string,
+  providerMessageId: string,
+  metas: GmailAttMeta[],
+  runCounter: { n: number },
+): Promise<Array<{ filename: string; mime: string; size: number; storage_path: string }>> {
+  const out: Array<{ filename: string; mime: string; size: number; storage_path: string }> = [];
+  for (const meta of metas) {
+    if (runCounter.n >= MAX_ATT_PER_RUN) break;
+    if (meta.size && meta.size > MAX_ATT_BYTES) continue;
+    try {
+      const res = await fetch(`${GMAIL_API}/messages/${providerMessageId}/attachments/${meta.attachmentId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) continue;
+      const j = await res.json() as { data?: string; size?: number };
+      if (!j.data) continue;
+      const bytes = decodeBase64UrlToBytes(j.data);
+      if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATT_BYTES) continue;
+      await ensureAttachBucket(supa);
+      const path = `${companyId}/${providerMessageId}/${Date.now()}-${sanitizeFilename(meta.filename)}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const up = await (supa as any).storage.from(ATTACH_BUCKET).upload(path, bytes, {
+        contentType: meta.mime || "application/octet-stream", upsert: true,
+      });
+      if (up.error) continue;
+      out.push({ filename: meta.filename, mime: meta.mime, size: bytes.byteLength, storage_path: path });
+      runCounter.n++;
+    } catch (e) {
+      console.warn("[email-poll] attachment materialize failed:", e instanceof Error ? e.message : e);
+    }
+  }
+  return out;
+}
+
 function parseReferences(raw: string): string[] {
   return raw
     .split(/\s+/)
@@ -217,6 +315,8 @@ async function pollGmail(
    * mantenendo `mailbox_folder` corretto nel DB per il filtro UI.
    */
   folder: "inbox" | "sent" = "inbox",
+  /** MP-EMAIL F2: se presente, scarica gli allegati documentali nel bucket. */
+  attCtx?: { supa: SupabaseClient; companyId: string; runCounter: { n: number } },
 ): Promise<NormalizedEmail[]> {
   // Gmail query: recenti, non in spam/trash
   // 2026-05-26: paginazione completa via nextPageToken. maxResults=100 per pagina
@@ -298,6 +398,22 @@ async function pollGmail(
       else text = decoded;
     }
     if (!text) text = msg.snippet ?? "";
+    // MP-EMAIL F2: allegati documentali (pdf/xml/p7m) → storage. Tutto guardato:
+    // un errore qui NON deve impedire il salvataggio dell'email.
+    let attachments: NormalizedEmail["attachments"] = [];
+    if (attCtx && msg.payload?.parts) {
+      try {
+        const metas: GmailAttMeta[] = [];
+        collectGmailAttachments(msg.payload.parts, metas);
+        if (metas.length > 0) {
+          attachments = await materializeGmailAttachments(
+            attCtx.supa, accessToken, attCtx.companyId, msg.id, metas, attCtx.runCounter,
+          );
+        }
+      } catch (e) {
+        console.warn("[email-poll] gmail attachments skipped:", e instanceof Error ? e.message : e);
+      }
+    }
     return {
       message_id: getHeader("Message-ID") || msg.id,
       provider_message_id: msg.id ?? null,
@@ -314,6 +430,7 @@ async function pollGmail(
       is_read: Array.isArray(msg.labelIds) ? !msg.labelIds.includes("UNREAD") : false,
       // MP-EMAIL-AI-01: header rilevanti L1 deterministico
       headers: extractL1Headers(headers),
+      attachments,
     };
   };
 
@@ -748,8 +865,11 @@ Deno.serve(async (req) => {
         // last_synced_at: cap basso (200) per restare ben sotto i timeout Edge.
         const isFirstSync = !conn.last_synced_at;
         const hardCap = isFirstSync ? 1000 : 200;
+        // MP-EMAIL F2: contesto allegati condiviso inbox+sent (cap globale per run).
+        const attRunCounter = { n: 0 };
+        const attCtx = { supa, companyId: conn.company_id!, runCounter: attRunCounter };
         emails = conn.provider === "gmail"
-          ? await pollGmail(accessToken, conn.email_address, sinceTs, hardCap, "inbox")
+          ? await pollGmail(accessToken, conn.email_address, sinceTs, hardCap, "inbox", attCtx)
           : await pollOutlook(accessToken, conn.email_address, sinceTs, hardCap);
 
         // 2026-05-27 (richiesta utente): sync parallelo SENT — email inviate
@@ -760,7 +880,7 @@ Deno.serve(async (req) => {
         if (conn.provider === "gmail") {
           try {
             const sentCap = isFirstSync ? 500 : 100;
-            const sentEmails = await pollGmail(accessToken, conn.email_address, sinceTs, sentCap, "sent");
+            const sentEmails = await pollGmail(accessToken, conn.email_address, sinceTs, sentCap, "sent", attCtx);
             // Storiamo separati così sappiamo che folder usare
             const STORE_BATCH_SENT = 10;
             const sentConnContext = {
