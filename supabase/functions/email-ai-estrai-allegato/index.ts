@@ -23,11 +23,12 @@ import {
   isValidIban,
   ibanEquivalenti,
 } from "../_shared/doc-validation.ts";
+import { callOpenRouter } from "../_shared/ai-provider/openrouter.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
-const SONNET_MODEL = "claude-sonnet-4-5";
+// Il progetto instrada l'AI via OpenRouter (OPENROUTER_API_KEY), non ANTHROPIC diretto.
+const SONNET_MODEL = "anthropic/claude-sonnet-4.5";
 const ATTACH_BUCKET = "email-attachments";
 const MAX_PDF_BYTES = 12 * 1024 * 1024; // 12MB: oltre, troppo costoso/grande per la visione
 
@@ -64,28 +65,33 @@ Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, cors);
-  if (!ANTHROPIC_API_KEY) return json({ error: "ANTHROPIC_API_KEY missing" }, 500, cors);
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
-    // ── Auth: utente valido (le letture della bozza sono RLS staff interno) ──
+    // ── Auth: Bearer utente (UI) OPPURE x-cron-secret (dispatcher fatture). ──
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Auth required" }, 401, cors);
-    const { data: u } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (!u.user) return json({ error: "Invalid token" }, 401, cors);
+    const cronSecret = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
+    const isCron = !!cronSecret && req.headers.get("x-cron-secret") === cronSecret;
+    let dataClient = supabase; // cron: service-role, scoping per l'email by-id (univoca).
+    let createdBy: string | null = null;
+    if (!isCron) {
+      if (!authHeader) return json({ error: "Auth required" }, 401, cors);
+      const { data: u } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+      if (!u.user) return json({ error: "Invalid token" }, 401, cors);
+      createdBy = u.user.id;
+      // Client user-scoped: la RLS garantisce l'accesso (anti cross-tenant).
+      dataClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || SERVICE_ROLE, {
+        global: { headers: { Authorization: authHeader } },
+      });
+    }
 
     const body = await req.json().catch(() => ({}));
     const emailId: string = (body.email_id || "").toString();
     const attIdx: number = Number.isInteger(body.attachment_index) ? body.attachment_index : -1;
     if (!emailId || attIdx < 0) return json({ error: "email_id e attachment_index richiesti" }, 400, cors);
 
-    // ── Carica email via client USER-scoped: la RLS garantisce che l'utente
-    //    possa accedere a questa email (company + staff interno). Niente cross-tenant.
-    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") || SERVICE_ROLE, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: email } = await userClient
+    const { data: email } = await dataClient
       .from("email_inbox").select("id, company_id, attachments").eq("id", emailId).maybeSingle();
     if (!email) return json({ error: "email_non_accessibile" }, 404, cors);
 
@@ -125,35 +131,31 @@ Deno.serve(async (req) => {
     if (bytes.byteLength > MAX_PDF_BYTES) return json({ skipped: "too_large" }, 200, cors);
     const base64 = bytesToBase64(bytes);
 
-    // ── Visione: UNA chiamata Sonnet, system in cache ───────────────────────
-    const visResp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
+    // ── Visione PDF via OpenRouter (Sonnet). Formato content "file". ────────
+    let visText = "{}";
+    try {
+      const vis = await callOpenRouter({
         model: SONNET_MODEL,
         max_tokens: 1500,
-        system: [{ type: "text", text: SYSTEM_ESTRAI, cache_control: { type: "ephemeral" } }],
-        messages: [{
-          role: "user",
-          content: [
-            { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
-            { type: "text", text: "Estrai i dati di questo documento secondo lo schema." },
-          ],
-        }],
         temperature: 0,
-      }),
-    });
-    if (!visResp.ok) {
-      const t = await visResp.text();
-      return json({ error: `vision_error_${visResp.status}`, detail: t.slice(0, 200) }, 502, cors);
+        messages: [
+          { role: "system", content: SYSTEM_ESTRAI },
+          { role: "user", content: [
+            { type: "text", text: "Estrai i dati di questo documento secondo lo schema." },
+            { type: "file", file: { filename: att.filename || "documento.pdf", file_data: `data:application/pdf;base64,${base64}` } },
+          ] },
+        ],
+      }, { task_kind: "email_estrai_allegato", company_id: att.company_id });
+      visText = vis.content || "{}";
+    } catch (e) {
+      return json({ error: "vision_error", detail: e instanceof Error ? e.message : String(e) }, 502, cors);
     }
-    const visData = await visResp.json();
     let extracted: any = {};
     try {
-      const m = (visData.content?.[0]?.text || "{}").match(/\{[\s\S]*\}/);
+      const m = visText.match(/\{[\s\S]*\}/);
       extracted = m ? JSON.parse(m[0]) : {};
     } catch {
-      return json({ error: "parse_failed", raw: (visData.content?.[0]?.text || "").slice(0, 300) }, 502, cors);
+      return json({ error: "parse_failed", raw: visText.slice(0, 300) }, 502, cors);
     }
 
     const campi = extracted.campi || {};
@@ -223,7 +225,7 @@ Deno.serve(async (req) => {
       .insert({
         company_id: att.company_id,
         email_id: att.inbox_id,
-        attachment_id: attachmentId,
+        attachment_id: null,
         tipo: extracted.tipo || "altro",
         confidenza_tipo: typeof extracted.confidenza_tipo === "number" ? extracted.confidenza_tipo : null,
         campi,
@@ -237,7 +239,7 @@ Deno.serve(async (req) => {
         iban_alert: ibanAlert,
         pdf_storage_bucket: ATTACH_BUCKET,
         pdf_storage_path: att.storage_path,
-        created_by: u.user.id,
+        created_by: createdBy,
       })
       .select("*")
       .single();

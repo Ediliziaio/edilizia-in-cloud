@@ -1727,6 +1727,31 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "kpi",
   },
 
+  richieste_fatture_da_registrare: {
+    schema: {
+      type: "function",
+      function: {
+        name: "fatture_da_registrare",
+        description: "Elenca le fatture/DDT fornitore estratti automaticamente dai PDF allegati alle email, in attesa di registrazione (bozze da confermare in app). Usa per 'che fatture sono arrivate?', 'fatture da registrare', 'documenti fornitori dalle email'. Evidenzia eventuale ALERT IBAN (IBAN diverso da quello noto → possibile frode, verificare prima di pagare). Read-only.",
+        parameters: {
+          type: "object",
+          properties: { limit: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_fatture_da_registrare", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_limit: args?.limit ?? 20,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
   // ── MP-OPS-01 v2 — Reportino settimanale committente ────────────────────
   genera_reportino_settimanale_committente: {
     schema: {
