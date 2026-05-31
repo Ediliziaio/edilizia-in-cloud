@@ -1752,6 +1752,27 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "fattura",
   },
 
+  // ── #1 Osservabilità — stato tecnico piattaforma (solo super admin) ─────
+  stato_sistema: {
+    schema: {
+      type: "function",
+      function: {
+        name: "stato_sistema",
+        description: "Stato tecnico della piattaforma: cron/automazioni che stanno FALLENDO nelle ultime 2 ore (con l'errore) + numero di automazioni attive. Usa quando un super admin chiede 'ci sono problemi tecnici?', 'stato del sistema', 'le automazioni girano?', 'qualcosa è rotto?'. Read-only. Solo super admin.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_ops_health", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+    }),
+    allowedRoles: ["super_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona"],
+    riskLevel: "safe",
+    domain: "anomalie",
+  },
+
   // ── MP-OPS-01 v2 — Reportino settimanale committente ────────────────────
   genera_reportino_settimanale_committente: {
     schema: {
