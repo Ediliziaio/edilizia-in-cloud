@@ -1662,6 +1662,31 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "email",
   },
 
+  richieste_preventivo: {
+    schema: {
+      type: "function",
+      function: {
+        name: "richieste_preventivo",
+        description: "Elenca le richieste di preventivo/opportunità rilevate automaticamente dalle email in arrivo (bozze da confermare in app). Usa per 'che richieste di preventivo sono arrivate', 'nuove opportunità dalle email', 'chi ha chiesto un preventivo questa settimana'. Read-only.",
+        parameters: {
+          type: "object",
+          properties: { limit: { type: "integer", minimum: 1, maximum: 50, default: 20 } },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_richieste_preventivo", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_limit: args?.limit ?? 20,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "sales", "cliente_tutor", "assistente_cliente"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "email",
+  },
+
   // ── MP-OPS-01 v2 — Reportino settimanale committente ────────────────────
   genera_reportino_settimanale_committente: {
     schema: {
