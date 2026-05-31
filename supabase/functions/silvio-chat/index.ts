@@ -687,6 +687,9 @@ serve(async (req: Request) => {
       primaryRole,
       personaKey: PERSONA_KEY,
       channel: "internal_chat",
+      // MP-EMAIL: Bearer utente per tool che chiamano edge RLS-scoped
+      // (cerca_email_intelligente → email-silvio-query). RLS-safe, no cross-tenant.
+      authToken: req.headers.get("Authorization") ?? undefined,
       // Track 1: Silvio ha kb_areas_filter=NULL (vede tutte le aree).
       // Per coerenza passiamo il valore reale così il tool search_brain lo usa.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

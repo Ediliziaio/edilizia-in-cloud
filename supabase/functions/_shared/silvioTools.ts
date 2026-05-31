@@ -96,6 +96,13 @@ export interface ToolContext {
    * sempre HITL.
    */
   preApproved?: boolean;
+  /**
+   * MP-EMAIL: Bearer dell'utente, valorizzato SOLO nei contesti chat-utente
+   * (es. silvio-chat). Serve ai tool che chiamano edge function RLS-scoped
+   * (es. email-silvio-query) riusando i permessi reali dell'utente — niente
+   * service-role cross-tenant. Assente in contesti cron/bot → il tool degrada.
+   */
+  authToken?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1604,6 +1611,50 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_days_back: args?.giorni_indietro ?? 3,
       p_limit: args?.limit ?? 30,
     }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "sales", "cliente_tutor", "assistente_cliente"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "email",
+  },
+
+  cerca_email_intelligente: {
+    schema: {
+      type: "function",
+      function: {
+        name: "cerca_email_intelligente",
+        description: "Ricerca/sintesi INTELLIGENTE della posta in linguaggio naturale: per SIGNIFICATO (lamentele, argomenti, sentiment — ricerca semantica) o per filtri (mittente, categoria, periodo). Usa per 'trova le mail dove un cliente si lamenta', 'riassumi le email del fornitore X di questo mese', 'email che parlano di [tema]'. Read-only. (Differenza da cerca_email: questo capisce il SIGNIFICATO, non solo le parole esatte.)",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "La domanda/ricerca in linguaggio naturale" },
+            azione: { type: "string", enum: ["lista", "conteggio", "sintesi"], default: "lista" },
+          },
+          required: ["query"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const baseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const q = String(args?.query ?? "").trim();
+      if (!q) return { ok: false, error: "query_mancante" };
+      // RLS-safe: usa il Bearer dell'utente. Se assente (contesto non-chat),
+      // degrada con nota invece di tentare service-role cross-tenant.
+      if (!ctx.authToken) {
+        return { ok: false, azione: "non_disponibile", note: "La ricerca semantica email è disponibile solo nella chat utente." };
+      }
+      try {
+        const res = await fetch(`${baseUrl}/functions/v1/email-silvio-query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: ctx.authToken },
+          body: JSON.stringify({ query: q.slice(0, 500), azione: args?.azione ?? "lista" }),
+        });
+        if (!res.ok) return { ok: false, error: `email_query_${res.status}` };
+        return await res.json();
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : "errore" };
+      }
+    },
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "amministrazione", "sales", "cliente_tutor", "assistente_cliente"],
     allowedChannels: ["internal_chat", "web_persona", "mobile"],
