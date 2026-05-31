@@ -1687,6 +1687,46 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "email",
   },
 
+  // ── F4 — Proattività: "cosa conta ORA" (briefing aggregato) ─────────────
+  cosa_conta_ora: {
+    schema: {
+      type: "function",
+      function: {
+        name: "cosa_conta_ora",
+        description: "Riepilogo PROATTIVO di cosa conta adesso per l'impresa, aggregando più fonti: scadenze imminenti, pagamenti/fatture scaduti, cantieri a rischio, preventivi da ricontattare, posta da lavorare e richieste di preventivo dalle email. Usa quando l'utente apre la chat o chiede 'novità?', 'cosa devo fare oggi?', 'cosa conta?', 'briefing', 'a che punto siamo'. Dopo i dati, presenta in ordine di PRIORITÀ (soldi e scadenze prima) cosa conta e l'azione consigliata, in modo sintetico. Read-only.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => {
+      const c = ctx.companyId, u = ctx.userId;
+      // Ogni fonte è isolata: un errore non deve far fallire l'intero briefing.
+      const safe = async (p: Promise<unknown>) => {
+        try { return await p; } catch (e) { return { error: e instanceof Error ? e.message : "errore" }; }
+      };
+      const [scadenze, pagamenti, cantieri, preventivi, posta, richieste] = await Promise.all([
+        safe(callRpc(ctx.supabase, "silvio_tool_lista_scadenze", { p_company_id: c, p_user_id: u, p_days_ahead: 14 })),
+        safe(callRpc(ctx.supabase, "silvio_tool_overdue_payments", { p_company_id: c })),
+        safe(callRpc(ctx.supabase, "silvio_tool_lista_cantieri_a_rischio", { p_company_id: c, p_risk_level_min: "high" })),
+        safe(callRpc(ctx.supabase, "silvio_tool_identifica_quotes_da_followup", { p_company_id: c, p_priority_threshold: 60 })),
+        safe(callRpc(ctx.supabase, "silvio_tool_posta_da_lavorare", { p_company_id: c, p_user_id: u, p_days_back: 3, p_limit: 20 })),
+        safe(callRpc(ctx.supabase, "silvio_tool_richieste_preventivo", { p_company_id: c, p_user_id: u, p_limit: 10 })),
+      ]);
+      return {
+        scadenze_imminenti: scadenze,
+        pagamenti_scaduti: pagamenti,
+        cantieri_a_rischio: cantieri,
+        preventivi_da_ricontattare: preventivi,
+        posta_da_lavorare: posta,
+        richieste_preventivo_email: richieste,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "assistente_imprenditore"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "kpi",
+  },
+
   // ── MP-OPS-01 v2 — Reportino settimanale committente ────────────────────
   genera_reportino_settimanale_committente: {
     schema: {
