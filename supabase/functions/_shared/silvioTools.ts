@@ -1525,7 +1525,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "lista_email_thread",
-        description: "Lista degli ultimi thread email ricevuti dall'azienda. Ritorna {note: 'modulo non attivo'} se la company non ha integrazione email configurata.",
+        description: "Lista delle ultime email ricevute dall'azienda (più recenti, escluse archiviate/cestino). Read-only. Usa per 'quante email ho ricevuto', 'ultime email arrivate'.",
         parameters: {
           type: "object",
           properties: {
@@ -1540,6 +1540,39 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_company_id: ctx.companyId,
       p_user_id: ctx.userId,
       p_days_back: args?.days_back ?? 7,
+      p_limit: args?.limit ?? 20,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "sales", "cliente_tutor", "assistente_cliente"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "email",
+  },
+
+  cerca_email: {
+    schema: {
+      type: "function",
+      function: {
+        name: "cerca_email",
+        description: "Cerca nella posta in arrivo dell'azienda per mittente/fornitore e/o parole chiave (oggetto, testo, sintesi) in un periodo. Usa per 'trovami tutte le email del fornitore X', 'email su [argomento]', 'quante email da [cliente]'. Read-only.",
+        parameters: {
+          type: "object",
+          properties: {
+            mittente: { type: "string", description: "Mittente da cercare: email o nome, anche parziale (es. 'rossi', 'fornitore.it')." },
+            query: { type: "string", description: "Parole chiave in oggetto/testo/sintesi (es. 'DDT', 'preventivo bagno', 'fattura')." },
+            giorni_indietro: { type: "integer", minimum: 1, maximum: 365, default: 30 },
+            limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_cerca_email", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_mittente: args?.mittente ?? null,
+      p_query: args?.query ?? null,
+      p_days_back: args?.giorni_indietro ?? 30,
       p_limit: args?.limit ?? 20,
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
