@@ -1582,6 +1582,35 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "email",
   },
 
+  posta_da_lavorare: {
+    schema: {
+      type: "function",
+      function: {
+        name: "posta_da_lavorare",
+        description: "Recupera le email recenti per fare il TRIAGE di cosa conta. Usa quando l'utente chiede 'cosa conta oggi nella posta', 'cosa devo fare', 'riepilogo email', 'a chi devo rispondere'. Dopo aver ricevuto i dati CLASSIFICA ogni email in: fattura/DDT fornitore · richiesta preventivo · risposta cliente · sollecito/pagamento · scadenza/burocrazia · altro-rumore; evidenzia importi e scadenze; presenta in ordine di PRIORITÀ cosa conta e cosa fare (rispondere, registrare, sollecitare). Read-only.",
+        parameters: {
+          type: "object",
+          properties: {
+            giorni_indietro: { type: "integer", minimum: 1, maximum: 30, default: 3 },
+            limit: { type: "integer", minimum: 1, maximum: 50, default: 30 },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_posta_da_lavorare", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_days_back: args?.giorni_indietro ?? 3,
+      p_limit: args?.limit ?? 30,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "amministrazione", "sales", "cliente_tutor", "assistente_cliente"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "email",
+  },
+
   // ── MP-OPS-01 v2 — Reportino settimanale committente ────────────────────
   genera_reportino_settimanale_committente: {
     schema: {
