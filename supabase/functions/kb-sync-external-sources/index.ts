@@ -30,6 +30,8 @@ import { generateEmbeddingMultilang } from "../_shared/brainEmbedMultilang.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const KB_CRON_SECRET = Deno.env.get("KB_CRON_SECRET") ?? "";
+// Fallback: shared cron secret usato dagli altri cron interni
+const PROACTIVE_CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") ?? "";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -65,7 +67,11 @@ Deno.serve(async (req) => {
 
   try {
     const cronSecret = req.headers.get("x-cron-secret") ?? "";
-    const isCron = KB_CRON_SECRET.length > 0 && cronSecret === KB_CRON_SECRET;
+    // Accetta KB_CRON_SECRET (originale) O PROACTIVE_CRON_SECRET (shared cron auth)
+    const isCron = cronSecret.length > 0 && (
+      (KB_CRON_SECRET.length > 0 && cronSecret === KB_CRON_SECRET) ||
+      (PROACTIVE_CRON_SECRET.length > 0 && cronSecret === PROACTIVE_CRON_SECRET)
+    );
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 

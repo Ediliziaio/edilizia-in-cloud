@@ -6,9 +6,14 @@ import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_
  * Ora verifica che il token sia service-role o un JWT utente valido.
  */
 async function verifyCronOrAuth(req: Request): Promise<void> {
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  const reqSecret = req.headers.get("x-cron-secret");
-  if (cronSecret && reqSecret === cronSecret) return;
+  const reqSecret = req.headers.get("x-cron-secret") ?? "";
+  // Accetta CRON_SECRET (originale) O PROACTIVE_CRON_SECRET (shared cron auth)
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+  const proactiveSecret = Deno.env.get("PROACTIVE_CRON_SECRET") ?? "";
+  if (reqSecret.length > 0 && (
+    (cronSecret.length > 0 && reqSecret === cronSecret) ||
+    (proactiveSecret.length > 0 && reqSecret === proactiveSecret)
+  )) return;
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
