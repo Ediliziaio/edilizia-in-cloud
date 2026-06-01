@@ -50,8 +50,18 @@ import {
   approvaRichiesta,
   approvaRichiestaDef,
 } from "./titolare/approva_richiesta.ts";
+import {
+  scostamentiCommesse,
+  scostamentiCommesseDef,
+} from "./titolare/scostamenti_commesse.ts";
+
+// Shared (cross-ruolo)
+import { chiediConferma, chiediConfermaDef } from "./shared/chiedi_conferma.ts";
 
 export const TOOLS_REGISTRY: ToolDef[] = [
+  // Shared (tutti i ruoli) — requires_grants: []
+  { ...chiediConfermaDef, handler: chiediConferma as ToolDef["handler"] },
+
   // Operaio (8)
   { ...creaRapportinoDef, handler: creaRapportino as ToolDef["handler"] },
   { ...aggiungiAttivitaRapportinoDef, handler: aggiungiAttivitaRapportino as ToolDef["handler"] },
@@ -62,13 +72,14 @@ export const TOOLS_REGISTRY: ToolDef[] = [
   { ...elencaMieiCantieriOggiDef, handler: elencaMieiCantieriOggi as ToolDef["handler"] },
   { ...impostaCantiereCorrenteDef, handler: impostaCantiereCorrente as ToolDef["handler"] },
 
-  // Titolare (6)
+  // Titolare (7)
   { ...statoCantiereDef, handler: statoCantiere as ToolDef["handler"] },
   { ...marginalitaCantiereDef, handler: marginalitaCantiere as ToolDef["handler"] },
   { ...scadenzeFattureDef, handler: scadenzeFatture as ToolDef["handler"] },
   { ...costiMeseDef, handler: costiMese as ToolDef["handler"] },
   { ...listaApprovazioniDef, handler: listaApprovazioni as ToolDef["handler"] },
   { ...approvaRichiestaDef, handler: approvaRichiesta as ToolDef["handler"] },
+  { ...scostamentiCommesseDef, handler: scostamentiCommesse as ToolDef["handler"] },
 ];
 
 /** Filtra tool disponibili in base ai grants dell'utente. */

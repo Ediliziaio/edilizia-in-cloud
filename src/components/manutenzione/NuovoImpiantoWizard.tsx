@@ -8,8 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, ChevronRight, ChevronLeft, Check } from "lucide-react";
+import { Loader2, ChevronRight, ChevronLeft, Check, Tag } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { useTipiImpianto, useTipiIntervento } from "@/lib/manutenzione/tipiManutenzione";
+import { usePrezzoIntervento } from "@/lib/manutenzione/prezzoIntervento";
 
 const TIPI_IMPIANTO = [
   { value: "caldaia", label: "🔥 Caldaia" },
@@ -67,9 +70,20 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
   const [importoCanone, setImportoCanone] = useState("");
   const [tipoFatturazione, setTipoFatturazione] = useState("annuale");
   const [rinnovoAutomatico, setRinnovoAutomatico] = useState(true);
+  // Listino manutenzione (opt-in): suggerisce il canone dal listino tariffe
+  const [canoneTipoImpiantoId, setCanoneTipoImpiantoId] = useState("");
+  const [canoneTipoInterventoId, setCanoneTipoInterventoId] = useState("");
 
   const { data: clienti = [] } = useCompanyCustomers(companyId, open);
   const { data: tecnici = [] } = useCompanyStaffUsers(open ? companyId : null, "all");
+  const { data: tipiImpianto = [] } = useTipiImpianto(open ? companyId : null);
+  const { data: tipiIntervento = [] } = useTipiIntervento(open ? companyId : null);
+  const { data: prezzoListino, isFetching: prezzoLoading } = usePrezzoIntervento({
+    companyId,
+    tipoImpiantoId: canoneTipoImpiantoId || null,
+    tipoInterventoId: canoneTipoInterventoId || null,
+    clienteId: customerId || null,
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -145,6 +159,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
     setPrimaManutenzione(""); setTecnicoPreferito("__none__");
     setHasContratto(false); setNomeContratto(""); setImportoCanone(""); setTipoFatturazione("annuale");
     setRinnovoAutomatico(true);
+    setCanoneTipoImpiantoId(""); setCanoneTipoInterventoId("");
     onClose();
   };
 
@@ -270,6 +285,71 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                     <Label>Nome contratto</Label>
                     <Input value={nomeContratto} onChange={(e) => setNomeContratto(e.target.value)} placeholder="Es. Manutenzione Caldaia Annuale" />
                   </div>
+
+                  {/* Suggerimento canone dal listino manutenzione (opt-in: solo se l'azienda ha configurato il listino) */}
+                  {tipiImpianto.length > 0 && (
+                    <div className="rounded-lg border border-dashed border-teal-300 bg-teal-50/50 p-3 space-y-2.5">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-teal-700">
+                        <Tag className="h-3.5 w-3.5" />
+                        Suggerisci canone dal listino
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Tipo impianto</Label>
+                          <Select value={canoneTipoImpiantoId} onValueChange={setCanoneTipoImpiantoId}>
+                            <SelectTrigger className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                            <SelectContent>
+                              {tipiImpianto.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Tipo intervento</Label>
+                          <Select value={canoneTipoInterventoId} onValueChange={setCanoneTipoInterventoId}>
+                            <SelectTrigger className="h-9"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                            <SelectContent>
+                              {tipiIntervento.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {canoneTipoImpiantoId && canoneTipoInterventoId && (
+                        <div className="flex items-center justify-between gap-2 pt-0.5">
+                          {prezzoLoading ? (
+                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Ricerca prezzo…
+                            </span>
+                          ) : prezzoListino ? (
+                            <>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="font-semibold text-teal-700">
+                                  {prezzoListino.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                                </span>
+                                {prezzoListino.iva != null && (
+                                  <span className="text-xs text-muted-foreground">+ IVA {prezzoListino.iva}%</span>
+                                )}
+                                {prezzoListino.da_override && (
+                                  <Badge variant="secondary" className="text-[10px]">Prezzo cliente</Badge>
+                                )}
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => setImportoCanone(String(prezzoListino.prezzo))}
+                              >
+                                Usa come canone
+                              </Button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Nessuna tariffa a listino per questa combinazione.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>Importo canone (€)</Label>

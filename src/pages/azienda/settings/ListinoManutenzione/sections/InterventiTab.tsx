@@ -1,15 +1,23 @@
 /**
  * ListinoManutenzione — Tab "Tipi Intervento"
  * Estratto da ListinoManutenzione.tsx (MP-IMP-001 Fase 5).
+ * Upgrade UX: ricerca + filtro categoria + filtro stato + chip rimovibili +
+ * conteggio, come la pagina "Manodopera e Servizi".
  */
+import { useMemo, useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { categoriaBadge } from "../constants";
-import type { TipoIntervento } from "../types";
+import { CATEGORIE_INTERVENTO, categoriaBadge } from "../constants";
+import { ListinoFilterBar, type FilterChip } from "./ListinoFilterBar";
+import type { CategoriaIntervento, TipoIntervento } from "../types";
+
+type StatoFilter = "all" | "attivi" | "disattivi";
+type CategoriaFilter = "all" | CategoriaIntervento;
 
 interface Props {
   tipiIntervento: TipoIntervento[];
@@ -20,13 +28,68 @@ interface Props {
 }
 
 export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit, onDelete }: Props) {
+  const [search, setSearch] = useState("");
+  const [categoria, setCategoria] = useState<CategoriaFilter>("all");
+  const [stato, setStato] = useState<StatoFilter>("all");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tipiIntervento.filter((t) => {
+      if (stato === "attivi" && !t.attivo) return false;
+      if (stato === "disattivi" && t.attivo) return false;
+      if (categoria !== "all" && t.categoria !== categoria) return false;
+      if (q && !t.nome.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [tipiIntervento, search, categoria, stato]);
+
+  const hasActiveFilters = search.trim() !== "" || categoria !== "all" || stato !== "all";
+  const resetFilters = () => { setSearch(""); setCategoria("all"); setStato("all"); };
+
+  const chips: FilterChip[] = [];
+  if (search.trim()) chips.push({ key: "search", label: `Cerca: "${search.trim()}"`, onRemove: () => setSearch("") });
+  if (categoria !== "all") chips.push({ key: "categoria", label: `Categoria: ${categoriaBadge(categoria).label}`, onRemove: () => setCategoria("all") });
+  if (stato !== "all") chips.push({ key: "stato", label: stato === "attivi" ? "Stato: attivi" : "Stato: disattivi", onRemove: () => setStato("all") });
+
   return (
-    <>
-      <div className="flex justify-end mb-3">
-        <Button size="sm" onClick={onAdd}>
-          <Plus className="h-4 w-4 mr-1" />Nuovo intervento
-        </Button>
-      </div>
+    <div className="space-y-3">
+      <ListinoFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Cerca tipo intervento…"
+        filters={
+          <>
+            <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaFilter)}>
+              <SelectTrigger className="w-full md:w-[210px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le categorie</SelectItem>
+                {CATEGORIE_INTERVENTO.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={stato} onValueChange={(v) => setStato(v as StatoFilter)}>
+              <SelectTrigger className="w-full md:w-[160px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutti gli stati</SelectItem>
+                <SelectItem value="attivi">Solo attivi</SelectItem>
+                <SelectItem value="disattivi">Solo disattivi</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+        actions={
+          <Button size="sm" onClick={onAdd}>
+            <Plus className="h-4 w-4 mr-1" />Nuovo intervento
+          </Button>
+        }
+        chips={chips}
+        shownCount={filtered.length}
+        totalCount={tipiIntervento.length}
+        unit={["tipo", "tipi"]}
+        hasActiveFilters={hasActiveFilters}
+        onReset={resetFilters}
+      />
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -51,7 +114,13 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
                   Nessun tipo intervento. Aggiungine uno o clicca &quot;Importa da template&quot;.
                 </TableCell>
               </TableRow>
-            ) : tipiIntervento.map((t) => {
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  Nessun tipo intervento corrisponde ai filtri.
+                </TableCell>
+              </TableRow>
+            ) : filtered.map((t) => {
               const cat = categoriaBadge(t.categoria);
               return (
                 <TableRow key={t.id}>
@@ -94,6 +163,6 @@ export function InterventiTab({ tipiIntervento, loadingInterventi, onAdd, onEdit
           </TableBody>
         </Table>
       </div>
-    </>
+    </div>
   );
 }

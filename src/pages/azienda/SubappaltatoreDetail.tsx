@@ -26,12 +26,17 @@ import {
 } from '@/components/ui/alert';
 import {
   ArrowLeft, HardHat, FileText, Euro, Loader2, Plus, AlertTriangle, CheckCircle2, ExternalLink,
-  Check, Upload, Trash2, BriefcaseBusiness, CreditCard, Mail, MapPin, Link2, Link2Off,
+  Check, Upload, Trash2, BriefcaseBusiness, CreditCard, Mail, MapPin, Link2, Link2Off, FileArchive,
 } from 'lucide-react';
 import type {
   ContrattoSubappalto, SALSubappaltatore, RitenutaGaranzia,
   DocumentoSubappaltatore, StatoSALSub, TipoDocumentoSub,
 } from '@/types/subappaltatori';
+import {
+  TIPO_DOC_LABELS,
+  SUBAPPALTATORI_DOCUMENTI_BUCKET as DOCUMENT_BUCKET,
+} from '@/lib/sicurezza/bulkDocumenti';
+import BulkDocumentiUploadDialog from './subappaltatore/BulkDocumentiUploadDialog';
 
 // ── Badge helpers ────────────────────────────────────────────────────────────
 
@@ -54,17 +59,9 @@ function SALStatoBadge({ stato }: { stato: StatoSALSub }) {
   return <Badge className={`text-xs ${cfg.className}`}>{cfg.label}</Badge>;
 }
 
-const TIPO_DOC_LABELS: Record<TipoDocumentoSub, string> = {
-  durc:                 'DURC',
-  visura_camerale:      'Visura Camerale',
-  attestazione_soa:     'Attestazione SOA',
-  dvr:                  'DVR',
-  polizza_rc:           'Polizza RC',
-  iso_certificazione:   'Certificazione ISO',
-  altro:                'Altro',
-};
-
-const DOCUMENT_BUCKET = 'subappaltatori-documenti';
+// TIPO_DOC_LABELS e DOCUMENT_BUCKET sono definiti in
+// '@/lib/sicurezza/bulkDocumenti' e importati sopra (condivisi col
+// caricamento massivo BulkDocumentiUploadDialog).
 
 function isMissingCampoLinkColumn(error: unknown) {
   const message = String((error as { message?: string })?.message ?? error ?? '').toLowerCase();
@@ -387,6 +384,7 @@ export default function SubappaltatoreDetail() {
 
   // ── Documenti ────────────────────────────────────────────────────────────
   const [docDialog, setDocDialog] = useState(false);
+  const [bulkDocDialog, setBulkDocDialog] = useState(false);
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docForm, setDocForm] = useState({
     tipo: 'durc' as TipoDocumentoSub,
@@ -819,10 +817,16 @@ export default function SubappaltatoreDetail() {
                 <span className="flex items-center gap-2">
                   <FileText className="h-4 w-4" /> Documenti idoneità
                 </span>
-                <Button size="sm" onClick={() => setDocDialog(true)}>
-                  <Upload className="h-4 w-4 mr-1.5" />
-                  Carica documento
-                </Button>
+                <span className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setBulkDocDialog(true)}>
+                    <FileArchive className="h-4 w-4 mr-1.5" />
+                    Importa ZIP
+                  </Button>
+                  <Button size="sm" onClick={() => setDocDialog(true)}>
+                    <Upload className="h-4 w-4 mr-1.5" />
+                    Carica documento
+                  </Button>
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1389,6 +1393,14 @@ export default function SubappaltatoreDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Dialog Importa documenti da ZIP ──────────────────────────────── */}
+      <BulkDocumentiUploadDialog
+        open={bulkDocDialog}
+        onOpenChange={setBulkDocDialog}
+        companyId={companyId}
+        subappaltatoreId={id ?? ''}
+      />
 
       {/* ── Dialog Pagamento SAL ──────────────────────────────────────────── */}
       <Dialog open={!!paymentSAL} onOpenChange={() => setPaymentSAL(null)}>

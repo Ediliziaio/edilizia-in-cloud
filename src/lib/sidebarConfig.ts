@@ -144,6 +144,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Prima Nota", url: "/azienda/prima-nota", icon: BookOpen, permissionKey: "canViewPrimaNota", featureKey: "prima_nota", groupLabel: "Contabilità" },
       { title: "Tesoreria", url: "/azienda/tesoreria", icon: Landmark, permissionKey: "canViewTesoreria", featureKey: "tesoreria" },
       { title: "Costi", url: "/azienda/costi", icon: TrendingDown, permissionKey: "canViewCosts", moduleKey: "forecast" },
+      { title: "Analisi Acquisti", url: "/azienda/analisi-acquisti", icon: BarChart3, permissionKey: "canViewCosts", moduleKey: "forecast" },
       { title: "Previsionale", url: "/azienda/previsionale", icon: TrendingUp, permissionKey: "canViewForecast", moduleKey: "forecast" },
     ],
   },

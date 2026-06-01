@@ -7,9 +7,10 @@
  *   - sections/{Impianti,Interventi,Tariffe}Tab.tsx
  *   - index.tsx (questo file, ~200 righe)
  *
- * Route: /azienda/impostazioni/listino-manutenzione
- * Permission: canViewSettingsCustomization (gestito da withCompanyPermission
- * in companyRoutes.tsx). Il guard isAdmin interno resta per UX semantica.
+ * Montaggio: accorpato come tab "Manutenzione" nella pagina Tariffe
+ * (/azienda/impostazioni/tariffe?tab=manutenzione) tramite la prop `embedded`.
+ * La vecchia route /azienda/impostazioni/listino-manutenzione ora reindirizza lì.
+ * Permission: canViewSettingsCustomization. Il guard isAdmin interno resta per UX semantica.
  */
 import { useState } from "react";
 import { Sparkles, ShieldAlert, ClipboardList } from "lucide-react";
@@ -34,7 +35,7 @@ import { ImpiantiTab } from "./sections/ImpiantiTab";
 import { InterventiTab } from "./sections/InterventiTab";
 import { TariffeTab } from "./sections/TariffeTab";
 
-export default function ListinoManutenzione() {
+export default function ListinoManutenzione({ embedded = false }: { embedded?: boolean } = {}) {
   const { effectiveCompany, role } = useAuth();
   const { vertical } = useVertical();
   const companyId = effectiveCompany?.id as string | undefined;
@@ -98,31 +99,53 @@ export default function ListinoManutenzione() {
   // ─── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
-      {/* Header pattern h-10 w-10 bg-primary/10 */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <ClipboardList className="h-5 w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold leading-tight">Listino Prezzi Manutenzione</h1>
-            <p className="text-sm text-muted-foreground">
-              Tipi di impianto, tipi di intervento e listino prezzi. Usati dal modulo Manutenzione
-              per calcolare automaticamente i preventivi di intervento.
-            </p>
-          </div>
+      {embedded ? (
+        /* Embedded nella pagina Tariffe: header snello, niente titolo grande
+           (il contesto è già dato dal tab "Manutenzione"). Manteniamo il
+           pulsante "Importa da template". */
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Tipi di impianto, tipi di intervento e listino prezzi. Usati dal modulo Manutenzione
+            per calcolare automaticamente i preventivi di intervento.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTemplateDialogOpen(true)}
+            disabled={creatingDemo}
+            className="shrink-0"
+          >
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            {creatingDemo ? "Importazione..." : "Importa da template"}
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setTemplateDialogOpen(true)}
-          disabled={creatingDemo}
-          className="shrink-0"
-        >
-          <Sparkles className="h-4 w-4 mr-1.5" />
-          {creatingDemo ? "Importazione..." : "Importa da template"}
-        </Button>
-      </div>
+      ) : (
+        /* Header pattern h-10 w-10 bg-primary/10 */
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <ClipboardList className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold leading-tight">Listino Prezzi Manutenzione</h1>
+              <p className="text-sm text-muted-foreground">
+                Tipi di impianto, tipi di intervento e listino prezzi. Usati dal modulo Manutenzione
+                per calcolare automaticamente i preventivi di intervento.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTemplateDialogOpen(true)}
+            disabled={creatingDemo}
+            className="shrink-0"
+          >
+            <Sparkles className="h-4 w-4 mr-1.5" />
+            {creatingDemo ? "Importazione..." : "Importa da template"}
+          </Button>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

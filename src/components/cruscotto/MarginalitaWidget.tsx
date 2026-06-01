@@ -3,6 +3,11 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
+import {
+  computeScostamenti,
+  summarizeScostamenti,
+  type OrdineMarginalitaRow,
+} from "@/lib/commesse/scostamenti";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,15 +16,12 @@ import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, ArrowUpRight, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface MarginalitaRow {
-  id: string;
-  order_code: string | null;
-  description: string;
-  preventivo_totale: number;
-  consuntivo: number;
-  margine: number;
-  margine_perc: number;
-}
+/**
+ * Quota di portafoglio analizzata dal widget. La pagina completa
+ * (`/azienda/marginalita`) ne carica fino a 1000: qui basta un campione ampio
+ * per KPI affidabili sul cruscotto, evitando di mostrare solo gli ordini recenti.
+ */
+const WIDGET_FETCH_LIMIT = 200;
 
 function margineColor(perc: number) {
   if (perc >= 25) return "text-green-600";
@@ -41,22 +43,25 @@ export function MarginalitaWidget() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("v_ordine_marginalita")
-        .select("id, order_code, description, preventivo_totale, consuntivo, margine, margine_perc")
+        .select(
+          "id, order_code, description, cliente_nome, preventivo_contratto, preventivo_totale, variazioni_approvate, costo_acquisti, costo_errori, consuntivo, margine, margine_perc",
+        )
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
-        .limit(5);
+        .limit(WIDGET_FETCH_LIMIT);
       if (error) throw error;
-      return (data || []) as MarginalitaRow[];
+      return (data || []) as OrdineMarginalitaRow[];
     },
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000,
   });
 
-  // KPI summary
-  const totPreventivo = rows.reduce((s, r) => s + r.preventivo_totale, 0);
-  const totMargine = rows.reduce((s, r) => s + r.margine, 0);
-  const avgPerc = totPreventivo > 0 ? (totMargine / totPreventivo) * 100 : 0;
-  const inPerdita = rows.filter((r) => r.margine_perc < 0).length;
+  // KPI calcolati sull'INTERO campione (non solo sulle righe mostrate): così il
+  // conteggio "in perdita" non nasconde commesse a rischio fuori dalle prime N.
+  const summary = summarizeScostamenti(rows);
+  // Mostra le commesse più a rischio per prime (in perdita → margine % crescente).
+  const topRows = computeScostamenti(rows).slice(0, 5);
+  const avgPerc = summary.margineMedioPerc;
 
   if (isLoading) {
     return (
@@ -71,7 +76,7 @@ export function MarginalitaWidget() {
     );
   }
 
-  if (rows.length === 0) return null;
+  if (summary.nCommesse === 0) return null;
 
   return (
     <Card>
@@ -89,10 +94,17 @@ export function MarginalitaWidget() {
             <span className={cn("text-sm font-semibold", margineColor(avgPerc))}>
               Media: {avgPerc.toFixed(1)}%
             </span>
-            {inPerdita > 0 && (
+            {summary.nInPerdita > 0 && (
               <span className="flex items-center gap-1 text-xs text-red-600">
                 <AlertTriangle className="h-3 w-3" />
-                {inPerdita} in perdita
+                {summary.nInPerdita} in perdita
+              </span>
+            )}
+            {(summary.nConSforamento > 0 || summary.nConErrori > 0) && (
+              <span className="text-xs text-muted-foreground">
+                {summary.nConSforamento > 0 && `${summary.nConSforamento} sforamenti`}
+                {summary.nConSforamento > 0 && summary.nConErrori > 0 && " · "}
+                {summary.nConErrori > 0 && `${summary.nConErrori} con errori`}
               </span>
             )}
           </div>
@@ -105,45 +117,59 @@ export function MarginalitaWidget() {
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {rows.map((row) => (
+        {topRows.map((row) => {
+          const causa = row.cause[0];
+          return (
           <Link key={row.id} to={`/azienda/ordini/${row.id}`} className="block group">
             <div className="flex items-center justify-between gap-2 mb-0.5">
               <div className="min-w-0 flex-1">
                 <span className="text-sm font-medium group-hover:text-primary transition-colors truncate block">
-                  {row.order_code ? `#${row.order_code}` : row.description.slice(0, 30)}
+                  {row.orderCode ? `#${row.orderCode}` : row.description.slice(0, 30)}
                 </span>
+                {causa && (
+                  <span
+                    className={cn(
+                      "text-[11px] truncate flex items-center gap-1",
+                      causa.gravita === "alta" ? "text-red-600/90" : "text-amber-600/90",
+                    )}
+                  >
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    {causa.label}
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs text-muted-foreground">{formatCurrency(row.margine)}</span>
                 <Badge
                   className={cn(
                     "text-xs font-bold min-w-[48px] justify-center",
-                    row.margine_perc >= 25 && "bg-green-100 text-green-800 border-green-200 border",
-                    row.margine_perc >= 10 && row.margine_perc < 25 && "bg-amber-100 text-amber-800 border-amber-200 border",
-                    row.margine_perc < 10 && "bg-red-100 text-red-800 border-red-200 border",
+                    row.marginePerc >= 25 && "bg-green-100 text-green-800 border-green-200 border",
+                    row.marginePerc >= 10 && row.marginePerc < 25 && "bg-amber-100 text-amber-800 border-amber-200 border",
+                    row.marginePerc < 10 && "bg-red-100 text-red-800 border-red-200 border",
                   )}
                 >
-                  {row.margine_perc >= 0 ? "+" : ""}{row.margine_perc.toFixed(1)}%
+                  {row.marginePerc >= 0 ? "+" : ""}{row.marginePerc.toFixed(1)}%
                 </Badge>
               </div>
             </div>
             <Progress
-              value={Math.min(Math.max(row.margine_perc, 0), 100)}
+              value={Math.min(Math.max(row.marginePerc, 0), 100)}
               className="h-1.5"
-              indicatorClassName={margineBarClass(row.margine_perc)}
+              indicatorClassName={margineBarClass(row.marginePerc)}
             />
           </Link>
-        ))}
+          );
+        })}
 
         {/* Summary totals */}
         <div className="border-t pt-2 flex justify-between text-sm">
           <span className="text-muted-foreground">Totale preventivo</span>
-          <span className="font-medium">{formatCurrency(totPreventivo)}</span>
+          <span className="font-medium">{formatCurrency(summary.preventivoTotale)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Margine totale</span>
           <span className={cn("font-semibold", margineColor(avgPerc))}>
-            {formatCurrency(totMargine)}
+            {formatCurrency(summary.margineTotale)}
           </span>
         </div>
       </CardContent>

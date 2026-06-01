@@ -25,7 +25,7 @@ import {
   UserCircle, ShieldCheck, Building2, MapPin, Paintbrush, Wallet, Receipt,
   Users, ListOrdered, FolderOpen, FileText, FileSignature, Truck, ScrollText,
   Banknote, Plug, Calendar, Mail, Tag, Settings as SettingsIcon, LogOut,
-  Brain, Bell, Bot,
+  Brain, Bell, Bot, Wrench,
 } from "lucide-react";
 
 interface SectionItem {
@@ -71,6 +71,7 @@ const SECTIONS: Section[] = [
     label: "Vendite e operativo",
     items: [
       { to: "/azienda/impostazioni/listino",            label: "Listino prodotti", icon: Tag,            iconColor: "text-blue-600" },
+      { to: "/azienda/impostazioni/tariffe",            label: "Tariffe & Manutenzione", icon: Wrench,   iconColor: "text-teal-600" },
       { to: "/azienda/impostazioni/template-preventivi", label: "Template offerte", icon: FileText,       iconColor: "text-violet-600" },
       { to: "/azienda/impostazioni/firma-elettronica",  label: "Firma elettronica", icon: FileSignature, iconColor: "text-rose-600" },
       { to: "/azienda/impostazioni/sopralluoghi",       label: "Sopralluoghi",     icon: ScrollText,    iconColor: "text-amber-600" },

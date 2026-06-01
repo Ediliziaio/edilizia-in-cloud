@@ -17,6 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GovernanceThresholdsCard } from "@/components/settings/GovernanceThresholdsCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 // DB columns for preventivo_impostazioni:
@@ -703,8 +704,9 @@ function CategorieTab({ companyId }: { companyId: string }) {
 export default function SettingsMargini() {
   // Bug fix: rimosso `useAuth() as any` che bypassava i type di AuthContext.
   // Ora usiamo il tipo corretto — se Company cambia, TypeScript ci avvisa.
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
+  const isAdmin = role === "company_admin" || role === "super_admin";
 
   const { data: categorie = [] } = useQuery({
     queryKey: ["listino-categorie", companyId],
@@ -779,12 +781,16 @@ export default function SettingsMargini() {
         <TabsList>
           <TabsTrigger value="margini">Margini &amp; PDF</TabsTrigger>
           <TabsTrigger value="categorie">Categorie</TabsTrigger>
+          <TabsTrigger value="governance">Governance</TabsTrigger>
         </TabsList>
         <TabsContent value="margini" className="mt-6">
           <MarginiPdfTab companyId={companyId} categorie={categorie} />
         </TabsContent>
         <TabsContent value="categorie" className="mt-6">
           <CategorieTab companyId={companyId} />
+        </TabsContent>
+        <TabsContent value="governance" className="mt-6">
+          <GovernanceThresholdsCard companyId={companyId} isAdmin={isAdmin} />
         </TabsContent>
       </Tabs>
 

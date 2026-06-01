@@ -15,8 +15,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Wrench } from "lucide-react";
+import { Loader2, Wrench, Tag } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { useTipiImpianto, useTipiIntervento } from "@/lib/manutenzione/tipiManutenzione";
+import { usePrezzoIntervento } from "@/lib/manutenzione/prezzoIntervento";
 
 interface Props {
   open: boolean;
@@ -60,6 +63,10 @@ export function NuovoInterventoDialog({
   const [durataOre, setDurataOre] = useState("");
   const [impiantoId, setImpiantoId] = useState(defaultImpiantoId ?? "");
   const [note, setNote] = useState("");
+  // #56 — Collegamento opzionale al listino di manutenzione: tipi a catalogo
+  // (popolano tickets.tipo_impianto_id/tipo_intervento_id) + prezzo calcolato.
+  const [tipoImpiantoListinoId, setTipoImpiantoListinoId] = useState("");
+  const [tipoInterventoListinoId, setTipoInterventoListinoId] = useState("");
 
   const { data: clienti = [] } = useCompanyCustomers(effectiveCompany?.id, open);
 
@@ -80,6 +87,18 @@ export function NuovoInterventoDialog({
   });
 
   const { data: tecnici = [] } = useCompanyStaffUsers(open ? effectiveCompany?.id : null, "all");
+
+  // ── #56 Listino manutenzione: cataloghi tipi + prezzo (RPC get_prezzo_intervento)
+  //     Se l'azienda non ha configurato tipi a listino, tipiImpianto è vuoto e
+  //     l'intera sezione "Tariffa" resta nascosta (integrazione opt-in).
+  const { data: tipiImpianto = [] } = useTipiImpianto(open ? effectiveCompany?.id : null);
+  const { data: tipiIntervento = [] } = useTipiIntervento(open ? effectiveCompany?.id : null);
+  const { data: prezzoListino, isFetching: prezzoLoading } = usePrezzoIntervento({
+    companyId: effectiveCompany?.id,
+    tipoImpiantoId: tipoImpiantoListinoId || null,
+    tipoInterventoId: tipoInterventoListinoId || null,
+    clienteId: customerId || null,
+  });
 
   // ── Impianti del cliente selezionato ─────────────────────────────────────────
   const { data: impianti = [] } = useQuery<ImpiantoOption[]>({
@@ -118,6 +137,9 @@ export function NuovoInterventoDialog({
           data_intervento_prevista: dataOra ? new Date(dataOra).toISOString() : null,
           durata_ore: durataOre ? parseFloat(durataOre) : null,
           impianto_id: (impiantoId && impiantoId !== "none") ? impiantoId : null,
+          // #56 — chiavi listino: abilitano il pricing da get_prezzo_intervento.
+          tipo_impianto_id: tipoImpiantoListinoId || null,
+          tipo_intervento_id: tipoInterventoListinoId || null,
         })
         .select("id")
         .single();
@@ -157,6 +179,8 @@ export function NuovoInterventoDialog({
     setDurataOre("");
     setImpiantoId(defaultImpiantoId ?? "");
     setNote("");
+    setTipoImpiantoListinoId("");
+    setTipoInterventoListinoId("");
     onClose();
   };
 
@@ -313,6 +337,68 @@ export function NuovoInterventoDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* #56 — Tariffa di manutenzione (opzionale): collega tipo impianto +
+              tipo intervento del listino → prezzo da get_prezzo_intervento.
+              Visibile solo se l'azienda ha configurato tipi a listino. */}
+          {tipiImpianto.length > 0 && (
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-teal-600" />
+                <Label className="font-medium">Tariffa di manutenzione (opzionale)</Label>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Tipo impianto (listino)</Label>
+                  <Select value={tipoImpiantoListinoId || "none"} onValueChange={(v) => setTipoImpiantoListinoId(v === "none" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {tipiImpianto.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Tipo intervento (listino)</Label>
+                  <Select value={tipoInterventoListinoId || "none"} onValueChange={(v) => setTipoInterventoListinoId(v === "none" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {tipiIntervento.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {tipoImpiantoListinoId && tipoInterventoListinoId && (
+                <div className="text-sm">
+                  {prezzoLoading ? (
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Calcolo prezzo da listino…
+                    </span>
+                  ) : prezzoListino ? (
+                    <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {prezzoListino.prezzo.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                          {prezzoListino.unita ? <span className="font-normal text-muted-foreground"> / {prezzoListino.unita}</span> : null}
+                        </span>
+                        {prezzoListino.iva != null && (
+                          <span className="text-xs text-muted-foreground">IVA {prezzoListino.iva}%</span>
+                        )}
+                      </div>
+                      {prezzoListino.da_override && (
+                        <Badge variant="secondary" className="shrink-0">Prezzo personalizzato cliente</Badge>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Nessuna tariffa a listino per questa combinazione.
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

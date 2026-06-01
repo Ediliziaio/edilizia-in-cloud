@@ -36,6 +36,7 @@ import {
   useWhatsAppNumbersByPurpose,
   type WANumber,
 } from "@/hooks/whatsapp/useWhatsAppNumbers";
+import CarichiDaRegistrareCard from "./CarichiDaRegistrareCard";
 
 type OrderMini = { order_code?: string | null; description?: string | null };
 
@@ -549,6 +550,8 @@ export default function OperationalControlPage() {
           </CardContent>
         </Card>
       </div>
+
+      <CarichiDaRegistrareCard companyId={companyId} />
 
       <Card>
         <CardHeader>

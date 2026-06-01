@@ -461,6 +461,8 @@ export function useAggiornaStatoDocumentoEstratto() {
     onSuccess: (input) => {
       toast.success(input.stato === "confermato" ? "Documento confermato" : "Bozza scartata");
       void qc.invalidateQueries({ queryKey: ["email-documenti-estratti", input.email_id] });
+      // P0-A: rinfresca anche il pannello company-wide dei documenti fotografati (email_id NULL).
+      void qc.invalidateQueries({ queryKey: ["email-documenti-estratti-da-registrare"] });
     },
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
@@ -479,9 +481,11 @@ export interface DdtCaricoRiga {
 }
 export interface DdtCarico {
   id: string;
+  company_id?: string;
   email_id: string | null;
   documento_estratto_id: string | null;
   ddt_numero: string | null;
+  ddt_data?: string | null;
   purchase_order_numero: string | null;
   senza_ordine: boolean;
   righe: DdtCaricoRiga[];
@@ -550,8 +554,55 @@ export function useAggiornaStatoCaricoDdt() {
     onSuccess: (input) => {
       toast.success(input.stato === "confermato" ? "Carico confermato" : "Carico scartato");
       void qc.invalidateQueries({ queryKey: ["email-ddt-carichi", input.email_id] });
+      // P0-A: rinfresca anche il pannello company-wide dei DDT fotografati (email_id NULL).
+      void qc.invalidateQueries({ queryKey: ["email-ddt-carichi-da-registrare"] });
     },
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+  });
+}
+
+// ─── P0-A — DDT fotografati in cantiere / doc senza email (email_id IS NULL) ──
+// I DDT scattati dall'operaio via WhatsApp generano la stessa bozza di carico
+// del flusso email, ma con email_id NULL: non compaiono nei pannelli per-email.
+// Queste query company-wide alimentano la Regia WhatsApp (OperationalControlPage).
+
+export function useCarichiDaRegistrare(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-ddt-carichi-da-registrare", companyId],
+    enabled: !!companyId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<DdtCarico[]> => {
+      const { data, error } = await sbAny
+        .from("email_ddt_carico")
+        .select("*")
+        .eq("company_id", companyId as string)
+        .is("email_id", null)
+        .eq("stato", "bozza")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data as unknown as DdtCarico[]) || [];
+    },
+  });
+}
+
+export function useDocumentiEstrattiDaRegistrare(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["email-documenti-estratti-da-registrare", companyId],
+    enabled: !!companyId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<DocumentoEstratto[]> => {
+      const { data, error } = await sbAny
+        .from("email_documento_estratto")
+        .select("*")
+        .eq("company_id", companyId as string)
+        .is("email_id", null)
+        .eq("stato", "da_confermare")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data as unknown as DocumentoEstratto[]) || [];
+    },
   });
 }
 

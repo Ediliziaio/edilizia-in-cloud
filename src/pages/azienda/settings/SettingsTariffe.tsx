@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,6 +11,7 @@ import {
   Plus, Pencil, Trash2, Zap, Search, Copy, MoreVertical, Calculator,
   TrendingUp, Percent, Package, Activity, Archive, RotateCcw, Info,
   Building2, Layers3, Wallet, CheckCircle2, Wrench, Paintbrush, AlertTriangle,
+  FileSpreadsheet, ChevronDown, Download, FilterX, X, ClipboardList, Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +37,7 @@ import {
 } from "@/components/ui/table";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator,
+  DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -45,6 +47,7 @@ import { useTableSort } from "@/hooks/useTableSort";
 import { TariffaProdottiCollegati } from "@/components/listino/TariffaProdottiCollegati";
 import { TariffaVariantiEditor } from "@/components/settings/TariffaVariantiEditor";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useGovernanceThresholds } from "@/hooks/useGovernanceThresholds";
 // MP-IMP-001 Fase 4 — sezioni estratte in cartella dedicata
 import type {
   TipoTariffa, UnitaFatturazione, Tariffa, TipoDef, PresetId, TariffaSeed,
@@ -52,6 +55,12 @@ import type {
 import {
   STANDARD_TARIFFE, PRESET_CATALOGHI, getDefaultPresetForVerticalTariffe,
 } from "./SettingsTariffe/presets";
+import { ImportPrezziarioDialog } from "./SettingsTariffe/ImportPrezziarioDialog";
+import { buildTariffeExportCsv } from "@/lib/tariffe/prezziarioImport";
+import { countTariffaUsage, totalTariffaUsage, countTariffaUsageBulk } from "@/lib/tariffe/tariffaUsage";
+import { BulkPriceAdjustDialog } from "@/components/settings/BulkPriceAdjustDialog";
+import { TariffaUsageDialog } from "@/components/settings/TariffaUsageDialog";
+import ListinoManutenzione from "@/pages/azienda/settings/ListinoManutenzione";
 
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -198,6 +207,31 @@ function margineLabel(margine: number, hasCost: boolean): string {
   return "Ottimo";
 }
 
+/**
+ * Semaforo margine ancorato alla soglia minima di governance (#40), così la
+ * pagina riflette la policy aziendale invece di una soglia fissa. Restituisce
+ * le classi per il pallino e per il testo, più una label accessibile.
+ * - margine non calcolabile (manca costo o vendita) → neutro
+ * - < 0 → rosso (in perdita / sottocosto)
+ * - < soglia → giallo (sotto la soglia minima)
+ * - ≥ soglia → verde (margine sano)
+ */
+function margineSemaforo(
+  margine: number | null,
+  soglia: number,
+): { dot: string; text: string; label: string } {
+  if (margine == null || !Number.isFinite(margine)) {
+    return { dot: "bg-muted-foreground/40", text: "text-muted-foreground", label: "Margine non calcolabile" };
+  }
+  if (margine < 0) {
+    return { dot: "bg-rose-500", text: "text-rose-600", label: "In perdita (sottocosto)" };
+  }
+  if (margine < soglia) {
+    return { dot: "bg-amber-500", text: "text-amber-600", label: `Sotto la soglia minima (${soglia}%)` };
+  }
+  return { dot: "bg-emerald-500", text: "text-emerald-600", label: "Margine sano" };
+}
+
 function calcMargine(pv: number, pa: number) {
   if (!pv) return 0;
   return ((pv - pa) / pv) * 100;
@@ -218,8 +252,8 @@ function TariffaVariantiSection({
 
 // ─── KPI Header ───────────────────────────────────────────────────────────────
 function KpiHeader({
-  tariffe, isAdmin,
-}: { tariffe: Tariffa[]; isAdmin: boolean }) {
+  tariffe, isAdmin, soglia, onShowSottoSoglia,
+}: { tariffe: Tariffa[]; isAdmin: boolean; soglia: number; onShowSottoSoglia?: () => void }) {
   const kpi = useMemo(() => {
     const totali = tariffe.length;
     const attive = tariffe.filter((t) => t.attivo !== false).length;
@@ -227,12 +261,15 @@ function KpiHeader({
     // Margine medio pesato per prezzo_vendita (solo tariffe con entrambi i valori)
     let sumMarg = 0;
     let countMarg = 0;
+    let sottoSoglia = 0; // #49 — voci con margine calcolabile sotto la soglia governance
     for (const t of tariffe) {
       const pv = t.prezzo_vendita ?? 0;
       const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
       if (pv > 0 && pc > 0) {
-        sumMarg += calcMargine(pv, pc);
+        const m = calcMargine(pv, pc);
+        sumMarg += m;
         countMarg += 1;
+        if (m < soglia) sottoSoglia += 1;
       }
     }
     const margineMedio = countMarg > 0 ? sumMarg / countMarg : 0;
@@ -240,8 +277,8 @@ function KpiHeader({
     const byTipo = new Map<string, number>();
     for (const t of tariffe) byTipo.set(t.tipo, (byTipo.get(t.tipo) ?? 0) + 1);
     const topTipo = [...byTipo.entries()].sort((a, b) => b[1] - a[1])[0];
-    return { totali, attive, archiviate, margineMedio, countMarg, topTipo };
-  }, [tariffe]);
+    return { totali, attive, archiviate, margineMedio, countMarg, sottoSoglia, topTipo };
+  }, [tariffe, soglia]);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -295,6 +332,17 @@ function KpiHeader({
                 <div className="mt-1 text-xs text-muted-foreground">
                   su {kpi.countMarg} voci con costi
                 </div>
+                {kpi.sottoSoglia > 0 && (
+                  <button
+                    type="button"
+                    onClick={onShowSottoSoglia}
+                    title={`Filtra le voci con margine sotto la soglia minima del ${soglia}%`}
+                    className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:hover:bg-amber-950/70"
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    {kpi.sottoSoglia} sotto soglia ({soglia}%)
+                  </button>
+                )}
               </div>
               <div className="rounded-lg bg-amber-100 p-2 text-amber-700">
                 <Percent className="h-5 w-5" />
@@ -1046,14 +1094,21 @@ function StandardTariffeDialog({
 
 // ─── TariffeTable ────────────────────────────────────────────────────────────
 function TariffeTable({
-  items, isAdmin, onEdit, onDelete, onToggleAttivo, onDuplica,
+  items, isAdmin, soglia, selectedIds, onToggleSelect, onToggleSelectAll,
+  onEdit, onDelete, onToggleAttivo, onDuplica, onShowUsage,
 }: {
   items: Tariffa[];
   isAdmin: boolean;
+  /** Soglia minima di margine (% governance) per il semaforo. */
+  soglia: number;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onToggleSelectAll: (ids: string[], checked: boolean) => void;
   onEdit: (t: Tariffa) => void;
   onDelete: (id: string) => void;
   onToggleAttivo: (t: Tariffa) => void;
   onDuplica: (t: Tariffa) => void;
+  onShowUsage: (t: Tariffa) => void;
 }) {
   // Accessori per il sort
   const accessors = useMemo(() => ({
@@ -1072,13 +1127,25 @@ function TariffeTable({
 
   const { sortConfig, toggleSort, sortedItems } = useTableSort(items, accessors);
 
-  const colCount = isAdmin ? 8 : 6;
+  // Selezione: +1 colonna per il checkbox.
+  const colCount = (isAdmin ? 8 : 6) + 1;
+  const visibleIds = sortedItems.map((t) => t.id);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someSelected = visibleIds.some((id) => selectedIds.has(id));
+  const headerChecked: boolean | "indeterminate" = allSelected ? true : someSelected ? "indeterminate" : false;
 
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[44px]">
+              <Checkbox
+                checked={headerChecked}
+                onCheckedChange={(v) => onToggleSelectAll(visibleIds, v === true)}
+                aria-label="Seleziona tutte le voci visibili"
+              />
+            </TableHead>
             <SortableTableHead column="attivo" label="Stato" sortConfig={sortConfig} onSort={toggleSort} className="w-[90px]" />
             <SortableTableHead column="tipo" label="Tipo" sortConfig={sortConfig} onSort={toggleSort} className="w-[130px]" />
             <SortableTableHead column="nome" label="Nome" sortConfig={sortConfig} onSort={toggleSort} />
@@ -1105,9 +1172,22 @@ function TariffeTable({
             const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
             const hasBoth = pv > 0 && pc > 0;
             const margine = calcMargine(pv, pc);
+            const sem = margineSemaforo(hasBoth ? margine : null, soglia);
             const isAttivo = t.attivo !== false;
+            const isSelected = selectedIds.has(t.id);
             return (
-              <TableRow key={t.id} className={!isAttivo ? "opacity-60" : undefined}>
+              <TableRow
+                key={t.id}
+                data-state={isSelected ? "selected" : undefined}
+                className={!isAttivo ? "opacity-60" : undefined}
+              >
+                <TableCell>
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelect(t.id)}
+                    aria-label={`Seleziona ${t.nome}`}
+                  />
+                </TableCell>
                 <TableCell>
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
@@ -1164,9 +1244,19 @@ function TariffeTable({
                 {isAdmin && (
                   <TableCell className="text-right">
                     {hasBoth ? (
-                      <span className={`text-sm font-semibold ${margineColor(margine)}`}>
-                        {margine.toFixed(1)}%
-                      </span>
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex items-center justify-end gap-1.5">
+                              <span className={`h-2 w-2 rounded-full shrink-0 ${sem.dot}`} aria-hidden />
+                              <span className={`text-sm font-semibold ${sem.text}`}>
+                                {margine.toFixed(1)}%
+                              </span>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{sem.label}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
@@ -1185,6 +1275,9 @@ function TariffeTable({
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onDuplica(t)}>
                         <Copy className="h-4 w-4 mr-2" />Duplica
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onShowUsage(t)}>
+                        <Link2 className="h-4 w-4 mr-2" />Dove è usata
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onToggleAttivo(t)}>
                         {isAttivo ? (
@@ -1215,6 +1308,8 @@ function TariffeTable({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 type StatoFilter = "all" | "attive" | "archiviate";
 type VerticalFilter = "all" | "current" | "global";
+/** Filtro per redditività (solo admin): tutte / sotto la soglia minima / in perdita. */
+type MargineFilter = "all" | "sotto-soglia" | "perdita";
 
 export default function SettingsTariffe() {
   const { effectiveCompany, role } = useAuth();
@@ -1223,14 +1318,38 @@ export default function SettingsTariffe() {
   const companyId = effectiveCompany?.id as string | undefined;
   const queryClient = useQueryClient();
 
+  // Soglia minima di margine (governance #40) — guida semaforo e filtro redditività.
+  // Fallback sicuro ai default anche se la tabella non è ancora applicata.
+  const { data: governance } = useGovernanceThresholds(companyId);
+  const soglia = governance?.marginalita?.sogliaMinimaPerc ?? 15;
+
   const [activeGroup, setActiveGroup] = useState<TipoDef["group"] | "all">("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Tariffa | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [standardOpen, setStandardOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [verticalFilter, setVerticalFilter] = useState<VerticalFilter>("all");
   const [statoFilter, setStatoFilter] = useState<StatoFilter>("attive");
+  const [margineFilter, setMargineFilter] = useState<MargineFilter>("all");
+  const [usageTariffa, setUsageTariffa] = useState<Tariffa | null>(null);
+  // Selezione multipla per azioni in blocco
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [priceAdjustOpen, setPriceAdjustOpen] = useState(false);
+
+  // Sezione di primo livello (Manodopera e Servizi | Manutenzione), sincronizzata su ?tab.
+  // La pagina "Listino Manutenzione" è stata accorpata qui: ?tab=manutenzione apre il modulo.
+  const [urlParams, setUrlParams] = useSearchParams();
+  const section: "manodopera" | "manutenzione" =
+    urlParams.get("tab") === "manutenzione" ? "manutenzione" : "manodopera";
+  const setSection = (v: string) => {
+    const next = new URLSearchParams(urlParams);
+    if (v === "manutenzione") next.set("tab", "manutenzione");
+    else next.delete("tab");
+    setUrlParams(next, { replace: true });
+  };
 
   const { data: tariffe = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["tariffe-aziendali-full", companyId],
@@ -1244,6 +1363,35 @@ export default function SettingsTariffe() {
       if (error) throw error;
       return (data ?? []) as unknown as Tariffa[];
     },
+  });
+
+  // #50 — Guardia anti-eliminazione: quando si apre la conferma di delete per
+  // UNA voce, conta i riferimenti per avvisare l'admin (consigliando
+  // l'archiviazione). Riusa la stessa queryKey del dialog "Dove è usata", così
+  // se l'utente ha appena aperto "Dove è usata" il conteggio è già in cache.
+  const deleteTariffa = useMemo(
+    () => (deleteId ? tariffe.find((t) => t.id === deleteId) ?? null : null),
+    [deleteId, tariffe],
+  );
+  const { data: deleteUsage, isLoading: deleteUsageLoading } = useQuery({
+    queryKey: ["tariffa-usage", deleteId],
+    enabled: !!deleteId,
+    staleTime: 30_000,
+    queryFn: () => countTariffaUsage(deleteId as string),
+  });
+  const deleteUsageTotal = useMemo(
+    () => (deleteUsage ? totalTariffaUsage(deleteUsage) : 0),
+    [deleteUsage],
+  );
+
+  // #51 — Guardia per l'eliminazione in blocco: conteggio aggregato dei
+  // riferimenti verso le voci selezionate (chiave stabile = id ordinati).
+  const selectedIdsKey = useMemo(() => [...selectedIds].sort().join(","), [selectedIds]);
+  const { data: bulkUsageTotal = 0, isLoading: bulkUsageLoading } = useQuery({
+    queryKey: ["tariffa-usage-bulk", selectedIdsKey],
+    enabled: bulkDeleteOpen && selectedIds.size > 0,
+    staleTime: 30_000,
+    queryFn: () => countTariffaUsageBulk([...selectedIds]),
   });
 
   const deleteMutation = useMutation({
@@ -1317,6 +1465,56 @@ export default function SettingsTariffe() {
     },
   });
 
+  // ─── Azioni in blocco ─────────────────────────────────────────────────────
+  const bulkSetAttivoMutation = useMutation({
+    mutationFn: async ({ ids, attivo }: { ids: string[]; attivo: boolean }) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      if (ids.length === 0) return { count: 0, attivo };
+      const { error } = await supabase
+        .from("tariffe_aziendali")
+        .update({ attivo } as never)
+        .in("id", ids)
+        .eq("company_id", companyId);
+      if (error) throw error;
+      return { count: ids.length, attivo };
+    },
+    onSuccess: ({ count, attivo }) => {
+      invalidateAllTariffe(queryClient);
+      setSelectedIds(new Set());
+      toast.success(
+        attivo
+          ? `${count} ${count === 1 ? "voce riattivata" : "voci riattivate"}`
+          : `${count} ${count === 1 ? "voce archiviata" : "voci archiviate"}`,
+      );
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Errore aggiornamento stato");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      if (ids.length === 0) return 0;
+      const { error } = await supabase
+        .from("tariffe_aziendali")
+        .delete()
+        .in("id", ids)
+        .eq("company_id", companyId);
+      if (error) throw error;
+      return ids.length;
+    },
+    onSuccess: (count) => {
+      invalidateAllTariffe(queryClient);
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      toast.success(`${count} ${count === 1 ? "voce eliminata" : "voci eliminate"}`);
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "Errore eliminazione");
+    },
+  });
+
   const openNew = () => { setEditing(null); setDialogOpen(true); };
   const openEdit = (t: Tariffa) => { setEditing(t); setDialogOpen(true); };
 
@@ -1330,14 +1528,24 @@ export default function SettingsTariffe() {
       // vertical
       if (verticalFilter === "current" && t.vertical_associato !== currentVertical) return false;
       if (verticalFilter === "global" && t.vertical_associato) return false;
-      // search
+      // search — nome, descrizione, tipo, unità di fatturazione e vertical
       if (q) {
-        const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)}`.toLowerCase();
+        const haystack = `${t.nome} ${t.descrizione ?? ""} ${tipoLabel(t.tipo)} ${t.unita_fatturazione ?? t.unita ?? ""} ${t.vertical_associato ?? ""}`.toLowerCase();
         if (!haystack.includes(q)) return false;
+      }
+      // margine (redditività) — solo per voci con margine calcolabile
+      if (margineFilter !== "all") {
+        const pv = t.prezzo_vendita ?? 0;
+        const pc = t.costo_interno ?? t.prezzo_costo ?? 0;
+        const hasBoth = pv > 0 && pc > 0;
+        if (!hasBoth) return false;
+        const m = calcMargine(pv, pc);
+        if (margineFilter === "perdita" && !(m < 0)) return false;
+        if (margineFilter === "sotto-soglia" && !(m < soglia)) return false;
       }
       return true;
     });
-  }, [tariffe, statoFilter, verticalFilter, currentVertical, search]);
+  }, [tariffe, statoFilter, verticalFilter, currentVertical, search, margineFilter, soglia]);
 
   // Raggruppamento per group (per i tab)
   const byGroup = useMemo(() => {
@@ -1351,14 +1559,131 @@ export default function SettingsTariffe() {
     return m;
   }, [filtered]);
 
-  const tariffeForActiveGroup = activeGroup === "all"
-    ? filtered
-    : byGroup[activeGroup] ?? [];
+  const tariffeForActiveGroup = useMemo(
+    () => (activeGroup === "all" ? filtered : byGroup[activeGroup] ?? []),
+    [activeGroup, filtered, byGroup],
+  );
+
+  // La selezione si azzera ogni volta che cambia l'insieme visibile (filtri,
+  // ricerca, tab) o quando i dati si ricaricano dopo una mutazione: così non
+  // restano mai selezionati id non più visibili.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [tariffeForActiveGroup]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (ids: string[], checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) ids.forEach((id) => next.add(id));
+      else ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // Conteggio per stato delle voci selezionate → mostriamo "Archivia"/"Riattiva"
+  // solo quando hanno effetto reale sulla selezione.
+  const selectedItems = useMemo(
+    () => tariffeForActiveGroup.filter((t) => selectedIds.has(t.id)),
+    [tariffeForActiveGroup, selectedIds],
+  );
+  const selectedAttiveCount = selectedItems.filter((t) => t.attivo !== false).length;
+  const selectedArchiviateCount = selectedItems.length - selectedAttiveCount;
+  const bulkBusy = bulkSetAttivoMutation.isPending || bulkDeleteMutation.isPending;
+
+  // Filtri attivi → mostra conteggio + "Azzera filtri" e gestisci lo stato "nessun risultato".
+  const hasActiveFilters =
+    search.trim() !== "" ||
+    statoFilter !== "attive" ||
+    verticalFilter !== "all" ||
+    margineFilter !== "all" ||
+    activeGroup !== "all";
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatoFilter("attive");
+    setVerticalFilter("all");
+    setMargineFilter("all");
+    setActiveGroup("all");
+  };
+
+  // #48 — Filtri attivi come "chip" rimovibili singolarmente. Lo stato "attive"
+  // è il default e non conta come filtro; activeGroup è già evidente dai tab
+  // gruppo, quindi non viene mostrato come chip.
+  const activeFilterChips = useMemo(() => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+    const q = search.trim();
+    if (q) chips.push({ key: "search", label: `Cerca: "${q}"`, onRemove: () => setSearch("") });
+    if (statoFilter !== "attive")
+      chips.push({
+        key: "stato",
+        label: statoFilter === "archiviate" ? "Stato: archiviate" : "Stato: tutte",
+        onRemove: () => setStatoFilter("attive"),
+      });
+    if (verticalFilter !== "all")
+      chips.push({
+        key: "vertical",
+        label:
+          verticalFilter === "current"
+            ? `Vertical: ${currentVertical || "corrente"}`
+            : "Vertical: globali",
+        onRemove: () => setVerticalFilter("all"),
+      });
+    if (margineFilter !== "all")
+      chips.push({
+        key: "margine",
+        label: margineFilter === "perdita" ? "Redditività: in perdita" : "Redditività: sotto soglia",
+        onRemove: () => setMargineFilter("all"),
+      });
+    return chips;
+  }, [search, statoFilter, verticalFilter, margineFilter, currentVertical]);
+
+  // Esporta in CSV ciò che è attualmente filtrato (round-trip con l'import).
+  const exportCsv = () => {
+    if (filtered.length === 0) {
+      toast.info("Nessuna voce da esportare con i filtri attuali");
+      return;
+    }
+    const csv = buildTariffeExportCsv(filtered, { includeCosto: isAdmin });
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `manodopera-servizi-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`Esportate ${filtered.length} voci in CSV`);
+  };
 
   if (!companyId) return null;
 
   return (
     <div className="space-y-6">
+      <Tabs value={section} onValueChange={setSection}>
+        <TabsList className="h-auto flex-wrap gap-1">
+          <TabsTrigger value="manodopera" className="gap-1.5">
+            <Wrench className="h-3.5 w-3.5" />
+            Manodopera e Servizi
+          </TabsTrigger>
+          <TabsTrigger value="manutenzione" className="gap-1.5">
+            <ClipboardList className="h-3.5 w-3.5" />
+            Manutenzione
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="manodopera" className="mt-6 space-y-6">
       {/* Header — palette arancione coerente con Listino Prodotti & Template */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
@@ -1373,15 +1698,50 @@ export default function SettingsTariffe() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2 items-center flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setStandardOpen(true)}
-            className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
-          >
-            <Zap className="h-4 w-4 mr-1.5" />Catalogo standard
-          </Button>
+        <div className="flex gap-2 items-center shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-orange-200 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:border-orange-900/50 dark:hover:bg-orange-950/40"
+              >
+                <Layers3 className="h-4 w-4 mr-1.5" />
+                Importa / Esporta
+                <ChevronDown className="h-4 w-4 ml-1 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel>Aggiungi in blocco</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setStandardOpen(true)} className="gap-2 cursor-pointer">
+                <Zap className="h-4 w-4 text-orange-500 shrink-0" />
+                <div className="flex flex-col">
+                  <span>Catalogo standard</span>
+                  <span className="text-xs text-muted-foreground">Voci tipiche del tuo settore</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportOpen(true)} className="gap-2 cursor-pointer">
+                <FileSpreadsheet className="h-4 w-4 text-orange-500 shrink-0" />
+                <div className="flex flex-col">
+                  <span>Importa prezziario</span>
+                  <span className="text-xs text-muted-foreground">Carica un CSV o Excel</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Esporta</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={exportCsv}
+                disabled={tariffe.length === 0}
+                className="gap-2 cursor-pointer"
+              >
+                <Download className="h-4 w-4 text-orange-500 shrink-0" />
+                <div className="flex flex-col">
+                  <span>Esporta in CSV</span>
+                  <span className="text-xs text-muted-foreground">Scarica il listino filtrato</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             size="sm"
             onClick={openNew}
@@ -1405,23 +1765,31 @@ export default function SettingsTariffe() {
           </AlertDescription>
         </Alert>
       )}
-      <KpiHeader tariffe={tariffe} isAdmin={isAdmin} />
+      <KpiHeader
+        tariffe={tariffe}
+        isAdmin={isAdmin}
+        soglia={soglia}
+        onShowSottoSoglia={() => {
+          setMargineFilter("sotto-soglia");
+          setActiveGroup("all");
+        }}
+      />
 
       {/* Filter bar */}
       <Card>
         <CardContent className="pt-4 pb-4">
-          <div className="grid gap-3 md:grid-cols-[1fr,auto,auto]">
-            <div className="relative">
+          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cerca per nome, descrizione o tipo…"
+                placeholder="Cerca per nome, tipo, unità o vertical…"
                 className="pl-9"
               />
             </div>
             <Select value={statoFilter} onValueChange={(v) => setStatoFilter(v as StatoFilter)}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-full md:w-[160px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1431,7 +1799,7 @@ export default function SettingsTariffe() {
               </SelectContent>
             </Select>
             <Select value={verticalFilter} onValueChange={(v) => setVerticalFilter(v as VerticalFilter)}>
-              <SelectTrigger className="w-[220px]">
+              <SelectTrigger className="w-full md:w-[200px]">
                 <SelectValue placeholder="Filtra vertical" />
               </SelectTrigger>
               <SelectContent>
@@ -1440,7 +1808,54 @@ export default function SettingsTariffe() {
                 <SelectItem value="global">Solo globali</SelectItem>
               </SelectContent>
             </Select>
+            {isAdmin && (
+              <Select value={margineFilter} onValueChange={(v) => setMargineFilter(v as MargineFilter)}>
+                <SelectTrigger className="w-full md:w-[200px]">
+                  <SelectValue placeholder="Redditività" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i margini</SelectItem>
+                  <SelectItem value="sotto-soglia">Sotto soglia (&lt;{soglia}%)</SelectItem>
+                  <SelectItem value="perdita">In perdita (&lt;0%)</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
+          {activeFilterChips.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              {activeFilterChips.map((c) => (
+                <Badge
+                  key={c.key}
+                  variant="secondary"
+                  className="gap-1 py-0.5 pl-2 pr-1 font-normal"
+                >
+                  <span className="max-w-[200px] truncate">{c.label}</span>
+                  <button
+                    type="button"
+                    onClick={c.onRemove}
+                    aria-label={`Rimuovi filtro: ${c.label}`}
+                    className="ml-0.5 rounded-sm p-0.5 hover:bg-muted-foreground/20"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+          {tariffe.length > 0 && (
+            <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                <span className="font-medium text-foreground">{tariffeForActiveGroup.length}</span>{" "}
+                {tariffeForActiveGroup.length === 1 ? "voce" : "voci"}
+                {tariffeForActiveGroup.length !== tariffe.length && ` su ${tariffe.length} totali`}
+              </span>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={resetFilters}>
+                  <FilterX className="h-3.5 w-3.5 mr-1" />Azzera filtri
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1483,9 +1898,12 @@ export default function SettingsTariffe() {
                     Inizia creando le voci standard del tuo settore o aggiungine una nuova.
                   </p>
                 </div>
-                <div className="flex justify-center gap-2">
+                <div className="flex justify-center gap-2 flex-wrap">
                   <Button variant="outline" onClick={() => setStandardOpen(true)}>
                     <Zap className="h-4 w-4 mr-2" />Usa il catalogo standard
+                  </Button>
+                  <Button variant="outline" onClick={() => setImportOpen(true)}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />Importa prezziario
                   </Button>
                   <Button onClick={openNew}>
                     <Plus className="h-4 w-4 mr-2" />Nuova voce
@@ -1493,15 +1911,98 @@ export default function SettingsTariffe() {
                 </div>
               </CardContent>
             </Card>
+          ) : tariffeForActiveGroup.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center space-y-3">
+                <div className="mx-auto h-12 w-12 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
+                  <Search className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Nessun risultato</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Nessuna voce corrisponde ai filtri o alla ricerca attuali.
+                  </p>
+                </div>
+                <div className="flex justify-center">
+                  <Button variant="outline" onClick={resetFilters}>
+                    <FilterX className="h-4 w-4 mr-2" />Azzera filtri
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ) : (
-            <TariffeTable
-              items={tariffeForActiveGroup}
-              isAdmin={isAdmin}
-              onEdit={openEdit}
-              onDelete={setDeleteId}
-              onToggleAttivo={(t) => toggleAttivoMutation.mutate(t)}
-              onDuplica={(t) => duplicaMutation.mutate(t)}
-            />
+            <div className="space-y-3">
+              {selectedIds.size > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 dark:border-orange-900/50 dark:bg-orange-950/30">
+                  <span className="text-sm font-medium text-orange-900 dark:text-orange-200">
+                    {selectedIds.size} {selectedIds.size === 1 ? "voce selezionata" : "voci selezionate"}
+                  </span>
+                  <div className="flex-1" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={bulkBusy}
+                    onClick={() => setPriceAdjustOpen(true)}
+                  >
+                    <Percent className="h-4 w-4 mr-1.5" />
+                    Adegua prezzi
+                  </Button>
+                  {selectedArchiviateCount > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkBusy}
+                      onClick={() =>
+                        bulkSetAttivoMutation.mutate({ ids: selectedItems.filter((t) => t.attivo === false).map((t) => t.id), attivo: true })
+                      }
+                    >
+                      <RotateCcw className="h-4 w-4 mr-1.5" />
+                      Riattiva{selectedArchiviateCount !== selectedIds.size ? ` (${selectedArchiviateCount})` : ""}
+                    </Button>
+                  )}
+                  {selectedAttiveCount > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkBusy}
+                      onClick={() =>
+                        bulkSetAttivoMutation.mutate({ ids: selectedItems.filter((t) => t.attivo !== false).map((t) => t.id), attivo: false })
+                      }
+                    >
+                      <Archive className="h-4 w-4 mr-1.5" />
+                      Archivia{selectedAttiveCount !== selectedIds.size ? ` (${selectedAttiveCount})` : ""}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    disabled={bulkBusy}
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Elimina
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={bulkBusy} onClick={clearSelection}>
+                    <X className="h-4 w-4 mr-1.5" />
+                    Deseleziona
+                  </Button>
+                </div>
+              )}
+              <TariffeTable
+                items={tariffeForActiveGroup}
+                isAdmin={isAdmin}
+                soglia={soglia}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                onToggleSelectAll={toggleSelectAll}
+                onEdit={openEdit}
+                onDelete={setDeleteId}
+                onToggleAttivo={(t) => toggleAttivoMutation.mutate(t)}
+                onDuplica={(t) => duplicaMutation.mutate(t)}
+                onShowUsage={setUsageTariffa}
+              />
+            </div>
           )}
         </TabsContent>
       </Tabs>
@@ -1515,14 +2016,23 @@ export default function SettingsTariffe() {
           <div>
             <strong>Come si usa il margine:</strong> è calcolato sul prezzo di
             vendita (standard CFO: <code>margine% = (vendita − costo) / vendita × 100</code>).
-            Punta al <span className="text-emerald-700 font-medium">25%+</span> per una
-            redditività industriale sana. Sotto il <span className="text-amber-700 font-medium">15%</span>
-            la tariffa è a rischio, sotto <span className="text-rose-700 font-medium">0%</span> è
-            in perdita e il salvataggio viene bloccato. Le tariffe archiviate non compaiono
-            nel preventivatore ma restano riattivabili.
+            Il semaforo segue la <strong>soglia minima di redditività</strong> definita nelle
+            soglie di governance (attuale: <span className="font-medium text-foreground">{soglia}%</span>):{" "}
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />sano (≥ {soglia}%)</span>,{" "}
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" />sotto soglia (0–{soglia}%)</span>,{" "}
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-rose-500" />in perdita (&lt; 0%, salvataggio bloccato)</span>.
+            Usa il filtro <em>Redditività</em> per isolare le voci da rivedere. Le tariffe
+            archiviate non compaiono nel preventivatore ma restano riattivabili.
           </div>
         </div>
       )}
+
+        </TabsContent>
+
+        <TabsContent value="manutenzione" className="mt-6">
+          <ListinoManutenzione embedded />
+        </TabsContent>
+      </Tabs>
 
       {/* Dialogs */}
       {dialogOpen && (
@@ -1549,20 +2059,141 @@ export default function SettingsTariffe() {
         />
       )}
 
+      {importOpen && (
+        <ImportPrezziarioDialog
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          existing={tariffe}
+          companyId={companyId}
+          isAdmin={isAdmin}
+          onImported={() => invalidateAllTariffe(queryClient)}
+        />
+      )}
+
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina tariffa</AlertDialogTitle>
+            <AlertDialogTitle>
+              Elimina {deleteTariffa ? `«${deleteTariffa.nome}»` : "tariffa"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Questa azione è irreversibile. Se preferisci puoi archiviare la tariffa:
               non sarà più selezionabile nei nuovi preventivi ma potrai riattivarla in qualsiasi momento.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* #50 — Guardia: avvisa se la voce è ancora collegata. */}
+          {deleteUsageLoading ? (
+            <div className="text-xs text-muted-foreground">Verifica dei collegamenti in corso…</div>
+          ) : deleteUsageTotal > 0 ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <span className="font-medium">
+                    Questa voce è collegata in {deleteUsageTotal}{" "}
+                    {deleteUsageTotal === 1 ? "punto" : "punti"}.
+                  </span>{" "}
+                  Eliminandola resteranno riferimenti vuoti (preventivi, bundle, listini…).
+                  Ti consigliamo di <span className="font-medium">archiviarla</span> invece di eliminarla.
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
+            {deleteTariffa && deleteTariffa.attivo !== false && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  toggleAttivoMutation.mutate(deleteTariffa);
+                  setDeleteId(null);
+                }}
+              >
+                <Archive className="h-4 w-4 mr-2" />Archivia invece
+              </Button>
+            )}
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground"
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+            >
+              Elimina definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {priceAdjustOpen && (
+        <BulkPriceAdjustDialog
+          open={priceAdjustOpen}
+          onClose={() => setPriceAdjustOpen(false)}
+          items={selectedItems}
+          isAdmin={isAdmin}
+          companyId={companyId}
+          onApplied={clearSelection}
+        />
+      )}
+
+      {usageTariffa && (
+        <TariffaUsageDialog
+          open={!!usageTariffa}
+          onClose={() => setUsageTariffa(null)}
+          tariffa={usageTariffa}
+        />
+      )}
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={(v) => !v && setBulkDeleteOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Elimina {selectedIds.size} {selectedIds.size === 1 ? "voce" : "voci"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione è irreversibile ed elimina definitivamente le voci selezionate.
+              Se preferisci puoi archiviarle: non saranno più selezionabili nei nuovi preventivi
+              ma potrai riattivarle in qualsiasi momento.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {/* #51 — Guardia: avvisa se le voci selezionate sono ancora collegate. */}
+          {bulkUsageLoading ? (
+            <div className="text-xs text-muted-foreground">Verifica dei collegamenti in corso…</div>
+          ) : bulkUsageTotal > 0 ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <div>
+                  <span className="font-medium">
+                    Le voci selezionate sono collegate complessivamente in {bulkUsageTotal}{" "}
+                    {bulkUsageTotal === 1 ? "punto" : "punti"}.
+                  </span>{" "}
+                  Eliminarle lascerà riferimenti vuoti (preventivi, bundle, listini…).
+                  Ti consigliamo di <span className="font-medium">archiviarle</span> invece di eliminarle.
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            {selectedAttiveCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  bulkSetAttivoMutation.mutate({
+                    ids: selectedItems.filter((t) => t.attivo !== false).map((t) => t.id),
+                    attivo: false,
+                  });
+                  setBulkDeleteOpen(false);
+                }}
+              >
+                <Archive className="h-4 w-4 mr-2" />Archivia invece
+              </Button>
+            )}
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground"
+              onClick={() => bulkDeleteMutation.mutate([...selectedIds])}
             >
               Elimina definitivamente
             </AlertDialogAction>

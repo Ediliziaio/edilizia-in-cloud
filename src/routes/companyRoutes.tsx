@@ -144,7 +144,6 @@ const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/Setti
 const AITestLab = lazy(() => import("@/pages/azienda/settings/AITestLab"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
 const SettingsTariffe = lazy(() => import("@/pages/azienda/settings/SettingsTariffe"));
-const ListinoManutenzione = lazy(() => import("@/pages/azienda/settings/ListinoManutenzione"));
 const SettingsFinanziamenti = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamenti"));
 const SettingsFinanziamentiNuova = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiNuova"));
 const SettingsFinanziamentiDetail = lazy(() => import("@/pages/azienda/settings/SettingsFinanziamentiDetail"));
@@ -191,6 +190,7 @@ const CashFlowForecast = lazy(() => import("@/pages/azienda/CashFlowForecast"));
 const Warehouse = lazy(() => import("@/pages/azienda/Warehouse"));
 const WarehouseManager = lazy(() => import("@/pages/azienda/WarehouseManager"));
 const CompanyCosts = lazy(() => import("@/pages/azienda/CompanyCosts"));
+const AnalisiAcquisti = lazy(() => import("@/pages/azienda/AnalisiAcquisti"));
 const Calendar = lazy(() => import("@/pages/azienda/Calendar"));
 const UnifiedTasks = lazy(() => import("@/pages/azienda/UnifiedTasks"));
 const AttivitaStaff = lazy(() => import("@/pages/azienda/AttivitaStaff"));
@@ -496,6 +496,7 @@ export default function CompanyRoutesContainer() {
         <Route path="impianti/:impiantoId/storico" element={withCompanyPermission("canViewManutenzione", <FeatureRoute featureKey="cantieri_avanzati"><StoricoImpianto /></FeatureRoute>)} />
         <Route path="previsionale" element={withCompanyPermission("canViewForecast", <CashFlowForecast />)} />
         <Route path="costi" element={withCompanyPermission("canViewCosts", <ErrorBoundary title="Errore nel caricamento costi"><CompanyCosts /></ErrorBoundary>)} />
+        <Route path="analisi-acquisti" element={withCompanyPermission("canViewCosts", <ErrorBoundary title="Errore nell'analisi acquisti"><AnalisiAcquisti /></ErrorBoundary>)} />
         
         <Route path="attivita" element={<AttivitaRouter />} />
         {/* Le pagine timbrature-personali, ferie-personali, cedolini-personali
@@ -790,7 +791,8 @@ export default function CompanyRoutesContainer() {
           <Route path="bundle-serramentista" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBundle />)} />
           <Route path="bundle" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBundle />)} />
           <Route path="tariffe" element={withCompanyPermission("canViewSettingsCustomization", <SettingsTariffe />)} />
-          <Route path="listino-manutenzione" element={withCompanyPermission("canViewSettingsCustomization", <ListinoManutenzione />)} />
+          {/* Listino Manutenzione accorpato nella pagina Tariffe (tab Manutenzione) */}
+          <Route path="listino-manutenzione" element={<Navigate to="../tariffe?tab=manutenzione" replace />} />
           {/* Finanziamenti — tabelle finanziarie + calcolatore (Phase A MVP) */}
           <Route path="finanziamenti" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFinanziamenti />)} />
           <Route path="finanziamenti/nuova" element={withCompanyPermission("canEditSettingsCustomization", <SettingsFinanziamentiNuova />)} />

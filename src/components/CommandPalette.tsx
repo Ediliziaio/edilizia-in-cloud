@@ -61,7 +61,7 @@ const ENTITY_LABEL: Record<string, { label: string; route: (id: string) => strin
   supplier:      { label: "Fornitore",     route: (_id) => `/azienda/impostazioni/fornitori` },
 };
 
-// ─── Tutte le 33 voci impostazioni per la ricerca Command Palette ─────────────
+// ─── Tutte le 34 voci impostazioni per la ricerca Command Palette ─────────────
 interface SettingsItem {
   label: string;
   path: string;
@@ -75,6 +75,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "White-Label",                path: "/azienda/impostazioni/branding" },
   { label: "Listino prodotti",           path: "/azienda/impostazioni/listino" },
   { label: "Manodopera e Servizi",       path: "/azienda/impostazioni/tariffe" },
+  { label: "Listino Manutenzione",       path: "/azienda/impostazioni/tariffe?tab=manutenzione" },
   { label: "Bundle & Pacchetti",         path: "/azienda/impostazioni/bundle-serramentista" },
   { label: "Preventivi & margini",       path: "/azienda/impostazioni/margini" },
   { label: "Stati ordine",               path: "/azienda/impostazioni/stati-ordine" },

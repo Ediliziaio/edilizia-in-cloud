@@ -223,12 +223,29 @@ Deno.serve(async (req) => {
     // Media handling
     let userContent = msg.content_text ?? "";
     if (msg.message_type === "audio" && msg.media_storage_path) {
+      // Bias di dominio: migliora la resa di Whisper su gergo e sigle di cantiere.
+      const promptCantiere =
+        "Messaggio vocale di cantiere edile in italiano. Termini possibili: rapportino, " +
+        "DDT, bolla, fornitore, commessa, cantiere, operai, ore, cappotto, ponteggio, " +
+        "massetto, getto, armatura, intonaco, posa, mq, ml, mc.";
       try {
-        const transcript = await transcribeAudio(supabase, msg.media_storage_path);
+        const transcript = (await transcribeAudio(supabase, msg.media_storage_path, promptCantiere)).trim();
+        // Vocale vuoto/incomprensibile: rispondo subito invece di passare testo vuoto all'AI.
+        if (transcript.length < 2) {
+          await sendReply(
+            msg,
+            "🎙️ Non sono riuscito a capire il vocale. Puoi ripeterlo parlando più vicino al telefono, oppure scrivermi il messaggio?",
+          );
+          return markDone(supabase, body.message_id, "processed");
+        }
         userContent = `[Audio trascritto]: ${transcript}`;
       } catch (e) {
         console.error(JSON.stringify({ level: "error", fn: "transcribe", error: String(e) }));
-        userContent = "[Audio non trascrivibile]";
+        await sendReply(
+          msg,
+          "🎙️ Non sono riuscito ad ascoltare il vocale (problema tecnico). Riprova tra poco oppure scrivimi il messaggio.",
+        );
+        return markDone(supabase, body.message_id, "failed", "transcribe_error");
       }
     } else if (msg.message_type === "image" && msg.media_url) {
       try {
@@ -335,6 +352,9 @@ Deno.serve(async (req) => {
         : ("bot_operativo_operaio" as const);
     const conv: ChatMessage[] = [...messages];
     let finalText: string | null = null;
+    // MP-P1 — true quando un tool (chiedi_conferma) ha già inviato una risposta
+    // interattiva: il sendReply testuale finale va saltato per non duplicare.
+    let replyHandled = false;
     let totalTokensIn = 0;
     let totalTokensOut = 0;
 
@@ -441,6 +461,21 @@ Deno.serve(async (req) => {
           content: JSON.stringify(r.result),
         });
       }
+
+      // MP-P1 — Se un tool ha prodotto una risposta interattiva (chiedi_conferma
+      // → data.__interactive), la inviamo subito e usciamo dal loop: nessuna
+      // nuova iterazione OpenAI, nessun sendReply testuale (replyHandled). La
+      // scelta dell'utente tornerà come prossimo messaggio inbound (il parser
+      // mappa button_reply/list_reply.title → content_text).
+      const interactivePayload = results
+        .map((r) => r.result as { ok?: boolean; data?: { __interactive?: unknown } })
+        .find((res) => res && res.ok === true && !!res.data?.__interactive)
+        ?.data?.__interactive;
+      if (interactivePayload) {
+        await sendInteractiveReply(msg, interactivePayload as Record<string, unknown>);
+        replyHandled = true;
+        break;
+      }
     }
 
     if (!finalText) finalText = STR.operaio.max_iterations;
@@ -466,7 +501,11 @@ Deno.serve(async (req) => {
       finalText = sanitizedReply.cleaned || finalText;
     }
 
-    await sendReply(msg, finalText);
+    // MP-P1 — Salta l'invio testuale se un tool ha già risposto in modo
+    // interattivo (bottoni/lista) in questo turno.
+    if (!replyHandled) {
+      await sendReply(msg, finalText);
+    }
 
     const costEur = estimateCostEur(model, totalTokensIn, totalTokensOut);
     await consumeBudget(supabase, msg.company_id, costEur);
@@ -760,6 +799,42 @@ async function sendReply(msg: MsgForSend, text: string): Promise<void> {
   } catch (e) {
     console.error(
       JSON.stringify({ level: "error", fn: "sendReply", error: String(e) }),
+    );
+  }
+}
+
+/**
+ * MP-P1 — invio di una risposta INTERATTIVA (bottoni/lista) via whatsapp-send.
+ * Stesso pattern auth/endpoint di sendReply, ma con type:"interactive". Il
+ * payload `interactive` arriva già formattato (buildInteractivePayload) dal tool
+ * chiedi_conferma; whatsapp-send valida interactive.type/body/action e lo
+ * inoltra a Meta. Best-effort: gli errori sono loggati ma non bloccano il flow.
+ */
+async function sendInteractiveReply(
+  msg: MsgForSend,
+  interactive: Record<string, unknown>,
+): Promise<void> {
+  const baseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  try {
+    await fetch(`${baseUrl}/functions/v1/whatsapp-send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        wa_number_id: msg.wa_number_id,
+        company_id: msg.company_id,
+        to: msg.from_phone,
+        type: "interactive",
+        interactive,
+      }),
+    });
+  } catch (e) {
+    console.error(
+      JSON.stringify({ level: "error", fn: "sendInteractiveReply", error: String(e) }),
     );
   }
 }

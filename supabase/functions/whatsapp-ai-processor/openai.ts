@@ -124,6 +124,7 @@ export async function callOpenAI(req: OpenAIRequest): Promise<OpenAIResponse> {
 export async function transcribeAudioWhisper(
   audioBytes: Uint8Array,
   filename = "audio.ogg",
+  prompt?: string,
 ): Promise<string> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) throw new Error("OPENAI_API_KEY non configurata");
@@ -134,6 +135,10 @@ export async function transcribeAudioWhisper(
   form.append("file", new Blob([audioBuffer]), filename);
   form.append("model", "whisper-1");
   form.append("language", "it");
+  // Bias verso il lessico di cantiere → meno errori su gergo/sigle (DDT, mq, ml…).
+  if (prompt && prompt.trim()) form.append("prompt", prompt.trim());
+  // Determinismo: stessa traccia → stessa trascrizione.
+  form.append("temperature", "0");
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 25_000);

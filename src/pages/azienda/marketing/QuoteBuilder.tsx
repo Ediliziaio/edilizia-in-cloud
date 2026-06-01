@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
+import { useGovernanceThresholds } from "@/hooks/useGovernanceThresholds";
+import { valutaApprovazionePreventivo } from "@/lib/governance/thresholds";
 import {
   useQuoteFormHydration,
   type ExistingQuoteForHydration,
@@ -307,6 +309,8 @@ export default function QuoteBuilder() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = role === "company_admin" || role === "super_admin";
+  // #40 Governance — soglie per-azienda (fallback a default su errore/tabella assente).
+  const { data: governanceCfg } = useGovernanceThresholds(companyId);
   /**
    * Sprint B — Varianti Costo Manodopera.
    * Flag legacy: le analisi margine inline (per-riga + totali admin + provvigione)
@@ -1346,6 +1350,15 @@ export default function QuoteBuilder() {
   const discountAmt = subtotal * (discountPercent / 100);
   const vatAmount = Object.values(totaliPro.iva_breakdown).reduce((s, v) => s + v, 0) * (1 - discountPercent / 100);
   const total = totaliPro.subtotale_netto + vatAmount;
+
+  // #40 Governance — valutazione (non bloccante) doppia approvazione sul netto.
+  const approvazioneEsito = useMemo(
+    () =>
+      governanceCfg
+        ? valutaApprovazionePreventivo(governanceCfg, totaliPro.subtotale_netto)
+        : null,
+    [governanceCfg, totaliPro.subtotale_netto],
+  );
 
   // FASE 11 Serramentisti — breakdown margine atteso (materiali + manodopera +
   // altri + overhead + provvigione commerciale). Visibile solo agli admin.
@@ -2877,6 +2890,20 @@ export default function QuoteBuilder() {
                 </div>
               </div>
             </div>
+
+            {/* #40 Governance — avviso NON bloccante doppia approvazione */}
+            {approvazioneEsito?.richiedeApprovazione && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="font-medium">Richiede doppia approvazione</p>
+                  <p className="text-xs mt-0.5">
+                    {approvazioneEsito.motivo} Puoi comunque salvare e inviare: è un controllo di
+                    governance, non un blocco.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Admin cost block — legacy (vedi /margini) */}
             {showInlineMargins && totaliPro.costo_totale > 0 && (

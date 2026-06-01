@@ -74,12 +74,13 @@ export async function uploadMediaToStorage(
 export async function transcribeAudio(
   supabase: SupabaseClient,
   storagePath: string,
+  prompt?: string,
 ): Promise<string> {
   const bucket = "whatsapp-media";
   const { data, error } = await supabase.storage.from(bucket).download(storagePath);
   if (error || !data) throw new Error(`Audio download failed: ${error?.message}`);
   const bytes = new Uint8Array(await data.arrayBuffer());
-  return transcribeAudioWhisper(bytes, storagePath.split("/").pop() ?? "audio.ogg");
+  return transcribeAudioWhisper(bytes, storagePath.split("/").pop() ?? "audio.ogg", prompt);
 }
 
 export async function analyzeImage(
