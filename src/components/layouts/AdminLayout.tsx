@@ -151,6 +151,7 @@ const allNavItems: AdminNavItem[] = [
 const adminMarketingNavItems: AdminNavItem[] = [
   { title: "Dashboard", url: "/admin/marketing", icon: BarChart3, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Contatti & Lead", url: "/admin/marketing/contatti", icon: Users, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
+  { title: "Lead Scraper", url: "/admin/marketing/lead-scraper", icon: Search, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Opportunità", url: "/admin/marketing/opportunita", icon: Target, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Calendario", url: "/admin/marketing/calendario", icon: CalendarDays, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Email Marketing", url: "/admin/marketing/email", icon: Mail, permission: "can_manage_marketing", subcategory: "sa_mkt_comunicazione" },

@@ -74,6 +74,7 @@ const AdminSettingsBankingOverview = lazy(() => import("@/pages/admin/settings/A
 const AdminSettingsAIUsage = lazy(() => import("@/pages/admin/settings/AdminSettingsAIUsage"));
 const AdminMarketingDashboard = lazy(() => import("@/pages/admin/marketing/AdminMarketingDashboard"));
 const AdminMarketingContacts = lazy(() => import("@/pages/admin/marketing/AdminMarketingContacts"));
+const AdminLeadScraper = lazy(() => import("@/pages/admin/marketing/AdminLeadScraper"));
 const AdminMarketingOpportunities = lazy(() => import("@/pages/admin/marketing/AdminMarketingOpportunities"));
 const AdminMarketingCalendar = lazy(() => import("@/pages/admin/marketing/AdminMarketingCalendar"));
 const AdminEmailMarketing = lazy(() => import("@/pages/admin/marketing/AdminEmailMarketing"));
@@ -319,6 +320,7 @@ export default function AdminRoutesContainer() {
         <Route path="marketing" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingDashboard /></RequireAdminPermission>} />
         <Route path="marketing/contatti" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContacts /></RequireAdminPermission>} />
         <Route path="marketing/contatti/:id" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContactDetail /></RequireAdminPermission>} />
+        <Route path="marketing/lead-scraper" element={<RequireAdminPermission permission="can_manage_marketing"><AdminLeadScraper /></RequireAdminPermission>} />
         <Route path="marketing/opportunita" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingOpportunities /></RequireAdminPermission>} />
         <Route path="marketing/calendario" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingCalendar /></RequireAdminPermission>} />
         <Route path="marketing/email" element={<RequireAdminPermission permission="can_manage_marketing"><AdminEmailMarketing /></RequireAdminPermission>} />
