@@ -452,6 +452,121 @@ async function proxycurlProfile(linkedinUrl: string, key: string): Promise<{ nam
   } catch { return null; }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// FONTI/ENRICHER ESTERNI A BASSO COSTO (tutti gated dietro chiave)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Serper.dev — Google Search API, ~$0.30/1000 (molto < Google CSE a scala). */
+async function serperSearch(query: string, key: string, num = 5): Promise<Array<{ title: string; link: string; snippet: string }>> {
+  const res = await fetchWithTimeout("https://google.serper.dev/search", {
+    timeoutMs: 10000,
+    method: "POST",
+    headers: { "X-API-KEY": key, "Content-Type": "application/json" },
+    body: JSON.stringify({ q: query, num, gl: "it", hl: "it" }),
+  });
+  const d = await res.json();
+  if (d.message && !d.organic) throw new Error(`Serper: ${d.message}`);
+  return (d.organic || []).map((o: { title: string; link: string; snippet: string }) => ({
+    title: o.title, link: o.link, snippet: o.snippet,
+  }));
+}
+
+/** Apollo.io — People Search per ICP (titolo + settore + Italia). Free tier + crediti economici. */
+async function apolloPeopleSearch(opts: { titles: string[]; keyword: string; location: string; perPage: number }, key: string): Promise<Array<any>> {
+  const body: Record<string, unknown> = {
+    person_titles: opts.titles,
+    person_locations: [opts.location || "Italy"],
+    q_organization_keyword_tags: [opts.keyword],
+    page: 1,
+    per_page: Math.min(50, opts.perPage),
+  };
+  const res = await fetchWithTimeout("https://api.apollo.io/api/v1/mixed_people/search", {
+    timeoutMs: 15000,
+    method: "POST",
+    headers: { "X-Api-Key": key, "Content-Type": "application/json", "Cache-Control": "no-cache" },
+    body: JSON.stringify(body),
+  });
+  const d = await res.json();
+  if (res.status >= 400) throw new Error(`Apollo: ${d.error || d.message || res.status}`);
+  return d.people || d.contacts || [];
+}
+
+/** Apollo People Match — recupera l'email reale di una persona (1 credito). */
+async function apolloEnrich(opts: { first_name?: string; last_name?: string; organization_name?: string; domain?: string }, key: string): Promise<{ email?: string; phone?: string; linkedin?: string } | null> {
+  try {
+    const res = await fetchWithTimeout("https://api.apollo.io/api/v1/people/match", {
+      timeoutMs: 12000,
+      method: "POST",
+      headers: { "X-Api-Key": key, "Content-Type": "application/json", "Cache-Control": "no-cache" },
+      body: JSON.stringify({ ...opts, reveal_personal_emails: false }),
+    });
+    const d = await res.json();
+    const p = d.person;
+    if (!p) return null;
+    const email = p.email && !/email_not_unlocked/i.test(p.email) ? p.email : undefined;
+    const phone = p.phone_numbers?.[0]?.sanitized_number || p.organization?.phone || undefined;
+    return { email, phone, linkedin: p.linkedin_url };
+  } catch { return null; }
+}
+
+/** Apify — Google Maps Scraper actor (ritorna anche le email, che Places API non dà). */
+async function apifyGoogleMaps(opts: { keyword: string; city: string; max: number }, token: string): Promise<Array<any>> {
+  const input = {
+    searchStringsArray: [`${opts.keyword} ${opts.city}`.trim()],
+    maxCrawledPlacesPerSearch: Math.min(120, opts.max),
+    language: "it",
+    scrapeContacts: true,
+  };
+  // run-sync-get-dataset-items: esegue l'actor e ritorna i risultati in un colpo
+  const res = await fetchWithTimeout(
+    `https://api.apify.com/v2/acts/compass~crawler-google-places/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,
+    { timeoutMs: 120000, method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) },
+  );
+  if (res.status >= 400) {
+    const t = await res.text();
+    throw new Error(`Apify: ${res.status} ${t.slice(0, 120)}`);
+  }
+  return await res.json();
+}
+
+/** People Data Labs — person enrich (email/telefono da nome + azienda). Free 100/mese. */
+async function pdlEnrich(opts: { first_name?: string; last_name?: string; company?: string }, key: string): Promise<{ email?: string; phone?: string } | null> {
+  try {
+    const params = new URLSearchParams();
+    if (opts.first_name) params.set("first_name", opts.first_name);
+    if (opts.last_name) params.set("last_name", opts.last_name);
+    if (opts.company) params.set("company", opts.company);
+    params.set("min_likelihood", "6");
+    const res = await fetchWithTimeout(`https://api.peopledatalabs.com/v5/person/enrich?${params}`, {
+      timeoutMs: 12000, headers: { "X-Api-Key": key },
+    });
+    const d = await res.json();
+    if (d.status !== 200 || !d.data) return null;
+    const email = d.data.work_email || d.data.emails?.[0]?.address || undefined;
+    const phone = d.data.phone_numbers?.[0] || d.data.mobile_phone || undefined;
+    return { email, phone };
+  } catch { return null; }
+}
+
+/** Verifica deliverability email via provider (NeverBounce o ZeroBounce). Pochi millesimi/email. */
+async function verifyEmailProvider(email: string, provider: string, key: string): Promise<"valid" | "invalid" | "unknown"> {
+  try {
+    if (provider === "zerobounce") {
+      const res = await fetchWithTimeout(`https://api.zerobounce.net/v2/validate?api_key=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}`, { timeoutMs: 10000 });
+      const d = await res.json();
+      if (d.status === "valid") return "valid";
+      if (d.status === "invalid") return "invalid";
+      return "unknown";
+    }
+    // default: NeverBounce
+    const res = await fetchWithTimeout(`https://api.neverbounce.com/v4/single/check?key=${encodeURIComponent(key)}&email=${encodeURIComponent(email)}`, { timeoutMs: 10000 });
+    const d = await res.json();
+    if (d.result === "valid") return "valid";
+    if (d.result === "invalid" || d.result === "disposable") return "invalid";
+    return "unknown";
+  } catch { return "unknown"; }
+}
+
 // ── Google Maps: Text Search paginata (fino a ~60 risultati) ──────────────────
 interface GPlace {
   place_id: string;
@@ -590,11 +705,13 @@ Deno.serve(async (req) => {
 
       // ── LinkedIn (persone) via Google Custom Search — free tier 100/giorno ──
       if (source === "linkedin") {
+        // Serper.dev è preferito (≈$0.30/1000, più economico); fallback su Google CSE (gratis 100/g)
+        const serperKey = await getPlatformSetting("serper_api_key", "SERPER_API_KEY");
         const cseKey = await getPlatformSetting("google_cse_api_key", "GOOGLE_CSE_API_KEY");
         const cseCx = await getPlatformSetting("google_cse_cx", "GOOGLE_CSE_CX");
-        if (!cseKey || !cseCx) {
+        if (!serperKey && !(cseKey && cseCx)) {
           return errorResponse(
-            "Fonte LinkedIn non configurata: imposta google_cse_api_key + google_cse_cx (Google Programmable Search) in platform_settings. È gratuita fino a 100 ricerche/giorno.",
+            "Fonte LinkedIn non configurata: imposta serper_api_key (Serper.dev, ≈$0.30/1000) OPPURE google_cse_api_key + google_cse_cx (Google Programmable Search, gratis 100/giorno).",
             400, corsH,
           );
         }
@@ -604,7 +721,7 @@ Deno.serve(async (req) => {
         const q = `site:linkedin.com/in/ ${keyword} ${city}`.trim();
         let items: Array<{ title: string; link: string; snippet: string }>;
         try {
-          items = await googleCseSearch(q, cseKey, cseCx);
+          items = serperKey ? await serperSearch(q, serperKey, 10) : await googleCseSearch(q, cseKey, cseCx);
         } catch (e) {
           return errorResponse(`Ricerca LinkedIn fallita: ${(e as Error).message}`, 502, corsH);
         }
@@ -642,6 +759,101 @@ Deno.serve(async (req) => {
         if (rErr) return errorResponse(`Errore salvataggio lead: ${rErr.message}`, 500, corsH);
 
         return jsonResponse({ searchId: searchRow.id, count: (inserted || []).length, results: inserted || [] }, 200, corsH);
+      }
+
+      // ── Apollo.io (decisori + email) — free tier + crediti economici ──
+      if (source === "apollo") {
+        const apolloKey = await getPlatformSetting("apollo_api_key", "APOLLO_API_KEY");
+        if (!apolloKey) return errorResponse("Fonte Apollo non configurata: imposta apollo_api_key (apollo.io — free tier + crediti a basso costo).", 400, corsH);
+        const keyword = String(body.keyword || "").trim();
+        const city = String(body.city || "").trim();
+        const titles = Array.isArray(body.titles) && body.titles.length
+          ? body.titles.map(String)
+          : ["owner", "ceo", "founder", "titolare", "amministratore", "general manager"];
+        const perPage = Math.max(1, Math.min(50, Number(body.maxResults) || 25));
+        let people: any[];
+        try {
+          people = await apolloPeopleSearch({ titles, keyword: keyword || "construction", location: city || "Italy", perPage }, apolloKey);
+        } catch (e) {
+          return errorResponse(`Ricerca Apollo fallita: ${(e as Error).message}`, 502, corsH);
+        }
+        const rows = people.map((p: any) => {
+          const org = p.organization || {};
+          const email = p.email && !/email_not_unlocked/i.test(p.email) ? String(p.email).toLowerCase() : null;
+          const name = p.name || [p.first_name, p.last_name].filter(Boolean).join(" ") || null;
+          const base = {
+            source: "apollo",
+            business_name: org.name || name || "Lead",
+            contact_name: name,
+            role: p.title || null,
+            email,
+            email_status: email ? "found" : null,
+            website: org.website_url || (org.primary_domain ? `https://${org.primary_domain}` : null),
+            linkedin_url: p.linkedin_url || null,
+            city: p.city || city || null,
+            country: "IT",
+            raw: { apollo_id: p.id, org_domain: org.primary_domain },
+          };
+          const dk = email ? `p:${email}` : (p.linkedin_url ? `li:${p.linkedin_url}` : `n:${(base.business_name + (name || "")).toLowerCase()}`);
+          return { ...base, dedupe_key: dk };
+        });
+        const seenK = new Set<string>();
+        const uniq = rows.filter((r) => (seenK.has(r.dedupe_key) ? false : (seenK.add(r.dedupe_key), true)));
+        const { data: searchRow, error: sErr } = await supabaseAdmin.from("lead_scraper_searches").insert({
+          created_by: userId, source: "apollo",
+          label: body.label || `Apollo · ${keyword || "edili"}${city ? " · " + city : ""}`,
+          query: { keyword, city, titles }, status: "completed", results_count: uniq.length,
+        }).select("id").single();
+        if (sErr) return errorResponse(`Errore salvataggio ricerca: ${sErr.message}`, 500, corsH);
+        const { data: inserted, error: rErr } = await supabaseAdmin.from("lead_scraper_results")
+          .upsert(uniq.map((r) => ({ ...r, search_id: searchRow.id })), { onConflict: "search_id,dedupe_key", ignoreDuplicates: true }).select("*");
+        if (rErr) return errorResponse(`Errore salvataggio lead: ${rErr.message}`, 500, corsH);
+        return jsonResponse({ searchId: searchRow.id, count: (inserted || []).length, withEmail: (inserted || []).filter((r: any) => r.email).length, results: inserted || [] }, 200, corsH);
+      }
+
+      // ── Apify Google Maps actor (business + email) — $5 free/mese ──
+      if (source === "apify_maps") {
+        const apifyToken = await getPlatformSetting("apify_api_token", "APIFY_API_TOKEN");
+        if (!apifyToken) return errorResponse("Fonte Apify non configurata: imposta apify_api_token (apify.com — $5 free/mese).", 400, corsH);
+        const keyword = String(body.keyword || "").trim();
+        const city = String(body.city || "").trim();
+        if (!keyword) return errorResponse("Parametro 'keyword' obbligatorio.", 400, corsH);
+        const max = Math.max(1, Math.min(120, Number(body.maxResults) || 30));
+        let items: any[];
+        try {
+          items = await apifyGoogleMaps({ keyword, city, max }, apifyToken);
+        } catch (e) {
+          return errorResponse(`Apify fallito: ${(e as Error).message}`, 502, corsH);
+        }
+        const rows = (items || []).map((p: any) => {
+          const email = Array.isArray(p.emails) && p.emails[0] ? String(p.emails[0]).toLowerCase() : null;
+          const base = {
+            source: "apify_maps",
+            business_name: p.title || p.name || "Lead",
+            phone: p.phone || p.phoneUnformatted || null,
+            website: p.website || null,
+            address: p.address || null,
+            city: p.city || city || null,
+            country: "IT",
+            place_id: p.placeId || null,
+            rating: typeof p.totalScore === "number" ? p.totalScore : null,
+            reviews_count: typeof p.reviewsCount === "number" ? p.reviewsCount : null,
+            email, email_status: email ? "found" : null,
+          };
+          return { ...base, dedupe_key: dedupeKey(base) };
+        });
+        const seenK = new Set<string>();
+        const uniq = rows.filter((r) => (r.business_name && !seenK.has(r.dedupe_key) ? (seenK.add(r.dedupe_key), true) : false)).slice(0, max);
+        const { data: searchRow, error: sErr } = await supabaseAdmin.from("lead_scraper_searches").insert({
+          created_by: userId, source: "apify_maps",
+          label: body.label || `Apify Maps · ${keyword}${city ? " · " + city : ""}`,
+          query: { keyword, city, max }, status: "completed", results_count: uniq.length,
+        }).select("id").single();
+        if (sErr) return errorResponse(`Errore salvataggio ricerca: ${sErr.message}`, 500, corsH);
+        const { data: inserted, error: rErr } = await supabaseAdmin.from("lead_scraper_results")
+          .upsert(uniq.map((r) => ({ ...r, search_id: searchRow.id })), { onConflict: "search_id,dedupe_key", ignoreDuplicates: true }).select("*");
+        if (rErr) return errorResponse(`Errore salvataggio lead: ${rErr.message}`, 500, corsH);
+        return jsonResponse({ searchId: searchRow.id, count: (inserted || []).length, withEmail: (inserted || []).filter((r: any) => r.email).length, withPhone: (inserted || []).filter((r: any) => r.phone).length, results: inserted || [] }, 200, corsH);
       }
 
       if (source !== "google_maps") {
@@ -1093,10 +1305,12 @@ Deno.serve(async (req) => {
     if (action === "find_linkedin") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      // Serper preferito (più economico); fallback CSE
+      const serperKey = await getPlatformSetting("serper_api_key", "SERPER_API_KEY");
       const cseKey = await getPlatformSetting("google_cse_api_key", "GOOGLE_CSE_API_KEY");
       const cseCx = await getPlatformSetting("google_cse_cx", "GOOGLE_CSE_CX");
-      if (!cseKey || !cseCx) {
-        return errorResponse("Configura google_cse_api_key + google_cse_cx per cercare LinkedIn (gratis fino a 100/giorno).", 400, corsH);
+      if (!serperKey && !(cseKey && cseCx)) {
+        return errorResponse("Configura serper_api_key (≈$0.30/1000) o google_cse_api_key + google_cse_cx (gratis 100/g) per cercare LinkedIn.", 400, corsH);
       }
 
       const { data: leads, error } = await supabaseAdmin
@@ -1106,11 +1320,11 @@ Deno.serve(async (req) => {
       if (error) return errorResponse(error.message, 500, corsH);
 
       let found = 0;
-      // sequenziale: rispetta la quota CSE
+      // sequenziale: rispetta la quota
       for (const l of (leads || []).filter((x: any) => !x.linkedin_url)) {
         const q = `site:linkedin.com/in/ "${l.business_name}" ${l.city || ""} (titolare OR amministratore OR CEO OR fondatore OR owner)`.trim();
         try {
-          const items = await googleCseSearch(q, cseKey, cseCx);
+          const items = serperKey ? await serperSearch(q, serperKey, 5) : await googleCseSearch(q, cseKey, cseCx);
           const hit = items.find((it) => /linkedin\.com\/in\//i.test(it.link));
           if (hit) {
             const { name, role } = parseLinkedinTitle(hit.title);
@@ -1309,6 +1523,94 @@ Deno.serve(async (req) => {
         if (!insErr) enrolled++;
       }
       return jsonResponse({ enrolled, skipped, sequence: seq.nome }, 200, corsH);
+    }
+
+    // ════════════════════ ENRICH APOLLO (email/telefono decisore) ════════════════════
+    if (action === "enrich_apollo") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      const apolloKey = await getPlatformSetting("apollo_api_key", "APOLLO_API_KEY");
+      if (!apolloKey) return errorResponse("Configura apollo_api_key per l'arricchimento Apollo.", 400, corsH);
+
+      const { data: leads, error } = await supabaseAdmin
+        .from("lead_scraper_results")
+        .select("id, business_name, contact_name, website, email, phone, linkedin_url")
+        .in("id", ids);
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      let enriched = 0;
+      for (const l of (leads || [])) {
+        if (l.email) continue;
+        const parts = (l.contact_name || "").trim().split(/\s+/);
+        let domain: string | undefined;
+        try { if (l.website) domain = new URL(l.website.startsWith("http") ? l.website : `https://${l.website}`).hostname.replace(/^www\./, ""); } catch { /* */ }
+        const res = await apolloEnrich({ first_name: parts[0], last_name: parts.slice(1).join(" ") || undefined, organization_name: l.business_name, domain }, apolloKey);
+        if (res && (res.email || res.phone)) {
+          await supabaseAdmin.from("lead_scraper_results").update({
+            email: l.email || res.email || null,
+            email_status: l.email ? undefined : (res.email ? "found" : undefined),
+            phone: l.phone || res.phone || null,
+            linkedin_url: l.linkedin_url || res.linkedin || null,
+          }).eq("id", l.id);
+          enriched++;
+        }
+      }
+      return jsonResponse({ enriched, attempted: (leads || []).length }, 200, corsH);
+    }
+
+    // ════════════════════ ENRICH PDL (People Data Labs) ════════════════════
+    if (action === "enrich_pdl") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      const pdlKey = await getPlatformSetting("pdl_api_key", "PDL_API_KEY");
+      if (!pdlKey) return errorResponse("Configura pdl_api_key (People Data Labs — free 100/mese).", 400, corsH);
+
+      const { data: leads, error } = await supabaseAdmin
+        .from("lead_scraper_results")
+        .select("id, business_name, contact_name, email, phone")
+        .in("id", ids);
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      let enriched = 0;
+      await poolMap((leads || []).filter((l: any) => l.contact_name && !l.email), 4, async (l: any) => {
+        const parts = String(l.contact_name).trim().split(/\s+/);
+        const res = await pdlEnrich({ first_name: parts[0], last_name: parts.slice(1).join(" ") || undefined, company: l.business_name }, pdlKey);
+        if (res && (res.email || res.phone)) {
+          await supabaseAdmin.from("lead_scraper_results").update({
+            email: l.email || res.email || null,
+            email_status: l.email ? undefined : (res.email ? "found" : undefined),
+            phone: l.phone || res.phone || null,
+          }).eq("id", l.id);
+          enriched++;
+        }
+      });
+      return jsonResponse({ enriched, attempted: (leads || []).length }, 200, corsH);
+    }
+
+    // ════════════════════ VERIFY EMAIL (NeverBounce/ZeroBounce) ════════════════════
+    if (action === "verify_email") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      const provider = (await getPlatformSetting("email_verify_provider", "EMAIL_VERIFY_PROVIDER")) || "neverbounce";
+      const vkey = await getPlatformSetting("email_verify_api_key", "EMAIL_VERIFY_API_KEY");
+      if (!vkey) return errorResponse("Configura email_verify_api_key (+ opz. email_verify_provider: neverbounce|zerobounce).", 400, corsH);
+
+      const { data: leads, error } = await supabaseAdmin
+        .from("lead_scraper_results").select("id, email, email_status").in("id", ids);
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      let valid = 0, invalid = 0;
+      await poolMap((leads || []).filter((l: any) => l.email), 5, async (l: any) => {
+        const r = await verifyEmailProvider(l.email, provider, vkey);
+        if (r === "valid") {
+          await supabaseAdmin.from("lead_scraper_results").update({ email_status: "verified" }).eq("id", l.id);
+          valid++;
+        } else if (r === "invalid") {
+          await supabaseAdmin.from("lead_scraper_results").update({ email: null, email_status: "invalid" }).eq("id", l.id);
+          invalid++;
+        }
+      });
+      return jsonResponse({ valid, invalid, attempted: (leads || []).filter((l: any) => l.email).length }, 200, corsH);
     }
 
     return errorResponse(`Azione sconosciuta: ${action}`, 400, corsH);

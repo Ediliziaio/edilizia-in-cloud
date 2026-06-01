@@ -8,7 +8,7 @@ import {
   Search, MapPin, Linkedin, Building2, Loader2, Sparkles, Mail, Phone,
   Globe, Star, Download, UserPlus, Trash2, Target, ChevronRight,
   Wand2, Facebook, Instagram, Flame, FileText, Grid3x3, Upload, MessageSquareQuote, ShieldBan, EyeOff,
-  MessageCircle, Send, Pencil, SlidersHorizontal,
+  MessageCircle, Send, Pencil, SlidersHorizontal, Rocket, Bot, BadgeCheck, ChevronDown, Database,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 // ── tipi ──────────────────────────────────────────────────────────────────────
 interface LeadResult {
@@ -76,8 +77,10 @@ interface LeadSearch {
 }
 
 const SOURCES = [
-  { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email" },
-  { id: "linkedin", label: "LinkedIn", icon: Linkedin, active: true, hint: "Decisori via Google CSE (gratis 100/giorno)" },
+  { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email (gratis)" },
+  { id: "apify_maps", label: "Apify Maps", icon: Bot, active: true, hint: "Google Maps via Apify: include le email. $5 free/mese (apify_api_token)" },
+  { id: "linkedin", label: "LinkedIn", icon: Linkedin, active: true, hint: "Decisori via Serper (≈$0.30/1000) o Google CSE (gratis 100/g)" },
+  { id: "apollo", label: "Apollo", icon: Rocket, active: true, hint: "Decisori + email (apollo.io). Free tier + crediti economici (apollo_api_key)" },
   { id: "explorium", label: "Explorium", icon: Building2, active: false, hint: "150M+ aziende — richiede explorium_api_key" },
 ] as const;
 
@@ -346,7 +349,7 @@ export default function AdminLeadScraper() {
     onError: (e: Error) => toast.error("Email finder fallito", { description: e.message }),
   });
 
-  // LinkedIn finder: trova il profilo del decisore via Google CSE
+  // LinkedIn finder: trova il profilo del decisore via Serper/CSE
   const findLinkedinMutation = useMutation({
     mutationFn: (resultIds: string[]) => batchInvoke("Ricerca LinkedIn", "find_linkedin", resultIds, 8),
     onSuccess: (data) => {
@@ -354,6 +357,32 @@ export default function AdminLeadScraper() {
       toast.success(`${data.found} profili LinkedIn trovati`, { description: `su ${data.attempted} lead` });
     },
     onError: (e: Error) => toast.error("Ricerca LinkedIn fallita", { description: e.message }),
+  });
+
+  // Provider esterni a basso costo (gated)
+  const enrichApolloMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Apollo enrich", "enrich_apollo", resultIds, 10),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.enriched} arricchiti con Apollo`, { description: `su ${data.attempted} lead` });
+    },
+    onError: (e: Error) => toast.error("Apollo fallito", { description: e.message }),
+  });
+  const enrichPdlMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("PDL enrich", "enrich_pdl", resultIds, 10),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.enriched} arricchiti con PDL`, { description: `su ${data.attempted} lead` });
+    },
+    onError: (e: Error) => toast.error("PDL fallito", { description: e.message }),
+  });
+  const verifyEmailMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Verifica email", "verify_email", resultIds, 15),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.valid} email valide`, { description: data.invalid ? `${data.invalid} non valide rimosse` : undefined });
+    },
+    onError: (e: Error) => toast.error("Verifica email fallita", { description: e.message }),
   });
 
   const pushMutation = useMutation({
@@ -490,7 +519,8 @@ export default function AdminLeadScraper() {
   const busy = searchMutation.isPending || qualifyMutation.isPending || deepEnrichMutation.isPending ||
     findEmailMutation.isPending || findLinkedinMutation.isPending || pushMutation.isPending ||
     outreachMutation.isPending || suppressMutation.isPending || importMutation.isPending ||
-    enrollMutation.isPending || progress !== null;
+    enrollMutation.isPending || enrichApolloMutation.isPending || enrichPdlMutation.isPending ||
+    verifyEmailMutation.isPending || progress !== null;
 
   // ── filtri + ordinamento ──────────────────────────────────────────────────────
   const visibleResults = useMemo(() => {
@@ -780,10 +810,30 @@ export default function AdminLeadScraper() {
                 <Button size="sm" variant="outline" className="gap-1.5"
                   disabled={busy || selectedIds.length === 0}
                   onClick={() => findLinkedinMutation.mutate(selectedIds)}
-                  title="Trova il LinkedIn del decisore (Google CSE)">
+                  title="Trova il LinkedIn del decisore (Serper/CSE)">
                   {findLinkedinMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Linkedin className="h-3.5 w-3.5" />}
                   LinkedIn
                 </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="gap-1.5" disabled={busy || selectedIds.length === 0}>
+                      <Database className="h-3.5 w-3.5" /> Provider <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuLabel className="text-[11px]">Provider esterni (a basso costo)</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => enrichApolloMutation.mutate(selectedIds)}>
+                      <Rocket className="h-3.5 w-3.5 mr-2" /> Apollo — email decisore
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => enrichPdlMutation.mutate(selectedIds)}>
+                      <Database className="h-3.5 w-3.5 mr-2" /> People Data Labs — email/tel
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => verifyEmailMutation.mutate(selectedIds)}>
+                      <BadgeCheck className="h-3.5 w-3.5 mr-2" /> Verifica email (deliverability)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button size="sm" variant="outline" className="gap-1.5" disabled={busy}
                   onClick={() => qualifyMutation.mutate(selectedIds.length ? selectedIds : undefined)}
                   title="Punteggio AI 0-100 vs ICP">
